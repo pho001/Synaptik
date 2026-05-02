@@ -205,6 +205,7 @@ class PreparedMetalExecutableBufferBindingTest {
         Fixture fixture = fixture();
         FakeBridge bridge = new FakeBridge(true);
         PreparedMetalExecutable executable = executable(fixture, bridge);
+        assertTrue(executable.preparedTransportPlan().contains("preferredPath=BUFFER_BINDING"));
         fixture.state().attachDeviceBufferBinding(
                 fixture.inputNode().id(),
                 binding(fixture.inputNode().id(), MetalBufferAccess.READ, 8),
@@ -333,6 +334,8 @@ class PreparedMetalExecutableBufferBindingTest {
                         new AcceleratorBufferConfig(AcceleratorBufferBindingMode.REQUIRE, true, 0)
                 )
         );
+        assertTrue(executable.preparedTransportPlan().contains("preferredPath=UNAVAILABLE_REQUIRED"));
+        assertTrue(executable.preparedTransportPlan().contains("reasonCode=NATIVE_BUFFER_ABI_UNAVAILABLE"));
 
         IllegalStateException failure = assertThrows(IllegalStateException.class, () -> executable.execute(fixture.context()));
 

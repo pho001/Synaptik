@@ -1,11 +1,13 @@
 package backend.accelerator.exec;
 
 import backend.cpu.kernels.CpuNodeExecutionPlan;
+import backend.cpu.plan.CpuPreparedInput;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
 import tensor.Tensor;
+import tensor.TensorRemap;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -54,11 +56,9 @@ public final class AcceleratorPreparedInputResolver {
 
             List<Tensor> resolvedConsumerInputs = resolvedInputsByConsumer.computeIfAbsent(
                     site.consumerNode().id(),
-                    ignored -> resolveConsumerInputs(site.consumerNode(), site.metadata(), context)
+                    ignored -> new ArrayList<>(PreparedAcceleratorExecutionSupport.resolveRuntimeInputs(site.consumerNode(), context))
             );
-            Tensor execution = site.consumerInputIndex() < resolvedConsumerInputs.size()
-                    ? resolvedConsumerInputs.get(site.consumerInputIndex())
-                    : original;
+            Tensor execution = resolveConsumerInput(site, resolvedConsumerInputs, original, context);
             boolean preparedUsed = execution != original;
             executions.add(execution);
             prepared.add(preparedUsed);
@@ -100,26 +100,36 @@ public final class AcceleratorPreparedInputResolver {
         return new ResolvedAcceleratorInputs(externalIds, originals, originals, prepared, sites);
     }
 
-    private static List<Tensor> resolveConsumerInputs(
-            CompiledNode consumerNode,
-            CompiledNodeExecutionMetadata metadata,
+    private static Tensor resolveConsumerInput(
+            InputSite site,
+            List<Tensor> resolvedConsumerInputs,
+            Tensor original,
             ExecutionContext context
     ) {
-        CpuNodeExecutionPlan cpuPlan = metadata == null ? null : metadata.cpuPlan();
-        List<Tensor> originalInputs = PreparedAcceleratorExecutionSupport.resolveRuntimeInputs(consumerNode, context);
-        if (cpuPlan == null) {
-            return originalInputs;
+        if (site == null || resolvedConsumerInputs == null || site.consumerInputIndex() >= resolvedConsumerInputs.size()) {
+            return original;
         }
-        for (var preparedInput : cpuPlan.layoutPlan().preparedInputs()) {
-            int inputIndex = preparedInput.inputIndex();
-            if (inputIndex >= 0 && inputIndex < consumerNode.inputIds().size()) {
-                context.requireCpuReadable(
-                        consumerNode.inputIds().get(inputIndex),
-                        CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT
-                );
+        CpuNodeExecutionPlan cpuPlan = site.metadata() == null ? null : site.metadata().cpuPlan();
+        if (cpuPlan == null || cpuPlan.layoutPlan().preparedInputs().isEmpty()) {
+            return resolvedConsumerInputs.get(site.consumerInputIndex());
+        }
+        for (CpuPreparedInput preparedInput : cpuPlan.layoutPlan().preparedInputs()) {
+            if (preparedInput.inputIndex() != site.consumerInputIndex()) {
+                continue;
             }
+            context.requireCpuReadable(site.externalInputNodeId(), CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT);
+            Tensor runtimePrepared = context.preparedInputTensorFor(site.consumerNode().id(), preparedInput.inputIndex());
+            TensorRemap.applyTrusted(
+                    original,
+                    runtimePrepared,
+                    preparedInput.remapPlan(),
+                    cpuPlan.layoutPlan().materializeThreshold()
+            );
+            context.mirrorRuntimeState(original, runtimePrepared);
+            resolvedConsumerInputs.set(preparedInput.inputIndex(), runtimePrepared);
+            return runtimePrepared;
         }
-        return cpuPlan.apply(consumerNode.id(), originalInputs, context);
+        return resolvedConsumerInputs.get(site.consumerInputIndex());
     }
 
     private static InputSite findInputSite(
@@ -130,13 +140,14 @@ public final class AcceleratorPreparedInputResolver {
             CompiledNode node = step.node();
             int inputIndex = node.inputIds().indexOf(externalInputNodeId);
             if (inputIndex >= 0) {
-                return new InputSite(node, step.metadata(), inputIndex);
+                return new InputSite(externalInputNodeId, node, step.metadata(), inputIndex);
             }
         }
         return null;
     }
 
     private record InputSite(
+            int externalInputNodeId,
             CompiledNode consumerNode,
             CompiledNodeExecutionMetadata metadata,
             int consumerInputIndex

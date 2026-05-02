@@ -37,12 +37,15 @@ import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tensor.TensorPrimitiveBuilder;
+import tensor.options.AttentionOptions;
 import tensor.options.Conv2dOptions;
+import tensor.options.Pool2dOptions;
 
 import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -194,7 +197,7 @@ class CudaRegionLowererTest {
     }
 
     @Test
-    void cudaUnsupportedReductionUsesSharedUnsupportedReason() {
+    void cudaReductionIsPlannerSupported() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaReductionInput", DataType.FLOAT32);
         Tensor out = input.sum(1);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
@@ -202,12 +205,11 @@ class CudaRegionLowererTest {
         PartitionPlanningContext context = planningContext(out);
         String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(context.compiledNode(nodeId(context, operations.Operation.OpType.SUM)), context);
 
-        assertTrue(reason.contains("UNSUPPORTED_OPERATION"));
-        assertTrue(reason.contains("operation SUM is not supported by GPU_CUDA lowering"));
+        assertEquals("", reason);
     }
 
     @Test
-    void cudaUnsupportedNormalizationUsesSharedUnsupportedReason() {
+    void cudaSupportedNormalizationUsesSharedCoverageReason() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaNormInput", DataType.FLOAT32);
         Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "cudaNormGamma", DataType.FLOAT32);
         Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "cudaNormBeta", DataType.FLOAT32);
@@ -217,8 +219,76 @@ class CudaRegionLowererTest {
         PartitionPlanningContext context = planningContext(out);
         String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(context.compiledNode(nodeId(context, operations.Operation.OpType.LAYER_NORM)), context);
 
-        assertTrue(reason.contains("DEFERRED_FUSED_REGION"));
-        assertTrue(reason.contains("operation LAYER_NORM is not supported by GPU_CUDA lowering"));
+        assertEquals("", reason);
+    }
+
+    @Test
+    void cudaDirectForwardSdpaRemainsCapabilityMissingUntilNativeEvidenceExists() {
+        Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaSdpaQ", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaSdpaK", DataType.FLOAT32);
+        Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cudaSdpaV", DataType.FLOAT32);
+        Tensor out = q.scaledDotProductAttention(k, v, AttentionOptions.defaults().withScale(0.5));
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        PartitionPlanningContext context = planningContext(out);
+        String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                context.compiledNode(nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION)),
+                context
+        );
+
+        assertTrue(reason.contains("CAPABILITY_MISSING"));
+        assertTrue(reason.contains("CUDA direct forward SDPA"));
+        assertTrue(reason.contains("target=transformer_block_hot_path"));
+        assertFalse(GpuLoweringCoverageMatrix.isSupported(ComputeBackend.GPU_CUDA, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
+    }
+
+    @Test
+    void cudaMaskedForwardSdpaUsesStableMaskRejectionReason() {
+        Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaMaskedSdpaQ", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaMaskedSdpaK", DataType.FLOAT32);
+        Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cudaMaskedSdpaV", DataType.FLOAT32);
+        Tensor mask = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{1, 2, 2}, null, "cudaMaskedSdpaMask", DataType.BOOL);
+        Tensor out = q.scaledDotProductAttention(k, v, mask, AttentionOptions.defaults().withScale(0.5));
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        PartitionPlanningContext context = planningContext(out);
+        String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                context.compiledNode(nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION)),
+                context
+        );
+
+        assertTrue(reason.contains("UNSUPPORTED_MASK_SEMANTICS"));
+        assertTrue(reason.contains("BOOL mask semantics"));
+    }
+
+    @Test
+    void cudaForwardSdpaReportsDtypeAndLayoutBeforeCapabilityMissing() {
+        Tensor q64 = new Tensor(new double[]{1d, 0d, 0d, 1d}, new int[]{1, 2, 2}, null, "cudaSdpaQ64", DataType.FLOAT64);
+        Tensor k64 = new Tensor(new double[]{1d, 0d, 0d, 1d}, new int[]{1, 2, 2}, null, "cudaSdpaK64", DataType.FLOAT64);
+        Tensor v64 = new Tensor(new double[]{10d, 1d, 1d, 10d}, new int[]{1, 2, 2}, null, "cudaSdpaV64", DataType.FLOAT64);
+        Tensor dtypeOut = q64.scaledDotProductAttention(k64, v64, AttentionOptions.defaults().withScale(0.5));
+        TensorInternalAccess.setBackend(dtypeOut, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext dtypeContext = planningContext(dtypeOut);
+
+        String dtypeReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                dtypeContext.compiledNode(nodeId(dtypeContext, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION)),
+                dtypeContext
+        );
+        assertTrue(dtypeReason.contains("UNSUPPORTED_DTYPE"));
+
+        Tensor baseQ = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaSdpaBaseQ", DataType.FLOAT32);
+        Tensor qView = baseQ.permute(0, 2, 1);
+        Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaSdpaDenseK", DataType.FLOAT32);
+        Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cudaSdpaDenseV", DataType.FLOAT32);
+        Tensor layoutOut = qView.scaledDotProductAttention(k, v, AttentionOptions.defaults().withScale(0.5));
+        TensorInternalAccess.setBackend(layoutOut, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext layoutContext = planningContext(layoutOut);
+
+        String layoutReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                layoutContext.compiledNode(nodeId(layoutContext, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION)),
+                layoutContext
+        );
+        assertTrue(layoutReason.contains("UNSUPPORTED_LAYOUT"));
     }
 
     @Test
@@ -244,7 +314,7 @@ class CudaRegionLowererTest {
         PartitionPlanningContext context = planningContext(out);
         String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(context.compiledNode(nodeId(context, operations.Operation.OpType.CROSS_ENTROPY_LOSS_INDICES)), context);
 
-        assertTrue(reason.contains("UNSUPPORTED_DTYPE"));
+        assertTrue(reason.contains("UNSUPPORTED_INDEX_SEMANTICS"));
         assertTrue(reason.contains("operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_CUDA lowering"));
     }
 
@@ -275,19 +345,8 @@ class CudaRegionLowererTest {
         PartitionPlanningContext sumContext = planningContext(sum);
         PartitionPlanningContext meanContext = planningContext(mean);
 
-        String sumReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(sumContext.compiledNode(nodeId(sumContext, Operation.OpType.SUM)), sumContext);
-        String meanReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(meanContext.compiledNode(nodeId(meanContext, Operation.OpType.MEAN)), meanContext);
-
-        assertContainsAll(sumReason,
-                "REDUCTION_ADJACENT",
-                "family=REDUCTION",
-                "target=layer_norm_small",
-                "operation SUM is not supported by GPU_CUDA lowering");
-        assertContainsAll(meanReason,
-                "REDUCTION_ADJACENT",
-                "family=REDUCTION",
-                "target=layer_norm_small",
-                "operation MEAN is not supported by GPU_CUDA lowering");
+        assertEquals("", CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(sumContext.compiledNode(nodeId(sumContext, Operation.OpType.SUM)), sumContext));
+        assertEquals("", CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(meanContext.compiledNode(nodeId(meanContext, Operation.OpType.MEAN)), meanContext));
 
         Tensor normInput = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaPhase17NormInput", DataType.FLOAT32);
         Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "cudaPhase17NormGamma", DataType.FLOAT32);
@@ -302,16 +361,8 @@ class CudaRegionLowererTest {
         String layerNormReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(layerNormContext.compiledNode(nodeId(layerNormContext, Operation.OpType.LAYER_NORM)), layerNormContext);
         String rmsNormReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(rmsNormContext.compiledNode(nodeId(rmsNormContext, Operation.OpType.RMS_NORM)), rmsNormContext);
 
-        assertContainsAll(layerNormReason,
-                "REDUCTION_ADJACENT",
-                "family=NORMALIZATION",
-                "target=layer_norm_small",
-                "operation LAYER_NORM is not supported by GPU_CUDA lowering");
-        assertContainsAll(rmsNormReason,
-                "REDUCTION_ADJACENT",
-                "family=NORMALIZATION",
-                "target=layer_norm_small",
-                "operation RMS_NORM is not supported by GPU_CUDA lowering");
+        assertEquals("", layerNormReason);
+        assertEquals("", rmsNormReason);
     }
 
     @Test
@@ -383,7 +434,7 @@ class CudaRegionLowererTest {
     }
 
     @Test
-    void rejectsSumReductionWithStableCoverageReason() {
+    void supportsSumReductionWithStableCoverageReason() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaStableReductionInput", DataType.FLOAT32);
         Tensor out = input.sum(1);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
@@ -391,11 +442,11 @@ class CudaRegionLowererTest {
         PartitionPlanningContext context = planningContext(out);
         String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(context.compiledNode(nodeId(context, operations.Operation.OpType.SUM)), context);
 
-        assertTrue(reason.contains("UNSUPPORTED_OPERATION"));
+        assertEquals("", reason);
     }
 
     @Test
-    void rejectsLayerNormWithStableCoverageReason() {
+    void acceptsLayerNormWithStableCoverageReason() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaStableNormInput", DataType.FLOAT32);
         Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "cudaStableNormGamma", DataType.FLOAT32);
         Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "cudaStableNormBeta", DataType.FLOAT32);
@@ -405,7 +456,7 @@ class CudaRegionLowererTest {
         PartitionPlanningContext context = planningContext(out);
         String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(context.compiledNode(nodeId(context, operations.Operation.OpType.LAYER_NORM)), context);
 
-        assertTrue(reason.contains("DEFERRED_FUSED_REGION"));
+        assertEquals("", reason);
     }
 
     @Test
@@ -418,7 +469,74 @@ class CudaRegionLowererTest {
         PartitionPlanningContext context = planningContext(out);
         String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(context.compiledNode(nodeId(context, operations.Operation.OpType.CROSS_ENTROPY_LOSS_INDICES)), context);
 
-        assertTrue(reason.contains("UNSUPPORTED_DTYPE"));
+        assertTrue(reason.contains("UNSUPPORTED_INDEX_SEMANTICS"));
+    }
+
+    @Test
+    void phaseTwentySixIndexFamilyUsesStableCoverageReasons() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cudaPhase26IndexInput", DataType.FLOAT32);
+        Tensor gatherIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "cudaPhase26GatherIndices", DataType.INT32);
+        Tensor gather = input.gather(gatherIndices, 1);
+        TensorInternalAccess.setBackend(gather, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext gatherContext = planningContext(gather);
+        String gatherReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(gatherContext.compiledNode(nodeId(gatherContext, Operation.OpType.GATHER)), gatherContext);
+
+        Tensor takeIndices = new Tensor(new int[]{2, 1, 0, 0}, new int[]{2, 2}, null, "cudaPhase26TakeIndices", DataType.INT32);
+        Tensor take = input.takeAlongAxis(takeIndices, 1);
+        TensorInternalAccess.setBackend(take, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext takeContext = planningContext(take);
+        String takeReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(takeContext.compiledNode(nodeId(takeContext, Operation.OpType.TAKE_ALONG_AXIS)), takeContext);
+
+        Tensor base = new Tensor(new float[]{10f, 20f, 30f, 40f, 50f, 60f}, new int[]{2, 3}, null, "cudaPhase26ScatterBase", DataType.FLOAT32);
+        Tensor scatterIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "cudaPhase26ScatterIndices", DataType.INT32);
+        Tensor src = new Tensor(new float[]{1f, 5f}, new int[]{2}, null, "cudaPhase26ScatterSrc", DataType.FLOAT32);
+        Tensor scatter = base.scatterAdd(scatterIndices, src, 1);
+        TensorInternalAccess.setBackend(scatter, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext scatterContext = planningContext(scatter);
+        String scatterReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(scatterContext.compiledNode(nodeId(scatterContext, Operation.OpType.SCATTER_ADD)), scatterContext);
+
+        assertContainsAll(gatherReason, "DAG_PRIMITIVE_UNSUPPORTED", "operation GATHER", "family=INDEX_SCATTER_GATHER");
+        assertContainsAll(takeReason, "DAG_PRIMITIVE_UNSUPPORTED", "operation TAKE_ALONG_AXIS", "family=INDEX_SCATTER_GATHER");
+        assertContainsAll(scatterReason, "UNSUPPORTED_DUPLICATE_INDEX", "operation SCATTER_ADD", "family=INDEX_SCATTER_GATHER");
+    }
+
+    @Test
+    void cudaPhaseTwentySevenBoolCompareAndPoolUseStableCoverageReasons() {
+        Tensor left = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaPhase27CompareLeft", DataType.FLOAT32);
+        Tensor right = new Tensor(new float[]{2f, 2f, 2f, 2f}, new int[]{2, 2}, null, "cudaPhase27CompareRight", DataType.FLOAT32);
+        Tensor compare = left.notEqualTo(right);
+        TensorInternalAccess.setBackend(compare, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext compareContext = planningContext(compare);
+        String compareReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                compareContext.compiledNode(nodeId(compareContext, Operation.OpType.NE)),
+                compareContext
+        );
+
+        Tensor poolInput = new Tensor(new float[]{
+                1f, 2f, 3f, 4f,
+                5f, 6f, 7f, 8f,
+                9f, 10f, 11f, 12f,
+                13f, 14f, 15f, 16f
+        }, new int[]{1, 1, 4, 4}, null, "cudaPhase27PoolInput", DataType.FLOAT32);
+        Tensor maxPool = poolInput.maxPool2d(Pool2dOptions.square(2));
+        Tensor avgPool = poolInput.avgPool2d(Pool2dOptions.square(2));
+        TensorInternalAccess.setBackend(maxPool, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(avgPool, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext maxPoolContext = planningContext(maxPool);
+        PartitionPlanningContext avgPoolContext = planningContext(avgPool);
+
+        String maxPoolReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                maxPoolContext.compiledNode(nodeId(maxPoolContext, Operation.OpType.MAX_POOL2D)),
+                maxPoolContext
+        );
+        String avgPoolReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                avgPoolContext.compiledNode(nodeId(avgPoolContext, Operation.OpType.AVG_POOL2D)),
+                avgPoolContext
+        );
+
+        assertContainsAll(compareReason, "UNSUPPORTED_DTYPE", "operation NE", "family=COMPARE_BOOL", "BOOL output");
+        assertContainsAll(maxPoolReason, "CAPABILITY_MISSING", "operation MAX_POOL2D", "family=CONV_POOL", "target=max_pool2d_small");
+        assertContainsAll(avgPoolReason, "CAPABILITY_MISSING", "operation AVG_POOL2D", "family=CONV_POOL");
     }
 
     @Test

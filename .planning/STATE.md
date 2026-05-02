@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.3
-milestone_name: Coverage-Driven GPU Region Expansion
-status: ready_for_next_milestone
-last_updated: "2026-05-01T13:05:00.000Z"
-last_activity: 2026-05-01 -- v1.3 archived; ready for next milestone planning
+milestone: v1.4
+milestone_name: Native GPU Operation Coverage Closure
+status: archived
+last_updated: "2026-05-02T12:00:00.000Z"
+last_activity: 2026-05-02 -- v1.4 milestone archived
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 30
-  completed_plans: 30
+  total_phases: 7
+  completed_phases: 7
+  total_plans: 26
+  completed_plans: 26
   percent: 100
 ---
 
@@ -17,7 +17,7 @@ progress:
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Planning next milestone
+**Current focus:** No active milestone — ready for `$gsd-new-milestone`
 
 ## Project Reference
 
@@ -35,10 +35,15 @@ Completed milestones:
 - v1.1 CUDA Native Runtime - shipped 2026-04-30
 - v1.2 GPU Region Coverage - shipped 2026-05-01
 - v1.3 Coverage-Driven GPU Region Expansion - shipped 2026-05-01
+- v1.4 Native GPU Operation Coverage Closure - shipped 2026-05-02
 
 Current milestone:
 
-- None. Start the next milestone with `$gsd-new-milestone`.
+- none
+
+Recently completed milestone:
+
+- v1.4 Native GPU Operation Coverage Closure - shipped 2026-05-02
 
 ## Codebase Map
 
@@ -68,6 +73,13 @@ Planning agents should read the relevant codebase map documents before proposing
 
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
+| 22 — Coverage Truth And Semantics Lock | Archived | 3/3 | Verified |
+| 23 — Forward Reductions Native Execution | Archived | 3/3 | Verified |
+| 24 — Normalization GPU Lowering | Archived | 4/4 | Verified |
+| 25 — Forward SDPA Semantic Enablement | Archived | 4/4 | Verified |
+| 26 — Loss-Adjacent And Indexing GPU Coverage | Archived | 4/4 | Verified |
+| 27 — Conv Pool And Bool Compare Outputs | Archived | 4/4 | Verified |
+| 28 — Coverage Regression Closure | Archived | 4/4 | Verified |
 | 14 — Coverage Gap Triage And Hot Path Targets | Archived | 4/4 | Verified |
 | 15 — GPU Region Internal Lowered DAG Contract | Archived | 4/4 | Verified |
 | 16 — DType And Storage Residency Expansion | Archived | 4/4 | Verified |
@@ -148,6 +160,22 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-01 | Phase 17 execution plans completed | Phase 17 plans 17-01 through 17-04 passed focused verification, validation evidence, docs closure, and profile artifact hygiene. |
 | 2026-05-01 | Phase 17 verification passed | Shared coverage rows, backend rejection detail, softmax/loss trace evidence, CPU parity, docs, code review, regression, and source hygiene passed. |
 | 2026-05-01 | Phase 18 execution plans completed | GPU fused subpattern trace/report evidence, elementwise and epilogue subregions, CPU fused isolation, docs, and profile artifact hygiene passed focused gates. |
+| 2026-05-01 | Phase 23 execution completed | Shared reduction DAG lowering, Metal MPSGraph reductions, CUDA dense FLOAT32 reductions, keep-dims metadata, and coverage gates passed focused verification. |
+| 2026-05-01 | Phase 24 planning completed | Normalization GPU lowering plans split shared sub-DAG contract, native primitive execution, planner admission, and parity/coverage closure. |
+| 2026-05-01 | Phase 24 execution completed | LayerNorm and RMSNorm now lower to shared normalization DAGs, Metal/CUDA native primitives support epsilon and broadcast execution, coverage rows are supported for legal FLOAT32 cases, and parity/coverage gates passed. |
+| 2026-05-01 | Phase 24 verification passed | Security, Nyquist validation, requirement verification, focused Java gates, and native Metal gate passed; CUDA native compile remains hardware/toolchain-gated because `nvcc` is unavailable locally. |
+| 2026-05-01 | Phase 25 context captured in auto mode | Forward SDPA admission is semantics-first: unmasked/masked cases are separate, Metal requires verified CPU parity before MPSGraph admission, and CUDA remains explicit support-or-rejection rather than mirrored Metal support. |
+| 2026-05-01 | Phase 25 planning completed | Four plans cover SDPA semantics/parity, Metal admission or stable rejection, CUDA support-or-rejection, and transformer coverage/report closure. |
+| 2026-05-01 | Phase 25-01 completed | Forward SDPA contract now exposes Phase 25 dtype/rank/shape/scale/mask boundaries, stable prefixed Metal rejection reasons, parity tests, and docs while keeping support matrix status unchanged. |
+| 2026-05-01 | Phase 25-02 completed | Metal direct unmasked forward SDPA is admitted through a verified MPSGraph primitive DAG, masked SDPA remains explicitly rejected, and native executable signatures now include scalar DAG bits. |
+| 2026-05-01 | Phase 25-03 completed | CUDA direct forward SDPA remains a stable `CAPABILITY_MISSING` fallback with mask, dtype, and layout diagnostics plus prepared-execution CPU parity evidence. |
+| 2026-05-01 | Phase 25-04 completed | Transformer SDPA coverage gates now require Metal native evidence and expect visible CUDA `CAPABILITY_MISSING` fallback evidence; profile artifacts remain unstaged. |
+| 2026-05-01 | Phase 25 verification passed | Code review was clean, verifier confirmed 5/5 must-haves and GPUSDPA-01/02/03 complete; native CUDA remains toolchain-gated because `nvcc` is unavailable. |
+| 2026-05-02 | Phase 27 security and validation passed | Conv/pool and BOOL output support-or-rejection coverage has `threats_open: 0` and Nyquist-compliant automated evidence without claiming native conv/pool or native BOOL-producing GPU compute. |
+| 2026-05-02 | Phase 28 planning completed | Four plans cover target policy hardening, supported-family regression gates, final coverage report evidence, and milestone audit readiness for GPUCLOSE-01/02/03. |
+| 2026-05-02 | Phase 28 verification passed | Target coverage policies, hard regression gates, suite report coverage deltas, docs, Metal native gate, and artifact hygiene satisfy GPUCLOSE-01/02/03. |
+| 2026-05-02 | v1.4 closure evidence normalized | Added missing Phase 22/23 verification, security, and validation artifacts plus Phase 25/26 security and Nyquist frontmatter so milestone audit can verify every active phase consistently. |
+| 2026-05-02 | v1.4 milestone archived | Native GPU Operation Coverage Closure archives were written under `.planning/milestones/`; fresh requirements should be defined for the next milestone. |
 
 ## Recent Sessions
 
@@ -205,11 +233,11 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-01 | Completed and verified Phase 17 | Ready for `$gsd-discuss-phase 18 --auto` or `$gsd-plan-phase 18 --auto` | .planning/milestones/v1.3-phases/17-normalization-reduction-and-loss-adjacent-lowering/17-VERIFICATION.md |
 
 ---
-*Last updated: 2026-05-01 after v1.3 milestone audit gap planning*
+*Last updated: 2026-05-02 after v1.4 milestone archive*
 
 ## Current Position
 
-Phase: 21
-Plan: 21-01 evidence closure complete
-Status: Milestone complete; v1.3 audit passed
-Last activity: 2026-05-01
+Phase: none
+Plan: none
+Status: v1.4 archived; ready for `$gsd-new-milestone`
+Last activity: 2026-05-02 — v1.4 milestone archived

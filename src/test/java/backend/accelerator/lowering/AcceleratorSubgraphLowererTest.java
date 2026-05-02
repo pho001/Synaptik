@@ -12,6 +12,7 @@ import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorPrimitiveBuilder;
 
 import java.util.List;
 
@@ -375,12 +376,14 @@ class AcceleratorSubgraphLowererTest {
     @Test
     void phaseNineteenUnsupportedInternalPrimitiveRecordsCandidateShortening() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "phase19ShortenInput", DataType.FLOAT32);
+        Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "phase19ShortenGamma", DataType.FLOAT32);
+        Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "phase19ShortenBeta", DataType.FLOAT32);
         Tensor relu = input.relu();
-        Tensor out = relu.sum(1);
+        Tensor out = relu.layerNorm(gamma, beta, 1.0e-5);
         PartitionPlanningContext context = planningContext(out);
         int reluNodeId = nodeId(context, Operation.OpType.RELU);
-        int sumNodeId = nodeId(context, Operation.OpType.SUM);
-        List<Integer> selectedNodeIds = List.of(reluNodeId, sumNodeId);
+        int layerNormNodeId = nodeId(context, Operation.OpType.LAYER_NORM);
+        List<Integer> selectedNodeIds = List.of(reluNodeId, layerNormNodeId);
 
         AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLowerShortenedCandidate(
                 ComputeBackend.GPU_CUDA,
@@ -389,10 +392,10 @@ class AcceleratorSubgraphLowererTest {
                         selectedNodeIds,
                         List.of(
                                 new AcceleratorSubgraphOp(reluNodeId, Operation.OpType.RELU),
-                                new AcceleratorSubgraphOp(sumNodeId, Operation.OpType.SUM)
+                                new AcceleratorSubgraphOp(layerNormNodeId, Operation.OpType.LAYER_NORM)
                         ),
                         externalInputNodeIds(context, selectedNodeIds),
-                        List.of(sumNodeId)
+                        List.of(layerNormNodeId)
                 ),
                 context
         );
@@ -402,19 +405,142 @@ class AcceleratorSubgraphLowererTest {
         assertEquals(GpuLoweringUnsupportedReason.DAG_CANDIDATE_SHORTENED, result.manifest().candidateSpan().reason());
         assertEquals(selectedNodeIds, result.manifest().candidateSpan().originalCandidateNodeIds());
         assertEquals(List.of(reluNodeId), result.manifest().candidateSpan().acceptedNodeIds());
-        assertEquals(sumNodeId, result.manifest().candidateSpan().rejectedOriginalNodeId());
+        assertEquals(layerNormNodeId, result.manifest().candidateSpan().rejectedOriginalNodeId());
         assertTrue(result.manifest().rejections().stream()
                 .anyMatch(rejection -> rejection.reason() == GpuLoweringUnsupportedReason.DAG_CANDIDATE_SHORTENED));
     }
 
     @Test
-    void sumReductionStillRejectsWhenNoAcceleratorDagTypeExists() {
+    void forwardReductionLowersWithAxisAndKeepDimsMetadata() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "sumInput", DataType.FLOAT32);
-        Tensor out = input.sum(1);
+        Tensor out = input.sum(1, true);
         PartitionPlanningContext context = planningContext(out);
         CompiledNode node = context.compiledNode(nodeId(context, Operation.OpType.SUM));
 
-        assertNull(new AcceleratorSubgraphLowerer().tryLower(spec(node), context));
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(spec(node), context);
+
+        assertNotNull(result);
+        assertEquals(AcceleratorDagNodeType.SUM, result.dagSpec().nodes().getFirst().type());
+        int scalar = result.dagSpec().nodes().getFirst().scalarValueBits();
+        assertEquals(1, scalar & 0xFFFF);
+        assertTrue((scalar & (1 << 16)) != 0);
+    }
+
+    @Test
+    void layerNormLowersToReductionAndElementwiseDagWithEpsilonMetadata() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "layerNormDagInput", DataType.FLOAT32);
+        Tensor gamma = new Tensor(new float[]{1f, 1f, 1f}, new int[]{3}, null, "layerNormDagGamma", DataType.FLOAT32);
+        Tensor beta = new Tensor(new float[]{0f, 0f, 0f}, new int[]{3}, null, "layerNormDagBeta", DataType.FLOAT32);
+        Tensor out = input.layerNorm(gamma, beta, 1.0e-5);
+        PartitionPlanningContext context = planningContext(out);
+        CompiledNode node = context.compiledNode(nodeId(context, Operation.OpType.LAYER_NORM));
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(ComputeBackend.GPU_METAL, spec(node), context);
+
+        assertNotNull(result);
+        List<AcceleratorDagNodeType> types = result.dagSpec().nodes().stream()
+                .map(nodeSpec -> nodeSpec.type())
+                .toList();
+        assertTrue(types.contains(AcceleratorDagNodeType.MEAN));
+        assertTrue(types.contains(AcceleratorDagNodeType.SUB));
+        assertTrue(types.contains(AcceleratorDagNodeType.MUL));
+        assertTrue(types.contains(AcceleratorDagNodeType.ADD_SCALAR));
+        assertTrue(types.contains(AcceleratorDagNodeType.SQRT));
+        assertTrue(types.contains(AcceleratorDagNodeType.INV));
+        assertTrue(types.contains(AcceleratorDagNodeType.ADD));
+        assertEquals(2, types.stream().filter(type -> type == AcceleratorDagNodeType.MEAN).count());
+        assertEquals(Float.floatToIntBits(1.0e-5f), result.dagSpec().nodes().stream()
+                .filter(nodeSpec -> nodeSpec.type() == AcceleratorDagNodeType.ADD_SCALAR)
+                .findFirst()
+                .orElseThrow()
+                .scalarValueBits());
+        assertEquals(node.inputIds(), result.dagSpec().externalInputs().stream()
+                .map(inputSpec -> inputSpec.nodeId())
+                .toList());
+        assertEquals(GpuCompoundPatternType.NORMALIZATION, result.manifest().fusedSummary().patternType());
+        assertTrue(result.manifest().fusedSummary().supported());
+        assertEquals(1, result.manifest().originalOps().size());
+        assertTrue(result.manifest().originalOps().getFirst().loweredPrimitiveIds().size() > 1);
+    }
+
+    @Test
+    void rmsNormLowersToMeanEpsilonSqrtInvAndGammaScale() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "rmsNormDagInput", DataType.FLOAT32);
+        Tensor gamma = new Tensor(new float[]{1f, 1f, 1f}, new int[]{3}, null, "rmsNormDagGamma", DataType.FLOAT32);
+        Tensor out = input.rmsNorm(gamma, 1.0e-4);
+        PartitionPlanningContext context = planningContext(out);
+        CompiledNode node = context.compiledNode(nodeId(context, Operation.OpType.RMS_NORM));
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(ComputeBackend.GPU_CUDA, spec(node), context);
+
+        assertNotNull(result);
+        List<AcceleratorDagNodeType> types = result.dagSpec().nodes().stream()
+                .map(nodeSpec -> nodeSpec.type())
+                .toList();
+        assertTrue(types.contains(AcceleratorDagNodeType.MEAN));
+        assertTrue(types.contains(AcceleratorDagNodeType.MUL));
+        assertTrue(types.contains(AcceleratorDagNodeType.ADD_SCALAR));
+        assertTrue(types.contains(AcceleratorDagNodeType.SQRT));
+        assertTrue(types.contains(AcceleratorDagNodeType.INV));
+        assertEquals(AcceleratorDagNodeType.MUL, result.dagSpec().nodes().getLast().type());
+        assertEquals(Float.floatToIntBits(1.0e-4f), result.dagSpec().nodes().stream()
+                .filter(nodeSpec -> nodeSpec.type() == AcceleratorDagNodeType.ADD_SCALAR)
+                .findFirst()
+                .orElseThrow()
+                .scalarValueBits());
+        assertEquals(node.inputIds(), result.dagSpec().externalInputs().stream()
+                .map(inputSpec -> inputSpec.nodeId())
+                .toList());
+        assertEquals(GpuCompoundPatternType.NORMALIZATION, result.manifest().fusedSummary().patternType());
+    }
+
+    @Test
+    void layerNormMultiAxisUsesRepeatedKeepDimsMeansFromLastAxisDown() {
+        Tensor input = new Tensor(new float[64], new int[]{2, 4, 8, 1}, null, "layerNormMultiAxisInput", DataType.FLOAT32);
+        Tensor gamma = new Tensor(new float[8], new int[]{8, 1}, null, "layerNormMultiAxisGamma", DataType.FLOAT32);
+        Tensor beta = new Tensor(new float[8], new int[]{8, 1}, null, "layerNormMultiAxisBeta", DataType.FLOAT32);
+        Tensor out = input.layerNorm(gamma, beta, 1.0e-5);
+        PartitionPlanningContext context = planningContext(out);
+        CompiledNode node = context.compiledNode(nodeId(context, Operation.OpType.LAYER_NORM));
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(spec(node), context);
+
+        assertNotNull(result);
+        List<Integer> meanModes = result.dagSpec().nodes().stream()
+                .filter(nodeSpec -> nodeSpec.type() == AcceleratorDagNodeType.MEAN)
+                .map(nodeSpec -> nodeSpec.scalarValueBits())
+                .toList();
+        assertEquals(List.of(
+                (3 & 0xFFFF) | (1 << 16),
+                (2 & 0xFFFF) | (1 << 16),
+                (3 & 0xFFFF) | (1 << 16),
+                (2 & 0xFFFF) | (1 << 16)
+        ), meanModes);
+        assertTrue(result.dagSpec().nodes().stream()
+                .filter(nodeSpec -> nodeSpec.type() == AcceleratorDagNodeType.MEAN)
+                .allMatch(nodeSpec -> nodeSpec.outputRank() == 4));
+    }
+
+    @Test
+    void normalizationRejectsUnsupportedParameterShapeBeforeBackendAdmission() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "badNormInput", DataType.FLOAT32);
+        Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "badNormGamma", DataType.FLOAT32);
+        Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "badNormBeta", DataType.FLOAT32);
+        Tensor out = TensorPrimitiveBuilder.ternary(
+                input,
+                gamma,
+                beta,
+                input.getShape().clone(),
+                new operations.normalization.layerNorm(1, 1.0e-5),
+                "badLayerNorm",
+                DataType.FLOAT32
+        );
+        PartitionPlanningContext context = planningContext(out);
+        CompiledNode node = context.compiledNode(nodeId(context, Operation.OpType.LAYER_NORM));
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(spec(node), context);
+
+        assertNull(result);
     }
 
     private static AcceleratorSubgraphSpec spec(CompiledNode node) {

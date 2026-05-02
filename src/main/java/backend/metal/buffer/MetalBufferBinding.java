@@ -55,10 +55,17 @@ public record MetalBufferBinding(
         if (!source.available()) {
             throw new IllegalArgumentException("source binding is unavailable: " + source.describe());
         }
+        MetalBufferHandle viewHandle = new MetalBufferHandle(
+                source.handle().nativeHandle(),
+                source.handle().byteLength(),
+                source.handle().storageMode(),
+                source.handle().owner() + ":logical-view",
+                false
+        );
         return new MetalBufferBinding(
                 nodeId,
                 layout,
-                source.handle(),
+                viewHandle,
                 access == null ? source.access() : access
         );
     }

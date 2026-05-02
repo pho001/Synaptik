@@ -20,6 +20,7 @@ import java.util.List;
  * @param ops source operation kinds in subgraph order
  * @param externalInputShapes dtype and shape descriptors for external inputs
  * @param dagNodeTypes lowered DAG node kinds
+ * @param dagNodeScalarValueBits lowered DAG scalar parameters
  * @param dagNodeShapes lowered DAG output shape descriptors
  * @param postOps cache-stable matmul post-op signatures
  * @param outputNodeIds compiled-node ids produced by the partition
@@ -28,6 +29,7 @@ public record AcceleratorSubgraphSignature(
         List<Operation.OpType> ops,
         List<String> externalInputShapes,
         List<AcceleratorDagNodeType> dagNodeTypes,
+        List<Integer> dagNodeScalarValueBits,
         List<String> dagNodeShapes,
         List<AcceleratorPostOpSignature> postOps,
         List<Integer> outputNodeIds
@@ -36,6 +38,7 @@ public record AcceleratorSubgraphSignature(
         ops = List.copyOf(ops == null ? List.of() : ops);
         externalInputShapes = List.copyOf(externalInputShapes == null ? List.of() : externalInputShapes);
         dagNodeTypes = List.copyOf(dagNodeTypes == null ? List.of() : dagNodeTypes);
+        dagNodeScalarValueBits = List.copyOf(dagNodeScalarValueBits == null ? List.of() : dagNodeScalarValueBits);
         dagNodeShapes = List.copyOf(dagNodeShapes == null ? List.of() : dagNodeShapes);
         postOps = List.copyOf(postOps == null ? List.of() : postOps);
         outputNodeIds = List.copyOf(outputNodeIds == null ? List.of() : outputNodeIds);
@@ -53,6 +56,7 @@ public record AcceleratorSubgraphSignature(
                 ops,
                 dagSpec.externalInputs().stream().map(input -> input.dataType().name() + ":" + input.shape()).toList(),
                 dagSpec.nodes().stream().map(AcceleratorDagNode::type).toList(),
+                dagSpec.nodes().stream().map(AcceleratorDagNode::scalarValueBits).toList(),
                 dagSpec.nodes().stream().map(node ->
                         node.outputRank() + ":" + node.outputDim0() + ":" + node.outputDim1() + ":" + node.outputDim2() + ":" + node.outputDim3()
                 ).toList(),

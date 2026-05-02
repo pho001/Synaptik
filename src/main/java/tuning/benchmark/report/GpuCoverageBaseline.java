@@ -26,4 +26,14 @@ public record GpuCoverageBaseline(
         fallbackCount = Math.max(0, fallbackCount);
         deviceHandoffCount = Math.max(0, deviceHandoffCount);
     }
+
+    /**
+     * Deterministic v1.4 closure baseline used by reports to render coverage deltas without raw timing thresholds.
+     *
+     * @param backend accelerator backend name
+     * @return baseline requiring at least one selected region and no worse than one CPU exit/fallback boundary
+     */
+    public static GpuCoverageBaseline v14Closure(String backend) {
+        return new GpuCoverageBaseline("v1.4-pre-closure", backend, 1, 1, 1, 2);
+    }
 }

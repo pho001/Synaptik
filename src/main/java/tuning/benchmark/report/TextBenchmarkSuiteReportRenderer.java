@@ -75,12 +75,33 @@ public final class TextBenchmarkSuiteReportRenderer {
             sb.append("- backend=").append(entry.getKey())
                     .append(" gpuCoverageRatio=").append(formatDouble(coverage.gpuCoverageRatio()))
                     .append(" maxSelectedRegionLength=").append(coverage.maxSelectedRegionLength())
+                    .append(" loweredPrimitiveCount=").append(coverage.loweredPrimitiveCount())
+                    .append(" nativeBufferStepCount=").append(coverage.nativeBufferStepCount())
+                    .append(" tensorArrayStepCount=").append(coverage.tensorArrayStepCount())
+                    .append(" cpuFallbackStepCount=").append(coverage.cpuFallbackStepCount())
                     .append(" cpuMaterializationCount=").append(coverage.cpuMaterializationCount())
                     .append(" fallbackCount=").append(coverage.fallbackCount())
                     .append(" deviceHandoffCount=").append(coverage.deviceHandoffCount())
                     .append(" nativeEvidence=").append(nativeEvidence.nativeStatus())
                     .append(" nativeStatus=").append(nativeEvidence.nativeStatus())
                     .append(" capabilitySkipped=").append("capabilitySkipped".equals(nativeEvidence.nativeStatus()))
+                    .append('\n');
+            GpuCoverageComparison comparison = GpuCoverageComparison.compare(
+                    GpuCoverageBaseline.v14Closure(entry.getKey()),
+                    coverage
+            );
+            sb.append("  coverageDeltaVsBaseline baseline=").append(comparison.baselineName())
+                    .append(" passes=").append(comparison.passes())
+                    .append(" baselineMaxSelectedRegionLength=").append(comparison.baselineMaxSelectedRegionLength())
+                    .append(" currentMaxSelectedRegionLength=").append(comparison.currentMaxSelectedRegionLength())
+                    .append(" baselineCpuMaterializationCount=").append(comparison.baselineCpuMaterializationCount())
+                    .append(" currentCpuMaterializationCount=").append(comparison.currentCpuMaterializationCount())
+                    .append(" baselineFallbackCount=").append(comparison.baselineFallbackCount())
+                    .append(" currentFallbackCount=").append(comparison.currentFallbackCount())
+                    .append(" baselineDeviceHandoffCount=").append(comparison.baselineDeviceHandoffCount())
+                    .append(" currentDeviceHandoffCount=").append(comparison.currentDeviceHandoffCount())
+                    .append(" improvements=").append(comparison.improvements())
+                    .append(" regressions=").append(comparison.regressions())
                     .append('\n');
         }
         sb.append("\n");
@@ -96,9 +117,19 @@ public final class TextBenchmarkSuiteReportRenderer {
             var gate = targetGates.get(i);
             sb.append("- workload=").append(expectation.workloadName())
                     .append(" backend=").append(expectation.backend())
+                    .append(" nativeEvidenceRequired=").append(expectation.nativeEvidenceRequired())
+                    .append(" expectedVisibleReasons=").append(expectation.expectedVisibleReasons())
                     .append(" coverageGate")
                     .append(" gatePassed=").append(gate.passed())
                     .append(" gateFailures=").append(gate.failures())
+                    .append(" minGpuCoverageRatio=").append(expectation.policy().minGpuCoverageRatio())
+                    .append(" minMaxSelectedRegionLength=").append(expectation.policy().minMaxSelectedRegionLength())
+                    .append(" minLoweredPrimitiveCount=").append(expectation.policy().minLoweredPrimitiveCount())
+                    .append(" maxCpuMaterializationCount=").append(expectation.policy().maxCpuMaterializationCount())
+                    .append(" maxFallbackCount=").append(expectation.policy().maxFallbackCount())
+                    .append(" maxTensorArrayStepCount=").append(expectation.policy().maxTensorArrayStepCount())
+                    .append(" requireNativeBufferBinding=").append(expectation.policy().requireNativeBufferBinding())
+                    .append(" coverage=").append(formatCoverage(gate.coverage()))
                     .append('\n');
         }
         sb.append("\n");
@@ -137,6 +168,23 @@ public final class TextBenchmarkSuiteReportRenderer {
 
     private static String formatRatio(double ratio) {
         return Double.isFinite(ratio) ? String.format(Locale.US, "%.3fx", ratio) : "n/a";
+    }
+
+    private static String formatCoverage(GpuCoverageSummary.BackendCoverage coverage) {
+        if (coverage == null) {
+            return "missing";
+        }
+        return "gpuCoverageRatio=" + formatDouble(coverage.gpuCoverageRatio())
+                + ",maxSelectedRegionLength=" + coverage.maxSelectedRegionLength()
+                + ",loweredPrimitiveCount=" + coverage.loweredPrimitiveCount()
+                + ",nativeBufferStepCount=" + coverage.nativeBufferStepCount()
+                + ",tensorArrayStepCount=" + coverage.tensorArrayStepCount()
+                + ",cpuFallbackStepCount=" + coverage.cpuFallbackStepCount()
+                + ",cpuMaterializationCount=" + coverage.cpuMaterializationCount()
+                + ",fallbackCount=" + coverage.fallbackCount()
+                + ",deviceHandoffCount=" + coverage.deviceHandoffCount()
+                + ",reasonCodes=" + coverage.reasonCodes()
+                + ",fallbackReasons=" + coverage.fallbackReasons();
     }
 
     private static String colorize(String value) {

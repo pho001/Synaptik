@@ -9,17 +9,23 @@ import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
 import backend.accelerator.buffer.AcceleratorLayoutAbiV2Support;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
+import backend.accelerator.lowering.AcceleratorSubgraphLowerer;
 import backend.accelerator.lowering.AcceleratorSubgraphLoweringResult;
+import backend.accelerator.lowering.AcceleratorSubgraphSignature;
 import backend.memory.CpuMaterializationReason;
 import backend.metal.buffer.MetalBufferAllocator;
 import backend.metal.buffer.MetalBufferAccess;
 import backend.metal.buffer.MetalBufferBinding;
 import backend.metal.lowering.MetalPartitionPlan;
+import config.runtime.RuntimeConfig;
+import graph.CompiledNode;
+import graph.optimizer.partition.PartitionPlanningContext;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorMetadata;
+import tensor.options.AttentionOptions;
 
 import java.util.Arrays;
 import java.util.List;
@@ -147,6 +153,254 @@ class MetalMpsFfmBridgeTest {
     }
 
     @Test
+    void explicitShimExecuteBuffersSupportsKeepDimsReduction() {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalMpsBridgeExecutable executable = bridge.compile(
+                context,
+                reductionPlan(
+                        1,
+                        9,
+                        AcceleratorDagNodeType.SUM,
+                        Operation.OpType.SUM,
+                        1,
+                        true,
+                        new int[]{2, 3},
+                        new int[]{2, 1}
+                )
+        );
+        assumeTrue(executable.available(), executable.reason());
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        MetalBufferBinding input = null;
+        MetalBufferBinding output = null;
+        try {
+            input = allocator.createInputBinding(
+                    1,
+                    new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "reductionSource", DataType.FLOAT32)
+            );
+            output = allocator.createOutputBinding(9, denseF32Layout(new int[]{2, 1}));
+
+            MetalMpsBridgeExecutionStats stats = bridge.executeBuffers(context, executable, List.of(input), List.of(output));
+            Tensor destination = new Tensor(new float[]{0.0f, 0.0f}, new int[]{2, 1}, null, "reductionDestination", DataType.FLOAT32);
+            allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+
+            assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
+            assertArrayEquals(new float[]{6f, 15f}, destination.getFloat32Data(), 0.0f);
+        } finally {
+            if (input != null) {
+                allocator.destroy(input.handle());
+            }
+            if (output != null) {
+                allocator.destroy(output.handle());
+            }
+        }
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsLayerNormSubdag() {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor source = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "layerNormSource", DataType.FLOAT32);
+        Tensor gammaTensor = new Tensor(new float[]{1f, 1f, 1f}, new int[]{3}, null, "layerNormGamma", DataType.FLOAT32);
+        Tensor betaTensor = new Tensor(new float[]{0f, 0f, 0f}, new int[]{3}, null, "layerNormBeta", DataType.FLOAT32);
+        Tensor out = source.layerNorm(gammaTensor, betaTensor, 1.0e-5);
+        PartitionPlanningContext planningContext = planningContext(out);
+        CompiledNode layerNormNode = planningContext.compiledNode(nodeId(planningContext, Operation.OpType.LAYER_NORM));
+        AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
+                layerNormNode.id(),
+                List.of(layerNormNode.id()),
+                List.of(new AcceleratorSubgraphOp(layerNormNode.id(), Operation.OpType.LAYER_NORM)),
+                layerNormNode.inputIds(),
+                List.of(layerNormNode.id())
+        );
+        AcceleratorSubgraphLoweringResult lowering = new AcceleratorSubgraphLowerer().tryLower(subgraph, planningContext);
+        assertNotNull(lowering);
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalMpsBridgeExecutable executable = bridge.compile(
+                context,
+                new MetalPartitionPlan(layerNormNode.id(), subgraph, lowering)
+        );
+        assumeTrue(executable.available(), executable.reason());
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        MetalBufferBinding input = null;
+        MetalBufferBinding gamma = null;
+        MetalBufferBinding beta = null;
+        MetalBufferBinding output = null;
+        try {
+            input = allocator.createInputBinding(layerNormNode.inputIds().get(0), source);
+            gamma = allocator.createInputBinding(layerNormNode.inputIds().get(1), gammaTensor);
+            beta = allocator.createInputBinding(layerNormNode.inputIds().get(2), betaTensor);
+            output = allocator.createOutputBinding(layerNormNode.id(), denseF32Layout(new int[]{2, 3}));
+
+            MetalMpsBridgeExecutionStats stats = bridge.executeBuffers(
+                    context,
+                    executable,
+                    List.of(input, gamma, beta),
+                    List.of(output)
+            );
+            Tensor destination = new Tensor(new float[6], new int[]{2, 3}, null, "layerNormDestination", DataType.FLOAT32);
+            allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+
+            assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
+            assertArrayEquals(new float[]{
+                    -1.2247356f, 0.0f, 1.2247356f,
+                    -1.2247356f, 0.0f, 1.2247356f
+            }, destination.getFloat32Data(), 1.0e-4f);
+        } finally {
+            if (input != null) {
+                allocator.destroy(input.handle());
+            }
+            if (gamma != null) {
+                allocator.destroy(gamma.handle());
+            }
+            if (beta != null) {
+                allocator.destroy(beta.handle());
+            }
+            if (output != null) {
+                allocator.destroy(output.handle());
+            }
+        }
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsUnmaskedSdpaScaleParity() {
+        assertNativeSdpaParity(
+                new float[]{1f, 0f, 0f, 1f},
+                new float[]{1f, 0f, 0f, 1f},
+                new float[]{10f, 1f, 1f, 10f},
+                new int[]{1, 2, 2},
+                AttentionOptions.defaults().withScale(0.5)
+        );
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsUnmaskedSdpaDefaultScaleRank4Parity() {
+        assertNativeSdpaParity(
+                new float[]{1f, 0f, 0f, 1f},
+                new float[]{1f, 0f, 0f, 1f},
+                new float[]{10f, 1f, 1f, 10f},
+                new int[]{1, 1, 2, 2},
+                AttentionOptions.defaults()
+        );
+    }
+
+    @Test
+    void executableSignatureIncludesSdpaScaleBits() {
+        Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "sdpaSigQ", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "sdpaSigK", DataType.FLOAT32);
+        Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "sdpaSigV", DataType.FLOAT32);
+
+        AcceleratorSubgraphSignature halfScale = sdpaSignature(q.scaledDotProductAttention(k, v, AttentionOptions.defaults().withScale(0.5)));
+        AcceleratorSubgraphSignature unitScale = sdpaSignature(q.scaledDotProductAttention(k, v, AttentionOptions.defaults().withScale(1.0)));
+
+        assertFalse(halfScale.equals(unitScale));
+    }
+
+    private static void assertNativeSdpaParity(float[] queryValues, float[] keyValues, float[] valueValues, int[] shape, AttentionOptions options) {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor expectedQ = new Tensor(queryValues.clone(), shape, null, "expectedSdpaQ", DataType.FLOAT32);
+        Tensor expectedK = new Tensor(keyValues.clone(), shape, null, "expectedSdpaK", DataType.FLOAT32);
+        Tensor expectedV = new Tensor(valueValues.clone(), shape, null, "expectedSdpaV", DataType.FLOAT32);
+        Tensor expected = expectedQ.scaledDotProductAttention(expectedK, expectedV, options);
+        expected.compute();
+
+        Tensor q = new Tensor(queryValues.clone(), shape, null, "sdpaQ", DataType.FLOAT32);
+        Tensor k = new Tensor(keyValues.clone(), shape, null, "sdpaK", DataType.FLOAT32);
+        Tensor v = new Tensor(valueValues.clone(), shape, null, "sdpaV", DataType.FLOAT32);
+        Tensor out = q.scaledDotProductAttention(k, v, options);
+        PartitionPlanningContext planningContext = planningContext(out);
+        CompiledNode sdpaNode = planningContext.compiledNode(nodeId(planningContext, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
+        AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
+                sdpaNode.id(),
+                List.of(sdpaNode.id()),
+                List.of(new AcceleratorSubgraphOp(sdpaNode.id(), Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION)),
+                sdpaNode.inputIds(),
+                List.of(sdpaNode.id())
+        );
+        AcceleratorSubgraphLoweringResult lowering = new AcceleratorSubgraphLowerer().tryLower(subgraph, planningContext);
+        assertNotNull(lowering);
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalMpsBridgeExecutable executable = bridge.compile(
+                context,
+                new MetalPartitionPlan(sdpaNode.id(), subgraph, lowering)
+        );
+        assumeTrue(executable.available(), executable.reason());
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        MetalBufferBinding query = null;
+        MetalBufferBinding key = null;
+        MetalBufferBinding value = null;
+        MetalBufferBinding output = null;
+        try {
+            query = allocator.createInputBinding(sdpaNode.inputIds().get(0), q);
+            key = allocator.createInputBinding(sdpaNode.inputIds().get(1), k);
+            value = allocator.createInputBinding(sdpaNode.inputIds().get(2), v);
+            output = allocator.createOutputBinding(sdpaNode.id(), denseF32Layout(shape));
+
+            MetalMpsBridgeExecutionStats stats = bridge.executeBuffers(
+                    context,
+                    executable,
+                    List.of(query, key, value),
+                    List.of(output)
+            );
+            Tensor destination = new Tensor(new float[expected.getFlatDataSize()], shape, null, "sdpaDestination", DataType.FLOAT32);
+            allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+
+            assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
+            assertArrayEquals(expected.getFloat32Data(), destination.getFloat32Data(), 1.0e-4f);
+        } finally {
+            if (query != null) {
+                allocator.destroy(query.handle());
+            }
+            if (key != null) {
+                allocator.destroy(key.handle());
+            }
+            if (value != null) {
+                allocator.destroy(value.handle());
+            }
+            if (output != null) {
+                allocator.destroy(output.handle());
+            }
+        }
+    }
+
+    private static AcceleratorSubgraphSignature sdpaSignature(Tensor out) {
+        PartitionPlanningContext planningContext = planningContext(out);
+        CompiledNode sdpaNode = planningContext.compiledNode(nodeId(planningContext, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
+        AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
+                sdpaNode.id(),
+                List.of(sdpaNode.id()),
+                List.of(new AcceleratorSubgraphOp(sdpaNode.id(), Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION)),
+                sdpaNode.inputIds(),
+                List.of(sdpaNode.id())
+        );
+        AcceleratorSubgraphLoweringResult lowering = new AcceleratorSubgraphLowerer().tryLower(subgraph, planningContext);
+        assertNotNull(lowering);
+        return AcceleratorSubgraphSignature.from(new MetalPartitionPlan(sdpaNode.id(), subgraph, lowering));
+    }
+
+    @Test
     void explicitShimAdjacentExecutablesReuseIntermediateBuffer() {
         String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
@@ -208,6 +462,61 @@ class MetalMpsFfmBridgeTest {
             }
             if (output != null) {
                 allocator.destroy(output.handle());
+            }
+        }
+    }
+
+    @Test
+    void explicitShimMaterializesPermutedLayoutToDenseBuffer() {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        assumeTrue(bridge.supportsLayoutMaterialization());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        MetalBufferBinding input = null;
+        MetalBufferBinding destination = null;
+        try {
+            Tensor base = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "layoutBase", DataType.FLOAT32);
+            input = allocator.createInputBinding(1, base);
+            AcceleratorBufferLayout permutedLayout = AcceleratorBufferLayout.of(
+                    DataType.FLOAT32,
+                    new int[]{3, 2},
+                    new int[]{1, 3},
+                    0,
+                    6
+            );
+            MetalBufferBinding sourceView = new MetalBufferBinding(
+                    1,
+                    permutedLayout,
+                    input.handle(),
+                    MetalBufferAccess.READ
+            );
+            AcceleratorBufferLayout denseTarget = AcceleratorBufferLayout.of(
+                    DataType.FLOAT32,
+                    new int[]{3, 2},
+                    new int[]{2, 1},
+                    0,
+                    6
+            );
+            destination = allocator.createOutputBinding(2, denseTarget);
+
+            bridge.materializeLayout(context, sourceView, destination);
+
+            Tensor actual = new Tensor(new float[6], new int[]{3, 2}, null, "layoutDense", DataType.FLOAT32);
+            allocator.readToCpu(destination, actual, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+            assertArrayEquals(new float[]{1f, 4f, 2f, 5f, 3f, 6f}, actual.getFloat32Data(), 0.0f);
+        } finally {
+            if (input != null) {
+                allocator.destroy(input.handle());
+            }
+            if (destination != null) {
+                allocator.destroy(destination.handle());
             }
         }
     }
@@ -349,5 +658,81 @@ class MetalMpsFfmBridgeTest {
                 subgraph,
                 new AcceleratorSubgraphLoweringResult(outputNodeId, null, dag, 2)
         );
+    }
+
+    private static MetalPartitionPlan reductionPlan(
+            int inputNodeId,
+            int outputNodeId,
+            AcceleratorDagNodeType nodeType,
+            Operation.OpType opType,
+            int axis,
+            boolean keepDims,
+            int[] inputShape,
+            int[] outputShape
+    ) {
+        AcceleratorDagInput input = new AcceleratorDagInput(inputNodeId, Arrays.stream(inputShape).boxed().toList(), DataType.FLOAT32);
+        AcceleratorDagNode node = new AcceleratorDagNode(
+                outputNodeId,
+                nodeType,
+                AcceleratorDagValueRef.externalInput(0),
+                AcceleratorDagValueRef.none(),
+                AcceleratorDagValueRef.none(),
+                AcceleratorDagValueRef.none(),
+                encodeReductionMode(axis, keepDims),
+                outputShape.length,
+                outputShape[0],
+                outputShape.length >= 2 ? outputShape[1] : 1,
+                outputShape.length >= 3 ? outputShape[2] : 1,
+                outputShape.length >= 4 ? outputShape[3] : 1
+        );
+        AcceleratorDagSpec dag = new AcceleratorDagSpec(List.of(input), List.of(node), List.of(0), List.of(outputNodeId));
+        AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
+                outputNodeId,
+                List.of(outputNodeId),
+                List.of(new AcceleratorSubgraphOp(outputNodeId, opType)),
+                List.of(inputNodeId),
+                List.of(outputNodeId)
+        );
+        long estimatedWork = Arrays.stream(inputShape).asLongStream().reduce(1L, Math::multiplyExact);
+        return new MetalPartitionPlan(
+                outputNodeId,
+                subgraph,
+                new AcceleratorSubgraphLoweringResult(outputNodeId, null, dag, estimatedWork)
+        );
+    }
+
+    private static int encodeReductionMode(int axis, boolean keepDims) {
+        return (axis & 0xFFFF) | (keepDims ? 1 << 16 : 0);
+    }
+
+    private static PartitionPlanningContext planningContext(Tensor out) {
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(out.topologicalSort());
+        return new PartitionPlanningContext(
+                RuntimeConfig.inferenceDefaults(),
+                false,
+                compiledNodes,
+                consumers(compiledNodes)
+        );
+    }
+
+    private static java.util.Map<Integer, java.util.List<CompiledNode>> consumers(List<CompiledNode> graph) {
+        java.util.Map<Integer, java.util.List<CompiledNode>> consumers = new java.util.HashMap<>();
+        for (CompiledNode node : graph) {
+            consumers.computeIfAbsent(node.id(), ignored -> new java.util.ArrayList<>());
+        }
+        for (CompiledNode node : graph) {
+            for (int inputId : node.inputIds()) {
+                consumers.computeIfAbsent(inputId, ignored -> new java.util.ArrayList<>()).add(node);
+            }
+        }
+        return consumers;
+    }
+
+    private static int nodeId(PartitionPlanningContext context, Operation.OpType opType) {
+        return context.compiledNodes().stream()
+                .filter(node -> node.operation() != null && node.operation().opType() == opType)
+                .map(CompiledNode::id)
+                .findFirst()
+                .orElseThrow();
     }
 }

@@ -25,6 +25,7 @@ import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedNodeExecution;
+import graph.optimizer.partition.PartitionPlanningContext;
 import graph.optimizer.partition.PartitionTarget;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -95,7 +96,7 @@ public class CompiledGraphTraceTest {
     }
 
     @Test
-    void gpuLoweringCoverageRejectionTraceNamesUnsupportedReduction() {
+    void gpuLoweringCoverageTraceSelectsSupportedReduction() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "traceReductionInput", DataType.FLOAT32);
         Tensor out = input.sum(1);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
@@ -105,15 +106,15 @@ public class CompiledGraphTraceTest {
         int sumNodeId = nodeId(compiled, operations.Operation.OpType.SUM);
         String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(compiledNode(compiled, sumNodeId), null);
 
-        assertFalse(prepared.prepareTrace().backendSelection().decisions().stream()
+        assertEquals("", reason);
+        assertTrue(prepared.prepareTrace().backendSelection().decisions().stream()
                 .anyMatch(decision -> decision.selected()
                         && decision.selectedBackend() == ComputeBackend.GPU_CUDA
                         && decision.nodeIds().contains(sumNodeId)));
-        assertTrue(reason.contains("UNSUPPORTED_OPERATION"));
     }
 
     @Test
-    void gpuCompoundRejectionTraceNamesReductionAdjacentReason() {
+    void gpuCompoundTraceAdmitsSupportedNormalization() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "traceReductionAdjacentInput", DataType.FLOAT32);
         Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "traceReductionAdjacentGamma", DataType.FLOAT32);
         Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "traceReductionAdjacentBeta", DataType.FLOAT32);
@@ -123,14 +124,16 @@ public class CompiledGraphTraceTest {
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
         PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
         int layerNormNodeId = nodeId(compiled, operations.Operation.OpType.LAYER_NORM);
-        String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(compiledNode(compiled, layerNormNodeId), null);
+        String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                compiledNode(compiled, layerNormNodeId),
+                planningContext(compiled)
+        );
 
-        assertFalse(prepared.prepareTrace().backendSelection().decisions().stream()
+        assertTrue(prepared.prepareTrace().backendSelection().decisions().stream()
                 .anyMatch(decision -> decision.selected()
                         && decision.selectedBackend() == ComputeBackend.GPU_CUDA
                         && decision.nodeIds().contains(layerNormNodeId)));
-        assertTrue(reason.contains("REDUCTION_ADJACENT"));
-        assertTrue(reason.contains("DEFERRED_FUSED_REGION"));
+        assertEquals("", reason);
     }
 
     @Test
@@ -658,16 +661,16 @@ public class CompiledGraphTraceTest {
                                 90,
                                 "",
                                 "",
-                                GpuLoweringUnsupportedReason.DEFERRED_FUSED_REGION,
-                                "REDUCTION_ADJACENT: DEFERRED_FUSED_REGION: operation LAYER_NORM is not supported by GPU_METAL lowering family=NORMALIZATION status=fallback note=normalization requires compound reduction-adjacent GPU region execution; target=layer_norm_small"
+                                GpuLoweringUnsupportedReason.UNSUPPORTED_LAYOUT,
+                                "UNSUPPORTED_LAYOUT: GPU_METAL normalization inputs require dense layout family=NORMALIZATION target=layer_norm_small"
                         ),
                         new GpuLoweredRegionRejection(
                                 "planner.loss",
                                 91,
                                 "",
                                 "",
-                                GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE,
-                                "UNSUPPORTED_DTYPE: operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering family=LOSS_ADJACENT status=unsupported note=index-target loss uses INT32 targets outside the current accelerator DAG dtype contract; target=transformer_block_hot_path"
+                                GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
+                                "UNSUPPORTED_INDEX_SEMANTICS: operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering family=LOSS_ADJACENT status=unsupported note=index-target loss uses INT32 targets plus bounds, ignore-index, and reduction-denominator semantics outside the current accelerator DAG contract; target=transformer_block_hot_path"
                         )
                 ),
                 GpuLoweredRegionCandidateSpan.none(List.of(80, 81)),
@@ -697,9 +700,9 @@ public class CompiledGraphTraceTest {
 
         assertTrue(rendered.contains("LOG_SOFTMAX"));
         assertTrue(rendered.contains("SOFTMAX"));
-        assertTrue(rendered.contains("UNSUPPORTED_DTYPE"));
+        assertTrue(rendered.contains("UNSUPPORTED_INDEX_SEMANTICS"));
         assertTrue(rendered.contains("family=LOSS_ADJACENT"));
-        assertTrue(rendered.contains("REDUCTION_ADJACENT"));
+        assertTrue(rendered.contains("UNSUPPORTED_LAYOUT"));
         assertTrue(rendered.contains("family=NORMALIZATION"));
         assertTrue(rendered.contains("target=layer_norm_small"));
         assertTrue(rendered.contains("target=transformer_block_hot_path"));
@@ -971,5 +974,24 @@ public class CompiledGraphTraceTest {
                 .filter(node -> node.id() == nodeId)
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private static PartitionPlanningContext planningContext(graph.CompiledGraph compiled) {
+        List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
+        java.util.Map<Integer, java.util.List<CompiledNode>> consumers = new java.util.HashMap<>();
+        for (CompiledNode node : nodes) {
+            consumers.computeIfAbsent(node.id(), ignored -> new java.util.ArrayList<>());
+        }
+        for (CompiledNode node : nodes) {
+            for (int inputId : node.inputIds()) {
+                consumers.computeIfAbsent(inputId, ignored -> new java.util.ArrayList<>()).add(node);
+            }
+        }
+        return new PartitionPlanningContext(
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                false,
+                nodes,
+                consumers
+        );
     }
 }

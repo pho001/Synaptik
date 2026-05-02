@@ -50,9 +50,13 @@ public final class JsonBenchmarkSuiteReportRenderer {
             sb.append("    {");
             sb.append("\"workloadName\": \"").append(escape(expectation.workloadName())).append("\", ");
             sb.append("\"backend\": \"").append(escape(expectation.backend())).append("\", ");
+            sb.append("\"nativeEvidenceRequired\": ").append(expectation.nativeEvidenceRequired()).append(", ");
+            sb.append("\"expectedVisibleReasons\": ").append(stringListJson(expectation.expectedVisibleReasons())).append(", ");
+            sb.append("\"policy\": ").append(policyJson(expectation.policy())).append(", ");
             sb.append("\"coverageGate\": {");
             sb.append("\"gatePassed\": ").append(gate.passed()).append(", ");
-            sb.append("\"gateFailures\": ").append(stringListJson(gate.failures()));
+            sb.append("\"gateFailures\": ").append(stringListJson(gate.failures())).append(", ");
+            sb.append("\"coverage\": ").append(coverageJson(gate.coverage()));
             sb.append("}");
             sb.append("}");
         }
@@ -69,6 +73,10 @@ public final class JsonBenchmarkSuiteReportRenderer {
             sb.append("\"backend\": \"").append(escape(entry.getKey())).append("\", ");
             sb.append("\"gpuCoverageRatio\": ").append(format(coverage.gpuCoverageRatio())).append(", ");
             sb.append("\"maxSelectedRegionLength\": ").append(coverage.maxSelectedRegionLength()).append(", ");
+            sb.append("\"loweredPrimitiveCount\": ").append(coverage.loweredPrimitiveCount()).append(", ");
+            sb.append("\"nativeBufferStepCount\": ").append(coverage.nativeBufferStepCount()).append(", ");
+            sb.append("\"tensorArrayStepCount\": ").append(coverage.tensorArrayStepCount()).append(", ");
+            sb.append("\"cpuFallbackStepCount\": ").append(coverage.cpuFallbackStepCount()).append(", ");
             sb.append("\"cpuMaterializationCount\": ").append(coverage.cpuMaterializationCount()).append(", ");
             sb.append("\"fallbackCount\": ").append(coverage.fallbackCount()).append(", ");
             sb.append("\"deviceHandoffCount\": ").append(coverage.deviceHandoffCount()).append(", ");
@@ -77,7 +85,11 @@ public final class JsonBenchmarkSuiteReportRenderer {
             sb.append("\"nativeStatus\": \"").append(escape(nativeEvidence.nativeStatus())).append("\", ");
             sb.append("\"capabilitySkipped\": ").append("capabilitySkipped".equals(nativeEvidence.nativeStatus())).append(", ");
             sb.append("\"detail\": \"").append(escape(nativeEvidence.detail())).append("\"");
-            sb.append("}");
+            sb.append("}, ");
+            sb.append("\"coverageDeltaVsBaseline\": ").append(comparisonJson(GpuCoverageComparison.compare(
+                    GpuCoverageBaseline.v14Closure(entry.getKey()),
+                    coverage
+            )));
             sb.append("}");
         }
         sb.append("\n  ],\n");
@@ -131,5 +143,64 @@ public final class JsonBenchmarkSuiteReportRenderer {
         }
         sb.append(']');
         return sb.toString();
+    }
+
+    private static String policyJson(GpuCoverageGatePolicy policy) {
+        if (policy == null) {
+            return "{}";
+        }
+        return "{"
+                + "\"backend\": \"" + escape(policy.backend()) + "\", "
+                + "\"minGpuCoverageRatio\": " + format(policy.minGpuCoverageRatio()) + ", "
+                + "\"minMaxSelectedRegionLength\": " + policy.minMaxSelectedRegionLength() + ", "
+                + "\"minMultiOpGpuRegionCount\": " + policy.minMultiOpGpuRegionCount() + ", "
+                + "\"minLoweredPrimitiveCount\": " + policy.minLoweredPrimitiveCount() + ", "
+                + "\"minGpuFusedSubpatternCount\": " + policy.minGpuFusedSubpatternCount() + ", "
+                + "\"maxCpuMaterializationCount\": " + policy.maxCpuMaterializationCount() + ", "
+                + "\"maxFallbackCount\": " + policy.maxFallbackCount() + ", "
+                + "\"maxTensorArrayStepCount\": " + policy.maxTensorArrayStepCount() + ", "
+                + "\"maxDeviceHandoffCount\": " + policy.maxDeviceHandoffCount() + ", "
+                + "\"requireNativeBufferBinding\": " + policy.requireNativeBufferBinding()
+                + "}";
+    }
+
+    private static String coverageJson(GpuCoverageSummary.BackendCoverage coverage) {
+        if (coverage == null) {
+            return "null";
+        }
+        return "{"
+                + "\"gpuCoverageRatio\": " + format(coverage.gpuCoverageRatio()) + ", "
+                + "\"maxSelectedRegionLength\": " + coverage.maxSelectedRegionLength() + ", "
+                + "\"loweredPrimitiveCount\": " + coverage.loweredPrimitiveCount() + ", "
+                + "\"nativeBufferStepCount\": " + coverage.nativeBufferStepCount() + ", "
+                + "\"tensorArrayStepCount\": " + coverage.tensorArrayStepCount() + ", "
+                + "\"cpuFallbackStepCount\": " + coverage.cpuFallbackStepCount() + ", "
+                + "\"cpuMaterializationCount\": " + coverage.cpuMaterializationCount() + ", "
+                + "\"fallbackCount\": " + coverage.fallbackCount() + ", "
+                + "\"deviceHandoffCount\": " + coverage.deviceHandoffCount() + ", "
+                + "\"reasonCodes\": " + stringListJson(coverage.reasonCodes()) + ", "
+                + "\"fallbackReasons\": " + stringListJson(coverage.fallbackReasons())
+                + "}";
+    }
+
+    private static String comparisonJson(GpuCoverageComparison comparison) {
+        if (comparison == null) {
+            return "null";
+        }
+        return "{"
+                + "\"baselineName\": \"" + escape(comparison.baselineName()) + "\", "
+                + "\"backend\": \"" + escape(comparison.backend()) + "\", "
+                + "\"passes\": " + comparison.passes() + ", "
+                + "\"baselineMaxSelectedRegionLength\": " + comparison.baselineMaxSelectedRegionLength() + ", "
+                + "\"currentMaxSelectedRegionLength\": " + comparison.currentMaxSelectedRegionLength() + ", "
+                + "\"baselineCpuMaterializationCount\": " + comparison.baselineCpuMaterializationCount() + ", "
+                + "\"currentCpuMaterializationCount\": " + comparison.currentCpuMaterializationCount() + ", "
+                + "\"baselineFallbackCount\": " + comparison.baselineFallbackCount() + ", "
+                + "\"currentFallbackCount\": " + comparison.currentFallbackCount() + ", "
+                + "\"baselineDeviceHandoffCount\": " + comparison.baselineDeviceHandoffCount() + ", "
+                + "\"currentDeviceHandoffCount\": " + comparison.currentDeviceHandoffCount() + ", "
+                + "\"improvements\": " + stringListJson(comparison.improvements()) + ", "
+                + "\"regressions\": " + stringListJson(comparison.regressions())
+                + "}";
     }
 }

@@ -3327,7 +3327,12 @@ Benchmark report renderers are separate:
 
 Benchmark reports are explain artifacts, not runtime sources of truth. Their Phase 5 role is a report-contract: prove the report carries enough evidence to diagnose what happened, without treating measured local output as a profile or calibration owner. Autotune and calibration own persistence; benchmark commands remain read-only.
 
-Accelerator benchmark reports expose the selected accelerator candidate, bounded `rejectedFinalists`, and cost fields such as `boundaryCount`, `estimatedTransferBytes`, `estimatedComputeWork`, `finalScore`, and `preset`. The same report should also show accelerator path evidence and materialization evidence so a run can distinguish real device-owned execution from tensor-array copy or CPU fallback.
+Accelerator benchmark reports expose the selected accelerator candidate, bounded `rejectedFinalists`, and cost fields such as `boundaryCount`, `estimatedTransferBytes`, `layoutFallbackBytes`, `estimatedComputeWork`, `finalScore`, and `preset`. The same report should also show accelerator path evidence and materialization evidence so a run can distinguish real device-owned execution from tensor-array copy or CPU fallback.
+
+Phase 28 coverage closure treats benchmark timing as secondary evidence. The auditable proof comes from trace-derived
+coverage fields, target gates, native evidence, visible fallback reasons, and `coverageDeltaVsBaseline`. Local
+`profiles/platform/...` calibration and autotune outputs remain machine-local unless a plan explicitly promotes a file
+as a fixture or canonical profile.
 
 Search tree-capable strategies can expose tree reports through `TextSearchTreeReportRenderer` and `JsonSearchTreeReportRenderer`.
 

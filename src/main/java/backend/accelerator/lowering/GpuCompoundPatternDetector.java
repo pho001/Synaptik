@@ -38,6 +38,7 @@ public final class GpuCompoundPatternDetector {
             AcceleratorDagNodeType.SQRT,
             AcceleratorDagNodeType.INV,
             AcceleratorDagNodeType.MUL_SCALAR,
+            AcceleratorDagNodeType.ADD_SCALAR,
             AcceleratorDagNodeType.CLAMP_MIN,
             AcceleratorDagNodeType.CLAMP_MAX
     );
@@ -96,6 +97,18 @@ public final class GpuCompoundPatternDetector {
                     dagNodeTypes(dagSpec),
                     List.of(),
                     "representative elementwise chain lowered through accelerator DAG"
+            );
+        }
+        if (isNormalizationSubdag(subgraph, dagSpec)) {
+            return GpuCompoundRegionSummary.supported(
+                    backend,
+                    GpuCompoundPatternType.NORMALIZATION,
+                    subgraph.orderedNodeIds(),
+                    subgraph.externalInputNodeIds(),
+                    subgraph.outputNodeIds(),
+                    dagNodeTypes(dagSpec),
+                    List.of(),
+                    "normalization lowered as region-internal reduction and elementwise DAG"
             );
         }
         if (containsReductionAdjacent(subgraph, context)) {
@@ -171,6 +184,22 @@ public final class GpuCompoundPatternDetector {
         return dagSpec != null
                 && dagSpec.nodes().size() >= 3
                 && dagSpec.nodes().stream().allMatch(node -> ELEMENTWISE_CHAIN_TYPES.contains(node.type()));
+    }
+
+    private static boolean isNormalizationSubdag(AcceleratorSubgraphSpec subgraph, AcceleratorDagSpec dagSpec) {
+        if (subgraph == null || dagSpec == null) {
+            return false;
+        }
+        boolean normalizationOp = subgraph.ops().stream()
+                .map(AcceleratorSubgraphOp::opType)
+                .anyMatch(opType -> opType == Operation.OpType.LAYER_NORM || opType == Operation.OpType.RMS_NORM);
+        if (!normalizationOp) {
+            return false;
+        }
+        boolean hasMean = dagSpec.nodes().stream().anyMatch(node -> node.type() == AcceleratorDagNodeType.MEAN);
+        boolean hasEpsilon = dagSpec.nodes().stream().anyMatch(node -> node.type() == AcceleratorDagNodeType.ADD_SCALAR);
+        boolean hasInv = dagSpec.nodes().stream().anyMatch(node -> node.type() == AcceleratorDagNodeType.INV);
+        return hasMean && hasEpsilon && hasInv;
     }
 
     private static boolean consumesPrimitiveOutput(AcceleratorDagNode node, int primitiveIndex) {

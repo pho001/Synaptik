@@ -117,6 +117,13 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
             addNonBlank(coverage.fallbackReasons, attrs.get("acceleratorBufferReason"));
             addNonBlank(coverage.fallbackReasons, attrs.get("metalFallbackReason"));
             addCount(coverage.storageResidencyCounts, stringAttr(attrs, "storageResidency"));
+            long layoutMaterializationCount = longAttr(attrs.get("gpuLayoutMaterializationCount"));
+            if (layoutMaterializationCount > 0L) {
+                coverage.gpuLayoutMaterializationCount += (int) Math.min(Integer.MAX_VALUE, layoutMaterializationCount);
+                coverage.gpuLayoutMaterializationBytes += longAttr(attrs.get("gpuLayoutMaterializationBytes"));
+                addCount(coverage.gpuLayoutTransformKindCounts, stringAttr(attrs, "gpuLayoutTransformKind"));
+                addCount(coverage.gpuLayoutTargetLayoutClassCounts, stringAttr(attrs, "gpuLayoutTransformTargetLayoutClass"));
+            }
             coverage.copyDurationNs += firstLongAttr(attrs, "acceleratorJavaToNativeCopyNs", "metalJavaToNativeCopyNs");
             coverage.copyDurationNs += firstLongAttr(attrs, "acceleratorNativeToJavaCopyNs", "metalNativeToJavaCopyNs");
             coverage.copyDurationNs += firstLongAttr(attrs, "acceleratorNativeDeviceCopyNs", "metalNativeDeviceCopyNs");
@@ -321,6 +328,10 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
             long cpuMaterializationDurationNs,
             long copyDurationNs,
             int deviceHandoffCount,
+            int gpuLayoutMaterializationCount,
+            long gpuLayoutMaterializationBytes,
+            Map<String, Integer> gpuLayoutTransformKindCounts,
+            Map<String, Integer> gpuLayoutTargetLayoutClassCounts,
             Map<String, Integer> storageResidencyCounts,
             Map<String, Integer> dtypeResidencyReasons,
             int gpuFusedSubpatternCount,
@@ -338,6 +349,12 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
             cpuMaterializationReasonCounts = cpuMaterializationReasonCounts == null
                     ? Map.of()
                     : orderedMap(cpuMaterializationReasonCounts);
+            gpuLayoutTransformKindCounts = gpuLayoutTransformKindCounts == null
+                    ? Map.of()
+                    : orderedMap(gpuLayoutTransformKindCounts);
+            gpuLayoutTargetLayoutClassCounts = gpuLayoutTargetLayoutClassCounts == null
+                    ? Map.of()
+                    : orderedMap(gpuLayoutTargetLayoutClassCounts);
             storageResidencyCounts = storageResidencyCounts == null ? Map.of() : orderedMap(storageResidencyCounts);
             dtypeResidencyReasons = dtypeResidencyReasons == null ? Map.of() : orderedMap(dtypeResidencyReasons);
             gpuFusedSubpatternTypes = gpuFusedSubpatternTypes == null ? List.of() : List.copyOf(gpuFusedSubpatternTypes);
@@ -375,6 +392,10 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
         private long cpuMaterializationDurationNs;
         private long copyDurationNs;
         private int deviceHandoffCount;
+        private int gpuLayoutMaterializationCount;
+        private long gpuLayoutMaterializationBytes;
+        private final LinkedHashMap<String, Integer> gpuLayoutTransformKindCounts = new LinkedHashMap<>();
+        private final LinkedHashMap<String, Integer> gpuLayoutTargetLayoutClassCounts = new LinkedHashMap<>();
         private final LinkedHashMap<String, Integer> storageResidencyCounts = new LinkedHashMap<>();
         private final LinkedHashMap<String, Integer> dtypeResidencyReasons = new LinkedHashMap<>();
         private int gpuFusedSubpatternCount;
@@ -412,6 +433,10 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
                     cpuMaterializationDurationNs,
                     copyDurationNs,
                     deviceHandoffCount,
+                    gpuLayoutMaterializationCount,
+                    gpuLayoutMaterializationBytes,
+                    new LinkedHashMap<>(gpuLayoutTransformKindCounts),
+                    new LinkedHashMap<>(gpuLayoutTargetLayoutClassCounts),
                     new LinkedHashMap<>(storageResidencyCounts),
                     new LinkedHashMap<>(dtypeResidencyReasons),
                     gpuFusedSubpatternCount,

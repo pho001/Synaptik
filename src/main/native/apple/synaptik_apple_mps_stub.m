@@ -12,6 +12,7 @@ static const char *SYNAPTIK_APPLE_MPS_DEFAULT_UNAVAILABLE_REASON =
 @property(nonatomic, strong) id<MTLDevice> device;
 @property(nonatomic, strong) id<MTLCommandQueue> queue;
 @property(nonatomic, strong) MPSGraphDevice *graphDevice;
+@property(nonatomic, strong) id<MTLComputePipelineState> layoutContiguousF32Pipeline;
 @end
 
 @implementation SynaptikAppleMpsContextBox
@@ -100,6 +101,46 @@ static int64_t SynaptikNowNs(void) {
     return ((int64_t) timestamp.tv_sec * 1000000000LL) + (int64_t) timestamp.tv_nsec;
 }
 
+static id<MTLComputePipelineState> SynaptikLayoutContiguousF32Pipeline(id<MTLDevice> device) {
+    static NSString *source =
+            @"#include <metal_stdlib>\n"
+             "using namespace metal;\n"
+             "kernel void synaptik_layout_contiguous_f32(\n"
+             "    device const float *source [[buffer(0)]],\n"
+             "    device float *destination [[buffer(1)]],\n"
+             "    device const long *shape [[buffer(2)]],\n"
+             "    device const long *strides [[buffer(3)]],\n"
+             "    constant long &logicalElementCount [[buffer(4)]],\n"
+             "    constant int &rank [[buffer(5)]],\n"
+             "    constant long &storageOffset [[buffer(6)]],\n"
+             "    uint gid [[thread_position_in_grid]]) {\n"
+             "    long linear = (long) gid;\n"
+             "    if (linear >= logicalElementCount) { return; }\n"
+             "    long sourceIndex = storageOffset;\n"
+             "    long remaining = linear;\n"
+             "    for (int dim = rank - 1; dim >= 0; dim--) {\n"
+             "        long coordinate = remaining % shape[dim];\n"
+             "        remaining = remaining / shape[dim];\n"
+             "        sourceIndex += coordinate * strides[dim];\n"
+             "    }\n"
+             "    destination[linear] = source[sourceIndex];\n"
+             "}\n";
+    if (device == nil) {
+        return nil;
+    }
+    NSError *libraryError = nil;
+    id<MTLLibrary> library = [device newLibraryWithSource:source options:nil error:&libraryError];
+    if (library == nil) {
+        return nil;
+    }
+    id<MTLFunction> function = [library newFunctionWithName:@"synaptik_layout_contiguous_f32"];
+    if (function == nil) {
+        return nil;
+    }
+    NSError *pipelineError = nil;
+    return [device newComputePipelineStateWithFunction:function error:&pipelineError];
+}
+
 static int32_t SynaptikDecodeIntScalar(const float *nodeScalarValues, int32_t index) {
     if (nodeScalarValues == NULL) {
         return 0;
@@ -107,6 +148,61 @@ static int32_t SynaptikDecodeIntScalar(const float *nodeScalarValues, int32_t in
     uint32_t bits = 0;
     memcpy(&bits, &nodeScalarValues[index], sizeof(float));
     return (int32_t) bits;
+}
+
+static int32_t SynaptikDecodeReductionAxis(const float *nodeScalarValues, int32_t index) {
+    int32_t encoded = SynaptikDecodeIntScalar(nodeScalarValues, index);
+    int32_t axis = encoded & 0xFFFF;
+    if ((axis & 0x8000) != 0) {
+        axis |= 0xFFFF0000;
+    }
+    return axis;
+}
+
+static NSMutableArray<NSNumber *> *SynaptikOutputShapeForNode(
+        int32_t index,
+        const int32_t *outputRanks,
+        const int32_t *outputDim0,
+        const int32_t *outputDim1,
+        const int32_t *outputDim2,
+        const int32_t *outputDim3) {
+    int32_t rank = outputRanks == NULL ? 0 : outputRanks[index];
+    if (rank < 1 || rank > 4) {
+        return nil;
+    }
+    NSMutableArray<NSNumber *> *shape = [NSMutableArray arrayWithCapacity:(NSUInteger) rank];
+    [shape addObject:@(outputDim0[index])];
+    if (rank >= 2) [shape addObject:@(outputDim1[index])];
+    if (rank >= 3) [shape addObject:@(outputDim2[index])];
+    if (rank >= 4) [shape addObject:@(outputDim3[index])];
+    return shape;
+}
+
+static MPSGraphTensor *SynaptikReshapeToNodeOutput(
+        MPSGraph *graph,
+        MPSGraphTensor *tensor,
+        int32_t index,
+        const int32_t *outputRanks,
+        const int32_t *outputDim0,
+        const int32_t *outputDim1,
+        const int32_t *outputDim2,
+        const int32_t *outputDim3,
+        NSString *name) {
+    NSMutableArray<NSNumber *> *shape = SynaptikOutputShapeForNode(
+            index,
+            outputRanks,
+            outputDim0,
+            outputDim1,
+            outputDim2,
+            outputDim3
+    );
+    if (graph == nil || tensor == nil || shape == nil) {
+        return nil;
+    }
+    if (tensor.shape != nil && [tensor.shape isEqualToArray:shape]) {
+        return tensor;
+    }
+    return [graph reshapeTensor:tensor withShape:shape name:name];
 }
 
 static MPSGraphTensor *SynaptikReductionSumKeepDims(MPSGraph *graph, MPSGraphTensor *tensor, int32_t axis) {
@@ -477,6 +573,12 @@ void *synaptik_apple_mps_compile_partition_f32(
                     outTensor = [graph multiplicationWithPrimaryTensor:input0 secondaryTensor:scalarTensor name:@"mul_scalar"];
                     break;
                 }
+                case 40: {
+                    MPSGraphTensor *scalarTensor = [graph constantWithScalar:(double) node_scalar_values[i] dataType:MPSDataTypeFloat32];
+                    if (scalarTensor == nil) return NULL;
+                    outTensor = [graph additionWithPrimaryTensor:input0 secondaryTensor:scalarTensor name:@"add_scalar"];
+                    break;
+                }
                 case 24:
                     if (input1 == nil || input2 == nil) return NULL;
                     outTensor = [graph selectWithPredicateTensor:input0 truePredicateTensor:input1 falsePredicateTensor:input2 name:@"where"];
@@ -484,6 +586,42 @@ void *synaptik_apple_mps_compile_partition_f32(
                 case 25: {
                     int32_t axis = SynaptikDecodeIntScalar(node_scalar_values, i);
                     outTensor = [graph softMaxWithTensor:input0 axis:axis name:@"softmax"];
+                    break;
+                }
+                case 36:
+                case 37:
+                case 38:
+                case 39: {
+                    int32_t axis = SynaptikDecodeReductionAxis(node_scalar_values, i);
+                    NSNumber *axisNumber = @(axis);
+                    switch (node_types[i]) {
+                        case 36:
+                            outTensor = [graph reductionSumWithTensor:input0 axis:axis name:@"sum"];
+                            break;
+                        case 37:
+                            outTensor = [graph meanOfTensor:input0 axes:@[axisNumber] name:@"mean"];
+                            break;
+                        case 38:
+                            outTensor = [graph reductionMinimumWithTensor:input0 axis:axis name:@"reduce_min"];
+                            break;
+                        case 39:
+                            outTensor = [graph reductionMaximumWithTensor:input0 axis:axis name:@"reduce_max"];
+                            break;
+                        default:
+                            outTensor = nil;
+                            break;
+                    }
+                    outTensor = SynaptikReshapeToNodeOutput(
+                            graph,
+                            outTensor,
+                            i,
+                            output_ranks,
+                            output_dim0,
+                            output_dim1,
+                            output_dim2,
+                            output_dim3,
+                            @"reduction_output_shape"
+                    );
                     break;
                 }
                 case 27: {
@@ -606,30 +744,30 @@ void *synaptik_apple_mps_compile_partition_f32(
                 }
                 case 26: {
                     float scale = node_scalar_values == NULL ? 1.0f : node_scalar_values[i];
-                    if (input1 == nil || input2 == nil) return NULL;
-                    if (input3 != nil) {
-                        outTensor = [graph scaledDotProductAttentionWithQueryTensor:input0
-                                                                           keyTensor:input1
-                                                                         valueTensor:input2
-                                                                          maskTensor:input3
-                                                                               scale:scale
-                                                                                name:@"sdpa"];
-                    } else {
-                        outTensor = [graph scaledDotProductAttentionWithQueryTensor:input0
-                                                                           keyTensor:input1
-                                                                         valueTensor:input2
-                                                                               scale:scale
-                                                                                name:@"sdpa"];
+                    if (input1 == nil || input2 == nil || input3 != nil) return NULL;
+                    MPSGraphTensor *keyT = SynaptikTransposeLastTwoAxes(graph, input1, @"sdpa_key_t");
+                    MPSGraphTensor *scores = keyT == nil ? nil : [graph matrixMultiplicationWithPrimaryTensor:input0 secondaryTensor:keyT name:@"sdpa_scores"];
+                    if (scores == nil) return NULL;
+                    if (scale != 1.0f) {
+                        MPSGraphTensor *scaleTensor = [graph constantWithScalar:(double) scale dataType:MPSDataTypeFloat32];
+                        if (scaleTensor == nil) return NULL;
+                        scores = [graph multiplicationWithPrimaryTensor:scores secondaryTensor:scaleTensor name:@"sdpa_scaled_scores"];
+                        if (scores == nil) return NULL;
                     }
+                    MPSGraphTensor *weights = [graph softMaxWithTensor:scores axis:-1 name:@"sdpa_weights"];
+                    outTensor = weights == nil ? nil : [graph matrixMultiplicationWithPrimaryTensor:weights secondaryTensor:input2 name:@"sdpa_out"];
                     break;
                 }
                 case 18: {
-                    int32_t rank = output_ranks == NULL ? 0 : output_ranks[i];
-                    NSMutableArray<NSNumber *> *shape = [NSMutableArray arrayWithCapacity:(NSUInteger) rank];
-                    [shape addObject:@(output_dim0[i])];
-                    if (rank >= 2) [shape addObject:@(output_dim1[i])];
-                    if (rank >= 3) [shape addObject:@(output_dim2[i])];
-                    if (rank >= 4) [shape addObject:@(output_dim3[i])];
+                    NSMutableArray<NSNumber *> *shape = SynaptikOutputShapeForNode(
+                            i,
+                            output_ranks,
+                            output_dim0,
+                            output_dim1,
+                            output_dim2,
+                            output_dim3
+                    );
+                    if (shape == nil) return NULL;
                     outTensor = [graph reshapeTensor:input0 withShape:shape name:@"reshape"];
                     break;
                 }
@@ -979,29 +1117,55 @@ int synaptik_apple_mps_layout_contiguous_f32_buffer(
                 || destinationBox.byteLength < (NSUInteger) destination_byte_length) {
             return 6;
         }
-        float *source = (float *) sourceBox.buffer.contents;
-        float *destination = (float *) destinationBox.buffer.contents;
-        if (source == NULL || destination == NULL) {
-            return 7;
-        }
-        for (int64_t linear = 0; linear < logical_element_count; linear++) {
-            int64_t sourceIndex = storage_offset;
-            int64_t remaining = linear;
-            for (int32_t dim = rank - 1; dim >= 0; dim--) {
-                if (shape[dim] <= 0 || strides[dim] < 0) {
-                    return 8;
-                }
-                int64_t coordinate = remaining % shape[dim];
-                remaining /= shape[dim];
-                sourceIndex += coordinate * strides[dim];
+        for (int32_t dim = 0; dim < rank; dim++) {
+            if (shape[dim] <= 0 || strides[dim] < 0) {
+                return 8;
             }
-            int64_t sourceByteOffset = sourceIndex * (int64_t) sizeof(float);
-            if (sourceByteOffset < 0 || sourceByteOffset + (int64_t) sizeof(float) > source_physical_byte_span) {
-                return 9;
-            }
-            destination[linear] = source[sourceIndex];
         }
-        (void) contextBox;
+        if (contextBox.layoutContiguousF32Pipeline == nil) {
+            contextBox.layoutContiguousF32Pipeline = SynaptikLayoutContiguousF32Pipeline(contextBox.device);
+        }
+        if (contextBox.layoutContiguousF32Pipeline == nil) {
+            return 10;
+        }
+        id<MTLBuffer> shapeBuffer = [contextBox.device newBufferWithBytes:shape
+                                                                    length:(NSUInteger) rank * sizeof(int64_t)
+                                                                   options:MTLResourceStorageModeShared];
+        id<MTLBuffer> strideBuffer = [contextBox.device newBufferWithBytes:strides
+                                                                     length:(NSUInteger) rank * sizeof(int64_t)
+                                                                    options:MTLResourceStorageModeShared];
+        if (shapeBuffer == nil || strideBuffer == nil) {
+            return 11;
+        }
+        id<MTLCommandBuffer> commandBuffer = [contextBox.queue commandBuffer];
+        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+        if (commandBuffer == nil || encoder == nil) {
+            return 12;
+        }
+        int32_t rankValue = rank;
+        int64_t elementCountValue = logical_element_count;
+        int64_t storageOffsetValue = storage_offset;
+        [encoder setComputePipelineState:contextBox.layoutContiguousF32Pipeline];
+        [encoder setBuffer:sourceBox.buffer offset:0 atIndex:0];
+        [encoder setBuffer:destinationBox.buffer offset:0 atIndex:1];
+        [encoder setBuffer:shapeBuffer offset:0 atIndex:2];
+        [encoder setBuffer:strideBuffer offset:0 atIndex:3];
+        [encoder setBytes:&elementCountValue length:sizeof(int64_t) atIndex:4];
+        [encoder setBytes:&rankValue length:sizeof(int32_t) atIndex:5];
+        [encoder setBytes:&storageOffsetValue length:sizeof(int64_t) atIndex:6];
+        NSUInteger threads = MIN((NSUInteger) contextBox.layoutContiguousF32Pipeline.maxTotalThreadsPerThreadgroup, (NSUInteger) 256);
+        if (threads == 0) {
+            return 13;
+        }
+        MTLSize gridSize = MTLSizeMake((NSUInteger) logical_element_count, 1, 1);
+        MTLSize threadgroupSize = MTLSizeMake(threads, 1, 1);
+        [encoder dispatchThreads:gridSize threadsPerThreadgroup:threadgroupSize];
+        [encoder endEncoding];
+        [commandBuffer commit];
+        [commandBuffer waitUntilCompleted];
+        if (commandBuffer.status != MTLCommandBufferStatusCompleted) {
+            return 14;
+        }
         return 0;
     }
 }

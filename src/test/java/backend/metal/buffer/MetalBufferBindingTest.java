@@ -118,8 +118,9 @@ class MetalBufferBindingTest {
 
         assertEquals(9, view.nodeId());
         assertEquals(targetLayout, view.layout());
-        assertTrue(view.handle() == source.handle());
-        assertEquals(source.nativeHandleIdentity(), view.nativeHandleIdentity());
+        assertEquals(source.handle().nativeHandle(), view.handle().nativeHandle());
+        assertTrue(view.handle().owner().contains(":logical-view"));
+        assertFalse(view.handle().ownsHandle());
         assertTrue(view.available());
         assertEquals(AcceleratorBufferAccessMode.READ_WRITE, view.accessMode());
     }

@@ -78,7 +78,19 @@ final class DeviceLayoutViewPropagator {
                 failIfRequired(required, backendId, rejected);
                 return false;
             }
-            DeviceBufferBinding materialized = materializer.materialize(decision, sourceBinding, context);
+            DeviceBufferBinding materialized;
+            try {
+                materialized = materializer.materialize(decision, sourceBinding, context);
+            } catch (RuntimeException ex) {
+                AcceleratorLayoutTransformDecision rejected = AcceleratorLayoutTransformDecision.rejected(
+                        request,
+                        AcceleratorBufferReasonCode.GPU_LAYOUT_TRANSFORM_UNSUPPORTED,
+                        "GPU layout transform unsupported: dense layout materializer failed: " + safeMessage(ex)
+                );
+                context.publishLayoutTransformDecision(targetNode.id(), rejected);
+                failIfRequired(required, backendId, rejected);
+                return false;
+            }
             if (materialized == null || !materialized.available()) {
                 AcceleratorLayoutTransformDecision rejected = AcceleratorLayoutTransformDecision.rejected(
                         request,
@@ -216,6 +228,11 @@ final class DeviceLayoutViewPropagator {
         throw new IllegalStateException("Accelerator buffer path is required for " + backendId
                 + " but unavailable: " + decision.reasonCode().name()
                 + " - " + decision.reason());
+    }
+
+    private static String safeMessage(RuntimeException ex) {
+        String message = ex.getMessage();
+        return message == null || message.isBlank() ? ex.getClass().getSimpleName() : message;
     }
 
     private static boolean isLayoutTransformCandidate(Operation.OpType opType) {

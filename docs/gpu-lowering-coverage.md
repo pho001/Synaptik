@@ -21,6 +21,10 @@ The source of truth lives in `backend.accelerator.lowering.GpuLoweringCoverageMa
 | `UNSUPPORTED_DTYPE` | The operation depends on a dtype outside current GPU output/input contracts, such as index targets or BOOL outputs. |
 | `UNSUPPORTED_LAYOUT` | The operation needs a layout that is not legal for the selected backend path. |
 | `UNSUPPORTED_RANK_OR_SHAPE` | The operation rank or shape is outside the native DAG or backend bridge contract. |
+| `UNSUPPORTED_INDEX_SEMANTICS` | The operation depends on index-target semantics such as INT32 targets, bounds checks, ignore-index, or per-class scatter behavior that are not yet native GPU primitives. |
+| `UNSUPPORTED_IGNORE_INDEX` | The operation depends on ignore-index semantics that have not been proven for native GPU execution. |
+| `UNSUPPORTED_DUPLICATE_INDEX` | The operation depends on duplicate-index accumulation semantics that have not been proven for native GPU execution. |
+| `UNSUPPORTED_BOUNDS_CHECK` | The operation depends on index bounds behavior that has not been proven for native GPU execution. |
 | `CAPABILITY_MISSING` | The semantic operation is known, but the backend native capability is not currently enabled or verified. |
 | `NATIVE_ABI_MISMATCH` | The Java/native ABI version or symbol contract does not match the required lowering path. |
 | `DEFERRED_FUSED_REGION` | Compound fused GPU region execution is recognized but deliberately deferred outside the current supported subset. |
@@ -37,15 +41,16 @@ The source of truth lives in `backend.accelerator.lowering.GpuLoweringCoverageMa
 | layout/view-adjacent nodes | `RESHAPE`, `CONTIGUOUS`, `NOOP`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE` | supported | `SUPPORTED` |
 | softmax/log-softmax-ish flows | `SOFTMAX` | supported | `SUPPORTED` |
 | softmax/log-softmax-ish flows | `LOG_SOFTMAX` | supported | `SUPPORTED`; lowered as SOFTMAX followed by LOG |
-| reductions | `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX` | fallback | `UNSUPPORTED_OPERATION` |
-| normalization pieces | `LAYER_NORM`, `RMS_NORM` | fallback | `DEFERRED_FUSED_REGION` |
-| loss-adjacent ops | `NLL_LOSS`, `CROSS_ENTROPY_LOSS` | unsupported | `UNSUPPORTED_OPERATION` |
-| loss-adjacent ops | `CROSS_ENTROPY_LOSS_INDICES`, `CROSS_ENTROPY_LOSS_INDICES_GRAD` | unsupported | `UNSUPPORTED_DTYPE` |
-| attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION` | fallback | `CAPABILITY_MISSING` |
+| reductions | `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX` | supported | `SUPPORTED`; axis and keep-dims metadata lower through the shared DAG ABI |
+| normalization pieces | `LAYER_NORM`, `RMS_NORM` | supported | `SUPPORTED`; lowered as repeated keep-dims `MEAN` plus elementwise normalization DAG with epsilon scalar |
+| loss-adjacent ops | `NLL_LOSS`, `CROSS_ENTROPY_LOSS` | unsupported | `DAG_PRIMITIVE_UNSUPPORTED` |
+| loss-adjacent ops | `CROSS_ENTROPY_LOSS_INDICES`, `CROSS_ENTROPY_LOSS_INDICES_GRAD` | unsupported | `UNSUPPORTED_INDEX_SEMANTICS` |
+| attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION` | supported | `SUPPORTED`; direct unmasked FLOAT32 rank-3/4 native MPSGraph primitive SDPA DAG; masked direct SDPA remains `UNSUPPORTED_MASK_SEMANTICS` until BOOL mask semantics match backend mask behavior |
 | attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD` | supported | `SUPPORTED` |
-| conv/pool | `CONV2D`, `MAX_POOL2D` | unsupported | `UNSUPPORTED_OPERATION` |
-| index/scatter/gather | `GATHER`, `SCATTER_ADD` | unsupported | `UNSUPPORTED_OPERATION` |
-| compare/bool | `GT`, `EQ` | unsupported | `UNSUPPORTED_DTYPE` |
+| conv/pool | `CONV2D`, `CONV2D_GEMM`, `CONV2D_BACKWARD_INPUT`, `CONV2D_BACKWARD_WEIGHT`, `CONV2D_BACKWARD_INPUT_GEMM`, `CONV2D_BACKWARD_WEIGHT_GEMM`, `MAX_POOL2D`, `MAX_POOL2D_BACKWARD_INPUT`, `AVG_POOL2D`, `AVG_POOL2D_BACKWARD_INPUT` | unsupported | `CAPABILITY_MISSING` |
+| index/scatter/gather | `GATHER`, `TAKE_ALONG_AXIS` | unsupported | `DAG_PRIMITIVE_UNSUPPORTED` |
+| index/scatter/gather | `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, `SCATTER_ADD` | unsupported | `UNSUPPORTED_DUPLICATE_INDEX` |
+| compare/bool | `GT`, `GE`, `LT`, `LE`, `EQ`, `NE`, `LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`, `REDUCE_ALL`, `REDUCE_ANY` | unsupported | `UNSUPPORTED_DTYPE` |
 | backward-adjacent | `SOFTMAX_GRAD`, `LOG_SOFTMAX_GRAD`, `REDUCE_MIN_GRAD`, `REDUCE_MAX_GRAD`, `MIN_GRAD`, `MAX_GRAD` | supported | `SUPPORTED` |
 | fused compound patterns | `FUSED` | unsupported | `CPU_FUSED_OPERATION_UNSUPPORTED`; CPU `Operation.OpType.FUSED` remains CPU-only for Phase 12 |
 
@@ -58,15 +63,16 @@ The source of truth lives in `backend.accelerator.lowering.GpuLoweringCoverageMa
 | layout/view-adjacent nodes | `RESHAPE`, `CONTIGUOUS`, `NOOP`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE` | supported | `SUPPORTED` |
 | softmax/log-softmax-ish flows | `SOFTMAX` | supported | `SUPPORTED` |
 | softmax/log-softmax-ish flows | `LOG_SOFTMAX` | supported | `SUPPORTED`; lowered as SOFTMAX followed by LOG |
-| reductions | `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX` | fallback | `UNSUPPORTED_OPERATION` |
-| normalization pieces | `LAYER_NORM`, `RMS_NORM` | fallback | `DEFERRED_FUSED_REGION` |
-| loss-adjacent ops | `NLL_LOSS`, `CROSS_ENTROPY_LOSS` | unsupported | `UNSUPPORTED_OPERATION` |
-| loss-adjacent ops | `CROSS_ENTROPY_LOSS_INDICES`, `CROSS_ENTROPY_LOSS_INDICES_GRAD` | unsupported | `UNSUPPORTED_DTYPE` |
-| attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION` | fallback | `UNSUPPORTED_OPERATION` |
+| reductions | `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX` | supported | `SUPPORTED`; axis and keep-dims metadata lower through the shared DAG ABI |
+| normalization pieces | `LAYER_NORM`, `RMS_NORM` | supported | `SUPPORTED`; lowered as repeated keep-dims `MEAN` plus elementwise normalization DAG with epsilon scalar |
+| loss-adjacent ops | `NLL_LOSS`, `CROSS_ENTROPY_LOSS` | unsupported | `DAG_PRIMITIVE_UNSUPPORTED` |
+| loss-adjacent ops | `CROSS_ENTROPY_LOSS_INDICES`, `CROSS_ENTROPY_LOSS_INDICES_GRAD` | unsupported | `UNSUPPORTED_INDEX_SEMANTICS` |
+| attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION` | fallback | `CAPABILITY_MISSING`; CUDA direct forward SDPA native/lowered path is not implemented and must provide backend evidence before this can become supported |
 | attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD` | unsupported | `CAPABILITY_MISSING` |
-| conv/pool | `CONV2D`, `MAX_POOL2D` | unsupported | `UNSUPPORTED_OPERATION` |
-| index/scatter/gather | `GATHER`, `SCATTER_ADD` | unsupported | `UNSUPPORTED_OPERATION` |
-| compare/bool | `GT`, `EQ` | unsupported | `UNSUPPORTED_DTYPE` |
+| conv/pool | `CONV2D`, `CONV2D_GEMM`, `CONV2D_BACKWARD_INPUT`, `CONV2D_BACKWARD_WEIGHT`, `CONV2D_BACKWARD_INPUT_GEMM`, `CONV2D_BACKWARD_WEIGHT_GEMM`, `MAX_POOL2D`, `MAX_POOL2D_BACKWARD_INPUT`, `AVG_POOL2D`, `AVG_POOL2D_BACKWARD_INPUT` | unsupported | `CAPABILITY_MISSING` |
+| index/scatter/gather | `GATHER`, `TAKE_ALONG_AXIS` | unsupported | `DAG_PRIMITIVE_UNSUPPORTED` |
+| index/scatter/gather | `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, `SCATTER_ADD` | unsupported | `UNSUPPORTED_DUPLICATE_INDEX` |
+| compare/bool | `GT`, `GE`, `LT`, `LE`, `EQ`, `NE`, `LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`, `REDUCE_ALL`, `REDUCE_ANY` | unsupported | `UNSUPPORTED_DTYPE` |
 | backward-adjacent | `SOFTMAX_GRAD`, `LOG_SOFTMAX_GRAD`, `REDUCE_MIN_GRAD`, `REDUCE_MAX_GRAD`, `MIN_GRAD`, `MAX_GRAD` | supported | `SUPPORTED` |
 | fused compound patterns | `FUSED` | unsupported | `CPU_FUSED_OPERATION_UNSUPPORTED`; CPU `Operation.OpType.FUSED` remains CPU-only for Phase 12 |
 
@@ -88,15 +94,31 @@ Reports use `dtypeResidency` evidence to explain why a region stayed resident, s
 
 Phase 17 covers `GPUNORM-01` and `GPUNORM-02` by making normalization, reduction, softmax-ish, conv, and loss-adjacent gaps explicit in the shared Metal/CUDA matrix. The source-of-truth targets are `target=layer_norm_small`, `target=conv2d_resnet_3x3`, and `target=transformer_block_hot_path`.
 
+Phase 23 closes the forward reduction subset. `SUM`, `MEAN`, `REDUCE_MIN`, and `REDUCE_MAX` are supported rows for legal dense `FLOAT32` Metal/CUDA regions. Phase 24 extends that support to legal dense `FLOAT32` `LAYER_NORM` and `RMS_NORM` by lowering them into repeated keep-dims `MEAN`, epsilon scalar add, and elementwise DAG primitives. Loss, conv/pool, indexing, and BOOL compare outputs remain separate v1.4 closure targets.
+
 `LOG_SOFTMAX remains lowered as SOFTMAX followed by LOG`. That support is separate from loss-adjacent operations such as `NLL_LOSS`, `CROSS_ENTROPY_LOSS`, and `CROSS_ENTROPY_LOSS_INDICES`, where unsupported loss-adjacent rows must remain visible fallback, not silent CPU replay.
 
-Forward reductions (`SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`) and normalization (`LAYER_NORM`, `RMS_NORM`) are matrix-visible blockers for `target=layer_norm_small`. They remain fallback rows until a GPU implementation has lowering, legality, trace/report, and CPU parity evidence. `CONV2D` is a matrix-visible blocker for `target=conv2d_resnet_3x3` and remains unsupported until conv lowering is explicitly added. Index-target loss rows keep `UNSUPPORTED_DTYPE` because `INT32` targets are outside the current accelerator DAG compute contract.
+Forward reductions (`SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`) and legal dense `FLOAT32` normalization (`LAYER_NORM`, `RMS_NORM`) are now supported for the `target=layer_norm_small` coverage path. Unsupported normalization variants still reject explicitly: non-`FLOAT32` dtype uses `UNSUPPORTED_DTYPE`, non-dense direct inputs use `UNSUPPORTED_LAYOUT`, and invalid rank or tail parameter shape uses `UNSUPPORTED_RANK_OR_SHAPE`. `CONV2D` is a matrix-visible blocker for `target=conv2d_resnet_3x3` and remains unsupported until conv lowering is explicitly added. Index-target loss rows use `UNSUPPORTED_INDEX_SEMANTICS` because `INT32` targets, bounds checks, ignore-index handling, and reduction denominator semantics are outside the current native accelerator DAG compute contract.
 
-`native reduction and normalization support is not implied by a fallback row`. A fallback row means the blocker is recognized, diagnosed, and kept visible for planning and reports; it does not mean Metal or CUDA can execute that operation natively. Phase 17 parity checks keep CPU execution as the reference behavior: `CPU parity remained the correctness oracle`, and `loss-adjacent fallback remained visible`.
+## Phase 26 loss and indexing contract
+
+Phase 26 makes loss-adjacent and indexing gaps explicit without claiming native GPU execution. `NLL_LOSS` and dense `CROSS_ENTROPY_LOSS` remain `DAG_PRIMITIVE_UNSUPPORTED` until a backend-owned loss primitive or lowered loss sub-DAG exists. `CROSS_ENTROPY_LOSS_INDICES` and `CROSS_ENTROPY_LOSS_INDICES_GRAD` remain `UNSUPPORTED_INDEX_SEMANTICS` because legal support must preserve INT32 targets, bounds behavior, ignore-index masking, reduction denominators, and per-class gradient scatter behavior.
+
+Forward `GATHER` and `TAKE_ALONG_AXIS` remain `DAG_PRIMITIVE_UNSUPPORTED`; `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, and `SCATTER_ADD` remain `UNSUPPORTED_DUPLICATE_INDEX` because duplicate-index accumulation must match CPU semantics before GPU support can be claimed. INT32 index tensor residency is diagnostic evidence only; it is not native index compute.
+
+`native support is not implied by matrix text alone`. A supported row means lowering, legality, native execution, trace/report, and parity evidence exist for the legal scoped case. A fallback or unsupported row means the blocker is recognized, diagnosed, and kept visible for planning and reports.
+
+## Phase 27 conv/pool and BOOL output contract
+
+Phase 27 expands the matrix surface for conv/pool and BOOL-producing operations without claiming native GPU execution prematurely. Metal and CUDA now list every targeted conv/pool op explicitly: `CONV2D`, `CONV2D_GEMM`, `CONV2D_BACKWARD_INPUT`, `CONV2D_BACKWARD_WEIGHT`, `CONV2D_BACKWARD_INPUT_GEMM`, `CONV2D_BACKWARD_WEIGHT_GEMM`, `MAX_POOL2D`, `MAX_POOL2D_BACKWARD_INPUT`, `AVG_POOL2D`, and `AVG_POOL2D_BACKWARD_INPUT`. These rows are `CAPABILITY_MISSING` until backend-owned primitives or verified library routing preserve NCHW rank-4 shape, stride, padding, dilation, groups, pooling tie behavior, and average-pool divisor semantics.
+
+BOOL-producing operations are also explicit: `GT`, `GE`, `LT`, `LE`, `EQ`, `NE`, `LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`, `REDUCE_ALL`, and `REDUCE_ANY`. They remain `UNSUPPORTED_DTYPE` because native accelerator output dtype support is still `FLOAT32` for compute outputs. Existing BOOL residency evidence for external `WHERE` predicate inputs is storage/role support only; it is not native BOOL-producing GPU compute.
+
+The next step before any Phase 27 row can become `SUPPORTED` is an actual DAG/native contract: ABI node type, lowerer mapping, legality gates, native Metal/CUDA execution or vendor-library routing, CPU parity tests, and report evidence for selected region length, lowered primitive count, backend path, and CPU exits.
 
 ## GPU Compound Region Lowering
 
-GPU compound region lowering is the Phase 12 path that lets Metal and CUDA execute selected multi-node regions without importing CPU fused ASM/vector internals. Supported compound summaries currently include `LINEAR_BIAS_ACTIVATION` and representative `ELEMENTWISE_CHAIN` regions. `REDUCTION_ADJACENT` candidates such as `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`, `LAYER_NORM`, and `RMS_NORM` are recognized but reject with stable reason codes until a narrow GPU implementation with parity tests exists.
+GPU compound region lowering is the Phase 12 path that lets Metal and CUDA execute selected multi-node regions without importing CPU fused ASM/vector internals. Supported compound summaries currently include `LINEAR_BIAS_ACTIVATION`, representative `ELEMENTWISE_CHAIN`, and legal forward `NORMALIZATION` regions. Reduction-adjacent operations that have been implemented (`SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`, `LAYER_NORM`, `RMS_NORM`) are no longer rejected solely because they are reduction-adjacent; unsupported variants still reject with stable dtype, layout, rank, or operation reason codes.
 
 `Operation.OpType.FUSED remains CPU-only`. GPU compound regions lower from normal graph operations through `AcceleratorSubgraphLowerer`, backend-specific Metal/CUDA legality, and backend-specific prepared executables. CPU fused operations remain in the CPU planning and execution path.
 
@@ -126,11 +148,11 @@ publication boundaries.
 visible. The evidence for hot-path residency is trace/report based rather than timing-only.
 
 `GPU fusion remains region-internal lowering/fusion, not CPU fused ASM reuse`. Multi-op GPU regions may contain lowered
-layout/view, matmul/linear, elementwise, softmax/log-softmax-ish, and supported fused subpattern metadata, but they do
-not consume CPU `Operation.OpType.FUSED` nodes or import CPU fused ASM/vector internals. Unsupported normalization,
-reduction, conv, and loss-adjacent blockers remain visible support/rejection outcomes until a backend-specific
-implementation with parity evidence exists. `vendor library routing is deferred to GPULIB-*`; Phase 19 does not route
-Metal or CUDA lowering through MPSGraph, cuBLAS, cuDNN, or similar libraries.
+layout/view, matmul/linear, elementwise, softmax/log-softmax-ish, normalization, and supported fused subpattern metadata,
+but they do not consume CPU `Operation.OpType.FUSED` nodes or import CPU fused ASM/vector internals. Unsupported
+normalization variants, conv, and loss-adjacent blockers remain visible support/rejection outcomes until a
+backend-specific implementation with parity evidence exists. `vendor library routing is deferred to GPULIB-*`; current
+GPU lowering still routes through the shared accelerator DAG contract before backend-specific execution.
 
 Phase 19 closure treated local tuning outputs as non-canonical evidence; `profiles/platform/.../tuning/abc/* remained unstaged`.
 
@@ -205,3 +227,23 @@ device handoff evidence.
 Benchmark reports render `targetCoverageGates`, `nativeEvidence`, and `capabilitySkipped` so portable Java proof stays
 separate from capability-gated native Metal/CUDA evidence. `tensor-array bridge execution is not native buffer GPU coverage`, and local tuning outputs are not closure proof; Phase 20 hygiene recorded that
 `profiles/platform/.../tuning/abc/* remained unstaged`.
+
+## Phase 28 coverage regression closure
+
+Phase 28 tightens the v1.4 closure gate around target truth rather than timing. A target whose operation family is
+`NATIVE_EXECUTABLE` in `GpuTargetCoverageTruth` must use a hard native/buffer policy: native buffer evidence is required,
+tensor-array bridge execution and CPU fallback must be zero, unexpected CPU materialization must be zero, and selected
+region plus lowered primitive counts must stay above the target threshold. This currently covers reduction targets,
+legal normalization targets, Metal forward SDPA, and the fused/MLP-style hot path.
+
+Targets that remain unsupported or capability-gated are still audit targets, but they pass only when the report exposes
+stable visible blockers. Conv/pool, native BOOL-producing compare outputs, loss/index blockers, and CUDA forward SDPA
+must surface reason evidence such as `CAPABILITY_MISSING`, `UNSUPPORTED_DTYPE`, `UNSUPPORTED_INDEX_SEMANTICS`, operation
+family names, or target names. They do not count as native coverage closure until backend-owned execution and parity
+evidence exist.
+
+Suite reports include `coverageDeltaVsBaseline` so reviewers can compare trace-derived coverage counters against the
+v1.4 pre-closure baseline without using raw latency medians as proof. The relevant evidence fields are
+`maxSelectedRegionLength`, `loweredPrimitiveCount`, `nativeBufferStepCount`, `tensorArrayStepCount`,
+`cpuFallbackStepCount`, `cpuMaterializationCount`, `fallbackCount`, `deviceHandoffCount`, `targetCoverageGates`,
+`nativeEvidence`, `capabilitySkipped`, and visible reason-code lists.

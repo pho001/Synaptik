@@ -1188,7 +1188,7 @@ Current Phase 12 compound summaries are:
 | --- | --- | --- |
 | `LINEAR_BIAS_ACTIVATION` | supported | Linear or matmul with bias and activation remains one GPU-owned region when backend legality and runtime capability gates pass. |
 | `ELEMENTWISE_CHAIN` | supported | Representative elementwise chains remain one GPU-owned region and publish compound metadata in prepared execution/run traces. |
-| `REDUCTION_ADJACENT` | explicit rejection | Reductions and normalization pieces are recognized, but currently reject with stable reasons such as `COMPOUND_PATTERN_UNSUPPORTED`, `DEFERRED_FUSED_REGION`, or the matrix row's unsupported reason. |
+| `REDUCTION_ADJACENT` | scoped support / explicit rejection | Implemented reductions and legal forward normalization lower through accelerator DAG primitives; unsupported variants still reject with stable dtype, layout, rank, capability, or matrix reason codes. |
 
 `Operation.OpType.FUSED remains CPU-only`. CPU fused ASM/vector execution is an implementation detail of CPU regions under `FUSE`; Metal and CUDA compound regions lower from normal graph operations through accelerator DAG primitives. The public Tensor remains logical and device residency stays in ExecutionState and DeviceBufferBinding, so optimizer partitions express compile-time ownership rather than public GPU tensor handles.
 

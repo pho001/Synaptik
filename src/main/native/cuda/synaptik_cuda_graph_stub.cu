@@ -18,7 +18,27 @@ struct SynaptikCudaExecutable {
         int input0Index;
         int input1Kind;
         int input1Index;
+        int input0Rank;
+        int input0Dim0;
+        int input0Dim1;
+        int input0Dim2;
+        int input0Dim3;
+        int input0ElementCount;
+        int input1Rank;
+        int input1Dim0;
+        int input1Dim1;
+        int input1Dim2;
+        int input1Dim3;
+        int input1ElementCount;
+        int outputRank;
+        int outputDim0;
+        int outputDim1;
+        int outputDim2;
+        int outputDim3;
         int elementCount;
+        int reductionAxis;
+        bool reductionKeepDims;
+        float scalarValue;
     };
     std::vector<Node> nodes;
     std::vector<int> outputNodeIndices;
@@ -80,8 +100,319 @@ __global__ void add_kernel(const float* left, const float* right, float* output,
     }
 }
 
+__device__ int flat_index4(const int* coords, int rank, int dim1, int dim2, int dim3);
+
+__device__ int broadcast_index4(
+        int outputIndex,
+        int outputRank,
+        int outputDim0,
+        int outputDim1,
+        int outputDim2,
+        int outputDim3,
+        int inputRank,
+        int inputDim0,
+        int inputDim1,
+        int inputDim2,
+        int inputDim3
+) {
+    int outputDims[4] = {outputDim0, outputDim1, outputDim2, outputDim3};
+    int inputDims[4] = {inputDim0, inputDim1, inputDim2, inputDim3};
+    int outputCoords[4] = {0, 0, 0, 0};
+    int remaining = outputIndex;
+    for (int dim = outputRank - 1; dim >= 0; dim--) {
+        outputCoords[dim] = remaining % outputDims[dim];
+        remaining /= outputDims[dim];
+    }
+    int inputCoords[4] = {0, 0, 0, 0};
+    int rankOffset = outputRank - inputRank;
+    for (int dim = 0; dim < inputRank; dim++) {
+        int outputDim = dim + rankOffset;
+        inputCoords[dim] = inputDims[dim] == 1 ? 0 : outputCoords[outputDim];
+    }
+    return flat_index4(inputCoords, inputRank, inputDim1, inputDim2, inputDim3);
+}
+
+__global__ void binary_broadcast_kernel(
+        const float* left,
+        const float* right,
+        float* output,
+        int count,
+        int opType,
+        int outputRank,
+        int outputDim0,
+        int outputDim1,
+        int outputDim2,
+        int outputDim3,
+        int leftRank,
+        int leftDim0,
+        int leftDim1,
+        int leftDim2,
+        int leftDim3,
+        int rightRank,
+        int rightDim0,
+        int rightDim1,
+        int rightDim2,
+        int rightDim3
+) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= count) {
+        return;
+    }
+    int leftIndex = broadcast_index4(
+            idx,
+            outputRank,
+            outputDim0,
+            outputDim1,
+            outputDim2,
+            outputDim3,
+            leftRank,
+            leftDim0,
+            leftDim1,
+            leftDim2,
+            leftDim3
+    );
+    int rightIndex = broadcast_index4(
+            idx,
+            outputRank,
+            outputDim0,
+            outputDim1,
+            outputDim2,
+            outputDim3,
+            rightRank,
+            rightDim0,
+            rightDim1,
+            rightDim2,
+            rightDim3
+    );
+    float a = left[leftIndex];
+    float b = right[rightIndex];
+    if (opType == 3) {
+        output[idx] = a + b;
+    } else if (opType == 4) {
+        output[idx] = a - b;
+    } else if (opType == 5) {
+        output[idx] = a * b;
+    } else {
+        output[idx] = a / b;
+    }
+}
+
+__global__ void unary_f32_kernel(const float* input, float* output, int count, int opType, float scalarValue) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= count) {
+        return;
+    }
+    float value = input[idx];
+    if (opType == 7) {
+        output[idx] = value > 0.0f ? value : 0.0f;
+    } else if (opType == 14) {
+        output[idx] = sqrtf(value);
+    } else if (opType == 15) {
+        output[idx] = 1.0f / value;
+    } else if (opType == 40) {
+        output[idx] = value + scalarValue;
+    } else {
+        output[idx] = value;
+    }
+}
+
+__device__ int flat_index4(const int* coords, int rank, int dim1, int dim2, int dim3) {
+    int index = coords[0];
+    if (rank >= 2) {
+        index = index * dim1 + coords[1];
+    }
+    if (rank >= 3) {
+        index = index * dim2 + coords[2];
+    }
+    if (rank >= 4) {
+        index = index * dim3 + coords[3];
+    }
+    return index;
+}
+
+__global__ void reduction_kernel(
+        const float* input,
+        float* output,
+        int outputCount,
+        int opType,
+        int axis,
+        int inputRank,
+        int inputDim0,
+        int inputDim1,
+        int inputDim2,
+        int inputDim3,
+        int outputRank,
+        int outputDim0,
+        int outputDim1,
+        int outputDim2,
+        int outputDim3,
+        bool keepDims
+) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= outputCount) {
+        return;
+    }
+    int inputDims[4] = {inputDim0, inputDim1, inputDim2, inputDim3};
+    int outputDims[4] = {outputDim0, outputDim1, outputDim2, outputDim3};
+    int outputCoords[4] = {0, 0, 0, 0};
+    int remaining = idx;
+    for (int dim = outputRank - 1; dim >= 0; dim--) {
+        outputCoords[dim] = remaining % outputDims[dim];
+        remaining /= outputDims[dim];
+    }
+    int reduceCount = inputDims[axis];
+    float acc = 0.0f;
+    if (opType == 38) {
+        acc = CUDART_INF_F;
+    } else if (opType == 39) {
+        acc = -CUDART_INF_F;
+    }
+    for (int r = 0; r < reduceCount; r++) {
+        int inputCoords[4] = {0, 0, 0, 0};
+        int outDim = 0;
+        for (int dim = 0; dim < inputRank; dim++) {
+            if (dim == axis) {
+                inputCoords[dim] = r;
+            } else if (keepDims) {
+                inputCoords[dim] = outputCoords[dim];
+            } else {
+                inputCoords[dim] = outputCoords[outDim++];
+            }
+        }
+        int inputIndex = flat_index4(inputCoords, inputRank, inputDim1, inputDim2, inputDim3);
+        float value = input[inputIndex];
+        if (opType == 38) {
+            acc = fminf(acc, value);
+        } else if (opType == 39) {
+            acc = fmaxf(acc, value);
+        } else {
+            acc += value;
+        }
+    }
+    output[idx] = opType == 37 ? acc / static_cast<float>(reduceCount) : acc;
+}
+
 bool validate_buffer(SynaptikCudaBuffer* buffer, int byteLength) {
     return buffer != nullptr && buffer->data != nullptr && buffer->byteLength >= byteLength;
+}
+
+int decode_reduction_axis(const float* scalarValues, int index) {
+    if (scalarValues == nullptr) {
+        return 0;
+    }
+    int encoded = 0;
+    std::memcpy(&encoded, &scalarValues[index], sizeof(float));
+    int axis = encoded & 0xFFFF;
+    if ((axis & 0x8000) != 0) {
+        axis |= 0xFFFF0000;
+    }
+    return axis;
+}
+
+bool decode_reduction_keep_dims(const float* scalarValues, int index) {
+    if (scalarValues == nullptr) {
+        return false;
+    }
+    int encoded = 0;
+    std::memcpy(&encoded, &scalarValues[index], sizeof(float));
+    return (encoded & (1 << 16)) != 0;
+}
+
+void set_node_shape(SynaptikCudaExecutable::Node& node, int rank, int dim0, int dim1, int dim2, int dim3) {
+    node.outputRank = rank;
+    node.outputDim0 = dim0;
+    node.outputDim1 = dim1;
+    node.outputDim2 = dim2;
+    node.outputDim3 = dim3;
+    node.elementCount = element_count(rank, dim0, dim1, dim2, dim3);
+}
+
+void set_input0_shape_from_external(
+        SynaptikCudaExecutable::Node& node,
+        int externalIndex,
+        const int* externalInputRanks,
+        const int* externalInputDim0,
+        const int* externalInputDim1,
+        const int* externalInputDim2,
+        const int* externalInputDim3
+) {
+    node.input0Rank = externalInputRanks == nullptr ? 1 : externalInputRanks[externalIndex];
+    node.input0Dim0 = externalInputDim0 == nullptr ? 1 : externalInputDim0[externalIndex];
+    node.input0Dim1 = externalInputDim1 == nullptr ? 1 : externalInputDim1[externalIndex];
+    node.input0Dim2 = externalInputDim2 == nullptr ? 1 : externalInputDim2[externalIndex];
+    node.input0Dim3 = externalInputDim3 == nullptr ? 1 : externalInputDim3[externalIndex];
+    node.input0ElementCount = element_count(node.input0Rank, node.input0Dim0, node.input0Dim1, node.input0Dim2, node.input0Dim3);
+}
+
+void set_input0_shape_from_node(SynaptikCudaExecutable::Node& node, const SynaptikCudaExecutable::Node& source) {
+    node.input0Rank = source.outputRank;
+    node.input0Dim0 = source.outputDim0;
+    node.input0Dim1 = source.outputDim1;
+    node.input0Dim2 = source.outputDim2;
+    node.input0Dim3 = source.outputDim3;
+    node.input0ElementCount = source.elementCount;
+}
+
+void set_input1_shape_from_external(
+        SynaptikCudaExecutable::Node& node,
+        int externalIndex,
+        const int* externalInputRanks,
+        const int* externalInputDim0,
+        const int* externalInputDim1,
+        const int* externalInputDim2,
+        const int* externalInputDim3
+) {
+    node.input1Rank = externalInputRanks == nullptr ? 1 : externalInputRanks[externalIndex];
+    node.input1Dim0 = externalInputDim0 == nullptr ? 1 : externalInputDim0[externalIndex];
+    node.input1Dim1 = externalInputDim1 == nullptr ? 1 : externalInputDim1[externalIndex];
+    node.input1Dim2 = externalInputDim2 == nullptr ? 1 : externalInputDim2[externalIndex];
+    node.input1Dim3 = externalInputDim3 == nullptr ? 1 : externalInputDim3[externalIndex];
+    node.input1ElementCount = element_count(node.input1Rank, node.input1Dim0, node.input1Dim1, node.input1Dim2, node.input1Dim3);
+}
+
+void set_input1_shape_from_node(SynaptikCudaExecutable::Node& node, const SynaptikCudaExecutable::Node& source) {
+    node.input1Rank = source.outputRank;
+    node.input1Dim0 = source.outputDim0;
+    node.input1Dim1 = source.outputDim1;
+    node.input1Dim2 = source.outputDim2;
+    node.input1Dim3 = source.outputDim3;
+    node.input1ElementCount = source.elementCount;
+}
+
+bool suffix_broadcast_supported(
+        int inputRank,
+        int inputDim0,
+        int inputDim1,
+        int inputDim2,
+        int inputDim3,
+        int outputRank,
+        int outputDim0,
+        int outputDim1,
+        int outputDim2,
+        int outputDim3
+) {
+    if (inputRank < 1 || inputRank > 4 || outputRank < 1 || outputRank > 4 || inputRank > outputRank) {
+        return false;
+    }
+    int inputDims[4] = {inputDim0, inputDim1, inputDim2, inputDim3};
+    int outputDims[4] = {outputDim0, outputDim1, outputDim2, outputDim3};
+    int rankOffset = outputRank - inputRank;
+    for (int dim = 0; dim < inputRank; dim++) {
+        int inputDim = inputDims[dim];
+        int outputDim = outputDims[dim + rankOffset];
+        if (inputDim != 1 && inputDim != outputDim) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool is_binary_op(int opType) {
+    return opType == 3 || opType == 4 || opType == 5 || opType == 6;
+}
+
+bool is_unary_op(int opType) {
+    return opType == 7 || opType == 14 || opType == 15 || opType == 40;
 }
 
 } // namespace
@@ -196,7 +527,6 @@ extern "C" void* synaptik_cuda_graph_compile_partition_f32(
     (void) input2Indices;
     (void) input3Kinds;
     (void) input3Indices;
-    (void) scalarValues;
     if (context == nullptr) {
         stable_reason("CUDA compile requested without a context.");
         return nullptr;
@@ -214,13 +544,61 @@ extern "C" void* synaptik_cuda_graph_compile_partition_f32(
         node.input0Index = input0Indices == nullptr ? -1 : input0Indices[i];
         node.input1Kind = input1Kinds == nullptr ? 0 : input1Kinds[i];
         node.input1Index = input1Indices == nullptr ? -1 : input1Indices[i];
-        node.elementCount = element_count(
+        set_node_shape(
+                node,
                 outputRanks == nullptr ? 1 : outputRanks[i],
                 outputDim0 == nullptr ? 1 : outputDim0[i],
                 outputDim1 == nullptr ? 1 : outputDim1[i],
                 outputDim2 == nullptr ? 1 : outputDim2[i],
                 outputDim3 == nullptr ? 1 : outputDim3[i]
         );
+        node.input0Rank = node.outputRank;
+        node.input0Dim0 = node.outputDim0;
+        node.input0Dim1 = node.outputDim1;
+        node.input0Dim2 = node.outputDim2;
+        node.input0Dim3 = node.outputDim3;
+        node.input0ElementCount = node.elementCount;
+        node.input1Rank = node.outputRank;
+        node.input1Dim0 = node.outputDim0;
+        node.input1Dim1 = node.outputDim1;
+        node.input1Dim2 = node.outputDim2;
+        node.input1Dim3 = node.outputDim3;
+        node.input1ElementCount = node.elementCount;
+        if (node.input0Kind == 1 && node.input0Index >= 0 && node.input0Index < externalInputCount) {
+            set_input0_shape_from_external(
+                    node,
+                    node.input0Index,
+                    externalInputRanks,
+                    externalInputDim0,
+                    externalInputDim1,
+                    externalInputDim2,
+                    externalInputDim3
+            );
+        } else if (node.input0Kind == 2 && node.input0Index >= 0 && node.input0Index < static_cast<int>(executable->nodes.size())) {
+            set_input0_shape_from_node(node, executable->nodes[node.input0Index]);
+        }
+        if (node.input1Kind == 1 && node.input1Index >= 0 && node.input1Index < externalInputCount) {
+            set_input1_shape_from_external(
+                    node,
+                    node.input1Index,
+                    externalInputRanks,
+                    externalInputDim0,
+                    externalInputDim1,
+                    externalInputDim2,
+                    externalInputDim3
+            );
+        } else if (node.input1Kind == 2 && node.input1Index >= 0 && node.input1Index < static_cast<int>(executable->nodes.size())) {
+            set_input1_shape_from_node(node, executable->nodes[node.input1Index]);
+        }
+        node.scalarValue = scalarValues == nullptr ? 0.0f : scalarValues[i];
+        node.reductionAxis = decode_reduction_axis(scalarValues, i);
+        node.reductionKeepDims = decode_reduction_keep_dims(scalarValues, i);
+        if (node.reductionAxis < 0) {
+            node.reductionAxis += node.input0Rank;
+        }
+        if (node.reductionAxis < 0 || node.reductionAxis >= node.input0Rank) {
+            node.reductionAxis = 0;
+        }
         executable->nodes.push_back(node);
     }
     executable->outputNodeIndices.reserve(outputCount);
@@ -442,32 +820,71 @@ extern "C" int synaptik_cuda_graph_execute_partition_f32_buffers(
     }
     auto* cudaExecutable = static_cast<SynaptikCudaExecutable*>(executable);
     std::vector<SynaptikCudaBuffer*> nodeOutputs(cudaExecutable->nodes.size(), nullptr);
+    std::vector<SynaptikCudaBuffer*> temporaryOutputs;
+    auto cleanupTemporaryOutputs = [&temporaryOutputs]() {
+        for (auto* buffer : temporaryOutputs) {
+            if (buffer != nullptr) {
+                if (buffer->data != nullptr) {
+                    cudaFree(buffer->data);
+                }
+                delete buffer;
+            }
+        }
+        temporaryOutputs.clear();
+    };
+    if (outputCount != static_cast<int>(cudaExecutable->outputNodeIndices.size())) {
+        stable_reason("CUDA buffer execute output count does not match executable outputs.");
+        return 4;
+    }
     for (int i = 0; i < static_cast<int>(cudaExecutable->nodes.size()); i++) {
         const auto& node = cudaExecutable->nodes[i];
-        if (i >= outputCount) {
-            stable_reason("CUDA buffer execute currently expects one output buffer per node.");
-            return 4;
+        int outputSlot = -1;
+        for (int j = 0; j < outputCount; j++) {
+            if (cudaExecutable->outputNodeIndices[j] == i) {
+                outputSlot = j;
+                break;
+            }
         }
-        auto* output = static_cast<SynaptikCudaBuffer*>(outputBuffers[i]);
-        if (!validate_buffer(output, node.elementCount * static_cast<int>(sizeof(float)))) {
-            stable_reason("CUDA buffer execute received invalid output buffer.");
-            return 5;
+        SynaptikCudaBuffer* output = nullptr;
+        if (outputSlot >= 0) {
+            output = static_cast<SynaptikCudaBuffer*>(outputBuffers[outputSlot]);
+            if (!validate_buffer(output, node.elementCount * static_cast<int>(sizeof(float)))) {
+                cleanupTemporaryOutputs();
+                stable_reason("CUDA buffer execute received invalid output buffer.");
+                return 5;
+            }
+        } else {
+            output = new SynaptikCudaBuffer();
+            output->byteLength = node.elementCount * static_cast<int>(sizeof(float));
+            output->data = nullptr;
+            cudaError_t allocStatus = cudaMalloc(&output->data, static_cast<size_t>(output->byteLength));
+            if (allocStatus != cudaSuccess) {
+                delete output;
+                cleanupTemporaryOutputs();
+                stable_reason(std::string("CUDA buffer execute intermediate allocation failed: ") + cudaGetErrorString(allocStatus));
+                return 5;
+            }
+            temporaryOutputs.push_back(output);
         }
         const float* input0 = nullptr;
         const float* input1 = nullptr;
         if (node.input0Kind == 1) {
             if (inputBuffers == nullptr || node.input0Index < 0 || node.input0Index >= inputCount) {
+                cleanupTemporaryOutputs();
                 stable_reason("CUDA buffer execute input0 external index is invalid.");
                 return 6;
             }
             auto* input = static_cast<SynaptikCudaBuffer*>(inputBuffers[node.input0Index]);
-            if (!validate_buffer(input, node.elementCount * static_cast<int>(sizeof(float)))) {
+            int requiredBytes = node.input0ElementCount * static_cast<int>(sizeof(float));
+            if (!validate_buffer(input, requiredBytes)) {
+                cleanupTemporaryOutputs();
                 stable_reason("CUDA buffer execute received invalid input0 buffer.");
                 return 7;
             }
             input0 = static_cast<const float*>(input->data);
         } else if (node.input0Kind == 2) {
             if (node.input0Index < 0 || node.input0Index >= static_cast<int>(nodeOutputs.size()) || nodeOutputs[node.input0Index] == nullptr) {
+                cleanupTemporaryOutputs();
                 stable_reason("CUDA buffer execute input0 node index is invalid.");
                 return 8;
             }
@@ -475,17 +892,20 @@ extern "C" int synaptik_cuda_graph_execute_partition_f32_buffers(
         }
         if (node.input1Kind == 1) {
             if (inputBuffers == nullptr || node.input1Index < 0 || node.input1Index >= inputCount) {
+                cleanupTemporaryOutputs();
                 stable_reason("CUDA buffer execute input1 external index is invalid.");
                 return 9;
             }
             auto* input = static_cast<SynaptikCudaBuffer*>(inputBuffers[node.input1Index]);
-            if (!validate_buffer(input, node.elementCount * static_cast<int>(sizeof(float)))) {
+            if (!validate_buffer(input, node.input1ElementCount * static_cast<int>(sizeof(float)))) {
+                cleanupTemporaryOutputs();
                 stable_reason("CUDA buffer execute received invalid input1 buffer.");
                 return 10;
             }
             input1 = static_cast<const float*>(input->data);
         } else if (node.input1Kind == 2) {
             if (node.input1Index < 0 || node.input1Index >= static_cast<int>(nodeOutputs.size()) || nodeOutputs[node.input1Index] == nullptr) {
+                cleanupTemporaryOutputs();
                 stable_reason("CUDA buffer execute input1 node index is invalid.");
                 return 11;
             }
@@ -493,26 +913,102 @@ extern "C" int synaptik_cuda_graph_execute_partition_f32_buffers(
         }
         int threads = 256;
         int blocks = (node.elementCount + threads - 1) / threads;
-        if (node.type == 7 && input0 != nullptr) {
-            relu_kernel<<<blocks, threads>>>(input0, static_cast<float*>(output->data), node.elementCount);
-        } else if (node.type == 3 && input0 != nullptr && input1 != nullptr) {
-            add_kernel<<<blocks, threads>>>(input0, input1, static_cast<float*>(output->data), node.elementCount);
+        if (is_unary_op(node.type) && input0 != nullptr) {
+            unary_f32_kernel<<<blocks, threads>>>(
+                    input0,
+                    static_cast<float*>(output->data),
+                    node.elementCount,
+                    node.type,
+                    node.scalarValue
+            );
+        } else if (is_binary_op(node.type) && input0 != nullptr && input1 != nullptr) {
+            if (!suffix_broadcast_supported(
+                        node.input0Rank,
+                        node.input0Dim0,
+                        node.input0Dim1,
+                        node.input0Dim2,
+                        node.input0Dim3,
+                        node.outputRank,
+                        node.outputDim0,
+                        node.outputDim1,
+                        node.outputDim2,
+                        node.outputDim3)
+                    || !suffix_broadcast_supported(
+                        node.input1Rank,
+                        node.input1Dim0,
+                        node.input1Dim1,
+                        node.input1Dim2,
+                        node.input1Dim3,
+                        node.outputRank,
+                        node.outputDim0,
+                        node.outputDim1,
+                        node.outputDim2,
+                        node.outputDim3)) {
+                cleanupTemporaryOutputs();
+                stable_reason("CUDA buffer execute unsupported broadcast for binary primitive.");
+                return 12;
+            }
+            binary_broadcast_kernel<<<blocks, threads>>>(
+                    input0,
+                    input1,
+                    static_cast<float*>(output->data),
+                    node.elementCount,
+                    node.type,
+                    node.outputRank,
+                    node.outputDim0,
+                    node.outputDim1,
+                    node.outputDim2,
+                    node.outputDim3,
+                    node.input0Rank,
+                    node.input0Dim0,
+                    node.input0Dim1,
+                    node.input0Dim2,
+                    node.input0Dim3,
+                    node.input1Rank,
+                    node.input1Dim0,
+                    node.input1Dim1,
+                    node.input1Dim2,
+                    node.input1Dim3
+            );
+        } else if (node.type >= 36 && node.type <= 39 && input0 != nullptr) {
+            reduction_kernel<<<blocks, threads>>>(
+                    input0,
+                    static_cast<float*>(output->data),
+                    node.elementCount,
+                    node.type,
+                    node.reductionAxis,
+                    node.input0Rank,
+                    node.input0Dim0,
+                    node.input0Dim1,
+                    node.input0Dim2,
+                    node.input0Dim3,
+                    node.outputRank,
+                    node.outputDim0,
+                    node.outputDim1,
+                    node.outputDim2,
+                    node.outputDim3,
+                    node.reductionKeepDims
+            );
         } else {
-            stable_reason("CUDA buffer execute supports only RELU and ADD in Phase 7.");
+            cleanupTemporaryOutputs();
+            stable_reason("CUDA buffer execute supports unary, broadcast binary, ADD_SCALAR, and dense FLOAT32 forward reductions.");
             return 12;
         }
         cudaError_t status = cudaGetLastError();
         if (status != cudaSuccess) {
+            cleanupTemporaryOutputs();
             stable_reason(std::string("CUDA kernel launch failed: ") + cudaGetErrorString(status));
             return 13;
         }
         status = cudaDeviceSynchronize();
         if (status != cudaSuccess) {
+            cleanupTemporaryOutputs();
             stable_reason(std::string("CUDA kernel execution failed: ") + cudaGetErrorString(status));
             return 14;
         }
         nodeOutputs[i] = output;
     }
+    cleanupTemporaryOutputs();
     return 0;
 }
 

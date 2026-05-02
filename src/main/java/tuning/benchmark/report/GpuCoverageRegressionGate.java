@@ -75,7 +75,14 @@ public final class GpuCoverageRegressionGate {
         for (GpuCoverageHotPathExpectation expectation : expectations) {
             GpuCoverageSummary.BackendCoverage coverage = findCoverage(suiteReport, expectation);
             if (coverage == null) {
-                results.add(new GpuCoverageGateResult(false, List.of("missing target coverage summary"), null));
+                results.add(new GpuCoverageGateResult(
+                        false,
+                        List.of("missing target coverage summary workload="
+                                + expectation.workloadName()
+                                + " backend="
+                                + expectation.backend()),
+                        null
+                ));
                 continue;
             }
             GpuCoverageGateResult result = evaluate(
@@ -85,7 +92,10 @@ public final class GpuCoverageRegressionGate {
             if (!expectation.expectedVisibleReasons().isEmpty()
                     && !hasExpectedVisibleReason(coverage, expectation.expectedVisibleReasons())) {
                 var failures = new ArrayList<>(result.failures());
-                failures.add("missing expected visible reason");
+                failures.add("missing expected visible reason workload="
+                        + expectation.workloadName()
+                        + " backend="
+                        + expectation.backend());
                 result = new GpuCoverageGateResult(false, failures, coverage);
             }
             results.add(result);

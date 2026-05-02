@@ -17,10 +17,12 @@ import backend.cuda.buffer.CudaAcceleratorBufferBinder;
 import backend.cuda.buffer.CudaBufferAccess;
 import backend.cuda.buffer.CudaBufferAllocator;
 import backend.cuda.buffer.CudaBufferBinding;
+import backend.cuda.buffer.CudaDeviceLayoutMaterializer;
 import backend.cuda.bridge.CudaBridgeContext;
 import backend.cuda.bridge.CudaBridgeExecutable;
 import backend.cuda.bridge.CudaBridgeExecutionStats;
 import backend.cuda.bridge.CudaGraphBridge;
+import backend.cuda.buffer.CudaDeviceToCpuMaterializer;
 import backend.lowering.LoweringFamily;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.StorageResidency;
@@ -28,6 +30,7 @@ import backend.runtime.ExecutionContext;
 import backend.accelerator.dag.AcceleratorDagSpec;
 import config.runtime.AcceleratorBackendConfig;
 import config.runtime.AcceleratorBufferBindingMode;
+import graph.execution.DeviceLayoutMaterializer;
 import tensor.Tensor;
 import tensor.DataType;
 
@@ -176,6 +179,11 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
             return;
         }
 
+        CudaBufferAllocator allocator = null;
+        if (backendConfig.buffer().bindingMode() != AcceleratorBufferBindingMode.OFF && bridge.supportsBufferBindings()) {
+            allocator = bridge.createBufferAllocator(bridgeContext);
+            registerRuntimeServices(context, allocator);
+        }
         ResolvedAcceleratorInputs nativeBufferInputs = AcceleratorPreparedInputResolver.resolveForNativeBufferBinding(
                 bridgeExecutable.externalInputNodeIds(),
                 context
@@ -192,7 +200,10 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
 
         if (decision.path() == AcceleratorBufferExecutionPath.BUFFER_BINDING) {
             try {
-                CudaBufferAllocator allocator = bridge.createBufferAllocator(bridgeContext);
+                if (allocator == null) {
+                    allocator = bridge.createBufferAllocator(bridgeContext);
+                    registerRuntimeServices(context, allocator);
+                }
                 AcceleratorBufferBindings<CudaBufferBinding> bindings = bufferBinder.resolve(
                         request,
                         nativeBufferInputs,
@@ -449,6 +460,22 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
             return "bridge executable unavailable: " + bridgeExecutable.reason();
         }
         return "";
+    }
+
+    private void registerRuntimeServices(ExecutionContext context, CudaBufferAllocator allocator) {
+        if (context == null || allocator == null || !allocator.available()) {
+            return;
+        }
+        context.registerDeviceToCpuMaterializer(
+                ComputeBackend.GPU_CUDA.name(),
+                new CudaDeviceToCpuMaterializer(allocator)
+        );
+        if (bridge.supportsLayoutMaterialization()) {
+            context.registerRuntimeService(
+                    DeviceLayoutMaterializer.class,
+                    new CudaDeviceLayoutMaterializer(bridge, bridgeContext, allocator)
+            );
+        }
     }
 
     private static void markBufferOutputsCurrent(ExecutionContext context, List<CudaBufferBinding> outputBindings) {

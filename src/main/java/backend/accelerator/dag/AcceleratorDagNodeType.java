@@ -38,7 +38,12 @@ public enum AcceleratorDagNodeType {
     MAX_GRAD(32),
     SDPA_BACKWARD_QUERY(33),
     SDPA_BACKWARD_KEY(34),
-    SDPA_BACKWARD_VALUE(35);
+    SDPA_BACKWARD_VALUE(35),
+    SUM(36),
+    MEAN(37),
+    REDUCE_MIN(38),
+    REDUCE_MAX(39),
+    ADD_SCALAR(40);
 
     private final int abiCode;
 

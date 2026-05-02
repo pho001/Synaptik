@@ -296,6 +296,7 @@ public class BenchmarkSessionTest {
                 "CONSERVATIVE",
                 2,
                 3072L,
+                1536L,
                 8192L,
                 1024L,
                 250.0d,
@@ -311,6 +312,7 @@ public class BenchmarkSessionTest {
                         -12.5d,
                         4,
                         8192L,
+                        4096L,
                         256L,
                         "CONSERVATIVE"
                 ),
@@ -320,6 +322,7 @@ public class BenchmarkSessionTest {
                         120.0d,
                         1,
                         2048L,
+                        0L,
                         512L,
                         "MEASURED"
                 )
@@ -351,6 +354,7 @@ public class BenchmarkSessionTest {
                                         "CONSERVATIVE",
                                         1,
                                         512L,
+                                        256L,
                                         64L,
                                         0L,
                                         250.0d,
@@ -394,6 +398,7 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("finalScore=7780.000000"));
         assertTrue(text.contains("boundaryCount=2"));
         assertTrue(text.contains("estimatedTransferBytes=3072"));
+        assertTrue(text.contains("layoutFallbackBytes=1536"));
         assertTrue(text.contains("estimatedComputeWork=8192"));
         assertTrue(text.contains("reason=selected"));
         assertTrue(text.contains("rejectedFinalists:"));
@@ -409,6 +414,7 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"finalScore\": 7780.000000"));
         assertTrue(json.contains("\"boundaryCount\": 2"));
         assertTrue(json.contains("\"estimatedTransferBytes\": 3072"));
+        assertTrue(json.contains("\"layoutFallbackBytes\": 1536"));
         assertTrue(json.contains("\"estimatedComputeWork\": 8192"));
         assertTrue(json.contains("\"preset\": \"CONSERVATIVE\""));
         assertTrue(json.contains("\"reason\": \"rejected-materialization-cost\""));
@@ -488,14 +494,14 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("SOFTMAX"));
         assertTrue(text.contains("family=NORMALIZATION"));
         assertTrue(text.contains("family=LOSS_ADJACENT"));
-        assertTrue(text.contains("UNSUPPORTED_DTYPE"));
+        assertTrue(text.contains("UNSUPPORTED_INDEX_SEMANTICS"));
         assertTrue(text.contains("target=layer_norm_small"));
         assertTrue(text.contains("target=transformer_block_hot_path"));
         assertTrue(json.contains("LOG_SOFTMAX"));
         assertTrue(json.contains("SOFTMAX"));
         assertTrue(json.contains("family=NORMALIZATION"));
         assertTrue(json.contains("family=LOSS_ADJACENT"));
-        assertTrue(json.contains("UNSUPPORTED_DTYPE"));
+        assertTrue(json.contains("UNSUPPORTED_INDEX_SEMANTICS"));
         assertTrue(json.contains("target=layer_norm_small"));
         assertTrue(json.contains("target=transformer_block_hot_path"));
     }
@@ -945,6 +951,21 @@ public class BenchmarkSessionTest {
     }
 
     @Test
+    void phaseTwentyEightCoverageBaselineRendersDeterministicDeltaWithoutTiming() {
+        var baseline = tuning.benchmark.report.GpuCoverageBaseline.v14Closure("GPU_METAL");
+        var current = GpuCoverageSummary.fromTrace(
+                GpuCoverageSummaryTest.traceFor("GPU_METAL", backend.ComputeBackend.GPU_METAL)
+        ).backends().get("GPU_METAL");
+
+        var comparison = tuning.benchmark.report.GpuCoverageComparison.compare(baseline, current);
+
+        assertEquals("v1.4-pre-closure", comparison.baselineName());
+        assertEquals("GPU_METAL", comparison.backend());
+        assertTrue(comparison.currentMaxSelectedRegionLength() >= comparison.baselineMaxSelectedRegionLength());
+        assertTrue(comparison.currentFallbackCount() <= comparison.baselineFallbackCount());
+    }
+
+    @Test
     void benchmarkReportRendersGpuFusedSubpatternMetadata() {
         BenchmarkReport report = gpuCoverageBenchmarkReport("gpu_fused_subpattern_text_report");
 
@@ -1076,6 +1097,7 @@ public class BenchmarkSessionTest {
                 "CONSERVATIVE",
                 1,
                 1024L,
+                128L,
                 4096L,
                 512L,
                 250.0d,
@@ -1212,16 +1234,16 @@ public class BenchmarkSessionTest {
                                 90,
                                 "",
                                 "",
-                                GpuLoweringUnsupportedReason.DEFERRED_FUSED_REGION,
-                                "REDUCTION_ADJACENT: DEFERRED_FUSED_REGION: operation LAYER_NORM is not supported by GPU_METAL lowering family=NORMALIZATION status=fallback note=normalization requires compound reduction-adjacent GPU region execution; target=layer_norm_small"
+                                GpuLoweringUnsupportedReason.UNSUPPORTED_LAYOUT,
+                                "UNSUPPORTED_LAYOUT: GPU_METAL normalization inputs require dense layout family=NORMALIZATION target=layer_norm_small"
                         ),
                         new GpuLoweredRegionRejection(
                                 "planner.loss",
                                 91,
                                 "",
                                 "",
-                                GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE,
-                                "UNSUPPORTED_DTYPE: operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering family=LOSS_ADJACENT status=unsupported note=index-target loss uses INT32 targets outside the current accelerator DAG dtype contract; target=transformer_block_hot_path"
+                                GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
+                                "UNSUPPORTED_INDEX_SEMANTICS: operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering family=LOSS_ADJACENT status=unsupported note=index-target loss uses INT32 targets plus bounds, ignore-index, and reduction-denominator semantics outside the current accelerator DAG contract; target=transformer_block_hot_path"
                         )
                 ),
                 GpuLoweredRegionCandidateSpan.none(List.of(4, 5, 6)),

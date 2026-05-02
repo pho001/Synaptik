@@ -471,7 +471,21 @@ public final class PreparedExecution {
             attrs.put("gpuLayoutTransformKind", layoutTransformDecision.kind().name());
             attrs.put("gpuLayoutTransformOp", layoutTransformDecision.opType().name());
             attrs.put("gpuLayoutTransformSourceNodeId", layoutTransformDecision.sourceNodeId());
+            attrs.put("gpuLayoutTransformTargetNodeId", layoutTransformDecision.targetNodeId());
             attrs.put("gpuLayoutTransformAccepted", layoutTransformDecision.accepted());
+            attrs.put("gpuLayoutTransformSourceLayoutClass", layoutTransformDecision.sourceLayout().layoutClass().name());
+            attrs.put("gpuLayoutTransformTargetLayoutClass", layoutTransformDecision.targetLayout().layoutClass().name());
+            attrs.put("gpuLayoutTransformBytes", layoutTransformDecision.targetLayout().logicalByteLength());
+            attrs.put("gpuLayoutMaterializationCount",
+                    layoutTransformDecision.kind() == backend.accelerator.buffer.AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION
+                            && layoutTransformDecision.accepted()
+                            ? 1
+                            : 0);
+            attrs.put("gpuLayoutMaterializationBytes",
+                    layoutTransformDecision.kind() == backend.accelerator.buffer.AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION
+                            && layoutTransformDecision.accepted()
+                            ? layoutTransformDecision.targetLayout().logicalByteLength()
+                            : 0L);
             attrs.putIfAbsent("acceleratorBufferBackend", layoutTransformDecision.backendId());
             attrs.putIfAbsent("acceleratorBufferDecision", layoutTransformDecision.kind().name());
             attrs.putIfAbsent("acceleratorBufferExecutionPath", layoutTransformDecision.accepted()

@@ -130,13 +130,108 @@ class GpuLoweringCoverageMatrixTest {
                     Operation.OpType.LAYER_NORM,
                     Operation.OpType.RMS_NORM
             )) {
-                assertFalse(GpuLoweringCoverageMatrix.entryFor(backend, opType).status() == GpuLoweringCoverageStatus.SUPPORTED,
-                        () -> opType + " must remain explicit fallback until execution support is proven");
+                assertEquals(GpuLoweringCoverageStatus.SUPPORTED,
+                        GpuLoweringCoverageMatrix.entryFor(backend, opType).status(),
+                        () -> opType + " should be supported by native accelerator DAG execution");
             }
-            assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE,
+            assertFalse(GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES).reason()
+                            == GpuLoweringUnsupportedReason.SUPPORTED,
+                    "index-target loss must keep a stable non-supported reason");
+        }
+    }
+
+    @Test
+    void phaseTwentySixMatrixCoversLossAndIndexingFamilyExplicitly() {
+        List<Operation.OpType> phaseTwentySixOps = List.of(
+                Operation.OpType.NLL_LOSS,
+                Operation.OpType.CROSS_ENTROPY_LOSS,
+                Operation.OpType.CROSS_ENTROPY_LOSS_INDICES,
+                Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD,
+                Operation.OpType.GATHER,
+                Operation.OpType.GATHER_GRAD,
+                Operation.OpType.TAKE_ALONG_AXIS,
+                Operation.OpType.TAKE_ALONG_AXIS_GRAD,
+                Operation.OpType.SCATTER_ADD
+        );
+
+        for (ComputeBackend backend : List.of(ComputeBackend.GPU_METAL, ComputeBackend.GPU_CUDA)) {
+            for (Operation.OpType opType : phaseTwentySixOps) {
+                GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(backend, opType);
+
+                assertEquals(backend, entry.backend());
+                assertEquals(opType, entry.opType());
+                assertFalse(entry.status() == GpuLoweringCoverageStatus.SUPPORTED,
+                        () -> opType + " must not be supported until native index/loss execution exists");
+                assertFalse(entry.reason() == GpuLoweringUnsupportedReason.SUPPORTED);
+                assertFalse(entry.note().isBlank());
+            }
+
+            assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES).reason());
-            assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE,
+            assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD).reason());
+            assertEquals(GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED,
+                    GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.GATHER).reason());
+            assertEquals(GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED,
+                    GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.TAKE_ALONG_AXIS).reason());
+            assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DUPLICATE_INDEX,
+                    GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.SCATTER_ADD).reason());
+        }
+    }
+
+    @Test
+    void phaseTwentySevenMatrixCoversConvPoolAndBoolOutputFamilyExplicitly() {
+        List<Operation.OpType> convPoolOps = List.of(
+                Operation.OpType.CONV2D,
+                Operation.OpType.CONV2D_GEMM,
+                Operation.OpType.CONV2D_BACKWARD_INPUT,
+                Operation.OpType.CONV2D_BACKWARD_WEIGHT,
+                Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM,
+                Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM,
+                Operation.OpType.MAX_POOL2D,
+                Operation.OpType.MAX_POOL2D_BACKWARD_INPUT,
+                Operation.OpType.AVG_POOL2D,
+                Operation.OpType.AVG_POOL2D_BACKWARD_INPUT
+        );
+        List<Operation.OpType> boolOutputOps = List.of(
+                Operation.OpType.GT,
+                Operation.OpType.GE,
+                Operation.OpType.LT,
+                Operation.OpType.LE,
+                Operation.OpType.EQ,
+                Operation.OpType.NE,
+                Operation.OpType.LOGICAL_AND,
+                Operation.OpType.LOGICAL_OR,
+                Operation.OpType.LOGICAL_NOT,
+                Operation.OpType.REDUCE_ALL,
+                Operation.OpType.REDUCE_ANY
+        );
+
+        for (ComputeBackend backend : List.of(ComputeBackend.GPU_METAL, ComputeBackend.GPU_CUDA)) {
+            for (Operation.OpType opType : convPoolOps) {
+                GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(backend, opType);
+
+                assertEquals(backend, entry.backend());
+                assertEquals(opType, entry.opType());
+                assertEquals(GpuLoweringOperationFamily.CONV_POOL, entry.family());
+                assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, entry.status());
+                assertEquals(GpuLoweringUnsupportedReason.CAPABILITY_MISSING, entry.reason(),
+                        () -> opType + " should be a capability-gated conv/pool rejection, not an unlisted operation");
+                assertFalse(entry.note().isBlank());
+            }
+
+            for (Operation.OpType opType : boolOutputOps) {
+                GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(backend, opType);
+
+                assertEquals(backend, entry.backend());
+                assertEquals(opType, entry.opType());
+                assertEquals(GpuLoweringOperationFamily.COMPARE_BOOL, entry.family());
+                assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, entry.status());
+                assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE, entry.reason(),
+                        () -> opType + " should reject because native BOOL output compute is not implemented");
+                assertTrue(entry.note().contains("BOOL output"));
+                assertTrue(entry.note().contains("WHERE"));
+            }
         }
     }
 
@@ -148,6 +243,7 @@ class GpuLoweringCoverageMatrixTest {
 
         assertTrue(notes.contains("target=layer_norm_small"));
         assertTrue(notes.contains("target=conv2d_resnet_3x3"));
+        assertTrue(notes.contains("target=max_pool2d_small"));
         assertTrue(notes.contains("target=transformer_block_hot_path"));
     }
 
@@ -155,12 +251,6 @@ class GpuLoweringCoverageMatrixTest {
     void phaseSeventeenNonSupportedRowsUseStableReasonCodes() {
         for (ComputeBackend backend : List.of(ComputeBackend.GPU_METAL, ComputeBackend.GPU_CUDA)) {
             for (Operation.OpType opType : List.of(
-                    Operation.OpType.SUM,
-                    Operation.OpType.MEAN,
-                    Operation.OpType.REDUCE_MIN,
-                    Operation.OpType.REDUCE_MAX,
-                    Operation.OpType.LAYER_NORM,
-                    Operation.OpType.RMS_NORM,
                     Operation.OpType.NLL_LOSS,
                     Operation.OpType.CROSS_ENTROPY_LOSS,
                     Operation.OpType.CROSS_ENTROPY_LOSS_INDICES,
@@ -188,8 +278,10 @@ class GpuLoweringCoverageMatrixTest {
                 () -> backend + " missing required families: " + missing(coveredFamilies));
         assertTrue(entries.stream().anyMatch(entry -> entry.status() == GpuLoweringCoverageStatus.SUPPORTED),
                 () -> backend + " must have supported coverage rows");
-        assertTrue(entries.stream().anyMatch(entry -> entry.status() == GpuLoweringCoverageStatus.FALLBACK),
-                () -> backend + " must have fallback coverage rows");
+        if (backend == ComputeBackend.GPU_CUDA) {
+            assertTrue(entries.stream().anyMatch(entry -> entry.status() == GpuLoweringCoverageStatus.FALLBACK),
+                    () -> backend + " must have fallback coverage rows");
+        }
         assertTrue(entries.stream().anyMatch(entry -> entry.status() == GpuLoweringCoverageStatus.UNSUPPORTED),
                 () -> backend + " must have unsupported coverage rows");
     }

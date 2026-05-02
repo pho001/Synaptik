@@ -324,6 +324,20 @@ and report rendering first; native Metal/CUDA checks are additive capability-gat
 CPU fallback, hidden tensor-array bridge, missing native buffer binding, unexpected CPU materialization, or unexpected
 device handoff. Phase 20 closure also records that `profiles/platform/.../tuning/abc/* remained unstaged`.
 
+### Phase 28 coverage closure checks
+
+Phase 28 keeps coverage closure deterministic. Use the focused gate below after changing hot-path target policies,
+coverage regression logic, benchmark-suite rendering, or representative workload registration:
+
+```bash
+./gradlew test --tests GpuHotPathCoverageTargetsTest --tests GpuCoverageRegressionGateTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest --tests BenchmarkSuiteSessionTest --tests StandardWorkloadsTest
+```
+
+Supported v1.4 targets must require native buffer evidence and fail hidden tensor-array/CPU fallback. Unsupported or
+capability-gated targets must retain expected visible reasons. Suite reports must render `coverageDeltaVsBaseline`,
+target policies, native evidence, selected region length, lowered primitive count, fallback counters, CPU materialization
+count, and device handoff count.
+
 ### Phase 14 GPU coverage triage
 
 Phase 14 GPU coverage triage is portable Java tests and report-contract evidence. It does not require a native Metal

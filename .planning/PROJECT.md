@@ -4,7 +4,7 @@
 
 Synaptik is a Java tensor and compiled computation graph framework for engineers who need to build, optimize, benchmark, and extend tensor execution internals directly in Java. The project centers on explicit graph construction, staged compilation, reverse-mode autodiff, backend-aware runtime execution, calibration, and graph autotune rather than an eager-only numerical scripting model.
 
-This is an existing brownfield codebase. v1.0 shipped accelerator/runtime architecture hardening, v1.1 shipped the first checked-in CUDA native runtime path for dense `FLOAT32` buffer execution, v1.2 shipped broader Metal/CUDA GPU region coverage through layout ABI v2, GPU layout/view paths, lowering coverage, compound GPU regions, and coverage regression gates, and v1.3 shipped coverage-driven GPU region expansion with internal lowered DAGs, dtype/storage residency, broader lowering, region-internal fusion, multi-op GPU regions, and hard coverage evidence.
+This is an existing brownfield codebase. v1.0 shipped accelerator/runtime architecture hardening, v1.1 shipped the first checked-in CUDA native runtime path for dense `FLOAT32` buffer execution, v1.2 shipped broader Metal/CUDA GPU region coverage through layout ABI v2, GPU layout/view paths, lowering coverage, compound GPU regions, and coverage regression gates, v1.3 shipped coverage-driven GPU region expansion with internal lowered DAGs, dtype/storage residency, broader lowering metadata, region-internal fusion evidence, multi-op GPU regions, and hard coverage evidence, and v1.4 shipped native/lowered GPU execution closure for high-impact operation families with support-or-rejection coverage gates.
 
 ## Core Value
 
@@ -12,15 +12,29 @@ Synaptik must produce correct tensor results through a clean compiled graph arch
 
 ## Current State
 
-v1.3 Coverage-Driven GPU Region Expansion shipped and was archived on 2026-05-01. Phases 14 through 21 are complete and the v1.3 milestone audit passed. Synaptik now has coverage-driven Metal/CUDA GPU region expansion evidence for hot-path triage, lowered-region manifests, dtype/storage residency, normalization/reduction/loss-adjacent lowering, region-internal fusion, multi-op GPU region execution, hard coverage gates, and milestone proof closure while keeping the public `Tensor` API logical and keeping device residency inside runtime execution state.
+v1.4 Native GPU Operation Coverage Closure shipped and was archived on 2026-05-02. Phases 22 through 28 are complete and the v1.4 milestone audit passed. Synaptik now has target coverage truth, semantics contracts, native/lowered reduction coverage, normalization GPU lowering, verified Metal forward SDPA admission, explicit CUDA SDPA capability fallback, loss/indexing support-or-rejection diagnostics, conv/pool and BOOL-output coverage evidence, and hard regression gates that prove supported families do not silently fall back to tensor-array or CPU replay.
 
-- 21 phases and 82 plans completed across v1.0, v1.1, v1.2, and v1.3; v1.3 phase artifacts are archived in `.planning/milestones/v1.3-phases/`.
-- 73/73 milestone requirements are satisfied and archived in `.planning/milestones/v1.0-REQUIREMENTS.md`, `.planning/milestones/v1.1-REQUIREMENTS.md`, `.planning/milestones/v1.2-REQUIREMENTS.md`, and `.planning/milestones/v1.3-REQUIREMENTS.md`.
-- v1.3 phase verification, Nyquist validation, milestone audit, and archival passed; Phase 21 closed the missing Phase 14 and Phase 18 verification evidence and hardened Phase 20 validation metadata.
+- 28 phases and 108 plans completed across v1.0, v1.1, v1.2, v1.3, and v1.4; v1.4 phase artifacts are archived in `.planning/milestones/v1.4-phases/`.
+- 94/94 milestone requirements are satisfied and archived in `.planning/milestones/v1.0-REQUIREMENTS.md`, `.planning/milestones/v1.1-REQUIREMENTS.md`, `.planning/milestones/v1.2-REQUIREMENTS.md`, `.planning/milestones/v1.3-REQUIREMENTS.md`, and `.planning/milestones/v1.4-REQUIREMENTS.md`.
+- v1.4 phase verification, security, Nyquist validation, milestone audit, and archival passed; final closure normalized Phase 22/23/25/26 evidence so all v1.4 phases are audit-readable.
+- v1.3 phase verification, Nyquist validation, milestone audit, and archival passed.
 - v1.2 phase verification, security, Nyquist validation, milestone audit, and archival passed.
-- Backend-neutral device buffer layout ABI, Metal logical-view device flow, materialization-aware planning, tuning/profile ownership, accelerator observability, narrow CUDA native runtime execution, GPU layout/view residency, GPU lowering coverage, fused GPU compound region metadata, coverage regression gates, GPU coverage triage, lowered-region manifest contracts, dtype/storage residency, normalization/reduction/loss-adjacent coverage, region-internal GPU fusion, multi-op GPU region execution, hard coverage regression evidence, and v1.3 audit proof closure are now validated project state.
+- Backend-neutral device buffer layout ABI, Metal logical-view device flow, materialization-aware planning, tuning/profile ownership, accelerator observability, narrow CUDA native runtime execution, GPU layout/view residency, GPU lowering coverage, fused GPU compound region metadata, coverage regression gates, GPU coverage triage, lowered-region manifest contracts, dtype/storage residency, operation-family support/rejection evidence, region-internal GPU fusion, multi-op GPU region execution, native/lowered reductions, normalization lowering, Metal forward SDPA, target coverage truth, and hard v1.4 coverage regression closure are now validated project state.
 - Real CUDA hardware/native execution remains a residual environment risk because local CUDA native tasks capability-skipped; portable gates and capability-skip behavior passed.
-- No active milestone is currently defined. The next milestone should start with fresh requirements via `$gsd-new-milestone`.
+- There is no active milestone after v1.4 archival. The next milestone should start from fresh requirements with `$gsd-new-milestone`.
+
+## Recently Shipped Milestone: v1.4 Native GPU Operation Coverage Closure
+
+**Status:** shipped 2026-05-02.
+
+**Goal:** Replace the remaining measured Metal/CUDA fallback families with backend-neutral lowered DAG support and backend-specific native execution, while keeping fallback explicit for unsupported semantics.
+
+**Target features:**
+- Native/lowered Metal and CUDA support for forward reductions: `SUM`, `MEAN`, `REDUCE_MIN`, and `REDUCE_MAX`.
+- Normalization lowering for `LAYER_NORM` and `RMS_NORM` using GPU-resident reduction-adjacent primitives.
+- Forward SDPA execution after semantics verification for scale, mask, rank, dtype, and backward interactions.
+- Loss-adjacent, gather/scatter/index, conv/pool, and BOOL compare-output coverage where it closes real CPU exits.
+- Coverage gates that prove fewer CPU materialization boundaries and no hidden tensor-array replay on representative transformer, normalization, loss, indexing, and conv/pool workloads.
 
 ## Recently Shipped Milestone: v1.3 Coverage-Driven GPU Region Expansion
 
@@ -85,10 +99,17 @@ v1.3 Coverage-Driven GPU Region Expansion shipped and was archived on 2026-05-01
 - ✓ Selected GPU regions can execute multiple lowered operations through backend-neutral planning contracts and backend-specific Metal/CUDA prepared executables while preserving true CPU materialization boundaries — validated in Phase 19 by `.planning/milestones/v1.3-phases/19-multi-op-gpu-region-execution/19-VERIFICATION.md`.
 - ✓ Coverage reports and regression gates expose lowered operation counts, fused subpattern counts, selected region length, rejected candidates, CPU exits, materialization reasons, device handoffs, native capability evidence, and hard target gates — validated in Phase 20 by `.planning/milestones/v1.3-phases/20-coverage-regression-hardening/20-VERIFICATION.md`.
 - ✓ v1.3 milestone verification evidence is closed: Phase 14 and Phase 18 verification reports exist, Phase 20 validation metadata is Nyquist-compliant, and the v1.3 milestone audit passes — validated in Phase 21 by `.planning/milestones/v1.3-phases/21-milestone-verification-evidence-closure/21-VERIFICATION.md` and `.planning/milestones/v1.3-MILESTONE-AUDIT.md`.
+- ✓ Target coverage truth, semantics contracts, and benchmark coverage reports distinguish real native/buffer execution from rejection evidence, tensor-array bridge execution, CPU fallback, and candidate shortening for v1.4 operation families — validated in Phase 22 by `.planning/milestones/v1.4-phases/22-coverage-truth-and-semantics-lock/22-VERIFICATION.md`.
+- ✓ Forward reductions `SUM`, `MEAN`, `REDUCE_MIN`, and `REDUCE_MAX` are represented as accelerator DAG primitives and execute through supported Metal/CUDA dense `FLOAT32` GPU paths with CPU parity and trace evidence — validated in Phase 23 by `.planning/milestones/v1.4-phases/23-forward-reductions-native-execution/23-VERIFICATION.md`.
+- ✓ `LAYER_NORM` and `RMS_NORM` lower to GPU-resident reduction-adjacent DAGs for supported cases while preserving epsilon, gamma/beta broadcast, dtype/layout legality, and CPU parity — validated in Phase 24 by `.planning/milestones/v1.4-phases/24-normalization-gpu-lowering/24-VERIFICATION.md`.
+- ✓ Forward SDPA semantics are locked and Metal admits verified unmasked forward SDPA while CUDA and unsupported SDPA variants retain stable capability-specific rejection evidence — validated in Phase 25 by `.planning/milestones/v1.4-phases/25-forward-sdpa-semantic-enablement/25-VERIFICATION.md`.
+- ✓ Loss-adjacent, gather/scatter/take-along-axis, index-target, conv/pool, and BOOL-output target families expose GPU support-or-rejection coverage, residency diagnostics, and parity evidence without hidden CPU exits — validated in Phases 26 and 27 by `.planning/milestones/v1.4-phases/26-loss-adjacent-and-indexing-gpu-coverage/26-VERIFICATION.md` and `.planning/milestones/v1.4-phases/27-conv-pool-and-bool-compare-outputs/27-VERIFICATION.md`.
+- ✓ v1.4 coverage regression gates harden representative transformer, normalization, loss/indexing, and conv/pool workloads with native evidence, target deltas, fallback counts, CPU materialization counts, region length, lowered primitive count, backend path, and artifact hygiene — validated in Phase 28 by `.planning/milestones/v1.4-phases/28-coverage-regression-closure/28-VERIFICATION.md`.
 
 ### Active
 
-- [ ] Future accelerator requirements are deferred outside v1.3, especially vendor-library primitive routing, backend-native primitive cost modeling, broader high-rank/sparse/dynamic-shape coverage, and canonical real-CUDA hardware evidence.
+- [ ] Define the next milestone requirements with `$gsd-new-milestone`.
+- [ ] Future accelerator requirements remain deferred when they require broader high-rank, sparse, dynamic-shape, vendor-library routing, or canonical real-CUDA hardware evidence beyond the current target workloads.
 
 ### Out of Scope
 
@@ -171,4 +192,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state.
 
 ---
-*Last updated: 2026-05-01 after v1.3 milestone archival*
+*Last updated: 2026-05-02 after v1.4 milestone archive*

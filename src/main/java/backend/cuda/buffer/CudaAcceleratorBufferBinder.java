@@ -494,6 +494,10 @@ public final class CudaAcceleratorBufferBinder {
             return "binding elementCount " + actualLayout.logicalElementCount()
                     + " does not match expected elementCount " + expectedLayout.logicalElementCount();
         }
+        if (requiredAccess == CudaBufferAccess.READ
+                && actualLayout.layoutClass() != AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS) {
+            return "binding is a metadata-only CUDA layout view and must be materialized before native buffer compute";
+        }
         if (!accessCompatible(cudaBinding.access(), requiredAccess)) {
             return "binding access " + cudaBinding.access() + " is incompatible with required " + requiredAccess;
         }

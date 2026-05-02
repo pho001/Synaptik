@@ -192,6 +192,54 @@
 
 ---
 
+## Milestone: v1.4 - Native GPU Operation Coverage Closure
+
+**Shipped:** 2026-05-02
+**Phases:** 7 | **Plans:** 26 | **Tasks:** not recorded
+
+### What Was Built
+
+- Source-of-truth target coverage and semantics contracts for the v1.4 fallback families.
+- Native/lowered forward reductions for legal Metal/CUDA dense `FLOAT32` paths.
+- GPU-resident LayerNorm and RMSNorm lowering through reduction-adjacent sub-DAGs.
+- Verified Metal unmasked forward SDPA admission with CUDA and unsupported SDPA variants kept as stable capability fallbacks.
+- Loss/indexing, conv/pool, and BOOL-output support-or-rejection coverage that preserves adjacent GPU region diagnostics.
+- Hard coverage regression closure with native evidence, coverage deltas, backend path counters, fallback counts, CPU materialization counts, and local artifact hygiene.
+
+### What Worked
+
+- The target coverage truth table prevented supported rows from becoming paper support without executable backend evidence.
+- Keeping unsupported families as explicit capability/rejection evidence allowed the milestone to improve real GPU residency without hiding remaining gaps.
+- Final coverage gates focused on structural execution evidence rather than timing-only benchmark claims.
+- Late audit normalization made phases 22 through 28 consistently readable by verification, security, validation, and milestone audit workflows.
+
+### What Was Inefficient
+
+- Several early v1.4 phases lacked aggregate verification/security/validation files until the close-out pass.
+- The GSD roadmap analyzer did not fully recognize some manually normalized status fields, so the final audit had to rely on disk evidence and explicit archive artifacts.
+- Local benchmark/profile outputs remained dirty and required repeated discipline to keep out of milestone evidence.
+- CUDA native execution remains locally unproven because `nvcc` is unavailable in this environment.
+
+### Patterns Established
+
+- A coverage row marked supported must map to real backend-lowerable/native execution evidence, not only planner optimism.
+- GPU support closure should distinguish native buffer, tensor-array, CPU fallback, candidate shortening, and capability rejection in reports.
+- Support-or-rejection milestones can still improve accelerator quality when unsupported cases preserve adjacent GPU regions and stable reason codes.
+- Milestone audits should verify security and Nyquist artifacts for every phase before archive, even if implementation tests already passed.
+
+### Key Lessons
+
+1. Mark phase-level security and validation as required close artifacts, not optional after-work.
+2. Keep archive copies immutable once a milestone ships; living roadmap and requirements should stay small.
+3. CUDA capability skips are acceptable local evidence only when portable fallback and reason-code behavior are tested.
+4. Native operation coverage needs both semantic contracts and hard execution-path gates to avoid false positives.
+
+### Cost Observations
+
+- Model mix: not recorded for this milestone.
+- Sessions: one extended v1.4 run covering phases 22 through 28 and archive close.
+- Notable: coverage regression gates and targeted Gradle filters kept verification focused despite a broad operation-family milestone.
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -202,6 +250,7 @@
 | v1.1 | multiple | 3 | Added capability-gated CUDA native runtime closure with portable fake-bridge verification and explicit native skip evidence. |
 | v1.2 | multiple | 5 | Added three-source requirement audit discipline across GPU layout, lowering, fusion, and coverage gates. |
 | v1.3 | multiple | 8 | Added coverage-driven GPU region expansion, region-internal fusion, multi-op execution, hard coverage gates, and evidence-only audit closure. |
+| v1.4 | multiple | 7 | Added native/lowered GPU operation coverage closure, support-or-rejection diagnostics, and hard execution-path regression gates for high-impact fallback families. |
 
 ### Cumulative Quality
 
@@ -211,6 +260,7 @@
 | v1.1 | 9/9 satisfied | 3/3 phases passed | 0 |
 | v1.2 | 16/16 satisfied | 5/5 phases passed | 0 |
 | v1.3 | 24/24 satisfied | 8/8 phases passed | 0 |
+| v1.4 | 21/21 satisfied | 7/7 phases passed | 0 |
 
 ### Top Lessons
 
@@ -219,3 +269,4 @@
 3. Native accelerator work should separate portable correctness gates from local hardware/toolchain evidence.
 4. GPU residency improvements need layout, lowering, fusion, and coverage gates to evolve together.
 5. Evidence-only closure phases are valid when the implementation is complete but audit-readable proof is stale.
+6. Native coverage claims should require executable backend evidence or explicit capability-gated rejection, never support labels alone.

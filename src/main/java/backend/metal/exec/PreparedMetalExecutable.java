@@ -50,6 +50,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
     private final List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps;
     private final AcceleratorBackendConfig backendConfig;
     private final MetalAcceleratorBufferBinder bufferBinder;
+    private final MetalPreparedTransportPlan preparedTransportPlan;
     private volatile String lastBufferBindingDecision = "not executed yet";
     private volatile AcceleratorBufferDecision lastAcceleratorBufferDecision =
             AcceleratorBufferDecision.notEvaluated(ComputeBackend.GPU_METAL);
@@ -91,6 +92,14 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
         this.cpuFallbackSteps = List.copyOf(cpuFallbackSteps == null ? List.of() : cpuFallbackSteps);
         this.backendConfig = backendConfig == null ? AcceleratorBackendConfig.defaults() : backendConfig;
         this.bufferBinder = new MetalAcceleratorBufferBinder(bridge, bridgeContext);
+        this.preparedTransportPlan = MetalPreparedTransportPlan.prepare(
+                plan,
+                bridge,
+                bridgeContext,
+                bridgeExecutable,
+                this.backendConfig,
+                bufferBinder
+        );
     }
 
     /**
@@ -107,37 +116,53 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
     }
 
     /**
-     * Executes through the Metal bridge when available and compatible, otherwise runs CPU fallback steps.
+     * Executes through the Metal bridge when the prepared transport plan and runtime bindings allow it.
      *
-     * <p>Buffer-binding execution is evaluated before the legacy tensor-array copy contract. This keeps the
-     * native shared-buffer path independent from Java-array layout restrictions such as direct {@code float[]}
-     * storage, contiguity, and storage offset. Those checks are applied only when the executable has to use the
-     * copy-based bridge path.</p>
+     * <p>Run-independent transport gates are fixed in the constructor. Execution only validates facts that can
+     * change per run: current device bindings, residency/currentness, concrete tensor layouts, and output buffer
+     * allocation/reuse.</p>
      */
     @Override
     public void execute(ExecutionContext context) {
-        String bridgeFallbackReason = metalBridgeUnavailableReason(context);
-        if (!bridgeFallbackReason.isBlank()) {
-            AcceleratorBufferDecision decision = bridgeUnavailableDecision(bridgeFallbackReason);
+        bufferBinder.registerRuntimeServices(context);
+        AcceleratorBufferDecision staticDecision = preparedTransportPlan.toDecision();
+        if (preparedTransportPlan.containsForwardAttentionDag() && context != null && context.runsBackwardPass()) {
+            AcceleratorBufferDecision decision = preparedTransportPlan.backwardSdpaDecision();
             publishDecision(decision);
             requireBufferOrThrow(decision);
-            runCpuFallback(context, toLegacyBufferDecision(decision), bridgeFallbackReason);
+            runCpuFallback(context, toLegacyBufferDecision(decision), decision.reason());
             return;
         }
 
-        ResolvedAcceleratorInputs nativeBufferInputs = AcceleratorPreparedInputResolver.resolveForNativeBufferBinding(
-                bridgeExecutable.externalInputNodeIds(),
-                context
-        );
-        AcceleratorBufferRequest request = bufferRequest(context);
-        AcceleratorBufferDecision decision = bufferBinder.decide(
-                request,
-                nativeBufferInputs,
-                backendConfig.buffer(),
-                context
-        );
-        publishDecision(decision);
-        requireBufferOrThrow(decision);
+        if (preparedTransportPlan.preferredPath() == MetalPreparedTransportPath.STATIC_CPU_FALLBACK
+                || preparedTransportPlan.preferredPath() == MetalPreparedTransportPath.UNAVAILABLE_REQUIRED) {
+            publishDecision(staticDecision);
+            requireBufferOrThrow(staticDecision);
+            runCpuFallback(context, toLegacyBufferDecision(staticDecision), staticDecision.reason());
+            return;
+        }
+
+        AcceleratorBufferDecision decision = staticDecision;
+        ResolvedAcceleratorInputs nativeBufferInputs = null;
+        AcceleratorBufferRequest request = null;
+        if (preparedTransportPlan.preferredPath() == MetalPreparedTransportPath.BUFFER_BINDING) {
+            nativeBufferInputs = AcceleratorPreparedInputResolver.resolveForNativeBufferBinding(
+                    bridgeExecutable.externalInputNodeIds(),
+                    context
+            );
+            request = bufferRequest(context);
+            decision = bufferBinder.validateRuntime(
+                    request,
+                    nativeBufferInputs,
+                    backendConfig.buffer(),
+                    context
+            );
+            publishDecision(decision);
+            requireBufferOrThrow(decision);
+        } else {
+            publishDecision(staticDecision);
+            requireBufferOrThrow(staticDecision);
+        }
 
         if (decision.path() == AcceleratorBufferExecutionPath.BUFFER_BINDING) {
             try {
@@ -270,23 +295,6 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
                 : PreparedAcceleratorExecutionSupport.resolveRuntimeTensors(bridgeExecutable.outputNodeIds(), context);
     }
 
-    private AcceleratorBufferDecision bridgeUnavailableDecision(String reason) {
-        AcceleratorBufferBindingMode mode = backendConfig.buffer().bindingMode();
-        return new AcceleratorBufferDecision(
-                ComputeBackend.GPU_METAL,
-                mode,
-                mode == AcceleratorBufferBindingMode.REQUIRE
-                        ? AcceleratorBufferExecutionPath.UNAVAILABLE
-                        : AcceleratorBufferExecutionPath.CPU_FALLBACK,
-                false,
-                mode == AcceleratorBufferBindingMode.REQUIRE,
-                AcceleratorBufferReasonCode.BRIDGE_UNAVAILABLE,
-                reason,
-                List.of(),
-                List.of()
-        );
-    }
-
     private void publishDecision(AcceleratorBufferDecision decision) {
         lastAcceleratorBufferDecision = decision == null
                 ? AcceleratorBufferDecision.notEvaluated(ComputeBackend.GPU_METAL)
@@ -319,22 +327,6 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
         }
     }
 
-    private String metalBridgeUnavailableReason(ExecutionContext context) {
-        if (!shouldUseMetalBridge(context)) {
-            return "backward pass contains forward SDPA DAG unsupported by current Metal bridge";
-        }
-        if (!bridge.isAvailable()) {
-            return "bridge unavailable: " + bridge.unavailableReason();
-        }
-        if (!bridgeContext.available()) {
-            return "bridge context unavailable: " + bridgeContext.reason();
-        }
-        if (!bridgeExecutable.available()) {
-            return "bridge executable unavailable: " + bridgeExecutable.reason();
-        }
-        return "";
-    }
-
     private String tensorArrayFallbackReason(List<Tensor> resolvedExternalInputs, List<Tensor> outputs) {
         for (int i = 0; i < resolvedExternalInputs.size(); i++) {
             String reason = unsupportedExternalInputReason(resolvedExternalInputs.get(i));
@@ -351,14 +343,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
         return "";
     }
 
-    private boolean shouldUseMetalBridge(ExecutionContext context) {
-        if (context == null || !context.runsBackwardPass()) {
-            return true;
-        }
-        return !containsForwardAttentionDag();
-    }
-
-    private boolean containsForwardAttentionDag() {
+    private static boolean containsForwardAttentionDag(MetalPartitionPlan plan) {
         return plan.lowering().dagSpec().nodes().stream().anyMatch(node -> switch (node.type()) {
             case SDPA -> true;
             default -> false;
@@ -546,6 +531,253 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
     @Override
     public AcceleratorBufferDecision lastAcceleratorBufferDecision() {
         return lastAcceleratorBufferDecision;
+    }
+
+    /**
+     * Returns the static transport plan prepared once for this executable.
+     */
+    public String preparedTransportPlan() {
+        return preparedTransportPlan.describe();
+    }
+
+    private enum MetalPreparedTransportPath {
+        BUFFER_BINDING,
+        TENSOR_ARRAY,
+        STATIC_CPU_FALLBACK,
+        UNAVAILABLE_REQUIRED
+    }
+
+    private record MetalPreparedTransportPlan(
+            MetalPreparedTransportPath preferredPath,
+            AcceleratorBufferBindingMode mode,
+            AcceleratorBufferReasonCode reasonCode,
+            String reason,
+            boolean bridgeAvailable,
+            boolean contextAvailable,
+            boolean executableAvailable,
+            boolean bufferAbiSupported,
+            boolean staticDTypeLegal,
+            boolean containsForwardAttentionDag,
+            long estimatedWork,
+            long minimumEstimatedWork
+    ) {
+        private static MetalPreparedTransportPlan prepare(
+                MetalPartitionPlan plan,
+                MetalMpsGraphBridge bridge,
+                MetalMpsBridgeContext bridgeContext,
+                MetalMpsBridgeExecutable bridgeExecutable,
+                AcceleratorBackendConfig backendConfig,
+                MetalAcceleratorBufferBinder bufferBinder
+        ) {
+            AcceleratorBufferBindingMode mode = backendConfig.buffer().bindingMode();
+            boolean containsForwardAttentionDag = PreparedMetalExecutable.containsForwardAttentionDag(plan);
+            long estimatedWork = plan.estimatedWork();
+            long minimumEstimatedWork = backendConfig.buffer().minimumEstimatedWork();
+            if (!bridge.isAvailable()) {
+                return unavailable(mode, AcceleratorBufferReasonCode.BRIDGE_UNAVAILABLE,
+                        "bridge unavailable: " + bridge.unavailableReason(),
+                        false, false, false, false, true, containsForwardAttentionDag, estimatedWork, minimumEstimatedWork);
+            }
+            if (bridgeContext == null || !bridgeContext.available()) {
+                return unavailable(mode, AcceleratorBufferReasonCode.BRIDGE_UNAVAILABLE,
+                        "bridge context unavailable: " + (bridgeContext == null ? "missing context" : bridgeContext.reason()),
+                        true, false, false, false, true, containsForwardAttentionDag, estimatedWork, minimumEstimatedWork);
+            }
+            if (bridgeExecutable == null || !bridgeExecutable.available()) {
+                return unavailable(mode, AcceleratorBufferReasonCode.BRIDGE_UNAVAILABLE,
+                        "bridge executable unavailable: " + (bridgeExecutable == null ? "missing executable" : bridgeExecutable.reason()),
+                        true, true, false, false, true, containsForwardAttentionDag, estimatedWork, minimumEstimatedWork);
+            }
+
+            String dtypeReason = staticDTypeUnsupportedReason(bridgeExecutable);
+            if (!dtypeReason.isBlank()) {
+                return unavailable(mode, AcceleratorBufferReasonCode.INPUT_DTYPE_UNSUPPORTED,
+                        dtypeReason,
+                        true, true, true, bridge.supportsBufferBindings(), false, containsForwardAttentionDag, estimatedWork, minimumEstimatedWork);
+            }
+
+            if (mode == AcceleratorBufferBindingMode.OFF) {
+                return new MetalPreparedTransportPlan(
+                        MetalPreparedTransportPath.TENSOR_ARRAY,
+                        mode,
+                        AcceleratorBufferReasonCode.BUFFER_BINDINGS_DISABLED,
+                        "buffer bindings disabled",
+                        true,
+                        true,
+                        true,
+                        bridge.supportsBufferBindings(),
+                        true,
+                        containsForwardAttentionDag,
+                        estimatedWork,
+                        minimumEstimatedWork
+                );
+            }
+
+            boolean bufferAbiSupported = bridge.supportsBufferBindings();
+            if (!bufferAbiSupported) {
+                return bufferUnavailable(mode, AcceleratorBufferReasonCode.NATIVE_BUFFER_ABI_UNAVAILABLE,
+                        "native Metal buffer ABI unavailable: bridge does not support buffer bindings",
+                        true, true, true, false, true, containsForwardAttentionDag, estimatedWork, minimumEstimatedWork);
+            }
+
+            if (estimatedWork < minimumEstimatedWork) {
+                return bufferUnavailable(mode, AcceleratorBufferReasonCode.BELOW_MINIMUM_WORK,
+                        "estimated work below buffer minimum",
+                        true, true, true, true, true, containsForwardAttentionDag, estimatedWork, minimumEstimatedWork);
+            }
+
+            String allocatorReason = bufferBinder.prepareAllocatorUnavailableReason();
+            if (!allocatorReason.isBlank()) {
+                return bufferUnavailable(mode, AcceleratorBufferReasonCode.BUFFER_ALLOCATOR_UNAVAILABLE,
+                        allocatorReason,
+                        true, true, true, true, true, containsForwardAttentionDag, estimatedWork, minimumEstimatedWork);
+            }
+
+            return new MetalPreparedTransportPlan(
+                    MetalPreparedTransportPath.BUFFER_BINDING,
+                    mode,
+                    AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE,
+                    "using native buffer bindings",
+                    true,
+                    true,
+                    true,
+                    true,
+                    true,
+                    containsForwardAttentionDag,
+                    estimatedWork,
+                    minimumEstimatedWork
+            );
+        }
+
+        private static MetalPreparedTransportPlan unavailable(
+                AcceleratorBufferBindingMode mode,
+                AcceleratorBufferReasonCode reasonCode,
+                String reason,
+                boolean bridgeAvailable,
+                boolean contextAvailable,
+                boolean executableAvailable,
+                boolean bufferAbiSupported,
+                boolean staticDTypeLegal,
+                boolean containsForwardAttentionDag,
+                long estimatedWork,
+                long minimumEstimatedWork
+        ) {
+            return new MetalPreparedTransportPlan(
+                    mode == AcceleratorBufferBindingMode.REQUIRE
+                            ? MetalPreparedTransportPath.UNAVAILABLE_REQUIRED
+                            : MetalPreparedTransportPath.STATIC_CPU_FALLBACK,
+                    mode,
+                    reasonCode,
+                    reason,
+                    bridgeAvailable,
+                    contextAvailable,
+                    executableAvailable,
+                    bufferAbiSupported,
+                    staticDTypeLegal,
+                    containsForwardAttentionDag,
+                    estimatedWork,
+                    minimumEstimatedWork
+            );
+        }
+
+        private static MetalPreparedTransportPlan bufferUnavailable(
+                AcceleratorBufferBindingMode mode,
+                AcceleratorBufferReasonCode reasonCode,
+                String reason,
+                boolean bridgeAvailable,
+                boolean contextAvailable,
+                boolean executableAvailable,
+                boolean bufferAbiSupported,
+                boolean staticDTypeLegal,
+                boolean containsForwardAttentionDag,
+                long estimatedWork,
+                long minimumEstimatedWork
+        ) {
+            return new MetalPreparedTransportPlan(
+                    mode == AcceleratorBufferBindingMode.REQUIRE
+                            ? MetalPreparedTransportPath.UNAVAILABLE_REQUIRED
+                            : MetalPreparedTransportPath.TENSOR_ARRAY,
+                    mode,
+                    reasonCode,
+                    reason,
+                    bridgeAvailable,
+                    contextAvailable,
+                    executableAvailable,
+                    bufferAbiSupported,
+                    staticDTypeLegal,
+                    containsForwardAttentionDag,
+                    estimatedWork,
+                    minimumEstimatedWork
+            );
+        }
+
+        private AcceleratorBufferDecision toDecision() {
+            AcceleratorBufferExecutionPath executionPath = switch (preferredPath) {
+                case BUFFER_BINDING -> AcceleratorBufferExecutionPath.BUFFER_BINDING;
+                case TENSOR_ARRAY -> AcceleratorBufferExecutionPath.TENSOR_ARRAY;
+                case STATIC_CPU_FALLBACK -> AcceleratorBufferExecutionPath.CPU_FALLBACK;
+                case UNAVAILABLE_REQUIRED -> AcceleratorBufferExecutionPath.UNAVAILABLE;
+            };
+            return new AcceleratorBufferDecision(
+                    ComputeBackend.GPU_METAL,
+                    mode,
+                    executionPath,
+                    preferredPath == MetalPreparedTransportPath.BUFFER_BINDING,
+                    mode == AcceleratorBufferBindingMode.REQUIRE,
+                    reasonCode,
+                    reason,
+                    List.of(),
+                    List.of()
+            );
+        }
+
+        private AcceleratorBufferDecision backwardSdpaDecision() {
+            AcceleratorBufferExecutionPath path = mode == AcceleratorBufferBindingMode.REQUIRE
+                    ? AcceleratorBufferExecutionPath.UNAVAILABLE
+                    : AcceleratorBufferExecutionPath.CPU_FALLBACK;
+            return new AcceleratorBufferDecision(
+                    ComputeBackend.GPU_METAL,
+                    mode,
+                    path,
+                    false,
+                    mode == AcceleratorBufferBindingMode.REQUIRE,
+                    AcceleratorBufferReasonCode.BRIDGE_UNAVAILABLE,
+                    "backward pass contains forward SDPA DAG unsupported by current Metal bridge",
+                    List.of(),
+                    List.of()
+            );
+        }
+
+        private String describe() {
+            return "preferredPath=" + preferredPath
+                    + ", mode=" + mode
+                    + ", reasonCode=" + reasonCode
+                    + ", bridgeAvailable=" + bridgeAvailable
+                    + ", contextAvailable=" + contextAvailable
+                    + ", executableAvailable=" + executableAvailable
+                    + ", bufferAbiSupported=" + bufferAbiSupported
+                    + ", staticDTypeLegal=" + staticDTypeLegal
+                    + ", containsForwardAttentionDag=" + containsForwardAttentionDag
+                    + ", estimatedWork=" + estimatedWork
+                    + ", minimumEstimatedWork=" + minimumEstimatedWork
+                    + ", reason=" + reason;
+        }
+
+        private static String staticDTypeUnsupportedReason(MetalMpsBridgeExecutable bridgeExecutable) {
+            for (DataType dtype : bridgeExecutable.externalInputDataTypes()) {
+                if (!MetalMpsCapabilities.supportsExternalInputDType(dtype)) {
+                    return "static Metal external input dtype unsupported: "
+                            + MetalMpsCapabilities.unsupportedDTypeMessage(dtype);
+                }
+            }
+            for (DataType dtype : bridgeExecutable.outputDataTypes()) {
+                if (!MetalMpsCapabilities.supportsOutputDType(dtype)) {
+                    return "static Metal output dtype unsupported: "
+                            + MetalMpsCapabilities.unsupportedDTypeMessage(dtype);
+                }
+            }
+            return "";
+        }
     }
 
 }

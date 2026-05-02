@@ -225,6 +225,12 @@ public final class JsonBenchmarkReportRenderer {
                     .append(backend.cpuMaterializationDurationNs()).append(", ")
                     .append("\"copyDurationNs\": ").append(backend.copyDurationNs()).append(", ")
                     .append("\"deviceHandoffCount\": ").append(backend.deviceHandoffCount()).append(", ")
+                    .append("\"gpuLayoutMaterializationCount\": ").append(backend.gpuLayoutMaterializationCount()).append(", ")
+                    .append("\"gpuLayoutMaterializationBytes\": ").append(backend.gpuLayoutMaterializationBytes()).append(", ")
+                    .append("\"gpuLayoutTransformKindCounts\": ")
+                    .append(intMapJson(backend.gpuLayoutTransformKindCounts())).append(", ")
+                    .append("\"gpuLayoutTargetLayoutClassCounts\": ")
+                    .append(intMapJson(backend.gpuLayoutTargetLayoutClassCounts())).append(", ")
                     .append("\"storageResidencyCounts\": ").append(intMapJson(backend.storageResidencyCounts())).append(", ")
                     .append("\"dtypeResidencyEvidence\": ").append(intMapJson(backend.dtypeResidencyReasons())).append(", ")
                     .append("\"gpuFusedSubpatternCount\": ").append(backend.gpuFusedSubpatternCount()).append(", ")
@@ -235,10 +241,39 @@ public final class JsonBenchmarkReportRenderer {
                     .append("\"reasonCodes\": ").append(stringListJson(backend.reasonCodes())).append(", ")
                     .append("\"fallbackReasons\": ").append(stringListJson(backend.fallbackReasons())).append(", ")
                     .append("\"coverageGate\": ").append(gateResultJson(gate)).append(", ")
-                    .append("\"nativeEvidence\": ").append(nativeEvidenceJson(nativeEvidence))
+                    .append("\"nativeEvidence\": ").append(nativeEvidenceJson(nativeEvidence)).append(", ")
+                    .append("\"targetCoverageTruth\": ").append(targetCoverageTruthJson(entry.getKey()))
                     .append("}");
         }
         sb.append('}');
+        return sb.toString();
+    }
+
+    private static String targetCoverageTruthJson(String backendName) {
+        backend.ComputeBackend computeBackend = switch (backendName) {
+            case "GPU_METAL" -> backend.ComputeBackend.GPU_METAL;
+            case "GPU_CUDA" -> backend.ComputeBackend.GPU_CUDA;
+            default -> null;
+        };
+        if (computeBackend == null) {
+            return "[]";
+        }
+        StringBuilder sb = new StringBuilder("[");
+        java.util.List<GpuTargetCoverageTruth.Row> rows = GpuTargetCoverageTruth.rowsFor(computeBackend);
+        for (int i = 0; i < rows.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            GpuTargetCoverageTruth.Row row = rows.get(i);
+            sb.append("{")
+                    .append("\"op\": \"").append(escape(row.opType().name())).append("\", ")
+                    .append("\"family\": \"").append(escape(row.family().name())).append("\", ")
+                    .append("\"matrixStatus\": \"").append(escape(row.matrixStatus().name())).append("\", ")
+                    .append("\"executionStatus\": \"").append(escape(row.executionStatus().name())).append("\", ")
+                    .append("\"detail\": \"").append(escape(row.detail())).append("\"")
+                    .append("}");
+        }
+        sb.append("]");
         return sb.toString();
     }
 
@@ -300,6 +335,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"finalScore\": " + format(summary.finalScore()) + ", "
                 + "\"boundaryCount\": " + summary.boundaryCount() + ", "
                 + "\"estimatedTransferBytes\": " + summary.estimatedTransferBytes() + ", "
+                + "\"layoutFallbackBytes\": " + summary.layoutFallbackBytes() + ", "
                 + "\"estimatedComputeWork\": " + summary.estimatedComputeWork() + ", "
                 + "\"preset\": \"" + escape(summary.preset()) + "\""
                 + manifestJsonSuffix(decision.gpuLoweredRegionManifest())
@@ -502,6 +538,7 @@ public final class JsonBenchmarkReportRenderer {
                     summary.finalScore(),
                     summary.boundaryCount(),
                     summary.estimatedTransferBytes(),
+                    summary.layoutFallbackBytes(),
                     summary.estimatedComputeWork(),
                     summary.preset()
             ));
@@ -516,6 +553,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"finalScore\": " + format(finalist.finalScore()) + ", "
                 + "\"boundaryCount\": " + finalist.boundaryCount() + ", "
                 + "\"estimatedTransferBytes\": " + finalist.estimatedTransferBytes() + ", "
+                + "\"layoutFallbackBytes\": " + finalist.layoutFallbackBytes() + ", "
                 + "\"estimatedComputeWork\": " + finalist.estimatedComputeWork() + ", "
                 + "\"preset\": \"" + escape(finalist.preset()) + "\""
                 + "}";

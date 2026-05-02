@@ -38,6 +38,7 @@ import tensor.TensorInternalAccess;
 import tensor.TensorPrimitiveBuilder;
 import tensor.options.AttentionOptions;
 import tensor.options.Conv2dOptions;
+import tensor.options.Pool2dOptions;
 
 import java.util.List;
 import java.util.Set;
@@ -218,7 +219,7 @@ class MetalRegionLowererTest {
     }
 
     @Test
-    void metalUnsupportedReductionUsesSharedUnsupportedReason() {
+    void metalReductionIsPlannerSupported() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalReductionInput", DataType.FLOAT32);
         Tensor out = input.sum(1);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
@@ -226,12 +227,11 @@ class MetalRegionLowererTest {
         PartitionPlanningContext context = planningContext(out);
         String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.SUM)), context);
 
-        assertTrue(reason.contains("UNSUPPORTED_OPERATION"));
-        assertTrue(reason.contains("operation SUM is not supported by GPU_METAL lowering"));
+        assertEquals("", reason);
     }
 
     @Test
-    void metalUnsupportedNormalizationUsesSharedUnsupportedReason() {
+    void metalSupportedNormalizationUsesSharedCoverageReason() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalNormInput", DataType.FLOAT32);
         Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "metalNormGamma", DataType.FLOAT32);
         Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "metalNormBeta", DataType.FLOAT32);
@@ -241,8 +241,7 @@ class MetalRegionLowererTest {
         PartitionPlanningContext context = planningContext(out);
         String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.LAYER_NORM)), context);
 
-        assertTrue(reason.contains("DEFERRED_FUSED_REGION"));
-        assertTrue(reason.contains("operation LAYER_NORM is not supported by GPU_METAL lowering"));
+        assertEquals("", reason);
     }
 
     @Test
@@ -268,7 +267,7 @@ class MetalRegionLowererTest {
         PartitionPlanningContext context = planningContext(out);
         String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES)), context);
 
-        assertTrue(reason.contains("UNSUPPORTED_DTYPE"));
+        assertTrue(reason.contains("UNSUPPORTED_INDEX_SEMANTICS"));
         assertTrue(reason.contains("operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering"));
     }
 
@@ -282,19 +281,8 @@ class MetalRegionLowererTest {
         PartitionPlanningContext sumContext = planningContext(sum);
         PartitionPlanningContext meanContext = planningContext(mean);
 
-        String sumReason = MetalPartitionSupport.plannerUnsupportedReason(sumContext.compiledNode(nodeId(sumContext, Operation.OpType.SUM)), sumContext);
-        String meanReason = MetalPartitionSupport.plannerUnsupportedReason(meanContext.compiledNode(nodeId(meanContext, Operation.OpType.MEAN)), meanContext);
-
-        assertContainsAll(sumReason,
-                "REDUCTION_ADJACENT",
-                "family=REDUCTION",
-                "target=layer_norm_small",
-                "operation SUM is not supported by GPU_METAL lowering");
-        assertContainsAll(meanReason,
-                "REDUCTION_ADJACENT",
-                "family=REDUCTION",
-                "target=layer_norm_small",
-                "operation MEAN is not supported by GPU_METAL lowering");
+        assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(sumContext.compiledNode(nodeId(sumContext, Operation.OpType.SUM)), sumContext));
+        assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(meanContext.compiledNode(nodeId(meanContext, Operation.OpType.MEAN)), meanContext));
 
         Tensor normInput = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalPhase17NormInput", DataType.FLOAT32);
         Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "metalPhase17NormGamma", DataType.FLOAT32);
@@ -309,16 +297,8 @@ class MetalRegionLowererTest {
         String layerNormReason = MetalPartitionSupport.plannerUnsupportedReason(layerNormContext.compiledNode(nodeId(layerNormContext, Operation.OpType.LAYER_NORM)), layerNormContext);
         String rmsNormReason = MetalPartitionSupport.plannerUnsupportedReason(rmsNormContext.compiledNode(nodeId(rmsNormContext, Operation.OpType.RMS_NORM)), rmsNormContext);
 
-        assertContainsAll(layerNormReason,
-                "REDUCTION_ADJACENT",
-                "family=NORMALIZATION",
-                "target=layer_norm_small",
-                "operation LAYER_NORM is not supported by GPU_METAL lowering");
-        assertContainsAll(rmsNormReason,
-                "REDUCTION_ADJACENT",
-                "family=NORMALIZATION",
-                "target=layer_norm_small",
-                "operation RMS_NORM is not supported by GPU_METAL lowering");
+        assertEquals("", layerNormReason);
+        assertEquals("", rmsNormReason);
     }
 
     @Test
@@ -390,7 +370,7 @@ class MetalRegionLowererTest {
     }
 
     @Test
-    void rejectsSumReductionWithStableCoverageReason() {
+    void supportsSumReductionWithStableCoverageReason() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalStableReductionInput", DataType.FLOAT32);
         Tensor out = input.sum(1);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
@@ -398,11 +378,11 @@ class MetalRegionLowererTest {
         PartitionPlanningContext context = planningContext(out);
         String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.SUM)), context);
 
-        assertTrue(reason.contains("UNSUPPORTED_OPERATION"));
+        assertEquals("", reason);
     }
 
     @Test
-    void rejectsLayerNormWithStableCoverageReason() {
+    void acceptsLayerNormWithStableCoverageReason() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalStableNormInput", DataType.FLOAT32);
         Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "metalStableNormGamma", DataType.FLOAT32);
         Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "metalStableNormBeta", DataType.FLOAT32);
@@ -412,7 +392,7 @@ class MetalRegionLowererTest {
         PartitionPlanningContext context = planningContext(out);
         String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.LAYER_NORM)), context);
 
-        assertTrue(reason.contains("DEFERRED_FUSED_REGION"));
+        assertEquals("", reason);
     }
 
     @Test
@@ -425,7 +405,74 @@ class MetalRegionLowererTest {
         PartitionPlanningContext context = planningContext(out);
         String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES)), context);
 
-        assertTrue(reason.contains("UNSUPPORTED_DTYPE"));
+        assertTrue(reason.contains("UNSUPPORTED_INDEX_SEMANTICS"));
+    }
+
+    @Test
+    void phaseTwentySixIndexFamilyUsesStableCoverageReasons() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalPhase26IndexInput", DataType.FLOAT32);
+        Tensor gatherIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalPhase26GatherIndices", DataType.INT32);
+        Tensor gather = input.gather(gatherIndices, 1);
+        TensorInternalAccess.setBackend(gather, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext gatherContext = planningContext(gather);
+        String gatherReason = MetalPartitionSupport.plannerUnsupportedReason(gatherContext.compiledNode(nodeId(gatherContext, Operation.OpType.GATHER)), gatherContext);
+
+        Tensor takeIndices = new Tensor(new int[]{2, 1, 0, 0}, new int[]{2, 2}, null, "metalPhase26TakeIndices", DataType.INT32);
+        Tensor take = input.takeAlongAxis(takeIndices, 1);
+        TensorInternalAccess.setBackend(take, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext takeContext = planningContext(take);
+        String takeReason = MetalPartitionSupport.plannerUnsupportedReason(takeContext.compiledNode(nodeId(takeContext, Operation.OpType.TAKE_ALONG_AXIS)), takeContext);
+
+        Tensor base = new Tensor(new float[]{10f, 20f, 30f, 40f, 50f, 60f}, new int[]{2, 3}, null, "metalPhase26ScatterBase", DataType.FLOAT32);
+        Tensor scatterIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalPhase26ScatterIndices", DataType.INT32);
+        Tensor src = new Tensor(new float[]{1f, 5f}, new int[]{2}, null, "metalPhase26ScatterSrc", DataType.FLOAT32);
+        Tensor scatter = base.scatterAdd(scatterIndices, src, 1);
+        TensorInternalAccess.setBackend(scatter, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext scatterContext = planningContext(scatter);
+        String scatterReason = MetalPartitionSupport.plannerUnsupportedReason(scatterContext.compiledNode(nodeId(scatterContext, Operation.OpType.SCATTER_ADD)), scatterContext);
+
+        assertContainsAll(gatherReason, "DAG_PRIMITIVE_UNSUPPORTED", "operation GATHER", "family=INDEX_SCATTER_GATHER");
+        assertContainsAll(takeReason, "DAG_PRIMITIVE_UNSUPPORTED", "operation TAKE_ALONG_AXIS", "family=INDEX_SCATTER_GATHER");
+        assertContainsAll(scatterReason, "UNSUPPORTED_DUPLICATE_INDEX", "operation SCATTER_ADD", "family=INDEX_SCATTER_GATHER");
+    }
+
+    @Test
+    void metalPhaseTwentySevenBoolCompareAndPoolUseStableCoverageReasons() {
+        Tensor left = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalPhase27CompareLeft", DataType.FLOAT32);
+        Tensor right = new Tensor(new float[]{2f, 2f, 2f, 2f}, new int[]{2, 2}, null, "metalPhase27CompareRight", DataType.FLOAT32);
+        Tensor compare = left.greaterOrEqual(right);
+        TensorInternalAccess.setBackend(compare, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext compareContext = planningContext(compare);
+        String compareReason = MetalPartitionSupport.plannerUnsupportedReason(
+                compareContext.compiledNode(nodeId(compareContext, Operation.OpType.GE)),
+                compareContext
+        );
+
+        Tensor poolInput = new Tensor(new float[]{
+                1f, 2f, 3f, 4f,
+                5f, 6f, 7f, 8f,
+                9f, 10f, 11f, 12f,
+                13f, 14f, 15f, 16f
+        }, new int[]{1, 1, 4, 4}, null, "metalPhase27PoolInput", DataType.FLOAT32);
+        Tensor maxPool = poolInput.maxPool2d(Pool2dOptions.square(2));
+        Tensor avgPool = poolInput.avgPool2d(Pool2dOptions.square(2));
+        TensorInternalAccess.setBackend(maxPool, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(avgPool, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext maxPoolContext = planningContext(maxPool);
+        PartitionPlanningContext avgPoolContext = planningContext(avgPool);
+
+        String maxPoolReason = MetalPartitionSupport.plannerUnsupportedReason(
+                maxPoolContext.compiledNode(nodeId(maxPoolContext, Operation.OpType.MAX_POOL2D)),
+                maxPoolContext
+        );
+        String avgPoolReason = MetalPartitionSupport.plannerUnsupportedReason(
+                avgPoolContext.compiledNode(nodeId(avgPoolContext, Operation.OpType.AVG_POOL2D)),
+                avgPoolContext
+        );
+
+        assertContainsAll(compareReason, "UNSUPPORTED_DTYPE", "operation GE", "family=COMPARE_BOOL", "BOOL output");
+        assertContainsAll(maxPoolReason, "CAPABILITY_MISSING", "operation MAX_POOL2D", "family=CONV_POOL", "target=max_pool2d_small");
+        assertContainsAll(avgPoolReason, "CAPABILITY_MISSING", "operation AVG_POOL2D", "family=CONV_POOL");
     }
 
     @Test
@@ -798,7 +845,7 @@ class MetalRegionLowererTest {
     }
 
     @Test
-    void rejectsDirectFloat32SdpaUntilNativeScaleContractMatchesCpu() {
+    void admitsDirectUnmaskedFloat32SdpaAfterNativeScaleParityVerification() {
         Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "q", DataType.FLOAT32);
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "k", DataType.FLOAT32);
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "v", DataType.FLOAT32);
@@ -807,11 +854,8 @@ class MetalRegionLowererTest {
 
         PartitionPlanningContext context = planningContext(out);
         int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
-        assertEquals(
-                "direct forward SDPA disabled until native MPSGraph scale contract matches CPU semantics",
-                MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(sdpaNodeId), context)
-        );
-        assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
+        assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(sdpaNodeId), context));
+        assertNotNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
                 Set.of(sdpaNodeId),
                 context,
                 Set.of(PartitionValueRef.ofNode(sdpaNodeId))
@@ -856,7 +900,7 @@ class MetalRegionLowererTest {
         PartitionPlanningContext context = planningContext(out);
         int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
         assertEquals(
-                "direct masked SDPA disabled until bool-mask semantics are verified against MPSGraph floating masks",
+                "UNSUPPORTED_MASK_SEMANTICS: direct masked SDPA disabled until bool-mask semantics are verified against MPSGraph floating masks",
                 MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(sdpaNodeId), context)
         );
         assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(

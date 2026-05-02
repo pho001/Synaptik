@@ -6,8 +6,10 @@ public enum WorkloadKind {
     MLP_CLASSIFICATION,
     ABC_SEQUENCE_MATMUL,
     CONV2D,
+    REDUCTION,
     NORMALIZATION,
     TRANSFORMER_HOT_PATH,
     POOL2D,
-    LOSS
+    LOSS,
+    BOOL_COMPARE
 }

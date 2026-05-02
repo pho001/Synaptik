@@ -9,6 +9,10 @@ import graph.CompiledNode;
 import graph.optimizer.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.linalg.scaledDotProductAttention;
+import operations.normalization.layerNorm;
+import operations.normalization.rmsNorm;
+
+import java.util.Arrays;
 
 /**
  * Shared Metal partition planner predicates.
@@ -48,28 +52,112 @@ public final class MetalPartitionSupport {
         if (node.inputIds().isEmpty()) {
             return "leaf nodes are external inputs, not Metal compute nodes";
         }
+        Operation.OpType opType = node.operation().opType();
+        GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, opType);
+        if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED
+                && entry.reason() == backend.accelerator.lowering.GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE) {
+            return compoundPatternPrefix(opType) + GpuLoweringCoverageMatrix.plannerUnsupportedDetail(ComputeBackend.GPU_METAL, opType);
+        }
         if (!MetalMpsCapabilities.supportsComputeDType(node.dataType())
                 || !MetalMpsCapabilities.supportsOutputDType(node.dataType())) {
             return MetalMpsCapabilities.unsupportedDTypeMessage(node.dataType());
         }
-        Operation.OpType opType = node.operation().opType();
-        if (!node.backwardNode() && opType == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION) {
-            if (node.operation() instanceof scaledDotProductAttention attention && attention.hasMask()) {
-                return "direct masked SDPA disabled until bool-mask semantics are verified against MPSGraph floating masks";
+        if (opType == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION) {
+            String sdpaReason = sdpaUnsupportedReason(node, context);
+            if (!sdpaReason.isBlank()) {
+                return sdpaReason;
             }
-            return "direct forward SDPA disabled until native MPSGraph scale contract matches CPU semantics";
         }
-        if (node.backwardNode() && opType == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION) {
-            return "forward SDPA nodes are not legal inside Metal backward regions";
-        }
-        GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, opType);
         if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED) {
             return compoundPatternPrefix(opType) + GpuLoweringCoverageMatrix.plannerUnsupportedDetail(ComputeBackend.GPU_METAL, opType);
+        }
+        String normalizationReason = normalizationUnsupportedReason("GPU_METAL", node, context);
+        if (!normalizationReason.isBlank()) {
+            return normalizationReason;
         }
         if (hasDirectNonDenseInput(node, context) && isEpilogueAdd(node, context)) {
             return "UNSUPPORTED_LAYOUT: GPU_METAL LINEAR_BIAS_ACTIVATION family=MATMUL_LINEAR epilogue input requires dense layout";
         }
         return "";
+    }
+
+    private static String sdpaUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
+        if (node.backwardNode()) {
+            return "BACKWARD_CONTEXT_UNSUPPORTED: forward SDPA nodes are not legal inside Metal backward regions";
+        }
+        if (!(node.operation() instanceof scaledDotProductAttention attention)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA descriptor is unavailable";
+        }
+        if (attention.hasMask()) {
+            return "UNSUPPORTED_MASK_SEMANTICS: direct masked SDPA disabled until bool-mask semantics are verified against MPSGraph floating masks";
+        }
+        if (context == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA requires planning context";
+        }
+        if (node.inputIds().size() != 3) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL unmasked SDPA requires query, key, and value";
+        }
+        CompiledNode query = context.compiledNode(node.inputIds().get(0));
+        CompiledNode key = context.compiledNode(node.inputIds().get(1));
+        CompiledNode value = context.compiledNode(node.inputIds().get(2));
+        if (query == null || key == null || value == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA inputs are unavailable";
+        }
+        if (query.dataType() != tensor.DataType.FLOAT32
+                || key.dataType() != tensor.DataType.FLOAT32
+                || value.dataType() != tensor.DataType.FLOAT32
+                || node.dataType() != tensor.DataType.FLOAT32) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL SDPA supports only FLOAT32 query/key/value/output";
+        }
+        if (hasDirectNonDenseInput(node, context)) {
+            return "UNSUPPORTED_LAYOUT: GPU_METAL SDPA inputs require dense layout";
+        }
+        int[] qShape = query.shape();
+        int[] kShape = key.shape();
+        int[] vShape = value.shape();
+        int[] outShape = node.shape();
+        if (!sdpaRankSupported(qShape) || !sdpaRankSupported(kShape) || !sdpaRankSupported(vShape) || !sdpaRankSupported(outShape)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA supports rank 3 or 4 tensors";
+        }
+        if (qShape[qShape.length - 1] != kShape[kShape.length - 1]) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA query/key head dimension mismatch";
+        }
+        if (kShape[kShape.length - 2] != vShape[vShape.length - 2]) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA key/value sequence dimension mismatch";
+        }
+        if (outShape[outShape.length - 2] != qShape[qShape.length - 2]
+                || outShape[outShape.length - 1] != vShape[vShape.length - 1]) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA output shape mismatch";
+        }
+        int[] qBatch = Arrays.copyOf(qShape, qShape.length - 2);
+        int[] kBatch = Arrays.copyOf(kShape, kShape.length - 2);
+        int[] vBatch = Arrays.copyOf(vShape, vShape.length - 2);
+        int[] outBatch = Arrays.copyOf(outShape, outShape.length - 2);
+        if (!broadcastBatchMatches(outBatch, qBatch)
+                || !broadcastBatchMatches(outBatch, kBatch)
+                || !broadcastBatchMatches(outBatch, vBatch)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA batch dimensions are not broadcast-compatible";
+        }
+        return "";
+    }
+
+    private static boolean sdpaRankSupported(int[] shape) {
+        return shape != null && (shape.length == 3 || shape.length == 4);
+    }
+
+    private static boolean broadcastBatchMatches(int[] outBatch, int[] inBatch) {
+        if (outBatch.length < inBatch.length) {
+            return false;
+        }
+        int offset = outBatch.length - inBatch.length;
+        for (int i = 0; i < inBatch.length; i++) {
+            int in = inBatch[i];
+            int out = outBatch[i + offset];
+            if (in != 1 && in != out) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -97,9 +185,68 @@ public final class MetalPartitionSupport {
 
     private static String compoundPatternPrefix(Operation.OpType opType) {
         return switch (opType) {
-            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, LAYER_NORM, RMS_NORM -> "REDUCTION_ADJACENT: ";
+            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX -> "REDUCTION_ADJACENT: ";
             default -> "";
         };
+    }
+
+    private static String normalizationUnsupportedReason(String backend, CompiledNode node, PartitionPlanningContext context) {
+        Operation.OpType opType = node.operation().opType();
+        if (opType != Operation.OpType.LAYER_NORM && opType != Operation.OpType.RMS_NORM) {
+            return "";
+        }
+        if (context == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: " + backend + " normalization requires planning context";
+        }
+        int normalizedRank;
+        if (opType == Operation.OpType.LAYER_NORM && node.operation() instanceof layerNorm op) {
+            normalizedRank = op.getNormalizedRank();
+            if (node.inputIds().size() != 3) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: " + backend + " LAYER_NORM requires input, gamma, and beta";
+            }
+        } else if (opType == Operation.OpType.RMS_NORM && node.operation() instanceof rmsNorm op) {
+            normalizedRank = op.getNormalizedRank();
+            if (node.inputIds().size() != 2) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: " + backend + " RMS_NORM requires input and gamma";
+            }
+        } else {
+            return "UNSUPPORTED_RANK_OR_SHAPE: " + backend + " normalization descriptor is unavailable";
+        }
+        CompiledNode input = context.compiledNode(node.inputIds().get(0));
+        CompiledNode gamma = context.compiledNode(node.inputIds().get(1));
+        CompiledNode beta = opType == Operation.OpType.LAYER_NORM ? context.compiledNode(node.inputIds().get(2)) : null;
+        if (input == null || gamma == null || (opType == Operation.OpType.LAYER_NORM && beta == null)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: " + backend + " normalization inputs are unavailable";
+        }
+        if (input.dataType() != tensor.DataType.FLOAT32
+                || gamma.dataType() != tensor.DataType.FLOAT32
+                || (beta != null && beta.dataType() != tensor.DataType.FLOAT32)
+                || node.dataType() != tensor.DataType.FLOAT32) {
+            return "UNSUPPORTED_DTYPE: " + backend + " normalization supports only FLOAT32";
+        }
+        if (!input.contiguous() || input.hasStorageOffset()
+                || !gamma.contiguous() || gamma.hasStorageOffset()
+                || (beta != null && (!beta.contiguous() || beta.hasStorageOffset()))) {
+            return "UNSUPPORTED_LAYOUT: " + backend + " normalization inputs require dense layout";
+        }
+        int[] inputShape = input.shape();
+        int[] gammaShape = gamma.shape();
+        int[] betaShape = beta == null ? null : beta.shape();
+        if (inputShape.length < 1 || inputShape.length > 4
+                || normalizedRank < 1
+                || normalizedRank > inputShape.length
+                || gammaShape.length != normalizedRank
+                || !Arrays.equals(inputShape, node.shape())
+                || (betaShape != null && !Arrays.equals(gammaShape, betaShape))) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: " + backend + " normalization rank/shape contract is unsupported";
+        }
+        int tailStart = inputShape.length - normalizedRank;
+        for (int i = 0; i < normalizedRank; i++) {
+            if (gammaShape[i] != inputShape[tailStart + i]) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: " + backend + " normalization parameter shape must match input tail";
+            }
+        }
+        return "";
     }
 
     private static boolean hasDirectNonDenseInput(CompiledNode node, PartitionPlanningContext context) {

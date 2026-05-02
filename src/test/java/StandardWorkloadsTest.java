@@ -27,10 +27,13 @@ public class StandardWorkloadsTest {
         assertTrue(catalog.names().contains("abc_sequence_matmul_small"));
         assertTrue(catalog.names().contains("mlp_classifier_small"));
         assertTrue(catalog.names().contains("mlp_classifier_blas_heavy"));
+        assertTrue(catalog.names().contains("reduction_chain_small"));
         assertTrue(catalog.names().contains("conv2d_resnet_3x3"));
         assertTrue(catalog.names().contains("layer_norm_small"));
+        assertTrue(catalog.names().contains("rms_norm_small"));
         assertTrue(catalog.names().contains("max_pool2d_small"));
         assertTrue(catalog.names().contains("cross_entropy_small"));
+        assertTrue(catalog.names().contains("bool_compare_where_small"));
         assertTrue(catalog.names().contains("transformer_hot_path"));
         assertTrue(catalog.names().contains("transformer_block_hot_path"));
     }
@@ -140,6 +143,8 @@ public class StandardWorkloadsTest {
                         2, 16, 4, 1, 1e-5
                 )
                 .instantiate(new WorkloadEnvironment(profile));
+        var reduction = StandardWorkloads.reductionChain("reduction_test", 4, 8)
+                .instantiate(new WorkloadEnvironment(profile));
         var mlp = StandardWorkloads.mlpClassification(
                         "mlp_test",
                         8, 16, 24, 12, 4,
@@ -160,14 +165,18 @@ public class StandardWorkloadsTest {
                         tensor.loss.LossReduction.MEAN
                 )
                 .instantiate(new WorkloadEnvironment(profile));
+        var boolCompare = StandardWorkloads.boolCompareWhere("bool_compare_test", 4, 8)
+                .instantiate(new WorkloadEnvironment(profile));
 
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, matmul.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, conv.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, abc.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, mlp.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, norm.reference().kind());
+        assertEquals(ValidationReferenceKind.BASELINE_PROFILE, reduction.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, pool.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, loss.reference().kind());
+        assertEquals(ValidationReferenceKind.BASELINE_PROFILE, boolCompare.reference().kind());
 
         assertEquals(ValidationTargetKind.LABEL, matmul.validationTarget().kind());
         assertEquals("matmul", matmul.validationTarget().label());
@@ -178,6 +187,8 @@ public class StandardWorkloadsTest {
         assertEquals(ValidationTargetKind.LABEL, pool.validationTarget().kind());
         assertEquals("maxPool2d", pool.validationTarget().label());
         assertEquals(ValidationTargetKind.ROOT, loss.validationTarget().kind());
+        assertEquals(ValidationTargetKind.ROOT, reduction.validationTarget().kind());
+        assertEquals(ValidationTargetKind.ROOT, boolCompare.validationTarget().kind());
     }
 
     @Test

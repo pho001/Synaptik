@@ -10,6 +10,7 @@ import tensor.DataType;
 import tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -94,6 +95,55 @@ public class AttentionExecutionTest {
 
         assertArrayEquals(new double[]{1.0, 10.0}, out.toDoubleArrayCopy(), 1e-6);
         assertTrue(containsOp(compiledGraph, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
+    }
+
+    @Test
+    void rankFourDefaultScaleMatchesExpectedValues() {
+        Tensor q = new Tensor(new float[]{
+                1f, 0f,
+                0f, 1f
+        }, new int[]{1, 1, 2, 2}, null, "q4", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{
+                1f, 0f,
+                0f, 1f
+        }, new int[]{1, 1, 2, 2}, null, "k4", DataType.FLOAT32);
+        Tensor v = new Tensor(new float[]{
+                10f, 1f,
+                1f, 10f
+        }, new int[]{1, 1, 2, 2}, null, "v4", DataType.FLOAT32);
+
+        Tensor out = q.scaledDotProductAttention(k, v, AttentionOptions.defaults());
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        double scale = 1.0d / Math.sqrt(2.0d);
+        double e = Math.exp(scale);
+        double denom = e + 1.0d;
+        assertArrayEquals(new int[]{1, 1, 2, 2}, out.getShape());
+        assertArrayEquals(new double[]{
+                (10.0 * e + 1.0) / denom,
+                (1.0 * e + 10.0) / denom,
+                (10.0 + e) / denom,
+                (1.0 + 10.0 * e) / denom
+        }, out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void attentionRejectsInvalidShapeDtypeAndMaskContracts() {
+        Tensor q = new Tensor(new float[]{1f, 0f}, new int[]{1, 2}, null, "q", DataType.FLOAT32);
+        Tensor kHeadMismatch = new Tensor(new float[]{1f, 0f, 0f}, new int[]{1, 3}, null, "kHeadMismatch", DataType.FLOAT32);
+        Tensor v = new Tensor(new float[]{1f, 2f}, new int[]{1, 2}, null, "v", DataType.FLOAT32);
+        assertThrows(IllegalArgumentException.class,
+                () -> q.scaledDotProductAttention(kHeadMismatch, v, AttentionOptions.defaults()));
+
+        Tensor qInt = new Tensor(new int[]{1, 2}, new int[]{1, 2}, null, "qInt", DataType.INT32);
+        Tensor k = new Tensor(new float[]{1f, 0f}, new int[]{1, 2}, null, "k", DataType.FLOAT32);
+        assertThrows(IllegalArgumentException.class,
+                () -> qInt.scaledDotProductAttention(k, v, AttentionOptions.defaults()));
+
+        Tensor maskNotBool = new Tensor(new float[]{1f}, new int[]{1, 1}, null, "maskNotBool", DataType.FLOAT32);
+        assertThrows(IllegalArgumentException.class,
+                () -> q.scaledDotProductAttention(k, v, maskNotBool, AttentionOptions.defaults()));
     }
 
     @Test

@@ -270,7 +270,7 @@ public class BenchmarkSuiteSessionTest {
     }
 
     @Test
-    void phase14CoverageTargetsBuildDeterministicBenchmarkSuite() {
+    void phase28CoverageTargetsBuildDeterministicBenchmarkSuite() {
         ExecutionProfile profile = new ExecutionProfile(
                 "phase14-target-profile",
                 "phase14-target-coverage",
@@ -286,20 +286,25 @@ public class BenchmarkSuiteSessionTest {
         ));
         List<String> names = request.workloads().stream().map(tuning.workload.WorkloadSpec::name).toList();
 
-        assertEquals(4, request.workloads().size());
+        assertEquals(9, request.workloads().size());
         assertTrue(names.contains("transformer_block_hot_path"));
         assertTrue(names.contains("mlp_classifier_small"));
         assertTrue(names.contains("conv2d_resnet_3x3"));
+        assertTrue(names.contains("max_pool2d_small"));
         assertTrue(names.contains("layer_norm_small"));
+        assertTrue(names.contains("rms_norm_small"));
+        assertTrue(names.contains("reduction_chain_small"));
+        assertTrue(names.contains("cross_entropy_small"));
+        assertTrue(names.contains("bool_compare_where_small"));
         assertTrue(request.entries().stream().anyMatch(entry -> entry.name().equals("phase14-target-coverage")));
     }
 
     @Test
     void phaseTwentySuiteGateFailsWhenTargetCoverageRegresses() {
-        BenchmarkSuiteReport report = suiteReportFor("transformer_block_hot_path", "GPU_METAL");
+        BenchmarkSuiteReport report = suiteReportFor("mlp_classifier_small", "GPU_METAL");
         GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.expectationsForBackend("GPU_METAL")
                 .stream()
-                .filter(target -> target.workloadName().equals("transformer_block_hot_path"))
+                .filter(target -> target.workloadName().equals("mlp_classifier_small"))
                 .findFirst()
                 .orElseThrow();
 
@@ -329,7 +334,10 @@ public class BenchmarkSuiteSessionTest {
                 new BenchmarkSuiteReport(null, List.of()),
                 List.of(expectation)
         );
-        assertTrue(missing.getFirst().failures().contains("missing target coverage summary"));
+        assertTrue(missing.getFirst().failures().stream()
+                .anyMatch(failure -> failure.contains("missing target coverage summary")
+                        && failure.contains("conv2d_resnet_3x3")
+                        && failure.contains("GPU_METAL")));
     }
 
     @Test
@@ -345,6 +353,13 @@ public class BenchmarkSuiteSessionTest {
         assertTrue(text.contains("gateFailures="));
         assertTrue(text.contains("nativeEvidence="));
         assertTrue(text.contains("nativeStatus="));
+        assertTrue(text.contains("nativeEvidenceRequired="));
+        assertTrue(text.contains("expectedVisibleReasons="));
+        assertTrue(text.contains("coverageDeltaVsBaseline"));
+        assertTrue(text.contains("loweredPrimitiveCount="));
+        assertTrue(text.contains("nativeBufferStepCount="));
+        assertTrue(text.contains("tensorArrayStepCount="));
+        assertTrue(text.contains("cpuFallbackStepCount="));
         assertTrue(json.contains("\"targetCoverageGates\""));
         assertTrue(json.contains("\"coverageGate\""));
         assertTrue(json.contains("\"gatePassed\""));
@@ -352,6 +367,14 @@ public class BenchmarkSuiteSessionTest {
         assertTrue(json.contains("\"nativeEvidence\""));
         assertTrue(json.contains("\"nativeStatus\""));
         assertTrue(json.contains("\"capabilitySkipped\""));
+        assertTrue(json.contains("\"nativeEvidenceRequired\""));
+        assertTrue(json.contains("\"expectedVisibleReasons\""));
+        assertTrue(json.contains("\"policy\""));
+        assertTrue(json.contains("\"coverageDeltaVsBaseline\""));
+        assertTrue(json.contains("\"loweredPrimitiveCount\""));
+        assertTrue(json.contains("\"nativeBufferStepCount\""));
+        assertTrue(json.contains("\"tensorArrayStepCount\""));
+        assertTrue(json.contains("\"cpuFallbackStepCount\""));
     }
 
     private static BenchmarkSuiteReport suiteReportFor(String workloadName, String backendName) {

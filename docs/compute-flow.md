@@ -1940,6 +1940,17 @@ Common accelerator buffer attributes are emitted for every accelerator executabl
 | `acceleratorBufferInputCount`, `acceleratorBufferOutputCount` | Number of inputs and outputs evaluated by buffer policy. |
 
 When layout compatibility drives fallback, accelerator buffer diagnostics include `layoutClass`, `shape`, `strides`, and `storageOffset` details.
+Layout/view steps also expose backend-neutral GPU layout transform diagnostics:
+
+| Attribute | Meaning |
+|---|---|
+| `gpuLayoutTransformKind` | `METADATA_ONLY_VIEW`, `DENSE_GPU_MATERIALIZATION`, or `UNSUPPORTED`. |
+| `gpuLayoutTransformOp` | Layout op that produced the runtime decision, such as `PERMUTE`, `RESHAPE`, or `CONTIGUOUS`. |
+| `gpuLayoutTransformSourceLayoutClass`, `gpuLayoutTransformTargetLayoutClass` | Source and target layout classes seen by the accelerator layout planner. |
+| `gpuLayoutTransformBytes` | Logical bytes covered by the target layout transform. |
+| `gpuLayoutMaterializationCount`, `gpuLayoutMaterializationBytes` | Per-step dense GPU layout materialization evidence used by benchmark coverage reports. |
+| `layoutFallbackBytes` | Prepare-time static cost evidence for bytes expected to require layout fallback or GPU-side dense materialization. |
+
 The common Metal and CUDA buffer reason codes are:
 
 | Reason code | Meaning |
@@ -2036,6 +2047,12 @@ evidence, not proof of device-owned native buffer execution.
 
 Local tuning outputs are not report evidence unless intentionally promoted; `profiles/platform/.../tuning/abc/* remained unstaged` is the expected phase hygiene state.
 
+Phase 28 applies the v1.4 rule to every representative target workload. Supported target families use hard native/buffer
+coverage policies derived from `GpuTargetCoverageTruth`; unsupported or capability-gated families use visible-blocker
+policies. The suite report renders each target's required policy, expected visible reasons, observed coverage counters,
+and `coverageDeltaVsBaseline`, so a reviewer can see whether a hot path stayed device-owned from trace data rather than
+from a timing impression.
+
 Trace tests verify that:
 
 - A compiled graph exposes compile, prepare, and run traces.
@@ -2050,6 +2067,8 @@ Numerically sensitive accelerator gaps must be correct and diagnosable. `LOG_SOF
 For those cases, `CPU parity remained the correctness oracle`. Accelerator-configured execution is compared to a CPU-only graph, and the fallback reason must remain visible in planner diagnostics, prepare traces, coverage summaries, or benchmark reports. In particular, `loss-adjacent fallback remained visible` through `UNSUPPORTED_DTYPE`, `family=LOSS_ADJACENT`, and `target=transformer_block_hot_path`.
 
 `native reduction and normalization support is not implied by a fallback row`. Rows such as `LAYER_NORM`, `RMS_NORM`, `SUM`, and `MEAN` are explicit blockers for `target=layer_norm_small`; they require future lowering, legality, trace/report, and parity evidence before they can be treated as native Metal or CUDA execution.
+
+Phase 25 applies the same rule to forward SDPA. Metal direct unmasked `SCALED_DOT_PRODUCT_ATTENTION` is a supported target only for the verified `FLOAT32` rank-3/rank-4 primitive MPSGraph DAG path. Its transformer hot-path expectation requires native buffer evidence, at least one lowered primitive, zero tensor-array fallback, zero CPU fallback, and zero CPU materialization boundaries. CUDA direct forward SDPA remains a `CAPABILITY_MISSING` fallback until a backend-owned native/lowered path exists; CUDA transformer hot-path reports must surface `CAPABILITY_MISSING`, `SCALED_DOT_PRODUCT_ATTENTION`, or `target=transformer_block_hot_path` instead of implying support.
 
 ## Failure Modes
 

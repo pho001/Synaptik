@@ -25,6 +25,8 @@ import tensor.DataType;
 import tuning.benchmark.report.GpuCoverageBaseline;
 import tuning.benchmark.report.GpuCoverageComparison;
 import tuning.benchmark.report.GpuCoverageSummary;
+import tuning.benchmark.report.GpuTargetCoverageTruth;
+import tuning.benchmark.report.GpuTargetExecutionStatus;
 
 import java.util.List;
 import java.util.Map;
@@ -33,6 +35,62 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class GpuCoverageSummaryTest {
+    @Test
+    void v14TargetCoverageTruthKeepsRemainingGapsOutOfNativeStatus() {
+        for (ComputeBackend backend : List.of(ComputeBackend.GPU_METAL, ComputeBackend.GPU_CUDA)) {
+            Map<operations.Operation.OpType, GpuTargetCoverageTruth.Row> rows = GpuTargetCoverageTruth.rowsFor(backend)
+                    .stream()
+                    .collect(java.util.stream.Collectors.toMap(
+                            GpuTargetCoverageTruth.Row::opType,
+                            row -> row
+                    ));
+
+            assertEquals(
+                    GpuTargetExecutionStatus.NATIVE_EXECUTABLE,
+                    rows.get(operations.Operation.OpType.SUM).executionStatus()
+            );
+            assertEquals(
+                    GpuTargetExecutionStatus.NATIVE_EXECUTABLE,
+                    rows.get(operations.Operation.OpType.MEAN).executionStatus()
+            );
+            assertEquals(
+                    GpuTargetExecutionStatus.NATIVE_EXECUTABLE,
+                    rows.get(operations.Operation.OpType.REDUCE_MIN).executionStatus()
+            );
+            assertEquals(
+                    GpuTargetExecutionStatus.NATIVE_EXECUTABLE,
+                    rows.get(operations.Operation.OpType.REDUCE_MAX).executionStatus()
+            );
+            assertEquals(
+                    GpuTargetExecutionStatus.NATIVE_EXECUTABLE,
+                    rows.get(operations.Operation.OpType.LAYER_NORM).executionStatus()
+            );
+            assertEquals(
+                    GpuTargetExecutionStatus.NATIVE_EXECUTABLE,
+                    rows.get(operations.Operation.OpType.RMS_NORM).executionStatus()
+            );
+            if (backend == ComputeBackend.GPU_METAL) {
+                assertEquals(
+                        GpuTargetExecutionStatus.NATIVE_EXECUTABLE,
+                        rows.get(operations.Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION).executionStatus()
+                );
+            } else {
+                assertEquals(
+                        GpuTargetExecutionStatus.EXPLICIT_CPU_FALLBACK,
+                        rows.get(operations.Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION).executionStatus()
+                );
+            }
+            assertEquals(
+                    GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                    rows.get(operations.Operation.OpType.GATHER).executionStatus()
+            );
+            assertEquals(
+                    GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                    rows.get(operations.Operation.OpType.GT).executionStatus()
+            );
+        }
+    }
+
     @Test
     void summarizesMetalCoverageFromSyntheticTrace() {
         GpuCoverageSummary summary = GpuCoverageSummary.fromTrace(traceFor("GPU_METAL", ComputeBackend.GPU_METAL));
@@ -60,6 +118,17 @@ public class GpuCoverageSummaryTest {
         assertEquals(1, coverage.bufferBindingStepCount());
         assertEquals(325_000L, coverage.copyDurationNs());
         assertTrue(coverage.fallbackReasons().contains("using native buffer bindings"));
+    }
+
+    @Test
+    void summarizesGpuLayoutMaterializationFromStepAttributes() {
+        GpuCoverageSummary summary = GpuCoverageSummary.fromTrace(traceFor("GPU_METAL", ComputeBackend.GPU_METAL));
+        GpuCoverageSummary.BackendCoverage coverage = summary.backends().get("GPU_METAL");
+
+        assertEquals(1, coverage.gpuLayoutMaterializationCount());
+        assertEquals(4096L, coverage.gpuLayoutMaterializationBytes());
+        assertEquals(Map.of("DENSE_GPU_MATERIALIZATION", 1), coverage.gpuLayoutTransformKindCounts());
+        assertEquals(Map.of("DENSE_CONTIGUOUS", 1), coverage.gpuLayoutTargetLayoutClassCounts());
     }
 
     @Test
@@ -156,6 +225,10 @@ public class GpuCoverageSummaryTest {
                 250_000L,
                 325_000L,
                 1,
+                0,
+                0L,
+                Map.of(),
+                Map.of(),
                 Map.of("DEVICE_OWNED", 3),
                 Map.of(),
                 0,
@@ -322,9 +395,9 @@ public class GpuCoverageSummaryTest {
     }
 
     @Test
-    void coverageSummaryCountsPhaseSeventeenNormAndLossReasons() {
-        String normReason = "REDUCTION_ADJACENT: DEFERRED_FUSED_REGION: operation LAYER_NORM is not supported by GPU_METAL lowering family=NORMALIZATION status=fallback note=normalization requires compound reduction-adjacent GPU region execution; target=layer_norm_small";
-        String lossReason = "UNSUPPORTED_DTYPE: operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering family=LOSS_ADJACENT status=unsupported note=index-target loss uses INT32 targets outside the current accelerator DAG dtype contract; target=transformer_block_hot_path";
+    void coverageSummaryCountsUnsupportedNormVariantAndLossReasons() {
+        String normReason = "UNSUPPORTED_LAYOUT: GPU_METAL normalization inputs require dense layout family=NORMALIZATION target=layer_norm_small";
+        String lossReason = "UNSUPPORTED_INDEX_SEMANTICS: operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering family=LOSS_ADJACENT status=unsupported note=index-target loss uses INT32 targets plus bounds, ignore-index, and reduction-denominator semantics outside the current accelerator DAG contract; target=transformer_block_hot_path";
         GpuLoweredRegionManifest manifest = new GpuLoweredRegionManifest(
                 "gpu-metal-region-phase17",
                 ComputeBackend.GPU_METAL,
@@ -385,7 +458,7 @@ public class GpuCoverageSummaryTest {
         assertTrue(manifestText.contains("SOFTMAX"));
         assertTrue(coverage.rejectedCandidateReasonCounts().toString().contains("family=NORMALIZATION"));
         assertTrue(coverage.rejectedCandidateReasonCounts().toString().contains("family=LOSS_ADJACENT"));
-        assertTrue(coverage.rejectedCandidateReasonCounts().toString().contains("UNSUPPORTED_DTYPE"));
+        assertTrue(coverage.rejectedCandidateReasonCounts().toString().contains("UNSUPPORTED_INDEX_SEMANTICS"));
         assertTrue(coverage.rejectedCandidateReasonCounts().toString().contains("target=layer_norm_small"));
         assertTrue(coverage.rejectedCandidateReasonCounts().toString().contains("target=transformer_block_hot_path"));
     }
@@ -423,6 +496,10 @@ public class GpuCoverageSummaryTest {
                                 Map.entry("acceleratorJavaToNativeCopyNs", 100_000L),
                                 Map.entry("acceleratorNativeToJavaCopyNs", 200_000L),
                                 Map.entry("acceleratorNativeDeviceCopyNs", 25_000L),
+                                Map.entry("gpuLayoutMaterializationCount", 1),
+                                Map.entry("gpuLayoutMaterializationBytes", 4096L),
+                                Map.entry("gpuLayoutTransformKind", "DENSE_GPU_MATERIALIZATION"),
+                                Map.entry("gpuLayoutTransformTargetLayoutClass", "DENSE_CONTIGUOUS"),
                                 Map.entry("storageResidency", "DEVICE_OWNED")
                         ),
                         null,

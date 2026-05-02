@@ -15,8 +15,13 @@ import graph.optimizer.partition.RegionLegalityAdapter;
 import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
 import operations.Operation;
+import operations.linalg.scaledDotProductAttention;
+import operations.normalization.layerNorm;
+import operations.normalization.rmsNorm;
+import tensor.DataType;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -60,9 +65,17 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
             return "leaf nodes are external inputs, not CUDA compute nodes";
         }
         Operation.OpType opType = node.operation().opType();
+        String sdpaReason = sdpaUnsupportedReason(node, context);
+        if (!sdpaReason.isBlank()) {
+            return sdpaReason;
+        }
         GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_CUDA, opType);
         if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED) {
             return compoundPatternPrefix(opType) + GpuLoweringCoverageMatrix.plannerUnsupportedDetail(ComputeBackend.GPU_CUDA, opType);
+        }
+        String normalizationReason = normalizationUnsupportedReason(node, context);
+        if (!normalizationReason.isBlank()) {
+            return normalizationReason;
         }
         if (hasDirectNonDenseInput(node, context) && isEpilogueAdd(node, context)) {
             return "UNSUPPORTED_LAYOUT: GPU_CUDA LINEAR_BIAS_ACTIVATION family=MATMUL_LINEAR epilogue input requires dense layout";
@@ -71,6 +84,74 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
             return "UNSUPPORTED_LAYOUT: direct non-dense CUDA compute remains conservative until metadata-only view propagation or dense materialization makes the consumer layout legal";
         }
         return "";
+    }
+
+    private static String sdpaUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
+        if (node.operation().opType() != Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION) {
+            return "";
+        }
+        if (!(node.operation() instanceof scaledDotProductAttention attention)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA SDPA descriptor is unavailable";
+        }
+        if (attention.hasMask()) {
+            return "UNSUPPORTED_MASK_SEMANTICS: CUDA direct masked SDPA is not implemented; BOOL mask semantics require native evidence";
+        }
+        if (context == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA SDPA requires planning context";
+        }
+        if (node.inputIds().size() != 3) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA unmasked SDPA requires query, key, and value";
+        }
+        CompiledNode query = context.compiledNode(node.inputIds().get(0));
+        CompiledNode key = context.compiledNode(node.inputIds().get(1));
+        CompiledNode value = context.compiledNode(node.inputIds().get(2));
+        if (query == null || key == null || value == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA SDPA inputs are unavailable";
+        }
+        if (query.dataType() != DataType.FLOAT32
+                || key.dataType() != DataType.FLOAT32
+                || value.dataType() != DataType.FLOAT32
+                || node.dataType() != DataType.FLOAT32) {
+            return "UNSUPPORTED_DTYPE: GPU_CUDA SDPA supports only FLOAT32 query/key/value/output";
+        }
+        if (hasDirectNonDenseInput(node, context)) {
+            return "UNSUPPORTED_LAYOUT: GPU_CUDA SDPA inputs require dense layout";
+        }
+        int[] queryShape = query.shape();
+        int[] keyShape = key.shape();
+        int[] valueShape = value.shape();
+        int[] outputShape = node.shape();
+        if (queryShape.length < 3 || queryShape.length > 4
+                || keyShape.length != queryShape.length
+                || valueShape.length != queryShape.length
+                || outputShape.length != queryShape.length) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA SDPA supports rank 3 or 4 tensors";
+        }
+        if (queryShape[queryShape.length - 1] != keyShape[keyShape.length - 1]) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA SDPA query/key head dimension mismatch";
+        }
+        if (keyShape[keyShape.length - 2] != valueShape[valueShape.length - 2]) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA SDPA key/value sequence dimension mismatch";
+        }
+        if (outputShape[outputShape.length - 2] != queryShape[queryShape.length - 2]
+                || outputShape[outputShape.length - 1] != valueShape[valueShape.length - 1]) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA SDPA output shape mismatch";
+        }
+        for (int i = 0; i < queryShape.length - 2; i++) {
+            int q = queryShape[i];
+            int k = keyShape[i];
+            int v = valueShape[i];
+            int o = outputShape[i];
+            if (!broadcastCompatible(q, k) || !broadcastCompatible(q, v) || !broadcastCompatible(k, v)
+                    || (o != Math.max(q, Math.max(k, v)))) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA SDPA batch dimensions are not broadcast-compatible";
+            }
+        }
+        return "CAPABILITY_MISSING: CUDA direct forward SDPA native/lowered path is not implemented; target=transformer_block_hot_path";
+    }
+
+    private static boolean broadcastCompatible(int left, int right) {
+        return left == right || left == 1 || right == 1;
     }
 
     /**
@@ -128,6 +209,9 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
             }
         }
         int anchorNodeId = outputNodeIds.stream().max(Integer::compareTo).orElseThrow();
+        if (hasExternalConsumerBeforeAnchor(outputNodeIds, selectedNodeIds, anchorNodeId, context)) {
+            return null;
+        }
         for (int nodeId : orderedNodeIds) {
             for (CompiledNode consumer : context.consumersFor(nodeId)) {
                 if (consumer != null && !selectedNodeIds.contains(consumer.id()) && !outputNodeIds.contains(nodeId)) {
@@ -208,6 +292,22 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
         return outputs;
     }
 
+    private boolean hasExternalConsumerBeforeAnchor(
+            Set<Integer> outputNodeIds,
+            Set<Integer> selectedNodeIds,
+            int anchorNodeId,
+            PartitionPlanningContext context
+    ) {
+        for (int outputNodeId : outputNodeIds) {
+            for (CompiledNode consumer : context.consumersFor(outputNodeId)) {
+                if (consumer != null && !selectedNodeIds.contains(consumer.id()) && consumer.id() < anchorNodeId) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private void collectExternalInputs(CompiledNode node, Set<Integer> candidateNodeIds, Set<Integer> externalInputIds) {
         if (node == null) {
             return;
@@ -241,9 +341,68 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
 
     private static String compoundPatternPrefix(Operation.OpType opType) {
         return switch (opType) {
-            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, LAYER_NORM, RMS_NORM -> "REDUCTION_ADJACENT: ";
+            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX -> "REDUCTION_ADJACENT: ";
             default -> "";
         };
+    }
+
+    private static String normalizationUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
+        Operation.OpType opType = node.operation().opType();
+        if (opType != Operation.OpType.LAYER_NORM && opType != Operation.OpType.RMS_NORM) {
+            return "";
+        }
+        if (context == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA normalization requires planning context";
+        }
+        int normalizedRank;
+        if (opType == Operation.OpType.LAYER_NORM && node.operation() instanceof layerNorm op) {
+            normalizedRank = op.getNormalizedRank();
+            if (node.inputIds().size() != 3) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA LAYER_NORM requires input, gamma, and beta";
+            }
+        } else if (opType == Operation.OpType.RMS_NORM && node.operation() instanceof rmsNorm op) {
+            normalizedRank = op.getNormalizedRank();
+            if (node.inputIds().size() != 2) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA RMS_NORM requires input and gamma";
+            }
+        } else {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA normalization descriptor is unavailable";
+        }
+        CompiledNode input = context.compiledNode(node.inputIds().get(0));
+        CompiledNode gamma = context.compiledNode(node.inputIds().get(1));
+        CompiledNode beta = opType == Operation.OpType.LAYER_NORM ? context.compiledNode(node.inputIds().get(2)) : null;
+        if (input == null || gamma == null || (opType == Operation.OpType.LAYER_NORM && beta == null)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA normalization inputs are unavailable";
+        }
+        if (input.dataType() != DataType.FLOAT32
+                || gamma.dataType() != DataType.FLOAT32
+                || (beta != null && beta.dataType() != DataType.FLOAT32)
+                || node.dataType() != DataType.FLOAT32) {
+            return "UNSUPPORTED_DTYPE: GPU_CUDA normalization supports only FLOAT32";
+        }
+        if (!input.contiguous() || input.hasStorageOffset()
+                || !gamma.contiguous() || gamma.hasStorageOffset()
+                || (beta != null && (!beta.contiguous() || beta.hasStorageOffset()))) {
+            return "UNSUPPORTED_LAYOUT: GPU_CUDA normalization inputs require dense layout";
+        }
+        int[] inputShape = input.shape();
+        int[] gammaShape = gamma.shape();
+        int[] betaShape = beta == null ? null : beta.shape();
+        if (inputShape.length < 1 || inputShape.length > 4
+                || normalizedRank < 1
+                || normalizedRank > inputShape.length
+                || gammaShape.length != normalizedRank
+                || !Arrays.equals(inputShape, node.shape())
+                || (betaShape != null && !Arrays.equals(gammaShape, betaShape))) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA normalization rank/shape contract is unsupported";
+        }
+        int tailStart = inputShape.length - normalizedRank;
+        for (int i = 0; i < normalizedRank; i++) {
+            if (gammaShape[i] != inputShape[tailStart + i]) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA normalization parameter shape must match input tail";
+            }
+        }
+        return "";
     }
 
     private static boolean hasDirectNonDenseInput(CompiledNode node, PartitionPlanningContext context) {

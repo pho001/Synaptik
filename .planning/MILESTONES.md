@@ -1,5 +1,29 @@
 # Milestones
 
+## v1.4 Native GPU Operation Coverage Closure (Shipped: 2026-05-02)
+
+**Phases completed:** 7 phases, 26 plans
+
+**Goal:** Turn remaining high-impact Metal/CUDA fallback families into real native/lowered GPU execution where semantics and backend capability allow it.
+
+**Archives:**
+
+- `milestones/v1.4-ROADMAP.md`
+- `milestones/v1.4-REQUIREMENTS.md`
+- `milestones/v1.4-MILESTONE-AUDIT.md`
+- `milestones/v1.4-phases/`
+
+**Key accomplishments:**
+
+- Target coverage truth and semantics contracts now prevent false native GPU coverage claims for v1.4 operation families.
+- Forward reductions `SUM`, `MEAN`, `REDUCE_MIN`, and `REDUCE_MAX` have shared accelerator DAG contracts and supported dense `FLOAT32` Metal/CUDA execution evidence.
+- `LAYER_NORM` and `RMS_NORM` lower through GPU-resident reduction-adjacent sub-DAGs for legal cases with explicit rejection for unsupported semantics.
+- Forward SDPA is admitted for verified Metal unmasked cases while CUDA and unsupported mask/dtype/layout combinations remain capability-gated with stable fallback reasons.
+- Loss/indexing, conv/pool, and BOOL-output target families now expose support-or-rejection evidence that preserves adjacent GPU region diagnostics instead of hiding CPU exits.
+- Coverage regression gates now report native evidence, target coverage deltas, backend path counters, CPU materialization, tensor-array fallback, and local artifact hygiene.
+
+---
+
 ## v1.3 Coverage-Driven GPU Region Expansion (Shipped: 2026-05-01)
 
 **Phases completed:** 8 phases, 30 plans, 9 tasks

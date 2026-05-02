@@ -7,7 +7,7 @@ import backend.runtime.ExecutionContext;
 /**
  * Run-scoped backend service for dense GPU layout materialization.
  */
-interface DeviceLayoutMaterializer {
+public interface DeviceLayoutMaterializer {
     DeviceBufferBinding materialize(
             AcceleratorLayoutTransformDecision decision,
             DeviceBufferBinding source,

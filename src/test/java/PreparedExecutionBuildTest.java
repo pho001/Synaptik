@@ -5,8 +5,13 @@ import backend.accelerator.exec.PartitionExecutionRole;
 import backend.accelerator.exec.ResolvedAcceleratorInputs;
 import backend.accelerator.lowering.GpuCompoundPatternType;
 import backend.accelerator.select.AcceleratorPlanCostModel;
+import backend.cpu.kernels.CpuNodeExecutionPlan;
+import backend.cpu.kernels.elementwise.strided.StridedLayoutDecision;
+import backend.cpu.plan.CpuLayoutPlan;
+import backend.cpu.plan.CpuPreparedInput;
 import backend.cuda.lowering.CudaGpuRegionLegalityAdapter;
 import backend.metal.exec.PreparedMetalExecutable;
+import backend.metal.lowering.MetalRegionLegalityAdapter;
 import backend.metal.lowering.MetalPartitionSupport;
 import backend.cuda.exec.PreparedCudaExecutable;
 import backend.runtime.ExecutionContext;
@@ -26,6 +31,7 @@ import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.execution.ExecutionState;
 import graph.execution.PreparedExecution;
+import graph.optimizer.partition.PartitionPlanningContext;
 import operations.Operation;
 import backend.blas.BlasProvider;
 import config.backend.KernelTuningConfig;
@@ -33,9 +39,14 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
+import tensor.TensorRemap;
+import tensor.options.AttentionOptions;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -102,8 +114,10 @@ public class PreparedExecutionBuildTest {
         Tensor b = new Tensor(new double[]{3.0, 4.0}, new int[]{2}, null, "b", DataType.FLOAT64);
         Tensor out = a.add(b).relu();
 
-        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
-                .prepare(RuntimeConfig.inferenceDefaults());
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        PartitionPlanningContext planningContext = planningContext(compiled);
+        int compareNodeId = nodeId(compiled, Operation.OpType.GT);
 
         assertThrows(UnsupportedOperationException.class, () -> execution.forwardSteps().clear());
         assertThrows(UnsupportedOperationException.class, () -> execution.backwardSteps().clear());
@@ -266,6 +280,105 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
+    void tensorArrayPreparedInputResolverDoesNotMaterializeUnmatchedInternalInputs() {
+        Tensor external = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "resolverExternal", DataType.FLOAT32);
+        Tensor internalSource = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{2, 2}, null, "resolverInternalSource", DataType.FLOAT32);
+        Tensor internal = internalSource.relu();
+        Tensor out = external.add(internal);
+        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort());
+        int externalNodeId = nodeId(nodes, "resolverExternal");
+        int internalNodeId = nodeId(nodes, Operation.OpType.RELU);
+        int consumerNodeId = nodeId(nodes, Operation.OpType.ADD);
+        CompiledNode consumer = nodes.get(consumerNodeId);
+
+        Tensor preparedExternal = new Tensor(external.getShape(), new ArrayList<>(), "preparedExternal", DataType.FLOAT32);
+        Tensor preparedInternal = new Tensor(internal.getShape(), new ArrayList<>(), "preparedInternal", DataType.FLOAT32);
+        CpuNodeExecutionPlan cpuPlan = new CpuNodeExecutionPlan(
+                new CpuLayoutPlan(
+                        StridedLayoutDecision.NONE,
+                        DataType.FLOAT32,
+                        0,
+                        null,
+                        null,
+                        List.of(
+                                new CpuPreparedInput(0, preparedExternal, TensorRemap.buildPlan(external, preparedExternal)),
+                                new CpuPreparedInput(1, preparedInternal, TensorRemap.buildPlan(internal, preparedInternal))
+                        ),
+                        List.of()
+                ),
+                null,
+                false,
+                1,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
+                ComputeBackend.CPU,
+                null,
+                cpuPlan,
+                null,
+                null,
+                null,
+                PartitionExecutionRole.NONE
+        );
+        Map<Integer, CompiledNodeExecutionMetadata> metadataIndex = Map.of(consumerNodeId, metadata);
+        ExecutionState state = ExecutionState.create(nodes, metadataIndex, nodes.getLast().id());
+        ExecutionContext context = ExecutionContext.fromRuntimeConfig(
+                RuntimeConfig.inferenceDefaults(),
+                ExecutionMode.FORWARD,
+                metadataIndex,
+                state
+        );
+
+        ResolvedAcceleratorInputs resolved = AcceleratorPreparedInputResolver.resolve(
+                List.of(new backend.accelerator.exec.PreparedAcceleratorExecutionSupport.CpuFallbackStep(consumer, metadata)),
+                List.of(externalNodeId),
+                context
+        );
+
+        assertTrue(resolved.anyPreparedInputUsed());
+        assertEquals(List.of(externalNodeId), resolved.externalInputNodeIds());
+        assertTrue(state.cpuMaterializationTraces().stream()
+                .noneMatch(trace -> trace.nodeId() == internalNodeId
+                        && trace.reason() == backend.memory.CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT));
+    }
+
+    @Test
+    void metalCandidateRejectsOutputConsumedBeforeExecutionAnchor() {
+        Tensor input = new Tensor(new float[]{1f, -2f, 3f, -4f}, new int[]{2, 2}, null, "earlyConsumerInput", DataType.FLOAT32);
+        Tensor earlyProducer = input.relu();
+        Tensor earlyCpuConsumer = earlyProducer.sum(1);
+        Tensor laterProducer = input.exp();
+        Tensor gpuMerge = earlyProducer.add(laterProducer);
+        Tensor out = earlyCpuConsumer.add(gpuMerge.sum(1));
+        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort());
+        int earlyProducerNodeId = nodeId(nodes, Operation.OpType.RELU);
+        int earlyConsumerNodeId = nodeId(nodes, Operation.OpType.SUM);
+        int laterProducerNodeId = nodeId(nodes, Operation.OpType.EXP);
+        int gpuMergeNodeId = nodeId(nodes, Operation.OpType.ADD);
+
+        assertTrue(earlyProducerNodeId < earlyConsumerNodeId);
+        assertTrue(earlyConsumerNodeId < gpuMergeNodeId);
+        PartitionPlanningContext context = new PartitionPlanningContext(
+                RuntimeConfig.inferenceDefaults(),
+                false,
+                nodes,
+                consumerMap(nodes)
+        );
+
+        assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
+                Set.of(earlyProducerNodeId, laterProducerNodeId, gpuMergeNodeId),
+                context,
+                Set.of()
+        ));
+    }
+
+    @Test
     void metalSelectionRejectsUnsupportedLossAdjacentCandidateVisibly() {
         Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "metalRejectedLossLogits", DataType.FLOAT32);
         Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalRejectedLossTargets", DataType.INT32);
@@ -278,14 +391,14 @@ public class PreparedExecutionBuildTest {
         String plannerReason = MetalPartitionSupport.plannerUnsupportedReason(compiledNode(compiled, lossNodeId), null);
 
         assertFalse(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_METAL, lossNodeId));
-        assertTrue(plannerReason.contains("UNSUPPORTED_DTYPE"));
+        assertTrue(plannerReason.contains("UNSUPPORTED_INDEX_SEMANTICS"));
         assertTrue(plannerReason.contains("LOSS") || plannerReason.contains("CROSS_ENTROPY_LOSS_INDICES"));
         assertCpuPreparedStepAvailable(execution, lossNodeId);
     }
 
     @Test
-    void cudaSelectionRejectsUnsupportedReductionCandidateVisibly() {
-        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaRejectedReductionInput", DataType.FLOAT32);
+    void cudaSelectionAcceptsSupportedReductionCandidateVisibly() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaSupportedReductionInput", DataType.FLOAT32);
         Tensor out = input.sum(1);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
 
@@ -294,15 +407,17 @@ public class PreparedExecutionBuildTest {
         int reductionNodeId = nodeId(compiled, Operation.OpType.SUM);
         String plannerReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(compiledNode(compiled, reductionNodeId), null);
 
-        assertFalse(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_CUDA, reductionNodeId));
-        assertTrue(plannerReason.contains("UNSUPPORTED_OPERATION"));
-        assertTrue(plannerReason.contains("SUM") || plannerReason.contains("REDUCTION"));
-        assertCpuPreparedStepAvailable(execution, reductionNodeId);
+        assertEquals("", plannerReason);
+        assertTrue(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_CUDA, reductionNodeId));
+        assertTrue(execution.forwardSteps().stream()
+                .anyMatch(step -> step.compiledNode().id() == reductionNodeId
+                        && step.metadata().backend() == ComputeBackend.GPU_CUDA
+                        && step.metadata().acceleratorExecutable() instanceof PreparedCudaExecutable));
     }
 
     @Test
-    void metalRequiredModeExposesPhaseSeventeenReductionRejection() {
-        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalRequiredPhase17ReductionInput", DataType.FLOAT32);
+    void metalRequiredModeKeepsSupportedReductionOnAccelerator() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalRequiredReductionInput", DataType.FLOAT32);
         Tensor out = input.sum(1);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
 
@@ -311,16 +426,16 @@ public class PreparedExecutionBuildTest {
         int sumNodeId = nodeId(compiled, Operation.OpType.SUM);
         String plannerReason = MetalPartitionSupport.plannerUnsupportedReason(compiledNode(compiled, sumNodeId), null);
 
-        assertFalse(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_METAL, sumNodeId));
-        assertContainsAll(plannerReason,
-                "family=REDUCTION",
-                "target=layer_norm_small",
-                "operation SUM is not supported");
-        assertCpuPreparedStepAvailable(execution, sumNodeId);
+        assertEquals("", plannerReason);
+        assertTrue(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_METAL, sumNodeId));
+        assertTrue(execution.forwardSteps().stream()
+                .anyMatch(step -> step.compiledNode().id() == sumNodeId
+                        && step.metadata().backend() == ComputeBackend.GPU_METAL
+                        && step.metadata().acceleratorExecutable() instanceof PreparedMetalExecutable));
     }
 
     @Test
-    void cudaRequiredModeExposesPhaseSeventeenNormalizationRejection() {
+    void cudaRequiredModeSelectsPhaseTwentyFourNormalizationRegion() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaRequiredPhase17NormInput", DataType.FLOAT32);
         Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "cudaRequiredPhase17NormGamma", DataType.FLOAT32);
         Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "cudaRequiredPhase17NormBeta", DataType.FLOAT32);
@@ -330,14 +445,17 @@ public class PreparedExecutionBuildTest {
         CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
         PreparedExecution execution = compiled.prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_CUDA));
         int layerNormNodeId = nodeId(compiled, Operation.OpType.LAYER_NORM);
-        String plannerReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(compiledNode(compiled, layerNormNodeId), null);
+        String plannerReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                compiledNode(compiled, layerNormNodeId),
+                planningContext(compiled)
+        );
 
-        assertFalse(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_CUDA, layerNormNodeId));
-        assertContainsAll(plannerReason,
-                "family=NORMALIZATION",
-                "target=layer_norm_small",
-                "operation LAYER_NORM is not supported");
-        assertCpuPreparedStepAvailable(execution, layerNormNodeId);
+        assertEquals("", plannerReason);
+        assertTrue(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_CUDA, layerNormNodeId));
+        assertTrue(execution.forwardSteps().stream()
+                .anyMatch(step -> step.compiledNode().id() == layerNormNodeId
+                        && step.metadata().backend() == ComputeBackend.GPU_CUDA
+                        && step.metadata().acceleratorExecutable() instanceof PreparedCudaExecutable));
     }
 
     @Test
@@ -382,7 +500,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void phaseSeventeenCrossEntropyIndexFallbackMatchesCpuAndReportsUnsupportedDType() {
+    void phaseSeventeenCrossEntropyIndexFallbackMatchesCpuAndReportsUnsupportedIndexSemantics() {
         Tensor cpuLogits = new Tensor(new float[]{1.5f, -0.25f, 0.5f, -1f, 2f, 0.25f}, new int[]{2, 3}, null, "phase17CpuLossLogits", DataType.FLOAT32);
         Tensor cpuTargets = new Tensor(new int[]{0, 1}, new int[]{2}, null, "phase17CpuLossTargets", DataType.INT32);
         Tensor cpuOut = cpuLogits.crossEntropyLossFromIndices(cpuTargets, 1);
@@ -402,14 +520,46 @@ public class PreparedExecutionBuildTest {
 
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1.0e-5);
         assertContainsAll(plannerReason,
-                "UNSUPPORTED_DTYPE",
+                "UNSUPPORTED_INDEX_SEMANTICS",
                 "family=LOSS_ADJACENT",
                 "target=transformer_block_hot_path");
         assertCpuPreparedStepAvailable(execution, lossNodeId);
     }
 
     @Test
-    void phaseSeventeenLayerNormFallbackMatchesCpuAndReportsReductionAdjacent() {
+    void phaseTwentySixUnsupportedTakeBoundaryKeepsPrecedingMetalLogSoftmaxRegionSelected() {
+        Tensor input = new Tensor(new float[]{0.25f, -0.5f, 1.25f, 2f, -1f, 0.75f}, new int[]{2, 3}, null, "phase26GpuIndexInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{
+                1f, 0.5f, -0.25f,
+                -0.75f, 1.25f, 0.5f,
+                0.25f, -0.5f, 1.5f
+        }, new int[]{3, 3}, null, "phase26GpuIndexWeight", DataType.FLOAT32);
+        Tensor indices = new Tensor(new int[]{0, 1, 2, 0}, new int[]{2, 2}, null, "phase26GpuTakeIndices", DataType.INT32);
+        Tensor matmul = input.matmul(weight);
+        Tensor logProbs = matmul.logSoftmax(1);
+        Tensor indexed = logProbs.takeAlongAxis(indices, 1);
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(logProbs, ComputeBackend.GPU_METAL);
+
+        CompiledGraph compiled = CompiledGraph.compile(indexed, fuseOnlyInferenceConfig());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        int logSoftmaxNodeId = nodeId(compiled, Operation.OpType.LOG_SOFTMAX);
+        int takeNodeId = nodeId(compiled, Operation.OpType.TAKE_ALONG_AXIS);
+        String takeReason = MetalPartitionSupport.plannerUnsupportedReason(compiledNode(compiled, takeNodeId), planningContext(compiled));
+
+        assertTrue(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_METAL, logSoftmaxNodeId),
+                "legal LOG_SOFTMAX producer should stay selected on Metal before CPU-owned take-along-axis");
+        assertFalse(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_METAL, takeNodeId),
+                "TAKE_ALONG_AXIS must not be selected until native index execution exists");
+        assertContainsAll(takeReason,
+                "DAG_PRIMITIVE_UNSUPPORTED",
+                "family=INDEX_SCATTER_GATHER",
+                "operation TAKE_ALONG_AXIS is not supported by GPU_METAL lowering");
+        assertCpuPreparedStepAvailable(execution, takeNodeId);
+    }
+
+    @Test
+    void phaseTwentyFourLayerNormGpuRegionMatchesCpuAndReportsNormalizationDag() {
         Tensor cpuInput = new Tensor(new float[]{1f, 2f, 4f, 8f}, new int[]{2, 2}, null, "phase17CpuLayerNormInput", DataType.FLOAT32);
         Tensor cpuGamma = new Tensor(new float[]{1.25f, 0.75f}, new int[]{2}, null, "phase17CpuLayerNormGamma", DataType.FLOAT32);
         Tensor cpuBeta = new Tensor(new float[]{0.5f, -0.25f}, new int[]{2}, null, "phase17CpuLayerNormBeta", DataType.FLOAT32);
@@ -427,14 +577,57 @@ public class PreparedExecutionBuildTest {
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
         execution.execute(ExecutionMode.FORWARD);
         int layerNormNodeId = nodeId(compiled, Operation.OpType.LAYER_NORM);
-        String plannerReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(compiledNode(compiled, layerNormNodeId), null);
+        String plannerReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                compiledNode(compiled, layerNormNodeId),
+                planningContext(compiled)
+        );
 
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1.0e-5);
-        assertContainsAll(plannerReason,
-                "REDUCTION_ADJACENT",
-                "family=NORMALIZATION",
-                "target=layer_norm_small");
-        assertCpuPreparedStepAvailable(execution, layerNormNodeId);
+        assertEquals("", plannerReason);
+        assertTrue(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_CUDA, layerNormNodeId));
+        PreparedCudaExecutable accelerator = (PreparedCudaExecutable) execution.forwardSteps().stream()
+                .filter(step -> step.compiledNode().id() == layerNormNodeId)
+                .map(step -> step.metadata().acceleratorExecutable())
+                .filter(PreparedCudaExecutable.class::isInstance)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(GpuCompoundPatternType.NORMALIZATION, accelerator.compoundSummary().patternType());
+        assertTrue(accelerator.dagSpec().nodes().size() > 5);
+    }
+
+    @Test
+    void phaseTwentyFourRmsNormGpuRegionMatchesCpuAndReportsNormalizationDag() {
+        Tensor cpuInput = new Tensor(new float[]{1f, 2f, 4f, 8f, 16f, 32f}, new int[]{2, 3}, null, "phase24CpuRmsNormInput", DataType.FLOAT32);
+        Tensor cpuGamma = new Tensor(new float[]{1.25f, 0.75f, 1.5f}, new int[]{3}, null, "phase24CpuRmsNormGamma", DataType.FLOAT32);
+        Tensor cpuOut = cpuInput.rmsNorm(cpuGamma, 1.0e-5);
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor input = new Tensor(new float[]{1f, 2f, 4f, 8f, 16f, 32f}, new int[]{2, 3}, null, "phase24GpuRmsNormInput", DataType.FLOAT32);
+        Tensor gamma = new Tensor(new float[]{1.25f, 0.75f, 1.5f}, new int[]{3}, null, "phase24GpuRmsNormGamma", DataType.FLOAT32);
+        Tensor out = input.rmsNorm(gamma, 1.0e-5);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        execution.execute(ExecutionMode.FORWARD);
+        int rmsNormNodeId = nodeId(compiled, Operation.OpType.RMS_NORM);
+        String plannerReason = MetalPartitionSupport.plannerUnsupportedReason(
+                compiledNode(compiled, rmsNormNodeId),
+                planningContext(compiled)
+        );
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1.0e-5);
+        assertEquals("", plannerReason);
+        assertTrue(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_METAL, rmsNormNodeId));
+        PreparedMetalExecutable accelerator = (PreparedMetalExecutable) execution.forwardSteps().stream()
+                .filter(step -> step.compiledNode().id() == rmsNormNodeId)
+                .map(step -> step.metadata().acceleratorExecutable())
+                .filter(PreparedMetalExecutable.class::isInstance)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(GpuCompoundPatternType.NORMALIZATION, accelerator.compoundSummary().patternType());
+        assertTrue(accelerator.plan().lowering().dagSpec().nodes().size() > 5);
     }
 
     @Test
@@ -889,6 +1082,36 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
+    void scoredAcceleratorPlanningSurfacesExplicitDenseLayoutMaterializationBytes() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "layoutCostA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{2, 2}, null, "layoutCostB", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor permute = matmul.permute(1, 0);
+        Tensor contiguous = permute.contiguous();
+        Tensor out = contiguous.relu();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(permute, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(contiguous, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        OptimizerConfig optimizerConfig = OptimizerConfig.inferenceDefaults()
+                .withOffload(OffloadConfig.acceleratorScored());
+        CompiledGraph compiled = CompiledGraph.compile(out, optimizerConfig);
+
+        var layoutDecision = compiled.compileTrace().partitionPlanning().decisions().stream()
+                .filter(decision -> decision.costSummary() != null)
+                .filter(decision -> decision.nodeIds().stream().anyMatch(id -> {
+                    CompiledNode node = compiled.compileArtifacts().compiledNodes().get(id);
+                    return node.operation() != null && node.operation().opType() == Operation.OpType.CONTIGUOUS;
+                }))
+                .findFirst()
+                .orElseThrow();
+
+        assertTrue(layoutDecision.costSummary().layoutFallbackBytes() >= 16L);
+    }
+
+    @Test
     void bfloat16FusedPrepareSkipsCompiledAsmKernel() {
         Tensor a = new Tensor(new double[]{1.0, 2.0, 3.0, 4.0}, new int[]{4}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(new double[]{0.5, 1.5, -2.0, 3.0}, new int[]{4}, null, "b", DataType.BFLOAT16);
@@ -1067,8 +1290,10 @@ public class PreparedExecutionBuildTest {
         Tensor bias = new Tensor(new double[12], new int[]{12}, null, "bias", DataType.BFLOAT16);
         Tensor out = a.matmul(b).add(bias).relu();
 
-        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
-                .prepare(RuntimeConfig.inferenceDefaults());
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        PartitionPlanningContext planningContext = planningContext(compiled);
+        int compareNodeId = nodeId(compiled, Operation.OpType.GT);
 
         var matmulStep = execution.forwardSteps().stream()
                 .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
@@ -1322,7 +1547,40 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void gpuMetalDirectSdpaFallsBackToCpuUntilNativeScaleContractMatchesCpu() {
+    void gpuCudaDirectUnmaskedSdpaFallsBackWithCapabilityMissingReason() {
+        Tensor cpuQ = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cpuCudaSdpaQ", DataType.FLOAT32);
+        Tensor cpuK = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cpuCudaSdpaK", DataType.FLOAT32);
+        Tensor cpuV = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cpuCudaSdpaV", DataType.FLOAT32);
+        Tensor cpuOut = cpuQ.scaledDotProductAttention(cpuK, cpuV, AttentionOptions.defaults().withScale(0.5));
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaSdpaQ", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaSdpaK", DataType.FLOAT32);
+        Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cudaSdpaV", DataType.FLOAT32);
+        Tensor out = q.scaledDotProductAttention(k, v, AttentionOptions.defaults().withScale(0.5));
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        int sdpaNodeId = nodeId(compiled, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
+        String plannerReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                compiledNode(compiled, sdpaNodeId),
+                planningContext(compiled)
+        );
+
+        assertFalse(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_CUDA, sdpaNodeId));
+        assertTrue(plannerReason.contains("CAPABILITY_MISSING"));
+        assertTrue(plannerReason.contains("CUDA direct forward SDPA"));
+        assertCpuPreparedStepAvailable(execution, sdpaNodeId);
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalDirectUnmaskedSdpaUsesPreparedMetalExecutableWhenAvailable() {
         Tensor cpuQ = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cpuQ", DataType.FLOAT32);
         Tensor cpuK = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cpuK", DataType.FLOAT32);
         Tensor cpuV = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cpuV", DataType.FLOAT32);
@@ -1341,7 +1599,12 @@ public class PreparedExecutionBuildTest {
         var gpuSteps = execution.forwardSteps().stream()
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
-        assertTrue(gpuSteps.isEmpty());
+        if (!gpuSteps.isEmpty()) {
+            assertEquals(1, gpuSteps.size());
+            PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+            assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
+                    .anyMatch(node -> node.type() == backend.accelerator.dag.AcceleratorDagNodeType.SDPA));
+        }
 
         execution.execute(ExecutionMode.FORWARD);
 
@@ -2361,6 +2624,50 @@ public class PreparedExecutionBuildTest {
         PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertEquals(4, executable.plan().lowering().dagSpec().nodes().size());
         assertEquals(4, executable.plan().lowering().dagSpec().externalInputs().size());
+    }
+
+    @Test
+    void gpuMetalWhereUsesCpuProducedComparePredicateAsExplicitBoolBoundary() {
+        Tensor left = new Tensor(new float[]{1f, 3f, 2f, 4f}, new int[]{2, 2}, null, "phase27CompareLeft", DataType.FLOAT32);
+        Tensor right = new Tensor(new float[]{2f, 2f, 2f, 2f}, new int[]{2, 2}, null, "phase27CompareRight", DataType.FLOAT32);
+        Tensor trueBranch = new Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, null, "phase27True", DataType.FLOAT32);
+        Tensor falseBranch = new Tensor(new float[]{-10f, -20f, -30f, -40f}, new int[]{2, 2}, null, "phase27False", DataType.FLOAT32);
+        Tensor compare = left.greaterThan(right);
+        Tensor selected = Tensor.where(compare, trueBranch, falseBranch);
+        Tensor out = selected.relu();
+
+        TensorInternalAccess.setBackend(compare, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(selected, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        PartitionPlanningContext planningContext = planningContext(compiled);
+        int compareNodeId = nodeId(compiled, Operation.OpType.GT);
+
+        var compareStep = execution.forwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.GT)
+                .findFirst()
+                .orElseThrow();
+        assertNotEquals(ComputeBackend.GPU_METAL, compareStep.metadata().backend(),
+                "BOOL-producing compare must not be claimed as native Metal compute");
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+
+        assertTrue(executable.plan().lowering().dagSpec().externalInputs().stream()
+                .anyMatch(input -> input.dataType() == DataType.BOOL));
+        assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == backend.accelerator.dag.AcceleratorDagNodeType.WHERE));
+        assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == backend.accelerator.dag.AcceleratorDagNodeType.RELU));
+        assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
+                .noneMatch(node -> node.nodeId() == compareNodeId));
+        assertTrue(MetalPartitionSupport.plannerUnsupportedReason(compiledNode(compiled, compareNodeId), planningContext)
+                .contains("UNSUPPORTED_DTYPE"));
     }
 
     @Test
@@ -3669,11 +3976,50 @@ public class PreparedExecutionBuildTest {
                 .orElseThrow();
     }
 
+    private static int nodeId(List<CompiledNode> nodes, Operation.OpType opType) {
+        return nodes.stream()
+                .filter(node -> node.operation() != null && node.operation().opType() == opType)
+                .map(graph.CompiledNode::id)
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static int nodeId(List<CompiledNode> nodes, String label) {
+        return nodes.stream()
+                .filter(node -> label.equals(node.label()))
+                .map(graph.CompiledNode::id)
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static Map<Integer, List<CompiledNode>> consumerMap(List<CompiledNode> nodes) {
+        Map<Integer, List<CompiledNode>> consumers = new HashMap<>();
+        for (CompiledNode node : nodes) {
+            consumers.computeIfAbsent(node.id(), ignored -> new ArrayList<>());
+        }
+        for (CompiledNode node : nodes) {
+            for (int inputId : node.inputIds()) {
+                consumers.computeIfAbsent(inputId, ignored -> new ArrayList<>()).add(node);
+            }
+        }
+        return consumers;
+    }
+
     private static graph.CompiledNode compiledNode(CompiledGraph compiled, int nodeId) {
         return compiled.compileArtifacts().compiledNodes().stream()
                 .filter(node -> node.id() == nodeId)
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private static PartitionPlanningContext planningContext(CompiledGraph compiled) {
+        List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
+        return new PartitionPlanningContext(
+                RuntimeConfig.inferenceDefaults(),
+                false,
+                nodes,
+                consumerMap(nodes)
+        );
     }
 
     private static boolean hasSelectedAcceleratorDecisionFor(PreparedExecution execution, ComputeBackend backend, int nodeId) {

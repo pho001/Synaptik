@@ -1,10 +1,12 @@
 import backend.runtime.ExecutionMode;
+import backend.ComputeBackend;
 import config.optimizer.OptimizerConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -91,6 +93,60 @@ public class NormalizationExecutionTest {
                 3.0 / Math.sqrt(12.5),
                 4.0 / Math.sqrt(12.5)
         }, out.toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void selectedGpuNormalizationParityCoversRepresentativeFloat32Shapes() {
+        Tensor layerCpuInput = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "layerCpuInput", DataType.FLOAT32);
+        Tensor layerCpuGamma = new Tensor(new float[]{1.25f, 0.75f, 1.5f}, new int[]{3}, null, "layerCpuGamma", DataType.FLOAT32);
+        Tensor layerCpuBeta = new Tensor(new float[]{0.5f, -0.25f, 0.125f}, new int[]{3}, null, "layerCpuBeta", DataType.FLOAT32);
+        Tensor layerCpuOut = layerCpuInput.layerNorm(layerCpuGamma, layerCpuBeta, 1e-5);
+        CompiledGraph.compile(layerCpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor layerGpuInput = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "layerGpuInput", DataType.FLOAT32);
+        Tensor layerGpuGamma = new Tensor(new float[]{1.25f, 0.75f, 1.5f}, new int[]{3}, null, "layerGpuGamma", DataType.FLOAT32);
+        Tensor layerGpuBeta = new Tensor(new float[]{0.5f, -0.25f, 0.125f}, new int[]{3}, null, "layerGpuBeta", DataType.FLOAT32);
+        Tensor layerGpuOut = layerGpuInput.layerNorm(layerGpuGamma, layerGpuBeta, 1e-5);
+        TensorInternalAccess.setBackend(layerGpuOut, ComputeBackend.GPU_METAL);
+        CompiledGraph.compile(layerGpuOut, OptimizerConfig.inferenceDefaults())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor rmsCpuInput = new Tensor(new float[]{1f, 2f, 4f, 8f, 16f, 32f}, new int[]{2, 3}, null, "rmsCpuInput", DataType.FLOAT32);
+        Tensor rmsCpuGamma = new Tensor(new float[]{1.25f, 0.75f, 1.5f}, new int[]{3}, null, "rmsCpuGamma", DataType.FLOAT32);
+        Tensor rmsCpuOut = rmsCpuInput.rmsNorm(rmsCpuGamma, 1e-5);
+        CompiledGraph.compile(rmsCpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor rmsGpuInput = new Tensor(new float[]{1f, 2f, 4f, 8f, 16f, 32f}, new int[]{2, 3}, null, "rmsGpuInput", DataType.FLOAT32);
+        Tensor rmsGpuGamma = new Tensor(new float[]{1.25f, 0.75f, 1.5f}, new int[]{3}, null, "rmsGpuGamma", DataType.FLOAT32);
+        Tensor rmsGpuOut = rmsGpuInput.rmsNorm(rmsGpuGamma, 1e-5);
+        TensorInternalAccess.setBackend(rmsGpuOut, ComputeBackend.GPU_CUDA);
+        CompiledGraph.compile(rmsGpuOut, OptimizerConfig.inferenceDefaults())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        float[] multiData = new float[64];
+        for (int i = 0; i < multiData.length; i++) {
+            multiData[i] = (float) (i % 11 - 5);
+        }
+        Tensor multiCpuInput = new Tensor(multiData.clone(), new int[]{2, 4, 8, 1}, null, "multiCpuInput", DataType.FLOAT32);
+        Tensor multiCpuGamma = new Tensor(new float[]{1f, 1.1f, 0.9f, 1.2f, 0.8f, 1.3f, 0.7f, 1.4f}, new int[]{8, 1}, null, "multiCpuGamma", DataType.FLOAT32);
+        Tensor multiCpuBeta = new Tensor(new float[]{0f, 0.1f, -0.1f, 0.2f, -0.2f, 0.3f, -0.3f, 0.4f}, new int[]{8, 1}, null, "multiCpuBeta", DataType.FLOAT32);
+        Tensor multiCpuOut = multiCpuInput.layerNorm(multiCpuGamma, multiCpuBeta, 1e-5);
+        CompiledGraph.compile(multiCpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor multiGpuInput = new Tensor(multiData.clone(), new int[]{2, 4, 8, 1}, null, "multiGpuInput", DataType.FLOAT32);
+        Tensor multiGpuGamma = new Tensor(new float[]{1f, 1.1f, 0.9f, 1.2f, 0.8f, 1.3f, 0.7f, 1.4f}, new int[]{8, 1}, null, "multiGpuGamma", DataType.FLOAT32);
+        Tensor multiGpuBeta = new Tensor(new float[]{0f, 0.1f, -0.1f, 0.2f, -0.2f, 0.3f, -0.3f, 0.4f}, new int[]{8, 1}, null, "multiGpuBeta", DataType.FLOAT32);
+        Tensor multiGpuOut = multiGpuInput.layerNorm(multiGpuGamma, multiGpuBeta, 1e-5);
+        TensorInternalAccess.setBackend(multiGpuOut, ComputeBackend.GPU_METAL);
+        CompiledGraph.compile(multiGpuOut, OptimizerConfig.inferenceDefaults())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(layerCpuOut.toDoubleArrayCopy(), layerGpuOut.toDoubleArrayCopy(), 1e-5);
+        assertArrayEquals(rmsCpuOut.toDoubleArrayCopy(), rmsGpuOut.toDoubleArrayCopy(), 1e-5);
+        assertArrayEquals(multiCpuOut.toDoubleArrayCopy(), multiGpuOut.toDoubleArrayCopy(), 1e-5);
     }
 
     @Test

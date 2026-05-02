@@ -460,6 +460,18 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
 
     private long layoutFallbackBytesFor(PartitionCandidate candidate, PartitionPlanningContext context) {
         long bytes = 0L;
+        for (int nodeId : candidate.externalInputIds()) {
+            CompiledNode node = context.compiledNode(nodeId);
+            if (requiresDenseInputMaterialization(node)) {
+                bytes += nodeBytes(node);
+            }
+        }
+        for (int nodeId : candidate.orderedNodeIds()) {
+            CompiledNode node = context.compiledNode(nodeId);
+            if (isExplicitDenseLayoutMaterialization(node)) {
+                bytes += nodeBytes(node);
+            }
+        }
         for (int nodeId : candidate.outputNodeIds()) {
             CompiledNode node = context.compiledNode(nodeId);
             if (node != null && (!node.contiguous() || node.hasStorageOffset())) {
@@ -467,6 +479,19 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
             }
         }
         return bytes;
+    }
+
+    private static boolean requiresDenseInputMaterialization(CompiledNode node) {
+        return node != null && (!node.contiguous() || node.hasStorageOffset());
+    }
+
+    private static boolean isExplicitDenseLayoutMaterialization(CompiledNode node) {
+        return node != null
+                && node.operation() != null
+                && switch (node.operation().opType()) {
+                    case CONTIGUOUS -> true;
+                    default -> false;
+                };
     }
 
     private String layoutClassFor(PartitionCandidate candidate, PartitionPlanningContext context) {
@@ -702,6 +727,7 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
                     summary.finalScore(),
                     summary.boundaryCount(),
                     summary.estimatedTransferBytes(),
+                    summary.layoutFallbackBytes(),
                     summary.estimatedComputeWork(),
                     summary.preset()
             ));

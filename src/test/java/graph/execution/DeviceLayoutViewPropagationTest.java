@@ -4,7 +4,9 @@ import backend.ComputeBackend;
 import backend.cuda.buffer.CudaBufferAccess;
 import backend.cuda.buffer.CudaBufferBinding;
 import backend.cuda.buffer.CudaBufferHandle;
+import backend.accelerator.buffer.AcceleratorLayoutTransformDecision;
 import backend.accelerator.exec.PartitionExecutionRole;
+import backend.memory.DeviceBufferBinding;
 import backend.memory.StorageResidency;
 import backend.metal.buffer.MetalBufferAccess;
 import backend.metal.buffer.MetalBufferBinding;
@@ -84,6 +86,27 @@ class DeviceLayoutViewPropagationTest {
         fixture.attachMetalSource();
 
         assertFalse(DeviceLayoutViewPropagator.tryPropagate(fixture.step(), fixture.context()));
+    }
+
+    @Test
+    void contiguousUsesRegisteredDenseDeviceMaterializer() {
+        Fixture fixture = fixture(input().contiguous(), ComputeBackend.GPU_METAL, false);
+        fixture.attachMetalSource();
+        RecordingLayoutMaterializer materializer = new RecordingLayoutMaterializer();
+        fixture.context().registerRuntimeService(DeviceLayoutMaterializer.class, materializer);
+
+        assertTrue(DeviceLayoutViewPropagator.tryPropagate(fixture.step(), fixture.context()));
+
+        assertEquals(1, materializer.calls);
+        DeviceBufferBinding binding = fixture.state().deviceBufferBindingForNodeId(fixture.targetNode().id());
+        assertNotNull(binding);
+        assertEquals("GPU_METAL", binding.backendId());
+        assertEquals(
+                backend.accelerator.buffer.AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS,
+                binding.layout().layoutClass()
+        );
+        assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.targetNode().id()).residency());
+        assertEquals(0, fixture.state().cpuMaterializationTraces().size());
     }
 
     @Test
@@ -243,6 +266,31 @@ class DeviceLayoutViewPropagationTest {
                     CudaBufferAccess.READ_WRITE
             );
             state.attachDeviceBufferBinding(sourceNode.id(), binding, StorageResidency.DEVICE_OWNED, "test source");
+        }
+    }
+
+    private static final class RecordingLayoutMaterializer implements DeviceLayoutMaterializer {
+        private int calls;
+
+        @Override
+        public DeviceBufferBinding materialize(
+                AcceleratorLayoutTransformDecision decision,
+                DeviceBufferBinding source,
+                ExecutionContext context
+        ) {
+            calls++;
+            return new MetalBufferBinding(
+                    decision.targetNodeId(),
+                    decision.targetLayout(),
+                    new MetalBufferHandle(
+                            MemorySegment.ofAddress(300 + decision.targetNodeId()),
+                            decision.targetLayout().logicalByteLength(),
+                            "shared",
+                            "test-materialized",
+                            false
+                    ),
+                    MetalBufferAccess.READ_WRITE
+            );
         }
     }
 }

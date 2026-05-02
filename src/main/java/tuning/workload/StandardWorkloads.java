@@ -103,6 +103,14 @@ public final class StandardWorkloads {
         return new NormalizationWorkloadSpec(name, kind, batch, channels, height, width, epsilon);
     }
 
+    public static ReductionWorkloadSpec reductionChain(String name, int batch, int features) {
+        return new ReductionWorkloadSpec(name, batch, features);
+    }
+
+    public static BoolCompareMaskWorkloadSpec boolCompareWhere(String name, int batch, int features) {
+        return new BoolCompareMaskWorkloadSpec(name, batch, features);
+    }
+
     public static Pool2dWorkloadSpec pool2d(
             String name,
             Pool2dWorkloadSpec.PoolKind kind,
@@ -149,9 +157,12 @@ public final class StandardWorkloads {
                         64, 256, 512, 256, 32,
                         LossReduction.MEAN
                 ))
+                .register(reductionChain("reduction_chain_small", 8, 32))
                 .register(normalization("layer_norm_small", NormalizationWorkloadSpec.NormalizationKind.LAYER_NORM, 4, 64, 8, 1, 1e-5))
+                .register(normalization("rms_norm_small", NormalizationWorkloadSpec.NormalizationKind.RMS_NORM, 4, 64, 8, 1, 1e-5))
                 .register(pool2d("max_pool2d_small", Pool2dWorkloadSpec.PoolKind.MAX, 2, 8, 16, 16, Pool2dOptions.square(2)))
                 .register(indexedLoss("cross_entropy_small", LossWorkloadSpec.LossKind.CROSS_ENTROPY_FROM_INDICES, 8, 16, LossReduction.MEAN))
+                .register(boolCompareWhere("bool_compare_where_small", 8, 32))
                 .register(transformerHotPath("transformer_hot_path"))
                 .register(transformerHotPath("transformer_hot_path_large", WorkloadProfile.transformerHotPathLarge()))
                 .register(transformerHotPath("transformer_hot_path_long_seq", WorkloadProfile.transformerHotPathLongSeq()))

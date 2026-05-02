@@ -207,6 +207,10 @@ public final class TextBenchmarkReportRenderer {
                     .append(" cpuMaterializationDurationNs=").append(backend.cpuMaterializationDurationNs())
                     .append(" copyDurationNs=").append(backend.copyDurationNs())
                     .append(" deviceHandoffCount=").append(backend.deviceHandoffCount())
+                    .append(" gpuLayoutMaterializationCount=").append(backend.gpuLayoutMaterializationCount())
+                    .append(" gpuLayoutMaterializationBytes=").append(backend.gpuLayoutMaterializationBytes())
+                    .append(" gpuLayoutTransformKindCounts=").append(backend.gpuLayoutTransformKindCounts())
+                    .append(" gpuLayoutTargetLayoutClassCounts=").append(backend.gpuLayoutTargetLayoutClassCounts())
                     .append(" storageResidencyCounts=").append(backend.storageResidencyCounts())
                     .append(" dtypeResidencyReasons=").append(backend.dtypeResidencyReasons())
                     .append(" gpuFusedSubpatternCount=").append(backend.gpuFusedSubpatternCount())
@@ -236,7 +240,32 @@ public final class TextBenchmarkReportRenderer {
                     .append(" detail=").append(nativeEvidence.detail())
                     .append(" capabilitySkipped=").append("capabilitySkipped".equals(nativeEvidence.nativeStatus()))
                     .append('\n');
+            appendTargetCoverageTruth(sb, entry.getKey());
         }
+    }
+
+    private static void appendTargetCoverageTruth(StringBuilder sb, String backendName) {
+        backendFromName(backendName).ifPresent(backend -> {
+            sb.append("      targetCoverageTruth:\n");
+            for (GpuTargetCoverageTruth.Row row : GpuTargetCoverageTruth.rowsFor(backend)) {
+                sb.append("        - op=").append(row.opType())
+                        .append(" family=").append(row.family())
+                        .append(" matrixStatus=").append(row.matrixStatus())
+                        .append(" executionStatus=").append(row.executionStatus())
+                        .append(" detail=").append(row.detail())
+                        .append('\n');
+            }
+        });
+    }
+
+    private static java.util.Optional<backend.ComputeBackend> backendFromName(String backendName) {
+        if ("GPU_METAL".equals(backendName)) {
+            return java.util.Optional.of(backend.ComputeBackend.GPU_METAL);
+        }
+        if ("GPU_CUDA".equals(backendName)) {
+            return java.util.Optional.of(backend.ComputeBackend.GPU_CUDA);
+        }
+        return java.util.Optional.empty();
     }
 
     static GpuCoverageNativeEvidence nativeEvidence(
@@ -273,6 +302,7 @@ public final class TextBenchmarkReportRenderer {
                     .append(" finalScore=").append(formatScore(summary.finalScore()))
                     .append(" boundaryCount=").append(summary.boundaryCount())
                     .append(" estimatedTransferBytes=").append(summary.estimatedTransferBytes())
+                    .append(" layoutFallbackBytes=").append(summary.layoutFallbackBytes())
                     .append(" estimatedComputeWork=").append(summary.estimatedComputeWork())
                     .append(" reason=").append(decision.reason())
                     .append('\n');
@@ -292,6 +322,7 @@ public final class TextBenchmarkReportRenderer {
                         .append(" finalScore=").append(formatScore(finalist.finalScore()))
                         .append(" boundaryCount=").append(finalist.boundaryCount())
                         .append(" estimatedTransferBytes=").append(finalist.estimatedTransferBytes())
+                        .append(" layoutFallbackBytes=").append(finalist.layoutFallbackBytes())
                         .append(" estimatedComputeWork=").append(finalist.estimatedComputeWork())
                         .append(" reason=").append(finalist.reason())
                         .append('\n');
@@ -328,6 +359,7 @@ public final class TextBenchmarkReportRenderer {
                     summary.finalScore(),
                     summary.boundaryCount(),
                     summary.estimatedTransferBytes(),
+                    summary.layoutFallbackBytes(),
                     summary.estimatedComputeWork(),
                     summary.preset()
             ));

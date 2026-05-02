@@ -6,6 +6,7 @@ import backend.accelerator.buffer.AcceleratorBufferDecision;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.buffer.AcceleratorBufferInputDecision;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
+import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
 import backend.accelerator.buffer.AcceleratorBufferOutputDecision;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.buffer.AcceleratorBufferRequest;
@@ -18,6 +19,7 @@ import backend.metal.bridge.MetalMpsGraphBridge;
 import backend.runtime.ExecutionContext;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
+import graph.execution.DeviceLayoutMaterializer;
 import tensor.DataType;
 import tensor.Tensor;
 
@@ -93,6 +95,83 @@ public final class MetalAcceleratorBufferBinder {
                 "using native buffer bindings", inputDecisions, outputDecisions);
     }
 
+    /**
+     * Initializes and validates the run-independent allocator capability during prepare.
+     *
+     * <p>This does not allocate any Metal buffers. It only resolves the bridge-scoped allocator object so
+     * prepared executables can keep static transport availability out of the hot execute path.</p>
+     *
+     * @return empty when the allocator is available, otherwise a stable unavailable reason
+     */
+    public String prepareAllocatorUnavailableReason() {
+        MetalBufferAllocator resolvedAllocator = allocator();
+        return resolvedAllocator.available() ? "" : resolvedAllocator.unavailableReason();
+    }
+
+    /**
+     * Registers run-scoped Metal materialization services used by later layout/view steps.
+     */
+    public void registerRuntimeServices(ExecutionContext context) {
+        if (context == null) {
+            return;
+        }
+        MetalBufferAllocator resolvedAllocator = allocator();
+        if (!resolvedAllocator.available()) {
+            return;
+        }
+        context.registerDeviceToCpuMaterializer(
+                ComputeBackend.GPU_METAL.name(),
+                new MetalDeviceToCpuMaterializer(resolvedAllocator)
+        );
+        if (bridge.supportsLayoutMaterialization()) {
+            context.registerRuntimeService(
+                    DeviceLayoutMaterializer.class,
+                    new MetalDeviceLayoutMaterializer(bridge, bridgeContext, resolvedAllocator)
+            );
+        }
+    }
+
+    /**
+     * Performs only runtime-dependent buffer validation.
+     *
+     * <p>Callers must run static transport gates during prepare before using this method: buffer mode,
+     * native ABI availability, minimum work threshold, bridge availability, executable availability, and
+     * static dtype legality. This method intentionally keeps the execute path focused on facts that require
+     * the current {@link ExecutionContext}: existing device bindings, runtime residency/currentness, and
+     * concrete tensor layouts.</p>
+     */
+    public AcceleratorBufferDecision validateRuntime(
+            AcceleratorBufferRequest request,
+            ResolvedAcceleratorInputs inputs,
+            AcceleratorBufferConfig bufferConfig,
+            ExecutionContext context
+    ) {
+        AcceleratorBufferConfig config = bufferConfig == null ? AcceleratorBufferConfig.defaults() : bufferConfig;
+        List<AcceleratorBufferInputDecision> inputDecisions = inputDecisions(request, inputs, config, context);
+        AcceleratorBufferInputDecision rejectedInput = inputDecisions.stream()
+                .filter(input -> !input.accepted())
+                .findFirst()
+                .orElse(null);
+        if (rejectedInput != null) {
+            return decision(request, config, fallbackPath(config.bindingMode()), false,
+                    rejectedInput.reasonCode(), rejectedInput.reason(), inputDecisions, List.of());
+        }
+
+        List<AcceleratorBufferOutputDecision> outputDecisions = outputDecisions(request, context);
+        AcceleratorBufferOutputDecision rejectedOutput = outputDecisions.stream()
+                .filter(output -> !output.accepted())
+                .findFirst()
+                .orElse(null);
+        if (rejectedOutput != null) {
+            return decision(request, config, fallbackPath(config.bindingMode()), false,
+                    rejectedOutput.reasonCode(), rejectedOutput.reason(), inputDecisions, outputDecisions);
+        }
+
+        return decision(request, config, AcceleratorBufferExecutionPath.BUFFER_BINDING, true,
+                AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE,
+                "using native buffer bindings", inputDecisions, outputDecisions);
+    }
+
     public AcceleratorBufferBindings<MetalBufferBinding> resolve(
             AcceleratorBufferRequest request,
             ResolvedAcceleratorInputs inputs,
@@ -103,7 +182,7 @@ public final class MetalAcceleratorBufferBinder {
             return new AcceleratorBufferBindings<>(List.of(), List.of());
         }
         MetalBufferAllocator resolvedAllocator = allocator();
-        context.registerDeviceToCpuMaterializer(ComputeBackend.GPU_METAL.name(), new MetalDeviceToCpuMaterializer(resolvedAllocator));
+        registerRuntimeServices(context);
         List<MetalBufferBinding> inputBindings = resolveInputBindings(request, inputs, context, resolvedAllocator);
         List<MetalBufferBinding> outputBindings = resolveOutputBindings(request, context, resolvedAllocator);
         return new AcceleratorBufferBindings<>(inputBindings, outputBindings);
@@ -356,10 +435,19 @@ public final class MetalAcceleratorBufferBinder {
             return "binding elementCount " + actualLayout.logicalElementCount()
                     + " does not match expected elementCount " + expectedLayout.logicalElementCount();
         }
+        if (requiredAccess == MetalBufferAccess.READ
+                && actualLayout.layoutClass() != AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS
+                && isMetadataOnlyView(metalBinding)) {
+            return "binding is a metadata-only Metal layout view and must be materialized before native buffer compute";
+        }
         if (!accessCompatible(metalBinding.access(), requiredAccess)) {
             return "binding access " + metalBinding.access() + " is incompatible with required " + requiredAccess;
         }
         return "";
+    }
+
+    private static boolean isMetadataOnlyView(MetalBufferBinding metalBinding) {
+        return metalBinding.handle().owner().contains(":logical-view");
     }
 
     private static boolean accessCompatible(MetalBufferAccess actual, MetalBufferAccess required) {

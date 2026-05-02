@@ -24,12 +24,18 @@ import operations.elementwise.binary.minGrad;
 import operations.layout.expandDims;
 import operations.layout.permute;
 import operations.layout.squeeze;
+import operations.normalization.layerNorm;
+import operations.normalization.rmsNorm;
 import operations.reduction.reduceMaxGrad;
 import operations.reduction.reduceMinGrad;
+import operations.reduction.reduceMax;
+import operations.reduction.reduceMin;
 import operations.reduction.logSoftmax;
 import operations.reduction.logSoftmaxGrad;
+import operations.reduction.mean;
 import operations.reduction.softmax;
 import operations.reduction.softmaxGrad;
+import operations.reduction.sum;
 import operations.linalg.scaledDotProductAttention;
 import operations.linalg.scaledDotProductAttentionBackward;
 import tensor.DataType;
@@ -680,6 +686,10 @@ public final class AcceleratorSubgraphLowerer {
     }
 
     private AcceleratorDagSpec buildDagSpec(AcceleratorSubgraphSpec subgraph, PartitionPlanningContext context) {
+        AcceleratorDagSpec specializedNormalization = tryBuildNormalizationDagSpec(subgraph, context);
+        if (specializedNormalization != null) {
+            return specializedNormalization;
+        }
         AcceleratorDagSpec specializedLogSoftmax = tryBuildLogSoftmaxDagSpec(subgraph, context);
         if (specializedLogSoftmax != null) {
             return specializedLogSoftmax;
@@ -772,6 +782,9 @@ public final class AcceleratorSubgraphLowerer {
             if (type == AcceleratorDagNodeType.PERMUTE && scalarValueBits == Integer.MIN_VALUE) {
                 return null;
             }
+            if (isReduction(type) && scalarValueBits == Integer.MIN_VALUE) {
+                return null;
+            }
             nodes.add(new AcceleratorDagNode(
                     nodeId,
                     type,
@@ -800,6 +813,256 @@ public final class AcceleratorSubgraphLowerer {
             outputNodeIndexes.add(outputNodeIndex);
         }
         return new AcceleratorDagSpec(externalInputs, nodes, outputNodeIndexes, outputNodeIds);
+    }
+
+    private AcceleratorDagSpec tryBuildNormalizationDagSpec(AcceleratorSubgraphSpec subgraph, PartitionPlanningContext context) {
+        if (subgraph == null || context == null || subgraph.orderedNodeIds().size() != 1) {
+            return null;
+        }
+        int nodeId = subgraph.orderedNodeIds().getFirst();
+        CompiledNode node = context.compiledNode(nodeId);
+        if (node == null || node.operation() == null) {
+            return null;
+        }
+        Operation.OpType opType = node.operation().opType();
+        boolean layerNormOp = opType == Operation.OpType.LAYER_NORM;
+        boolean rmsNormOp = opType == Operation.OpType.RMS_NORM;
+        if (!layerNormOp && !rmsNormOp) {
+            return null;
+        }
+        int normalizedRank;
+        float epsilon;
+        if (layerNormOp && node.operation() instanceof layerNorm op) {
+            normalizedRank = op.getNormalizedRank();
+            epsilon = (float) op.getEpsilon();
+        } else if (rmsNormOp && node.operation() instanceof rmsNorm op) {
+            normalizedRank = op.getNormalizedRank();
+            epsilon = (float) op.getEpsilon();
+        } else {
+            return null;
+        }
+        if ((layerNormOp && node.inputIds().size() != 3) || (rmsNormOp && node.inputIds().size() != 2)) {
+            return null;
+        }
+        CompiledNode input = context.compiledNode(node.inputIds().get(0));
+        CompiledNode gamma = context.compiledNode(node.inputIds().get(1));
+        CompiledNode beta = layerNormOp ? context.compiledNode(node.inputIds().get(2)) : null;
+        if (!isSupportedNormalizationValue(input)
+                || !isSupportedNormalizationValue(gamma)
+                || (layerNormOp && !isSupportedNormalizationValue(beta))) {
+            return null;
+        }
+        int[] inputShape = input.shape();
+        int[] outputShape = node.shape();
+        int[] gammaShape = gamma.shape();
+        int[] betaShape = beta == null ? null : beta.shape();
+        if (!isValidNormalizationShape(inputShape, outputShape, gammaShape, betaShape, normalizedRank)) {
+            return null;
+        }
+
+        List<AcceleratorDagInput> externalInputs = new ArrayList<>(layerNormOp ? 3 : 2);
+        externalInputs.add(new AcceleratorDagInput(input.id(), shapeList(inputShape), input.dataType()));
+        externalInputs.add(new AcceleratorDagInput(gamma.id(), shapeList(gammaShape), gamma.dataType()));
+        if (layerNormOp) {
+            externalInputs.add(new AcceleratorDagInput(beta.id(), shapeList(betaShape), beta.dataType()));
+        }
+
+        List<AcceleratorDagNode> nodes = new ArrayList<>();
+        AcceleratorDagValueRef inputRef = AcceleratorDagValueRef.externalInput(0);
+        AcceleratorDagValueRef gammaRef = AcceleratorDagValueRef.externalInput(1);
+        AcceleratorDagValueRef betaRef = layerNormOp ? AcceleratorDagValueRef.externalInput(2) : AcceleratorDagValueRef.none();
+
+        AcceleratorDagValueRef valueForVariance;
+        AcceleratorDagValueRef scaledInput;
+        if (layerNormOp) {
+            AcceleratorDagValueRef mean = addTrailingMeanNodes(nodes, node.id(), inputRef, inputShape, normalizedRank);
+            AcceleratorDagValueRef centered = addNode(
+                    nodes,
+                    node.id(),
+                    AcceleratorDagNodeType.SUB,
+                    inputRef,
+                    mean,
+                    0,
+                    inputShape
+            );
+            valueForVariance = centered;
+            AcceleratorDagValueRef squared = addNode(
+                    nodes,
+                    node.id(),
+                    AcceleratorDagNodeType.MUL,
+                    centered,
+                    centered,
+                    0,
+                    inputShape
+            );
+            AcceleratorDagValueRef variance = addTrailingMeanNodes(nodes, node.id(), squared, inputShape, normalizedRank);
+            AcceleratorDagValueRef invStd = addEpsilonSqrtInv(nodes, node.id(), variance, epsilon, reducedKeepDimsShape(inputShape, normalizedRank));
+            scaledInput = addNode(nodes, node.id(), AcceleratorDagNodeType.MUL, valueForVariance, invStd, 0, inputShape);
+        } else {
+            AcceleratorDagValueRef squared = addNode(
+                    nodes,
+                    node.id(),
+                    AcceleratorDagNodeType.MUL,
+                    inputRef,
+                    inputRef,
+                    0,
+                    inputShape
+            );
+            AcceleratorDagValueRef meanSquares = addTrailingMeanNodes(nodes, node.id(), squared, inputShape, normalizedRank);
+            AcceleratorDagValueRef invRms = addEpsilonSqrtInv(nodes, node.id(), meanSquares, epsilon, reducedKeepDimsShape(inputShape, normalizedRank));
+            scaledInput = addNode(nodes, node.id(), AcceleratorDagNodeType.MUL, inputRef, invRms, 0, inputShape);
+        }
+
+        AcceleratorDagValueRef scaled = addNode(nodes, node.id(), AcceleratorDagNodeType.MUL, scaledInput, gammaRef, 0, inputShape);
+        if (layerNormOp) {
+            addNode(nodes, node.id(), AcceleratorDagNodeType.ADD, scaled, betaRef, 0, outputShape);
+        }
+        return new AcceleratorDagSpec(
+                externalInputs,
+                nodes,
+                List.of(nodes.size() - 1),
+                List.of(node.id())
+        );
+    }
+
+    private boolean isSupportedNormalizationValue(CompiledNode node) {
+        return node != null
+                && node.dataType() == DataType.FLOAT32
+                && node.shape().length >= 1
+                && node.shape().length <= 4
+                && node.contiguous()
+                && !node.hasStorageOffset();
+    }
+
+    private boolean isValidNormalizationShape(
+            int[] inputShape,
+            int[] outputShape,
+            int[] gammaShape,
+            int[] betaShape,
+            int normalizedRank
+    ) {
+        if (inputShape == null || outputShape == null || gammaShape == null) {
+            return false;
+        }
+        if (inputShape.length < 1 || inputShape.length > 4 || normalizedRank < 1 || normalizedRank > inputShape.length) {
+            return false;
+        }
+        if (!Arrays.equals(inputShape, outputShape) || gammaShape.length != normalizedRank) {
+            return false;
+        }
+        if (betaShape != null && !Arrays.equals(gammaShape, betaShape)) {
+            return false;
+        }
+        int tailStart = inputShape.length - normalizedRank;
+        for (int i = 0; i < normalizedRank; i++) {
+            if (gammaShape[i] != inputShape[tailStart + i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private AcceleratorDagValueRef addTrailingMeanNodes(
+            List<AcceleratorDagNode> nodes,
+            int nodeId,
+            AcceleratorDagValueRef inputRef,
+            int[] inputShape,
+            int normalizedRank
+    ) {
+        AcceleratorDagValueRef current = inputRef;
+        int[] currentShape = inputShape.clone();
+        int firstAxis = inputShape.length - normalizedRank;
+        for (int axis = inputShape.length - 1; axis >= firstAxis; axis--) {
+            currentShape[axis] = 1;
+            current = addNode(
+                    nodes,
+                    nodeId,
+                    AcceleratorDagNodeType.MEAN,
+                    current,
+                    AcceleratorDagValueRef.none(),
+                    encodeReductionMode(axis, true),
+                    currentShape
+            );
+        }
+        return current;
+    }
+
+    private AcceleratorDagValueRef addEpsilonSqrtInv(
+            List<AcceleratorDagNode> nodes,
+            int nodeId,
+            AcceleratorDagValueRef inputRef,
+            float epsilon,
+            int[] shape
+    ) {
+        AcceleratorDagValueRef withEpsilon = addNode(
+                nodes,
+                nodeId,
+                AcceleratorDagNodeType.ADD_SCALAR,
+                inputRef,
+                AcceleratorDagValueRef.none(),
+                Float.floatToIntBits(epsilon),
+                shape
+        );
+        AcceleratorDagValueRef sqrt = addNode(
+                nodes,
+                nodeId,
+                AcceleratorDagNodeType.SQRT,
+                withEpsilon,
+                AcceleratorDagValueRef.none(),
+                0,
+                shape
+        );
+        return addNode(
+                nodes,
+                nodeId,
+                AcceleratorDagNodeType.INV,
+                sqrt,
+                AcceleratorDagValueRef.none(),
+                0,
+                shape
+        );
+    }
+
+    private AcceleratorDagValueRef addNode(
+            List<AcceleratorDagNode> nodes,
+            int nodeId,
+            AcceleratorDagNodeType type,
+            AcceleratorDagValueRef input0,
+            AcceleratorDagValueRef input1,
+            int scalarValueBits,
+            int[] outputShape
+    ) {
+        nodes.add(new AcceleratorDagNode(
+                nodeId,
+                type,
+                input0,
+                input1,
+                AcceleratorDagValueRef.none(),
+                AcceleratorDagValueRef.none(),
+                scalarValueBits,
+                outputShape.length,
+                outputShape[0],
+                outputShape.length >= 2 ? outputShape[1] : 1,
+                outputShape.length >= 3 ? outputShape[2] : 1,
+                outputShape.length >= 4 ? outputShape[3] : 1
+        ));
+        return AcceleratorDagValueRef.nodeOutput(nodes.size() - 1);
+    }
+
+    private int[] reducedKeepDimsShape(int[] inputShape, int normalizedRank) {
+        int[] shape = inputShape.clone();
+        int firstAxis = inputShape.length - normalizedRank;
+        for (int axis = firstAxis; axis < inputShape.length; axis++) {
+            shape[axis] = 1;
+        }
+        return shape;
+    }
+
+    private boolean isReduction(AcceleratorDagNodeType type) {
+        return type == AcceleratorDagNodeType.SUM
+                || type == AcceleratorDagNodeType.MEAN
+                || type == AcceleratorDagNodeType.REDUCE_MIN
+                || type == AcceleratorDagNodeType.REDUCE_MAX;
     }
 
     private AcceleratorDagSpec tryBuildLogSoftmaxDagSpec(AcceleratorSubgraphSpec subgraph, PartitionPlanningContext context) {
@@ -1061,6 +1324,10 @@ public final class AcceleratorSubgraphLowerer {
             case MUL_SCALAR -> AcceleratorDagNodeType.MUL_SCALAR;
             case WHERE -> AcceleratorDagNodeType.WHERE;
             case SOFTMAX -> AcceleratorDagNodeType.SOFTMAX;
+            case SUM -> AcceleratorDagNodeType.SUM;
+            case MEAN -> AcceleratorDagNodeType.MEAN;
+            case REDUCE_MIN -> AcceleratorDagNodeType.REDUCE_MIN;
+            case REDUCE_MAX -> AcceleratorDagNodeType.REDUCE_MAX;
             case SOFTMAX_GRAD -> AcceleratorDagNodeType.SOFTMAX_GRAD;
             case LOG_SOFTMAX_GRAD -> AcceleratorDagNodeType.LOG_SOFTMAX_GRAD;
             case REDUCE_MIN_GRAD -> AcceleratorDagNodeType.REDUCE_MIN_GRAD;
@@ -1081,6 +1348,10 @@ public final class AcceleratorSubgraphLowerer {
             case CLAMP_MAX -> node.operation() instanceof clampMax clamp ? Float.floatToIntBits(clamp.getMaxValueF32()) : 0;
             case MUL_SCALAR -> node.operation() instanceof mulScalar op ? Float.floatToIntBits(op.getScalarF32()) : Integer.MIN_VALUE;
             case SOFTMAX -> node.operation() instanceof softmax op ? op.getDimension() : Integer.MIN_VALUE;
+            case SUM -> node.operation() instanceof sum op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
+            case MEAN -> node.operation() instanceof mean op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
+            case REDUCE_MIN -> node.operation() instanceof reduceMin op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
+            case REDUCE_MAX -> node.operation() instanceof reduceMax op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
             case SOFTMAX_GRAD -> node.operation() instanceof softmaxGrad op ? op.getDimension() : Integer.MIN_VALUE;
             case LOG_SOFTMAX_GRAD -> node.operation() instanceof logSoftmaxGrad op ? op.getDimension() : Integer.MIN_VALUE;
             case REDUCE_MIN_GRAD -> node.operation() instanceof reduceMinGrad op ? op.getDimension() : Integer.MIN_VALUE;
@@ -1093,6 +1364,13 @@ public final class AcceleratorSubgraphLowerer {
             case SQUEEZE -> node.operation() instanceof squeeze op ? op.getAxis() : Integer.MIN_VALUE;
             default -> 0;
         };
+    }
+
+    private int encodeReductionMode(int axis, boolean keepDims) {
+        if (axis < Short.MIN_VALUE || axis > Short.MAX_VALUE) {
+            return Integer.MIN_VALUE;
+        }
+        return (axis & 0xFFFF) | (keepDims ? 1 << 16 : 0);
     }
 
     private int encodePermuteMode(CompiledNode node) {

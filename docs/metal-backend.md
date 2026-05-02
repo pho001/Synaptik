@@ -213,7 +213,8 @@ Metal partition legality is intentionally separate from runtime availability. A 
 | DType | Compute and output nodes must be `FLOAT32`. |
 | Forward ops | Allows `MATMUL`, `LINEAR`, arithmetic elementwise ops, common activations, `WHERE`, `SOFTMAX`, shape/layout ops such as `RESHAPE`, `CONTIGUOUS`, `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE`. |
 | Backward ops | Allows `MATMUL`, `LINEAR`, softmax/log-softmax gradients, min/max reduction gradients, min/max gradients, and `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD`. |
-| Direct forward SDPA | Rejected until MPSGraph scale semantics are verified against CPU semantics. Masked SDPA is also rejected because Synaptik public masks are `BOOL`, while the verified MPSGraph SDPA mask operand expects floating mask semantics. |
+| Direct unmasked forward SDPA | Supported for legal FLOAT32 rank-3/4 inputs after native MPSGraph primitive DAG scale parity verification. |
+| Direct masked/causal forward SDPA | Rejected with `UNSUPPORTED_MASK_SEMANTICS` because Synaptik public masks are `BOOL`, while the verified MPSGraph SDPA mask operand expects floating mask semantics. |
 | Conv/pool | Not in the current tested Metal planner allowlist. |
 
 External input legality is role-sensitive. `MetalMpsCapabilities.supportsExternalInputRole(...)` allows:
@@ -336,7 +337,7 @@ and stores the resulting `MPSGraphExecutable` in `SynaptikAppleMpsExecutableBox`
 
 ### Operation lowering in the shim
 
-The Objective-C switch over node type codes maps the accelerator DAG to MPSGraph operations. The supported set includes matrix multiply, linear-style graph fragments, arithmetic elementwise ops, activations, `where`, softmax-related ops, shape ops, and selected attention nodes present in the native code. Planner legality is stricter than the native switch: direct forward SDPA exists in the native switch but is currently rejected on the Java planner side until its semantics are verified.
+The Objective-C switch over node type codes maps the accelerator DAG to MPSGraph operations. The supported set includes matrix multiply, linear-style graph fragments, arithmetic elementwise ops, activations, `where`, softmax-related ops, shape ops, and selected attention nodes present in the native code. Planner legality is stricter than the native switch: direct unmasked FLOAT32 rank-3/4 SDPA is admitted only after parity evidence, and the native shim expands it to `Q * K^T`, scale, softmax, and `* V` MPSGraph primitives. Masked direct SDPA stays rejected because BOOL mask semantics do not match the verified native mask operand contract.
 
 This split is intentional. Native source coverage is not enough to make an op legal. The planner allowlist documents what has been tested against Synaptik semantics.
 

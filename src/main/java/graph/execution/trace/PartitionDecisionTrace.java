@@ -107,6 +107,7 @@ public record PartitionDecisionTrace(
      * @param finalScore materialization-aware final score
      * @param boundaryCount CPU/accelerator boundary count
      * @param estimatedTransferBytes upload plus download bytes
+     * @param layoutFallbackBytes bytes affected by layout fallback or GPU-side dense materialization
      * @param estimatedComputeWork backend work estimate
      * @param preset selected static preset
      */
@@ -116,6 +117,7 @@ public record PartitionDecisionTrace(
             double finalScore,
             int boundaryCount,
             long estimatedTransferBytes,
+            long layoutFallbackBytes,
             long estimatedComputeWork,
             String preset
     ) {
@@ -124,6 +126,7 @@ public record PartitionDecisionTrace(
             reason = reason == null ? "" : reason;
             boundaryCount = Math.max(0, boundaryCount);
             estimatedTransferBytes = Math.max(0L, estimatedTransferBytes);
+            layoutFallbackBytes = Math.max(0L, layoutFallbackBytes);
             estimatedComputeWork = Math.max(0L, estimatedComputeWork);
             preset = preset == null ? "" : preset;
         }

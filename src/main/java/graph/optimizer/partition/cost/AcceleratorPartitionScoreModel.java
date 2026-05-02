@@ -113,6 +113,7 @@ public final class AcceleratorPartitionScoreModel {
                     resolvedPreset.name(),
                     resolvedSignals.boundaryCount(),
                     resolvedSignals.estimatedTransferBytes(),
+                    resolvedSignals.layoutFallbackBytes(),
                     Math.max(0L, estimatedWork),
                     resolvedSignals.avoidedIntermediateBytes(),
                     resolvedPreset.dispatchOverhead(),
@@ -145,6 +146,7 @@ public final class AcceleratorPartitionScoreModel {
                 resolvedPreset.name(),
                 resolvedSignals.boundaryCount(),
                 resolvedSignals.estimatedTransferBytes(),
+                resolvedSignals.layoutFallbackBytes(),
                 estimatedWork,
                 resolvedSignals.avoidedIntermediateBytes(),
                 resolvedPreset.dispatchOverhead(),
@@ -407,6 +409,7 @@ public final class AcceleratorPartitionScoreModel {
      * @param preset selected static preset name
      * @param boundaryCount CPU/accelerator boundary count
      * @param estimatedTransferBytes upload plus download bytes
+     * @param layoutFallbackBytes bytes affected by layout fallback or GPU-side dense materialization
      * @param estimatedComputeWork backend work estimate
      * @param avoidedIntermediateBytes bytes kept inside the accelerator region
      * @param dispatchCost fixed dispatch cost applied
@@ -419,6 +422,7 @@ public final class AcceleratorPartitionScoreModel {
             String preset,
             int boundaryCount,
             long estimatedTransferBytes,
+            long layoutFallbackBytes,
             long estimatedComputeWork,
             long avoidedIntermediateBytes,
             double dispatchCost,
@@ -431,6 +435,7 @@ public final class AcceleratorPartitionScoreModel {
             preset = preset == null ? "" : preset;
             boundaryCount = Math.max(0, boundaryCount);
             estimatedTransferBytes = Math.max(0L, estimatedTransferBytes);
+            layoutFallbackBytes = Math.max(0L, layoutFallbackBytes);
             estimatedComputeWork = Math.max(0L, estimatedComputeWork);
             avoidedIntermediateBytes = Math.max(0L, avoidedIntermediateBytes);
             dispatchCost = Math.max(0.0d, dispatchCost);

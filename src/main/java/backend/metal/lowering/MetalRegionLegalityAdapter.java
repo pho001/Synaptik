@@ -137,6 +137,9 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
             }
         }
         int anchorNodeId = outputNodeIds.stream().max(Integer::compareTo).orElseThrow();
+        if (hasExternalConsumerBeforeAnchor(outputNodeIds, selectedNodeIds, anchorNodeId, context)) {
+            return null;
+        }
         for (int nodeId : orderedNodeIds) {
             for (CompiledNode consumer : context.consumersFor(nodeId)) {
                 if (consumer != null && !selectedNodeIds.contains(consumer.id()) && !outputNodeIds.contains(nodeId)) {
@@ -233,6 +236,22 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
             }
         }
         return outputs;
+    }
+
+    private boolean hasExternalConsumerBeforeAnchor(
+            Set<Integer> outputNodeIds,
+            Set<Integer> selectedNodeIds,
+            int anchorNodeId,
+            PartitionPlanningContext context
+    ) {
+        for (int outputNodeId : outputNodeIds) {
+            for (CompiledNode consumer : context.consumersFor(outputNodeId)) {
+                if (consumer != null && !selectedNodeIds.contains(consumer.id()) && consumer.id() < anchorNodeId) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private boolean collectExternalInputs(
