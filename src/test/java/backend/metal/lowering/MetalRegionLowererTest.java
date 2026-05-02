@@ -1065,7 +1065,7 @@ class MetalRegionLowererTest {
     }
 
     @Test
-    void rejectsDirectCausalSdpaWithCausalSpecificReasonUntilNativeMaskContractExists() {
+    void supportsDirectCausalSdpaViaEffectiveBoolMask() {
         Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "q", DataType.FLOAT32);
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "k", DataType.FLOAT32);
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "v", DataType.FLOAT32);
@@ -1075,13 +1075,13 @@ class MetalRegionLowererTest {
         PartitionPlanningContext context = planningContext(out);
         int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
         assertEquals(
-                "UNSUPPORTED_MASK_SEMANTICS: GPU_METAL SDPA mask mode CAUSAL_BOOL_MASK requires native causal mask support",
+                "",
                 MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(sdpaNodeId), context)
         );
     }
 
     @Test
-    void rejectsDirectExternalAndCausalSdpaWithCombinedReasonUntilNativeMaskContractExists() {
+    void supportsDirectExternalAndCausalSdpaViaEffectiveBoolMask() {
         Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "q", DataType.FLOAT32);
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "k", DataType.FLOAT32);
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "v", DataType.FLOAT32);
@@ -1092,7 +1092,7 @@ class MetalRegionLowererTest {
         PartitionPlanningContext context = planningContext(out);
         int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
         assertEquals(
-                "UNSUPPORTED_MASK_SEMANTICS: GPU_METAL SDPA mask mode EXTERNAL_AND_CAUSAL_BOOL_MASK requires native causal mask support",
+                "",
                 MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(sdpaNodeId), context)
         );
     }

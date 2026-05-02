@@ -728,6 +728,30 @@ class MetalMpsFfmBridgeTest {
         );
     }
 
+    @Test
+    void explicitShimExecuteBuffersSupportsCausalSdpaRank3Parity() {
+        assertNativeSdpaParity(
+                new float[]{1f, 0f, 0f, 1f},
+                new float[]{1f, 0f, 0f, 1f},
+                new float[]{10f, 1f, 1f, 10f},
+                null,
+                new int[]{1, 2, 2},
+                AttentionOptions.causalDefaults().withScale(1.0)
+        );
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsExternalAndCausalSdpaRank3Parity() {
+        assertNativeSdpaParity(
+                new float[]{1f, 0f, 0f, 1f},
+                new float[]{1f, 0f, 0f, 1f},
+                new float[]{10f, 1f, 1f, 10f},
+                new byte[]{1, 1, 1, 0},
+                new int[]{1, 2, 2},
+                AttentionOptions.causalDefaults().withScale(1.0)
+        );
+    }
+
     private static void assertNativeSdpaParity(float[] queryValues, float[] keyValues, float[] valueValues, int[] shape, AttentionOptions options) {
         assertNativeSdpaParity(queryValues, keyValues, valueValues, null, shape, options);
     }
@@ -754,6 +778,12 @@ class MetalMpsFfmBridgeTest {
                 : q.scaledDotProductAttention(k, v, mask, options);
         PartitionPlanningContext planningContext = planningContext(out);
         CompiledNode sdpaNode = planningContext.compiledNode(nodeId(planningContext, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
+        Tensor runtimeMask = sdpaNode.inputIds().size() > 3
+                ? planningContext.compiledNode(sdpaNode.inputIds().get(3)).semanticTensor()
+                : null;
+        if (runtimeMask != null) {
+            runtimeMask.compute();
+        }
         AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
                 sdpaNode.id(),
                 List.of(sdpaNode.id()),
@@ -785,8 +815,8 @@ class MetalMpsFfmBridgeTest {
             query = allocator.createInputBinding(sdpaNode.inputIds().get(0), q);
             key = allocator.createInputBinding(sdpaNode.inputIds().get(1), k);
             value = allocator.createInputBinding(sdpaNode.inputIds().get(2), v);
-            if (mask != null) {
-                maskBinding = allocator.createPredicateInputBinding(sdpaNode.inputIds().get(3), mask);
+            if (runtimeMask != null) {
+                maskBinding = allocator.createPredicateInputBinding(sdpaNode.inputIds().get(3), runtimeMask);
             }
             output = allocator.createOutputBinding(sdpaNode.id(), denseF32Layout(shape));
 
