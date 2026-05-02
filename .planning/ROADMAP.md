@@ -101,7 +101,7 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ### Phase 43: CUDA Training And Index Semantics
 
-**Status:** Not started
+**Status:** Planned
 
 **Goal:** Close CUDA training/backward and scatter/index-gradient evidence gaps with explicit blockers where support is not proven.
 
@@ -193,8 +193,8 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ## Current Status
 
-v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete, security-passed, and Nyquist-validated. Phase 41 CUDA DType Layout And Index Residency is complete, security-passed, and Nyquist-validated. Phase 42 CUDA NN Operation Parity is complete, security-passed, and Nyquist-validated. Phase 43 CUDA Training And Index Semantics is ready for planning.
+v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete, security-passed, and Nyquist-validated. Phase 41 CUDA DType Layout And Index Residency is complete, security-passed, and Nyquist-validated. Phase 42 CUDA NN Operation Parity is complete, security-passed, and Nyquist-validated. Phase 43 CUDA Training And Index Semantics is planned and ready for execution.
 
 ---
 
-*Last updated: 2026-05-02 after Phase 42 execution*
+*Last updated: 2026-05-02 after Phase 43 planning*
