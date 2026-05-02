@@ -124,10 +124,10 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 5. CPU parity tests cover representative rank and axis cases.
 
 **Planned waves:**
-- 32-01 INT32 ABI, residency, and planner legality.
-- 32-02 Forward gather/take lowering and native execution.
-- 32-03 Bounds/layout parity and visible rejection tests.
-- 32-04 Coverage/report closure.
+- [32-01 INT32 ABI, residency, and planner legality](phases/32-int32-index-tensor-and-gather-take-path/32-01-PLAN.md).
+- [32-02 Forward gather/take lowering and native execution](phases/32-int32-index-tensor-and-gather-take-path/32-02-PLAN.md).
+- [32-03 Bounds/layout parity and visible rejection tests](phases/32-int32-index-tensor-and-gather-take-path/32-03-PLAN.md).
+- [32-04 Coverage/report closure](phases/32-int32-index-tensor-and-gather-take-path/32-04-PLAN.md).
 
 ### Phase 33: GPU Layout Router And Strided Materialization
 
