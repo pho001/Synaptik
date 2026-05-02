@@ -18,5 +18,10 @@ public enum MetalMpsBridgeExecutionPath {
     /**
      * Reserved for future execution through explicit native buffer bindings.
      */
-    BUFFER_BINDING
+    BUFFER_BINDING,
+
+    /**
+     * The selected Metal region executed through a scoped custom Metal kernel route.
+     */
+    CUSTOM_KERNEL
 }

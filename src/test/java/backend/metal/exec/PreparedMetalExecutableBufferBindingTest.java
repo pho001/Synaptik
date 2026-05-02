@@ -35,6 +35,10 @@ import backend.metal.buffer.MetalBufferAccess;
 import backend.metal.buffer.MetalBufferAllocator;
 import backend.metal.buffer.MetalBufferBinding;
 import backend.metal.buffer.MetalBufferHandle;
+import backend.metal.kernel.MetalCustomKernelBridge;
+import backend.metal.kernel.MetalCustomKernelCandidate;
+import backend.metal.kernel.MetalCustomKernelCapabilities;
+import backend.metal.kernel.MetalCustomKernelExecutable;
 import backend.metal.lowering.MetalPartitionPlan;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
@@ -234,6 +238,62 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     @Test
+    void customKernelRouteExecutesThroughCustomBufferBridgeWhenScopedCandidateIsAvailable() {
+        Fixture fixture = fixture();
+        FakeBridge bridge = new FakeBridge(true);
+        FakeCustomKernelBridge customBridge = new FakeCustomKernelBridge(true);
+        PreparedMetalExecutable executable = executable(fixture, bridge, customBridge);
+        assertTrue(executable.preparedTransportPlan().contains("preferredPath=BUFFER_BINDING"));
+        assertEquals(MetalExecutionRoute.CUSTOM_KERNEL, executable.routeDecision().selectedRoute());
+        assertEquals(MetalRouteReasonCode.CUSTOM_KERNEL_SELECTED, executable.routeDecision().reasonCode());
+        assertTrue(executable.routeDecision().customKernelAvailable());
+        assertTrue(executable.routeDecision().rejectedRoutes().contains(MetalExecutionRoute.MPS_GRAPH));
+        assertFalse(executable.routeDecision().rejectedRoutes().contains(MetalExecutionRoute.CUSTOM_KERNEL));
+        fixture.state().attachDeviceBufferBinding(
+                fixture.inputNode().id(),
+                binding(fixture.inputNode().id(), MetalBufferAccess.READ, 8),
+                StorageResidency.HOST_SHARED_DEVICE_BUFFER,
+                "input shared buffer"
+        );
+        MetalBufferBinding outputBinding = binding(fixture.outputNode().id(), MetalBufferAccess.READ_WRITE, 8);
+        fixture.state().reserveDeviceBufferBinding(fixture.outputNode().id(), outputBinding);
+
+        executable.execute(fixture.context());
+
+        assertEquals(0, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(1, customBridge.bufferExecutions);
+        assertEquals(MetalMpsBridgeExecutionPath.CUSTOM_KERNEL, executable.lastExecutionStats().executionPath());
+        assertEquals(MetalCustomKernelCandidate.RELU_F32_KERNEL_ID, executable.customKernelExecutable().kernelId());
+        assertEquals(List.of(fixture.inputNode().id()), customBridge.lastBufferInputs.stream()
+                .map(MetalBufferBinding::nodeId)
+                .toList());
+        assertEquals(List.of(fixture.outputNode().id()), customBridge.lastBufferOutputs.stream()
+                .map(MetalBufferBinding::nodeId)
+                .toList());
+        assertEquals(outputBinding, fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
+        assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.outputNode().id()).residency());
+    }
+
+    @Test
+    void customKernelBridgeDoesNotOverrideMpsGraphForUnsupportedMultiNodeCandidate() {
+        ElementwiseChainFixture fixture = elementwiseChainFixture();
+        FakeBridge bridge = new FakeBridge(true);
+        FakeCustomKernelBridge customBridge = new FakeCustomKernelBridge(true);
+        PreparedMetalExecutable executable = elementwiseChainExecutable(fixture, bridge, customBridge);
+        assertEquals(MetalExecutionRoute.MPS_GRAPH, executable.routeDecision().selectedRoute());
+        assertFalse(executable.routeDecision().customKernelAvailable());
+        assertTrue(executable.routeDecision().rejectedRoutes().contains(MetalExecutionRoute.CUSTOM_KERNEL));
+        assertTrue(executable.routeDecision().rejectedReasonCodes().contains(MetalRouteReasonCode.UNSUPPORTED_OPERATION_FAMILY));
+
+        executable.execute(fixture.context());
+
+        assertEquals(1, bridge.bufferExecutions);
+        assertEquals(0, customBridge.bufferExecutions);
+        assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, executable.lastExecutionStats().executionPath());
+    }
+
+    @Test
     void tracedBufferBindingStepPublishesMetalRouteAttributes() {
         Fixture fixture = fixture();
         FakeBridge bridge = new FakeBridge(true);
@@ -278,6 +338,49 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(false, attrs.get("metalOutputBufferWriteProven"));
         assertEquals("BUFFER_BINDING", attrs.get("metalExecutionPath"));
     }
+
+    @Test
+    void tracedCustomKernelStepPublishesRouteAndExecutionPathAttributes() {
+        Fixture fixture = fixture();
+        FakeBridge bridge = new FakeBridge(true);
+        PreparedMetalExecutable executable = executable(fixture, bridge, new FakeCustomKernelBridge(true));
+        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
+                ComputeBackend.GPU_METAL,
+                null,
+                null,
+                null,
+                null,
+                executable,
+                backend.accelerator.exec.PartitionExecutionRole.NONE
+        );
+        PreparedNodeExecution step = new PreparedNodeExecution(fixture.outputNode(), metadata);
+        PreparedExecution prepared = new PreparedExecution(
+                RuntimeConfig.inferenceDefaults(),
+                false,
+                List.of(step),
+                List.of(step),
+                List.of(),
+                List.of(fixture.inputNode(), fixture.outputNode()),
+                Map.of(),
+                fixture.outputNode().semanticTensor(),
+                fixture.outputNode(),
+                null,
+                null,
+                graph.execution.trace.PrepareTrace.skipped()
+        );
+
+        var trace = prepared.executeTraced(ExecutionMode.FORWARD);
+        Map<String, Object> attrs = trace.steps().getFirst().metadata().attributes();
+
+        assertEquals("BUFFER_BINDING", attrs.get("acceleratorBufferExecutionPath"));
+        assertEquals("CUSTOM_KERNEL", attrs.get("metalExecutionRoute"));
+        assertEquals("CUSTOM_KERNEL_SELECTED", attrs.get("metalRouteReasonCode"));
+        assertEquals(List.of("MPS_GRAPH"), attrs.get("metalRouteRejectedRoutes"));
+        assertEquals(List.of("MPS_GRAPH_SELECTED"), attrs.get("metalRouteRejectedReasonCodes"));
+        assertEquals(true, attrs.get("metalRouteCustomKernelAvailable"));
+        assertEquals("CUSTOM_KERNEL", attrs.get("metalExecutionPath"));
+    }
+
 
     @Test
     void adjacentDeviceOwnedInputUsesBufferBindingWithoutCpuMaterialization() {
@@ -940,16 +1043,33 @@ class PreparedMetalExecutableBufferBindingTest {
         return executable(fixture.inputNode(), fixture.outputNode(), bridge);
     }
 
+    private static PreparedMetalExecutable executable(
+            Fixture fixture,
+            MetalMpsGraphBridge bridge,
+            MetalCustomKernelBridge customKernelBridge
+    ) {
+        return executable(fixture.inputNode(), fixture.outputNode(), bridge, List.of(), AcceleratorBackendConfig.defaults(), customKernelBridge);
+    }
+
     private static PreparedMetalExecutable elementwiseChainExecutable(
             ElementwiseChainFixture fixture,
             MetalMpsGraphBridge bridge
+    ) {
+        return elementwiseChainExecutable(fixture, bridge, MetalCustomKernelBridge.unavailable());
+    }
+
+    private static PreparedMetalExecutable elementwiseChainExecutable(
+            ElementwiseChainFixture fixture,
+            MetalMpsGraphBridge bridge,
+            MetalCustomKernelBridge customKernelBridge
     ) {
         return new PreparedMetalExecutable(
                 elementwiseChainPlan(fixture),
                 backend.lowering.LoweringFamily.METAL_GRAPH_REGION,
                 bridge,
                 List.of(),
-                AcceleratorBackendConfig.defaults()
+                AcceleratorBackendConfig.defaults(),
+                customKernelBridge
         );
     }
 
@@ -977,12 +1097,24 @@ class PreparedMetalExecutableBufferBindingTest {
             List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps,
             AcceleratorBackendConfig backendConfig
     ) {
+        return executable(inputNode, outputNode, bridge, cpuFallbackSteps, backendConfig, MetalCustomKernelBridge.unavailable());
+    }
+
+    private static PreparedMetalExecutable executable(
+            CompiledNode inputNode,
+            CompiledNode outputNode,
+            MetalMpsGraphBridge bridge,
+            List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps,
+            AcceleratorBackendConfig backendConfig,
+            MetalCustomKernelBridge customKernelBridge
+    ) {
         return new PreparedMetalExecutable(
                 plan(inputNode, outputNode),
                 backend.lowering.LoweringFamily.METAL_GRAPH_REGION,
                 bridge,
                 cpuFallbackSteps,
-                backendConfig
+                backendConfig,
+                customKernelBridge
         );
     }
 
@@ -1512,6 +1644,69 @@ class PreparedMetalExecutableBufferBindingTest {
         @Override
         public String describe() {
             return "non-metal nodeId=" + nodeId;
+        }
+    }
+
+    private static final class FakeCustomKernelBridge implements MetalCustomKernelBridge {
+        private final boolean available;
+        private int bufferExecutions;
+        private List<MetalBufferBinding> lastBufferInputs = List.of();
+        private List<MetalBufferBinding> lastBufferOutputs = List.of();
+
+        private FakeCustomKernelBridge(boolean available) {
+            this.available = available;
+        }
+
+        @Override
+        public MetalCustomKernelCapabilities capabilities() {
+            return available
+                    ? new MetalCustomKernelCapabilities(true, MetalRouteReasonCode.CUSTOM_KERNEL_SELECTED, "")
+                    : MetalCustomKernelCapabilities.unavailable("fake custom kernel bridge unavailable");
+        }
+
+        @Override
+        public MetalCustomKernelExecutable compile(MetalPartitionPlan plan) {
+            if (!available) {
+                return MetalCustomKernelExecutable.unavailable("fake custom kernel bridge unavailable");
+            }
+            MetalCustomKernelCandidate candidate = MetalCustomKernelCandidate.evaluate(plan);
+            if (!candidate.supported()) {
+                return MetalCustomKernelExecutable.unavailable(candidate.reason());
+            }
+            return new MetalCustomKernelExecutable(
+                    true,
+                    candidate.kernelId(),
+                    candidate.primitiveIds(),
+                    MetalRouteReasonCode.CUSTOM_KERNEL_SELECTED,
+                    ""
+            );
+        }
+
+        @Override
+        public MetalMpsBridgeExecutionStats executeBuffers(
+                MetalMpsBridgeContext context,
+                MetalCustomKernelExecutable executable,
+                List<MetalBufferBinding> externalInputs,
+                List<MetalBufferBinding> outputs
+        ) {
+            bufferExecutions++;
+            lastBufferInputs = List.copyOf(externalInputs);
+            lastBufferOutputs = List.copyOf(outputs);
+            return new MetalMpsBridgeExecutionStats(
+                    false,
+                    "",
+                    MetalMpsBridgeExecutionPath.CUSTOM_KERNEL,
+                    externalInputs.size(),
+                    outputs.size(),
+                    8,
+                    8,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    1
+            );
         }
     }
 

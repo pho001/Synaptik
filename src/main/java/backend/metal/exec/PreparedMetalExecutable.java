@@ -203,12 +203,21 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
         if (decision.path() == AcceleratorBufferExecutionPath.BUFFER_BINDING) {
             try {
                 AcceleratorBufferBindings<MetalBufferBinding> bindings = bufferBinder.resolve(request, nativeBufferInputs, decision, context);
-                lastExecutionStats = bridge.executeBuffers(
-                        bridgeContext,
-                        bridgeExecutable,
-                        bindings.inputs(),
-                        bindings.outputs()
-                );
+                if (preparedRouteDecision.selectedRoute() == MetalExecutionRoute.CUSTOM_KERNEL) {
+                    lastExecutionStats = customKernelBridge.executeBuffers(
+                            bridgeContext,
+                            customKernelExecutable,
+                            bindings.inputs(),
+                            bindings.outputs()
+                    );
+                } else {
+                    lastExecutionStats = bridge.executeBuffers(
+                            bridgeContext,
+                            bridgeExecutable,
+                            bindings.inputs(),
+                            bindings.outputs()
+                    );
+                }
                 if (!lastExecutionStats.usedCpuFallback()) {
                     markBufferOutputsCurrent(context, bindings.outputs());
                 }

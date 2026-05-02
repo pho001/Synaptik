@@ -1,6 +1,11 @@
 package backend.metal.kernel;
 
 import backend.metal.lowering.MetalPartitionPlan;
+import backend.metal.buffer.MetalBufferBinding;
+import backend.metal.bridge.MetalMpsBridgeContext;
+import backend.metal.bridge.MetalMpsBridgeExecutionStats;
+
+import java.util.List;
 
 /**
  * Optional SPI for custom Metal kernels inside selected Metal GPU regions.
@@ -19,6 +24,18 @@ public interface MetalCustomKernelBridge {
      */
     default MetalCustomKernelExecutable compile(MetalPartitionPlan plan) {
         return MetalCustomKernelExecutable.unavailable(capabilities().reason());
+    }
+
+    /**
+     * Executes a compiled custom kernel against explicit native buffer bindings.
+     */
+    default MetalMpsBridgeExecutionStats executeBuffers(
+            MetalMpsBridgeContext context,
+            MetalCustomKernelExecutable executable,
+            List<MetalBufferBinding> externalInputs,
+            List<MetalBufferBinding> outputs
+    ) {
+        throw new UnsupportedOperationException("custom Metal kernel bridge does not support native buffer execution.");
     }
 
     /**

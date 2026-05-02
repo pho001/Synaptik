@@ -5,6 +5,7 @@ package backend.metal.exec;
  */
 public enum MetalRouteReasonCode {
     MPS_GRAPH_SELECTED,
+    CUSTOM_KERNEL_SELECTED,
     CUSTOM_KERNEL_UNAVAILABLE,
     BRIDGE_UNAVAILABLE,
     BUFFER_ABI_UNAVAILABLE,

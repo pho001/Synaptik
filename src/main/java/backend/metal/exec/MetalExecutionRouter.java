@@ -53,11 +53,13 @@ public final class MetalExecutionRouter {
         var customKernel = MetalCustomKernelRouteAdapter.evaluate(plan, customKernelCapabilities, customKernelExecutable);
         long work = Math.max(0L, plan.estimatedWork());
         List<MetalExecutionRoute> rejected = new ArrayList<>();
-        rejected.add(MetalExecutionRoute.CUSTOM_KERNEL);
         List<MetalRouteReasonCode> rejectedReasonCodes = new ArrayList<>();
-        rejectedReasonCodes.add(customKernel.reasonCode());
         List<String> rejectedRouteReasons = new ArrayList<>();
-        rejectedRouteReasons.add(customKernel.reason());
+        if (!customKernel.available()) {
+            rejected.add(MetalExecutionRoute.CUSTOM_KERNEL);
+            rejectedReasonCodes.add(customKernel.reasonCode());
+            rejectedRouteReasons.add(customKernel.reason());
+        }
 
         if (!config.enabled()) {
             return decision(
@@ -109,18 +111,40 @@ public final class MetalExecutionRouter {
         }
 
         return switch (evidence.preferredPath()) {
-            case BUFFER_BINDING -> decision(
-                    MetalExecutionRoute.MPS_GRAPH,
-                    rejected,
-                    rejectedReasonCodes,
-                    rejectedRouteReasons,
-                    MetalRouteReasonCode.MPS_GRAPH_SELECTED,
-                    mpsGraphDetail(plan.manifest(), evidence, customKernel),
-                    work,
-                    evidence,
-                    caps,
-                    customKernel
-            );
+            case BUFFER_BINDING -> {
+                if (customKernel.available()) {
+                    List<MetalExecutionRoute> customRejected = new ArrayList<>(rejected);
+                    List<MetalRouteReasonCode> customRejectedReasonCodes = new ArrayList<>(rejectedReasonCodes);
+                    List<String> customRejectedReasons = new ArrayList<>(rejectedRouteReasons);
+                    customRejected.add(MetalExecutionRoute.MPS_GRAPH);
+                    customRejectedReasonCodes.add(MetalRouteReasonCode.MPS_GRAPH_SELECTED);
+                    customRejectedReasons.add("MPSGraph not selected because scoped custom Metal kernel route is available");
+                    yield decision(
+                            MetalExecutionRoute.CUSTOM_KERNEL,
+                            customRejected,
+                            customRejectedReasonCodes,
+                            customRejectedReasons,
+                            MetalRouteReasonCode.CUSTOM_KERNEL_SELECTED,
+                            customKernelDetail(plan.manifest(), evidence, customKernel),
+                            work,
+                            evidence,
+                            caps,
+                            customKernel
+                    );
+                }
+                yield decision(
+                        MetalExecutionRoute.MPS_GRAPH,
+                        rejected,
+                        rejectedReasonCodes,
+                        rejectedRouteReasons,
+                        MetalRouteReasonCode.MPS_GRAPH_SELECTED,
+                        mpsGraphDetail(plan.manifest(), evidence, customKernel),
+                        work,
+                        evidence,
+                        caps,
+                        customKernel
+                );
+            }
             case TENSOR_ARRAY -> decision(
                     MetalExecutionRoute.TENSOR_ARRAY,
                     rejected,
@@ -228,6 +252,21 @@ public final class MetalExecutionRouter {
         String base = "MPSGraph selected via " + evidence.preferredPath()
                 + "; custom kernel rejected: " + customKernel.reasonCode() + ": " + customKernel.reason()
                 + "; native copy cost unknown";
+        return regionId == null || regionId.isBlank()
+                ? base
+                : base + "; regionId=" + regionId;
+    }
+
+    private static String customKernelDetail(
+            GpuLoweredRegionManifest manifest,
+            TransportEvidence evidence,
+            MetalCustomKernelRouteAdapter.CustomKernelEvidence customKernel
+    ) {
+        String regionId = manifest == null ? "" : manifest.regionId();
+        String base = "Custom Metal kernel selected via " + evidence.preferredPath()
+                + "; kernelId=" + customKernel.kernelId()
+                + "; primitiveIds=" + customKernel.loweredPrimitiveIds()
+                + "; native copy cost not applicable";
         return regionId == null || regionId.isBlank()
                 ? base
                 : base + "; regionId=" + regionId;

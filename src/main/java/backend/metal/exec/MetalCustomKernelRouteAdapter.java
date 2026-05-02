@@ -1,7 +1,7 @@
 package backend.metal.exec;
 
-import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
 import backend.metal.kernel.MetalCustomKernelCapabilities;
+import backend.metal.kernel.MetalCustomKernelCandidate;
 import backend.metal.kernel.MetalCustomKernelExecutable;
 import backend.metal.lowering.MetalPartitionPlan;
 
@@ -22,14 +22,25 @@ final class MetalCustomKernelRouteAdapter {
         MetalCustomKernelCapabilities caps = capabilities == null
                 ? MetalCustomKernelCapabilities.unavailable("custom Metal kernel bridge unavailable")
                 : capabilities;
-        List<String> primitiveIds = loweredPrimitiveIds(plan);
+        MetalCustomKernelCandidate candidate = MetalCustomKernelCandidate.evaluate(plan);
         if (!caps.available()) {
             return new CustomKernelEvidence(
                     false,
                     false,
                     caps.reasonCode(),
                     caps.reason(),
-                    primitiveIds
+                    candidate.primitiveIds(),
+                    candidate.kernelId()
+            );
+        }
+        if (!candidate.supported()) {
+            return new CustomKernelEvidence(
+                    false,
+                    false,
+                    candidate.reasonCode(),
+                    candidate.reason(),
+                    candidate.primitiveIds(),
+                    candidate.kernelId()
             );
         }
         MetalCustomKernelExecutable compiled = executable == null
@@ -41,26 +52,18 @@ final class MetalCustomKernelRouteAdapter {
                     true,
                     compiled.reasonCode(),
                     compiled.reason(),
-                    primitiveIds
+                    candidate.primitiveIds(),
+                    candidate.kernelId()
             );
         }
         return new CustomKernelEvidence(
                 true,
                 true,
-                MetalRouteReasonCode.MPS_GRAPH_SELECTED,
-                "custom Metal kernel executable available but route selection is capability-gated",
-                primitiveIds
+                MetalRouteReasonCode.CUSTOM_KERNEL_SELECTED,
+                "custom Metal kernel executable available",
+                candidate.primitiveIds(),
+                candidate.kernelId()
         );
-    }
-
-    private static List<String> loweredPrimitiveIds(MetalPartitionPlan plan) {
-        if (plan == null || plan.manifest() == null) {
-            return List.of();
-        }
-        return plan.manifest().loweredPrimitives().stream()
-                .map(GpuLoweredPrimitiveManifest::primitiveId)
-                .filter(id -> id != null && !id.isBlank())
-                .toList();
     }
 
     record CustomKernelEvidence(
@@ -68,12 +71,14 @@ final class MetalCustomKernelRouteAdapter {
             boolean candidate,
             MetalRouteReasonCode reasonCode,
             String reason,
-            List<String> loweredPrimitiveIds
+            List<String> loweredPrimitiveIds,
+            String kernelId
     ) {
         CustomKernelEvidence {
             reasonCode = reasonCode == null ? MetalRouteReasonCode.CUSTOM_KERNEL_UNAVAILABLE : reasonCode;
             reason = reason == null ? "" : reason;
             loweredPrimitiveIds = List.copyOf(loweredPrimitiveIds == null ? List.of() : loweredPrimitiveIds);
+            kernelId = kernelId == null ? "" : kernelId;
         }
     }
 }
