@@ -122,7 +122,7 @@ class CudaLayoutTransformDeviceFlowTest {
         assertEquals("UNAVAILABLE", attrs.get("acceleratorBufferExecutionPath"));
         assertEquals("CPU_ARRAY", attrs.get("storageResidency"));
         assertTrue(String.valueOf(attrs.get("acceleratorBufferReason"))
-                .contains("no dense layout materializer registered"));
+                .contains("no layout materializer registered"));
     }
 
     @Test

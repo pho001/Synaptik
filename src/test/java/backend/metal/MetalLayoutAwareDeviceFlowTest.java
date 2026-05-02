@@ -148,7 +148,7 @@ class MetalLayoutAwareDeviceFlowTest {
         ));
 
         assertEquals(AcceleratorBufferReasonCode.GPU_LAYOUT_VIEW_BINDING_AVAILABLE, expand.reasonCode());
-        assertEquals(AcceleratorBufferReasonCode.GPU_LAYOUT_DENSE_MATERIALIZATION_AVAILABLE, contiguous.reasonCode());
+        assertEquals(AcceleratorBufferReasonCode.GPU_LAYOUT_BROADCAST_MATERIALIZATION_AVAILABLE, contiguous.reasonCode());
     }
 
     @Test

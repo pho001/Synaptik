@@ -6,5 +6,7 @@ package backend.accelerator.buffer;
 public enum AcceleratorLayoutTransformKind {
     METADATA_ONLY_VIEW,
     DENSE_GPU_MATERIALIZATION,
+    BROADCAST_GPU_MATERIALIZATION,
+    STRIDED_NATIVE_COMPUTE,
     UNSUPPORTED
 }

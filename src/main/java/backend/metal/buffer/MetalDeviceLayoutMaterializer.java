@@ -38,8 +38,8 @@ public final class MetalDeviceLayoutMaterializer implements DeviceLayoutMaterial
             ExecutionContext context
     ) {
         Objects.requireNonNull(decision, "decision cannot be null");
-        if (decision.kind() != AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION) {
-            throw new UnsupportedOperationException("Metal layout materializer requires DENSE_GPU_MATERIALIZATION, got "
+        if (!isSupportedMaterialization(decision.kind())) {
+            throw new UnsupportedOperationException("Metal layout materializer requires a GPU materialization route, got "
                     + decision.kind());
         }
         if (!(source instanceof MetalBufferBinding metalSource)) {
@@ -71,5 +71,10 @@ public final class MetalDeviceLayoutMaterializer implements DeviceLayoutMaterial
         }
         bridge.materializeLayout(bridgeContext, metalSource, destination);
         return destination;
+    }
+
+    private static boolean isSupportedMaterialization(AcceleratorLayoutTransformKind kind) {
+        return kind == AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION
+                || kind == AcceleratorLayoutTransformKind.BROADCAST_GPU_MATERIALIZATION;
     }
 }

@@ -66,13 +66,13 @@ final class DeviceLayoutViewPropagator {
             failIfRequired(required, backendId, decision);
             return false;
         }
-        if (decision.kind() == AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION) {
+        if (isGpuMaterialization(decision.kind())) {
             DeviceLayoutMaterializer materializer = context.runtimeService(DeviceLayoutMaterializer.class);
             if (materializer == null) {
                 AcceleratorLayoutTransformDecision rejected = AcceleratorLayoutTransformDecision.rejected(
                         request,
                         AcceleratorBufferReasonCode.GPU_LAYOUT_TRANSFORM_UNSUPPORTED,
-                        "GPU layout transform unsupported: no dense layout materializer registered"
+                        "GPU layout transform unsupported: no layout materializer registered"
                 );
                 context.publishLayoutTransformDecision(targetNode.id(), rejected);
                 failIfRequired(required, backendId, rejected);
@@ -85,7 +85,7 @@ final class DeviceLayoutViewPropagator {
                 AcceleratorLayoutTransformDecision rejected = AcceleratorLayoutTransformDecision.rejected(
                         request,
                         AcceleratorBufferReasonCode.GPU_LAYOUT_TRANSFORM_UNSUPPORTED,
-                        "GPU layout transform unsupported: dense layout materializer failed: " + safeMessage(ex)
+                        "GPU layout transform unsupported: layout materializer failed: " + safeMessage(ex)
                 );
                 context.publishLayoutTransformDecision(targetNode.id(), rejected);
                 failIfRequired(required, backendId, rejected);
@@ -95,7 +95,7 @@ final class DeviceLayoutViewPropagator {
                 AcceleratorLayoutTransformDecision rejected = AcceleratorLayoutTransformDecision.rejected(
                         request,
                         AcceleratorBufferReasonCode.GPU_LAYOUT_TRANSFORM_UNSUPPORTED,
-                        "GPU layout transform unsupported: dense layout materializer produced no binding"
+                        "GPU layout transform unsupported: layout materializer produced no binding"
                 );
                 context.publishLayoutTransformDecision(targetNode.id(), rejected);
                 failIfRequired(required, backendId, rejected);
@@ -130,6 +130,11 @@ final class DeviceLayoutViewPropagator {
                 "device layout view propagation"
         );
         return true;
+    }
+
+    private static boolean isGpuMaterialization(AcceleratorLayoutTransformKind kind) {
+        return kind == AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION
+                || kind == AcceleratorLayoutTransformKind.BROADCAST_GPU_MATERIALIZATION;
     }
 
     private static StorageResidency metadataOnlyViewResidency(int sourceNodeId, ExecutionContext context) {

@@ -53,6 +53,34 @@ class AcceleratorLayoutTransformPlannerTest {
     }
 
     @Test
+    void broadcastContiguousRequestsBroadcastGpuMaterialization() {
+        AcceleratorBufferLayout sourceLayout = layout(new int[]{2, 3}, new int[]{0, 1});
+        AcceleratorBufferLayout targetLayout = layout(new int[]{2, 3}, new int[]{3, 1});
+
+        AcceleratorLayoutTransformDecision decision = AcceleratorLayoutTransformPlanner.decide(
+                request(Operation.OpType.CONTIGUOUS, sourceLayout, targetLayout, binding(sourceLayout)));
+
+        assertTrue(decision.accepted());
+        assertEquals(AcceleratorLayoutTransformKind.BROADCAST_GPU_MATERIALIZATION, decision.kind());
+        assertEquals(AcceleratorBufferReasonCode.GPU_LAYOUT_BROADCAST_MATERIALIZATION_AVAILABLE, decision.reasonCode());
+        assertTrue(decision.reason().contains("broadcast GPU materialization"));
+    }
+
+    @Test
+    void broadcastContiguousRejectsNonDenseTargetWithStableReason() {
+        AcceleratorBufferLayout sourceLayout = layout(new int[]{2, 3}, new int[]{0, 1});
+        AcceleratorBufferLayout targetLayout = layout(new int[]{2, 3}, new int[]{0, 1});
+
+        AcceleratorLayoutTransformDecision decision = AcceleratorLayoutTransformPlanner.decide(
+                request(Operation.OpType.CONTIGUOUS, sourceLayout, targetLayout, binding(sourceLayout)));
+
+        assertFalse(decision.accepted());
+        assertEquals(AcceleratorLayoutTransformKind.UNSUPPORTED, decision.kind());
+        assertEquals(AcceleratorBufferReasonCode.GPU_LAYOUT_BROADCAST_MATERIALIZATION_UNSUPPORTED, decision.reasonCode());
+        assertTrue(decision.reason().contains("requires dense contiguous target"));
+    }
+
+    @Test
     void nonContiguousReshapeRequestsDenseGpuMaterialization() {
         AcceleratorBufferLayout sourceLayout = layout(new int[]{3, 2}, new int[]{1, 3});
         AcceleratorBufferLayout targetLayout = layout(new int[]{6}, new int[]{1});
@@ -64,6 +92,20 @@ class AcceleratorLayoutTransformPlannerTest {
         assertEquals(AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION, decision.kind());
         assertEquals(AcceleratorBufferReasonCode.GPU_LAYOUT_DENSE_MATERIALIZATION_AVAILABLE, decision.reasonCode());
         assertTrue(decision.reason().contains("dense GPU materialization"));
+    }
+
+    @Test
+    void stridedComputeRejectsWithStridedNativeReason() {
+        AcceleratorBufferLayout sourceLayout = layout(new int[]{3, 2}, new int[]{1, 3});
+        AcceleratorBufferLayout targetLayout = layout(new int[]{3, 2}, new int[]{1, 3});
+
+        AcceleratorLayoutTransformDecision decision = AcceleratorLayoutTransformPlanner.decide(
+                request(Operation.OpType.RELU, sourceLayout, targetLayout, binding(sourceLayout)));
+
+        assertFalse(decision.accepted());
+        assertEquals(AcceleratorLayoutTransformKind.UNSUPPORTED, decision.kind());
+        assertEquals(AcceleratorBufferReasonCode.GPU_LAYOUT_STRIDED_NATIVE_COMPUTE_UNSUPPORTED, decision.reasonCode());
+        assertTrue(decision.reason().contains("direct strided native compute unsupported"));
     }
 
     @Test

@@ -48,14 +48,48 @@ public final class AcceleratorLayoutTransformPlanner {
                         request,
                         "metadata-only view binding available for contiguous-source reshape");
             }
+            if (isBroadcastToDenseRepair(request)) {
+                return AcceleratorLayoutTransformDecision.broadcastGpuMaterialization(
+                        request,
+                        "broadcast GPU materialization available for non-contiguous reshape");
+            }
+            if (!isDenseTarget(request)) {
+                return AcceleratorLayoutTransformDecision.rejected(
+                        request,
+                        AcceleratorBufferReasonCode.GPU_LAYOUT_TRANSFORM_UNSUPPORTED,
+                        "GPU layout transform unsupported for non-dense reshape target");
+            }
             return AcceleratorLayoutTransformDecision.denseGpuMaterialization(
                     request,
                     "dense GPU materialization available for non-contiguous reshape");
         }
         if (opType == Operation.OpType.CONTIGUOUS) {
+            if (isBroadcastToDenseRepair(request)) {
+                return AcceleratorLayoutTransformDecision.broadcastGpuMaterialization(
+                        request,
+                        "broadcast GPU materialization available for contiguous layout transform");
+            }
+            if (request.sourceLayout().layoutClass() == AcceleratorBufferLayoutClass.BROADCAST_ZERO_STRIDE_VIEW) {
+                return AcceleratorLayoutTransformDecision.rejected(
+                        request,
+                        AcceleratorBufferReasonCode.GPU_LAYOUT_BROADCAST_MATERIALIZATION_UNSUPPORTED,
+                        "broadcast GPU materialization requires dense contiguous target layout");
+            }
+            if (!isDenseTarget(request)) {
+                return AcceleratorLayoutTransformDecision.rejected(
+                        request,
+                        AcceleratorBufferReasonCode.GPU_LAYOUT_TRANSFORM_UNSUPPORTED,
+                        "GPU layout transform unsupported for non-dense contiguous target");
+            }
             return AcceleratorLayoutTransformDecision.denseGpuMaterialization(
                     request,
                     "dense GPU materialization available for contiguous layout transform");
+        }
+        if (requiresStridedNativeCompute(request)) {
+            return AcceleratorLayoutTransformDecision.rejected(
+                    request,
+                    AcceleratorBufferReasonCode.GPU_LAYOUT_STRIDED_NATIVE_COMPUTE_UNSUPPORTED,
+                    "direct strided native compute unsupported for " + opType);
         }
         return AcceleratorLayoutTransformDecision.rejected(
                 request,
@@ -68,6 +102,21 @@ public final class AcceleratorLayoutTransformPlanner {
             case NOOP, SELECT, PERMUTE, EXPAND, EXPAND_DIMS, SQUEEZE -> true;
             default -> false;
         };
+    }
+
+    private static boolean isBroadcastToDenseRepair(AcceleratorLayoutTransformRequest request) {
+        return request.sourceLayout().layoutClass() == AcceleratorBufferLayoutClass.BROADCAST_ZERO_STRIDE_VIEW
+                && isDenseTarget(request);
+    }
+
+    private static boolean isDenseTarget(AcceleratorLayoutTransformRequest request) {
+        return request.targetLayout().layoutClass() == AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS;
+    }
+
+    private static boolean requiresStridedNativeCompute(AcceleratorLayoutTransformRequest request) {
+        return request.sourceLayout().layoutClass() == AcceleratorBufferLayoutClass.PERMUTED_OR_STRIDED_VIEW
+                || request.sourceLayout().layoutClass() == AcceleratorBufferLayoutClass.ZERO_OFFSET_VIEW
+                || request.sourceLayout().layoutClass() == AcceleratorBufferLayoutClass.NON_ZERO_OFFSET_VIEW;
     }
 
     private static boolean unsupportedLayout(AcceleratorBufferLayout layout) {

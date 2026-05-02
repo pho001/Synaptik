@@ -49,6 +49,26 @@ public record AcceleratorLayoutTransformDecision(
                 reason);
     }
 
+    public static AcceleratorLayoutTransformDecision broadcastGpuMaterialization(
+            AcceleratorLayoutTransformRequest request,
+            String reason
+    ) {
+        return accepted(request,
+                AcceleratorLayoutTransformKind.BROADCAST_GPU_MATERIALIZATION,
+                AcceleratorBufferReasonCode.GPU_LAYOUT_BROADCAST_MATERIALIZATION_AVAILABLE,
+                reason);
+    }
+
+    public static AcceleratorLayoutTransformDecision stridedNativeCompute(
+            AcceleratorLayoutTransformRequest request,
+            String reason
+    ) {
+        return accepted(request,
+                AcceleratorLayoutTransformKind.STRIDED_NATIVE_COMPUTE,
+                AcceleratorBufferReasonCode.GPU_LAYOUT_STRIDED_NATIVE_COMPUTE_AVAILABLE,
+                reason);
+    }
+
     public static AcceleratorLayoutTransformDecision rejected(
             AcceleratorLayoutTransformRequest request,
             AcceleratorBufferReasonCode reasonCode,
