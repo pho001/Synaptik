@@ -21,7 +21,20 @@ v1.4 Native GPU Operation Coverage Closure shipped and was archived on 2026-05-0
 - v1.2 phase verification, security, Nyquist validation, milestone audit, and archival passed.
 - Backend-neutral device buffer layout ABI, Metal logical-view device flow, materialization-aware planning, tuning/profile ownership, accelerator observability, narrow CUDA native runtime execution, GPU layout/view residency, GPU lowering coverage, fused GPU compound region metadata, coverage regression gates, GPU coverage triage, lowered-region manifest contracts, dtype/storage residency, operation-family support/rejection evidence, region-internal GPU fusion, multi-op GPU region execution, native/lowered reductions, normalization lowering, Metal forward SDPA, target coverage truth, and hard v1.4 coverage regression closure are now validated project state.
 - Real CUDA hardware/native execution remains a residual environment risk because local CUDA native tasks capability-skipped; portable gates and capability-skip behavior passed.
-- There is no active milestone after v1.4 archival. The next milestone should start from fresh requirements with `$gsd-new-milestone`.
+- Current milestone v1.5 is active and focuses on making the Metal backend substantially more production-grade: broader dtype compute/output, BOOL/INT32 semantics, conv/pool, masked SDPA, indexing, loss-adjacent training flows, layout repair, backend routing, and lower-copy execution.
+
+## Current Milestone: v1.5 Production-Grade Metal Backend Expansion
+
+**Goal:** Move Metal from high-value `FLOAT32` graph-region coverage toward a production-grade backend with broader dtype support, NN/index/loss/training coverage, GPU-side layout repair, router decisions, and lower-copy execution.
+
+**Target features:**
+- Versioned Metal dtype ABI and capability truth for `BFLOAT16`, `BOOL`, `INT32`, and explicit `FLOAT64` support/rejection.
+- BF16 compute/output, BOOL-producing compute, and INT32 index tensor execution.
+- Masked/causal SDPA, conv/pool, gather/scatter/index, and loss-adjacent lowering.
+- GPU-side layout router for dense, strided, and broadcast materialization without CPU exits where legal.
+- Training/backward coverage for v1.5-supported Metal operation families.
+- Backend router across MPSGraph, custom Metal kernels, buffer binding, tensor-array fallback, and CPU fallback.
+- Closure of the remaining native result-copy/zero-copy evidence gap.
 
 ## Recently Shipped Milestone: v1.4 Native GPU Operation Coverage Closure
 
@@ -108,14 +121,17 @@ v1.4 Native GPU Operation Coverage Closure shipped and was archived on 2026-05-0
 
 ### Active
 
-- [ ] Define the next milestone requirements with `$gsd-new-milestone`.
-- [ ] Future accelerator requirements remain deferred when they require broader high-rank, sparse, dynamic-shape, vendor-library routing, or canonical real-CUDA hardware evidence beyond the current target workloads.
+- [ ] v1.5 must widen Metal dtype support without conflating dtype residency with native dtype compute.
+- [ ] v1.5 must add support-or-rejection execution coverage for BF16, BOOL-producing compute, INT32 indexing, masked SDPA, conv/pool, scatter/index gradients, loss-adjacent flows, and training/backward paths.
+- [ ] v1.5 must keep all unsupported dtype/layout/operation combinations explicit in traces, coverage reports, and benchmark gates.
+- [ ] v1.5 must add router/cost evidence for MPSGraph vs custom Metal kernels vs CPU fallback and address the remaining native result-copy evidence gap.
 
 ### Out of Scope
 
 - Rewriting the public `Tensor` API around user-visible device objects — current direction keeps public tensors logical and puts device residency in runtime execution state.
 - Replacing the CPU backend with accelerator-first execution — CPU remains the correctness baseline and a performance-critical backend.
-- Unlimited CUDA/Metal operation, dtype, rank, and fused-kernel coverage in one milestone — v1.2 should broaden high-value paths first and keep unsupported cases explicit.
+- CUDA parity for the new v1.5 Metal coverage — v1.5 is Metal-first; shared contracts should remain backend-neutral but CUDA native implementation follows later.
+- Universal Metal operation, dtype, rank, and fused-kernel coverage — v1.5 targets high-impact production gaps first and keeps unsupported cases explicit.
 - Supporting every dtype/rank/layout combination on Metal immediately — capability checks must stay explicit and conservative.
 - Hiding fallback behavior — accelerator fallback must remain traceable and benchmark-visible.
 - Tracking arbitrary local benchmark/calibration artifacts as project state — only intentional profile fixtures or committed winner profiles should be versioned.
@@ -192,4 +208,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state.
 
 ---
-*Last updated: 2026-05-02 after v1.4 milestone archive*
+*Last updated: 2026-05-02 after v1.5 milestone planning*

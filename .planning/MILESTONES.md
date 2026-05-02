@@ -1,5 +1,21 @@
 # Milestones
 
+## v1.5 Production-Grade Metal Backend Expansion (Active)
+
+**Planned phases:** 11 phases, starting at Phase 29
+
+**Goal:** Move Metal from high-value FLOAT32 graph-region coverage toward a production-grade backend with broader dtype support, NN/index/loss/training coverage, layout repair, router decisions, and lower-copy execution.
+
+**Target families:**
+
+- Metal dtype ABI and capability truth for `BFLOAT16`, `BOOL`, `INT32`, and explicit `FLOAT64` support/rejection.
+- BF16 compute/output, BOOL-producing compute, and INT32 index tensor execution.
+- Masked/causal SDPA, conv/pool, gather/scatter/index, loss-adjacent flows, and backward coverage.
+- GPU-side layout repair and strided/broadcast materialization without CPU exits.
+- MPSGraph/custom-kernel/CPU router and zero-copy/native-copy closure.
+
+---
+
 ## v1.4 Native GPU Operation Coverage Closure (Shipped: 2026-05-02)
 
 **Phases completed:** 7 phases, 26 plans

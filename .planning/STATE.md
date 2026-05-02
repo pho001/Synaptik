@@ -1,27 +1,27 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.4
-milestone_name: Native GPU Operation Coverage Closure
-status: archived
-last_updated: "2026-05-02T12:00:00.000Z"
-last_activity: 2026-05-02 -- v1.4 milestone archived
+milestone: v1.5
+milestone_name: Production-Grade Metal Backend Expansion
+status: planning
+last_updated: "2026-05-02T06:21:47.358Z"
+last_activity: 2026-05-02 -- v1.5 milestone planned
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 26
-  completed_plans: 26
-  percent: 100
+  total_phases: 11
+  completed_phases: 0
+  total_plans: 44
+  completed_plans: 0
+  percent: 0
 ---
 
 # GSD State
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** No active milestone — ready for `$gsd-new-milestone`
+**Current focus:** Phase 29 — Metal DType ABI And Capability Truth
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-05-01)
+See: `.planning/PROJECT.md` (updated 2026-05-02)
 
 **Core value:** Synaptik must produce correct tensor results through a clean compiled graph architecture while letting the optimizer and tuning system choose high-performance CPU or accelerator execution without hidden regressions.
 
@@ -39,7 +39,7 @@ Completed milestones:
 
 Current milestone:
 
-- none
+- v1.5 Production-Grade Metal Backend Expansion - active
 
 Recently completed milestone:
 
@@ -68,11 +68,23 @@ Planning agents should read the relevant codebase map documents before proposing
 - v1.1 phase execution directories were archived to `.planning/milestones/v1.1-phases/` before starting v1.2.
 - v1.2 phase execution directories were archived to `.planning/milestones/v1.2-phases/` before starting the next milestone.
 - v1.3 phase execution directories were archived to `.planning/milestones/v1.3-phases/` before starting the next milestone.
+- v1.4 phase execution directories were archived to `.planning/milestones/v1.4-phases/` before starting v1.5.
 
 ## Phase Planning Status
 
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
+| 29 — Metal DType ABI And Capability Truth | Planned | 0/4 | Pending |
+| 30 — BF16 Metal Compute And Output | Planned | 0/4 | Pending |
+| 31 — BOOL-Producing Metal Compute | Planned | 0/4 | Pending |
+| 32 — INT32 Index Tensor And Gather Take Path | Planned | 0/4 | Pending |
+| 33 — GPU Layout Router And Strided Materialization | Planned | 0/4 | Pending |
+| 34 — Masked And Causal SDPA | Planned | 0/4 | Pending |
+| 35 — Conv Pool Native Execution | Planned | 0/4 | Pending |
+| 36 — Scatter And Index Gradient Semantics | Planned | 0/4 | Pending |
+| 37 — Loss-Adjacent Metal Lowering | Planned | 0/4 | Pending |
+| 38 — Metal Training Backward Coverage | Planned | 0/4 | Pending |
+| 39 — Metal Backend Router And Zero-Copy Closure | Planned | 0/4 | Pending |
 | 22 — Coverage Truth And Semantics Lock | Archived | 3/3 | Verified |
 | 23 — Forward Reductions Native Execution | Archived | 3/3 | Verified |
 | 24 — Normalization GPU Lowering | Archived | 4/4 | Verified |
@@ -176,6 +188,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | Phase 28 verification passed | Target coverage policies, hard regression gates, suite report coverage deltas, docs, Metal native gate, and artifact hygiene satisfy GPUCLOSE-01/02/03. |
 | 2026-05-02 | v1.4 closure evidence normalized | Added missing Phase 22/23 verification, security, and validation artifacts plus Phase 25/26 security and Nyquist frontmatter so milestone audit can verify every active phase consistently. |
 | 2026-05-02 | v1.4 milestone archived | Native GPU Operation Coverage Closure archives were written under `.planning/milestones/`; fresh requirements should be defined for the next milestone. |
+| 2026-05-02 | v1.5 milestone planned | Production-Grade Metal Backend Expansion roadmap covers dtype ABI, BF16, BOOL, INT32/indexing, layout router, masked SDPA, conv/pool, scatter, loss, training, router, and zero-copy closure. |
 
 ## Recent Sessions
 
@@ -233,11 +246,11 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-01 | Completed and verified Phase 17 | Ready for `$gsd-discuss-phase 18 --auto` or `$gsd-plan-phase 18 --auto` | .planning/milestones/v1.3-phases/17-normalization-reduction-and-loss-adjacent-lowering/17-VERIFICATION.md |
 
 ---
-*Last updated: 2026-05-02 after v1.4 milestone archive*
+*Last updated: 2026-05-02 after v1.5 milestone planning*
 
 ## Current Position
 
-Phase: none
-Plan: none
-Status: v1.4 archived; ready for `$gsd-new-milestone`
-Last activity: 2026-05-02 — v1.4 milestone archived
+Phase: 29
+Plan: —
+Status: Ready for `$gsd-discuss-phase 29 --auto` or `$gsd-plan-phase 29 --auto`
+Last activity: 2026-05-02 — v1.5 milestone planned
