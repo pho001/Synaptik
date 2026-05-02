@@ -18,7 +18,7 @@
 | 41 | CUDA DType Layout And Index Residency | Expand CUDA dtype/layout/index residency and forward indexing coverage without overclaiming unsupported compute. | CUDADTYPE-01, CUDADTYPE-02, CUDAINDEX-01 | 5 |
 | 42 | CUDA NN Operation Parity | Add native/lowered CUDA coverage or stable rejection for high-value NN forward families. | CUDANN-01, CUDANN-02, CUDANN-03 | 5 |
 | 43 | CUDA Training And Index Semantics | Close CUDA training/backward and scatter/index-gradient evidence gaps with explicit blockers where support is not proven. | CUDATRAIN-01, CUDATRAIN-02, CUDATRAIN-03 | 5 |
-| 44 | Custom Metal Kernel Execution Route | Turn the custom Metal kernel route from a visible seam into real scoped native kernel execution. | METALKERNEL-01, METALKERNEL-02, METALKERNEL-03 | 5 |
+| 44 | Custom Metal Kernel Execution Route | 1/4 | In Progress|  |
 | 45 | Metal Output Buffer Write And Copy Closure | Prove true output-buffer writes or implement a lower-copy strategy without false zero-copy claims. | METALCOPY-01, METALCOPY-02, METALCOPY-03 | 5 |
 | 46 | Cross-Backend Router Calibration And Regression Gates | Calibrate and gate backend route decisions across MPSGraph, custom Metal, CUDA, tensor-array fallback, and CPU fallback. | BACKENDROUTE-01, BACKENDROUTE-02, BACKENDROUTE-03 | 5 |
 
@@ -140,7 +140,7 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 5. Existing MPSGraph-supported rows do not regress when custom-kernel route is disabled or unprofitable.
 
 **Planned waves:**
-- [ ] 44-01 Custom Metal kernel bridge and native build contract.
+- [x] 44-01 Custom Metal kernel bridge and native build contract.
 - [ ] 44-02 First scoped custom kernel family.
 - [ ] 44-03 Route selection, parity, and fallback evidence.
 - [ ] 44-04 Reports, docs, and hard gates.
