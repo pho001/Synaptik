@@ -242,6 +242,8 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 
 ### Phase 38: Metal Training Backward Coverage
 
+**Status:** Planned
+
 **Goal:** Keep gradients on Metal for v1.5-supported forward families where legal.
 
 **Requirements:** METALTRAIN-01, METALTRAIN-02, METALTRAIN-03
@@ -256,10 +258,10 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 5. CPU baseline remains the correctness oracle with focused parity tests.
 
 **Planned waves:**
-- 38-01 Backward coverage matrix and legality update.
-- 38-02 Backward native/lowered execution for supported families.
-- 38-03 Training trace and gradient publication gates.
-- 38-04 Final training parity closure.
+- [ ] [38-01 Backward coverage matrix and legality update](phases/38-metal-training-backward-coverage/38-01-PLAN.md).
+- [ ] [38-02 Backward native/lowered execution for supported families](phases/38-metal-training-backward-coverage/38-02-PLAN.md).
+- [ ] [38-03 Training trace and gradient publication gates](phases/38-metal-training-backward-coverage/38-03-PLAN.md).
+- [ ] [38-04 Final training parity closure](phases/38-metal-training-backward-coverage/38-04-PLAN.md).
 
 ### Phase 39: Metal Backend Router And Zero-Copy Closure
 

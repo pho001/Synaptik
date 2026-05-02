@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Production-Grade Metal Backend Expansion
 status: active
-last_updated: "2026-05-02T10:56:40Z"
-last_activity: 2026-05-02 -- Phase 37 loss-adjacent Metal lowering completed
+last_updated: "2026-05-02T11:00:00Z"
+last_activity: 2026-05-02 -- Phase 38 Metal training backward coverage planned
 progress:
   total_phases: 11
   completed_phases: 9
@@ -203,6 +203,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | Phase 37-02 completed | Scoped dense `NLL_LOSS` and `CROSS_ENTROPY_LOSS` now lower to Metal DAG primitives and pass native parity; index-target loss and gradient variants remain explicit `UNSUPPORTED_INDEX_SEMANTICS` blockers. |
 | 2026-05-02 | Phase 37-03 completed | Training traces now prove dense Metal loss forward remains GPU-owned without hidden internal CPU consumer materialization, while index-target loss gradients remain explicit CPU boundaries. |
 | 2026-05-02 | Phase 37 verification passed | Dense loss has a separate `dense_loss_small` native Metal target and index-target `cross_entropy_small` remains a visible `UNSUPPORTED_INDEX_SEMANTICS` blocker. |
+| 2026-05-02 | Phase 38 planning completed | Four plans cover backward truth/legality, supported backward execution evidence, training trace gates, and final parity/docs closure for `METALTRAIN-01..03`. |
 
 ## Recent Sessions
 
