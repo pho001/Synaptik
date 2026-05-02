@@ -181,7 +181,7 @@ public final class GpuLoweringCoverageMatrix {
             add(entries, backend, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION, GpuLoweringOperationFamily.ATTENTION,
                     GpuLoweringCoverageStatus.SUPPORTED,
                     GpuLoweringUnsupportedReason.SUPPORTED,
-                    "direct unmasked FLOAT32 rank-3/4 native MPSGraph primitive SDPA DAG; masked SDPA remains UNSUPPORTED_MASK_SEMANTICS; target=transformer_block_hot_path");
+                    "direct FLOAT32 rank-3/4 native MPSGraph primitive SDPA DAG supports unmasked, dense external BOOL masked, causal, and external+causal effective mask modes; target=transformer_block_hot_path target=masked_sdpa_small");
         } else {
             add(entries, backend, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION, GpuLoweringOperationFamily.ATTENTION,
                     GpuLoweringCoverageStatus.FALLBACK,

@@ -323,18 +323,18 @@ The current Metal path is intentionally narrower than the full tensor dtype mode
 
 That boundary is checked in two places for different reasons. `MetalRegionLegalityAdapter` and `MetalPartitionSupport` reject illegal candidates during partition planning so traces do not claim a Metal region for a dtype the bridge cannot execute. `PreparedMetalExecutable` repeats cheap runtime checks for contiguity, storage offset, and direct Java array availability because legal compile-time dtype does not guarantee that a particular runtime tensor layout can be handed to the FFM bridge.
 
-Direct unmasked FLOAT32 rank-3/4 `SCALED_DOT_PRODUCT_ATTENTION` can be selected for Metal partitions after native scale parity verification. The lowerer encodes the operation scale into the accelerator DAG scalar bits and the native bridge executes the SDPA node as a primitive MPSGraph DAG: `Q * K^T`, scale, softmax, and `* V`. Masked direct SDPA remains rejected: masked `where(mask, scores, fill) -> softmax -> matmul` is left as a generic DAG instead of being converted to native `SDPA` with a bool mask, because the verified MPSGraph SDPA mask operand expects a floating mask tensor.
+Direct FLOAT32 rank-3/4 `SCALED_DOT_PRODUCT_ATTENTION` can be selected for Metal partitions after native scale and mask parity verification. The lowerer encodes the operation scale into the accelerator DAG scalar bits and the native bridge executes the SDPA node as a primitive MPSGraph DAG: `Q * K^T`, scale, optional BOOL mask select using public mask polarity, softmax, and `* V`. External BOOL masks, causal masks, and external+causal effective masks use SDPA input 3 when the effective mask layout is dense.
 
 The source-level SDPA support matrix is:
 
 | Attention form | Planner status | Reason |
 |---|---|---|
 | Direct unmasked forward `SCALED_DOT_PRODUCT_ATTENTION` | Supported for legal FLOAT32 rank-3/4 inputs | The native MPSGraph primitive DAG has scale parity evidence for the admitted contract. |
-| Direct masked/causal forward SDPA | Rejected by `MetalPartitionSupport.plannerUnsupportedReason(...)` with `UNSUPPORTED_MASK_SEMANTICS` | Synaptik public masks are `BOOL`; verified MPSGraph SDPA mask input expects floating mask semantics. |
+| Direct masked/causal forward SDPA | Supported for dense effective BOOL masks | External BOOL masks, causal masks, and external+causal masks feed SDPA input 3 and are applied before softmax with CPU-compatible polarity. |
 | Generic lowered attention-like `matmul -> scale -> softmax -> matmul` fragments | Legal only for operations already in the Metal allowlist | This keeps tested primitive pieces available without pretending native direct SDPA is equivalent. |
 | `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD` fragments | Present in the backward allowlist | Training flow is still guarded by `PreparedMetalExecutable`, which falls back when a forward SDPA DAG appears in backward execution. |
 
-This is intentionally conservative. The planner can explain why direct SDPA did not enter a Metal region, while
+This remains intentionally conservative. The planner can explain why direct SDPA did not enter a Metal region, while
 `AcceleratorSubgraphLowerer` contains the DAG encoding path used by the verified native primitive implementation without
 redesigning the accelerator DAG format.
 

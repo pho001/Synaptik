@@ -213,17 +213,16 @@ Metal partition legality is intentionally separate from runtime availability. A 
 | DType | Compute and output nodes must be `FLOAT32`, `BFLOAT16` for the scoped operation families listed in [Supported Operations And DTypes](#supported-operations-and-dtypes), or `BOOL` for the scoped compare/logical/reduction mask families. |
 | Forward ops | Allows `MATMUL`, `LINEAR`, arithmetic elementwise ops, common activations, `WHERE`, `SOFTMAX`, shape/layout ops such as `RESHAPE`, `CONTIGUOUS`, `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE`. |
 | Backward ops | Allows `MATMUL`, `LINEAR`, softmax/log-softmax gradients, min/max reduction gradients, min/max gradients, and `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD`. |
-| Direct unmasked forward SDPA | Supported for legal FLOAT32 rank-3/4 inputs after native MPSGraph primitive DAG scale parity verification. |
-| Direct masked/causal forward SDPA | Rejected with `UNSUPPORTED_MASK_SEMANTICS` because Synaptik public masks are `BOOL`, while the verified MPSGraph SDPA mask operand expects floating mask semantics. |
+| Direct forward SDPA | Supported for legal dense FLOAT32 rank-3/4 inputs after native MPSGraph primitive DAG scale parity verification. |
+| Direct masked/causal forward SDPA | Supported when the effective mask is a dense BOOL tensor: external mask, causal-only mask, and external+causal logical-AND mask all feed SDPA input 3. Unsupported mask dtype/layout/rank cases reject explicitly. |
 | Conv/pool | Not in the current tested Metal planner allowlist. |
 
 External input legality is role-sensitive. `MetalMpsCapabilities.supportsExternalInputRole(...)` allows:
 
 - `FLOAT32` for normal data inputs
 - `BFLOAT16` for scoped BF16 operation-family data inputs
-- `BOOL` only for `WHERE` input 0
+- `BOOL` for `WHERE` input 0 and direct SDPA input 3
 - internal `BOOL` mask values produced by supported Metal compare/logical/reduction ops feeding legal GPU consumers
-- no `BOOL` mask input for direct SDPA
 
 Lowering itself is deliberately thin. `MetalRegionLowerer.lower(...)` does not emit Objective-C code. It marks the region with a `LoweringFamily` and leaves the accelerator DAG to the shared `AcceleratorSubgraphLowerer` and bridge compile step.
 
@@ -339,7 +338,7 @@ and stores the resulting `MPSGraphExecutable` in `SynaptikAppleMpsExecutableBox`
 
 ### Operation lowering in the shim
 
-The Objective-C switch over node type codes maps the accelerator DAG to MPSGraph operations. The supported set includes matrix multiply, linear-style graph fragments, arithmetic elementwise ops, activations, `where`, softmax-related ops, shape ops, scoped BOOL compare/logical/reduction ops, and selected attention nodes present in the native code. Planner legality is stricter than the native switch: direct unmasked FLOAT32 rank-3/4 SDPA is admitted only after parity evidence, and the native shim expands it to `Q * K^T`, scale, softmax, and `* V` MPSGraph primitives. Masked direct SDPA stays rejected because BOOL mask semantics do not match the verified native mask operand contract.
+The Objective-C switch over node type codes maps the accelerator DAG to MPSGraph operations. The supported set includes matrix multiply, linear-style graph fragments, arithmetic elementwise ops, activations, `where`, softmax-related ops, shape ops, scoped BOOL compare/logical/reduction ops, and selected attention nodes present in the native code. Planner legality is stricter than the native switch: direct FLOAT32 rank-3/4 SDPA is admitted only after parity evidence, and the native shim expands it to `Q * K^T`, scale, optional BOOL mask select with CPU-compatible polarity, softmax, and `* V` MPSGraph primitives.
 
 This split is intentional. Native source coverage is not enough to make an op legal. The planner allowlist documents what has been tested against Synaptik semantics.
 
@@ -655,7 +654,7 @@ BOOL support is also real but deliberately narrow. Metal can produce and consume
 
 Forward `GATHER` and `TAKE_ALONG_AXIS` support is deliberately scoped: dense `FLOAT32` value/output tensors, dense static leaf `INT32` indices, proven in-bounds index values, and native buffer execution through MPSGraph `gatherAlongAxis`. This is not generic INT32 arithmetic or INT32 output support.
 
-Unsupported BF16 and BOOL families still reject with stable dtype or operation-family diagnostics. Conv/pool, gather/take gradients, scatter, loss-adjacent ops, masked SDPA, generic INT32 compute/output, and arbitrary BOOL consumers remain separate future phases.
+Unsupported BF16 and BOOL families still reject with stable dtype or operation-family diagnostics. Conv/pool, gather/take gradients, scatter, loss-adjacent ops, generic INT32 compute/output, arbitrary BOOL consumers, and non-dense/unsupported SDPA mask layouts remain separate future phases.
 
 ### Planner allowlist
 
@@ -690,7 +689,6 @@ SCALED_DOT_PRODUCT_ATTENTION_BACKWARD
 
 Notable current exclusions:
 
-- direct masked or causal `SCALED_DOT_PRODUCT_ATTENTION`
 - `CONV2D`, `CONV2D_GEMM`, and conv backward ops
 - `MAX_POOL2D`, `AVG_POOL2D`, and pooling backward ops
 - `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, `SCATTER_ADD`, and index-target loss ops

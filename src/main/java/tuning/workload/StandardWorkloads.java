@@ -119,6 +119,10 @@ public final class StandardWorkloads {
         return new LayoutRepairWorkloadSpec(name, batch, features);
     }
 
+    public static MaskedSdpaWorkloadSpec maskedSdpa(String name, int batch, int heads, int tokens, int headDim, int valueDim) {
+        return new MaskedSdpaWorkloadSpec(name, batch, heads, tokens, headDim, valueDim);
+    }
+
     public static Pool2dWorkloadSpec pool2d(
             String name,
             Pool2dWorkloadSpec.PoolKind kind,
@@ -181,6 +185,7 @@ public final class StandardWorkloads {
                 .register(boolCompareWhere("bool_compare_where_small", 8, 32))
                 .register(gatherTake("gather_take_small", 8, 16, 4))
                 .register(layoutBroadcastRepair("layout_broadcast_repair_small", 8, 32))
+                .register(maskedSdpa("masked_sdpa_small", 2, 2, 8, 8, 8))
                 .register(transformerHotPath("transformer_hot_path"))
                 .register(transformerHotPath("transformer_hot_path_large", WorkloadProfile.transformerHotPathLarge()))
                 .register(transformerHotPath("transformer_hot_path_long_seq", WorkloadProfile.transformerHotPathLongSeq()))

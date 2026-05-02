@@ -45,7 +45,7 @@ The source of truth lives in `backend.accelerator.lowering.GpuLoweringCoverageMa
 | normalization pieces | `LAYER_NORM`, `RMS_NORM` | supported | `SUPPORTED`; lowered as repeated keep-dims `MEAN` plus elementwise normalization DAG with epsilon scalar |
 | loss-adjacent ops | `NLL_LOSS`, `CROSS_ENTROPY_LOSS` | unsupported | `DAG_PRIMITIVE_UNSUPPORTED` |
 | loss-adjacent ops | `CROSS_ENTROPY_LOSS_INDICES`, `CROSS_ENTROPY_LOSS_INDICES_GRAD` | unsupported | `UNSUPPORTED_INDEX_SEMANTICS` |
-| attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION` | supported | `SUPPORTED`; direct unmasked FLOAT32 rank-3/4 native MPSGraph primitive SDPA DAG; masked direct SDPA remains `UNSUPPORTED_MASK_SEMANTICS` until BOOL mask semantics match backend mask behavior |
+| attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION` | supported | `SUPPORTED`; direct FLOAT32 rank-3/4 native MPSGraph primitive SDPA DAG supports unmasked, dense external BOOL masked, causal, and external+causal effective mask modes |
 | attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD` | supported | `SUPPORTED` |
 | conv/pool | `CONV2D`, `CONV2D_GEMM`, `CONV2D_BACKWARD_INPUT`, `CONV2D_BACKWARD_WEIGHT`, `CONV2D_BACKWARD_INPUT_GEMM`, `CONV2D_BACKWARD_WEIGHT_GEMM`, `MAX_POOL2D`, `MAX_POOL2D_BACKWARD_INPUT`, `AVG_POOL2D`, `AVG_POOL2D_BACKWARD_INPUT` | unsupported | `CAPABILITY_MISSING` |
 | index/scatter/gather | `GATHER`, `TAKE_ALONG_AXIS` | supported | `SUPPORTED`; dense `FLOAT32` value/output with `INT32` indices lowers to MPSGraph `gatherAlongAxis` |
@@ -115,7 +115,7 @@ than "Metal supports BF16 everywhere":
   materializations, zero CPU fallback, and zero tensor-array fallback.
 
 Unsupported BF16 and BOOL families must remain visible. Conv/pool, loss-adjacent ops, gather/take gradients, scatter,
-masked SDPA, arbitrary BOOL consumers, and generic INT32 compute/output remain rejected or fallback rows until their own
+arbitrary BOOL consumers, non-dense/unsupported SDPA mask layouts, and generic INT32 compute/output remain rejected or fallback rows until their own
 semantic, native execution, parity, trace, and regression-gate evidence exists.
 
 ## Phase 17 normalization, reduction, and loss-adjacent contract

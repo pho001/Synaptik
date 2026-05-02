@@ -94,14 +94,14 @@ public record GpuTargetSemanticsContract(
         out.add(new GpuTargetSemanticsContract(
                 Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION,
                 GpuLoweringOperationFamily.ATTENTION,
-                "Phase 25 GPU admission is FLOAT32 query/key/value only; BOOL masks require explicit backend mask semantics",
+                "GPU admission is FLOAT32 query/key/value; dense effective BOOL masks are legal only where backend mask semantics are verified",
                 "Phase 25 GPU admission is rank 3 or 4 attention tensors with softmax over the key axis",
                 "supported dense/view layouts only; unsupported layout families reject before native admission",
                 "query/key head dimensions must match, key/value sequence dimensions must match, output follows broadcast batch/head, query length, and value channel dimensions",
                 "scale must match AttentionOptions resolved scale; unmasked, causal, and external BOOL mask paths are separate verified cases",
                 "CPU parity tolerance must cover softmax stability, scale application order, mask fill behavior, and backend SDPA math differences",
                 false,
-                "unmasked FLOAT32 rank-3/4 forward SDPA may be admitted per backend after scale parity evidence; masked and unsupported backend variants remain capability-gated"
+                "Metal admits scale-verified unmasked, dense external BOOL masked, causal, and external+causal FLOAT32 rank-3/4 forward SDPA after parity evidence; unsupported backend variants remain capability-gated"
         ));
         addLoss(out, Operation.OpType.NLL_LOSS, "class-probability target tensor semantics; reduction mode must match CPU");
         addLoss(out, Operation.OpType.CROSS_ENTROPY_LOSS, "dense target tensor semantics; reduction mode must match CPU");

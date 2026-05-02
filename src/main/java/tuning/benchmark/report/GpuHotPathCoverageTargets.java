@@ -119,6 +119,13 @@ public final class GpuHotPathCoverageTargets {
                         List.of("GPUNATIVE", "GPUCLOSE", "METALLAYOUT"),
                         33,
                         "Exercises zero-stride broadcast view repair through GPU layout materialization."
+                ),
+                new GpuHotPathCoverageTarget(
+                        "masked_sdpa_small",
+                        "attention",
+                        List.of("GPUNATIVE", "GPUSDPA", "GPUCLOSE", "METALSDPAMASK"),
+                        34,
+                        "Exercises direct external BOOL masked SDPA staying on Metal."
                 )
         );
     }
@@ -237,6 +244,13 @@ public final class GpuHotPathCoverageTargets {
                         resolvedBackend,
                         layoutRepairPolicy(resolvedBackend),
                         "GPU_METAL".equals(resolvedBackend) ? List.of() : List.of("GPU_LAYOUT", "BROADCAST_GPU_MATERIALIZATION"),
+                        "GPU_METAL".equals(resolvedBackend)
+                ),
+                new GpuCoverageHotPathExpectation(
+                        "masked_sdpa_small",
+                        resolvedBackend,
+                        transformerSdpaPolicy(resolvedBackend),
+                        transformerSdpaVisibleReasons(resolvedBackend),
                         "GPU_METAL".equals(resolvedBackend)
                 )
         );

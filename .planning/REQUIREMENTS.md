@@ -39,9 +39,9 @@ Requirements for the v1.5 milestone. Each requirement maps to exactly one roadma
 
 ### Masked And Causal SDPA
 
-- [ ] **METALSDPAMASK-01**: Metal direct SDPA semantics cover public `BOOL` masks, floating additive masks, causal masks, scale, rank, broadcast, and dtype legality before planner admission.
-- [ ] **METALSDPAMASK-02**: Supported masked and causal SDPA paths execute through verified MPSGraph/native primitive DAGs or lowered sub-DAGs with CPU parity and trace-visible mask handling.
-- [ ] **METALSDPAMASK-03**: Transformer attention coverage gates prove masked/causal attention stays on Metal for supported cases and rejects unsupported mask semantics visibly.
+- [x] **METALSDPAMASK-01**: Metal direct SDPA semantics cover public `BOOL` masks, floating additive masks, causal masks, scale, rank, broadcast, and dtype legality before planner admission.
+- [x] **METALSDPAMASK-02**: Supported masked and causal SDPA paths execute through verified MPSGraph/native primitive DAGs or lowered sub-DAGs with CPU parity and trace-visible mask handling.
+- [x] **METALSDPAMASK-03**: Transformer attention coverage gates prove masked/causal attention stays on Metal for supported cases and rejects unsupported mask semantics visibly.
 
 ### Conv Pool Native Execution
 
@@ -118,9 +118,9 @@ Explicitly excluded from v1.5 to keep the milestone reviewable.
 | METALLAYOUT-01 | Phase 33 | Complete |
 | METALLAYOUT-02 | Phase 33 | Complete |
 | METALLAYOUT-03 | Phase 33 | Complete |
-| METALSDPAMASK-01 | Phase 34 | Pending |
-| METALSDPAMASK-02 | Phase 34 | Pending |
-| METALSDPAMASK-03 | Phase 34 | Pending |
+| METALSDPAMASK-01 | Phase 34 | Complete |
+| METALSDPAMASK-02 | Phase 34 | Complete |
+| METALSDPAMASK-03 | Phase 34 | Complete |
 | METALCONVPOOL-01 | Phase 35 | Pending |
 | METALCONVPOOL-02 | Phase 35 | Pending |
 | METALCONVPOOL-03 | Phase 35 | Pending |

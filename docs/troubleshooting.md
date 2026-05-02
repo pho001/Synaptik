@@ -225,7 +225,7 @@ Run one bridge test manually with the explicit library:
 
 If the task says it is only supported on macOS, that is expected: `buildMetalMpsShim` checks `os.name` for `mac`.
 
-Current dtype boundary: the Metal MPS FFM bridge keeps the legacy `_f32` path and adds a dtype ABI v3 compile path for widened metadata. The Java planner and bridge currently accept `FLOAT32` compute/output tensors, scoped `BFLOAT16` compute/output for supported operation families, `FLOAT32` or scoped `BFLOAT16` data inputs, `BOOL` predicate inputs such as the `where` condition, scoped BOOL-producing compare/logical/reduction outputs, and `INT32` external index inputs only for supported forward `GATHER` / `TAKE_ALONG_AXIS` paths. Direct unmasked FLOAT32 rank-3/4 SDPA is supported after native MPSGraph primitive-DAG scale parity verification. Direct masked SDPA remains a separate `UNSUPPORTED_MASK_SEMANTICS` case because Synaptik public masks are `BOOL`, while the verified native MPSGraph SDPA mask operand expects a floating tensor. Masked decomposed attention should stay as generic `WHERE`/`SOFTMAX`/`MATMUL` DAG operations rather than native `SDPA(maskTensor=bool)`. `FLOAT64`, generic `INT32` compute/output, unsupported BOOL consumers, and BF16 operations outside the scoped family list should remain on CPU with visible fallback or rejection.
+Current dtype boundary: the Metal MPS FFM bridge keeps the legacy `_f32` path and adds a dtype ABI v3 compile path for widened metadata. The Java planner and bridge currently accept `FLOAT32` compute/output tensors, scoped `BFLOAT16` compute/output for supported operation families, `FLOAT32` or scoped `BFLOAT16` data inputs, `BOOL` predicate inputs such as the `where` condition and direct SDPA input 3, scoped BOOL-producing compare/logical/reduction outputs, and `INT32` external index inputs only for supported forward `GATHER` / `TAKE_ALONG_AXIS` paths. Direct FLOAT32 rank-3/4 SDPA is supported after native MPSGraph primitive-DAG scale and mask parity verification for unmasked, dense external BOOL mask, causal, and external+causal effective mask modes. Non-dense or unsupported SDPA mask layouts remain explicit rejection cases. `FLOAT64`, generic `INT32` compute/output, unsupported BOOL consumers, and BF16 operations outside the scoped family list should remain on CPU with visible fallback or rejection.
 
 If a BF16 graph unexpectedly falls back, check all of these before treating it as a Metal bug:
 
@@ -237,7 +237,7 @@ If a BF16 graph unexpectedly falls back, check all of these before treating it a
 If a BOOL mask chain unexpectedly falls back, check all of these before treating it as a Metal bug:
 
 1. The operation family must be one of the scoped BOOL families: `GT`, `GE`, `LT`, `LE`, `EQ`, `NE`, `LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`, `REDUCE_ALL`, or `REDUCE_ANY`.
-2. `WHERE` may consume a BOOL predicate as input 0, but direct masked SDPA still rejects with `UNSUPPORTED_MASK_SEMANTICS`.
+2. `WHERE` may consume a BOOL predicate as input 0, and direct SDPA may consume a dense effective BOOL mask as input 3. Non-dense SDPA masks still reject with an explicit layout reason.
 3. The trace should include non-rejected `dtypeResidency` evidence with `dtype=BOOL`, especially `role=compute` or `role=internalValue` for produced masks.
 4. `bool_compare_where_small` hot-path gates require `BUFFER_BINDING`, lowered primitive evidence, zero CPU materializations, zero CPU fallback, zero tensor-array fallback, and BOOL dtype residency evidence.
 

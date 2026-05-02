@@ -152,6 +152,8 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 
 ### Phase 34: Masked And Causal SDPA
 
+**Status:** Complete - verified 2026-05-02
+
 **Goal:** Admit verified masked and causal Metal SDPA while preserving mask semantics.
 
 **Requirements:** METALSDPAMASK-01, METALSDPAMASK-02, METALSDPAMASK-03
@@ -169,7 +171,7 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 - [x] [34-01 Mask semantics and parity contract](phases/34-masked-and-causal-sdpa/34-01-PLAN.md).
 - [x] [34-02 Mask conversion/lowering and native execution](phases/34-masked-and-causal-sdpa/34-02-PLAN.md).
 - [x] [34-03 Causal SDPA support and rejection detail](phases/34-masked-and-causal-sdpa/34-03-PLAN.md).
-- [ ] [34-04 Transformer coverage closure](phases/34-masked-and-causal-sdpa/34-04-PLAN.md).
+- [x] [34-04 Transformer coverage closure](phases/34-masked-and-causal-sdpa/34-04-PLAN.md).
 
 ### Phase 35: Conv Pool Native Execution
 
