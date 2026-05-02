@@ -42,10 +42,14 @@ class CudaCapabilityReportTest {
 
         assertTrue(report.hasStatus(CudaCapabilityDimension.VENDOR_LIBRARY_ROUTE, CudaCapabilityDimensionStatus.NOT_INTEGRATED));
         assertTrue(details.contains("cuBLAS/cuDNN routing is not integrated in the CUDA graph bridge"));
-        assertTrue(details.contains("FLOAT32 compute/output"));
-        assertTrue(details.contains("BFLOAT16 compute/output"));
-        assertTrue(details.contains("BOOL output"));
-        assertTrue(details.contains("INT32 compute/output"));
+        assertTrue(details.contains("role=COMPUTE_INPUT dtype=FLOAT32 code=SUPPORTED"));
+        assertTrue(details.contains("role=COMPUTE_OUTPUT dtype=BFLOAT16 code=RESIDENCY_ONLY_NOT_COMPUTE"));
+        assertTrue(details.contains("role=COMPUTE_OUTPUT dtype=BOOL code=RESIDENCY_ONLY_NOT_COMPUTE"));
+        assertTrue(details.contains("role=COMPUTE_OUTPUT dtype=INT32 code=RESIDENCY_ONLY_NOT_COMPUTE"));
+        assertTrue(details.contains("role=INDEX_INPUT dtype=INT32 code=SUPPORTED"));
+        assertTrue(details.contains("role=PREDICATE_INPUT dtype=BOOL code=SUPPORTED"));
+        assertTrue(details.contains("role=RESIDENCY_ONLY dtype=BFLOAT16 code=SUPPORTED"));
+        assertTrue(details.contains("dtype residency is not native dtype compute"));
     }
 
     @Test

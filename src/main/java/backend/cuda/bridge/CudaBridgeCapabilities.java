@@ -3,6 +3,9 @@ package backend.cuda.bridge;
 import backend.accelerator.lowering.GpuBackendParityReport;
 import backend.accelerator.lowering.GpuBackendParityReporter;
 import backend.accelerator.lowering.GpuBackendParityRow;
+import backend.cuda.CudaDTypeRole;
+import backend.cuda.CudaDTypeRolePolicy;
+import tensor.DataType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -135,14 +138,24 @@ public record CudaBridgeCapabilities(
     }
 
     private static void addDTypeRoleEntries(List<CudaCapabilityReport.Entry> entries) {
-        entries.add(entry(CudaCapabilityDimension.DTYPE_ROLE, CudaCapabilityDimensionStatus.AVAILABLE,
-                "FLOAT32 compute/output is the current CUDA native dense graph contract."));
-        entries.add(entry(CudaCapabilityDimension.DTYPE_ROLE, CudaCapabilityDimensionStatus.UNAVAILABLE,
-                "BFLOAT16 compute/output is not supported by the CUDA graph bridge."));
-        entries.add(entry(CudaCapabilityDimension.DTYPE_ROLE, CudaCapabilityDimensionStatus.UNAVAILABLE,
-                "BOOL output is not supported by the CUDA graph bridge."));
-        entries.add(entry(CudaCapabilityDimension.DTYPE_ROLE, CudaCapabilityDimensionStatus.UNAVAILABLE,
-                "INT32 compute/output is not supported by the CUDA graph bridge."));
+        for (DataType dataType : List.of(
+                DataType.FLOAT32,
+                DataType.BFLOAT16,
+                DataType.BOOL,
+                DataType.INT32,
+                DataType.FLOAT64
+        )) {
+            for (CudaDTypeRole role : CudaDTypeRole.values()) {
+                var decision = CudaDTypeRolePolicy.decide(dataType, role);
+                entries.add(entry(
+                        CudaCapabilityDimension.DTYPE_ROLE,
+                        decision.supported()
+                                ? CudaCapabilityDimensionStatus.AVAILABLE
+                                : CudaCapabilityDimensionStatus.UNAVAILABLE,
+                        decision.detail()
+                ));
+            }
+        }
     }
 
     private static void addDagPrimitiveEntries(List<CudaCapabilityReport.Entry> entries) {

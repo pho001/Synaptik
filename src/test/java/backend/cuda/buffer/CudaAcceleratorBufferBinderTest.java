@@ -19,6 +19,7 @@ import tensor.Tensor;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CudaAcceleratorBufferBinderTest {
     @Test
@@ -58,10 +59,14 @@ class CudaAcceleratorBufferBinderTest {
     @Test
     void unsupportedInputDTypeIsRejected() {
         AcceleratorBufferDecision decision = new CudaAcceleratorBufferBinder(new FakeBridge(true))
-                .decide(request(dense(DataType.FLOAT64), dense(DataType.FLOAT32)), AcceleratorBufferConfig.defaults());
+                .decide(request(dense(DataType.INT32), dense(DataType.FLOAT32)), AcceleratorBufferConfig.defaults());
 
         assertEquals(AcceleratorBufferReasonCode.INPUT_DTYPE_UNSUPPORTED, decision.reasonCode());
         assertEquals(AcceleratorBufferReasonCode.INPUT_DTYPE_UNSUPPORTED, decision.inputs().getFirst().reasonCode());
+        assertTrue(decision.reason().contains("backend=GPU_CUDA"));
+        assertTrue(decision.reason().contains("role=COMPUTE_INPUT"));
+        assertTrue(decision.reason().contains("dtype=INT32"));
+        assertTrue(decision.reason().contains("RESIDENCY_ONLY_NOT_COMPUTE"));
     }
 
     @Test
@@ -71,6 +76,9 @@ class CudaAcceleratorBufferBinderTest {
 
         assertEquals(AcceleratorBufferReasonCode.OUTPUT_DTYPE_UNSUPPORTED, decision.reasonCode());
         assertEquals(AcceleratorBufferReasonCode.OUTPUT_DTYPE_UNSUPPORTED, decision.outputs().getFirst().reasonCode());
+        assertTrue(decision.reason().contains("role=COMPUTE_OUTPUT"));
+        assertTrue(decision.reason().contains("dtype=FLOAT64"));
+        assertTrue(decision.reason().contains("UNSUPPORTED_DTYPE"));
     }
 
     @Test

@@ -13,6 +13,7 @@ import backend.accelerator.buffer.AcceleratorBufferRequest;
 import backend.accelerator.buffer.AcceleratorLayoutAbiV2ReasonCodes;
 import backend.accelerator.buffer.AcceleratorLayoutAbiV2StatusCode;
 import backend.accelerator.buffer.AcceleratorLayoutAbiV2Support;
+import backend.cuda.CudaDTypeRolePolicy;
 import backend.cuda.bridge.CudaBridgeCapabilities;
 import backend.accelerator.exec.ResolvedAcceleratorInputs;
 import backend.cuda.bridge.CudaGraphBridge;
@@ -196,10 +197,11 @@ public final class CudaAcceleratorBufferBinder {
                                 + existing.getClass().getSimpleName()));
                 continue;
             }
-            if (expected != null && expected != DataType.FLOAT32 || layout.dataType() != DataType.FLOAT32) {
+            String dtypeReason = computeInputDTypeReason(layout, expected);
+            if (!dtypeReason.isBlank()) {
                 out.add(new AcceleratorBufferInputDecision(nodeId, layout, false, false,
                         AcceleratorBufferReasonCode.INPUT_DTYPE_UNSUPPORTED,
-                        "CUDA buffer input nodeId=" + nodeId + " supports only FLOAT32, got " + layout.dataType()));
+                        "CUDA buffer input nodeId=" + nodeId + " rejected: " + dtypeReason));
                 continue;
             }
             if (layout.layoutClass() != AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS) {
@@ -215,10 +217,19 @@ public final class CudaAcceleratorBufferBinder {
                         "prepared input materialization disabled for nodeId=" + nodeId));
                 continue;
             }
-            if (tensor == null || tensor.getDataType() != DataType.FLOAT32) {
+            if (tensor == null) {
                 out.add(new AcceleratorBufferInputDecision(nodeId, layout, prepared, false,
                         AcceleratorBufferReasonCode.INPUT_DTYPE_UNSUPPORTED,
-                        "CUDA buffer input nodeId=" + nodeId + " supports only FLOAT32 runtime tensors"));
+                        "CUDA buffer input nodeId=" + nodeId + " rejected: runtime tensor is unavailable"));
+                continue;
+            }
+            String runtimeDTypeReason = CudaDTypeRolePolicy.computeInput(tensor.getDataType()).supported()
+                    ? ""
+                    : CudaDTypeRolePolicy.computeInput(tensor.getDataType()).detail();
+            if (!runtimeDTypeReason.isBlank()) {
+                out.add(new AcceleratorBufferInputDecision(nodeId, layout, prepared, false,
+                        AcceleratorBufferReasonCode.INPUT_DTYPE_UNSUPPORTED,
+                        "CUDA buffer input nodeId=" + nodeId + " rejected: " + runtimeDTypeReason));
                 continue;
             }
             if (!prepared && context != null) {
@@ -244,10 +255,11 @@ public final class CudaAcceleratorBufferBinder {
             int nodeId = request.externalInputNodeIds().get(i);
             AcceleratorBufferLayout layout = request.externalInputLayouts().get(i);
             DataType expected = request.externalInputDataTypes().get(i);
-            if (expected != DataType.FLOAT32 || layout.dataType() != DataType.FLOAT32) {
+            String dtypeReason = computeInputDTypeReason(layout, expected);
+            if (!dtypeReason.isBlank()) {
                 out.add(new AcceleratorBufferInputDecision(nodeId, layout, false, false,
                         AcceleratorBufferReasonCode.INPUT_DTYPE_UNSUPPORTED,
-                        "CUDA buffer input nodeId=" + nodeId + " supports only FLOAT32, got " + layout.dataType()));
+                        "CUDA buffer input nodeId=" + nodeId + " rejected: " + dtypeReason));
                 continue;
             }
             if (layout.layoutClass() != AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS) {
@@ -289,10 +301,11 @@ public final class CudaAcceleratorBufferBinder {
                                 + existing.getClass().getSimpleName()));
                 continue;
             }
-            if (expected != null && expected != DataType.FLOAT32 || layout.dataType() != DataType.FLOAT32) {
+            String dtypeReason = computeOutputDTypeReason(layout, expected);
+            if (!dtypeReason.isBlank()) {
                 out.add(new AcceleratorBufferOutputDecision(nodeId, layout, false,
                         AcceleratorBufferReasonCode.OUTPUT_DTYPE_UNSUPPORTED,
-                        "CUDA buffer output nodeId=" + nodeId + " supports only FLOAT32, got " + layout.dataType()));
+                        "CUDA buffer output nodeId=" + nodeId + " rejected: " + dtypeReason));
                 continue;
             }
             if (layout.layoutClass() != AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS) {
@@ -315,10 +328,11 @@ public final class CudaAcceleratorBufferBinder {
             int nodeId = request.outputNodeIds().get(i);
             AcceleratorBufferLayout layout = request.outputLayouts().get(i);
             DataType expected = request.outputDataTypes().get(i);
-            if (expected != DataType.FLOAT32 || layout.dataType() != DataType.FLOAT32) {
+            String dtypeReason = computeOutputDTypeReason(layout, expected);
+            if (!dtypeReason.isBlank()) {
                 out.add(new AcceleratorBufferOutputDecision(nodeId, layout, false,
                         AcceleratorBufferReasonCode.OUTPUT_DTYPE_UNSUPPORTED,
-                        "CUDA buffer output nodeId=" + nodeId + " supports only FLOAT32, got " + layout.dataType()));
+                        "CUDA buffer output nodeId=" + nodeId + " rejected: " + dtypeReason));
                 continue;
             }
             if (layout.layoutClass() != AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS) {
@@ -509,6 +523,38 @@ public final class CudaAcceleratorBufferBinder {
             return true;
         }
         return actual == required;
+    }
+
+    private static String computeInputDTypeReason(AcceleratorBufferLayout layout, DataType expected) {
+        DataType layoutDType = layout == null ? null : layout.dataType();
+        if (expected != null) {
+            var expectedDecision = CudaDTypeRolePolicy.computeInput(expected);
+            if (!expectedDecision.supported()) {
+                return expectedDecision.detail();
+            }
+        }
+        if (layoutDType == null) {
+            return "backend=GPU_CUDA role=COMPUTE_INPUT dtype=<unknown> code="
+                    + CudaDTypeRolePolicy.UNSUPPORTED_DTYPE;
+        }
+        var layoutDecision = CudaDTypeRolePolicy.computeInput(layoutDType);
+        return layoutDecision.supported() ? "" : layoutDecision.detail();
+    }
+
+    private static String computeOutputDTypeReason(AcceleratorBufferLayout layout, DataType expected) {
+        DataType layoutDType = layout == null ? null : layout.dataType();
+        if (expected != null) {
+            var expectedDecision = CudaDTypeRolePolicy.computeOutput(expected);
+            if (!expectedDecision.supported()) {
+                return expectedDecision.detail();
+            }
+        }
+        if (layoutDType == null) {
+            return "backend=GPU_CUDA role=COMPUTE_OUTPUT dtype=<unknown> code="
+                    + CudaDTypeRolePolicy.UNSUPPORTED_DTYPE;
+        }
+        var layoutDecision = CudaDTypeRolePolicy.computeOutput(layoutDType);
+        return layoutDecision.supported() ? "" : layoutDecision.detail();
     }
 
     private static Tensor inputTensor(
