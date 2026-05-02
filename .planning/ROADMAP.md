@@ -233,10 +233,10 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 5. CPU parity covers reduction modes and ignore-index cases.
 
 **Planned waves:**
-- 37-01 Dense loss lowering contract.
-- 37-02 Index-target loss semantics and native/lowered support.
-- 37-03 Loss backward-adjacent integration.
-- 37-04 Coverage/report and docs closure.
+- [ ] [37-01 Dense loss lowering contract](phases/37-loss-adjacent-metal-lowering/37-01-PLAN.md).
+- [ ] [37-02 Dense and index-target loss admission](phases/37-loss-adjacent-metal-lowering/37-02-PLAN.md).
+- [ ] [37-03 Loss backward and training boundary gates](phases/37-loss-adjacent-metal-lowering/37-03-PLAN.md).
+- [ ] [37-04 Loss coverage report and docs closure](phases/37-loss-adjacent-metal-lowering/37-04-PLAN.md).
 
 ### Phase 38: Metal Training Backward Coverage
 
