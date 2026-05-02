@@ -115,6 +115,10 @@ public final class StandardWorkloads {
         return new GatherTakeWorkloadSpec(name, batch, features, picks);
     }
 
+    public static ScatterIndexGradientWorkloadSpec scatterIndexGradient(String name, int batch, int features, int picks) {
+        return new ScatterIndexGradientWorkloadSpec(name, batch, features, picks);
+    }
+
     public static LayoutRepairWorkloadSpec layoutBroadcastRepair(String name, int batch, int features) {
         return new LayoutRepairWorkloadSpec(name, batch, features);
     }
@@ -185,6 +189,7 @@ public final class StandardWorkloads {
                 .register(indexedLoss("cross_entropy_small", LossWorkloadSpec.LossKind.CROSS_ENTROPY_FROM_INDICES, 8, 16, LossReduction.MEAN))
                 .register(boolCompareWhere("bool_compare_where_small", 8, 32))
                 .register(gatherTake("gather_take_small", 8, 16, 4))
+                .register(scatterIndexGradient("scatter_index_gradient_small", 8, 16, 4))
                 .register(layoutBroadcastRepair("layout_broadcast_repair_small", 8, 32))
                 .register(maskedSdpa("masked_sdpa_small", 2, 2, 8, 8, 8))
                 .register(transformerHotPath("transformer_hot_path"))

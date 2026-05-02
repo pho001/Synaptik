@@ -249,6 +249,13 @@ If a forward gather/take path unexpectedly falls back, check all of these before
 4. Index values must be readable from a static leaf `INT32` tensor and must be in bounds. Unproven or out-of-range bounds reject with `UNSUPPORTED_BOUNDS_CHECK` because MPSGraph out-of-bounds gather behavior does not match CPU exception semantics.
 5. `gather_take_small` hot-path gates require `BUFFER_BINDING`, lowered primitive evidence, zero CPU materializations, zero CPU fallback, zero tensor-array fallback, and INT32 index dtype residency evidence.
 
+If `SCATTER_ADD`, `GATHER_GRAD`, or `TAKE_ALONG_AXIS_GRAD` appears to be counted as Metal support, treat that as a report or planner bug unless the native duplicate-index contract has explicitly changed:
+
+1. These operations are not covered by forward `gather_take_small`.
+2. `scatter_index_gradient_small` should remain a visible-blocker target.
+3. The visible reason should include `UNSUPPORTED_DUPLICATE_INDEX` or the specific operation name.
+4. Bounds, dtype, layout, and non-static index failures may appear before the duplicate blocker; those are also explicit rejection paths, not native execution proof.
+
 If a conv/pool path unexpectedly falls back, check all of these before treating it as a Metal bug:
 
 1. The operation must be forward `CONV2D`, `CONV2D_GEMM`, `MAX_POOL2D`, or `AVG_POOL2D`; conv/pool backward ops are still capability-gated.

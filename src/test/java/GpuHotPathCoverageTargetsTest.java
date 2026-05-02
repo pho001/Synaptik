@@ -41,6 +41,7 @@ public class GpuHotPathCoverageTargetsTest {
                 "cross_entropy_small",
                 "bool_compare_where_small",
                 "gather_take_small",
+                "scatter_index_gradient_small",
                 "layout_broadcast_repair_small",
                 "masked_sdpa_small"
         ), names);
@@ -60,7 +61,7 @@ public class GpuHotPathCoverageTargetsTest {
         ));
         List<String> names = request.workloads().stream().map(tuning.workload.WorkloadSpec::name).toList();
 
-        assertEquals(17, request.workloads().size());
+        assertEquals(18, request.workloads().size());
         assertTrue(names.contains("reduction_chain_small"));
         assertTrue(names.contains("reduction_chain_small_bf16"));
         assertTrue(names.contains("transformer_block_hot_path"));
@@ -76,6 +77,7 @@ public class GpuHotPathCoverageTargetsTest {
         assertTrue(names.contains("cross_entropy_small"));
         assertTrue(names.contains("bool_compare_where_small"));
         assertTrue(names.contains("gather_take_small"));
+        assertTrue(names.contains("scatter_index_gradient_small"));
         assertTrue(names.contains("layout_broadcast_repair_small"));
         assertTrue(names.contains("masked_sdpa_small"));
         assertEquals("phase14-target-coverage", request.entries().getFirst().name());
@@ -103,6 +105,9 @@ public class GpuHotPathCoverageTargetsTest {
                 .filter(target -> target.requirementFamilies().contains("METALINTIDX"))
                 .count());
         assertEquals(1, targets.stream()
+                .filter(target -> target.requirementFamilies().contains("METALSCATTER"))
+                .count());
+        assertEquals(1, targets.stream()
                 .filter(target -> target.requirementFamilies().contains("METALLAYOUT"))
                 .count());
         assertEquals(1, targets.stream()
@@ -115,6 +120,11 @@ public class GpuHotPathCoverageTargetsTest {
         assertTrue(targets.stream().allMatch(target -> target.requirementFamilies().contains("GPUCLOSE")));
         assertEquals(23, targets.getFirst().ownerPhase());
         assertEquals(34, targets.getLast().ownerPhase());
+        assertEquals(36, targets.stream()
+                .filter(target -> target.workloadName().equals("scatter_index_gradient_small"))
+                .findFirst()
+                .orElseThrow()
+                .ownerPhase());
         assertEquals(3, targets.stream()
                 .filter(target -> target.requirementFamilies().contains("METALCONVPOOL"))
                 .count());
@@ -124,7 +134,7 @@ public class GpuHotPathCoverageTargetsTest {
     void phaseTwentyTargetsHaveHardeningPolicies() {
         List<GpuCoverageHotPathExpectation> expectations = GpuHotPathCoverageTargets.defaultExpectations();
 
-        assertEquals(17, expectations.size());
+        assertEquals(18, expectations.size());
         assertTrue(expectations.stream().allMatch(expectation -> "GPU_METAL".equals(expectation.backend())));
         assertTrue(expectations.stream().allMatch(expectation -> expectation.policy() != null));
         assertTrue(GpuHotPathCoverageTargets.defaults().stream()
@@ -155,6 +165,7 @@ public class GpuHotPathCoverageTargetsTest {
                 "cross_entropy_small",
                 "bool_compare_where_small",
                 "gather_take_small",
+                "scatter_index_gradient_small",
                 "layout_broadcast_repair_small",
                 "masked_sdpa_small"
         ), expectationNames);
@@ -254,6 +265,8 @@ public class GpuHotPathCoverageTargetsTest {
         assertEquals(0, layoutRepair.policy().maxTensorArrayStepCount());
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "bool_compare_where_small");
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "gather_take_small");
+        assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_METAL"), "scatter_index_gradient_small");
+        assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "scatter_index_gradient_small");
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "layout_broadcast_repair_small");
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "masked_sdpa_small");
 
@@ -275,6 +288,7 @@ public class GpuHotPathCoverageTargetsTest {
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "max_pool2d_small");
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "avg_pool2d_small");
         assertVisibleBlocker(expectations, "cross_entropy_small");
+        assertVisibleBlocker(expectations, "scatter_index_gradient_small");
 
         GpuCoverageHotPathExpectation cudaSdpa = expectationsByName("GPU_CUDA").get("transformer_block_hot_path");
         assertTrue(!cudaSdpa.nativeEvidenceRequired());

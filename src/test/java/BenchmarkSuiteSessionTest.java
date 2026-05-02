@@ -288,12 +288,13 @@ public class BenchmarkSuiteSessionTest {
         ));
         List<String> names = request.workloads().stream().map(tuning.workload.WorkloadSpec::name).toList();
 
-        assertEquals(15, request.workloads().size());
+        assertEquals(18, request.workloads().size());
         assertTrue(names.contains("transformer_block_hot_path"));
         assertTrue(names.contains("mlp_classifier_small"));
         assertTrue(names.contains("mlp_classifier_small_bf16"));
         assertTrue(names.contains("conv2d_resnet_3x3"));
         assertTrue(names.contains("max_pool2d_small"));
+        assertTrue(names.contains("avg_pool2d_small"));
         assertTrue(names.contains("layer_norm_small"));
         assertTrue(names.contains("layer_norm_small_bf16"));
         assertTrue(names.contains("rms_norm_small"));
@@ -303,7 +304,9 @@ public class BenchmarkSuiteSessionTest {
         assertTrue(names.contains("cross_entropy_small"));
         assertTrue(names.contains("bool_compare_where_small"));
         assertTrue(names.contains("gather_take_small"));
+        assertTrue(names.contains("scatter_index_gradient_small"));
         assertTrue(names.contains("layout_broadcast_repair_small"));
+        assertTrue(names.contains("masked_sdpa_small"));
         assertTrue(request.entries().stream().anyMatch(entry -> entry.name().equals("phase14-target-coverage")));
     }
 

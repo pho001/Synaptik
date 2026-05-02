@@ -14,6 +14,7 @@ import tuning.workload.WorkloadInstance;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -40,6 +41,7 @@ public class StandardWorkloadsTest {
         assertTrue(catalog.names().contains("cross_entropy_small"));
         assertTrue(catalog.names().contains("bool_compare_where_small"));
         assertTrue(catalog.names().contains("gather_take_small"));
+        assertTrue(catalog.names().contains("scatter_index_gradient_small"));
         assertTrue(catalog.names().contains("layout_broadcast_repair_small"));
         assertTrue(catalog.names().contains("transformer_hot_path"));
         assertTrue(catalog.names().contains("transformer_block_hot_path"));
@@ -87,6 +89,36 @@ public class StandardWorkloadsTest {
         assertEquals(1, instance.root().getShapeUnsafe().length);
         assertEquals(ValidationTargetKind.ROOT, instance.validationTarget().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, instance.reference().kind());
+    }
+
+    @Test
+    void scatterIndexGradientWorkloadInstantiatesExplicitIndexWriteAndGradientGraph() {
+        ExecutionProfile profile = new ExecutionProfile(
+                "scatter-index-gradient-profile",
+                "scatter-index-gradient-profile",
+                tensor.DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+
+        WorkloadInstance instance = StandardWorkloads.scatterIndexGradient("scatter_index_gradient_small", 4, 8, 2)
+                .instantiate(new WorkloadEnvironment(profile));
+
+        assertEquals("scatter_index_gradient_small", instance.metadata().name());
+        assertEquals(tuning.workload.WorkloadKind.GENERIC, instance.metadata().kind());
+        assertEquals(1, instance.root().getShapeUnsafe().length);
+        assertEquals(ValidationTargetKind.ROOT, instance.validationTarget().kind());
+        assertEquals(ValidationReferenceKind.BASELINE_PROFILE, instance.reference().kind());
+        List<operations.Operation.OpType> opTypes = instance.root().topologicalSort().stream()
+                .map(tensor.Tensor::getOperation)
+                .filter(java.util.Objects::nonNull)
+                .map(operations.Operation::opType)
+                .toList();
+        assertTrue(opTypes.contains(operations.Operation.OpType.SCATTER_ADD));
+        assertTrue(opTypes.contains(operations.Operation.OpType.GATHER_GRAD));
+        assertTrue(opTypes.contains(operations.Operation.OpType.TAKE_ALONG_AXIS_GRAD));
     }
 
     @Test
@@ -218,6 +250,8 @@ public class StandardWorkloadsTest {
                 .instantiate(new WorkloadEnvironment(profile));
         var boolCompare = StandardWorkloads.boolCompareWhere("bool_compare_test", 4, 8)
                 .instantiate(new WorkloadEnvironment(profile));
+        var scatterIndexGradient = StandardWorkloads.scatterIndexGradient("scatter_index_gradient_test", 4, 8, 2)
+                .instantiate(new WorkloadEnvironment(profile));
 
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, matmul.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, conv.reference().kind());
@@ -228,6 +262,7 @@ public class StandardWorkloadsTest {
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, pool.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, loss.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, boolCompare.reference().kind());
+        assertEquals(ValidationReferenceKind.BASELINE_PROFILE, scatterIndexGradient.reference().kind());
 
         assertEquals(ValidationTargetKind.LABEL, matmul.validationTarget().kind());
         assertEquals("matmul", matmul.validationTarget().label());
@@ -240,6 +275,7 @@ public class StandardWorkloadsTest {
         assertEquals(ValidationTargetKind.ROOT, loss.validationTarget().kind());
         assertEquals(ValidationTargetKind.ROOT, reduction.validationTarget().kind());
         assertEquals(ValidationTargetKind.ROOT, boolCompare.validationTarget().kind());
+        assertEquals(ValidationTargetKind.ROOT, scatterIndexGradient.validationTarget().kind());
     }
 
     @Test

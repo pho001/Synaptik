@@ -121,6 +121,13 @@ public final class GpuHotPathCoverageTargets {
                         "Exercises forward GATHER and TAKE_ALONG_AXIS with INT32 index residency and native Metal execution."
                 ),
                 new GpuHotPathCoverageTarget(
+                        "scatter_index_gradient_small",
+                        "index_scatter_gradient",
+                        List.of("GPUNATIVE", "GPULOSSIDX", "GPUCLOSE", "METALSCATTER"),
+                        36,
+                        "Exercises SCATTER_ADD, GATHER_GRAD, and TAKE_ALONG_AXIS_GRAD as separately reported duplicate-index blockers."
+                ),
+                new GpuHotPathCoverageTarget(
                         "layout_broadcast_repair_small",
                         "layout_repair",
                         List.of("GPUNATIVE", "GPUCLOSE", "METALLAYOUT"),
@@ -252,6 +259,13 @@ public final class GpuHotPathCoverageTargets {
                         gatherTakePolicy(resolvedBackend),
                         "GPU_METAL".equals(resolvedBackend) ? List.of() : List.of("CAPABILITY_MISSING", "GATHER", "TAKE_ALONG_AXIS"),
                         "GPU_METAL".equals(resolvedBackend)
+                ),
+                new GpuCoverageHotPathExpectation(
+                        "scatter_index_gradient_small",
+                        resolvedBackend,
+                        partialBlockerPolicy(resolvedBackend),
+                        List.of("UNSUPPORTED_DUPLICATE_INDEX", "SCATTER_ADD", "GATHER_GRAD", "TAKE_ALONG_AXIS_GRAD"),
+                        false
                 ),
                 new GpuCoverageHotPathExpectation(
                         "layout_broadcast_repair_small",

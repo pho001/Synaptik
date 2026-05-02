@@ -51,9 +51,9 @@ Requirements for the v1.5 milestone. Each requirement maps to exactly one roadma
 
 ### Scatter And Index Gradient Semantics
 
-- [ ] **METALSCATTER-01**: `SCATTER_ADD`, `GATHER_GRAD`, and `TAKE_ALONG_AXIS_GRAD` have explicit duplicate-index accumulation semantics and either native Metal execution or stable unsupported rejection.
-- [ ] **METALSCATTER-02**: Index gradient paths preserve CPU parity for duplicate indices, bounds behavior, and dtype/layout edge cases.
-- [ ] **METALSCATTER-03**: Supported scatter/index-gradient regions can remain device-owned across adjacent Metal producers and consumers.
+- [x] **METALSCATTER-01**: `SCATTER_ADD`, `GATHER_GRAD`, and `TAKE_ALONG_AXIS_GRAD` have explicit duplicate-index accumulation semantics and either native Metal execution or stable unsupported rejection.
+- [x] **METALSCATTER-02**: Index gradient paths preserve CPU parity for duplicate indices, bounds behavior, and dtype/layout edge cases.
+- [x] **METALSCATTER-03**: Supported scatter/index-gradient regions can remain device-owned across adjacent Metal producers and consumers.
 
 ### Loss-Adjacent Metal Lowering
 
@@ -124,9 +124,9 @@ Explicitly excluded from v1.5 to keep the milestone reviewable.
 | METALCONVPOOL-01 | Phase 35 | Complete |
 | METALCONVPOOL-02 | Phase 35 | Complete |
 | METALCONVPOOL-03 | Phase 35 | Complete |
-| METALSCATTER-01 | Phase 36 | Pending |
-| METALSCATTER-02 | Phase 36 | Pending |
-| METALSCATTER-03 | Phase 36 | Pending |
+| METALSCATTER-01 | Phase 36 | Complete |
+| METALSCATTER-02 | Phase 36 | Complete |
+| METALSCATTER-03 | Phase 36 | Complete |
 | METALLOSS-01 | Phase 37 | Pending |
 | METALLOSS-02 | Phase 37 | Pending |
 | METALLOSS-03 | Phase 37 | Pending |

@@ -90,6 +90,27 @@ public class GpuCoverageSummaryTest {
                     backend == ComputeBackend.GPU_METAL
                             ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
                             : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                    rows.get(operations.Operation.OpType.TAKE_ALONG_AXIS).executionStatus()
+            );
+            assertEquals(
+                    GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                    rows.get(operations.Operation.OpType.GATHER_GRAD).executionStatus()
+            );
+            assertEquals(
+                    GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                    rows.get(operations.Operation.OpType.TAKE_ALONG_AXIS_GRAD).executionStatus()
+            );
+            assertEquals(
+                    GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                    rows.get(operations.Operation.OpType.SCATTER_ADD).executionStatus()
+            );
+            assertTrue(rows.get(operations.Operation.OpType.GATHER_GRAD).detail().contains("UNSUPPORTED_DUPLICATE_INDEX"));
+            assertTrue(rows.get(operations.Operation.OpType.TAKE_ALONG_AXIS_GRAD).detail().contains("UNSUPPORTED_DUPLICATE_INDEX"));
+            assertTrue(rows.get(operations.Operation.OpType.SCATTER_ADD).detail().contains("UNSUPPORTED_DUPLICATE_INDEX"));
+            assertEquals(
+                    backend == ComputeBackend.GPU_METAL
+                            ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
+                            : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
                     rows.get(operations.Operation.OpType.CONV2D).executionStatus()
             );
             assertEquals(

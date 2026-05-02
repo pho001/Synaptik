@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Production-Grade Metal Backend Expansion
 status: active
-last_updated: "2026-05-02T10:21:04Z"
-last_activity: 2026-05-02 -- Phase 36-03 gradient parity gates completed
+last_updated: "2026-05-02T10:26:24Z"
+last_activity: 2026-05-02 -- Phase 36 verification completed
 progress:
   total_phases: 11
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 44
-  completed_plans: 31
-  percent: 70
+  completed_plans: 32
+  percent: 73
 ---
 
 # GSD State
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 36 — Scatter And Index Gradient Semantics
+**Current focus:** Phase 37 — Loss-Adjacent Metal Lowering
 
 ## Project Reference
 
@@ -81,7 +81,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 33 — GPU Layout Router And Strided Materialization | Complete | 4/4 | Verified |
 | 34 — Masked And Causal SDPA | Complete | 4/4 | Verified |
 | 35 — Conv Pool Native Execution | Complete | 4/4 | Verified |
-| 36 — Scatter And Index Gradient Semantics | In Progress | 3/4 | Pending |
+| 36 — Scatter And Index Gradient Semantics | Complete | 4/4 | Verified |
 | 37 — Loss-Adjacent Metal Lowering | Planned | 0/4 | Pending |
 | 38 — Metal Training Backward Coverage | Planned | 0/4 | Pending |
 | 39 — Metal Backend Router And Zero-Copy Closure | Planned | 0/4 | Pending |

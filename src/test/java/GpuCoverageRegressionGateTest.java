@@ -378,6 +378,41 @@ public class GpuCoverageRegressionGateTest {
                         && failure.contains(expectation.backend())));
     }
 
+    @Test
+    void phaseThirtySixScatterIndexGradientRequiresDuplicateIndexBlockerVisibility() {
+        GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.expectationsForBackend("GPU_METAL")
+                .stream()
+                .filter(item -> item.workloadName().equals("scatter_index_gradient_small"))
+                .findFirst()
+                .orElseThrow();
+        var missingReason = reportWithRejectedReason(
+                "scatter_index_gradient_small",
+                "GPU_METAL",
+                backend.ComputeBackend.GPU_METAL,
+                "unsupported-layout"
+        );
+        var visibleReason = reportWithRejectedReason(
+                "scatter_index_gradient_small",
+                "GPU_METAL",
+                backend.ComputeBackend.GPU_METAL,
+                "UNSUPPORTED_DUPLICATE_INDEX: operation SCATTER_ADD GPU_METAL native duplicate-index accumulation is not proven"
+        );
+
+        List<GpuCoverageGateResult> missing = GpuCoverageRegressionGate.evaluateTargets(
+                missingReason,
+                List.of(expectation)
+        );
+        List<GpuCoverageGateResult> visible = GpuCoverageRegressionGate.evaluateTargets(
+                visibleReason,
+                List.of(expectation)
+        );
+
+        assertTrue(missing.getFirst().failures().stream()
+                .anyMatch(failure -> failure.contains("scatter_index_gradient_small")
+                        && failure.contains(expectation.backend())));
+        assertTrue(visible.getFirst().passed(), visible.getFirst().failures().toString());
+    }
+
     private static config.profile.ExecutionProfile profile() {
         return new config.profile.ExecutionProfile(
                 "phase28-gate-profile",

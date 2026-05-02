@@ -136,7 +136,7 @@ Phase 26 makes loss-adjacent and indexing gaps explicit without claiming native 
 
 Phase 32 promotes scoped Metal forward `GATHER` and `TAKE_ALONG_AXIS` from residency-only evidence to native index compute for dense `FLOAT32` value/output tensors with `INT32` index inputs whose bounds can be proven from a static leaf index tensor. `TAKE_ALONG_AXIS` maps directly to MPSGraph `gatherAlongAxis`; `GATHER` expands the reduced index tensor on the gathered axis, runs `gatherAlongAxis`, then squeezes the axis back to the public shape. Unproven or out-of-range bounds reject with `UNSUPPORTED_BOUNDS_CHECK` because MPSGraph out-of-bounds behavior does not match CPU exception semantics. CUDA forward gather/take remains `CAPABILITY_MISSING`.
 
-Phase 36 locks the index-write and index-gradient blocker before any native support claim. `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, and `SCATTER_ADD` remain `UNSUPPORTED_DUPLICATE_INDEX` until backend execution proves CPU-compatible duplicate-index accumulation, static bounds checks, and device-resident gradient/write-add behavior. Metal planner diagnostics now validate the narrow candidate contract first: dense `FLOAT32` values/output, dense static `INT32` indices, legal rank/axis/shape, and in-bounds indices. If those pass, the remaining rejection is the duplicate-index accumulation blocker. Forward index support must not be counted as index-gradient support in reports.
+Phase 36 locks the index-write and index-gradient blocker before any native support claim. `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, and `SCATTER_ADD` remain `UNSUPPORTED_DUPLICATE_INDEX` until backend execution proves CPU-compatible duplicate-index accumulation, static bounds checks, and device-resident gradient/write-add behavior. Metal planner diagnostics now validate the narrow candidate contract first: dense `FLOAT32` values/output, dense static `INT32` indices, legal rank/axis/shape, and in-bounds indices. If those pass, the remaining rejection is the duplicate-index accumulation blocker. Forward index support must not be counted as index-gradient support in reports: `gather_take_small` is the native forward index target, while `scatter_index_gradient_small` is the visible-blocker target for `SCATTER_ADD`, `GATHER_GRAD`, and `TAKE_ALONG_AXIS_GRAD`.
 
 `native support is not implied by matrix text alone`. A supported row means lowering, legality, native execution, trace/report, and parity evidence exist for the legal scoped case. A fallback or unsupported row means the blocker is recognized, diagnosed, and kept visible for planning and reports.
 
@@ -273,6 +273,11 @@ stable visible blockers. Conv/pool, CUDA BOOL-producing outputs, loss/index bloc
 must surface reason evidence such as `CAPABILITY_MISSING`, `UNSUPPORTED_DTYPE`, `UNSUPPORTED_INDEX_SEMANTICS`, operation
 family names, or target names. They do not count as native coverage closure until backend-owned execution and parity
 evidence exist.
+
+Phase 36 adds `scatter_index_gradient_small` to that visible-blocker set. It must surface `UNSUPPORTED_DUPLICATE_INDEX`
+or one of the named index-write/gradient operations (`SCATTER_ADD`, `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`) rather than
+passing because forward `GATHER` / `TAKE_ALONG_AXIS` coverage exists. The native forward target remains
+`gather_take_small`, which still requires `INT32` dtype residency and native buffer evidence.
 
 Suite reports include `coverageDeltaVsBaseline` so reviewers can compare trace-derived coverage counters against the
 v1.4 pre-closure baseline without using raw latency medians as proof. The relevant evidence fields are

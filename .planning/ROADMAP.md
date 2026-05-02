@@ -196,6 +196,8 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 
 ### Phase 36: Scatter And Index Gradient Semantics
 
+**Status:** Complete - verified 2026-05-02
+
 **Goal:** Support or explicitly reject duplicate-index scatter and index-gradient paths.
 
 **Requirements:** METALSCATTER-01, METALSCATTER-02, METALSCATTER-03
@@ -213,7 +215,7 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 - [x] [36-01 Scatter/index-gradient semantics contract](phases/36-scatter-and-index-gradient-semantics/36-01-PLAN.md).
 - [x] [36-02 Native or stable-rejection scatter execution](phases/36-scatter-and-index-gradient-semantics/36-02-PLAN.md).
 - [x] [36-03 Gradient parity and duplicate-index gates](phases/36-scatter-and-index-gradient-semantics/36-03-PLAN.md).
-- [ ] [36-04 Trace report and coverage closure](phases/36-scatter-and-index-gradient-semantics/36-04-PLAN.md).
+- [x] [36-04 Trace report and coverage closure](phases/36-scatter-and-index-gradient-semantics/36-04-PLAN.md).
 
 ### Phase 37: Loss-Adjacent Metal Lowering
 
