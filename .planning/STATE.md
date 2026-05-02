@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Accelerator Backend Parity And Native Kernel Closure
 status: executing
-last_updated: "2026-05-02T13:45:06.911Z"
-last_activity: 2026-05-02 -- Phase 40 execution complete
+last_updated: "2026-05-02T13:50:04.550Z"
+last_activity: 2026-05-02 -- Phase 41 planning complete
 progress:
   total_phases: 7
   completed_phases: 1
@@ -77,7 +77,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
 | 40 — CUDA Parity Gap Triage And Capability Baseline | Complete | 4/4 | Verified |
-| 41 — CUDA DType Layout And Index Residency | Not started | 0/4 | Not verified |
+| 41 — CUDA DType Layout And Index Residency | Planned | 0/4 | Not verified |
 | 42 — CUDA NN Operation Parity | Not started | 0/4 | Not verified |
 | 43 — CUDA Training And Index Semantics | Not started | 0/4 | Not verified |
 | 44 — Custom Metal Kernel Execution Route | Not started | 0/4 | Not verified |
@@ -295,5 +295,5 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 
 Phase: 41 CUDA DType Layout And Index Residency
 Plan: none
-Status: Ready for `$gsd-discuss-phase 41 --auto` or `$gsd-plan-phase 41 --auto`
-Last activity: 2026-05-02 -- Phase 40 validation passed
+Status: Ready to execute
+Last activity: 2026-05-02 -- Phase 41 planning complete
