@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Production-Grade Metal Backend Expansion
 status: active
-last_updated: "2026-05-02T11:05:00Z"
-last_activity: 2026-05-02 -- Phase 38-01 backward coverage truth completed
+last_updated: "2026-05-02T11:12:00Z"
+last_activity: 2026-05-02 -- Phase 38-02 backward native evidence completed
 progress:
   total_phases: 11
   completed_phases: 9
   total_plans: 44
-  completed_plans: 37
-  percent: 84
+  completed_plans: 38
+  percent: 86
 ---
 
 # GSD State
@@ -83,7 +83,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 35 — Conv Pool Native Execution | Complete | 4/4 | Verified |
 | 36 — Scatter And Index Gradient Semantics | Complete | 4/4 | Verified |
 | 37 — Loss-Adjacent Metal Lowering | Complete | 4/4 | Verified |
-| 38 — Metal Training Backward Coverage | In Progress | 1/4 | Pending |
+| 38 — Metal Training Backward Coverage | In Progress | 2/4 | Pending |
 | 39 — Metal Backend Router And Zero-Copy Closure | Planned | 0/4 | Pending |
 | 22 — Coverage Truth And Semantics Lock | Archived | 3/3 | Verified |
 | 23 — Forward Reductions Native Execution | Archived | 3/3 | Verified |
@@ -205,6 +205,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | Phase 37 verification passed | Dense loss has a separate `dense_loss_small` native Metal target and index-target `cross_entropy_small` remains a visible `UNSUPPORTED_INDEX_SEMANTICS` blocker. |
 | 2026-05-02 | Phase 38 planning completed | Four plans cover backward truth/legality, supported backward execution evidence, training trace gates, and final parity/docs closure for `METALTRAIN-01..03`. |
 | 2026-05-02 | Phase 38-01 completed | Backward target truth now tracks supported and unsupported training rows separately from forward support, with docs and coverage tests. |
+| 2026-05-02 | Phase 38-02 completed | Supported Metal softmax/log-softmax/min/max backward rows now have native buffer trace evidence; SDPA backward remains matrix-supported-only with required-buffer rejection. |
 
 ## Recent Sessions
 

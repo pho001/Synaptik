@@ -160,7 +160,6 @@ public final class GpuTargetCoverageTruth {
         metalTargets.add(Operation.OpType.REDUCE_MAX_GRAD);
         metalTargets.add(Operation.OpType.MIN_GRAD);
         metalTargets.add(Operation.OpType.MAX_GRAD);
-        metalTargets.add(Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD);
         metalTargets.add(Operation.OpType.GATHER);
         metalTargets.add(Operation.OpType.TAKE_ALONG_AXIS);
         metalTargets.add(Operation.OpType.CONV2D);

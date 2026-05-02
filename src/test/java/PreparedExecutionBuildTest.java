@@ -2410,6 +2410,55 @@ public class PreparedExecutionBuildTest {
         assertArrayEquals(expectedGradV, v.getGradient().toDoubleArrayCopy(), 1e-5);
     }
 
+    @Test
+    void gpuMetalSupportedBackwardRowsUseNativeBufferBindingWithExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor softmaxInput = trainable("metalBackwardTraceSoftmax", 2, 3);
+        Tensor softmax = softmaxInput.exp().softmax(1);
+        TensorInternalAccess.setBackend(softmax, ComputeBackend.GPU_METAL);
+        assertMetalBackwardBufferBinding(weightedSum(softmax, "metalBackwardTraceSoftmaxWeight"), Operation.OpType.SOFTMAX_GRAD, 1);
+
+        Tensor logSoftmaxInput = trainable("metalBackwardTraceLogSoftmax", 2, 3);
+        Tensor logSoftmax = logSoftmaxInput.exp().logSoftmax(1);
+        TensorInternalAccess.setBackend(logSoftmax, ComputeBackend.GPU_METAL);
+        assertMetalBackwardBufferBinding(weightedSum(logSoftmax, "metalBackwardTraceLogSoftmaxWeight"), Operation.OpType.LOG_SOFTMAX_GRAD, 1);
+
+        Tensor minInput = trainable("metalBackwardTraceReduceMin", 2, 3);
+        Tensor reduceMin = minInput.min(1, true);
+        TensorInternalAccess.setBackend(reduceMin, ComputeBackend.GPU_METAL);
+        assertMetalBackwardBufferBinding(weightedSum(reduceMin, "metalBackwardTraceReduceMinWeight"), Operation.OpType.REDUCE_MIN_GRAD, 1);
+
+        Tensor maxInput = trainable("metalBackwardTraceReduceMax", 2, 4);
+        Tensor reduceMax = maxInput.max(0, true);
+        TensorInternalAccess.setBackend(reduceMax, ComputeBackend.GPU_METAL);
+        assertMetalBackwardBufferBinding(weightedSum(reduceMax, "metalBackwardTraceReduceMaxWeight"), Operation.OpType.REDUCE_MAX_GRAD, 1);
+
+        Tensor a = trainable("metalBackwardTraceMinA", 3);
+        Tensor b = trainable("metalBackwardTraceMinB", 3);
+        Tensor min = a.min(b);
+        TensorInternalAccess.setBackend(min, ComputeBackend.GPU_METAL);
+        assertMetalBackwardBufferBinding(weightedSum(min, "metalBackwardTraceMinWeight"), Operation.OpType.MIN_GRAD, 1);
+
+        Tensor c = trainable("metalBackwardTraceMaxA", 3);
+        Tensor d = trainable("metalBackwardTraceMaxB", 3);
+        Tensor max = c.max(d);
+        TensorInternalAccess.setBackend(max, ComputeBackend.GPU_METAL);
+        assertMetalBackwardBufferBinding(weightedSum(max, "metalBackwardTraceMaxWeight"), Operation.OpType.MAX_GRAD, 1);
+
+        Tensor q = trainable("metalBackwardTraceSdpaQ", 1, 2, 2);
+        Tensor k = trainable("metalBackwardTraceSdpaK", 1, 2, 2);
+        Tensor v = trainable("metalBackwardTraceSdpaV", 1, 2, 2);
+        Tensor attention = q.scaledDotProductAttention(k, v, tensor.options.AttentionOptions.defaults().withScale(1.0));
+        TensorInternalAccess.setBackend(attention, ComputeBackend.GPU_METAL);
+        assertMetalBackwardRequiredBufferRejects(
+                weightedSum(attention, "metalBackwardTraceSdpaWeight"),
+                "BRIDGE_UNAVAILABLE",
+                "forward SDPA DAG unsupported"
+        );
+    }
+
 
     @Test
     void gpuMetalLinearBiasTanhCanExecuteThroughExplicitAppleShim() {
@@ -4351,6 +4400,80 @@ public class PreparedExecutionBuildTest {
                 .filter(node -> node.id() == nodeId)
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private static Tensor trainable(String label, int... shape) {
+        int size = 1;
+        for (int dim : shape) {
+            size *= dim;
+        }
+        float[] data = new float[size];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (float) (Math.sin(i * 0.17d + label.length() * 0.01d) + 0.1d * i);
+        }
+        Tensor tensor = new Tensor(data, shape, null, label, DataType.FLOAT32);
+        tensor.setRequiresGrad(true);
+        return tensor;
+    }
+
+    private static Tensor weightedSum(Tensor value, String label) {
+        int[] shape = value.getShapeUnsafe();
+        int size = 1;
+        for (int dim : shape) {
+            size *= dim;
+        }
+        float[] data = new float[size];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = 0.25f + (i % 5) * 0.125f;
+        }
+        return value.mul(new Tensor(data, shape, null, label, DataType.FLOAT32)).sum();
+    }
+
+    private static void assertMetalBackwardBufferBinding(Tensor loss, Operation.OpType opType, int minSteps) {
+        PreparedExecution execution = CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults())
+                .prepare(runtimeWithRequiredAcceleratorBufferNoThreshold(ComputeBackend.GPU_METAL));
+        var preparedSteps = execution.backwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == opType)
+                .toList();
+        assertTrue(preparedSteps.size() >= minSteps, opType.name());
+
+        var trace = execution.executeTraced(ExecutionMode.FORWARD_BACKWARD);
+        var tracedSteps = trace.steps().stream()
+                .filter(step -> "GPU_METAL".equals(step.backend()))
+                .filter(step -> opType.name().equals(step.opType()))
+                .toList();
+        assertTrue(tracedSteps.size() >= minSteps, opType.name());
+        for (var step : tracedSteps) {
+            Map<String, Object> attrs = step.metadata().attributes();
+            assertEquals("BUFFER_BINDING", attrs.get("acceleratorBufferExecutionPath"), opType.name());
+            assertEquals("BUFFER_BINDING_AVAILABLE", attrs.get("acceleratorBufferReasonCode"), opType.name());
+        }
+    }
+
+    private static void assertMetalBackwardRequiredBufferRejects(Tensor loss, String... expectedSubstrings) {
+        PreparedExecution execution = CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults())
+                .prepare(runtimeWithRequiredAcceleratorBufferNoThreshold(ComputeBackend.GPU_METAL));
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> execution.executeTraced(ExecutionMode.FORWARD_BACKWARD)
+        );
+        assertContainsAll(failure.getMessage(), expectedSubstrings);
+    }
+
+    private static RuntimeConfig runtimeWithRequiredAcceleratorBufferNoThreshold(ComputeBackend backend) {
+        RuntimeConfig defaults = RuntimeConfig.inferenceDefaults();
+        AcceleratorBackendConfig required = defaults.accelerator().forBackend(backend).withBuffer(
+                new AcceleratorBufferConfig(AcceleratorBufferBindingMode.REQUIRE, true, 0)
+        );
+        AcceleratorConfig accelerator = switch (backend) {
+            case GPU_METAL -> defaults.accelerator().withMetal(required);
+            case GPU_CUDA -> defaults.accelerator().withCuda(required);
+            case GPU_OPENCL -> defaults.accelerator().withOpencl(required);
+            case CPU -> defaults.accelerator();
+        };
+        return defaults.withAccelerator(accelerator);
     }
 
     private static PartitionPlanningContext planningContext(CompiledGraph compiled) {

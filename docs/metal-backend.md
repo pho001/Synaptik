@@ -212,7 +212,7 @@ Metal partition legality is intentionally separate from runtime availability. A 
 | Leaves | Rejected as compute nodes. Leaves become external inputs to a Metal region. |
 | DType | Compute and output nodes must be `FLOAT32`, `BFLOAT16` for the scoped operation families listed in [Supported Operations And DTypes](#supported-operations-and-dtypes), or `BOOL` for the scoped compare/logical/reduction mask families. |
 | Forward ops | Allows `MATMUL`, `LINEAR`, arithmetic elementwise ops, common activations, `WHERE`, `SOFTMAX`, shape/layout ops such as `RESHAPE`, `CONTIGUOUS`, `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE`. |
-| Backward ops | Allows `MATMUL`, `LINEAR`, softmax/log-softmax gradients, min/max reduction gradients, min/max gradients, and `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD`; this allowlist is independent from forward-family support. |
+| Backward ops | Allows `MATMUL`, `LINEAR`, softmax/log-softmax gradients, min/max reduction gradients, min/max gradients, and planner-level `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD`; this allowlist is independent from forward-family support, and SDPA backward is not native-buffer executable until the bridge supports the backward SDPA DAG. |
 | Direct forward SDPA | Supported for legal dense FLOAT32 rank-3/4 inputs after native MPSGraph primitive DAG scale parity verification. |
 | Direct masked/causal forward SDPA | Supported when the effective mask is a dense BOOL tensor: external mask, causal-only mask, and external+causal logical-AND mask all feed SDPA input 3. Unsupported mask dtype/layout/rank cases reject explicitly. |
 | Conv/pool | Not in the current tested Metal planner allowlist. |

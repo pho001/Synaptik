@@ -259,7 +259,7 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 
 **Planned waves:**
 - [x] [38-01 Backward coverage matrix and legality update](phases/38-metal-training-backward-coverage/38-01-PLAN.md).
-- [ ] [38-02 Backward native/lowered execution for supported families](phases/38-metal-training-backward-coverage/38-02-PLAN.md).
+- [x] [38-02 Backward native/lowered execution for supported families](phases/38-metal-training-backward-coverage/38-02-PLAN.md).
 - [ ] [38-03 Training trace and gradient publication gates](phases/38-metal-training-backward-coverage/38-03-PLAN.md).
 - [ ] [38-04 Final training parity closure](phases/38-metal-training-backward-coverage/38-04-PLAN.md).
 
