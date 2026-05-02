@@ -63,9 +63,9 @@ Requirements for the v1.5 milestone. Each requirement maps to exactly one roadma
 
 ### Metal Training Backward Coverage
 
-- [ ] **METALTRAIN-01**: Backward coverage for v1.5-supported forward families keeps gradients on Metal where semantics and backend capability permit it.
-- [ ] **METALTRAIN-02**: Conv/pool, masked SDPA, loss/indexing, normalization variants, BF16, BOOL, and INT32-related backward paths have either verified Metal execution or stable capability-gated rejection.
-- [ ] **METALTRAIN-03**: Training-mode coverage gates distinguish true gradient publication boundaries from avoidable CPU materialization inside the backward graph.
+- [x] **METALTRAIN-01**: Backward coverage for v1.5-supported forward families keeps gradients on Metal where semantics and backend capability permit it.
+- [x] **METALTRAIN-02**: Conv/pool, masked SDPA, loss/indexing, normalization variants, BF16, BOOL, and INT32-related backward paths have either verified Metal execution or stable capability-gated rejection.
+- [x] **METALTRAIN-03**: Training-mode coverage gates distinguish true gradient publication boundaries from avoidable CPU materialization inside the backward graph.
 
 ### Metal Backend Router And Zero-Copy Closure
 
@@ -130,9 +130,9 @@ Explicitly excluded from v1.5 to keep the milestone reviewable.
 | METALLOSS-01 | Phase 37 | Complete |
 | METALLOSS-02 | Phase 37 | Complete |
 | METALLOSS-03 | Phase 37 | Complete |
-| METALTRAIN-01 | Phase 38 | Pending |
-| METALTRAIN-02 | Phase 38 | Pending |
-| METALTRAIN-03 | Phase 38 | Pending |
+| METALTRAIN-01 | Phase 38 | Complete |
+| METALTRAIN-02 | Phase 38 | Complete |
+| METALTRAIN-03 | Phase 38 | Complete |
 | METALROUTER-01 | Phase 39 | Pending |
 | METALROUTER-02 | Phase 39 | Pending |
 | METALROUTER-03 | Phase 39 | Pending |
