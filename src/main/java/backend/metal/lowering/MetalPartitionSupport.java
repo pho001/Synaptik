@@ -92,6 +92,12 @@ public final class MetalPartitionSupport {
                 return sdpaReason;
             }
         }
+        if (MetalConvPoolSemantics.isForwardConvPool(opType)) {
+            String convPoolReason = MetalConvPoolSemantics.unsupportedReason(node, context);
+            if (!convPoolReason.isBlank()) {
+                return convPoolReason;
+            }
+        }
         if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED) {
             return compoundPatternPrefix(opType) + GpuLoweringCoverageMatrix.plannerUnsupportedDetail(ComputeBackend.GPU_METAL, opType);
         }

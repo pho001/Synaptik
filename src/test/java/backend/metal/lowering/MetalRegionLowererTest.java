@@ -31,6 +31,9 @@ import graph.optimizer.region.OptimizedRegion;
 import graph.optimizer.region.RegionOptimizationContext;
 import operations.Operation;
 import operations.elementwise.where.where;
+import operations.nn.conv.conv2d;
+import operations.nn.conv.conv2dGemm;
+import operations.nn.pool.maxPool2d;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -321,9 +324,10 @@ class MetalRegionLowererTest {
         String convReason = MetalPartitionSupport.plannerUnsupportedReason(convContext.compiledNode(nodeId(convContext, Operation.OpType.CONV2D)), convContext);
 
         assertContainsAll(convReason,
+                "CAPABILITY_MISSING",
+                "CONV2D forward semantic contract is legal",
                 "family=CONV_POOL",
-                "target=conv2d_resnet_3x3",
-                "operation CONV2D is not supported by GPU_METAL lowering");
+                "target=conv2d_resnet_3x3");
 
         Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "metalPhase17LossLogits", DataType.FLOAT32);
         Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalPhase17LossTargets", DataType.INT32);
@@ -523,8 +527,206 @@ class MetalRegionLowererTest {
         );
 
         assertEquals("", compareReason);
-        assertContainsAll(maxPoolReason, "CAPABILITY_MISSING", "operation MAX_POOL2D", "family=CONV_POOL", "target=max_pool2d_small");
-        assertContainsAll(avgPoolReason, "CAPABILITY_MISSING", "operation AVG_POOL2D", "family=CONV_POOL");
+        assertContainsAll(maxPoolReason, "CAPABILITY_MISSING", "MAX_POOL2D forward semantic contract is legal", "family=CONV_POOL", "target=max_pool2d_small");
+        assertContainsAll(avgPoolReason, "CAPABILITY_MISSING", "AVG_POOL2D forward semantic contract is legal", "family=CONV_POOL");
+    }
+
+    @Test
+    void phaseThirtyFiveConvPoolReasonsClassifyLegalCasesBeforeNativeSupport() {
+        Tensor input = new Tensor(
+                new float[]{
+                        1f, 2f, 3f,
+                        4f, 5f, 6f,
+                        7f, 8f, 9f
+                },
+                new int[]{1, 1, 3, 3},
+                null,
+                "metalPhase35ConvInput",
+                DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 1, 2, 2}, null, "metalPhase35ConvWeight", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.5f}, new int[]{1}, null, "metalPhase35ConvBias", DataType.FLOAT32);
+        Tensor conv = input.conv2d(weight, bias, Conv2dOptions.defaults());
+        TensorInternalAccess.setBackend(conv, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext convContext = planningContext(conv);
+
+        String convReason = MetalPartitionSupport.plannerUnsupportedReason(
+                convContext.compiledNode(nodeId(convContext, Operation.OpType.CONV2D)),
+                convContext
+        );
+
+        Tensor gemm = TensorPrimitiveBuilder.binary(
+                input,
+                weight,
+                conv.getShape(),
+                new conv2dGemm(Conv2dOptions.defaults(), false),
+                "metalPhase35ConvGemm",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(gemm, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext gemmContext = planningContext(gemm);
+        String gemmReason = MetalPartitionSupport.plannerUnsupportedReason(
+                gemmContext.compiledNode(nodeId(gemmContext, Operation.OpType.CONV2D_GEMM)),
+                gemmContext
+        );
+
+        Tensor poolInput = new Tensor(new float[]{
+                1f, 2f, 3f, 4f,
+                5f, 6f, 7f, 8f,
+                9f, 10f, 11f, 12f,
+                13f, 14f, 15f, 16f
+        }, new int[]{1, 1, 4, 4}, null, "metalPhase35PoolInput", DataType.FLOAT32);
+        Tensor maxPool = poolInput.maxPool2d(Pool2dOptions.square(2));
+        Tensor avgPool = poolInput.avgPool2d(Pool2dOptions.square(2));
+        TensorInternalAccess.setBackend(maxPool, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(avgPool, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext maxPoolContext = planningContext(maxPool);
+        PartitionPlanningContext avgPoolContext = planningContext(avgPool);
+
+        String maxPoolReason = MetalPartitionSupport.plannerUnsupportedReason(
+                maxPoolContext.compiledNode(nodeId(maxPoolContext, Operation.OpType.MAX_POOL2D)),
+                maxPoolContext
+        );
+        String avgPoolReason = MetalPartitionSupport.plannerUnsupportedReason(
+                avgPoolContext.compiledNode(nodeId(avgPoolContext, Operation.OpType.AVG_POOL2D)),
+                avgPoolContext
+        );
+
+        assertContainsAll(convReason, "CAPABILITY_MISSING", "CONV2D forward semantic contract is legal", "family=CONV_POOL", "target=conv2d_resnet_3x3");
+        assertContainsAll(gemmReason, "CAPABILITY_MISSING", "CONV2D_GEMM remains CPU-owned", "family=CONV_POOL", "target=conv2d_resnet_3x3");
+        assertContainsAll(maxPoolReason, "CAPABILITY_MISSING", "MAX_POOL2D forward semantic contract is legal", "family=CONV_POOL", "target=max_pool2d_small");
+        assertContainsAll(avgPoolReason, "CAPABILITY_MISSING", "AVG_POOL2D forward semantic contract is legal", "family=CONV_POOL");
+        assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
+                Set.of(nodeId(convContext, Operation.OpType.CONV2D)),
+                convContext,
+                Set.of(PartitionValueRef.ofNode(nodeId(convContext, Operation.OpType.CONV2D)))
+        ));
+    }
+
+    @Test
+    void phaseThirtyFiveConvRejectsDtypeLayoutRankGroupsAndDilationPrecisely() {
+        Tensor bf16Input = new Tensor(new double[]{
+                1d, 2d, 3d,
+                4d, 5d, 6d,
+                7d, 8d, 9d
+        }, new int[]{1, 1, 3, 3}, null, "metalPhase35Bf16ConvInput", DataType.BFLOAT16);
+        Tensor f32Weight = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 1, 2, 2}, null, "metalPhase35F32ConvWeight", DataType.FLOAT32);
+        Tensor dtypeConv = bf16Input.conv2d(f32Weight, Conv2dOptions.defaults());
+        TensorInternalAccess.setBackend(dtypeConv, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext dtypeContext = planningContext(dtypeConv);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(dtypeContext.compiledNode(nodeId(dtypeContext, Operation.OpType.CONV2D)), dtypeContext),
+                "UNSUPPORTED_DTYPE",
+                "CONV2D currently supports only FLOAT32 inputs"
+        );
+
+        Tensor layoutBase = new Tensor(new float[]{
+                1f, 4f, 7f,
+                2f, 5f, 8f,
+                3f, 6f, 9f
+        }, new int[]{1, 3, 3, 1}, null, "metalPhase35LayoutConvBase", DataType.FLOAT32);
+        Tensor nonDenseInput = layoutBase.permute(0, 3, 1, 2);
+        Tensor layoutConv = nonDenseInput.conv2d(f32Weight, Conv2dOptions.defaults());
+        TensorInternalAccess.setBackend(layoutConv, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext layoutContext = planningContext(layoutConv);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(layoutContext.compiledNode(nodeId(layoutContext, Operation.OpType.CONV2D)), layoutContext),
+                "UNSUPPORTED_LAYOUT",
+                "CONV2D inputs require dense layout"
+        );
+
+        Tensor rankInput = new Tensor(new float[9], new int[]{1, 3, 3}, null, "metalPhase35RankConvInput", DataType.FLOAT32);
+        Tensor rankConv = TensorPrimitiveBuilder.binary(
+                rankInput,
+                f32Weight,
+                new int[]{1, 1, 2, 2},
+                new conv2d(Conv2dOptions.defaults(), false),
+                "metalPhase35RankConv",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(rankConv, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext rankContext = planningContext(rankConv);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(rankContext.compiledNode(nodeId(rankContext, Operation.OpType.CONV2D)), rankContext),
+                "UNSUPPORTED_RANK_OR_SHAPE",
+                "rank-4 NCHW input/output and OIHW weight"
+        );
+
+        Tensor groupedInput = new Tensor(new float[1 * 2 * 3 * 3], new int[]{1, 2, 3, 3}, null, "metalPhase35GroupedConvInput", DataType.FLOAT32);
+        Tensor groupedWeight = new Tensor(new float[2 * 1 * 2 * 2], new int[]{2, 1, 2, 2}, null, "metalPhase35GroupedConvWeight", DataType.FLOAT32);
+        Tensor groupedConv = groupedInput.conv2d(groupedWeight, Conv2dOptions.defaults().withGroups(2));
+        TensorInternalAccess.setBackend(groupedConv, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext groupedContext = planningContext(groupedConv);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(groupedContext.compiledNode(nodeId(groupedContext, Operation.OpType.CONV2D)), groupedContext),
+                "CAPABILITY_MISSING",
+                "grouped/depthwise native execution is not implemented"
+        );
+
+        Tensor dilationInput = new Tensor(new float[1 * 1 * 4 * 4], new int[]{1, 1, 4, 4}, null, "metalPhase35DilationConvInput", DataType.FLOAT32);
+        Tensor dilationConv = dilationInput.conv2d(f32Weight, Conv2dOptions.defaults().withDilation(2, 2));
+        TensorInternalAccess.setBackend(dilationConv, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext dilationContext = planningContext(dilationConv);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(dilationContext.compiledNode(nodeId(dilationContext, Operation.OpType.CONV2D)), dilationContext),
+                "CAPABILITY_MISSING",
+                "dilation native execution is not implemented"
+        );
+    }
+
+    @Test
+    void phaseThirtyFivePoolRejectsDtypeLayoutRankAndAvgCountIncludePadPrecisely() {
+        Tensor bf16Input = new Tensor(new double[1 * 1 * 4 * 4], new int[]{1, 1, 4, 4}, null, "metalPhase35Bf16PoolInput", DataType.BFLOAT16);
+        Tensor dtypePool = TensorPrimitiveBuilder.unary(
+                bf16Input,
+                new int[]{1, 1, 2, 2},
+                new maxPool2d(Pool2dOptions.square(2)),
+                "metalPhase35DtypePool",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(dtypePool, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext dtypeContext = planningContext(dtypePool);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(dtypeContext.compiledNode(nodeId(dtypeContext, Operation.OpType.MAX_POOL2D)), dtypeContext),
+                "UNSUPPORTED_DTYPE",
+                "MAX_POOL2D currently supports only FLOAT32 inputs"
+        );
+
+        Tensor layoutBase = new Tensor(new float[1 * 4 * 4 * 1], new int[]{1, 4, 4, 1}, null, "metalPhase35LayoutPoolBase", DataType.FLOAT32);
+        Tensor nonDenseInput = layoutBase.permute(0, 3, 1, 2);
+        Tensor layoutPool = nonDenseInput.maxPool2d(Pool2dOptions.square(2));
+        TensorInternalAccess.setBackend(layoutPool, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext layoutContext = planningContext(layoutPool);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(layoutContext.compiledNode(nodeId(layoutContext, Operation.OpType.MAX_POOL2D)), layoutContext),
+                "UNSUPPORTED_LAYOUT",
+                "MAX_POOL2D inputs require dense layout"
+        );
+
+        Tensor rankInput = new Tensor(new float[16], new int[]{4, 4}, null, "metalPhase35RankPoolInput", DataType.FLOAT32);
+        Tensor rankPool = TensorPrimitiveBuilder.unary(
+                rankInput,
+                new int[]{2, 2},
+                new maxPool2d(Pool2dOptions.square(2)),
+                "metalPhase35RankPool",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(rankPool, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext rankContext = planningContext(rankPool);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(rankContext.compiledNode(nodeId(rankContext, Operation.OpType.MAX_POOL2D)), rankContext),
+                "UNSUPPORTED_RANK_OR_SHAPE",
+                "MAX_POOL2D requires rank-4 NCHW input/output"
+        );
+
+        Tensor avgInput = new Tensor(new float[1 * 1 * 4 * 4], new int[]{1, 1, 4, 4}, null, "metalPhase35AvgPoolInput", DataType.FLOAT32);
+        Tensor avgWithPad = avgInput.avgPool2d(Pool2dOptions.square(2).withPadding(1, 1).withCountIncludePad(true));
+        TensorInternalAccess.setBackend(avgWithPad, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext avgContext = planningContext(avgWithPad);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(avgContext.compiledNode(nodeId(avgContext, Operation.OpType.AVG_POOL2D)), avgContext),
+                "CAPABILITY_MISSING",
+                "AVG_POOL2D countIncludePad=true native divisor semantics are not implemented"
+        );
     }
 
     @Test
