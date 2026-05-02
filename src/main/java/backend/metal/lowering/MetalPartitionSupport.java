@@ -62,6 +62,10 @@ public final class MetalPartitionSupport {
                 || !MetalMpsCapabilities.supportsOutputDType(node.dataType())) {
             return MetalMpsCapabilities.unsupportedDTypeMessage(node.dataType());
         }
+        var operationDTypeDecision = MetalMpsCapabilities.operationDecision(opType, node.dataType());
+        if (!operationDTypeDecision.supported()) {
+            return "UNSUPPORTED_DTYPE: " + operationDTypeDecision.detail();
+        }
         if (opType == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION) {
             String sdpaReason = sdpaUnsupportedReason(node, context);
             if (!sdpaReason.isBlank()) {
@@ -218,11 +222,14 @@ public final class MetalPartitionSupport {
         if (input == null || gamma == null || (opType == Operation.OpType.LAYER_NORM && beta == null)) {
             return "UNSUPPORTED_RANK_OR_SHAPE: " + backend + " normalization inputs are unavailable";
         }
-        if (input.dataType() != tensor.DataType.FLOAT32
-                || gamma.dataType() != tensor.DataType.FLOAT32
-                || (beta != null && beta.dataType() != tensor.DataType.FLOAT32)
-                || node.dataType() != tensor.DataType.FLOAT32) {
-            return "UNSUPPORTED_DTYPE: " + backend + " normalization supports only FLOAT32";
+        tensor.DataType dtype = node.dataType();
+        if (dtype != tensor.DataType.FLOAT32 && dtype != tensor.DataType.BFLOAT16) {
+            return "UNSUPPORTED_DTYPE: " + backend + " normalization supports only FLOAT32/BFLOAT16";
+        }
+        if (input.dataType() != dtype
+                || gamma.dataType() != dtype
+                || (beta != null && beta.dataType() != dtype)) {
+            return "UNSUPPORTED_DTYPE: " + backend + " normalization inputs and output must use the same dtype";
         }
         if (!input.contiguous() || input.hasStorageOffset()
                 || !gamma.contiguous() || gamma.hasStorageOffset()

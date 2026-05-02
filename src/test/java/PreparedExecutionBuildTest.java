@@ -116,8 +116,6 @@ public class PreparedExecutionBuildTest {
 
         CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.noOptimization());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
-        PartitionPlanningContext planningContext = planningContext(compiled);
-        int compareNodeId = nodeId(compiled, Operation.OpType.GT);
 
         assertThrows(UnsupportedOperationException.class, () -> execution.forwardSteps().clear());
         assertThrows(UnsupportedOperationException.class, () -> execution.backwardSteps().clear());
@@ -1292,8 +1290,6 @@ public class PreparedExecutionBuildTest {
 
         CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.noOptimization());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
-        PartitionPlanningContext planningContext = planningContext(compiled);
-        int compareNodeId = nodeId(compiled, Operation.OpType.GT);
 
         var matmulStep = execution.forwardSteps().stream()
                 .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)

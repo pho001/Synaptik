@@ -12,6 +12,7 @@ import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.lowering.AcceleratorSubgraphLowerer;
 import backend.accelerator.lowering.AcceleratorSubgraphLoweringResult;
 import backend.accelerator.lowering.AcceleratorSubgraphSignature;
+import backend.cpu.kernels.CpuDTypeOps;
 import backend.memory.CpuMaterializationReason;
 import backend.metal.buffer.MetalBufferAllocator;
 import backend.metal.buffer.MetalBufferAccess;
@@ -149,6 +150,101 @@ class MetalMpsFfmBridgeTest {
         } finally {
             if (input != null) {
                 allocator.destroy(input.handle());
+            }
+            if (output != null) {
+                allocator.destroy(output.handle());
+            }
+        }
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsBfloat16Relu() {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        assumeTrue(bridge.capabilities().dtypeAbiV3Supported());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalMpsBridgeExecutable executable = bridge.compile(
+                context,
+                unaryPlan(1, 9, AcceleratorDagNodeType.RELU, Operation.OpType.RELU, DataType.BFLOAT16)
+        );
+        assumeTrue(executable.available(), executable.reason());
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        MetalBufferBinding input = null;
+        MetalBufferBinding output = null;
+        try {
+            input = allocator.createInputBinding(1, bf16Tensor(new float[]{-1.0f, 2.0f}, new int[]{2}, "bf16ReluInput"));
+            output = allocator.createOutputBinding(9, denseLayout(DataType.BFLOAT16, new int[]{2}));
+
+            MetalMpsBridgeExecutionStats stats = bridge.executeBuffers(context, executable, List.of(input), List.of(output));
+            Tensor destination = bf16Tensor(new float[]{0.0f, 0.0f}, new int[]{2}, "bf16ReluDestination");
+            allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+
+            assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
+            assertBf16Close(new float[]{0.0f, 2.0f}, destination, 0.0f);
+        } finally {
+            if (input != null) {
+                allocator.destroy(input.handle());
+            }
+            if (output != null) {
+                allocator.destroy(output.handle());
+            }
+        }
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsBfloat16Matmul() {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        assumeTrue(bridge.capabilities().dtypeAbiV3Supported());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalMpsBridgeExecutable executable = bridge.compile(
+                context,
+                binaryPlan(
+                        1,
+                        2,
+                        9,
+                        AcceleratorDagNodeType.MATMUL,
+                        Operation.OpType.MATMUL,
+                        new int[]{2, 2},
+                        new int[]{2, 2},
+                        new int[]{2, 2},
+                        DataType.BFLOAT16
+                )
+        );
+        assumeTrue(executable.available(), executable.reason());
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        MetalBufferBinding left = null;
+        MetalBufferBinding right = null;
+        MetalBufferBinding output = null;
+        try {
+            left = allocator.createInputBinding(1, bf16Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, "bf16MatmulLeft"));
+            right = allocator.createInputBinding(2, bf16Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{2, 2}, "bf16MatmulRight"));
+            output = allocator.createOutputBinding(9, denseLayout(DataType.BFLOAT16, new int[]{2, 2}));
+
+            MetalMpsBridgeExecutionStats stats = bridge.executeBuffers(context, executable, List.of(left, right), List.of(output));
+            Tensor destination = bf16Tensor(new float[]{0f, 0f, 0f, 0f}, new int[]{2, 2}, "bf16MatmulDestination");
+            allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+
+            assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
+            assertBf16Close(new float[]{19f, 22f, 43f, 50f}, destination, 0.0f);
+        } finally {
+            if (left != null) {
+                allocator.destroy(left.handle());
+            }
+            if (right != null) {
+                allocator.destroy(right.handle());
             }
             if (output != null) {
                 allocator.destroy(output.handle());
@@ -583,8 +679,28 @@ class MetalMpsFfmBridgeTest {
     }
 
     private static AcceleratorBufferLayout denseF32Layout(int[] shape) {
+        return denseLayout(DataType.FLOAT32, shape);
+    }
+
+    private static AcceleratorBufferLayout denseLayout(DataType dataType, int[] shape) {
         long elements = Arrays.stream(shape).asLongStream().reduce(1L, Math::multiplyExact);
-        return AcceleratorBufferLayout.of(DataType.FLOAT32, shape, TensorMetadata.computeStrides(shape), 0, elements);
+        return AcceleratorBufferLayout.of(dataType, shape, TensorMetadata.computeStrides(shape), 0, elements);
+    }
+
+    private static Tensor bf16Tensor(float[] values, int[] shape, String label) {
+        short[] bits = new short[values.length];
+        for (int i = 0; i < values.length; i++) {
+            bits[i] = CpuDTypeOps.toBFloat16Bits(values[i]);
+        }
+        return new Tensor(bits, shape, null, label, DataType.BFLOAT16);
+    }
+
+    private static void assertBf16Close(float[] expected, Tensor actual, float tolerance) {
+        short[] bits = actual.getBFloat16Data();
+        assertEquals(expected.length, bits.length);
+        for (int i = 0; i < expected.length; i++) {
+            assertEquals(expected[i], CpuDTypeOps.fromBFloat16Bits(bits[i]), tolerance, "BF16 mismatch at " + i);
+        }
     }
 
     private static MetalBufferBinding binding(int nodeId, MetalBufferAccess access) {
@@ -634,7 +750,17 @@ class MetalMpsFfmBridgeTest {
             AcceleratorDagNodeType nodeType,
             Operation.OpType opType
     ) {
-        AcceleratorDagInput input = new AcceleratorDagInput(inputNodeId, List.of(2), DataType.FLOAT32);
+        return unaryPlan(inputNodeId, outputNodeId, nodeType, opType, DataType.FLOAT32);
+    }
+
+    private static MetalPartitionPlan unaryPlan(
+            int inputNodeId,
+            int outputNodeId,
+            AcceleratorDagNodeType nodeType,
+            Operation.OpType opType,
+            DataType dataType
+    ) {
+        AcceleratorDagInput input = new AcceleratorDagInput(inputNodeId, List.of(2), dataType);
         AcceleratorDagNode node = new AcceleratorDagNode(
                 outputNodeId,
                 nodeType,
@@ -647,7 +773,8 @@ class MetalMpsFfmBridgeTest {
                 2,
                 1,
                 1,
-                1
+                1,
+                dataType
         );
         AcceleratorDagSpec dag = new AcceleratorDagSpec(List.of(input), List.of(node), List.of(0), List.of(outputNodeId));
         AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
@@ -661,6 +788,50 @@ class MetalMpsFfmBridgeTest {
                 outputNodeId,
                 subgraph,
                 new AcceleratorSubgraphLoweringResult(outputNodeId, null, dag, 2)
+        );
+    }
+
+    private static MetalPartitionPlan binaryPlan(
+            int input0NodeId,
+            int input1NodeId,
+            int outputNodeId,
+            AcceleratorDagNodeType nodeType,
+            Operation.OpType opType,
+            int[] input0Shape,
+            int[] input1Shape,
+            int[] outputShape,
+            DataType dataType
+    ) {
+        AcceleratorDagInput input0 = new AcceleratorDagInput(input0NodeId, Arrays.stream(input0Shape).boxed().toList(), dataType);
+        AcceleratorDagInput input1 = new AcceleratorDagInput(input1NodeId, Arrays.stream(input1Shape).boxed().toList(), dataType);
+        AcceleratorDagNode node = new AcceleratorDagNode(
+                outputNodeId,
+                nodeType,
+                AcceleratorDagValueRef.externalInput(0),
+                AcceleratorDagValueRef.externalInput(1),
+                AcceleratorDagValueRef.none(),
+                AcceleratorDagValueRef.none(),
+                0,
+                outputShape.length,
+                outputShape[0],
+                outputShape.length >= 2 ? outputShape[1] : 1,
+                outputShape.length >= 3 ? outputShape[2] : 1,
+                outputShape.length >= 4 ? outputShape[3] : 1,
+                dataType
+        );
+        AcceleratorDagSpec dag = new AcceleratorDagSpec(List.of(input0, input1), List.of(node), List.of(0), List.of(outputNodeId));
+        AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
+                outputNodeId,
+                List.of(outputNodeId),
+                List.of(new AcceleratorSubgraphOp(outputNodeId, opType)),
+                List.of(input0NodeId, input1NodeId),
+                List.of(outputNodeId)
+        );
+        long estimatedWork = Arrays.stream(input0Shape).asLongStream().reduce(1L, Math::multiplyExact);
+        return new MetalPartitionPlan(
+                outputNodeId,
+                subgraph,
+                new AcceleratorSubgraphLoweringResult(outputNodeId, null, dag, estimatedWork)
         );
     }
 

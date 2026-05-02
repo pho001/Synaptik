@@ -46,6 +46,10 @@ public final class MetalMpsCapabilities {
             return supported(MetalDTypeRole.EXTERNAL_INPUT, dtype, true, false, MetalDTypeReasonCode.SUPPORTED,
                     "FLOAT32 external data input is supported");
         }
+        if (dtype == DataType.BFLOAT16) {
+            return supported(MetalDTypeRole.EXTERNAL_INPUT, dtype, true, false, MetalDTypeReasonCode.SUPPORTED,
+                    "BFLOAT16 external data input is supported for scoped BF16 Metal operation families");
+        }
         if (dtype == DataType.BOOL) {
             return supported(MetalDTypeRole.EXTERNAL_INPUT, dtype, false, false, MetalDTypeReasonCode.SUPPORTED_PREDICATE_INPUT_ONLY,
                     "BOOL external input is supported only for predicate roles");
@@ -66,6 +70,10 @@ public final class MetalMpsCapabilities {
             return supported(MetalDTypeRole.COMPUTE, dtype, true, false, MetalDTypeReasonCode.SUPPORTED,
                     "FLOAT32 native compute is supported");
         }
+        if (dtype == DataType.BFLOAT16) {
+            return supported(MetalDTypeRole.COMPUTE, dtype, true, false, MetalDTypeReasonCode.SUPPORTED,
+                    "BFLOAT16 native compute is supported for scoped operation families");
+        }
         return unsupported(
                 MetalDTypeRole.COMPUTE,
                 dtype,
@@ -84,6 +92,10 @@ public final class MetalMpsCapabilities {
             return supported(MetalDTypeRole.OUTPUT, dtype, false, true, MetalDTypeReasonCode.SUPPORTED,
                     "FLOAT32 native output is supported");
         }
+        if (dtype == DataType.BFLOAT16) {
+            return supported(MetalDTypeRole.OUTPUT, dtype, false, true, MetalDTypeReasonCode.SUPPORTED,
+                    "BFLOAT16 native output is supported for scoped operation families");
+        }
         return unsupported(
                 MetalDTypeRole.OUTPUT,
                 dtype,
@@ -101,6 +113,14 @@ public final class MetalMpsCapabilities {
         if (opType == null) {
             return unsupported(MetalDTypeRole.OPERATION, outputDType, MetalDTypeReasonCode.UNSUPPORTED_OPERATION_DTYPE,
                     "operation type is unavailable");
+        }
+        if (outputDType == DataType.BFLOAT16) {
+            if (supportsBFloat16Operation(opType)) {
+                return supported(MetalDTypeRole.OPERATION, outputDType, true, true, MetalDTypeReasonCode.SUPPORTED,
+                        "operation " + opType + " is dtype-legal for BFLOAT16 in the scoped Metal bridge");
+            }
+            return unsupported(MetalDTypeRole.OPERATION, outputDType, MetalDTypeReasonCode.UNSUPPORTED_OPERATION_DTYPE,
+                    "operation " + opType + " cannot produce native BFLOAT16 output on the current Metal bridge");
         }
         if (outputDType != DataType.FLOAT32) {
             return unsupported(MetalDTypeRole.OPERATION, outputDType, MetalDTypeReasonCode.UNSUPPORTED_OPERATION_DTYPE,
@@ -157,9 +177,16 @@ public final class MetalMpsCapabilities {
                     MetalDTypeReasonCode.SUPPORTED,
                     "default Metal external data input accepts FLOAT32");
         }
+        if (dtype == DataType.BFLOAT16
+                && consumer.dataType() == DataType.BFLOAT16
+                && operationDecision(opType, consumer.dataType()).supported()) {
+            return supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, true, false,
+                    MetalDTypeReasonCode.SUPPORTED,
+                    "default Metal external data input accepts BFLOAT16 for scoped BFLOAT16 operation family");
+        }
         return unsupported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype,
                 MetalDTypeReasonCode.UNSUPPORTED_EXTERNAL_INPUT_ROLE,
-                "default Metal external data input requires FLOAT32");
+                "default Metal external data input requires FLOAT32 or scoped BFLOAT16");
     }
 
     /**
@@ -245,8 +272,42 @@ public final class MetalMpsCapabilities {
     public static String unsupportedDTypeMessage(DataType dtype) {
         MetalDTypeCapabilityDecision compute = computeDecision(dtype);
         return "UNSUPPORTED_DTYPE: " + compute.detail()
-                + "; Metal MPS bridge currently supports FLOAT32 compute/output tensors and BOOL only for predicate inputs; got "
+                + "; Metal MPS bridge currently supports FLOAT32 compute/output tensors, scoped BFLOAT16 operation families, and BOOL only for predicate inputs; got "
                 + dtype + ".";
+    }
+
+    private static boolean supportsBFloat16Operation(Operation.OpType opType) {
+        return switch (opType) {
+            case MATMUL,
+                 LINEAR,
+                 ADD,
+                 SUB,
+                 MUL,
+                 DIV,
+                 RELU,
+                 TANH,
+                 FAST_TANH,
+                 SIGMOID,
+                 ABS,
+                 EXP,
+                 FAST_EXP,
+                 LOG,
+                 NEG,
+                 SQRT,
+                 INV,
+                 MUL_SCALAR,
+                 CLAMP_MIN,
+                 CLAMP_MAX,
+                 SOFTMAX,
+                 LOG_SOFTMAX,
+                 SUM,
+                 MEAN,
+                 REDUCE_MIN,
+                 REDUCE_MAX,
+                 LAYER_NORM,
+                 RMS_NORM -> true;
+            default -> false;
+        };
     }
 
     private static MetalDTypeCapabilityDecision supported(

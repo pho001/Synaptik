@@ -40,11 +40,12 @@ class AcceleratorDTypeResidencyPolicyTest {
     }
 
     @Test
-    void metalRejectsBFLOAT16AndINT32WithStableUnsupportedDTypeReason() {
+    void metalAllowsBFLOAT16ComputeAndOutputButStillRejectsINT32() {
         AcceleratorDTypeResidencyDecision bf16 = AcceleratorDTypeResidencyPolicy.forCompute(ComputeBackend.GPU_METAL, DataType.BFLOAT16);
         AcceleratorDTypeResidencyDecision i32 = AcceleratorDTypeResidencyPolicy.forOutput(ComputeBackend.GPU_METAL, DataType.INT32);
 
-        assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE, bf16.reason());
+        assertTrue(bf16.nativeComputeLegal());
+        assertFalse(bf16.rejected());
         assertTrue(bf16.detail().contains("backend=GPU_METAL"));
         assertTrue(bf16.detail().contains("role=compute"));
         assertTrue(bf16.detail().contains("dtype=BFLOAT16"));

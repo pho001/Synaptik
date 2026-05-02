@@ -81,7 +81,7 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 
 **Planned waves:**
 - [x] [30-01 BF16 storage/ABI/materialization path](phases/30-bf16-metal-compute-and-output/30-01-PLAN.md).
-- [30-02 BF16 primitive lowering and native execution](phases/30-bf16-metal-compute-and-output/30-02-PLAN.md).
+- [x] [30-02 BF16 primitive lowering and native execution](phases/30-bf16-metal-compute-and-output/30-02-PLAN.md).
 - [30-03 BF16 parity, tolerance, and coverage gates](phases/30-bf16-metal-compute-and-output/30-03-PLAN.md).
 - [30-04 Docs and regression closure](phases/30-bf16-metal-compute-and-output/30-04-PLAN.md).
 

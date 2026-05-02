@@ -72,7 +72,7 @@ public final class AcceleratorDTypeResidencyPolicy {
         };
         boolean legal = switch (role) {
             case ROLE_EXTERNAL_INPUT, ROLE_OUTPUT, ROLE_COMPUTE -> decision.supported();
-            case ROLE_INTERNAL_VALUE -> dataType == DataType.FLOAT32;
+            case ROLE_INTERNAL_VALUE -> dataType == DataType.FLOAT32 || dataType == DataType.BFLOAT16;
             default -> false;
         };
         if (legal) {

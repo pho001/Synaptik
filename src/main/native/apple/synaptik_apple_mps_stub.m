@@ -128,6 +128,22 @@ static BOOL SynaptikMpsDataTypeForCode(int32_t dtypeCode, MPSDataType *outDataTy
     }
 }
 
+static int32_t SynaptikNodeOutputDTypeCode(const int32_t *nodeOutputDTypes, int32_t nodeIndex) {
+    return nodeOutputDTypes == NULL ? 1 : nodeOutputDTypes[nodeIndex];
+}
+
+static MPSGraphTensor *SynaptikScalarConstant(
+        MPSGraph *graph,
+        double value,
+        int32_t dtypeCode
+) {
+    MPSDataType dataType = MPSDataTypeInvalid;
+    if (!SynaptikMpsDataTypeForCode(dtypeCode, &dataType)) {
+        return nil;
+    }
+    return [graph constantWithScalar:value dataType:dataType];
+}
+
 static int64_t SynaptikNowNs(void) {
     struct timespec timestamp;
     if (clock_gettime(CLOCK_MONOTONIC, &timestamp) != 0) {
@@ -646,25 +662,41 @@ static void *SynaptikCompilePartition(
                     outTensor = [graph reciprocalWithTensor:input0 name:@"inv"];
                     break;
                 case 16: {
-                    MPSGraphTensor *scalarTensor = [graph constantWithScalar:(double) node_scalar_values[i] dataType:MPSDataTypeFloat32];
+                    MPSGraphTensor *scalarTensor = SynaptikScalarConstant(
+                            graph,
+                            (double) node_scalar_values[i],
+                            SynaptikNodeOutputDTypeCode(node_output_dtypes, i)
+                    );
                     if (scalarTensor == nil) return NULL;
                     outTensor = [graph maximumWithPrimaryTensor:input0 secondaryTensor:scalarTensor name:@"clamp_min"];
                     break;
                 }
                 case 17: {
-                    MPSGraphTensor *scalarTensor = [graph constantWithScalar:(double) node_scalar_values[i] dataType:MPSDataTypeFloat32];
+                    MPSGraphTensor *scalarTensor = SynaptikScalarConstant(
+                            graph,
+                            (double) node_scalar_values[i],
+                            SynaptikNodeOutputDTypeCode(node_output_dtypes, i)
+                    );
                     if (scalarTensor == nil) return NULL;
                     outTensor = [graph minimumWithPrimaryTensor:input0 secondaryTensor:scalarTensor name:@"clamp_max"];
                     break;
                 }
                 case 23: {
-                    MPSGraphTensor *scalarTensor = [graph constantWithScalar:(double) node_scalar_values[i] dataType:MPSDataTypeFloat32];
+                    MPSGraphTensor *scalarTensor = SynaptikScalarConstant(
+                            graph,
+                            (double) node_scalar_values[i],
+                            SynaptikNodeOutputDTypeCode(node_output_dtypes, i)
+                    );
                     if (scalarTensor == nil) return NULL;
                     outTensor = [graph multiplicationWithPrimaryTensor:input0 secondaryTensor:scalarTensor name:@"mul_scalar"];
                     break;
                 }
                 case 40: {
-                    MPSGraphTensor *scalarTensor = [graph constantWithScalar:(double) node_scalar_values[i] dataType:MPSDataTypeFloat32];
+                    MPSGraphTensor *scalarTensor = SynaptikScalarConstant(
+                            graph,
+                            (double) node_scalar_values[i],
+                            SynaptikNodeOutputDTypeCode(node_output_dtypes, i)
+                    );
                     if (scalarTensor == nil) return NULL;
                     outTensor = [graph additionWithPrimaryTensor:input0 secondaryTensor:scalarTensor name:@"add_scalar"];
                     break;
@@ -918,7 +950,6 @@ static void *SynaptikCompilePartition(
             if (outputTensor == nil) {
                 return NULL;
             }
-            [targetTensors addObject:outputTensor];
             int32_t rank = output_ranks == NULL ? 0 : output_ranks[output_node_index];
             if (rank < 1 || rank > 4) {
                 return NULL;
@@ -931,11 +962,16 @@ static void *SynaptikCompilePartition(
             if (elementCount == 0) {
                 return NULL;
             }
-            int32_t outputDType = node_output_dtypes == NULL ? 1 : node_output_dtypes[output_node_index];
+            int32_t outputDType = SynaptikNodeOutputDTypeCode(node_output_dtypes, output_node_index);
             MPSDataType outputDataType = MPSDataTypeInvalid;
             if (!SynaptikMpsDataTypeForCode(outputDType, &outputDataType)) {
                 return NULL;
             }
+            outputTensor = [graph castTensor:outputTensor toType:outputDataType name:@"output_dtype"];
+            if (outputTensor == nil) {
+                return NULL;
+            }
+            [targetTensors addObject:outputTensor];
             [outputRanksBoxed addObject:@(rank)];
             [outputDTypesBoxed addObject:@(outputDType)];
             [outputDim0Boxed addObject:@(dim0)];

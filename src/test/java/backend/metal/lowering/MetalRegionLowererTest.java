@@ -778,7 +778,7 @@ class MetalRegionLowererTest {
     }
 
     @Test
-    void rejectsBfloat16MetalCandidateBeforeLowering() {
+    void acceptsScopedBfloat16MetalCandidateBeforeLowering() {
         Tensor a = new Tensor(new double[]{1d, 2d, 3d, 4d, 5d, 6d}, new int[]{2, 3}, null, "abf16", DataType.BFLOAT16);
         Tensor b = new Tensor(new double[]{1d, 2d, 3d, 4d, 5d, 6d}, new int[]{3, 2}, null, "bbf16", DataType.BFLOAT16);
         Tensor matmul = a.matmul(b);
@@ -787,11 +787,18 @@ class MetalRegionLowererTest {
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
-        assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
+        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
+        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
                 operationNodeIds(context),
                 context,
                 Set.of(PartitionValueRef.ofNode(nodeId(context, Operation.OpType.RELU)))
-        ));
+        );
+
+        assertNotNull(candidate);
+        MetalPartitionPlan plan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, context);
+        assertNotNull(plan);
+        assertTrue(plan.lowering().dagSpec().externalInputs().stream().allMatch(input -> input.dataType() == DataType.BFLOAT16));
+        assertTrue(plan.lowering().dagSpec().nodes().stream().allMatch(node -> node.outputDataType() == DataType.BFLOAT16));
     }
 
     @Test

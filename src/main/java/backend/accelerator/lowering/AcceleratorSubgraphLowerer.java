@@ -875,10 +875,11 @@ public final class AcceleratorSubgraphLowerer {
         AcceleratorDagValueRef gammaRef = AcceleratorDagValueRef.externalInput(1);
         AcceleratorDagValueRef betaRef = layerNormOp ? AcceleratorDagValueRef.externalInput(2) : AcceleratorDagValueRef.none();
 
+        DataType normalizationDType = node.dataType();
         AcceleratorDagValueRef valueForVariance;
         AcceleratorDagValueRef scaledInput;
         if (layerNormOp) {
-            AcceleratorDagValueRef mean = addTrailingMeanNodes(nodes, node.id(), inputRef, inputShape, normalizedRank);
+            AcceleratorDagValueRef mean = addTrailingMeanNodes(nodes, node.id(), inputRef, inputShape, normalizedRank, normalizationDType);
             AcceleratorDagValueRef centered = addNode(
                     nodes,
                     node.id(),
@@ -886,7 +887,8 @@ public final class AcceleratorSubgraphLowerer {
                     inputRef,
                     mean,
                     0,
-                    inputShape
+                    inputShape,
+                    normalizationDType
             );
             valueForVariance = centered;
             AcceleratorDagValueRef squared = addNode(
@@ -896,11 +898,12 @@ public final class AcceleratorSubgraphLowerer {
                     centered,
                     centered,
                     0,
-                    inputShape
+                    inputShape,
+                    normalizationDType
             );
-            AcceleratorDagValueRef variance = addTrailingMeanNodes(nodes, node.id(), squared, inputShape, normalizedRank);
-            AcceleratorDagValueRef invStd = addEpsilonSqrtInv(nodes, node.id(), variance, epsilon, reducedKeepDimsShape(inputShape, normalizedRank));
-            scaledInput = addNode(nodes, node.id(), AcceleratorDagNodeType.MUL, valueForVariance, invStd, 0, inputShape);
+            AcceleratorDagValueRef variance = addTrailingMeanNodes(nodes, node.id(), squared, inputShape, normalizedRank, normalizationDType);
+            AcceleratorDagValueRef invStd = addEpsilonSqrtInv(nodes, node.id(), variance, epsilon, reducedKeepDimsShape(inputShape, normalizedRank), normalizationDType);
+            scaledInput = addNode(nodes, node.id(), AcceleratorDagNodeType.MUL, valueForVariance, invStd, 0, inputShape, normalizationDType);
         } else {
             AcceleratorDagValueRef squared = addNode(
                     nodes,
@@ -909,16 +912,17 @@ public final class AcceleratorSubgraphLowerer {
                     inputRef,
                     inputRef,
                     0,
-                    inputShape
+                    inputShape,
+                    normalizationDType
             );
-            AcceleratorDagValueRef meanSquares = addTrailingMeanNodes(nodes, node.id(), squared, inputShape, normalizedRank);
-            AcceleratorDagValueRef invRms = addEpsilonSqrtInv(nodes, node.id(), meanSquares, epsilon, reducedKeepDimsShape(inputShape, normalizedRank));
-            scaledInput = addNode(nodes, node.id(), AcceleratorDagNodeType.MUL, inputRef, invRms, 0, inputShape);
+            AcceleratorDagValueRef meanSquares = addTrailingMeanNodes(nodes, node.id(), squared, inputShape, normalizedRank, normalizationDType);
+            AcceleratorDagValueRef invRms = addEpsilonSqrtInv(nodes, node.id(), meanSquares, epsilon, reducedKeepDimsShape(inputShape, normalizedRank), normalizationDType);
+            scaledInput = addNode(nodes, node.id(), AcceleratorDagNodeType.MUL, inputRef, invRms, 0, inputShape, normalizationDType);
         }
 
-        AcceleratorDagValueRef scaled = addNode(nodes, node.id(), AcceleratorDagNodeType.MUL, scaledInput, gammaRef, 0, inputShape);
+        AcceleratorDagValueRef scaled = addNode(nodes, node.id(), AcceleratorDagNodeType.MUL, scaledInput, gammaRef, 0, inputShape, normalizationDType);
         if (layerNormOp) {
-            addNode(nodes, node.id(), AcceleratorDagNodeType.ADD, scaled, betaRef, 0, outputShape);
+            addNode(nodes, node.id(), AcceleratorDagNodeType.ADD, scaled, betaRef, 0, outputShape, normalizationDType);
         }
         return new AcceleratorDagSpec(
                 externalInputs,
@@ -930,7 +934,7 @@ public final class AcceleratorSubgraphLowerer {
 
     private boolean isSupportedNormalizationValue(CompiledNode node) {
         return node != null
-                && node.dataType() == DataType.FLOAT32
+                && (node.dataType() == DataType.FLOAT32 || node.dataType() == DataType.BFLOAT16)
                 && node.shape().length >= 1
                 && node.shape().length <= 4
                 && node.contiguous()
@@ -970,7 +974,8 @@ public final class AcceleratorSubgraphLowerer {
             int nodeId,
             AcceleratorDagValueRef inputRef,
             int[] inputShape,
-            int normalizedRank
+            int normalizedRank,
+            DataType dataType
     ) {
         AcceleratorDagValueRef current = inputRef;
         int[] currentShape = inputShape.clone();
@@ -984,7 +989,8 @@ public final class AcceleratorSubgraphLowerer {
                     current,
                     AcceleratorDagValueRef.none(),
                     encodeReductionMode(axis, true),
-                    currentShape
+                    currentShape,
+                    dataType
             );
         }
         return current;
@@ -995,7 +1001,8 @@ public final class AcceleratorSubgraphLowerer {
             int nodeId,
             AcceleratorDagValueRef inputRef,
             float epsilon,
-            int[] shape
+            int[] shape,
+            DataType dataType
     ) {
         AcceleratorDagValueRef withEpsilon = addNode(
                 nodes,
@@ -1004,7 +1011,8 @@ public final class AcceleratorSubgraphLowerer {
                 inputRef,
                 AcceleratorDagValueRef.none(),
                 Float.floatToIntBits(epsilon),
-                shape
+                shape,
+                dataType
         );
         AcceleratorDagValueRef sqrt = addNode(
                 nodes,
@@ -1013,7 +1021,8 @@ public final class AcceleratorSubgraphLowerer {
                 withEpsilon,
                 AcceleratorDagValueRef.none(),
                 0,
-                shape
+                shape,
+                dataType
         );
         return addNode(
                 nodes,
@@ -1022,7 +1031,8 @@ public final class AcceleratorSubgraphLowerer {
                 sqrt,
                 AcceleratorDagValueRef.none(),
                 0,
-                shape
+                shape,
+                dataType
         );
     }
 
@@ -1034,6 +1044,19 @@ public final class AcceleratorSubgraphLowerer {
             AcceleratorDagValueRef input1,
             int scalarValueBits,
             int[] outputShape
+    ) {
+        return addNode(nodes, nodeId, type, input0, input1, scalarValueBits, outputShape, DataType.FLOAT32);
+    }
+
+    private AcceleratorDagValueRef addNode(
+            List<AcceleratorDagNode> nodes,
+            int nodeId,
+            AcceleratorDagNodeType type,
+            AcceleratorDagValueRef input0,
+            AcceleratorDagValueRef input1,
+            int scalarValueBits,
+            int[] outputShape,
+            DataType dataType
     ) {
         nodes.add(new AcceleratorDagNode(
                 nodeId,
@@ -1048,7 +1071,7 @@ public final class AcceleratorSubgraphLowerer {
                 outputShape.length >= 2 ? outputShape[1] : 1,
                 outputShape.length >= 3 ? outputShape[2] : 1,
                 outputShape.length >= 4 ? outputShape[3] : 1,
-                DataType.FLOAT32
+                dataType
         ));
         return AcceleratorDagValueRef.nodeOutput(nodes.size() - 1);
     }

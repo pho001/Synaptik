@@ -2,6 +2,7 @@ package backend.metal;
 
 import graph.CompiledNode;
 import org.junit.jupiter.api.Test;
+import operations.Operation;
 import tensor.Tensor;
 import tensor.DataType;
 
@@ -18,22 +19,26 @@ class MetalMpsCapabilitiesTest {
         assertTrue(MetalMpsCapabilities.supportsOutputDType(DataType.FLOAT32));
         assertTrue(MetalMpsCapabilities.supportsExternalInputDType(DataType.FLOAT32));
         assertTrue(MetalMpsCapabilities.supportsExternalInputDType(DataType.BOOL));
+        assertTrue(MetalMpsCapabilities.supportsExternalInputDType(DataType.BFLOAT16));
+        assertTrue(MetalMpsCapabilities.supportsComputeDType(DataType.BFLOAT16));
+        assertTrue(MetalMpsCapabilities.supportsOutputDType(DataType.BFLOAT16));
 
         assertFalse(MetalMpsCapabilities.supportsComputeDType(DataType.BOOL));
         assertFalse(MetalMpsCapabilities.supportsOutputDType(DataType.BOOL));
-        assertFalse(MetalMpsCapabilities.supportsComputeDType(DataType.BFLOAT16));
         assertFalse(MetalMpsCapabilities.supportsOutputDType(DataType.INT32));
 
-        assertTrue(MetalMpsCapabilities.unsupportedDTypeMessage(DataType.BFLOAT16)
-                .contains("FLOAT32 compute/output tensors and BOOL only for predicate inputs"));
+        assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.MATMUL, DataType.BFLOAT16).supported());
+        assertFalse(MetalMpsCapabilities.operationDecision(Operation.OpType.CONV2D, DataType.BFLOAT16).supported());
+        assertTrue(MetalMpsCapabilities.unsupportedDTypeMessage(DataType.INT32)
+                .contains("FLOAT32 compute/output tensors, scoped BFLOAT16 operation families, and BOOL only for predicate inputs"));
     }
 
     @Test
     void exposesRoleSpecificDTypeDecisionsForEveryPublicDType() {
         for (DataType dtype : DataType.values()) {
             assertTrue(MetalMpsCapabilities.storageDecision(dtype).storageRepresentable());
-            assertEquals(dtype == DataType.FLOAT32, MetalMpsCapabilities.computeDecision(dtype).supported());
-            assertEquals(dtype == DataType.FLOAT32, MetalMpsCapabilities.outputDecision(dtype).supported());
+            assertEquals(dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16, MetalMpsCapabilities.computeDecision(dtype).supported());
+            assertEquals(dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16, MetalMpsCapabilities.outputDecision(dtype).supported());
         }
 
         assertTrue(MetalMpsCapabilities.externalInputDecision(DataType.BOOL).supported());
@@ -41,7 +46,7 @@ class MetalMpsCapabilitiesTest {
                 MetalDTypeReasonCode.SUPPORTED_PREDICATE_INPUT_ONLY,
                 MetalMpsCapabilities.externalInputDecision(DataType.BOOL).reasonCode()
         );
-        assertFalse(MetalMpsCapabilities.externalInputDecision(DataType.BFLOAT16).supported());
+        assertTrue(MetalMpsCapabilities.externalInputDecision(DataType.BFLOAT16).supported());
         assertFalse(MetalMpsCapabilities.externalInputDecision(DataType.INT32).supported());
         assertEquals(MetalDTypeReasonCode.FLOAT64_UNSUPPORTED, MetalMpsCapabilities.computeDecision(DataType.FLOAT64).reasonCode());
         assertEquals(MetalDTypeReasonCode.FLOAT64_UNSUPPORTED, MetalMpsCapabilities.outputDecision(DataType.FLOAT64).reasonCode());
