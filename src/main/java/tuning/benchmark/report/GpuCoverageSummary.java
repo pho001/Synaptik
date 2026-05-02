@@ -367,6 +367,19 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
         public int nativeBufferStepCount() {
             return bufferBindingStepCount;
         }
+
+        public int gradientPublicationMaterializationCount() {
+            return cpuMaterializationReasonCounts.getOrDefault("GRADIENT_PUBLICATION", 0);
+        }
+
+        public int internalCpuMaterializationCount() {
+            int count = 0;
+            count += cpuMaterializationReasonCounts.getOrDefault("CPU_CONSUMER", 0);
+            count += cpuMaterializationReasonCounts.getOrDefault("PUBLIC_DATA_ACCESS", 0);
+            count += cpuMaterializationReasonCounts.getOrDefault("CPU_FALLBACK", 0);
+            count += cpuMaterializationReasonCounts.getOrDefault("ACCELERATOR_PREPARED_INPUT", 0);
+            return count;
+        }
     }
 
     private static <K, V> Map<K, V> orderedMap(Map<K, V> source) {

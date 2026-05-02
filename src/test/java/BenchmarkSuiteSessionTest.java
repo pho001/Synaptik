@@ -288,7 +288,7 @@ public class BenchmarkSuiteSessionTest {
         ));
         List<String> names = request.workloads().stream().map(tuning.workload.WorkloadSpec::name).toList();
 
-        assertEquals(19, request.workloads().size());
+        assertEquals(24, request.workloads().size());
         assertTrue(names.contains("transformer_block_hot_path"));
         assertTrue(names.contains("mlp_classifier_small"));
         assertTrue(names.contains("mlp_classifier_small_bf16"));
@@ -303,6 +303,11 @@ public class BenchmarkSuiteSessionTest {
         assertTrue(names.contains("reduction_chain_small_bf16"));
         assertTrue(names.contains("dense_loss_small"));
         assertTrue(names.contains("cross_entropy_small"));
+        assertTrue(names.contains("training_transformer_block_hot_path"));
+        assertTrue(names.contains("training_dense_loss_small"));
+        assertTrue(names.contains("training_reduction_chain_small"));
+        assertTrue(names.contains("training_layer_norm_small"));
+        assertTrue(names.contains("training_cross_entropy_small"));
         assertTrue(names.contains("bool_compare_where_small"));
         assertTrue(names.contains("gather_take_small"));
         assertTrue(names.contains("scatter_index_gradient_small"));

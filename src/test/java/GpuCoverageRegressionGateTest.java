@@ -132,6 +132,7 @@ public class GpuCoverageRegressionGateTest {
                 "lost lowered primitive coverage",
                 "lost fused subpattern coverage",
                 "unexpected CPU materialization",
+                "unexpected internal CPU materialization",
                 "lost GPU coverage",
                 "unexpected CPU fallback",
                 "hidden tensor-array fallback",
@@ -469,6 +470,41 @@ public class GpuCoverageRegressionGateTest {
         assertTrue(visible.getFirst().passed(), visible.getFirst().failures().toString());
     }
 
+    @Test
+    void phaseThirtyEightTrainingPolicyAllowsGradientPublicationButRejectsInternalCpuConsumer() {
+        var policy = GpuCoverageGatePolicy.trainingHotPathTarget("GPU_METAL", 0.5d, 2, 1, 2, 0, 4);
+        var gradientPublication = GpuCoverageRegressionGate.evaluate(
+                summary("GPU_METAL", coverageWithMaterializationReasons(Map.of("GRADIENT_PUBLICATION", 2))),
+                policy
+        );
+        var cpuConsumer = GpuCoverageRegressionGate.evaluate(
+                summary("GPU_METAL", coverageWithMaterializationReasons(Map.of("GRADIENT_PUBLICATION", 2, "CPU_CONSUMER", 1))),
+                policy
+        );
+
+        assertTrue(gradientPublication.passed(), gradientPublication.failures().toString());
+        assertTrue(cpuConsumer.failures().contains("unexpected internal CPU materialization"));
+    }
+
+    @Test
+    void phaseThirtyEightTrainingTargetsFailHiddenInternalCpuMaterializationByWorkload() {
+        GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.defaultExpectations()
+                .stream()
+                .filter(item -> item.workloadName().equals("training_dense_loss_small"))
+                .findFirst()
+                .orElseThrow();
+        var report = reportFor(
+                "training_dense_loss_small",
+                coverageWithMaterializationReasons(Map.of("GRADIENT_PUBLICATION", 1, "CPU_CONSUMER", 1))
+        );
+
+        List<GpuCoverageGateResult> results = GpuCoverageRegressionGate.evaluateTargets(report, List.of(expectation));
+
+        assertTrue(results.getFirst().failures().stream()
+                .anyMatch(failure -> failure.contains("unexpected internal CPU materialization")
+                        && failure.contains("training_dense_loss_small")));
+    }
+
     private static config.profile.ExecutionProfile profile() {
         return new config.profile.ExecutionProfile(
                 "phase28-gate-profile",
@@ -801,6 +837,45 @@ public class GpuCoverageRegressionGateTest {
                 gpuFusedSubpatternCount == 0 ? List.of() : List.of("[1, 2]"),
                 gpuFusedSubpatternCount,
                 gpuFusedSubpatternCount == 0 ? List.of() : List.of("SUPPORTED"),
+                List.of("BUFFER_BINDING_AVAILABLE"),
+                List.of("using native buffer bindings")
+        );
+    }
+
+    private static GpuCoverageSummary.BackendCoverage coverageWithMaterializationReasons(Map<String, Integer> reasons) {
+        int materializationCount = reasons.values().stream().mapToInt(Integer::intValue).sum();
+        return new GpuCoverageSummary.BackendCoverage(
+                4,
+                4,
+                1.0d,
+                1,
+                1,
+                2,
+                2,
+                3,
+                0,
+                Map.of(),
+                1,
+                0,
+                0,
+                0,
+                materializationCount,
+                reasons,
+                4096L * materializationCount,
+                250_000L * materializationCount,
+                0L,
+                Math.max(1, materializationCount + 1),
+                0,
+                0L,
+                Map.of(),
+                Map.of(),
+                Map.of("DEVICE_OWNED", 1),
+                Map.of(),
+                0,
+                List.of(),
+                List.of(),
+                0,
+                List.of(),
                 List.of("BUFFER_BINDING_AVAILABLE"),
                 List.of("using native buffer bindings")
         );

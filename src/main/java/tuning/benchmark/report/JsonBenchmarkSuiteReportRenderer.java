@@ -78,6 +78,10 @@ public final class JsonBenchmarkSuiteReportRenderer {
             sb.append("\"tensorArrayStepCount\": ").append(coverage.tensorArrayStepCount()).append(", ");
             sb.append("\"cpuFallbackStepCount\": ").append(coverage.cpuFallbackStepCount()).append(", ");
             sb.append("\"cpuMaterializationCount\": ").append(coverage.cpuMaterializationCount()).append(", ");
+            sb.append("\"internalCpuMaterializationCount\": ")
+                    .append(coverage.internalCpuMaterializationCount()).append(", ");
+            sb.append("\"gradientPublicationMaterializationCount\": ")
+                    .append(coverage.gradientPublicationMaterializationCount()).append(", ");
             sb.append("\"fallbackCount\": ").append(coverage.fallbackCount()).append(", ");
             sb.append("\"deviceHandoffCount\": ").append(coverage.deviceHandoffCount()).append(", ");
             sb.append("\"dtypeResidencyEvidence\": ").append(intMapJson(coverage.dtypeResidencyReasons())).append(", ");
@@ -158,6 +162,9 @@ public final class JsonBenchmarkSuiteReportRenderer {
                 + "\"minLoweredPrimitiveCount\": " + policy.minLoweredPrimitiveCount() + ", "
                 + "\"minGpuFusedSubpatternCount\": " + policy.minGpuFusedSubpatternCount() + ", "
                 + "\"maxCpuMaterializationCount\": " + policy.maxCpuMaterializationCount() + ", "
+                + "\"maxInternalCpuMaterializationCount\": " + policy.maxInternalCpuMaterializationCount() + ", "
+                + "\"maxGradientPublicationMaterializationCount\": "
+                + policy.maxGradientPublicationMaterializationCount() + ", "
                 + "\"maxFallbackCount\": " + policy.maxFallbackCount() + ", "
                 + "\"maxTensorArrayStepCount\": " + policy.maxTensorArrayStepCount() + ", "
                 + "\"maxDeviceHandoffCount\": " + policy.maxDeviceHandoffCount() + ", "
@@ -177,6 +184,9 @@ public final class JsonBenchmarkSuiteReportRenderer {
                 + "\"tensorArrayStepCount\": " + coverage.tensorArrayStepCount() + ", "
                 + "\"cpuFallbackStepCount\": " + coverage.cpuFallbackStepCount() + ", "
                 + "\"cpuMaterializationCount\": " + coverage.cpuMaterializationCount() + ", "
+                + "\"internalCpuMaterializationCount\": " + coverage.internalCpuMaterializationCount() + ", "
+                + "\"gradientPublicationMaterializationCount\": "
+                + coverage.gradientPublicationMaterializationCount() + ", "
                 + "\"fallbackCount\": " + coverage.fallbackCount() + ", "
                 + "\"deviceHandoffCount\": " + coverage.deviceHandoffCount() + ", "
                 + "\"dtypeResidencyEvidence\": " + intMapJson(coverage.dtypeResidencyReasons()) + ", "

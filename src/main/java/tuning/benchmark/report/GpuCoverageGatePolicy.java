@@ -10,6 +10,8 @@ package tuning.benchmark.report;
  * @param minLoweredPrimitiveCount minimum lowered primitive count
  * @param minGpuFusedSubpatternCount minimum GPU fused subpattern count
  * @param maxCpuMaterializationCount maximum allowed CPU materialization boundaries
+ * @param maxInternalCpuMaterializationCount maximum allowed avoidable internal CPU materialization boundaries
+ * @param maxGradientPublicationMaterializationCount maximum allowed gradient-publication materialization boundaries
  * @param maxFallbackCount maximum allowed tensor-array plus CPU fallback count
  * @param maxTensorArrayStepCount maximum allowed tensor-array bridge steps
  * @param maxDeviceHandoffCount maximum allowed device handoffs
@@ -23,11 +25,43 @@ public record GpuCoverageGatePolicy(
         int minLoweredPrimitiveCount,
         int minGpuFusedSubpatternCount,
         int maxCpuMaterializationCount,
+        int maxInternalCpuMaterializationCount,
+        int maxGradientPublicationMaterializationCount,
         int maxFallbackCount,
         int maxTensorArrayStepCount,
         int maxDeviceHandoffCount,
         boolean requireNativeBufferBinding
 ) {
+    public GpuCoverageGatePolicy(
+            String backend,
+            double minGpuCoverageRatio,
+            int minMaxSelectedRegionLength,
+            int minMultiOpGpuRegionCount,
+            int minLoweredPrimitiveCount,
+            int minGpuFusedSubpatternCount,
+            int maxCpuMaterializationCount,
+            int maxFallbackCount,
+            int maxTensorArrayStepCount,
+            int maxDeviceHandoffCount,
+            boolean requireNativeBufferBinding
+    ) {
+        this(
+                backend,
+                minGpuCoverageRatio,
+                minMaxSelectedRegionLength,
+                minMultiOpGpuRegionCount,
+                minLoweredPrimitiveCount,
+                minGpuFusedSubpatternCount,
+                maxCpuMaterializationCount,
+                maxCpuMaterializationCount == Integer.MAX_VALUE ? Integer.MAX_VALUE : 0,
+                maxCpuMaterializationCount == Integer.MAX_VALUE ? Integer.MAX_VALUE : 0,
+                maxFallbackCount,
+                maxTensorArrayStepCount,
+                maxDeviceHandoffCount,
+                requireNativeBufferBinding
+        );
+    }
+
     public GpuCoverageGatePolicy {
         backend = backend == null ? "" : backend;
         minGpuCoverageRatio = Math.max(0.0d, minGpuCoverageRatio);
@@ -36,6 +70,8 @@ public record GpuCoverageGatePolicy(
         minLoweredPrimitiveCount = Math.max(0, minLoweredPrimitiveCount);
         minGpuFusedSubpatternCount = Math.max(0, minGpuFusedSubpatternCount);
         maxCpuMaterializationCount = Math.max(0, maxCpuMaterializationCount);
+        maxInternalCpuMaterializationCount = Math.max(0, maxInternalCpuMaterializationCount);
+        maxGradientPublicationMaterializationCount = Math.max(0, maxGradientPublicationMaterializationCount);
         maxFallbackCount = Math.max(0, maxFallbackCount);
         maxTensorArrayStepCount = Math.max(0, maxTensorArrayStepCount);
         maxDeviceHandoffCount = Math.max(0, maxDeviceHandoffCount);
@@ -50,6 +86,8 @@ public record GpuCoverageGatePolicy(
                 backend,
                 minGpuCoverageRatio,
                 minMaxSelectedRegionLength,
+                0,
+                0,
                 0,
                 0,
                 0,
@@ -79,7 +117,36 @@ public record GpuCoverageGatePolicy(
                 0,
                 0,
                 0,
+                0,
+                0,
                 1,
+                true
+        );
+    }
+
+    public static GpuCoverageGatePolicy trainingHotPathTarget(
+            String backend,
+            double minGpuCoverageRatio,
+            int minMaxSelectedRegionLength,
+            int minMultiOpGpuRegionCount,
+            int minLoweredPrimitiveCount,
+            int minGpuFusedSubpatternCount,
+            int maxGradientPublicationMaterializationCount
+    ) {
+        int gradientBudget = Math.max(0, maxGradientPublicationMaterializationCount);
+        return new GpuCoverageGatePolicy(
+                backend,
+                minGpuCoverageRatio,
+                minMaxSelectedRegionLength,
+                minMultiOpGpuRegionCount,
+                minLoweredPrimitiveCount,
+                minGpuFusedSubpatternCount,
+                gradientBudget,
+                0,
+                gradientBudget,
+                0,
+                0,
+                Math.max(1, gradientBudget + 1),
                 true
         );
     }

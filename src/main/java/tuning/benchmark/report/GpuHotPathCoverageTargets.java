@@ -114,6 +114,41 @@ public final class GpuHotPathCoverageTargets {
                         "Exercises index-target loss and INT32 target residency/fallback evidence."
                 ),
                 new GpuHotPathCoverageTarget(
+                        "training_transformer_block_hot_path",
+                        "training_attention",
+                        List.of("GPUNATIVE", "GPUSDPA", "GPUCLOSE", "METALTRAIN"),
+                        38,
+                        "Exercises FORWARD_BACKWARD transformer coverage and keeps unsupported SDPA backward report-visible."
+                ),
+                new GpuHotPathCoverageTarget(
+                        "training_dense_loss_small",
+                        "training_loss_dense",
+                        List.of("GPUNATIVE", "METALLOSS", "GPUCLOSE", "METALTRAIN"),
+                        38,
+                        "Exercises dense loss training coverage with gradient publication separated from internal CPU exits."
+                ),
+                new GpuHotPathCoverageTarget(
+                        "training_reduction_chain_small",
+                        "training_reduction",
+                        List.of("GPUNATIVE", "GPURED", "GPUCLOSE", "METALTRAIN"),
+                        38,
+                        "Exercises reduction backward coverage and gradient publication gates."
+                ),
+                new GpuHotPathCoverageTarget(
+                        "training_layer_norm_small",
+                        "training_normalization",
+                        List.of("GPUNATIVE", "GPUNORMX", "GPUCLOSE", "METALTRAIN"),
+                        38,
+                        "Exercises normalization/reduction training coverage and gradient publication gates."
+                ),
+                new GpuHotPathCoverageTarget(
+                        "training_cross_entropy_small",
+                        "training_loss_index",
+                        List.of("GPUNATIVE", "GPULOSSIDX", "GPUCLOSE", "METALTRAIN"),
+                        38,
+                        "Exercises index-target loss gradient blocker visibility in FORWARD_BACKWARD runs."
+                ),
+                new GpuHotPathCoverageTarget(
                         "bool_compare_where_small",
                         "bool_compare",
                         List.of("GPUNATIVE", "GPUCONVBOOL", "GPUCLOSE", "METALBOOL"),
@@ -260,6 +295,43 @@ public final class GpuHotPathCoverageTargets {
                         resolvedBackend,
                         partialBlockerPolicy(resolvedBackend),
                         List.of("UNSUPPORTED_INDEX_SEMANTICS", "INT32", "CROSS_ENTROPY_LOSS_INDICES"),
+                        false
+                ),
+                new GpuCoverageHotPathExpectation(
+                        "training_transformer_block_hot_path",
+                        resolvedBackend,
+                        partialBlockerPolicy(resolvedBackend),
+                        List.of("SCALED_DOT_PRODUCT_ATTENTION_BACKWARD", "BRIDGE_UNAVAILABLE", "forward SDPA DAG unsupported"),
+                        false
+                ),
+                new GpuCoverageHotPathExpectation(
+                        "training_dense_loss_small",
+                        resolvedBackend,
+                        trainingDenseLossPolicy(resolvedBackend),
+                        "GPU_METAL".equals(resolvedBackend)
+                                ? List.of()
+                                : List.of("DAG_PRIMITIVE_UNSUPPORTED", "NLL_LOSS", "CROSS_ENTROPY_LOSS"),
+                        "GPU_METAL".equals(resolvedBackend)
+                ),
+                new GpuCoverageHotPathExpectation(
+                        "training_reduction_chain_small",
+                        resolvedBackend,
+                        trainingReductionPolicy(resolvedBackend),
+                        List.of(),
+                        true
+                ),
+                new GpuCoverageHotPathExpectation(
+                        "training_layer_norm_small",
+                        resolvedBackend,
+                        trainingNormalizationPolicy(resolvedBackend),
+                        List.of(),
+                        true
+                ),
+                new GpuCoverageHotPathExpectation(
+                        "training_cross_entropy_small",
+                        resolvedBackend,
+                        partialBlockerPolicy(resolvedBackend),
+                        List.of("UNSUPPORTED_INDEX_SEMANTICS", "CROSS_ENTROPY_LOSS_INDICES_GRAD", "INT32"),
                         false
                 ),
                 new GpuCoverageHotPathExpectation(
@@ -514,5 +586,26 @@ public final class GpuHotPathCoverageTargets {
                 1,
                 true
         );
+    }
+
+    private static GpuCoverageGatePolicy trainingDenseLossPolicy(String backend) {
+        if (!"GPU_METAL".equals(backend)) {
+            return partialBlockerPolicy(backend);
+        }
+        return GpuCoverageGatePolicy.trainingHotPathTarget(backend, 0.1d, 1, 0, 3, 0, 8);
+    }
+
+    private static GpuCoverageGatePolicy trainingReductionPolicy(String backend) {
+        if (!"GPU_METAL".equals(backend) && !"GPU_CUDA".equals(backend)) {
+            return partialBlockerPolicy(backend);
+        }
+        return GpuCoverageGatePolicy.trainingHotPathTarget(backend, 0.1d, 1, 0, 1, 0, 8);
+    }
+
+    private static GpuCoverageGatePolicy trainingNormalizationPolicy(String backend) {
+        if (!"GPU_METAL".equals(backend) && !"GPU_CUDA".equals(backend)) {
+            return partialBlockerPolicy(backend);
+        }
+        return GpuCoverageGatePolicy.trainingHotPathTarget(backend, 0.1d, 1, 0, 5, 0, 8);
     }
 }

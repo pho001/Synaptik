@@ -509,6 +509,11 @@ For Phase 10, the accepted CPU materialization boundaries are graph output publi
 gradient publication. A supported Metal layout chain should not produce a `CPU_CONSUMER` materialization between
 metadata-only view nodes.
 
+Training coverage gates report `internalCpuMaterializationCount` separately from
+`gradientPublicationMaterializationCount`. A supported Metal training target may publish gradients to public `.grad()`
+tensors, but it must not hide a `CPU_CONSUMER`, `CPU_FALLBACK`, `PUBLIC_DATA_ACCESS`, or prepared-input materialization
+inside the device-owned region.
+
 ## Worked Example
 
 Consider two adjacent Metal regions inside one prepared execution:
@@ -714,6 +719,7 @@ Notable current exclusions:
 | Index-target loss counted as dense loss support | Coverage regression gate | `cross_entropy_small` is separate from `dense_loss_small` and must expose `UNSUPPORTED_INDEX_SEMANTICS`, `INT32`, or `CROSS_ENTROPY_LOSS_INDICES` as visible blocker evidence. |
 | Missing INT32 index residency evidence | Coverage regression gate | Supported `gather_take_small` fails if traces do not show native buffer execution and non-rejected `dtype=INT32` residency evidence. |
 | Forward index coverage counted as scatter/index-gradient support | Coverage regression gate | `scatter_index_gradient_small` is separate from `gather_take_small` and must expose `UNSUPPORTED_DUPLICATE_INDEX`, `SCATTER_ADD`, `GATHER_GRAD`, or `TAKE_ALONG_AXIS_GRAD` as a visible blocker. |
+| Gradient publication counted as hidden CPU exit | Coverage regression gate | `training_*` supported targets allow bounded `GRADIENT_PUBLICATION` materialization while failing non-zero `internalCpuMaterializationCount`, tensor-array replay, or CPU fallback. |
 | Missing layout materialization evidence | Coverage regression gate | Supported `layout_broadcast_repair_small` fails if traces do not show `BROADCAST_GPU_MATERIALIZATION`, native buffer execution, and no `CPU_CONSUMER` materialization. |
 | Broadcast zero-stride output layout | `MetalLayoutPolicy.output(...)` | Direct broadcast output buffers remain unsupported with `OUTPUT_LAYOUT_UNSUPPORTED`; explicit `expand -> contiguous` repair can use `BROADCAST_GPU_MATERIALIZATION`. |
 | Non-contiguous legal view output | `MetalLayoutPolicy.output(...)`, `MetalBufferAllocator.createOutputBinding(...)`, `MetalDeviceToCpuMaterializer` | `ZERO_OFFSET_VIEW`, `NON_ZERO_OFFSET_VIEW`, and `PERMUTED_OR_STRIDED_VIEW` use dense physical logical-view buffers when the bridge and materializer support the path. |

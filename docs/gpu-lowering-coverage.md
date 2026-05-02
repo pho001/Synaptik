@@ -282,7 +282,8 @@ passing because forward `GATHER` / `TAKE_ALONG_AXIS` coverage exists. The native
 Suite reports include `coverageDeltaVsBaseline` so reviewers can compare trace-derived coverage counters against the
 v1.4 pre-closure baseline without using raw latency medians as proof. The relevant evidence fields are
 `maxSelectedRegionLength`, `loweredPrimitiveCount`, `nativeBufferStepCount`, `tensorArrayStepCount`,
-`cpuFallbackStepCount`, `cpuMaterializationCount`, `fallbackCount`, `deviceHandoffCount`, `targetCoverageGates`,
+`cpuFallbackStepCount`, `cpuMaterializationCount`, `internalCpuMaterializationCount`,
+`gradientPublicationMaterializationCount`, `fallbackCount`, `deviceHandoffCount`, `targetCoverageGates`,
 `nativeEvidence`, `capabilitySkipped`, and visible reason-code lists.
 
 ## Phase 38 training/backward contract
@@ -297,5 +298,10 @@ CUDA-native evidence exists.
 
 Forward conv/pool, gather/take, dense loss, BOOL compare, and SDPA support does not imply backward support. Conv/pool
 backward remains `CAPABILITY_MISSING`, index gradients and scatter remain `UNSUPPORTED_DUPLICATE_INDEX`, and
-index-target loss gradients remain `UNSUPPORTED_INDEX_SEMANTICS`. Later Phase 38 work adds training hot-path report
-gates that distinguish true `GRADIENT_PUBLICATION` materialization from avoidable internal CPU exits.
+index-target loss gradients remain `UNSUPPORTED_INDEX_SEMANTICS`.
+
+Phase 38 training gates add explicit `training_*` hot-path targets. Supported targets allow bounded
+`GRADIENT_PUBLICATION` materialization, require zero `internalCpuMaterializationCount`, and still fail tensor-array
+bridge replay, CPU fallback, or shorter selected regions. Unsupported training targets such as
+`training_transformer_block_hot_path` and `training_cross_entropy_small` pass only when the report exposes stable
+blocker evidence for SDPA backward or index-target loss gradients.

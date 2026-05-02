@@ -40,6 +40,11 @@ public class GpuHotPathCoverageTargetsTest {
                 "reduction_chain_small_bf16",
                 "dense_loss_small",
                 "cross_entropy_small",
+                "training_transformer_block_hot_path",
+                "training_dense_loss_small",
+                "training_reduction_chain_small",
+                "training_layer_norm_small",
+                "training_cross_entropy_small",
                 "bool_compare_where_small",
                 "gather_take_small",
                 "scatter_index_gradient_small",
@@ -62,7 +67,7 @@ public class GpuHotPathCoverageTargetsTest {
         ));
         List<String> names = request.workloads().stream().map(tuning.workload.WorkloadSpec::name).toList();
 
-        assertEquals(19, request.workloads().size());
+        assertEquals(24, request.workloads().size());
         assertTrue(names.contains("reduction_chain_small"));
         assertTrue(names.contains("reduction_chain_small_bf16"));
         assertTrue(names.contains("transformer_block_hot_path"));
@@ -77,6 +82,11 @@ public class GpuHotPathCoverageTargetsTest {
         assertTrue(names.contains("rms_norm_small_bf16"));
         assertTrue(names.contains("dense_loss_small"));
         assertTrue(names.contains("cross_entropy_small"));
+        assertTrue(names.contains("training_transformer_block_hot_path"));
+        assertTrue(names.contains("training_dense_loss_small"));
+        assertTrue(names.contains("training_reduction_chain_small"));
+        assertTrue(names.contains("training_layer_norm_small"));
+        assertTrue(names.contains("training_cross_entropy_small"));
         assertTrue(names.contains("bool_compare_where_small"));
         assertTrue(names.contains("gather_take_small"));
         assertTrue(names.contains("scatter_index_gradient_small"));
@@ -136,13 +146,16 @@ public class GpuHotPathCoverageTargetsTest {
         assertEquals(3, targets.stream()
                 .filter(target -> target.requirementFamilies().contains("METALCONVPOOL"))
                 .count());
+        assertEquals(5, targets.stream()
+                .filter(target -> target.requirementFamilies().contains("METALTRAIN"))
+                .count());
     }
 
     @Test
     void phaseTwentyTargetsHaveHardeningPolicies() {
         List<GpuCoverageHotPathExpectation> expectations = GpuHotPathCoverageTargets.defaultExpectations();
 
-        assertEquals(19, expectations.size());
+        assertEquals(24, expectations.size());
         assertTrue(expectations.stream().allMatch(expectation -> "GPU_METAL".equals(expectation.backend())));
         assertTrue(expectations.stream().allMatch(expectation -> expectation.policy() != null));
         assertTrue(GpuHotPathCoverageTargets.defaults().stream()
@@ -172,6 +185,11 @@ public class GpuHotPathCoverageTargetsTest {
                 "reduction_chain_small_bf16",
                 "dense_loss_small",
                 "cross_entropy_small",
+                "training_transformer_block_hot_path",
+                "training_dense_loss_small",
+                "training_reduction_chain_small",
+                "training_layer_norm_small",
+                "training_cross_entropy_small",
                 "bool_compare_where_small",
                 "gather_take_small",
                 "scatter_index_gradient_small",
@@ -326,6 +344,34 @@ public class GpuHotPathCoverageTargetsTest {
         assertEquals(GpuTargetExecutionStatus.NATIVE_EXECUTABLE, rows.get(operations.Operation.OpType.CROSS_ENTROPY_LOSS).executionStatus());
         assertEquals(GpuTargetExecutionStatus.UNSUPPORTED_REJECTION, rows.get(operations.Operation.OpType.CROSS_ENTROPY_LOSS_INDICES).executionStatus());
         assertEquals(GpuTargetExecutionStatus.UNSUPPORTED_REJECTION, rows.get(operations.Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD).executionStatus());
+    }
+
+    @Test
+    void phaseThirtyEightTrainingTargetsSeparatePublicationFromInternalMaterialization() {
+        Map<String, GpuCoverageHotPathExpectation> metal = expectationsByName("GPU_METAL");
+
+        for (String workload : List.of(
+                "training_dense_loss_small",
+                "training_reduction_chain_small",
+                "training_layer_norm_small"
+        )) {
+            GpuCoverageHotPathExpectation expectation = metal.get(workload);
+            assertTrue(expectation.nativeEvidenceRequired(), workload);
+            assertTrue(expectation.expectedVisibleReasons().isEmpty(), workload);
+            assertTrue(expectation.policy().requireNativeBufferBinding(), workload);
+            assertEquals(0, expectation.policy().maxInternalCpuMaterializationCount(), workload);
+            assertTrue(expectation.policy().maxGradientPublicationMaterializationCount() > 0, workload);
+            assertEquals(
+                    expectation.policy().maxGradientPublicationMaterializationCount(),
+                    expectation.policy().maxCpuMaterializationCount(),
+                    workload
+            );
+        }
+
+        assertVisibleBlocker(GpuHotPathCoverageTargets.defaultExpectations(), "training_transformer_block_hot_path");
+        assertVisibleBlocker(GpuHotPathCoverageTargets.defaultExpectations(), "training_cross_entropy_small");
+        assertTrue(metal.get("training_cross_entropy_small").expectedVisibleReasons()
+                .contains("CROSS_ENTROPY_LOSS_INDICES_GRAD"));
     }
 
     @Test

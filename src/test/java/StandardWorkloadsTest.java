@@ -40,6 +40,11 @@ public class StandardWorkloadsTest {
         assertTrue(catalog.names().contains("avg_pool2d_small"));
         assertTrue(catalog.names().contains("dense_loss_small"));
         assertTrue(catalog.names().contains("cross_entropy_small"));
+        assertTrue(catalog.names().contains("training_transformer_block_hot_path"));
+        assertTrue(catalog.names().contains("training_dense_loss_small"));
+        assertTrue(catalog.names().contains("training_reduction_chain_small"));
+        assertTrue(catalog.names().contains("training_layer_norm_small"));
+        assertTrue(catalog.names().contains("training_cross_entropy_small"));
         assertTrue(catalog.names().contains("bool_compare_where_small"));
         assertTrue(catalog.names().contains("gather_take_small"));
         assertTrue(catalog.names().contains("scatter_index_gradient_small"));

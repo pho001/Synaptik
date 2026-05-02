@@ -39,6 +39,13 @@ public final class GpuCoverageRegressionGate {
         if (coverage.cpuMaterializationCount() > policy.maxCpuMaterializationCount()) {
             failures.add("unexpected CPU materialization");
         }
+        if (coverage.internalCpuMaterializationCount() > policy.maxInternalCpuMaterializationCount()) {
+            failures.add("unexpected internal CPU materialization");
+        }
+        if (coverage.gradientPublicationMaterializationCount()
+                > policy.maxGradientPublicationMaterializationCount()) {
+            failures.add("unexpected gradient publication materialization");
+        }
         if (coverage.fallbackCount() > policy.maxFallbackCount()) {
             failures.add("lost GPU coverage");
         }
@@ -139,6 +146,15 @@ public final class GpuCoverageRegressionGate {
                         + expectation.backend());
                 result = new GpuCoverageGateResult(false, failures, coverage);
             }
+            if (requiresTrainingMaterializationGate(expectation)
+                    && coverage.internalCpuMaterializationCount() > expectation.policy().maxInternalCpuMaterializationCount()) {
+                var failures = new ArrayList<>(result.failures());
+                failures.add("unexpected internal CPU materialization workload="
+                        + expectation.workloadName()
+                        + " backend="
+                        + expectation.backend());
+                result = new GpuCoverageGateResult(false, failures, coverage);
+            }
             results.add(result);
         }
         return List.copyOf(results);
@@ -234,6 +250,12 @@ public final class GpuCoverageRegressionGate {
         return expectation != null
                 && expectation.nativeEvidenceRequired()
                 && expectation.workloadName().equals("layout_broadcast_repair_small");
+    }
+
+    private static boolean requiresTrainingMaterializationGate(GpuCoverageHotPathExpectation expectation) {
+        return expectation != null
+                && expectation.nativeEvidenceRequired()
+                && expectation.workloadName().startsWith("training_");
     }
 
     private static boolean hasLayoutMaterializationEvidence(GpuCoverageSummary.BackendCoverage coverage) {

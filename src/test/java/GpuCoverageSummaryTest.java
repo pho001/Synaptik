@@ -306,9 +306,43 @@ public class GpuCoverageSummaryTest {
 
         assertEquals(1, coverage.cpuMaterializationCount());
         assertEquals(Map.of("CPU_CONSUMER", 1), coverage.cpuMaterializationReasonCounts());
+        assertEquals(1, coverage.internalCpuMaterializationCount());
+        assertEquals(0, coverage.gradientPublicationMaterializationCount());
         assertEquals(4096L, coverage.cpuMaterializationBytes());
         assertEquals(250_000L, coverage.cpuMaterializationDurationNs());
         assertEquals(2, coverage.deviceHandoffCount());
+    }
+
+    @Test
+    void phaseThirtyEightSeparatesGradientPublicationFromInternalCpuMaterialization() {
+        ExecutionTrace base = traceFor("GPU_METAL", ComputeBackend.GPU_METAL);
+        CpuMaterializationTrace gradientPublication = new CpuMaterializationTrace(
+                13,
+                CpuMaterializationReason.GRADIENT_PUBLICATION,
+                "GPU_METAL",
+                StorageResidency.DEVICE_OWNED,
+                2048L,
+                125_000L,
+                true,
+                "gradient publication requested readable storage"
+        );
+        ExecutionTrace trace = new ExecutionTrace(
+                base.compile(),
+                base.prepare(),
+                new RunTrace(
+                        ExecutionMode.FORWARD_BACKWARD,
+                        base.run().durationNs(),
+                        base.run().steps(),
+                        List.of(base.run().cpuMaterializations().getFirst(), gradientPublication)
+                )
+        );
+
+        GpuCoverageSummary.BackendCoverage coverage = GpuCoverageSummary.fromTrace(trace).backends().get("GPU_METAL");
+
+        assertEquals(2, coverage.cpuMaterializationCount());
+        assertEquals(1, coverage.internalCpuMaterializationCount());
+        assertEquals(1, coverage.gradientPublicationMaterializationCount());
+        assertEquals(Map.of("CPU_CONSUMER", 1, "GRADIENT_PUBLICATION", 1), coverage.cpuMaterializationReasonCounts());
     }
 
     @Test
