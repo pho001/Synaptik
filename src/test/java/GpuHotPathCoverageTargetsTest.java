@@ -97,7 +97,7 @@ public class GpuHotPathCoverageTargetsTest {
         assertTrue(targets.stream().allMatch(target -> target.requirementFamilies().contains("GPUNATIVE")));
         assertTrue(targets.stream().allMatch(target -> target.requirementFamilies().contains("GPUCLOSE")));
         assertEquals(23, targets.getFirst().ownerPhase());
-        assertEquals(27, targets.getLast().ownerPhase());
+        assertEquals(31, targets.getLast().ownerPhase());
     }
 
     @Test
@@ -215,6 +215,8 @@ public class GpuHotPathCoverageTargetsTest {
         assertHardNativePolicy(metal.get("layer_norm_small_bf16"));
         assertHardNativePolicy(metal.get("rms_norm_small_bf16"));
         assertHardNativePolicy(metal.get("reduction_chain_small_bf16"));
+        assertHardNativePolicy(metal.get("bool_compare_where_small"));
+        assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "bool_compare_where_small");
 
         assertEquals(
                 GpuTargetExecutionStatus.NATIVE_EXECUTABLE,
@@ -233,7 +235,6 @@ public class GpuHotPathCoverageTargetsTest {
         assertVisibleBlocker(expectations, "conv2d_resnet_3x3");
         assertVisibleBlocker(expectations, "max_pool2d_small");
         assertVisibleBlocker(expectations, "cross_entropy_small");
-        assertVisibleBlocker(expectations, "bool_compare_where_small");
 
         GpuCoverageHotPathExpectation cudaSdpa = expectationsByName("GPU_CUDA").get("transformer_block_hot_path");
         assertTrue(!cudaSdpa.nativeEvidenceRequired());

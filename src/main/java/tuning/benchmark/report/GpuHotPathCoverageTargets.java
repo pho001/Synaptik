@@ -102,8 +102,8 @@ public final class GpuHotPathCoverageTargets {
                 new GpuHotPathCoverageTarget(
                         "bool_compare_where_small",
                         "bool_compare",
-                        List.of("GPUNATIVE", "GPUCONVBOOL", "GPUCLOSE"),
-                        27,
+                        List.of("GPUNATIVE", "GPUCONVBOOL", "GPUCLOSE", "METALBOOL"),
+                        31,
                         "Exercises BOOL compare output feeding WHERE without hiding materialization."
                 )
         );
@@ -207,9 +207,9 @@ public final class GpuHotPathCoverageTargets {
                 new GpuCoverageHotPathExpectation(
                         "bool_compare_where_small",
                         resolvedBackend,
-                        partialBlockerPolicy(resolvedBackend),
-                        List.of("BOOL", "COMPARE_BOOL", "GT"),
-                        false
+                        boolCompareWherePolicy(resolvedBackend),
+                        "GPU_METAL".equals(resolvedBackend) ? List.of() : List.of("BOOL", "COMPARE_BOOL", "GT"),
+                        "GPU_METAL".equals(resolvedBackend)
                 )
         );
     }
@@ -231,6 +231,25 @@ public final class GpuHotPathCoverageTargets {
                 Integer.MAX_VALUE,
                 Integer.MAX_VALUE,
                 false
+        );
+    }
+
+    private static GpuCoverageGatePolicy boolCompareWherePolicy(String backend) {
+        if (!"GPU_METAL".equals(backend)) {
+            return partialBlockerPolicy(backend);
+        }
+        return new GpuCoverageGatePolicy(
+                backend,
+                0.5d,
+                4,
+                1,
+                4,
+                0,
+                0,
+                0,
+                0,
+                1,
+                true
         );
     }
 

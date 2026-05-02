@@ -18,25 +18,30 @@ class AcceleratorDTypeResidencyPolicyTest {
         assertEquals(4L, AcceleratorBufferLayout.of(DataType.BOOL, new int[]{4}, new int[]{1}, 0, 4).logicalByteLength());
 
         assertTrue(AcceleratorDTypeResidencyPolicy.forInternalValue(ComputeBackend.GPU_METAL, DataType.BFLOAT16).residentRepresentable());
+        assertTrue(AcceleratorDTypeResidencyPolicy.forInternalValue(ComputeBackend.GPU_METAL, DataType.BOOL).residentRepresentable());
         assertTrue(AcceleratorDTypeResidencyPolicy.forInternalValue(ComputeBackend.GPU_CUDA, DataType.INT32).residentRepresentable());
         assertTrue(AcceleratorDTypeResidencyPolicy.forInternalValue(ComputeBackend.GPU_CUDA, DataType.BOOL).residentRepresentable());
     }
 
     @Test
-    void metalAllowsBoolPredicateInputButRejectsBoolComputeAndOutput() {
+    void metalAllowsBoolPredicateInputComputeOutputAndInternalValue() {
         AcceleratorDTypeResidencyDecision input = AcceleratorDTypeResidencyPolicy.forExternalInput(ComputeBackend.GPU_METAL, DataType.BOOL);
         assertTrue(input.nativeInputLegal());
         assertFalse(input.rejected());
 
         AcceleratorDTypeResidencyDecision compute = AcceleratorDTypeResidencyPolicy.forCompute(ComputeBackend.GPU_METAL, DataType.BOOL);
-        assertFalse(compute.nativeComputeLegal());
-        assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE, compute.reason());
+        assertTrue(compute.nativeComputeLegal());
+        assertFalse(compute.rejected());
         assertTrue(compute.detail().contains("backend=GPU_METAL"));
         assertTrue(compute.detail().contains("dtype=BOOL"));
 
         AcceleratorDTypeResidencyDecision output = AcceleratorDTypeResidencyPolicy.forOutput(ComputeBackend.GPU_METAL, DataType.BOOL);
-        assertFalse(output.nativeOutputLegal());
-        assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE, output.reason());
+        assertTrue(output.nativeOutputLegal());
+        assertFalse(output.rejected());
+
+        AcceleratorDTypeResidencyDecision internal = AcceleratorDTypeResidencyPolicy.forInternalValue(ComputeBackend.GPU_METAL, DataType.BOOL);
+        assertTrue(internal.residentRepresentable());
+        assertFalse(internal.rejected());
     }
 
     @Test

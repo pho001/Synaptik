@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Production-Grade Metal Backend Expansion
 status: active
-last_updated: "2026-05-02T07:52:24Z"
-last_activity: 2026-05-02 -- Phase 31-02 native BOOL Metal execution completed
+last_updated: "2026-05-02T07:59:10Z"
+last_activity: 2026-05-02 -- Phase 31-03 mask-chain residency and WHERE gates completed
 progress:
   total_phases: 11
   completed_phases: 2
   total_plans: 44
-  completed_plans: 10
-  percent: 23
+  completed_plans: 11
+  percent: 25
 ---
 
 # GSD State
@@ -76,7 +76,7 @@ Planning agents should read the relevant codebase map documents before proposing
 |-------|--------|-------|--------------|
 | 29 — Metal DType ABI And Capability Truth | Complete | 4/4 | Verified |
 | 30 — BF16 Metal Compute And Output | Complete | 4/4 | Verified |
-| 31 — BOOL-Producing Metal Compute | In Progress | 2/4 | Pending |
+| 31 — BOOL-Producing Metal Compute | In Progress | 3/4 | Pending |
 | 32 — INT32 Index Tensor And Gather Take Path | Planned | 0/4 | Pending |
 | 33 — GPU Layout Router And Strided Materialization | Planned | 0/4 | Pending |
 | 34 — Masked And Causal SDPA | Planned | 0/4 | Pending |

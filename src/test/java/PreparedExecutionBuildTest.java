@@ -2646,6 +2646,7 @@ public class PreparedExecutionBuildTest {
                 .toList();
         assertEquals(1, gpuSteps.size());
         PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        var manifest = executable.gpuLoweredRegionManifest();
 
         assertTrue(executable.plan().lowering().dagSpec().externalInputs().stream()
                 .noneMatch(input -> input.dataType() == DataType.BOOL));
@@ -2657,6 +2658,12 @@ public class PreparedExecutionBuildTest {
                 .anyMatch(node -> node.type() == backend.accelerator.dag.AcceleratorDagNodeType.RELU));
         assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
                 .anyMatch(node -> node.nodeId() == compareNodeId));
+        String dtypeResidencyEvidence = manifest.backendExtensions().values().toString();
+        assertTrue(dtypeResidencyEvidence.contains("role=compute dtype=BOOL"));
+        assertTrue(dtypeResidencyEvidence.contains("role=internalValue dtype=BOOL residentRepresentable=true"));
+        assertTrue(manifest.rejections().stream().noneMatch(rejection ->
+                rejection.originalNodeId() == compareNodeId
+                        && rejection.level().equals("dtype_residency.internalValue")));
         assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(compiledNode(compiled, compareNodeId), planningContext));
     }
 

@@ -239,7 +239,7 @@ public class GpuCoverageRegressionGateTest {
         );
         var reportWithDTypeEvidence = reportFor(
                 "mlp_classifier_small_bf16",
-                coverageWithDTypeEvidence(0.75d, 3, 1, 3, 1)
+                coverageWithDTypeEvidence(0.75d, 3, 1, 3, 1, tensor.DataType.BFLOAT16)
         );
 
         List<GpuCoverageGateResult> missing = GpuCoverageRegressionGate.evaluateTargets(
@@ -257,33 +257,55 @@ public class GpuCoverageRegressionGateTest {
     }
 
     @Test
-    void phaseTwentyEightVisibleBlockerFailureNamesWorkloadAndBackend() {
+    void phaseThirtyOneBoolCompareWhereRequiresBoolDTypeResidencyEvidence() {
         GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.defaultExpectations()
                 .stream()
                 .filter(item -> item.workloadName().equals("bool_compare_where_small"))
                 .findFirst()
                 .orElseThrow();
-        var report = new tuning.benchmark.report.BenchmarkSuiteReport(
-                null,
-                List.of(tuning.benchmark.report.BenchmarkReport.of(
-                        "bool_compare_where_small",
-                        List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
-                                tuning.benchmark.BenchmarkEntry.candidate("candidate", profile()),
-                                tuning.validate.ValidationResult.skipped(),
-                                new tuning.measure.MeasurementResult(
-                                        tuning.measure.MeasurementPolicy.defaults(),
-                                        GpuCoverageSummaryTest.traceFor("GPU_METAL", backend.ComputeBackend.GPU_METAL),
-                                        new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
-                                )
-                        ))
-                ))
+        var reportWithoutDTypeEvidence = reportFor(
+                "bool_compare_where_small",
+                coverage(1.0d, 4, 0, 0, 0, 0, 1, 1, 4, 0, 0)
+        );
+        var reportWithDTypeEvidence = reportFor(
+                "bool_compare_where_small",
+                coverageWithDTypeEvidence(1.0d, 4, 1, 4, 0, tensor.DataType.BOOL)
+        );
+
+        List<GpuCoverageGateResult> missing = GpuCoverageRegressionGate.evaluateTargets(
+                reportWithoutDTypeEvidence,
+                List.of(expectation)
+        );
+        List<GpuCoverageGateResult> passing = GpuCoverageRegressionGate.evaluateTargets(
+                reportWithDTypeEvidence,
+                List.of(expectation)
+        );
+
+        assertTrue(missing.getFirst().failures().stream()
+                .anyMatch(failure -> failure.contains("missing BOOL dtype residency evidence")));
+        assertTrue(passing.getFirst().passed(), passing.getFirst().failures().toString());
+    }
+
+    @Test
+    void phaseTwentyEightVisibleBlockerFailureNamesWorkloadAndBackend() {
+        GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA")
+                .stream()
+                .filter(item -> item.workloadName().equals("bool_compare_where_small"))
+                .findFirst()
+                .orElseThrow();
+        var report = reportWithRejectedReason(
+                "bool_compare_where_small",
+                "GPU_CUDA",
+                backend.ComputeBackend.GPU_CUDA,
+                "unsupported-layout"
         );
 
         var results = GpuCoverageRegressionGate.evaluateTargets(report, List.of(expectation));
 
         assertEquals(1, results.size());
         assertTrue(results.getFirst().failures().stream()
-                .anyMatch(failure -> failure.contains("bool_compare_where_small") && failure.contains("GPU_METAL")));
+                .anyMatch(failure -> failure.contains("bool_compare_where_small")
+                        && failure.contains(expectation.backend())));
     }
 
     private static config.profile.ExecutionProfile profile() {
@@ -319,9 +341,33 @@ public class GpuCoverageRegressionGateTest {
         );
     }
 
+    private static tuning.benchmark.report.BenchmarkSuiteReport reportWithRejectedReason(
+            String workloadName,
+            String backendName,
+            backend.ComputeBackend backend,
+            String reason
+    ) {
+        return new tuning.benchmark.report.BenchmarkSuiteReport(
+                null,
+                List.of(tuning.benchmark.report.BenchmarkReport.of(
+                        workloadName,
+                        List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
+                                tuning.benchmark.BenchmarkEntry.candidate("candidate", profile()),
+                                tuning.validate.ValidationResult.skipped(),
+                                new tuning.measure.MeasurementResult(
+                                        tuning.measure.MeasurementPolicy.defaults(),
+                                        traceWithRejectedReason(backendName, backend, reason),
+                                        new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
+                                )
+                        ))
+                ))
+        );
+    }
+
     private static graph.execution.trace.ExecutionTrace traceWithCoverage(GpuCoverageSummary.BackendCoverage coverage) {
+        tensor.DataType evidenceDType = evidenceDType(coverage);
         var manifest = new backend.accelerator.lowering.GpuLoweredRegionManifest(
-                "bf16-region",
+                "dtype-region",
                 backend.ComputeBackend.GPU_METAL,
                 1,
                 java.util.stream.IntStream.range(0, Math.max(1, coverage.maxSelectedRegionLength()))
@@ -334,11 +380,11 @@ public class GpuCoverageRegressionGateTest {
                 java.util.stream.IntStream.range(0, coverage.loweredPrimitiveCount())
                         .mapToObj(index -> new backend.accelerator.lowering.GpuLoweredPrimitiveManifest(
                                 "p" + index,
-                                "BF16_TEST",
+                                evidenceDType + "_TEST",
                                 List.of(index),
                                 List.of("external:0"),
                                 "node:" + index,
-                                tensor.DataType.BFLOAT16,
+                                evidenceDType,
                                 List.of(2),
                                 List.of()
                         ))
@@ -361,14 +407,14 @@ public class GpuCoverageRegressionGateTest {
                 backend.accelerator.lowering.GpuLoweredRegionCandidateSpan.none(List.of(1)),
                 coverage.dtypeResidencyReasons().isEmpty()
                         ? Map.of()
-                        : Map.of("dtypeResidency.compute.1", "backend=GPU_METAL role=compute dtype=BFLOAT16 supported")
+                        : Map.of("dtypeResidency.compute.1", "backend=GPU_METAL role=compute dtype=" + evidenceDType + " supported")
         );
         var gpuStep = new graph.execution.trace.ExecutionStepTrace(
                 0,
-                "gpu_metal_bf16",
-                "BF16_TEST",
+                "gpu_metal_dtype",
+                evidenceDType + "_TEST",
                 List.of(2),
-                tensor.DataType.BFLOAT16,
+                evidenceDType,
                 "GPU_METAL",
                 "PreparedAcceleratorExecutable",
                 1L,
@@ -412,6 +458,49 @@ public class GpuCoverageRegressionGateTest {
                 new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, selection),
                 new graph.execution.trace.RunTrace(backend.runtime.ExecutionMode.FORWARD, 1L, List.of(gpuStep), List.of())
         );
+    }
+
+    private static graph.execution.trace.ExecutionTrace traceWithRejectedReason(
+            String backendName,
+            backend.ComputeBackend computeBackend,
+            String reason
+    ) {
+        var selection = new graph.execution.trace.BackendSelectionTrace(
+                1,
+                0,
+                1,
+                List.of(new graph.execution.trace.BackendSelectionDecisionTrace(
+                        1,
+                        List.of(1),
+                        List.of(computeBackend),
+                        false,
+                        null,
+                        reason,
+                        128L
+                ))
+        );
+        return new graph.execution.trace.ExecutionTrace(
+                new graph.execution.trace.CompileTrace(true, 1L, 0, 0, false, graph.execution.trace.PartitionCompileTrace.empty()),
+                new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, selection),
+                new graph.execution.trace.RunTrace(backend.runtime.ExecutionMode.FORWARD, 1L, List.of(), List.of())
+        );
+    }
+
+    private static tensor.DataType evidenceDType(GpuCoverageSummary.BackendCoverage coverage) {
+        String reasons = coverage.dtypeResidencyReasons().keySet().toString();
+        if (reasons.contains("dtype=BOOL")) {
+            return tensor.DataType.BOOL;
+        }
+        if (reasons.contains("dtype=INT32")) {
+            return tensor.DataType.INT32;
+        }
+        if (reasons.contains("dtype=FLOAT64")) {
+            return tensor.DataType.FLOAT64;
+        }
+        if (reasons.contains("dtype=FLOAT32")) {
+            return tensor.DataType.FLOAT32;
+        }
+        return tensor.DataType.BFLOAT16;
     }
 
     private static GpuCoverageSummary summary(String backend, GpuCoverageSummary.BackendCoverage coverage) {
@@ -497,7 +586,8 @@ public class GpuCoverageRegressionGateTest {
             int maxSelectedRegionLength,
             int multiOpGpuRegionCount,
             int loweredPrimitiveCount,
-            int gpuFusedSubpatternCount
+            int gpuFusedSubpatternCount,
+            tensor.DataType dataType
     ) {
         return new GpuCoverageSummary.BackendCoverage(
                 4,
@@ -525,7 +615,7 @@ public class GpuCoverageRegressionGateTest {
                 Map.of(),
                 Map.of(),
                 Map.of("DEVICE_OWNED", 1),
-                Map.of("dtypeResidency backend=GPU_METAL role=compute dtype=BFLOAT16 supported", 1),
+                Map.of("dtypeResidency backend=GPU_METAL role=compute dtype=" + dataType + " supported", 1),
                 gpuFusedSubpatternCount,
                 gpuFusedSubpatternCount == 0 ? List.of() : List.of("ELEMENTWISE_CHAIN"),
                 gpuFusedSubpatternCount == 0 ? List.of() : List.of("[1, 2]"),

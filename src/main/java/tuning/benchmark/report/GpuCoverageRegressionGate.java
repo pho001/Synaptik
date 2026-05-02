@@ -106,6 +106,14 @@ public final class GpuCoverageRegressionGate {
                         + expectation.backend());
                 result = new GpuCoverageGateResult(false, failures, coverage);
             }
+            if (requiresBoolEvidence(expectation) && !hasBoolDTypeEvidence(coverage)) {
+                var failures = new ArrayList<>(result.failures());
+                failures.add("missing BOOL dtype residency evidence workload="
+                        + expectation.workloadName()
+                        + " backend="
+                        + expectation.backend());
+                result = new GpuCoverageGateResult(false, failures, coverage);
+            }
             results.add(result);
         }
         return List.copyOf(results);
@@ -174,10 +182,25 @@ public final class GpuCoverageRegressionGate {
     }
 
     private static boolean hasBf16DTypeEvidence(GpuCoverageSummary.BackendCoverage coverage) {
+        return hasSupportedDTypeEvidence(coverage, "BFLOAT16");
+    }
+
+    private static boolean requiresBoolEvidence(GpuCoverageHotPathExpectation expectation) {
+        return expectation != null
+                && expectation.nativeEvidenceRequired()
+                && expectation.workloadName().equals("bool_compare_where_small");
+    }
+
+    private static boolean hasBoolDTypeEvidence(GpuCoverageSummary.BackendCoverage coverage) {
+        return hasSupportedDTypeEvidence(coverage, "BOOL");
+    }
+
+    private static boolean hasSupportedDTypeEvidence(GpuCoverageSummary.BackendCoverage coverage, String dtype) {
         if (coverage == null || coverage.dtypeResidencyReasons().isEmpty()) {
             return false;
         }
         return coverage.dtypeResidencyReasons().keySet().stream()
-                .anyMatch(reason -> reason.contains("dtype=BFLOAT16"));
+                .filter(reason -> reason.contains("dtype=" + dtype))
+                .anyMatch(reason -> !reason.contains("UNSUPPORTED_DTYPE") && !reason.toLowerCase().contains("unsupported"));
     }
 }
