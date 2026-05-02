@@ -703,20 +703,55 @@ class MetalMpsFfmBridgeTest {
         assertFalse(halfScale.equals(unitScale));
     }
 
+    @Test
+    void executableSignatureDistinguishesMaskedSdpaFromUnmaskedSdpa() {
+        Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "sdpaSigQ", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "sdpaSigK", DataType.FLOAT32);
+        Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "sdpaSigV", DataType.FLOAT32);
+        Tensor mask = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{1, 2, 2}, null, "sdpaSigMask", DataType.BOOL);
+
+        AcceleratorSubgraphSignature unmasked = sdpaSignature(q.scaledDotProductAttention(k, v, AttentionOptions.defaults().withScale(0.5)));
+        AcceleratorSubgraphSignature masked = sdpaSignature(q.scaledDotProductAttention(k, v, mask, AttentionOptions.defaults().withScale(0.5)));
+
+        assertFalse(unmasked.equals(masked));
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsMaskedSdpaRank3Parity() {
+        assertNativeSdpaParity(
+                new float[]{1f, 0f, 0f, 1f},
+                new float[]{1f, 0f, 0f, 1f},
+                new float[]{10f, 1f, 1f, 10f},
+                new byte[]{1, 0, 1, 1},
+                new int[]{1, 2, 2},
+                AttentionOptions.defaults().withScale(1.0)
+        );
+    }
+
     private static void assertNativeSdpaParity(float[] queryValues, float[] keyValues, float[] valueValues, int[] shape, AttentionOptions options) {
+        assertNativeSdpaParity(queryValues, keyValues, valueValues, null, shape, options);
+    }
+
+    private static void assertNativeSdpaParity(float[] queryValues, float[] keyValues, float[] valueValues, byte[] maskValues, int[] shape, AttentionOptions options) {
         String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor expectedQ = new Tensor(queryValues.clone(), shape, null, "expectedSdpaQ", DataType.FLOAT32);
         Tensor expectedK = new Tensor(keyValues.clone(), shape, null, "expectedSdpaK", DataType.FLOAT32);
         Tensor expectedV = new Tensor(valueValues.clone(), shape, null, "expectedSdpaV", DataType.FLOAT32);
-        Tensor expected = expectedQ.scaledDotProductAttention(expectedK, expectedV, options);
+        Tensor expectedMask = maskValues == null ? null : new Tensor(maskValues.clone(), scoreShape(shape), null, "expectedSdpaMask", DataType.BOOL);
+        Tensor expected = expectedMask == null
+                ? expectedQ.scaledDotProductAttention(expectedK, expectedV, options)
+                : expectedQ.scaledDotProductAttention(expectedK, expectedV, expectedMask, options);
         expected.compute();
 
         Tensor q = new Tensor(queryValues.clone(), shape, null, "sdpaQ", DataType.FLOAT32);
         Tensor k = new Tensor(keyValues.clone(), shape, null, "sdpaK", DataType.FLOAT32);
         Tensor v = new Tensor(valueValues.clone(), shape, null, "sdpaV", DataType.FLOAT32);
-        Tensor out = q.scaledDotProductAttention(k, v, options);
+        Tensor mask = maskValues == null ? null : new Tensor(maskValues.clone(), scoreShape(shape), null, "sdpaMask", DataType.BOOL);
+        Tensor out = mask == null
+                ? q.scaledDotProductAttention(k, v, options)
+                : q.scaledDotProductAttention(k, v, mask, options);
         PartitionPlanningContext planningContext = planningContext(out);
         CompiledNode sdpaNode = planningContext.compiledNode(nodeId(planningContext, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
         AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
@@ -744,17 +779,24 @@ class MetalMpsFfmBridgeTest {
         MetalBufferBinding query = null;
         MetalBufferBinding key = null;
         MetalBufferBinding value = null;
+        MetalBufferBinding maskBinding = null;
         MetalBufferBinding output = null;
         try {
             query = allocator.createInputBinding(sdpaNode.inputIds().get(0), q);
             key = allocator.createInputBinding(sdpaNode.inputIds().get(1), k);
             value = allocator.createInputBinding(sdpaNode.inputIds().get(2), v);
+            if (mask != null) {
+                maskBinding = allocator.createPredicateInputBinding(sdpaNode.inputIds().get(3), mask);
+            }
             output = allocator.createOutputBinding(sdpaNode.id(), denseF32Layout(shape));
 
+            List<MetalBufferBinding> inputs = maskBinding == null
+                    ? List.of(query, key, value)
+                    : List.of(query, key, value, maskBinding);
             MetalMpsBridgeExecutionStats stats = bridge.executeBuffers(
                     context,
                     executable,
-                    List.of(query, key, value),
+                    inputs,
                     List.of(output)
             );
             Tensor destination = new Tensor(new float[expected.getFlatDataSize()], shape, null, "sdpaDestination", DataType.FLOAT32);
@@ -772,10 +814,19 @@ class MetalMpsFfmBridgeTest {
             if (value != null) {
                 allocator.destroy(value.handle());
             }
+            if (maskBinding != null) {
+                allocator.destroy(maskBinding.handle());
+            }
             if (output != null) {
                 allocator.destroy(output.handle());
             }
         }
+    }
+
+    private static int[] scoreShape(int[] qkvShape) {
+        int[] out = qkvShape.clone();
+        out[out.length - 1] = qkvShape[qkvShape.length - 2];
+        return out;
     }
 
     private static AcceleratorSubgraphSignature sdpaSignature(Tensor out) {

@@ -78,11 +78,7 @@ final class MetalSdpaMaskSemantics {
                     "UNSUPPORTED_MASK_SEMANTICS",
                     "GPU_METAL SDPA mask mode EXTERNAL_AND_CAUSAL_BOOL_MASK requires native causal mask support"
             );
-            case EXTERNAL_BOOL_MASK -> Decision.unsupported(
-                    mode,
-                    "UNSUPPORTED_MASK_SEMANTICS",
-                    "GPU_METAL SDPA mask mode EXTERNAL_BOOL_MASK requires native BOOL mask ABI support"
-            );
+            case EXTERNAL_BOOL_MASK -> Decision.supported(mode);
             default -> Decision.unsupported(
                     MetalSdpaMaskMode.INVALID,
                     "UNSUPPORTED_MASK_SEMANTICS",

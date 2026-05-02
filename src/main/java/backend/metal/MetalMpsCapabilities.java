@@ -187,11 +187,16 @@ public final class MetalMpsCapabilities {
             if (inputIndex >= 0 && inputIndex <= 2 && dtype == DataType.FLOAT32) {
                 return supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, true, false,
                         MetalDTypeReasonCode.SUPPORTED,
-                        "unmasked SDPA query/key/value inputs accept FLOAT32 data");
+                        "SDPA query/key/value inputs accept FLOAT32 data");
+            }
+            if (inputIndex == 3 && dtype == DataType.BOOL) {
+                return supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, true, false,
+                        MetalDTypeReasonCode.SUPPORTED,
+                        "SDPA mask input accepts verified dense BOOL predicate data");
             }
             return unsupported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype,
                     MetalDTypeReasonCode.UNSUPPORTED_EXTERNAL_INPUT_ROLE,
-                    "Metal direct SDPA currently accepts only FLOAT32 query/key/value inputs and no public BOOL mask input");
+                    "Metal direct SDPA accepts FLOAT32 query/key/value inputs and optional dense BOOL mask input");
         }
         if (opType == Operation.OpType.GATHER || opType == Operation.OpType.TAKE_ALONG_AXIS) {
             return switch (inputIndex) {
@@ -298,11 +303,9 @@ public final class MetalMpsCapabilities {
     /**
      * Returns whether a producer may feed the given consumer input from outside a Metal partition.
      *
-     * <p>Bool tensors are deliberately role-limited: {@code WHERE} input 0 may be bool
-     * and all other data inputs must be float32. Direct SDPA with a Java bool mask is
-     * rejected for Metal because the native MPSGraph SDPA mask operand on supported
-     * systems expects a floating mask tensor, not the framework's public bool-mask
-     * semantics.</p>
+     * <p>Bool tensors are deliberately role-limited: {@code WHERE} input 0 may be bool,
+     * direct SDPA input 3 may be a verified dense public BOOL mask, and all other data
+     * inputs must be float32.</p>
      *
      * @param producer compiled producer outside the Metal candidate
      * @param consumer compiled Metal consumer inside the candidate

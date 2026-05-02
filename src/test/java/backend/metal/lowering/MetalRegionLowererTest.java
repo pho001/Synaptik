@@ -1027,7 +1027,7 @@ class MetalRegionLowererTest {
     }
 
     @Test
-    void rejectsDirectMaskedSdpaForMetalUntilNativeMaskContractExists() {
+    void supportsDirectExternalBoolMaskedSdpaForMetal() {
         Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "q", DataType.FLOAT32);
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "k", DataType.FLOAT32);
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "v", DataType.FLOAT32);
@@ -1038,14 +1038,30 @@ class MetalRegionLowererTest {
         PartitionPlanningContext context = planningContext(out);
         int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
         assertEquals(
-                "UNSUPPORTED_MASK_SEMANTICS: GPU_METAL SDPA mask mode EXTERNAL_BOOL_MASK requires native BOOL mask ABI support",
+                "",
                 MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(sdpaNodeId), context)
         );
-        assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
+        PartitionCandidate candidate = new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
                 Set.of(sdpaNodeId),
                 context,
                 Set.of(PartitionValueRef.ofNode(sdpaNodeId))
-        ));
+        );
+        assertNotNull(candidate);
+
+        CompiledNode sdpa = context.compiledNode(sdpaNodeId);
+        var lowered = new AcceleratorSubgraphLowerer().tryLower(
+                new AcceleratorSubgraphSpec(
+                        sdpaNodeId,
+                        List.of(sdpaNodeId),
+                        List.of(new backend.accelerator.dag.AcceleratorSubgraphOp(sdpaNodeId, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION)),
+                        sdpa.inputIds(),
+                        List.of(sdpaNodeId)
+                ),
+                context
+        );
+        assertNotNull(lowered);
+        assertEquals(backend.accelerator.dag.AcceleratorDagNodeType.SDPA, lowered.dagSpec().nodes().getFirst().type());
+        assertEquals(backend.accelerator.dag.AcceleratorDagValueRefKind.EXTERNAL_INPUT, lowered.dagSpec().nodes().getFirst().input3().kind());
     }
 
     @Test

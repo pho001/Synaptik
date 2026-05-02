@@ -961,7 +961,7 @@ static void *SynaptikCompilePartition(
                 }
                 case 26: {
                     float scale = node_scalar_values == NULL ? 1.0f : node_scalar_values[i];
-                    if (input1 == nil || input2 == nil || input3 != nil) return NULL;
+                    if (input1 == nil || input2 == nil) return NULL;
                     MPSGraphTensor *keyT = SynaptikTransposeLastTwoAxes(graph, input1, @"sdpa_key_t");
                     MPSGraphTensor *scores = keyT == nil ? nil : [graph matrixMultiplicationWithPrimaryTensor:input0 secondaryTensor:keyT name:@"sdpa_scores"];
                     if (scores == nil) return NULL;
@@ -969,6 +969,12 @@ static void *SynaptikCompilePartition(
                         MPSGraphTensor *scaleTensor = [graph constantWithScalar:(double) scale dataType:MPSDataTypeFloat32];
                         if (scaleTensor == nil) return NULL;
                         scores = [graph multiplicationWithPrimaryTensor:scores secondaryTensor:scaleTensor name:@"sdpa_scaled_scores"];
+                        if (scores == nil) return NULL;
+                    }
+                    if (input3 != nil) {
+                        MPSGraphTensor *maskFill = [graph constantWithScalar:-1.0e9 dataType:MPSDataTypeFloat32];
+                        if (maskFill == nil) return NULL;
+                        scores = [graph selectWithPredicateTensor:input3 truePredicateTensor:scores falsePredicateTensor:maskFill name:@"sdpa_masked_scores"];
                         if (scores == nil) return NULL;
                     }
                     MPSGraphTensor *weights = [graph softMaxWithTensor:scores axis:-1 name:@"sdpa_weights"];

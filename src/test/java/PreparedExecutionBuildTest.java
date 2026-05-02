@@ -1610,7 +1610,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void gpuMetalDirectMaskedSdpaFallsBackToCpuBecauseNativeMaskContractDiffers() {
+    void gpuMetalDirectMaskedSdpaCanPrepareMaskedNativeDagWhenAvailable() {
         Tensor cpuQ = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cpuQMask", DataType.FLOAT32);
         Tensor cpuK = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cpuKMask", DataType.FLOAT32);
         Tensor cpuV = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cpuVMask", DataType.FLOAT32);
@@ -1631,7 +1631,13 @@ public class PreparedExecutionBuildTest {
         var gpuSteps = execution.forwardSteps().stream()
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
-        assertTrue(gpuSteps.isEmpty());
+        if (!gpuSteps.isEmpty()) {
+            assertEquals(1, gpuSteps.size());
+            PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+            assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
+                    .anyMatch(node -> node.type() == backend.accelerator.dag.AcceleratorDagNodeType.SDPA
+                            && node.input3().kind() == backend.accelerator.dag.AcceleratorDagValueRefKind.EXTERNAL_INPUT));
+        }
 
         execution.execute(ExecutionMode.FORWARD);
 
