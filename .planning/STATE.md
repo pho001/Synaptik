@@ -4,13 +4,13 @@ milestone: v1.6
 milestone_name: Accelerator Backend Parity And Native Kernel Closure
 status: executing
 last_updated: "2026-05-02T15:05:00.000Z"
-last_activity: 2026-05-02 -- Phase 45-01 output-buffer proof harness complete
+last_activity: 2026-05-02 -- Phase 45-03 copy strategy reporting complete
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 24
-  completed_plans: 21
-  percent: 88
+  completed_plans: 23
+  percent: 96
 ---
 
 # GSD State
@@ -81,7 +81,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 42 — CUDA NN Operation Parity | Complete | 4/4 | Verified |
 | 43 — CUDA Training And Index Semantics | Complete | 4/4 | Verified |
 | 44 — Custom Metal Kernel Execution Route | Complete | 4/4 | Verified |
-| 45 — Metal Output Buffer Write And Copy Closure | In progress | 1/4 | Not verified |
+| 45 — Metal Output Buffer Write And Copy Closure | In progress | 3/4 | Not verified |
 | 46 — Cross-Backend Router Calibration And Regression Gates | Not started | 0/4 | Not verified |
 | 29 — Metal DType ABI And Capability Truth | Archived | 4/4 | Verified |
 | 30 — BF16 Metal Compute And Output | Archived | 4/4 | Verified |
@@ -224,6 +224,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | Phase 44 planning completed | Four plans cover custom Metal kernel route selection, first scoped native kernel execution, route reporting, docs, gates, and artifact hygiene. |
 | 2026-05-02 | Phase 44 verification passed | Custom Metal RELU route, route reporting, MPSGraph fallback accuracy, docs, focused Java gates, `classes`, `metalTest`, and source hygiene passed. |
 | 2026-05-02 | Phase 45-01 completed | Added the MPSGraph no-copy output-buffer probe seam, sentinel coverage, trace/docs visibility, and preserved conservative MPSGraph `MPSGRAPH_RESULT_COPY` classification. |
+| 2026-05-02 | Phase 45-03 completed | Output-buffer write status is now trace/report visible as `PROVEN_TRUE_WRITE`, `COPY_REQUIRED`, or `UNKNOWN_OR_UNPROVEN`, with MPSGraph still copy-required and custom RELU direct-write scoped. |
 | 2026-05-02 | Phase 39-01 completed | Prepared Metal executables now expose route decisions for MPSGraph, tensor-array fallback, CPU fallback, required-unavailable, and rejected custom-kernel candidates with trace-visible route/cost evidence. |
 | 2026-05-02 | Phase 39-02 completed | Added the backend-internal custom Metal kernel SPI and route adapter while keeping current supported execution on MPSGraph with machine-readable `CUSTOM_KERNEL_UNAVAILABLE` rejection evidence. |
 | 2026-05-02 | Phase 39-03 completed | Metal bridge stats, traces, benchmark reports, and coverage summaries now classify native output behavior as `MPSGRAPH_RESULT_COPY` unless a future proof upgrades it to `TRUE_OUTPUT_BUFFER_WRITE`. |
@@ -300,6 +301,6 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 ## Current Position
 
 Phase: 45
-Plan: 45-02 lower-copy or alias strategy
+Plan: 45-04 docs and milestone evidence closure
 Status: Executing
 Last activity: 2026-05-02

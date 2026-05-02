@@ -24,6 +24,7 @@ class MetalMpsBridgeExecutionStatsTest {
         assertEquals(64L, stats.outputBytes());
         assertEquals(0L, stats.nativeDeviceCopyNs());
         assertTrue(!stats.outputBufferWriteProven());
+        assertEquals("UNKNOWN_OR_UNPROVEN", stats.outputBufferWriteStatus());
     }
 
     @Test
@@ -47,6 +48,7 @@ class MetalMpsBridgeExecutionStatsTest {
         assertEquals("", stats.fallbackReason());
         assertEquals(MetalMpsBridgeExecutionPath.TENSOR_ARRAY_COPY, stats.executionPath());
         assertEquals(MetalNativeCopyStrategy.MPSGRAPH_RESULT_COPY, stats.nativeCopyStrategy());
+        assertEquals("COPY_REQUIRED", stats.outputBufferWriteStatus());
         assertEquals(40L, stats.nativeDeviceCopyNs());
         assertEquals(50L, stats.nativeToJavaCopyNs());
     }
@@ -72,5 +74,6 @@ class MetalMpsBridgeExecutionStatsTest {
 
         assertEquals(MetalNativeCopyStrategy.TRUE_OUTPUT_BUFFER_WRITE, stats.nativeCopyStrategy());
         assertTrue(stats.outputBufferWriteProven());
+        assertEquals("PROVEN_TRUE_WRITE", stats.outputBufferWriteStatus());
     }
 }

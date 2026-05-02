@@ -164,8 +164,8 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 **Planned waves:**
 - [x] 45-01 Output-buffer write proof harness.
-- [ ] 45-02 Lower-copy or alias strategy.
-- [ ] 45-03 Copy strategy reporting and gates.
+- [x] 45-02 Lower-copy or alias strategy.
+- [x] 45-03 Copy strategy reporting and gates.
 - [ ] 45-04 Docs and milestone evidence closure.
 
 ### Phase 46: Cross-Backend Router Calibration And Regression Gates

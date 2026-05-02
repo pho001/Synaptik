@@ -91,6 +91,17 @@ public record MetalMpsBridgeExecutionStats(
     }
 
     /**
+     * Returns a stable report label for the output-buffer write/copy contract.
+     */
+    public String outputBufferWriteStatus() {
+        return switch (nativeCopyStrategy) {
+            case TRUE_OUTPUT_BUFFER_WRITE -> "PROVEN_TRUE_WRITE";
+            case MPSGRAPH_RESULT_COPY -> "COPY_REQUIRED";
+            case UNKNOWN_OR_UNPROVEN -> "UNKNOWN_OR_UNPROVEN";
+        };
+    }
+
+    /**
      * Creates a stats value for an execution that fell back before entering the bridge.
      *
      * @param reason human-readable fallback reason

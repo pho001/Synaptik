@@ -355,6 +355,7 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(false, attrs.get("metalOutputBufferWriteProbeSupported"));
         assertEquals("MPSGRAPH_RESULT_COPY", attrs.get("metalNativeCopyStrategy"));
         assertEquals(false, attrs.get("metalOutputBufferWriteProven"));
+        assertEquals("COPY_REQUIRED", attrs.get("metalOutputBufferWriteStatus"));
         assertEquals("BUFFER_BINDING", attrs.get("metalExecutionPath"));
     }
 

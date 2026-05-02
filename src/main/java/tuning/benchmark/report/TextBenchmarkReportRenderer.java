@@ -173,6 +173,7 @@ public final class TextBenchmarkReportRenderer {
                     .append(" rejectedRouteReasonCounts=").append(backend.rejectedRouteReasonCounts())
                     .append(" bytes=").append(backend.inputBytes()).append("->").append(backend.outputBytes())
                     .append(" nativeCopyStrategies=").append(backend.nativeCopyStrategies())
+                    .append(" outputBufferWriteStatuses=").append(backend.outputBufferWriteStatuses())
                     .append(" javaToNativeMs=").append(formatNsAttr(backend.javaToNativeCopyNs()))
                     .append(" nativeToJavaMs=").append(formatNsAttr(backend.nativeToJavaCopyNs()))
                     .append(" nativeDeviceCopyMs=").append(formatNsAttr(backend.nativeDeviceCopyNs()))
