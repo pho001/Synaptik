@@ -111,6 +111,10 @@ public final class StandardWorkloads {
         return new BoolCompareMaskWorkloadSpec(name, batch, features);
     }
 
+    public static GatherTakeWorkloadSpec gatherTake(String name, int batch, int features, int picks) {
+        return new GatherTakeWorkloadSpec(name, batch, features, picks);
+    }
+
     public static Pool2dWorkloadSpec pool2d(
             String name,
             Pool2dWorkloadSpec.PoolKind kind,
@@ -171,6 +175,7 @@ public final class StandardWorkloads {
                 .register(pool2d("max_pool2d_small", Pool2dWorkloadSpec.PoolKind.MAX, 2, 8, 16, 16, Pool2dOptions.square(2)))
                 .register(indexedLoss("cross_entropy_small", LossWorkloadSpec.LossKind.CROSS_ENTROPY_FROM_INDICES, 8, 16, LossReduction.MEAN))
                 .register(boolCompareWhere("bool_compare_where_small", 8, 32))
+                .register(gatherTake("gather_take_small", 8, 16, 4))
                 .register(transformerHotPath("transformer_hot_path"))
                 .register(transformerHotPath("transformer_hot_path_large", WorkloadProfile.transformerHotPathLarge()))
                 .register(transformerHotPath("transformer_hot_path_long_seq", WorkloadProfile.transformerHotPathLongSeq()))

@@ -105,6 +105,13 @@ public final class GpuHotPathCoverageTargets {
                         List.of("GPUNATIVE", "GPUCONVBOOL", "GPUCLOSE", "METALBOOL"),
                         31,
                         "Exercises BOOL compare output feeding WHERE without hiding materialization."
+                ),
+                new GpuHotPathCoverageTarget(
+                        "gather_take_small",
+                        "index_gather",
+                        List.of("GPUNATIVE", "GPULOSSIDX", "GPUCLOSE", "METALINTIDX"),
+                        32,
+                        "Exercises forward GATHER and TAKE_ALONG_AXIS with INT32 index residency and native Metal execution."
                 )
         );
     }
@@ -210,6 +217,13 @@ public final class GpuHotPathCoverageTargets {
                         boolCompareWherePolicy(resolvedBackend),
                         "GPU_METAL".equals(resolvedBackend) ? List.of() : List.of("BOOL", "COMPARE_BOOL", "GT"),
                         "GPU_METAL".equals(resolvedBackend)
+                ),
+                new GpuCoverageHotPathExpectation(
+                        "gather_take_small",
+                        resolvedBackend,
+                        gatherTakePolicy(resolvedBackend),
+                        "GPU_METAL".equals(resolvedBackend) ? List.of() : List.of("CAPABILITY_MISSING", "GATHER", "TAKE_ALONG_AXIS"),
+                        "GPU_METAL".equals(resolvedBackend)
                 )
         );
     }
@@ -235,6 +249,25 @@ public final class GpuHotPathCoverageTargets {
     }
 
     private static GpuCoverageGatePolicy boolCompareWherePolicy(String backend) {
+        if (!"GPU_METAL".equals(backend)) {
+            return partialBlockerPolicy(backend);
+        }
+        return new GpuCoverageGatePolicy(
+                backend,
+                0.5d,
+                4,
+                1,
+                4,
+                0,
+                0,
+                0,
+                0,
+                1,
+                true
+        );
+    }
+
+    private static GpuCoverageGatePolicy gatherTakePolicy(String backend) {
         if (!"GPU_METAL".equals(backend)) {
             return partialBlockerPolicy(backend);
         }

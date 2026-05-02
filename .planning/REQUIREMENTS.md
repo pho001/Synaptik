@@ -27,9 +27,9 @@ Requirements for the v1.5 milestone. Each requirement maps to exactly one roadma
 
 ### INT32 Index Tensor And Gather Take Path
 
-- [ ] **METALINTIDX-01**: Metal can carry `INT32` index tensors through native buffer bindings, runtime residency, and trace/report evidence without treating index residency as compute support.
-- [ ] **METALINTIDX-02**: Forward `GATHER` and `TAKE_ALONG_AXIS` have Metal lowering, bounds behavior, rank/axis semantics, CPU parity, and explicit fallback for unsupported layouts or index dtypes.
-- [ ] **METALINTIDX-03**: Supported index-forward regions preserve adjacent GPU residency and do not force materialization of legal producers or consumers.
+- [x] **METALINTIDX-01**: Metal can carry `INT32` index tensors through native buffer bindings, runtime residency, and trace/report evidence without treating index residency as compute support.
+- [x] **METALINTIDX-02**: Forward `GATHER` and `TAKE_ALONG_AXIS` have Metal lowering, bounds behavior, rank/axis semantics, CPU parity, and explicit fallback for unsupported layouts or index dtypes.
+- [x] **METALINTIDX-03**: Supported index-forward regions preserve adjacent GPU residency and do not force materialization of legal producers or consumers.
 
 ### GPU Layout Router And Strided Materialization
 

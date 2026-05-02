@@ -202,7 +202,7 @@ Run one bridge test manually with the explicit library:
 
 If the task says it is only supported on macOS, that is expected: `buildMetalMpsShim` checks `os.name` for `mac`.
 
-Current dtype boundary: the Metal MPS FFM bridge keeps the legacy `_f32` path and adds a dtype ABI v3 compile path for widened metadata. The Java planner and bridge currently accept `FLOAT32` compute/output tensors, scoped `BFLOAT16` compute/output for supported operation families, `FLOAT32` or scoped `BFLOAT16` data inputs, `BOOL` predicate inputs such as the `where` condition, and scoped BOOL-producing compare/logical/reduction outputs. Direct unmasked FLOAT32 rank-3/4 SDPA is supported after native MPSGraph primitive-DAG scale parity verification. Direct masked SDPA remains a separate `UNSUPPORTED_MASK_SEMANTICS` case because Synaptik public masks are `BOOL`, while the verified native MPSGraph SDPA mask operand expects a floating tensor. Masked decomposed attention should stay as generic `WHERE`/`SOFTMAX`/`MATMUL` DAG operations rather than native `SDPA(maskTensor=bool)`. `FLOAT64`, `INT32`, unsupported BOOL consumers, and BF16 operations outside the scoped family list should remain on CPU with visible fallback or rejection.
+Current dtype boundary: the Metal MPS FFM bridge keeps the legacy `_f32` path and adds a dtype ABI v3 compile path for widened metadata. The Java planner and bridge currently accept `FLOAT32` compute/output tensors, scoped `BFLOAT16` compute/output for supported operation families, `FLOAT32` or scoped `BFLOAT16` data inputs, `BOOL` predicate inputs such as the `where` condition, scoped BOOL-producing compare/logical/reduction outputs, and `INT32` external index inputs only for supported forward `GATHER` / `TAKE_ALONG_AXIS` paths. Direct unmasked FLOAT32 rank-3/4 SDPA is supported after native MPSGraph primitive-DAG scale parity verification. Direct masked SDPA remains a separate `UNSUPPORTED_MASK_SEMANTICS` case because Synaptik public masks are `BOOL`, while the verified native MPSGraph SDPA mask operand expects a floating tensor. Masked decomposed attention should stay as generic `WHERE`/`SOFTMAX`/`MATMUL` DAG operations rather than native `SDPA(maskTensor=bool)`. `FLOAT64`, generic `INT32` compute/output, unsupported BOOL consumers, and BF16 operations outside the scoped family list should remain on CPU with visible fallback or rejection.
 
 If a BF16 graph unexpectedly falls back, check all of these before treating it as a Metal bug:
 
@@ -217,6 +217,14 @@ If a BOOL mask chain unexpectedly falls back, check all of these before treating
 2. `WHERE` may consume a BOOL predicate as input 0, but direct masked SDPA still rejects with `UNSUPPORTED_MASK_SEMANTICS`.
 3. The trace should include non-rejected `dtypeResidency` evidence with `dtype=BOOL`, especially `role=compute` or `role=internalValue` for produced masks.
 4. `bool_compare_where_small` hot-path gates require `BUFFER_BINDING`, lowered primitive evidence, zero CPU materializations, zero CPU fallback, zero tensor-array fallback, and BOOL dtype residency evidence.
+
+If a forward gather/take path unexpectedly falls back, check all of these before treating it as a Metal bug:
+
+1. The value and output dtype must be `FLOAT32`; `INT32` is accepted only for the index input, not compute/output.
+2. The operation must be forward `GATHER` or `TAKE_ALONG_AXIS`; `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, and `SCATTER_ADD` remain duplicate-index semantic blockers.
+3. Value and index inputs must be dense with zero storage offset.
+4. Index values must be readable from a static leaf `INT32` tensor and must be in bounds. Unproven or out-of-range bounds reject with `UNSUPPORTED_BOUNDS_CHECK` because MPSGraph out-of-bounds gather behavior does not match CPU exception semantics.
+5. `gather_take_small` hot-path gates require `BUFFER_BINDING`, lowered primitive evidence, zero CPU materializations, zero CPU fallback, zero tensor-array fallback, and INT32 index dtype residency evidence.
 
 Native buffer ABI boundary: a current shim should also export `synaptik_apple_mps_create_buffer`,
 `synaptik_apple_mps_read_buffer`, `synaptik_apple_mps_destroy_buffer`, and

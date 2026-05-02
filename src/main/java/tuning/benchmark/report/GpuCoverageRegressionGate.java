@@ -114,6 +114,14 @@ public final class GpuCoverageRegressionGate {
                         + expectation.backend());
                 result = new GpuCoverageGateResult(false, failures, coverage);
             }
+            if (requiresInt32IndexEvidence(expectation) && !hasInt32DTypeEvidence(coverage)) {
+                var failures = new ArrayList<>(result.failures());
+                failures.add("missing INT32 index dtype residency evidence workload="
+                        + expectation.workloadName()
+                        + " backend="
+                        + expectation.backend());
+                result = new GpuCoverageGateResult(false, failures, coverage);
+            }
             results.add(result);
         }
         return List.copyOf(results);
@@ -193,6 +201,16 @@ public final class GpuCoverageRegressionGate {
 
     private static boolean hasBoolDTypeEvidence(GpuCoverageSummary.BackendCoverage coverage) {
         return hasSupportedDTypeEvidence(coverage, "BOOL");
+    }
+
+    private static boolean requiresInt32IndexEvidence(GpuCoverageHotPathExpectation expectation) {
+        return expectation != null
+                && expectation.nativeEvidenceRequired()
+                && expectation.workloadName().equals("gather_take_small");
+    }
+
+    private static boolean hasInt32DTypeEvidence(GpuCoverageSummary.BackendCoverage coverage) {
+        return hasSupportedDTypeEvidence(coverage, "INT32");
     }
 
     private static boolean hasSupportedDTypeEvidence(GpuCoverageSummary.BackendCoverage coverage, String dtype) {

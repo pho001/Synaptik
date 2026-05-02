@@ -287,6 +287,36 @@ public class GpuCoverageRegressionGateTest {
     }
 
     @Test
+    void phaseThirtyTwoGatherTakeRequiresInt32IndexDTypeResidencyEvidence() {
+        GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.defaultExpectations()
+                .stream()
+                .filter(item -> item.workloadName().equals("gather_take_small"))
+                .findFirst()
+                .orElseThrow();
+        var reportWithoutDTypeEvidence = reportFor(
+                "gather_take_small",
+                coverage(1.0d, 4, 0, 0, 0, 0, 1, 1, 4, 0, 0)
+        );
+        var reportWithDTypeEvidence = reportFor(
+                "gather_take_small",
+                coverageWithDTypeEvidence(1.0d, 4, 1, 4, 0, tensor.DataType.INT32)
+        );
+
+        List<GpuCoverageGateResult> missing = GpuCoverageRegressionGate.evaluateTargets(
+                reportWithoutDTypeEvidence,
+                List.of(expectation)
+        );
+        List<GpuCoverageGateResult> passing = GpuCoverageRegressionGate.evaluateTargets(
+                reportWithDTypeEvidence,
+                List.of(expectation)
+        );
+
+        assertTrue(missing.getFirst().failures().stream()
+                .anyMatch(failure -> failure.contains("missing INT32 index dtype residency evidence")));
+        assertTrue(passing.getFirst().passed(), passing.getFirst().failures().toString());
+    }
+
+    @Test
     void phaseTwentyEightVisibleBlockerFailureNamesWorkloadAndBackend() {
         GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA")
                 .stream()

@@ -638,6 +638,7 @@ Do not infer execution path from `backend=GPU_METAL` alone. A prepared step can 
 | Compute node dtype | `FLOAT32`; `BFLOAT16` for scoped operation families only; `BOOL` for scoped compare/logical/reduction mask families |
 | Output dtype | `FLOAT32`; `BFLOAT16` for scoped operation families only; `BOOL` for scoped compare/logical/reduction mask families |
 | Normal external data input | `FLOAT32`; `BFLOAT16` only when the consuming operation family is BF16-supported |
+| Index external input | `INT32` only for supported forward `GATHER` / `TAKE_ALONG_AXIS` input 1 |
 | Predicate external input | `BOOL` only for `WHERE` input 0 |
 | Descriptor ABI coverage | dtype ABI v3 can describe `FLOAT32`, `BFLOAT16`, `INT32`, `BOOL`, and `FLOAT64` roles. |
 | Unsupported compute/output dtypes | `FLOAT64`, `INT32`; `BFLOAT16` and `BOOL` outside their scoped operation families |
@@ -646,7 +647,9 @@ BF16 support is real but deliberately narrow. It requires the dtype ABI v3 compi
 
 BOOL support is also real but deliberately narrow. Metal can produce and consume device-resident BOOL outputs for dense scoped compare ops (`GT`, `GE`, `LT`, `LE`, `EQ`, `NE`), logical ops (`LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`), and BOOL reductions (`REDUCE_ALL`, `REDUCE_ANY`). A supported `compare -> WHERE -> elementwise` chain should remain a single Metal-owned lowered region with `dtypeResidency` evidence for `dtype=BOOL` and no CPU materialization between the mask producer and `WHERE`.
 
-Unsupported BF16 and BOOL families still reject with stable dtype or operation-family diagnostics. Conv/pool, gather/take/scatter, loss-adjacent ops, masked SDPA, INT32 index compute, and arbitrary BOOL consumers remain separate future phases.
+Forward `GATHER` and `TAKE_ALONG_AXIS` support is deliberately scoped: dense `FLOAT32` value/output tensors, dense static leaf `INT32` indices, proven in-bounds index values, and native buffer execution through MPSGraph `gatherAlongAxis`. This is not generic INT32 arithmetic or INT32 output support.
+
+Unsupported BF16 and BOOL families still reject with stable dtype or operation-family diagnostics. Conv/pool, gather/take gradients, scatter, loss-adjacent ops, masked SDPA, generic INT32 compute/output, and arbitrary BOOL consumers remain separate future phases.
 
 ### Planner allowlist
 
@@ -665,6 +668,7 @@ LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT,
 REDUCE_ALL, REDUCE_ANY,
 LAYER_NORM, RMS_NORM,
 SCALED_DOT_PRODUCT_ATTENTION,
+GATHER, TAKE_ALONG_AXIS,
 RESHAPE, CONTIGUOUS, NOOP, PERMUTE, EXPAND_DIMS, SQUEEZE
 ```
 
@@ -683,6 +687,7 @@ Notable current exclusions:
 - direct masked or causal `SCALED_DOT_PRODUCT_ATTENTION`
 - `CONV2D`, `CONV2D_GEMM`, and conv backward ops
 - `MAX_POOL2D`, `AVG_POOL2D`, and pooling backward ops
+- `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, `SCATTER_ADD`, and index-target loss ops
 - `FLOAT64`, `INT32`, unsupported `BFLOAT16`, and unsupported `BOOL` compute/output graphs
 
 ## Fallbacks And Failure Modes
@@ -694,6 +699,8 @@ Notable current exclusions:
 | Illegal dtype | `MetalPartitionSupport`, `MetalMpsCapabilities`, runtime checks | Planner rejects or runtime falls back with unsupported dtype reason. BF16 and BOOL outside the scoped operation families remain illegal. |
 | Illegal external `BOOL` role | `MetalMpsCapabilities.supportsExternalInputRole(...)` | Planner rejects candidate. |
 | Missing BOOL residency evidence | Coverage regression gate | Supported `bool_compare_where_small` fails if traces do not show native buffer execution and non-rejected `dtype=BOOL` residency evidence. |
+| Illegal or unproven index input | `MetalPartitionSupport`, `MetalMpsCapabilities.supportsExternalInputRole(...)` | Forward gather/take rejects non-`INT32`, non-dense, non-static, or out-of-bounds indices with stable `UNSUPPORTED_DTYPE`, `UNSUPPORTED_LAYOUT`, or `UNSUPPORTED_BOUNDS_CHECK` details. |
+| Missing INT32 index residency evidence | Coverage regression gate | Supported `gather_take_small` fails if traces do not show native buffer execution and non-rejected `dtype=INT32` residency evidence. |
 | Broadcast zero-stride or unsupported output layout | `MetalLayoutPolicy.output(...)` | Buffer path unavailable with `OUTPUT_LAYOUT_UNSUPPORTED`; tensor-array path or CPU fallback is attempted in `AUTO`, and `REQUIRE` throws. |
 | Non-contiguous legal view output | `MetalLayoutPolicy.output(...)`, `MetalBufferAllocator.createOutputBinding(...)`, `MetalDeviceToCpuMaterializer` | `ZERO_OFFSET_VIEW`, `NON_ZERO_OFFSET_VIEW`, and `PERMUTED_OR_STRIDED_VIEW` use dense physical logical-view buffers when the bridge and materializer support the path. |
 | CPU storage stale and no Metal input binding exists | `resolveOrCreateMetalBufferBindings(...)` | Buffer path unavailable because Java cannot safely upload stale CPU data. |

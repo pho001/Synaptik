@@ -288,7 +288,7 @@ public class BenchmarkSuiteSessionTest {
         ));
         List<String> names = request.workloads().stream().map(tuning.workload.WorkloadSpec::name).toList();
 
-        assertEquals(13, request.workloads().size());
+        assertEquals(14, request.workloads().size());
         assertTrue(names.contains("transformer_block_hot_path"));
         assertTrue(names.contains("mlp_classifier_small"));
         assertTrue(names.contains("mlp_classifier_small_bf16"));
@@ -302,6 +302,7 @@ public class BenchmarkSuiteSessionTest {
         assertTrue(names.contains("reduction_chain_small_bf16"));
         assertTrue(names.contains("cross_entropy_small"));
         assertTrue(names.contains("bool_compare_where_small"));
+        assertTrue(names.contains("gather_take_small"));
         assertTrue(request.entries().stream().anyMatch(entry -> entry.name().equals("phase14-target-coverage")));
     }
 

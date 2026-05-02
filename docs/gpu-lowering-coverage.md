@@ -109,9 +109,9 @@ than "Metal supports BF16 everywhere":
   `reduction_chain_small_bf16` require Metal native buffer evidence, dtype residency evidence, zero CPU
   materializations, zero CPU fallback, and zero tensor-array fallback.
 
-Unsupported BF16 and BOOL families must remain visible. Conv/pool, loss-adjacent ops, gather/take/scatter, masked SDPA,
-arbitrary BOOL consumers, and INT32 indexing compute remain rejected or fallback rows until their own semantic, native
-execution, parity, trace, and regression-gate evidence exists.
+Unsupported BF16 and BOOL families must remain visible. Conv/pool, loss-adjacent ops, gather/take gradients, scatter,
+masked SDPA, arbitrary BOOL consumers, and generic INT32 compute/output remain rejected or fallback rows until their own
+semantic, native execution, parity, trace, and regression-gate evidence exists.
 
 ## Phase 17 normalization, reduction, and loss-adjacent contract
 

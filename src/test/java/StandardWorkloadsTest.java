@@ -38,8 +38,31 @@ public class StandardWorkloadsTest {
         assertTrue(catalog.names().contains("max_pool2d_small"));
         assertTrue(catalog.names().contains("cross_entropy_small"));
         assertTrue(catalog.names().contains("bool_compare_where_small"));
+        assertTrue(catalog.names().contains("gather_take_small"));
         assertTrue(catalog.names().contains("transformer_hot_path"));
         assertTrue(catalog.names().contains("transformer_block_hot_path"));
+    }
+
+    @Test
+    void gatherTakeWorkloadInstantiatesIndexForwardGraph() {
+        ExecutionProfile profile = new ExecutionProfile(
+                "gather-take-profile",
+                "gather-take-profile",
+                tensor.DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+
+        WorkloadInstance instance = StandardWorkloads.gatherTake("gather_take_small", 4, 8, 2)
+                .instantiate(new WorkloadEnvironment(profile));
+
+        assertEquals("gather_take_small", instance.metadata().name());
+        assertEquals(tuning.workload.WorkloadKind.GENERIC, instance.metadata().kind());
+        assertEquals(1, instance.root().getShapeUnsafe().length);
+        assertEquals(ValidationTargetKind.ROOT, instance.validationTarget().kind());
+        assertEquals(ValidationReferenceKind.BASELINE_PROFILE, instance.reference().kind());
     }
 
     @Test

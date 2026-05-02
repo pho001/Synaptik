@@ -203,7 +203,7 @@ public final class GpuLoweringCoverageMatrix {
             add(entries, backend, Operation.OpType.GATHER, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
                     GpuLoweringCoverageStatus.SUPPORTED,
                     GpuLoweringUnsupportedReason.SUPPORTED,
-                    "forward gather lowers to Metal gatherAlongAxis with expanded INT32 indices; scoped to dense FLOAT32 value input and INT32 index input");
+                    "forward gather lowers to Metal gatherAlongAxis with expanded INT32 indices; scoped to dense FLOAT32 value input and static in-bounds INT32 index input; target=gather_take_small");
         } else {
             add(entries, backend, Operation.OpType.GATHER, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
                     GpuLoweringCoverageStatus.UNSUPPORTED,
@@ -218,7 +218,7 @@ public final class GpuLoweringCoverageMatrix {
             add(entries, backend, Operation.OpType.TAKE_ALONG_AXIS, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
                     GpuLoweringCoverageStatus.SUPPORTED,
                     GpuLoweringUnsupportedReason.SUPPORTED,
-                    "take-along-axis lowers to Metal gatherAlongAxis with INT32 indices; scoped to dense FLOAT32 value input and INT32 index input");
+                    "take-along-axis lowers to Metal gatherAlongAxis with INT32 indices; scoped to dense FLOAT32 value input and static in-bounds INT32 index input; target=gather_take_small");
         } else {
             add(entries, backend, Operation.OpType.TAKE_ALONG_AXIS, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
                     GpuLoweringCoverageStatus.UNSUPPORTED,
