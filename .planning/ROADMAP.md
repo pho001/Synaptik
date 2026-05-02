@@ -18,7 +18,7 @@
 | 41 | CUDA DType Layout And Index Residency | Expand CUDA dtype/layout/index residency and forward indexing coverage without overclaiming unsupported compute. | CUDADTYPE-01, CUDADTYPE-02, CUDAINDEX-01 | 5 |
 | 42 | CUDA NN Operation Parity | Add native/lowered CUDA coverage or stable rejection for high-value NN forward families. | CUDANN-01, CUDANN-02, CUDANN-03 | 5 |
 | 43 | CUDA Training And Index Semantics | Close CUDA training/backward and scatter/index-gradient evidence gaps with explicit blockers where support is not proven. | CUDATRAIN-01, CUDATRAIN-02, CUDATRAIN-03 | 5 |
-| 44 | Custom Metal Kernel Execution Route | 4/4 | Complete    | 2026-05-02 |
+| 44 | Custom Metal Kernel Execution Route | Turn the custom Metal kernel route from a visible seam into real scoped native kernel execution. | METALKERNEL-01, METALKERNEL-02, METALKERNEL-03 | 5 |
 | 45 | Metal Output Buffer Write And Copy Closure | Prove true output-buffer writes or implement a lower-copy strategy without false zero-copy claims. | METALCOPY-01, METALCOPY-02, METALCOPY-03 | 5 |
 | 46 | Cross-Backend Router Calibration And Regression Gates | Calibrate and gate backend route decisions across MPSGraph, custom Metal, CUDA, tensor-array fallback, and CPU fallback. | BACKENDROUTE-01, BACKENDROUTE-02, BACKENDROUTE-03 | 5 |
 
@@ -124,7 +124,7 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ### Phase 44: Custom Metal Kernel Execution Route
 
-**Status:** Planned
+**Status:** Complete
 
 **Goal:** Turn the custom Metal kernel route from a visible seam into real scoped native kernel execution.
 
@@ -193,8 +193,8 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ## Current Status
 
-v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete, security-passed, and Nyquist-validated. Phase 41 CUDA DType Layout And Index Residency is complete, security-passed, and Nyquist-validated. Phase 42 CUDA NN Operation Parity is complete, security-passed, and Nyquist-validated. Phase 43 CUDA Training And Index Semantics is complete, security-passed, and Nyquist-validated. Phase 44 Custom Metal Kernel Execution Route is planned and ready for execution.
+v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete, security-passed, and Nyquist-validated. Phase 41 CUDA DType Layout And Index Residency is complete, security-passed, and Nyquist-validated. Phase 42 CUDA NN Operation Parity is complete, security-passed, and Nyquist-validated. Phase 43 CUDA Training And Index Semantics is complete, security-passed, and Nyquist-validated. Phase 44 Custom Metal Kernel Execution Route is complete and verified. Phase 45 Metal Output Buffer Write And Copy Closure is ready to plan.
 
 ---
 
-*Last updated: 2026-05-02 after Phase 44 planning*
+*Last updated: 2026-05-02 after Phase 44 completion*
