@@ -166,10 +166,10 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 5. Transformer attention hot-path gates require native Metal evidence for supported masked/causal cases.
 
 **Planned waves:**
-- 34-01 Mask semantics and parity contract.
-- 34-02 Mask conversion/lowering and native execution.
-- 34-03 Causal SDPA support and rejection detail.
-- 34-04 Transformer coverage closure.
+- [ ] [34-01 Mask semantics and parity contract](phases/34-masked-and-causal-sdpa/34-01-PLAN.md).
+- [ ] [34-02 Mask conversion/lowering and native execution](phases/34-masked-and-causal-sdpa/34-02-PLAN.md).
+- [ ] [34-03 Causal SDPA support and rejection detail](phases/34-masked-and-causal-sdpa/34-03-PLAN.md).
+- [ ] [34-04 Transformer coverage closure](phases/34-masked-and-causal-sdpa/34-04-PLAN.md).
 
 ### Phase 35: Conv Pool Native Execution
 
