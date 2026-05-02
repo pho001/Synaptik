@@ -256,13 +256,14 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-01 | Completed and verified Phase 17 | Ready for `$gsd-discuss-phase 18 --auto` or `$gsd-plan-phase 18 --auto` | .planning/milestones/v1.3-phases/17-normalization-reduction-and-loss-adjacent-lowering/17-VERIFICATION.md |
 | 2026-05-02 | Completed and verified Phase 35 | Ready for Phase 36 planning | .planning/phases/35-conv-pool-native-execution/35-VERIFICATION.md |
 | 2026-05-02 | Planned Phase 36 with 4 scatter/index-gradient waves | Ready for Phase 36 execution | .planning/phases/36-scatter-and-index-gradient-semantics/36-01-PLAN.md |
+| 2026-05-02 | Completed 36-01 scatter/index-gradient semantics contract | Ready for 36-02 native or stable-rejection execution decision | .planning/phases/36-scatter-and-index-gradient-semantics/36-01-SUMMARY.md |
 
 ---
-*Last updated: 2026-05-02 after Phase 36 planning*
+*Last updated: 2026-05-02 after Phase 36-01 execution*
 
 ## Current Position
 
 Phase: 36
-Plan: .planning/phases/36-scatter-and-index-gradient-semantics/36-01-PLAN.md
-Status: Ready for `$gsd-execute-phase 36`
-Last activity: 2026-05-02 — Phase 36 scatter/index-gradient plans created
+Plan: .planning/phases/36-scatter-and-index-gradient-semantics/36-02-PLAN.md
+Status: Ready for `$gsd-execute-phase 36 --wave 2`
+Last activity: 2026-05-02 — 36-01 scatter/index-gradient semantics contract completed

@@ -27,6 +27,25 @@ public class ScatterAddExecutionTest {
     }
 
     @Test
+    void scatterAddRepeatedAxisIndicesAccumulateIntoCpuContractPositions() {
+        Tensor base = new Tensor(new double[]{
+                10, 20, 30,
+                40, 50, 60
+        }, new int[]{2, 3}, null, "base", DataType.FLOAT64);
+        Tensor indices = new Tensor(new int[]{0, 0, 1}, new int[]{3}, null, "indices", DataType.INT32);
+        Tensor src = new Tensor(new double[]{1, 2, 3}, new int[]{3}, null, "src", DataType.FLOAT64);
+        Tensor out = base.scatterAdd(indices, src, 0);
+
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{
+                11, 22, 30,
+                40, 50, 63
+        }, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
     void scatterAddBackwardPropagatesToBaseAndGatherToSource() {
         Tensor base = new Tensor(new double[]{10, 20, 30, 40, 50, 60}, new int[]{2, 3}, null, "base", DataType.FLOAT64);
         base.setRequiresGrad(true);

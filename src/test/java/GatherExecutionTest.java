@@ -3,9 +3,11 @@ import config.optimizer.OptimizerConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
+import operations.index.gatherGrad;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorPrimitiveBuilder;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -54,6 +56,28 @@ public class GatherExecutionTest {
                 0.0, 0.0, 1.0,
                 1.0, 0.0, 0.0
         }, x.getGradient().toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void gatherGradPrimitiveScattersIntoOriginalInputShape() {
+        Tensor indices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "indices", DataType.INT32);
+        Tensor outGrad = new Tensor(new double[]{1, 2}, new int[]{2}, null, "outGrad", DataType.FLOAT64);
+        Tensor grad = TensorPrimitiveBuilder.binary(
+                indices,
+                outGrad,
+                new int[]{2, 3},
+                new gatherGrad(1),
+                "gatherGrad",
+                DataType.FLOAT64
+        );
+
+        CompiledGraph.compile(grad, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{
+                0.0, 0.0, 1.0,
+                2.0, 0.0, 0.0
+        }, grad.toDoubleArrayCopy(), 1e-9);
     }
 
     @Test

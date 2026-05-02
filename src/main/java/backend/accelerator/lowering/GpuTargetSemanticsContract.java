@@ -182,17 +182,22 @@ public record GpuTargetSemanticsContract(
     }
 
     private static void addIndex(ArrayList<GpuTargetSemanticsContract> out, Operation.OpType opType, String parameter) {
+        boolean writeOrGradient = opType == Operation.OpType.GATHER_GRAD
+                || opType == Operation.OpType.TAKE_ALONG_AXIS_GRAD
+                || opType == Operation.OpType.SCATTER_ADD;
         out.add(new GpuTargetSemanticsContract(
                 opType,
                 GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
-                "INT32 index tensors plus floating or dtype-preserving value tensors; native compute support is operation-specific",
+                "INT32 index tensors plus floating or dtype-preserving value tensors; native compute support is operation-specific; Phase 36 write/gradient support starts with dense FLOAT32 values",
                 "rank follows operation descriptor and selected axis",
-                "supported dense/view layouts only",
-                "output shape must match CPU indexing shape inference",
+                "supported dense/view layouts only; Phase 36 native write/gradient candidates require dense zero-offset inputs and outputs",
+                "output shape must match CPU indexing shape inference; gather-grad and take-along-axis-grad output the original input shape, scatter-add outputs the base shape",
                 parameter,
-                "CPU parity must cover duplicate indices, accumulation order/tolerance, and bounds behavior",
-                false,
-                ""
+                "CPU parity must cover duplicate indices, logical-index accumulation order/tolerance, repeated writes to one destination, and bounds behavior",
+                writeOrGradient,
+                writeOrGradient
+                        ? "UNSUPPORTED_DUPLICATE_INDEX until backend proves CPU-compatible duplicate-index accumulation and static bounds checks"
+                        : ""
         ));
     }
 

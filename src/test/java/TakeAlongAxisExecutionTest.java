@@ -30,14 +30,14 @@ public class TakeAlongAxisExecutionTest {
     void takeAlongAxisBackwardScattersGradientToSelectedPositions() {
         Tensor x = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x", DataType.FLOAT64);
         x.setRequiresGrad(true);
-        Tensor indices = new Tensor(new int[]{2, 1, 0, 0}, new int[]{2, 2}, null, "indices", DataType.INT32);
+        Tensor indices = new Tensor(new int[]{2, 2, 0, 0}, new int[]{2, 2}, null, "indices", DataType.INT32);
         Tensor y = x.takeAlongAxis(indices, 1);
 
         CompiledGraph.compile(y, OptimizerConfig.trainingDefaults())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
-                0.0, 1.0, 1.0,
+                0.0, 0.0, 2.0,
                 2.0, 0.0, 0.0
         }, x.getGradient().toDoubleArrayCopy(), 1e-9);
     }

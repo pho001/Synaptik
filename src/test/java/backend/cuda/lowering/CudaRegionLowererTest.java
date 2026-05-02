@@ -32,6 +32,8 @@ import graph.optimizer.region.DefaultRegionOptimizer;
 import graph.optimizer.region.OptimizedRegion;
 import graph.optimizer.region.RegionOptimizationContext;
 import operations.Operation;
+import operations.index.gatherGrad;
+import operations.index.takeAlongAxisGrad;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -498,6 +500,56 @@ class CudaRegionLowererTest {
         assertContainsAll(gatherReason, "CAPABILITY_MISSING", "operation GATHER", "family=INDEX_SCATTER_GATHER");
         assertContainsAll(takeReason, "CAPABILITY_MISSING", "operation TAKE_ALONG_AXIS", "family=INDEX_SCATTER_GATHER");
         assertContainsAll(scatterReason, "UNSUPPORTED_DUPLICATE_INDEX", "operation SCATTER_ADD", "family=INDEX_SCATTER_GATHER");
+    }
+
+    @Test
+    void phaseThirtySixIndexGradientOpsKeepStableDuplicateIndexRejections() {
+        Tensor indices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "cudaPhase36GradIndices", DataType.INT32);
+        Tensor outGrad = new Tensor(new float[]{1f, 2f}, new int[]{2}, null, "cudaPhase36GatherOutGrad", DataType.FLOAT32);
+        Tensor gatherGrad = TensorPrimitiveBuilder.binary(
+                indices,
+                outGrad,
+                new int[]{2, 3},
+                new gatherGrad(1),
+                "cudaPhase36GatherGrad",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(gatherGrad, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext gatherGradContext = planningContext(gatherGrad);
+
+        Tensor takeIndices = new Tensor(new int[]{2, 2, 0, 0}, new int[]{2, 2}, null, "cudaPhase36TakeGradIndices", DataType.INT32);
+        Tensor takeOutGrad = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaPhase36TakeOutGrad", DataType.FLOAT32);
+        Tensor takeGrad = TensorPrimitiveBuilder.binary(
+                takeIndices,
+                takeOutGrad,
+                new int[]{2, 3},
+                new takeAlongAxisGrad(1),
+                "cudaPhase36TakeGrad",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(takeGrad, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext takeGradContext = planningContext(takeGrad);
+
+        assertContainsAll(
+                CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                        gatherGradContext.compiledNode(nodeId(gatherGradContext, Operation.OpType.GATHER_GRAD)),
+                        gatherGradContext
+                ),
+                "UNSUPPORTED_DUPLICATE_INDEX",
+                "operation GATHER_GRAD",
+                "family=INDEX_SCATTER_GATHER",
+                "duplicate-index accumulation parity"
+        );
+        assertContainsAll(
+                CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                        takeGradContext.compiledNode(nodeId(takeGradContext, Operation.OpType.TAKE_ALONG_AXIS_GRAD)),
+                        takeGradContext
+                ),
+                "UNSUPPORTED_DUPLICATE_INDEX",
+                "operation TAKE_ALONG_AXIS_GRAD",
+                "family=INDEX_SCATTER_GATHER",
+                "rank-preserving static bounds checks"
+        );
     }
 
     @Test

@@ -31,6 +31,8 @@ import graph.optimizer.region.OptimizedRegion;
 import graph.optimizer.region.RegionOptimizationContext;
 import operations.Operation;
 import operations.elementwise.where.where;
+import operations.index.gatherGrad;
+import operations.index.takeAlongAxisGrad;
 import operations.nn.conv.conv2d;
 import operations.nn.conv.conv2dGemm;
 import operations.nn.pool.maxPool2d;
@@ -438,6 +440,56 @@ class MetalRegionLowererTest {
         assertTrue(planFor(take, Operation.OpType.TAKE_ALONG_AXIS).lowering().dagSpec().nodes().stream()
                 .anyMatch(node -> node.type() == AcceleratorDagNodeType.TAKE_ALONG_AXIS && node.scalarValueBits() == 1));
         assertContainsAll(scatterReason, "UNSUPPORTED_DUPLICATE_INDEX", "operation SCATTER_ADD", "family=INDEX_SCATTER_GATHER");
+    }
+
+    @Test
+    void phaseThirtySixIndexGradientOpsKeepStableDuplicateIndexRejections() {
+        Tensor indices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalPhase36GradIndices", DataType.INT32);
+        Tensor outGrad = new Tensor(new float[]{1f, 2f}, new int[]{2}, null, "metalPhase36GatherOutGrad", DataType.FLOAT32);
+        Tensor gatherGrad = TensorPrimitiveBuilder.binary(
+                indices,
+                outGrad,
+                new int[]{2, 3},
+                new gatherGrad(1),
+                "metalPhase36GatherGrad",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(gatherGrad, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext gatherGradContext = planningContext(gatherGrad);
+
+        Tensor takeIndices = new Tensor(new int[]{2, 2, 0, 0}, new int[]{2, 2}, null, "metalPhase36TakeGradIndices", DataType.INT32);
+        Tensor takeOutGrad = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalPhase36TakeOutGrad", DataType.FLOAT32);
+        Tensor takeGrad = TensorPrimitiveBuilder.binary(
+                takeIndices,
+                takeOutGrad,
+                new int[]{2, 3},
+                new takeAlongAxisGrad(1),
+                "metalPhase36TakeGrad",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(takeGrad, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext takeGradContext = planningContext(takeGrad);
+
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        gatherGradContext.compiledNode(nodeId(gatherGradContext, Operation.OpType.GATHER_GRAD)),
+                        gatherGradContext
+                ),
+                "UNSUPPORTED_DUPLICATE_INDEX",
+                "operation GATHER_GRAD",
+                "family=INDEX_SCATTER_GATHER",
+                "duplicate-index accumulation parity"
+        );
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        takeGradContext.compiledNode(nodeId(takeGradContext, Operation.OpType.TAKE_ALONG_AXIS_GRAD)),
+                        takeGradContext
+                ),
+                "UNSUPPORTED_DUPLICATE_INDEX",
+                "operation TAKE_ALONG_AXIS_GRAD",
+                "family=INDEX_SCATTER_GATHER",
+                "rank-preserving static bounds checks"
+        );
     }
 
     @Test

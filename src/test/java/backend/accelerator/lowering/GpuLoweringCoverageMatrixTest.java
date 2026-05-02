@@ -184,7 +184,17 @@ class GpuLoweringCoverageMatrixTest {
             assertEquals(expectedForwardIndexReason,
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.TAKE_ALONG_AXIS).reason());
             assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DUPLICATE_INDEX,
+                    GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.GATHER_GRAD).reason());
+            assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DUPLICATE_INDEX,
+                    GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.TAKE_ALONG_AXIS_GRAD).reason());
+            assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DUPLICATE_INDEX,
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.SCATTER_ADD).reason());
+            assertTrue(GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.GATHER_GRAD).note()
+                    .contains("duplicate-index accumulation parity"));
+            assertTrue(GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.TAKE_ALONG_AXIS_GRAD).note()
+                    .contains("rank-preserving static bounds checks"));
+            assertTrue(GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.SCATTER_ADD).note()
+                    .contains("native write-add semantics"));
         }
     }
 

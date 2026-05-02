@@ -105,10 +105,14 @@ public class GpuTargetSemanticsContractTest {
         GpuTargetSemanticsContract loss = GpuTargetSemanticsContract.forOp(Operation.OpType.CROSS_ENTROPY_LOSS_INDICES);
         GpuTargetSemanticsContract gather = GpuTargetSemanticsContract.forOp(Operation.OpType.GATHER);
         GpuTargetSemanticsContract scatter = GpuTargetSemanticsContract.forOp(Operation.OpType.SCATTER_ADD);
+        GpuTargetSemanticsContract gatherGrad = GpuTargetSemanticsContract.forOp(Operation.OpType.GATHER_GRAD);
+        GpuTargetSemanticsContract takeGrad = GpuTargetSemanticsContract.forOp(Operation.OpType.TAKE_ALONG_AXIS_GRAD);
 
         assertNotNull(loss);
         assertNotNull(gather);
         assertNotNull(scatter);
+        assertNotNull(gatherGrad);
+        assertNotNull(takeGrad);
         assertEquals(GpuLoweringOperationFamily.LOSS_ADJACENT, loss.family());
         assertEquals(GpuLoweringOperationFamily.INDEX_SCATTER_GATHER, gather.family());
         assertTrue(loss.dtypeContract().contains("resident-representable"));
@@ -116,5 +120,12 @@ public class GpuTargetSemanticsContractTest {
         assertTrue(loss.numericalContract().contains("ignore-index"));
         assertTrue(gather.dtypeContract().contains("native compute support is operation-specific"));
         assertTrue(scatter.numericalContract().contains("duplicate indices"));
+        assertTrue(scatter.plannerAdmissionBlocked());
+        assertTrue(gatherGrad.plannerAdmissionBlocked());
+        assertTrue(takeGrad.plannerAdmissionBlocked());
+        assertTrue(scatter.blockerReason().contains("UNSUPPORTED_DUPLICATE_INDEX"));
+        assertTrue(gatherGrad.shapeContract().contains("original input shape"));
+        assertTrue(takeGrad.shapeContract().contains("original input shape"));
+        assertTrue(takeGrad.numericalContract().contains("logical-index accumulation order"));
     }
 }

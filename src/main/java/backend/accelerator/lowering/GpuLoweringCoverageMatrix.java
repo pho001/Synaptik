@@ -213,7 +213,7 @@ public final class GpuLoweringCoverageMatrix {
         add(entries, backend, Operation.OpType.GATHER_GRAD, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.UNSUPPORTED_DUPLICATE_INDEX,
-                "gather gradient requires duplicate-index accumulation parity before GPU support");
+                "gather gradient remains CPU-owned until Phase 36 proves duplicate-index accumulation parity, static bounds checks, and gradient scatter residency");
         if (backend == ComputeBackend.GPU_METAL) {
             add(entries, backend, Operation.OpType.TAKE_ALONG_AXIS, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
                     GpuLoweringCoverageStatus.SUPPORTED,
@@ -228,11 +228,11 @@ public final class GpuLoweringCoverageMatrix {
         add(entries, backend, Operation.OpType.TAKE_ALONG_AXIS_GRAD, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.UNSUPPORTED_DUPLICATE_INDEX,
-                "take-along-axis gradient requires duplicate-index accumulation parity before GPU support");
+                "take-along-axis gradient remains CPU-owned until Phase 36 proves duplicate-index accumulation parity, rank-preserving static bounds checks, and gradient scatter residency");
         add(entries, backend, Operation.OpType.SCATTER_ADD, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.UNSUPPORTED_DUPLICATE_INDEX,
-                "scatter-add remains CPU-owned until duplicate-index accumulation semantics are proven for native GPU execution");
+                "scatter-add remains CPU-owned until Phase 36 proves duplicate-index accumulation order/tolerance, static bounds checks, and native write-add semantics");
         addBoolOutputRows(entries, backend);
         addSupported(entries, backend, GpuLoweringOperationFamily.BACKWARD_ADJACENT,
                 "native accelerator DAG backward-adjacent path",
