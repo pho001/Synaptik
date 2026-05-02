@@ -193,7 +193,7 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ## Current Status
 
-v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete and ready for `$gsd-secure-phase 40` plus `$gsd-validate-phase 40`.
+v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete, security-passed, and ready for `$gsd-validate-phase 40`.
 
 ---
 
