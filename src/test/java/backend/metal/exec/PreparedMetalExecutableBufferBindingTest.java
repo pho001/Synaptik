@@ -294,6 +294,24 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     @Test
+    void customKernelRouteReportsMpsGraphWhenRuntimeBindingsAreNotDense() {
+        Fixture fixture = nonContiguousOutputFixture();
+        FakeBridge bridge = new FakeBridge(true);
+        FakeCustomKernelBridge customBridge = new FakeCustomKernelBridge(true);
+        PreparedMetalExecutable executable = executable(fixture, bridge, customBridge);
+        assertEquals(MetalExecutionRoute.CUSTOM_KERNEL, executable.routeDecision().selectedRoute());
+
+        executable.execute(fixture.context());
+
+        assertEquals(1, bridge.bufferExecutions);
+        assertEquals(0, customBridge.bufferExecutions);
+        assertEquals(MetalExecutionRoute.MPS_GRAPH, executable.routeDecision().selectedRoute());
+        assertEquals(MetalRouteReasonCode.MPS_GRAPH_SELECTED, executable.routeDecision().reasonCode());
+        assertTrue(executable.routeDecision().rejectedReasonCodes().contains(MetalRouteReasonCode.UNSUPPORTED_LAYOUT));
+        assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, executable.lastExecutionStats().executionPath());
+    }
+
+    @Test
     void tracedBufferBindingStepPublishesMetalRouteAttributes() {
         Fixture fixture = fixture();
         FakeBridge bridge = new FakeBridge(true);

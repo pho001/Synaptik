@@ -57,6 +57,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
     private final MetalAcceleratorBufferBinder bufferBinder;
     private final MetalPreparedTransportPlan preparedTransportPlan;
     private final MetalRouteDecision preparedRouteDecision;
+    private volatile MetalRouteDecision lastRouteDecision;
     private volatile String lastBufferBindingDecision = "not executed yet";
     private volatile AcceleratorBufferDecision lastAcceleratorBufferDecision =
             AcceleratorBufferDecision.notEvaluated(ComputeBackend.GPU_METAL);
@@ -137,6 +138,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
                 this.customKernelBridge.capabilities(),
                 customKernelExecutable
         );
+        this.lastRouteDecision = preparedRouteDecision;
     }
 
     /**
@@ -206,6 +208,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
                 AcceleratorBufferBindings<MetalBufferBinding> bindings = bufferBinder.resolve(request, nativeBufferInputs, decision, context);
                 if (preparedRouteDecision.selectedRoute() == MetalExecutionRoute.CUSTOM_KERNEL
                         && customKernelBindingsEligible(bindings.inputs(), bindings.outputs())) {
+                    lastRouteDecision = preparedRouteDecision;
                     lastExecutionStats = customKernelBridge.executeBuffers(
                             bridgeContext,
                             customKernelExecutable,
@@ -213,6 +216,11 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
                             bindings.outputs()
                     );
                 } else {
+                    if (preparedRouteDecision.selectedRoute() == MetalExecutionRoute.CUSTOM_KERNEL) {
+                        lastRouteDecision = runtimeMpsGraphRouteDecision();
+                    } else {
+                        lastRouteDecision = preparedRouteDecision;
+                    }
                     lastExecutionStats = bridge.executeBuffers(
                             bridgeContext,
                             bridgeExecutable,
@@ -347,6 +355,26 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
             }
         }
         return true;
+    }
+
+    private MetalRouteDecision runtimeMpsGraphRouteDecision() {
+        return new MetalRouteDecision(
+                MetalExecutionRoute.MPS_GRAPH,
+                List.of(MetalExecutionRoute.CUSTOM_KERNEL),
+                List.of(MetalRouteReasonCode.UNSUPPORTED_LAYOUT),
+                List.of("custom Metal kernel runtime bindings are not dense FLOAT32; MPSGraph buffer route selected"),
+                MetalRouteReasonCode.MPS_GRAPH_SELECTED,
+                "MPSGraph selected at execute-time because custom Metal kernel runtime binding contract was not satisfied; "
+                        + preparedRouteDecision.detail(),
+                preparedRouteDecision.estimatedWork(),
+                preparedRouteDecision.estimatedWork(),
+                preparedRouteDecision.estimatedCopyCost(),
+                preparedRouteDecision.bridgeAvailable(),
+                preparedRouteDecision.executableAvailable(),
+                preparedRouteDecision.bufferAbiSupported(),
+                false,
+                preparedRouteDecision.nativeCopyCostKnown()
+        );
     }
 
     private static List<AcceleratorBufferLayout> layoutsForNodeIds(ExecutionContext context, List<Integer> nodeIds) {
@@ -624,10 +652,13 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
     }
 
     /**
-     * Returns the prepare-time route decision for this Metal executable.
+     * Returns the latest route decision for this Metal executable.
+     *
+     * <p>The value starts as the prepare-time decision and can narrow at execute time when a scoped custom
+     * kernel route is rejected by concrete runtime buffer bindings.</p>
      */
     public MetalRouteDecision routeDecision() {
-        return preparedRouteDecision;
+        return lastRouteDecision;
     }
 
     private enum MetalPreparedTransportPath {
