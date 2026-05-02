@@ -30,10 +30,10 @@ created: 2026-05-02
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 40-01-01 | 40-01 | 1 | CUDAPARITY-01 | T40-01 | Matrix rows cannot mark capability skip as support | unit | `./gradlew test --tests backend.accelerator.lowering.GpuBackendParityReportTest` | W0 | pending |
-| 40-02-01 | 40-02 | 2 | CUDAPARITY-02 | T40-02 | Capability dimensions remain explicit and stable | unit | `./gradlew test --tests backend.cuda.bridge.CudaFfmBridgeTest --tests backend.cuda.bridge.CudaCapabilityReportTest` | W0 | pending |
-| 40-03-01 | 40-03 | 3 | CUDAPARITY-03 | T40-03 | Hot-path blockers are classified without hidden fallback | unit | `./gradlew test --tests GpuCoverageTriageReportTest --tests GpuHotPathCoverageTargetsTest` | W0 | pending |
-| 40-04-01 | 40-04 | 4 | CUDAPARITY-01..03 | T40-04 | Docs and reports do not overclaim CUDA support | docs/integration | `./gradlew test --tests SourceTreeHygieneTest && ./gradlew classes && git diff --check` | W0 | pending |
+| 40-01-01 | 40-01 | 1 | CUDAPARITY-01 | T40-01 | Matrix rows cannot mark capability skip as support | unit | `./gradlew test --tests backend.accelerator.lowering.GpuBackendParityReportTest` | W0 | green |
+| 40-02-01 | 40-02 | 2 | CUDAPARITY-02 | T40-02 | Capability dimensions remain explicit and stable | unit | `./gradlew test --tests backend.cuda.bridge.CudaFfmBridgeTest --tests backend.cuda.bridge.CudaCapabilityReportTest` | W0 | green |
+| 40-03-01 | 40-03 | 3 | CUDAPARITY-03 | T40-03 | Hot-path blockers are classified without hidden fallback | unit | `./gradlew test --tests GpuCoverageTriageReportTest --tests GpuHotPathCoverageTargetsTest` | W0 | green |
+| 40-04-01 | 40-04 | 4 | CUDAPARITY-01..03 | T40-04 | Docs and reports do not overclaim CUDA support | docs/integration | `./gradlew test --tests SourceTreeHygieneTest && ./gradlew classes && git diff --check` | W0 | green |
 
 ## Wave 0 Requirements
 
@@ -53,4 +53,4 @@ Existing Gradle/JUnit infrastructure covers all Phase 40 requirements. No new te
 - [x] No watch-mode flags.
 - [x] Portable feedback latency target is below 180 seconds.
 
-**Approval:** pending execution
+**Approval:** approved 2026-05-02

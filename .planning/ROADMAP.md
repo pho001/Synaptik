@@ -32,7 +32,7 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ### Phase 40: CUDA Parity Gap Triage And Capability Baseline
 
-**Status:** Planned
+**Status:** Complete
 
 **Goal:** Establish the source-of-truth CUDA parity gap matrix and capability gates before widening CUDA support.
 
@@ -48,10 +48,10 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 5. Docs explain which CUDA rows are implementation targets for v1.6 and which remain future scope.
 
 **Planned waves:**
-- [ ] 40-01 CUDA parity matrix and report vocabulary.
-- [ ] 40-02 CUDA native capability and ABI probe hardening.
-- [ ] 40-03 Hot-path target policy and blocker classification.
-- [ ] 40-04 Docs, tests, and baseline closure.
+- [x] 40-01 CUDA parity matrix and report vocabulary.
+- [x] 40-02 CUDA native capability and ABI probe hardening.
+- [x] 40-03 Hot-path target policy and blocker classification.
+- [x] 40-04 Docs, tests, and baseline closure.
 
 ### Phase 41: CUDA DType Layout And Index Residency
 
@@ -193,7 +193,7 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ## Current Status
 
-v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is planned and ready for `$gsd-execute-phase 40`.
+v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete and ready for `$gsd-secure-phase 40` plus `$gsd-validate-phase 40`.
 
 ---
 

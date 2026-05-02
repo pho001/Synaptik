@@ -9,9 +9,9 @@ Requirements for the v1.6 milestone. Each requirement maps to exactly one roadma
 
 ### CUDA Parity Gap Triage And Capability Baseline
 
-- [ ] **CUDAPARITY-01**: CUDA coverage reports compare every v1.5 Metal-supported family against CUDA status, reason code, native capability, and required evidence before any row is promoted.
-- [ ] **CUDAPARITY-02**: CUDA native bridge and planner capability probes distinguish dtype, layout, DAG primitive, vendor-library, buffer-binding, and hardware/toolchain availability without treating capability skips as support.
-- [ ] **CUDAPARITY-03**: CUDA hot-path targets define which CPU exits are blockers, which are accepted capability gaps, and which require real CUDA native execution evidence.
+- [x] **CUDAPARITY-01**: CUDA coverage reports compare every v1.5 Metal-supported family against CUDA status, reason code, native capability, and required evidence before any row is promoted.
+- [x] **CUDAPARITY-02**: CUDA native bridge and planner capability probes distinguish dtype, layout, DAG primitive, vendor-library, buffer-binding, and hardware/toolchain availability without treating capability skips as support.
+- [x] **CUDAPARITY-03**: CUDA hot-path targets define which CPU exits are blockers, which are accepted capability gaps, and which require real CUDA native execution evidence.
 
 ### CUDA DType Layout And Index Residency
 
@@ -75,9 +75,9 @@ Explicitly excluded from v1.6 to keep the milestone reviewable.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CUDAPARITY-01 | Phase 40 | Pending |
-| CUDAPARITY-02 | Phase 40 | Pending |
-| CUDAPARITY-03 | Phase 40 | Pending |
+| CUDAPARITY-01 | Phase 40 | Complete |
+| CUDAPARITY-02 | Phase 40 | Complete |
+| CUDAPARITY-03 | Phase 40 | Complete |
 | CUDADTYPE-01 | Phase 41 | Pending |
 | CUDADTYPE-02 | Phase 41 | Pending |
 | CUDAINDEX-01 | Phase 41 | Pending |

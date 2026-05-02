@@ -187,11 +187,13 @@ For CUDA bridge and buffer-policy changes, use focused portable checks first:
 
 ```bash
 ./gradlew classes
-./gradlew test --tests backend.cuda.bridge.CudaFfmBridgeTest
+./gradlew test --tests backend.accelerator.lowering.GpuBackendParityReportTest
+./gradlew test --tests backend.cuda.bridge.CudaCapabilityReportTest --tests backend.cuda.bridge.CudaFfmBridgeTest
 ./gradlew test --tests backend.cuda.buffer.CudaAcceleratorBufferBinderTest
 ./gradlew test --tests backend.cuda.buffer.CudaBufferAllocatorTest
 ./gradlew test --tests backend.cuda.buffer.CudaDeviceToCpuMaterializerTest
 ./gradlew test --tests backend.cuda.exec.PreparedCudaExecutableBufferPolicyTest
+./gradlew test --tests GpuCoverageTriageReportTest --tests GpuHotPathCoverageTargetsTest
 ./gradlew test --tests SourceTreeHygieneTest
 ```
 

@@ -86,6 +86,14 @@ The public `Tensor` remains logical and device residency stays in `ExecutionStat
 
 Metal and CUDA coverage is backend-specific. Shared rows describe the common semantic contract, but each backend can still reject a row through its own native capability, dtype, layout, ABI, or buffer-binding gates.
 
+## Phase 40 CUDA parity baseline
+
+Phase 40 adds code-level CUDA-vs-Metal parity reporting on top of this matrix. `GpuBackendParityReporter.cudaAgainstMetal()` is the source for CUDA-vs-Metal parity rows. It compares every Metal row against the corresponding CUDA row and groups gaps by the evidence required before CUDA support can be claimed.
+
+CUDA supported rows still require backend-owned dtype, layout, capability, native execution, CPU parity, trace/report evidence, and gates. A `SUPPORTED` matrix row is not enough on its own when native execution, capability probes, or report evidence are missing.
+
+CUDA unsupported rows for dense loss, SDPA, conv/pool, gather/take, BOOL-producing compute, and selected training/index-gradient families are v1.6 targets or explicit blockers. Capability skip and optional native test skip must not be counted as support.
+
 Phase 33 adds coverage evidence for Metal layout repair. `layout_broadcast_repair_small` requires native buffer execution,
 `BROADCAST_GPU_MATERIALIZATION` evidence, and no `CPU_CONSUMER` materialization on the supported hot path. This is not a
 claim of universal strided-native compute; direct `STRIDED_NATIVE_COMPUTE` remains a named unsupported route until a
