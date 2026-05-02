@@ -4,9 +4,11 @@ import backend.ComputeBackend;
 import backend.accelerator.prepare.GpuAcceleratorPrepareSupport;
 import backend.accelerator.exec.PartitionExecutionRole;
 import backend.cpu.prepare.CpuNodePreparer;
+import backend.metal.bridge.MetalMpsFfmCustomKernelBridge;
 import backend.metal.bridge.MetalMpsFfmBridge;
 import backend.metal.bridge.MetalMpsGraphBridge;
 import backend.metal.exec.PreparedMetalExecutable;
+import backend.metal.kernel.MetalCustomKernelBridge;
 import backend.metal.lowering.MetalPartitionPlan;
 import backend.lowering.LoweredRegion;
 import backend.lowering.LoweringFamily;
@@ -25,20 +27,33 @@ import graph.optimizer.partition.PartitionPlan;
 public final class MetalNodePreparer {
     private final CpuNodePreparer cpuPreparer;
     private final MetalMpsGraphBridge bridge;
+    private final MetalCustomKernelBridge customKernelBridge;
 
     /**
      * Creates a preparer using the default FFM Metal bridge.
      */
     public MetalNodePreparer(CpuNodePreparer cpuPreparer) {
-        this(cpuPreparer, new MetalMpsFfmBridge());
+        this(cpuPreparer, new MetalMpsFfmBridge(), new MetalMpsFfmCustomKernelBridge());
     }
 
     /**
      * Creates a preparer with an explicit Metal bridge implementation.
      */
     public MetalNodePreparer(CpuNodePreparer cpuPreparer, MetalMpsGraphBridge bridge) {
+        this(cpuPreparer, bridge, MetalCustomKernelBridge.unavailable());
+    }
+
+    /**
+     * Creates a preparer with explicit Metal graph and custom-kernel bridge implementations.
+     */
+    public MetalNodePreparer(
+            CpuNodePreparer cpuPreparer,
+            MetalMpsGraphBridge bridge,
+            MetalCustomKernelBridge customKernelBridge
+    ) {
         this.cpuPreparer = cpuPreparer;
         this.bridge = bridge;
+        this.customKernelBridge = customKernelBridge == null ? MetalCustomKernelBridge.unavailable() : customKernelBridge;
     }
 
     /**
@@ -88,7 +103,8 @@ public final class MetalNodePreparer {
                         loweringFamily,
                         bridge,
                         fallback.preparedSteps(),
-                        context.runtimeConfig().accelerator().metal()
+                        context.runtimeConfig().accelerator().metal(),
+                        customKernelBridge
                 ),
                 PartitionExecutionRole.ANCHOR
         );

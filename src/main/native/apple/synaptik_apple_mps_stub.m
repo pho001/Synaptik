@@ -13,6 +13,7 @@ static const char *SYNAPTIK_APPLE_MPS_DEFAULT_UNAVAILABLE_REASON =
 @property(nonatomic, strong) id<MTLCommandQueue> queue;
 @property(nonatomic, strong) MPSGraphDevice *graphDevice;
 @property(nonatomic, strong) id<MTLComputePipelineState> layoutContiguousF32Pipeline;
+@property(nonatomic, strong) id<MTLComputePipelineState> customReluF32Pipeline;
 @end
 
 @implementation SynaptikAppleMpsContextBox
@@ -190,6 +191,36 @@ static id<MTLComputePipelineState> SynaptikLayoutContiguousF32Pipeline(id<MTLDev
         return nil;
     }
     id<MTLFunction> function = [library newFunctionWithName:@"synaptik_layout_contiguous_f32"];
+    if (function == nil) {
+        return nil;
+    }
+    NSError *pipelineError = nil;
+    return [device newComputePipelineStateWithFunction:function error:&pipelineError];
+}
+
+static id<MTLComputePipelineState> SynaptikCustomReluF32Pipeline(id<MTLDevice> device) {
+    static NSString *source =
+            @"#include <metal_stdlib>\n"
+             "using namespace metal;\n"
+             "kernel void synaptik_custom_relu_f32(\n"
+             "    device const float *source [[buffer(0)]],\n"
+             "    device float *destination [[buffer(1)]],\n"
+             "    constant long &logicalElementCount [[buffer(2)]],\n"
+             "    uint gid [[thread_position_in_grid]]) {\n"
+             "    long linear = (long) gid;\n"
+             "    if (linear >= logicalElementCount) { return; }\n"
+             "    float value = source[linear];\n"
+             "    destination[linear] = value > 0.0f ? value : 0.0f;\n"
+             "}\n";
+    if (device == nil) {
+        return nil;
+    }
+    NSError *libraryError = nil;
+    id<MTLLibrary> library = [device newLibraryWithSource:source options:nil error:&libraryError];
+    if (library == nil) {
+        return nil;
+    }
+    id<MTLFunction> function = [library newFunctionWithName:@"synaptik_custom_relu_f32"];
     if (function == nil) {
         return nil;
     }
@@ -1656,6 +1687,72 @@ int synaptik_apple_mps_layout_contiguous_f32_buffer(
         [commandBuffer waitUntilCompleted];
         if (commandBuffer.status != MTLCommandBufferStatusCompleted) {
             return 14;
+        }
+        return 0;
+    }
+}
+
+int synaptik_apple_mps_custom_relu_f32_buffer(
+        void *context,
+        void *source_buffer,
+        void *destination_buffer,
+        int64_t logical_element_count,
+        int64_t source_byte_length,
+        int64_t destination_byte_length
+) {
+    if (context == NULL || source_buffer == NULL || destination_buffer == NULL) {
+        return 1;
+    }
+    if (logical_element_count < 0 || source_byte_length < 0 || destination_byte_length < 0) {
+        return 2;
+    }
+    int64_t requiredBytes = logical_element_count * (int64_t) sizeof(float);
+    if (source_byte_length < requiredBytes || destination_byte_length < requiredBytes) {
+        return 3;
+    }
+    if (logical_element_count == 0) {
+        return 0;
+    }
+    @autoreleasepool {
+        SynaptikAppleMpsContextBox *contextBox = SynaptikUnboxContext(context);
+        SynaptikAppleMpsBufferBox *sourceBox = SynaptikUnboxBuffer(source_buffer);
+        SynaptikAppleMpsBufferBox *destinationBox = SynaptikUnboxBuffer(destination_buffer);
+        if (contextBox == nil || sourceBox == nil || destinationBox == nil
+                || sourceBox.buffer == nil || destinationBox.buffer == nil) {
+            return 4;
+        }
+        if (sourceBox.byteLength < (NSUInteger) source_byte_length
+                || destinationBox.byteLength < (NSUInteger) destination_byte_length) {
+            return 5;
+        }
+        if (contextBox.customReluF32Pipeline == nil) {
+            contextBox.customReluF32Pipeline = SynaptikCustomReluF32Pipeline(contextBox.device);
+        }
+        if (contextBox.customReluF32Pipeline == nil) {
+            return 6;
+        }
+        id<MTLCommandBuffer> commandBuffer = [contextBox.queue commandBuffer];
+        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+        if (commandBuffer == nil || encoder == nil) {
+            return 7;
+        }
+        int64_t elementCountValue = logical_element_count;
+        [encoder setComputePipelineState:contextBox.customReluF32Pipeline];
+        [encoder setBuffer:sourceBox.buffer offset:0 atIndex:0];
+        [encoder setBuffer:destinationBox.buffer offset:0 atIndex:1];
+        [encoder setBytes:&elementCountValue length:sizeof(int64_t) atIndex:2];
+        NSUInteger threads = MIN((NSUInteger) contextBox.customReluF32Pipeline.maxTotalThreadsPerThreadgroup, (NSUInteger) 256);
+        if (threads == 0) {
+            return 8;
+        }
+        MTLSize gridSize = MTLSizeMake((NSUInteger) logical_element_count, 1, 1);
+        MTLSize threadgroupSize = MTLSizeMake(threads, 1, 1);
+        [encoder dispatchThreads:gridSize threadsPerThreadgroup:threadgroupSize];
+        [encoder endEncoding];
+        [commandBuffer commit];
+        [commandBuffer waitUntilCompleted];
+        if (commandBuffer.status != MTLCommandBufferStatusCompleted) {
+            return 9;
         }
         return 0;
     }

@@ -50,7 +50,9 @@ class MetalBufferTraceSmokeTest {
         assertEquals("BUFFER_BINDING", attrs.get("acceleratorBufferExecutionPath"));
         assertEquals("BUFFER_BINDING_AVAILABLE", attrs.get("acceleratorBufferReasonCode"));
         assertTrue(attrs.containsKey("acceleratorBufferPreparedInputUsed"));
-        assertEquals("BUFFER_BINDING", attrs.get("metalExecutionPath"));
+        assertEquals("CUSTOM_KERNEL", attrs.get("metalExecutionPath"));
+        assertEquals("CUSTOM_KERNEL", attrs.get("metalExecutionRoute"));
+        assertEquals("TRUE_OUTPUT_BUFFER_WRITE", attrs.get("metalNativeCopyStrategy"));
         assertTrue(attrs.containsKey("metalNativeDeviceCopyNs"));
         assertEquals(0L, attrs.get("metalNativeToJavaCopyNs"));
         assertEquals("DEVICE_OWNED", attrs.get("storageResidency"));

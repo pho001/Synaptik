@@ -17,6 +17,7 @@ import backend.memory.CpuMaterializationReason;
 import backend.metal.buffer.MetalBufferAllocator;
 import backend.metal.buffer.MetalBufferAccess;
 import backend.metal.buffer.MetalBufferBinding;
+import backend.metal.kernel.MetalCustomKernelExecutable;
 import backend.metal.lowering.MetalPartitionPlan;
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
@@ -153,6 +154,47 @@ class MetalMpsFfmBridgeTest {
             assertFalse(stats.outputBufferWriteProven());
             assertTrue(stats.nativeDeviceCopyNs() >= 0L);
             assertArrayEquals(new float[]{1.0f, 0.0f}, destination.getFloat32Data(), 0.0f);
+        } finally {
+            if (input != null) {
+                allocator.destroy(input.handle());
+            }
+            if (output != null) {
+                allocator.destroy(output.handle());
+            }
+        }
+    }
+
+    @Test
+    void explicitShimCustomReluKernelWritesCallerOutputBuffer() {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        MetalMpsFfmCustomKernelBridge customBridge = new MetalMpsFfmCustomKernelBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        assumeTrue(customBridge.capabilities().available(), customBridge.capabilities().reason());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalCustomKernelExecutable executable = customBridge.compile(reluPlan());
+        assumeTrue(executable.available(), executable.reason());
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        MetalBufferBinding input = null;
+        MetalBufferBinding output = null;
+        try {
+            Tensor source = new Tensor(new float[]{-3.0f, 2.5f}, new int[]{2}, null, "source", DataType.FLOAT32);
+            input = allocator.createInputBinding(1, source);
+            output = allocator.createOutputBinding(9, denseF32Layout(new int[]{2}));
+
+            MetalMpsBridgeExecutionStats stats = customBridge.executeBuffers(context, executable, List.of(input), List.of(output));
+            Tensor destination = new Tensor(new float[]{0.0f, 0.0f}, new int[]{2}, null, "destination", DataType.FLOAT32);
+            allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+
+            assertEquals(MetalMpsBridgeExecutionPath.CUSTOM_KERNEL, stats.executionPath());
+            assertEquals(MetalNativeCopyStrategy.TRUE_OUTPUT_BUFFER_WRITE, stats.nativeCopyStrategy());
+            assertTrue(stats.outputBufferWriteProven());
+            assertArrayEquals(new float[]{0.0f, 2.5f}, destination.getFloat32Data(), 0.0f);
         } finally {
             if (input != null) {
                 allocator.destroy(input.handle());

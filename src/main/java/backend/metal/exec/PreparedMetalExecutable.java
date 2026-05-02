@@ -5,6 +5,7 @@ import backend.accelerator.buffer.AcceleratorBufferBindings;
 import backend.accelerator.buffer.AcceleratorBufferDecision;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
+import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.buffer.AcceleratorBufferRequest;
 import backend.accelerator.exec.AcceleratorPreparedInputResolver;
@@ -203,7 +204,8 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
         if (decision.path() == AcceleratorBufferExecutionPath.BUFFER_BINDING) {
             try {
                 AcceleratorBufferBindings<MetalBufferBinding> bindings = bufferBinder.resolve(request, nativeBufferInputs, decision, context);
-                if (preparedRouteDecision.selectedRoute() == MetalExecutionRoute.CUSTOM_KERNEL) {
+                if (preparedRouteDecision.selectedRoute() == MetalExecutionRoute.CUSTOM_KERNEL
+                        && customKernelBindingsEligible(bindings.inputs(), bindings.outputs())) {
                     lastExecutionStats = customKernelBridge.executeBuffers(
                             bridgeContext,
                             customKernelExecutable,
@@ -323,6 +325,28 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
                 layoutsForNodeIds(context, bridgeExecutable.outputNodeIds()),
                 context != null && context.runsBackwardPass()
         );
+    }
+
+    private static boolean customKernelBindingsEligible(
+            List<MetalBufferBinding> inputs,
+            List<MetalBufferBinding> outputs
+    ) {
+        return denseF32Bindings(inputs) && denseF32Bindings(outputs);
+    }
+
+    private static boolean denseF32Bindings(List<MetalBufferBinding> bindings) {
+        if (bindings == null || bindings.isEmpty()) {
+            return false;
+        }
+        for (MetalBufferBinding binding : bindings) {
+            if (binding == null
+                    || binding.layout().dataType() != DataType.FLOAT32
+                    || binding.layout().layoutClass() != AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS
+                    || binding.layout().storageOffset() != 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static List<AcceleratorBufferLayout> layoutsForNodeIds(ExecutionContext context, List<Integer> nodeIds) {
