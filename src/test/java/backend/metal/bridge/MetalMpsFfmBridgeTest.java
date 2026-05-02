@@ -915,6 +915,114 @@ class MetalMpsFfmBridgeTest {
     }
 
     @Test
+    void explicitShimMaterializesBroadcastZeroStrideLayoutToDenseBuffer() {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        assumeTrue(bridge.supportsLayoutMaterialization());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        MetalBufferBinding input = null;
+        MetalBufferBinding destination = null;
+        try {
+            Tensor base = new Tensor(new float[]{2f, 4f, 6f}, new int[]{1, 3}, null, "layoutBroadcastBase", DataType.FLOAT32);
+            input = allocator.createInputBinding(1, base);
+            AcceleratorBufferLayout broadcastLayout = AcceleratorBufferLayout.of(
+                    DataType.FLOAT32,
+                    new int[]{2, 3},
+                    new int[]{0, 1},
+                    0,
+                    6
+            );
+            MetalBufferBinding sourceView = MetalBufferBinding.viewOf(1, broadcastLayout, input, MetalBufferAccess.READ);
+            AcceleratorBufferLayout denseTarget = AcceleratorBufferLayout.of(
+                    DataType.FLOAT32,
+                    new int[]{2, 3},
+                    new int[]{3, 1},
+                    0,
+                    6
+            );
+            destination = allocator.createOutputBinding(2, denseTarget);
+
+            bridge.materializeLayout(context, sourceView, destination);
+
+            Tensor actual = new Tensor(new float[6], new int[]{2, 3}, null, "layoutBroadcastDense", DataType.FLOAT32);
+            allocator.readToCpu(destination, actual, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+            assertArrayEquals(new float[]{2f, 4f, 6f, 2f, 4f, 6f}, actual.getFloat32Data(), 0.0f);
+        } finally {
+            if (input != null) {
+                allocator.destroy(input.handle());
+            }
+            if (destination != null) {
+                allocator.destroy(destination.handle());
+            }
+        }
+    }
+
+    @Test
+    void explicitShimMaterializesNonZeroOffsetLayoutToDenseBuffer() {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        assumeTrue(bridge.supportsLayoutMaterialization());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        MetalBufferBinding input = null;
+        MetalBufferBinding destination = null;
+        try {
+            Tensor base = new Tensor(new float[]{
+                    1f, 2f, 3f, 4f,
+                    5f, 6f, 7f, 8f
+            }, new int[]{2, 4}, null, "layoutOffsetBase", DataType.FLOAT32);
+            input = allocator.createInputBinding(1, base);
+            AcceleratorBufferLayout offsetLayout = AcceleratorBufferLayout.of(
+                    DataType.FLOAT32,
+                    new int[]{2, 2},
+                    new int[]{4, 1},
+                    1,
+                    4
+            );
+            MetalBufferBinding sourceView = new MetalBufferBinding(
+                    1,
+                    offsetLayout,
+                    input.handle(),
+                    MetalBufferAccess.READ
+            );
+            AcceleratorBufferLayout denseTarget = AcceleratorBufferLayout.of(
+                    DataType.FLOAT32,
+                    new int[]{2, 2},
+                    new int[]{2, 1},
+                    0,
+                    4
+            );
+            destination = allocator.createOutputBinding(2, denseTarget);
+
+            bridge.materializeLayout(context, sourceView, destination);
+
+            Tensor actual = new Tensor(new float[4], new int[]{2, 2}, null, "layoutOffsetDense", DataType.FLOAT32);
+            allocator.readToCpu(destination, actual, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+            assertArrayEquals(new float[]{2f, 3f, 6f, 7f}, actual.getFloat32Data(), 0.0f);
+        } finally {
+            if (input != null) {
+                allocator.destroy(input.handle());
+            }
+            if (destination != null) {
+                allocator.destroy(destination.handle());
+            }
+        }
+    }
+
+    @Test
     void bufferBindingValidationRejectsMismatchedInputNodeId() {
         MetalMpsBridgeExecutable executable = executableDescriptor(1, 2);
         MetalBufferBinding wrongInput = binding(99, MetalBufferAccess.READ);

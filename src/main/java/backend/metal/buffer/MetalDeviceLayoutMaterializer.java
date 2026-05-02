@@ -57,8 +57,8 @@ public final class MetalDeviceLayoutMaterializer implements DeviceLayoutMaterial
 
         AcceleratorBufferLayout targetLayout = decision.targetLayout();
         if (targetLayout.dataType() != DataType.FLOAT32) {
-            throw new UnsupportedOperationException("Metal dense layout materialization supports FLOAT32 only; got "
-                    + targetLayout.dataType());
+            throw new UnsupportedOperationException("NATIVE_LAYOUT_DTYPE_UNSUPPORTED: Metal dense layout materialization "
+                    + "supports FLOAT32 only; got " + targetLayout.dataType());
         }
         if (targetLayout.layoutClass() != AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS) {
             throw new UnsupportedOperationException("Metal dense layout materialization requires dense target layout; got "

@@ -146,7 +146,7 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 
 **Planned waves:**
 - [x] [33-01 Layout router contract and reason vocabulary](phases/33-gpu-layout-router-and-strided-materialization/33-01-PLAN.md).
-- [33-02 Metal GPU-side materialization primitives](phases/33-gpu-layout-router-and-strided-materialization/33-02-PLAN.md).
+- [x] [33-02 Metal GPU-side materialization primitives](phases/33-gpu-layout-router-and-strided-materialization/33-02-PLAN.md).
 - [33-03 Integration with prepared execution and region legality](phases/33-gpu-layout-router-and-strided-materialization/33-03-PLAN.md).
 - [33-04 Coverage gates and docs](phases/33-gpu-layout-router-and-strided-materialization/33-04-PLAN.md).
 

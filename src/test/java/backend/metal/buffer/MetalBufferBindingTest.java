@@ -44,6 +44,21 @@ class MetalBufferBindingTest {
     }
 
     @Test
+    void broadcastViewCoverageUsesPhysicalSpanRatherThanDenseLogicalBytes() {
+        MetalBufferHandle handle = new MetalBufferHandle(MemorySegment.ofAddress(1), 12, "shared", "test:logical-view", false);
+        MetalBufferBinding binding = new MetalBufferBinding(
+                7,
+                AcceleratorBufferLayout.of(DataType.FLOAT32, new int[]{2, 3}, new int[]{0, 1}, 0, 6),
+                handle,
+                MetalBufferAccess.READ
+        );
+
+        assertEquals(24, binding.logicalByteLength());
+        assertTrue(binding.bufferCoversLogicalPayload());
+        assertTrue(binding.available());
+    }
+
+    @Test
     void handleIdentifiesOnlySharedStorageAsHostShared() {
         MetalBufferHandle shared = new MetalBufferHandle(MemorySegment.ofAddress(1), 16, "shared", "test", false);
         MetalBufferHandle mixedCaseShared = new MetalBufferHandle(MemorySegment.ofAddress(2), 16, "SHARED", "test", false);

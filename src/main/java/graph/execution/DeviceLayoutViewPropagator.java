@@ -84,7 +84,7 @@ final class DeviceLayoutViewPropagator {
             } catch (RuntimeException ex) {
                 AcceleratorLayoutTransformDecision rejected = AcceleratorLayoutTransformDecision.rejected(
                         request,
-                        AcceleratorBufferReasonCode.GPU_LAYOUT_TRANSFORM_UNSUPPORTED,
+                        materializerFailureReasonCode(ex),
                         "GPU layout transform unsupported: layout materializer failed: " + safeMessage(ex)
                 );
                 context.publishLayoutTransformDecision(targetNode.id(), rejected);
@@ -135,6 +135,17 @@ final class DeviceLayoutViewPropagator {
     private static boolean isGpuMaterialization(AcceleratorLayoutTransformKind kind) {
         return kind == AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION
                 || kind == AcceleratorLayoutTransformKind.BROADCAST_GPU_MATERIALIZATION;
+    }
+
+    private static AcceleratorBufferReasonCode materializerFailureReasonCode(RuntimeException ex) {
+        String message = safeMessage(ex);
+        if (message.contains(AcceleratorBufferReasonCode.NATIVE_LAYOUT_DTYPE_UNSUPPORTED.name())) {
+            return AcceleratorBufferReasonCode.NATIVE_LAYOUT_DTYPE_UNSUPPORTED;
+        }
+        if (message.contains(AcceleratorBufferReasonCode.NATIVE_LAYOUT_METADATA_UNSUPPORTED.name())) {
+            return AcceleratorBufferReasonCode.NATIVE_LAYOUT_METADATA_UNSUPPORTED;
+        }
+        return AcceleratorBufferReasonCode.GPU_LAYOUT_TRANSFORM_UNSUPPORTED;
     }
 
     private static StorageResidency metadataOnlyViewResidency(int sourceNodeId, ExecutionContext context) {

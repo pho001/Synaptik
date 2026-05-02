@@ -2,6 +2,7 @@ package backend.metal.buffer;
 
 import backend.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferAccessMode;
+import backend.accelerator.buffer.AcceleratorLayoutAbiV2Descriptor;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.memory.DeviceBufferBinding;
 
@@ -91,12 +92,24 @@ public record MetalBufferBinding(
     }
 
     /**
-     * Returns whether the attached native buffer can hold the logical payload.
+     * Returns whether the attached native buffer can hold the physical source span.
      *
-     * @return true when the handle is available and large enough
+     * <p>Logical views can require fewer physical bytes than their logical dense payload
+     * length, for example zero-stride broadcast views. Dense bindings have identical
+     * logical and physical byte requirements.</p>
+     *
+     * @return true when the handle is available and large enough for the physical layout span
      */
     public boolean bufferCoversLogicalPayload() {
-        return handle.available() && handle.byteLength() >= logicalByteLength();
+        return handle.available()
+                && handle.byteLength() >= requiredBufferByteLength();
+    }
+
+    private long requiredBufferByteLength() {
+        if (handle.owner().contains(":logical-view")) {
+            return AcceleratorLayoutAbiV2Descriptor.physicalByteSpan(layout);
+        }
+        return logicalByteLength();
     }
 
     @Override

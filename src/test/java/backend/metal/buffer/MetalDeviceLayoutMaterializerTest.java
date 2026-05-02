@@ -54,6 +54,46 @@ class MetalDeviceLayoutMaterializerTest {
     }
 
     @Test
+    void materializesBroadcastFloat32TargetThroughBridge() {
+        RecordingBridge bridge = new RecordingBridge();
+        MetalBufferAllocator allocator = allocator();
+        AcceleratorBufferLayout sourceLayout = AcceleratorBufferLayout.of(
+                DataType.FLOAT32,
+                new int[]{2, 3},
+                new int[]{0, 1},
+                0,
+                6
+        );
+        AcceleratorBufferLayout targetLayout = AcceleratorBufferLayout.of(
+                DataType.FLOAT32,
+                new int[]{2, 3},
+                new int[]{3, 1},
+                0,
+                6
+        );
+        MetalBufferBinding source = new MetalBufferBinding(
+                1,
+                sourceLayout,
+                new MetalBufferHandle(MemorySegment.ofAddress(10), 12, "shared", "source:broadcast-view", false),
+                MetalBufferAccess.READ
+        );
+
+        var materializer = new MetalDeviceLayoutMaterializer(bridge, context(), allocator);
+        var materialized = materializer.materialize(
+                AcceleratorLayoutTransformDecision.broadcastGpuMaterialization(
+                        request(sourceLayout, targetLayout),
+                        "test broadcast materialization"
+                ),
+                source,
+                null
+        );
+
+        assertTrue(bridge.materializeCalled.get());
+        assertEquals(2, materialized.nodeId());
+        assertEquals(targetLayout, materialized.layout());
+    }
+
+    @Test
     void rejectsUnsupportedTargetDTypeBeforeBridgeCall() {
         RecordingBridge bridge = new RecordingBridge();
         MetalBufferAllocator allocator = allocator();
@@ -85,6 +125,7 @@ class MetalDeviceLayoutMaterializerTest {
         );
 
         assertTrue(failure.getMessage().contains("FLOAT32 only"));
+        assertTrue(failure.getMessage().contains("NATIVE_LAYOUT_DTYPE_UNSUPPORTED"));
         assertEquals(false, bridge.materializeCalled.get());
     }
 
@@ -93,17 +134,24 @@ class MetalDeviceLayoutMaterializerTest {
             AcceleratorBufferLayout targetLayout
     ) {
         return AcceleratorLayoutTransformDecision.denseGpuMaterialization(
-                new AcceleratorLayoutTransformRequest(
-                        "GPU_METAL",
-                        1,
-                        2,
-                        Operation.OpType.CONTIGUOUS,
-                        sourceLayout,
-                        targetLayout,
-                        null,
-                        false
-                ),
+                request(sourceLayout, targetLayout),
                 "test materialization"
+        );
+    }
+
+    private static AcceleratorLayoutTransformRequest request(
+            AcceleratorBufferLayout sourceLayout,
+            AcceleratorBufferLayout targetLayout
+    ) {
+        return new AcceleratorLayoutTransformRequest(
+                "GPU_METAL",
+                1,
+                2,
+                Operation.OpType.CONTIGUOUS,
+                sourceLayout,
+                targetLayout,
+                null,
+                false
         );
     }
 
