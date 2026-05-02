@@ -36,10 +36,11 @@ The current implementation has a real native buffer execution path:
 - The native shim is built from [`synaptik_apple_mps_stub.m`](../src/main/native/apple/synaptik_apple_mps_stub.m).
 - `MetalMpsFfmBridge.supportsBufferBindings()` returns `true` only when all buffer ABI symbols are present.
 - `PreparedMetalExecutable` tries `executeBuffers(...)` before the legacy tensor-array copy path.
+- `MetalMpsFfmCustomKernelBridge` can execute the first scoped custom kernel: dense contiguous `FLOAT32` single-node `RELU` through `synaptik_apple_mps_custom_relu_f32_buffer`.
 - Adjacent Metal regions can pass intermediate values through `MetalBufferBinding` without first copying them into Java tensor arrays.
 - A CPU boundary still materializes data back into Java storage through `MetalDeviceToCpuMaterializer`.
 
-The important limitation is that this is not long-lived public GPU tensor storage. Public `Tensor` results are CPU-readable after `compute()` or `PreparedExecution.execute(...)` returns. The current buffer path avoids Java-array round trips between adjacent Metal regions, but the Objective-C shim still conservatively copies MPSGraph result storage into caller-provided `MTLBuffer` contents with `readBytes:strideBytes:`. That native copy is measured as `metalNativeDeviceCopyNs`.
+The important limitation is that this is not long-lived public GPU tensor storage. Public `Tensor` results are CPU-readable after `compute()` or `PreparedExecution.execute(...)` returns. The MPSGraph buffer path avoids Java-array round trips between adjacent Metal regions, but the Objective-C shim still conservatively copies MPSGraph result storage into caller-provided `MTLBuffer` contents with `readBytes:strideBytes:`. That native copy is measured as `metalNativeDeviceCopyNs`. The scoped custom RELU route is different: it writes directly into the caller output buffer and reports `metalNativeCopyStrategy=TRUE_OUTPUT_BUFFER_WRITE`, but that proof applies only to the custom kernel route, not to MPSGraph generally.
 
 ## Mental Model
 
@@ -108,6 +109,7 @@ flowchart LR
 | Prepare step | [`MetalNodePreparer.java`](../src/main/java/backend/metal/prepare/MetalNodePreparer.java) |
 | Runtime executable and fallback policy | [`PreparedMetalExecutable.java`](../src/main/java/backend/metal/exec/PreparedMetalExecutable.java) |
 | Java FFM bridge | [`MetalMpsFfmBridge.java`](../src/main/java/backend/metal/bridge/MetalMpsFfmBridge.java) |
+| Custom kernel bridge | [`MetalMpsFfmCustomKernelBridge.java`](../src/main/java/backend/metal/bridge/MetalMpsFfmCustomKernelBridge.java), [`MetalCustomKernelCandidate.java`](../src/main/java/backend/metal/kernel/MetalCustomKernelCandidate.java) |
 | Bridge stats | [`MetalMpsBridgeExecutionStats.java`](../src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionStats.java), [`MetalMpsBridgeExecutionPath.java`](../src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionPath.java) |
 | Java buffer contract | [`MetalBufferBinding.java`](../src/main/java/backend/metal/buffer/MetalBufferBinding.java), [`MetalBufferHandle.java`](../src/main/java/backend/metal/buffer/MetalBufferHandle.java), [`MetalBufferAccess.java`](../src/main/java/backend/metal/buffer/MetalBufferAccess.java) |
 | Buffer allocation and CPU readback | [`MetalBufferAllocator.java`](../src/main/java/backend/metal/buffer/MetalBufferAllocator.java), [`MetalDeviceToCpuMaterializer.java`](../src/main/java/backend/metal/buffer/MetalDeviceToCpuMaterializer.java) |
@@ -362,6 +364,7 @@ ABI means application binary interface: the binary contract between Java FFM and
 | `synaptik_apple_mps_read_buffer` | `MetalBufferAllocator.readToCpu(...)` | Reads a shared buffer into CPU-visible memory. |
 | `synaptik_apple_mps_destroy_buffer` | `MetalBufferResource.close()` | Releases a buffer box. |
 | `synaptik_apple_mps_execute_partition_f32_buffers` | `executeBuffers(...)` | Executes over explicit input/output buffer handles. |
+| `synaptik_apple_mps_custom_relu_f32_buffer` | `MetalMpsFfmCustomKernelBridge.executeBuffers(...)` | Executes the scoped dense `FLOAT32` custom RELU kernel over explicit input/output buffer handles. |
 | `synaptik_apple_mps_destroy_executable` | discovered, but cached executables are retained for reuse | Releases an executable box. |
 | `synaptik_apple_mps_layout_abi_version` | `MetalMpsFfmBridge.capabilities()` | Optional layout ABI v2 version probe. |
 | `synaptik_apple_mps_validate_layout_abi_v2` | layout ABI v2 capability checks | Optional metadata-only layout descriptor validation. |
@@ -417,6 +420,19 @@ The Java caller passes arrays of opaque buffer handles, not Java arrays and not 
 8. Accumulates the native result-copy time into `native_device_copy_ns`.
 
 Status codes are simple integer failure classes. For example, `2` means input count or pointer mismatch, `3` means output count or pointer mismatch, `5` means input shape/size mismatch, `8` means output shape/size mismatch, and `10-12` cover result/copy failures. Java turns any non-zero status into an `UnsupportedOperationException`, and `PreparedMetalExecutable` converts that to CPU fallback with an explicit reason.
+
+### Custom `relu_f32` kernel route
+
+Phase 44 adds a separate custom-kernel route beside MPSGraph. The route is selected only when all of these are true:
+
+1. The prepared transport path is `BUFFER_BINDING`.
+2. `MetalCustomKernelCandidate` classifies the lowered DAG as one `FLOAT32` `RELU` node with one external input and one output.
+3. `MetalMpsFfmCustomKernelBridge` finds `synaptik_apple_mps_custom_relu_f32_buffer`.
+4. Execute-time bindings are dense contiguous `FLOAT32` input/output buffers with readable input and writable output access.
+
+Unsupported custom candidates do not become custom kernels. Multi-node regions, BF16/BOOL/INT32/FLOAT64 candidates, non-RELU operations, unavailable custom symbols, tensor-array transport, and non-dense runtime bindings stay on MPSGraph or the existing explicit fallback path. This keeps custom kernels region-internal and scoped; it does not reuse CPU `Operation.OpType.FUSED` nodes and does not replace the MPSGraph lowering route for broader operation coverage.
+
+The custom RELU native function writes directly into the caller-provided output `MTLBuffer`, so this route reports `metalExecutionPath=CUSTOM_KERNEL` and `metalNativeCopyStrategy=TRUE_OUTPUT_BUFFER_WRITE`. MPSGraph buffer execution still reports `MPSGRAPH_RESULT_COPY` until Phase 45 proves or changes that behavior.
 
 ### Why the native result copy still exists
 
@@ -587,13 +603,16 @@ Metal trace fields are emitted through `PreparedExecution` run traces. The most 
 | `metalBridgeAvailable` | Whether the bridge reported native availability. |
 | `metalBridgeExecutableAvailable` | Whether compile produced a native executable handle. |
 | `metalSupportsBufferBindings` | Whether all buffer ABI symbols were discovered. |
+| `metalExecutionRoute` | Prepare-time Metal route: `MPS_GRAPH`, `CUSTOM_KERNEL`, `TENSOR_ARRAY`, `CPU_FALLBACK`, or `UNAVAILABLE_REQUIRED`. |
+| `metalRouteRejectedRoutes` / `metalRouteRejectedReasonCodes` | Alternatives rejected during route selection, for example `CUSTOM_KERNEL_UNAVAILABLE` or `MPS_GRAPH_SELECTED`. |
+| `metalRouteCustomKernelAvailable` | Whether a scoped custom-kernel executable was available for the prepared region. |
 | `metalBufferBindingDecision` | Why the buffer path was used or why it fell back to tensor arrays. |
 | `metalExecutionPath` | `BUFFER_BINDING`, `TENSOR_ARRAY_COPY`, or `CPU_FALLBACK`. |
 | `metalInputBytes`, `metalOutputBytes` | Logical payload byte counts for external inputs and outputs. |
 | `metalJavaToNativeCopyNs` | Java-side copy time into FFM memory; should be `0` for `BUFFER_BINDING`. |
 | `metalNativeToJavaCopyNs` | Java-side copy time from native output memory into Java arrays; should be `0` for `BUFFER_BINDING`. |
-| `metalNativeCopyStrategy` | Native-side output copy classification, currently `MPSGRAPH_RESULT_COPY` for the conservative MPSGraph result-copy path. |
-| `metalOutputBufferWriteProven` | `true` only when tests prove MPSGraph writes directly into caller-provided output buffers; currently `false` for the conservative path. |
+| `metalNativeCopyStrategy` | Native-side output copy classification: `MPSGRAPH_RESULT_COPY` for the conservative MPSGraph result-copy path, `TRUE_OUTPUT_BUFFER_WRITE` for the scoped custom RELU kernel, or `UNKNOWN_OR_UNPROVEN` for fallback. |
+| `metalOutputBufferWriteProven` | `true` only for routes that prove direct writes into caller-provided output buffers. This is true for the scoped custom RELU route and still false for the conservative MPSGraph path. |
 | `metalNativeDeviceCopyNs` | Native shim copy time from returned MPSGraph result storage into caller-provided output buffers. May be non-zero for the current buffer path. |
 | `storageResidency` | Final residency state for the step output, often `DEVICE_OWNED` for successful buffer execution. |
 
@@ -601,7 +620,7 @@ Metal trace fields are emitted through `PreparedExecution` run traces. The most 
 
 Successful buffer execution leaves the step output `device-owned` in `ExecutionState`: the newest value is in a backend buffer, `storageResidency=DEVICE_OWNED`, and the Java tensor array is not current until a CPU materialization boundary is reached. A CPU materialization boundary is a graph output publication, CPU consumer, or gradient publication site that asks the materializer to synchronize the buffer back to CPU storage.
 
-Use `acceleratorBufferExecutionPath`, `acceleratorBufferReasonCode`, `storageResidency`, `metalNativeCopyStrategy`, and `nativeDeviceCopyNs` together when diagnosing a run. `nativeDeviceCopyNs` measures the native MPSGraph-result-to-output-buffer copy inside the current Metal ABI; it is not the same as a Java array copy-back. `metalNativeCopyStrategy=MPSGRAPH_RESULT_COPY` and `metalOutputBufferWriteProven=false` mean the bridge is deliberately not claiming zero-copy output-buffer writes. `metalNativeToJavaCopyNs=0` plus a later CPU materialization trace is the expected device-owned path.
+Use `acceleratorBufferExecutionPath`, `acceleratorBufferReasonCode`, `metalExecutionRoute`, `storageResidency`, `metalNativeCopyStrategy`, and `nativeDeviceCopyNs` together when diagnosing a run. `nativeDeviceCopyNs` measures the native MPSGraph-result-to-output-buffer copy inside the current Metal ABI; it is not the same as a Java array copy-back. `metalExecutionRoute=CUSTOM_KERNEL` plus `metalNativeCopyStrategy=TRUE_OUTPUT_BUFFER_WRITE` means the scoped custom kernel wrote the output buffer directly. `metalExecutionRoute=MPS_GRAPH`, `metalNativeCopyStrategy=MPSGRAPH_RESULT_COPY`, and `metalOutputBufferWriteProven=false` mean the bridge is deliberately not claiming zero-copy output-buffer writes for MPSGraph. `metalNativeToJavaCopyNs=0` plus a later CPU materialization trace is the expected device-owned path.
 
 CUDA remains capability-gated until a native shim exists. `CudaBridgeCapabilities` reports native library, CUDA runtime, context, graph ABI, and `bufferExecutionSupported` state. CUDA tests may assert shared policy and `REQUIRED_BUFFER_EXECUTION_UNAVAILABLE`, but this documentation does not claim production CUDA native buffer execution.
 
@@ -759,11 +778,12 @@ Relevant tests include:
 | Test | What it proves |
 |---|---|
 | [`MetalMpsFfmBridgeTest`](../src/test/java/backend/metal/bridge/MetalMpsFfmBridgeTest.java) | Native bridge discovery, buffer ABI calls, sentinel buffer execution, adjacent native executable buffer handoff, BF16 raw storage roundtrip, BF16 RELU/MATMUL/SUM/LayerNorm/softmax parity, and BOOL compare/logical/reduction raw byte parity when the shim is available. |
-| [`PreparedMetalExecutableBufferBindingTest`](../src/test/java/backend/metal/exec/PreparedMetalExecutableBufferBindingTest.java) | Java-side selection of buffer path, fallback reasons, output residency promotion, and binding validation. |
+| [`MetalExecutionRouterTest`](../src/test/java/backend/metal/exec/MetalExecutionRouterTest.java) | Prepare-time custom-kernel route selection and rejection for scoped RELU, unsupported dtype, unavailable executable, and multi-node candidates. |
+| [`PreparedMetalExecutableBufferBindingTest`](../src/test/java/backend/metal/exec/PreparedMetalExecutableBufferBindingTest.java) | Java-side selection of buffer path, custom-kernel route execution, fallback reasons, output residency promotion, and binding validation. |
 | [`MetalBufferAllocatorTest`](../src/test/java/backend/metal/buffer/MetalBufferAllocatorTest.java) | Buffer allocation, dtype checks, shape checks, and CPU readback behavior through fake native access. |
 | [`MetalBufferResourceTest`](../src/test/java/backend/metal/buffer/MetalBufferResourceTest.java) | Run-scoped native resource cleanup. |
 | [`MetalLayoutAwareDeviceFlowTest`](../src/test/java/backend/metal/MetalLayoutAwareDeviceFlowTest.java) | End-to-end `LINEAR -> RESHAPE -> PERMUTE` CPU parity, visible broadcast-layout fallback, and forward-backward gradient publication behavior. |
-| [`MetalBufferTraceSmokeTest`](../src/test/java/backend/metal/MetalBufferTraceSmokeTest.java) | Trace attributes for buffer-backed Metal execution, logical materialization, CPU consumer materialization, and unsupported layout fallback. |
+| [`MetalBufferTraceSmokeTest`](../src/test/java/backend/metal/MetalBufferTraceSmokeTest.java) | Trace attributes for buffer-backed Metal execution, custom RELU route execution, logical materialization, CPU consumer materialization, and unsupported layout fallback. |
 | [`PreparedExecutionBuildTest`](../src/test/java/PreparedExecutionBuildTest.java) | Region selection evidence for multi-op Metal regions, including `compare -> WHERE -> elementwise` mask chains with internal BOOL residency evidence. |
 | [`MetalRegionLowererTest`](../src/test/java/backend/metal/lowering/MetalRegionLowererTest.java) | Lowering family selection for Metal regions. |
 

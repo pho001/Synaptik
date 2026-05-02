@@ -33,9 +33,9 @@ Requirements for the v1.6 milestone. Each requirement maps to exactly one roadma
 
 ### Custom Metal Kernel Execution Route
 
-- [ ] **METALKERNEL-01**: The custom Metal kernel route executes at least one scoped kernel family through a real native bridge instead of returning `CUSTOM_KERNEL_UNAVAILABLE`.
-- [ ] **METALKERNEL-02**: Custom Metal kernel execution has CPU parity, dtype/layout legality checks, buffer-binding evidence, and stable fallback behavior when the route is unavailable or unprofitable.
-- [ ] **METALKERNEL-03**: Route reports distinguish MPSGraph, custom Metal kernel, tensor-array fallback, and CPU fallback decisions with selected and rejected route evidence.
+- [x] **METALKERNEL-01**: The custom Metal kernel route executes at least one scoped kernel family through a real native bridge instead of returning `CUSTOM_KERNEL_UNAVAILABLE`.
+- [x] **METALKERNEL-02**: Custom Metal kernel execution has CPU parity, dtype/layout legality checks, buffer-binding evidence, and stable fallback behavior when the route is unavailable or unprofitable.
+- [x] **METALKERNEL-03**: Route reports distinguish MPSGraph, custom Metal kernel, tensor-array fallback, and CPU fallback decisions with selected and rejected route evidence.
 
 ### Metal Output Buffer Write And Copy Closure
 

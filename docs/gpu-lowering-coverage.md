@@ -34,7 +34,7 @@ The source of truth lives in `backend.accelerator.lowering.GpuLoweringCoverageMa
 
 ## Metal
 
-Phase 39 adds route/copy evidence on top of the operation coverage matrix. Supported Metal rows should report `metalExecutionRoute=MPS_GRAPH` unless a future custom-kernel bridge proves a different route. The current custom-kernel seam is intentionally rejected with `CUSTOM_KERNEL_UNAVAILABLE`, and native output behavior is classified as `MPSGRAPH_RESULT_COPY` rather than `TRUE_OUTPUT_BUFFER_WRITE`.
+Phase 44 adds a real scoped custom Metal kernel route on top of the MPSGraph coverage matrix. Supported Metal rows still report `metalExecutionRoute=MPS_GRAPH` by default, but the dense buffer-bound `FLOAT32` single-node `RELU` candidate can report `metalExecutionRoute=CUSTOM_KERNEL` and `metalNativeCopyStrategy=TRUE_OUTPUT_BUFFER_WRITE`. This is not a universal replacement for MPSGraph: unsupported custom candidates, unsupported dtypes, unavailable custom symbols, non-buffer transport, and non-dense runtime bindings remain on MPSGraph, tensor-array fallback, or visible CPU fallback with rejected route evidence.
 
 | Family | Representative operations | Status | Reason |
 |---|---|---|---|
