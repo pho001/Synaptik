@@ -41,7 +41,7 @@ public class CalibrationCandidateOwnershipTest {
                 "seed",
                 dtype,
                 ExecutionMode.FORWARD_BACKWARD,
-                config.optimizer.OptimizerConfig.trainingDefaults(),
+                config.compile.CompileConfig.training(),
                 config.runtime.RuntimeConfig.trainingDefaults(),
                 WorkloadProfile.none()
         );

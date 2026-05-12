@@ -104,6 +104,31 @@ public record GpuCoverageGatePolicy(
         );
     }
 
+    public static GpuCoverageGatePolicy reportNativeBufferTarget(
+            String backend,
+            GpuCoverageSummary.BackendCoverage coverage
+    ) {
+        int publicationMaterializations = coverage == null ? 0 : coverage.publicationCpuMaterializationCount();
+        int gradientPublications = coverage == null ? 0 : coverage.gradientPublicationMaterializationCount();
+        int deviceHandoffBudget = Math.max(1, publicationMaterializations + 1);
+        return new GpuCoverageGatePolicy(
+                backend,
+                0.0d,
+                0,
+                0,
+                0,
+                0,
+                publicationMaterializations,
+                0,
+                gradientPublications,
+                0,
+                0,
+                deviceHandoffBudget,
+                true,
+                ""
+        );
+    }
+
     public static GpuCoverageGatePolicy hotPathTarget(
             String backend,
             double minGpuCoverageRatio,

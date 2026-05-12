@@ -40,7 +40,7 @@ public class TuningStoreTest {
                 "store",
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -69,7 +69,7 @@ public class TuningStoreTest {
                 "store-best",
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -143,7 +143,7 @@ public class TuningStoreTest {
                 "offload=cpu-only+cpuRegion=natural+cpuFusion=balanced",
                 tensor.DataType.FLOAT32,
                 ExecutionMode.FORWARD_BACKWARD,
-                config.optimizer.OptimizerConfig.trainingDefaults(),
+                config.compile.CompileConfig.training(),
                 RuntimeConfig.trainingDefaults(),
                 WorkloadProfile.none()
         );
@@ -161,7 +161,7 @@ public class TuningStoreTest {
                         "platform-runtime",
                         tensor.DataType.FLOAT32,
                         ExecutionMode.FORWARD_BACKWARD,
-                        config.optimizer.OptimizerConfig.noOptimization(),
+                        config.compile.CompileConfig.noGraphOptimizationBaseline(),
                         currentRuntime,
                         WorkloadProfile.none()
                 )
@@ -189,7 +189,7 @@ public class TuningStoreTest {
 
         assertEquals(measuredWinner.profileName(), rebound.profileName());
         assertEquals(measuredWinner.candidateName(), rebound.candidateName());
-        assertEquals(measuredWinner.optimizer(), rebound.optimizer());
+        assertEquals(measuredWinner.compile(), rebound.compile());
         assertEquals(BlasProvider.OPENBLAS_FFM, rebound.runtime().blas().provider());
         assertEquals(4_000_000L, rebound.runtime().blas().matmulMinWork());
 
@@ -202,7 +202,7 @@ public class TuningStoreTest {
                         "platform-runtime-f64",
                         tensor.DataType.FLOAT64,
                         ExecutionMode.FORWARD_BACKWARD,
-                        config.optimizer.OptimizerConfig.noOptimization(),
+                        config.compile.CompileConfig.noGraphOptimizationBaseline(),
                         currentRuntime,
                         WorkloadProfile.none()
                 )
@@ -216,7 +216,7 @@ public class TuningStoreTest {
                         "platform-runtime-forward",
                         tensor.DataType.FLOAT32,
                         ExecutionMode.FORWARD,
-                        config.optimizer.OptimizerConfig.noOptimization(),
+                        config.compile.CompileConfig.noGraphOptimizationBaseline(),
                         currentRuntime,
                         WorkloadProfile.none()
                 )

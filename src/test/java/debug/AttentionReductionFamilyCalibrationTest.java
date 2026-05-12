@@ -1,8 +1,8 @@
 package debug;
 
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
-import config.optimizer.OptimizerStage;
+import config.compile.CompileConfig;
+import config.compile.GraphOptimizationConfig;
 import config.profile.ExecutionProfile;
 import config.profile.ExecutionProfileAssembler;
 import config.profile.GraphExecutionPolicy;
@@ -45,7 +45,7 @@ final class AttentionReductionFamilyCalibrationTest {
     void calibrateReductionFamilyF32AndBenchmarkAttention() {
         ExecutionProfile seed = trainingSeedProfile(DataType.FLOAT32);
         GraphExecutionPolicy loweredPolicy = GraphExecutionPolicy.of(
-                OptimizerConfig.trainingDefaults().withStageOrder(List.of(OptimizerStage.AR))
+                CompileConfig.training().withGraphOptimization(GraphOptimizationConfig.stages(true, false, false, false, false))
         );
         PlatformCalibrationLayout layout = PlatformCalibrationPaths.defaultLayout(
                 Path.of("build", "platform-calibration", "f32"),
@@ -145,7 +145,7 @@ final class AttentionReductionFamilyCalibrationTest {
                 "platform-seed-f32-training",
                 dataType,
                 ExecutionMode.FORWARD_BACKWARD,
-                OptimizerConfig.trainingDefaults(),
+                CompileConfig.training(),
                 config.runtime.RuntimeConfig.trainingDefaults(),
                 WorkloadProfile.none()
         );
@@ -157,7 +157,7 @@ final class AttentionReductionFamilyCalibrationTest {
                 "manual-no-opt",
                 dataType,
                 ExecutionMode.FORWARD_BACKWARD,
-                OptimizerConfig.noOptimization(),
+                CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.noOptNoVecNoPar(),
                 WorkloadProfile.none()
         );

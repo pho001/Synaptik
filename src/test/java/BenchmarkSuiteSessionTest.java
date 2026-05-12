@@ -50,7 +50,7 @@ public class BenchmarkSuiteSessionTest {
                         "suite-baseline",
                         DataType.FLOAT64,
                         ExecutionMode.FORWARD,
-                        config.optimizer.OptimizerConfig.noOptimization(),
+                        config.compile.CompileConfig.noGraphOptimizationBaseline(),
                         config.runtime.RuntimeConfig.inferenceDefaults(),
                         WorkloadProfile.none()
                 )
@@ -93,7 +93,7 @@ public class BenchmarkSuiteSessionTest {
                         "render-suite",
                         DataType.FLOAT64,
                         ExecutionMode.FORWARD,
-                        config.optimizer.OptimizerConfig.noOptimization(),
+                        config.compile.CompileConfig.noGraphOptimizationBaseline(),
                         config.runtime.RuntimeConfig.inferenceDefaults(),
                         WorkloadProfile.none()
                 )
@@ -136,7 +136,7 @@ public class BenchmarkSuiteSessionTest {
                         "json-suite",
                         DataType.FLOAT64,
                         ExecutionMode.FORWARD,
-                        config.optimizer.OptimizerConfig.noOptimization(),
+                        config.compile.CompileConfig.noGraphOptimizationBaseline(),
                         config.runtime.RuntimeConfig.inferenceDefaults(),
                         WorkloadProfile.none()
                 )
@@ -176,7 +176,7 @@ public class BenchmarkSuiteSessionTest {
                         "no-baseline-candidate",
                         DataType.FLOAT64,
                         ExecutionMode.FORWARD,
-                        config.optimizer.OptimizerConfig.noOptimization(),
+                        config.compile.CompileConfig.noGraphOptimizationBaseline(),
                         config.runtime.RuntimeConfig.inferenceDefaults(),
                         WorkloadProfile.none()
                 )
@@ -201,7 +201,7 @@ public class BenchmarkSuiteSessionTest {
                 "suite-coverage",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -254,7 +254,7 @@ public class BenchmarkSuiteSessionTest {
                 "representative-coverage",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.transformerHotPathDefaults()
         );
@@ -278,7 +278,7 @@ public class BenchmarkSuiteSessionTest {
                 "phase14-target-coverage",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.transformerHotPathDefaults()
         );
@@ -402,7 +402,7 @@ public class BenchmarkSuiteSessionTest {
                 "phase20-target-coverage",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.transformerHotPathDefaults()
         );

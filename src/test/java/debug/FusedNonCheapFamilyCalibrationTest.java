@@ -1,8 +1,8 @@
 package debug;
 
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
-import config.optimizer.OptimizerStage;
+import config.compile.CompileConfig;
+import config.compile.GraphOptimizationConfig;
 import config.profile.ExecutionProfile;
 import config.profile.ExecutionProfileAssembler;
 import config.profile.GraphExecutionPolicy;
@@ -38,7 +38,7 @@ final class FusedNonCheapFamilyCalibrationTest {
     void calibrateNonCheapFusedFamiliesF32ForwardAndBenchmark() {
         ExecutionProfile seed = inferenceSeedProfile();
         GraphExecutionPolicy loweredPolicy = GraphExecutionPolicy.of(
-                OptimizerConfig.inferenceDefaults().withStageOrder(List.of(OptimizerStage.PART, OptimizerStage.FUSE))
+                CompileConfig.inference().withGraphOptimization(GraphOptimizationConfig.noGraphOptimization()).withMemoryPlanning(config.compile.MemoryPlanningConfig.disabledUnlessRequired())
         );
         PlatformCalibrationLayout layout = PlatformCalibrationPaths.defaultLayout(
                 Path.of("build", "platform-calibration", "f32"),
@@ -198,7 +198,7 @@ final class FusedNonCheapFamilyCalibrationTest {
                 "platform-seed-f32-inference",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                OptimizerConfig.inferenceDefaults(),
+                CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -210,7 +210,7 @@ final class FusedNonCheapFamilyCalibrationTest {
                 "manual-no-opt",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                OptimizerConfig.noOptimization(),
+                CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.noOptNoVecNoPar(),
                 WorkloadProfile.none()
         );

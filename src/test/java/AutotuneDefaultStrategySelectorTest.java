@@ -85,7 +85,7 @@ public class AutotuneDefaultStrategySelectorTest {
                 "transformer",
                 tensor.DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 new config.runtime.RuntimeConfig(
                         new config.backend.CpuKernelConfig(4, 32, 32, 32, 256, 50_000, 1_000_000_000),
                         config.runtime.ApproximationConfig.defaults(),
@@ -126,7 +126,7 @@ public class AutotuneDefaultStrategySelectorTest {
                 name,
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );

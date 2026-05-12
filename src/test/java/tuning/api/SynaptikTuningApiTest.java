@@ -1,7 +1,7 @@
 package tuning.api;
 
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.PlatformRuntimeProfile;
 import config.runtime.RuntimeConfig;
@@ -97,7 +97,7 @@ class SynaptikTuningApiTest {
                 .candidate("baseline-no-opt")
                 .dtype(DataType.FLOAT64)
                 .mode().training()
-                .optimizer().noOptimization()
+                .compile().noGraphOptimization()
                 .runtime().noOptNoVecNoPar()
                 .build();
 
@@ -105,7 +105,7 @@ class SynaptikTuningApiTest {
         assertEquals("baseline-no-opt", profile.candidateName());
         assertEquals(DataType.FLOAT64, profile.dataType());
         assertEquals(ExecutionMode.FORWARD_BACKWARD, profile.mode());
-        assertEquals(OptimizerConfig.noOptimization(), profile.optimizer());
+        assertEquals(CompileConfig.noGraphOptimizationBaseline(), profile.compile());
         RuntimeConfig expectedRuntime = RuntimeConfig.noOptNoVecNoPar();
         assertEquals(expectedRuntime.blas().provider(), profile.runtime().blas().provider());
         assertEquals(expectedRuntime.kernel().cpu().loopUnrollFactor(), profile.runtime().kernel().cpu().loopUnrollFactor());
@@ -129,14 +129,14 @@ class SynaptikTuningApiTest {
                 .candidate("calibrated-runtime")
                 .dtype(DataType.FLOAT32)
                 .mode().training()
-                .optimizer().trainingDefaults()
+                .compile().trainingDefaults()
                 .runtime().fromPlatformProfile(runtimeProfile)
                 .toExecutionProfile();
 
         assertEquals("main-calibrated-runtime-f32", profile.profileName());
         assertEquals("calibrated-runtime", profile.candidateName());
         assertEquals(DataType.FLOAT32, profile.dataType());
-        assertEquals(OptimizerConfig.trainingDefaults(), profile.optimizer());
+        assertEquals(CompileConfig.training(), profile.compile());
         RuntimeConfig expectedRuntime = runtimeProfile.toRuntimeConfig();
         assertEquals(expectedRuntime.blas().provider(), profile.runtime().blas().provider());
         assertEquals(expectedRuntime.kernel().cpu().matMulTileM(), profile.runtime().kernel().cpu().matMulTileM());
@@ -150,7 +150,7 @@ class SynaptikTuningApiTest {
                 IllegalStateException.class,
                 () -> Synaptik.tuning()
                         .profile()
-                        .optimizer().trainingDefaults()
+                        .compile().trainingDefaults()
                         .runtime().trainingDefaults()
                         .build()
         );
@@ -167,7 +167,7 @@ class SynaptikTuningApiTest {
                 () -> Synaptik.tuning()
                         .profile()
                         .dtype(DataType.FLOAT64)
-                        .optimizer().trainingDefaults()
+                        .compile().trainingDefaults()
                         .build()
         );
     }
@@ -178,7 +178,7 @@ class SynaptikTuningApiTest {
                 name,
                 dtype,
                 ExecutionMode.FORWARD_BACKWARD,
-                OptimizerConfig.trainingDefaults(),
+                CompileConfig.training(),
                 runtime
         );
     }

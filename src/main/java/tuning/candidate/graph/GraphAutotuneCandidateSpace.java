@@ -5,7 +5,6 @@ import config.profile.GraphExecutionPolicy;
 import config.profile.PlatformRuntimeProfile;
 import tensor.DataType;
 import tuning.autotune.GraphAutotuneMode;
-import tuning.candidate.AcceleratorRuntimeOverrides;
 import tuning.candidate.Candidate;
 import tuning.candidate.CandidateKind;
 import tuning.candidate.CandidateMetadata;
@@ -77,10 +76,6 @@ public final class GraphAutotuneCandidateSpace implements CandidateSpace {
         graphVariants.stream()
                 .map(variant -> GraphRuntimePolicyVariant.fromGraphPolicy(variant, graphPolicy))
                 .forEach(variants::add);
-        if (mode == GraphAutotuneMode.STANDARD) {
-            variants.add(bufferModeVariant("OFF"));
-            variants.add(bufferModeVariant("AUTO"));
-        }
         return variants.stream().map(this::candidate).toList();
     }
 
@@ -103,14 +98,17 @@ public final class GraphAutotuneCandidateSpace implements CandidateSpace {
                         variant.name(),
                         variant.graphPolicyMutated()
                 );
-        var optimizer = variant.policy().optimizer();
+        var compile = variant.policy().compile();
+        var backendPlanning = compile.backendPlanning();
+        var regionOptimization = compile.regionOptimization();
         CandidateMetadata enriched = metadata.withAttribute("graphParameter", variant.parameter().name())
                 .withAttribute("knobOwner", "GRAPH_WORKLOAD")
-                .withAttribute("offloadPolicy", optimizer.offload().policy().name())
-                .withAttribute("acceleratorRegionPolicy", optimizer.offload().acceleratorRegionPolicy().name())
-                .withAttribute("metalTransferModel", optimizer.partition().metalTransferModel().name())
-                .withAttribute("cpuRegionPolicy", optimizer.cpuRegion().policy().name())
-                .withAttribute("cpuFusionPolicy", optimizer.cpuFusion().mode().name())
+                .withAttribute("backendDiscoveryMode", backendPlanning.discoveryMode().name())
+                .withAttribute("backendFailurePolicy", backendPlanning.failurePolicy().name())
+                .withAttribute("ownershipPlanner", backendPlanning.ownershipPlanner().name())
+                .withAttribute("metalTransferModel", backendPlanning.cost().planningCostProfile().metalTransferModel().name())
+                .withAttribute("cpuRegionPolicy", backendPlanning.cpuRegions().policy().name())
+                .withAttribute("cpuFusionPolicy", regionOptimization.cpuFusion().mode().name())
                 .withAttribute("productionEligible", Boolean.toString(standard));
         if (!variant.knobAssignments().isEmpty()) {
             enriched = enriched.withAttribute("knobAssignments", variant.knobAssignments().keySet().stream()
@@ -128,35 +126,12 @@ public final class GraphAutotuneCandidateSpace implements CandidateSpace {
         );
     }
 
-    private GraphRuntimePolicyVariant bufferModeVariant(String modeName) {
-        return new GraphRuntimePolicyVariant(
-                "acceleratorBuffer=" + modeName.toLowerCase(java.util.Locale.ROOT),
-                GraphAutotuneParameter.ACCELERATOR_BUFFER_MODE,
-                graphPolicy,
-                AcceleratorRuntimeOverrides.bufferBindingMode(modeName),
-                false,
-                true,
-                java.util.Map.of(
-                        "runtime.accelerator.cuda.buffer.bindingMode", modeName,
-                        "runtime.accelerator.opencl.buffer.bindingMode", modeName,
-                        "runtime.accelerator.metal.buffer.bindingMode", modeName
-                ),
-                java.util.Map.of(
-                        "acceleratorBufferBindingMode", modeName
-                )
-        );
-    }
-
     private static CandidateMetadata standardMetadata(GraphRuntimePolicyVariant variant) {
-        boolean bufferVariant = variant.parameter() == GraphAutotuneParameter.ACCELERATOR_BUFFER_MODE;
         return new CandidateMetadata(
                 "graph-autotune",
                 "1",
-                bufferVariant ? "accelerator-buffer" : variant.parameter().name(),
-                bufferVariant ? "buffer-" + variant.metadata().getOrDefault(
-                        "acceleratorBufferBindingMode",
-                        "AUTO"
-                ).toLowerCase(java.util.Locale.ROOT) : variant.name(),
+                variant.parameter().name(),
+                variant.name(),
                 "STANDARD",
                 !variant.runtimeMutated(),
                 variant.graphPolicyMutated(),

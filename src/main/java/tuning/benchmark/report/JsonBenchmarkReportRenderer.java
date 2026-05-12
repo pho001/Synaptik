@@ -41,7 +41,7 @@ public final class JsonBenchmarkReportRenderer {
             sb.append("      \"role\": \"").append(candidate.entry().role().name()).append("\",\n");
             sb.append("      \"success\": ").append(candidate.success()).append(",\n");
             sb.append("      \"validationStatus\": \"").append(escape(candidate.validation().status())).append("\",\n");
-            sb.append("      \"stages\": ").append(stageOrderJson(candidate)).append(",\n");
+            sb.append("      \"compile\": ").append(compilePolicyJson(candidate)).append(",\n");
             sb.append("      \"failureReason\": \"").append(escape(candidate.failureReason())).append("\"");
             if (candidate.measurement() != null) {
                 var trace = candidate.measurement().trace();
@@ -76,6 +76,9 @@ public final class JsonBenchmarkReportRenderer {
                 )).append(",\n");
                 sb.append("        \"backendSelectionCost\": ")
                         .append(backendSelectionCostJson(trace.prepare().backendSelection()))
+                        .append(",\n");
+                sb.append("        \"optimizerCost\": ")
+                        .append(optimizerCostJson(trace.compile().optimizerTrace()))
                         .append(",\n");
                 sb.append("        \"cpuMaterializations\": [\n");
                 var materializations = trace.run().cpuMaterializations();
@@ -136,20 +139,59 @@ public final class JsonBenchmarkReportRenderer {
         return durationNs / 1_000_000.0d;
     }
 
-    private static String stageOrderJson(BenchmarkCandidateReport candidate) {
+    private static String compilePolicyJson(BenchmarkCandidateReport candidate) {
         if (candidate == null || candidate.entry() == null || candidate.entry().profile() == null) {
-            return "[]";
+            return "{}";
         }
-        var stages = candidate.entry().profile().optimizer().stageOrder();
-        if (stages == null || stages.isEmpty()) {
+        var compile = candidate.entry().profile().compile();
+        var graph = compile.graphOptimization();
+        var backend = compile.backendPlanning();
+        var region = compile.regionOptimization();
+        var memory = compile.memoryPlanning();
+        StringBuilder sb = new StringBuilder("{");
+        sb.append("\"graphStages\": ").append(graphStagesJson(graph)).append(", ");
+        sb.append("\"backendDiscovery\": \"").append(backend.discoveryMode().name()).append("\", ");
+        sb.append("\"backendTargets\": ").append(stringSetJson(backend.targets().stream()
+                .map(Enum::name)
+                .sorted()
+                .toList())).append(", ");
+        sb.append("\"ownershipPlanner\": \"").append(backend.ownershipPlanner().name()).append("\", ");
+        sb.append("\"regionOptimization\": ").append(region.enabled()).append(", ");
+        sb.append("\"memoryPlanning\": ").append(memory.enabled());
+        sb.append('}');
+        return sb.toString();
+    }
+
+    private static String graphStagesJson(config.compile.GraphOptimizationConfig graph) {
+        java.util.List<String> stages = new java.util.ArrayList<>();
+        if (graph.algebraicRewrite()) {
+            stages.add("AR");
+        }
+        if (graph.constantFolding()) {
+            stages.add("CF");
+        }
+        if (graph.commonSubexpressionElimination()) {
+            stages.add("CSE");
+        }
+        if (graph.deadCodeElimination()) {
+            stages.add("DCE");
+        }
+        if (graph.optionalLowering()) {
+            stages.add("LOWER");
+        }
+        return stringSetJson(stages);
+    }
+
+    private static String stringSetJson(java.util.List<String> values) {
+        if (values == null || values.isEmpty()) {
             return "[]";
         }
         StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < stages.size(); i++) {
+        for (int i = 0; i < values.size(); i++) {
             if (i > 0) {
                 sb.append(", ");
             }
-            sb.append('"').append(escape(stages.get(i).name())).append('"');
+            sb.append('"').append(escape(values.get(i))).append('"');
         }
         sb.append(']');
         return sb.toString();
@@ -203,7 +245,7 @@ public final class JsonBenchmarkReportRenderer {
             var backend = entry.getValue();
             GpuCoverageGateResult gate = GpuCoverageRegressionGate.evaluate(
                     summary,
-                    GpuCoverageGatePolicy.nativeBufferTarget(entry.getKey(), 0.0d, 0)
+                    GpuCoverageGatePolicy.reportNativeBufferTarget(entry.getKey(), backend)
             );
             GpuCoverageNativeEvidence nativeEvidence = TextBenchmarkReportRenderer.nativeEvidence(entry.getKey(), backend);
             sb.append('"').append(escape(entry.getKey())).append("\": {")
@@ -390,7 +432,8 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"estimatedTransferBytes\": " + summary.estimatedTransferBytes() + ", "
                 + "\"layoutFallbackBytes\": " + summary.layoutFallbackBytes() + ", "
                 + "\"estimatedComputeWork\": " + summary.estimatedComputeWork() + ", "
-                + "\"preset\": \"" + escape(summary.preset()) + "\""
+                + "\"preset\": \"" + escape(summary.preset()) + "\", "
+                + "\"cost_explanation\": " + CostExplanationJsonRenderer.render(summary.toCostScore().explain(summary.reasonCode()))
                 + manifestJsonSuffix(decision.gpuLoweredRegionManifest())
                 + "}";
     }
@@ -608,7 +651,8 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"estimatedTransferBytes\": " + finalist.estimatedTransferBytes() + ", "
                 + "\"layoutFallbackBytes\": " + finalist.layoutFallbackBytes() + ", "
                 + "\"estimatedComputeWork\": " + finalist.estimatedComputeWork() + ", "
-                + "\"preset\": \"" + escape(finalist.preset()) + "\""
+                + "\"preset\": \"" + escape(finalist.preset()) + "\", "
+                + "\"cost_explanation\": " + CostExplanationJsonRenderer.render(finalist.toCostScore().explain(finalist.reason()))
                 + "}";
     }
 
@@ -710,6 +754,9 @@ public final class JsonBenchmarkReportRenderer {
         sb.append(indent).append("\"metadata\": {\n");
         sb.append(indent).append("  \"kind\": \"").append(escape(metadata.kind())).append("\",\n");
         sb.append(indent).append("  \"attributes\": ").append(mapJson(metadata.attributes())).append(",\n");
+        sb.append(indent).append("  \"metalRouteCostExplanation\": ")
+                .append(metalRouteCostExplanationJson(metadata.attributes()))
+                .append(",\n");
         sb.append(indent).append("  \"compute\": ").append(computeJson(metadata.compute())).append(",\n");
         sb.append(indent).append("  \"layout\": ").append(layoutJson(metadata.layout())).append(",\n");
         sb.append(indent).append("  \"dispatch\": ").append(dispatchJson(metadata.dispatch())).append(",\n");
@@ -718,6 +765,37 @@ public final class JsonBenchmarkReportRenderer {
         sb.append(indent).append("  \"conv\": ").append(convJson(metadata.conv())).append(",\n");
         sb.append(indent).append("  \"fused\": ").append(fusedJson(metadata.fused())).append('\n');
         sb.append(indent).append("}");
+    }
+
+    private static String optimizerCostJson(graph.optimizer.state.OptimizerTrace trace) {
+        if (trace == null) {
+            return "{\"events\": [], \"cost_explanations\": []}";
+        }
+        StringBuilder sb = new StringBuilder("{");
+        sb.append("\"events\": ").append(stringListJson(trace.events())).append(", ");
+        sb.append("\"cost_explanations\": [");
+        for (int i = 0; i < trace.costExplanations().size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(CostExplanationJsonRenderer.render(trace.costExplanations().get(i)));
+        }
+        sb.append("]}");
+        return sb.toString();
+    }
+
+    private static String metalRouteCostExplanationJson(Map<String, Object> attrs) {
+        if (attrs == null || !attrs.containsKey("metalRouteCostModel")) {
+            return "null";
+        }
+        return "{"
+                + "\"model\": " + valueJson(attrs.get("metalRouteCostModel")) + ", "
+                + "\"input_kind\": " + valueJson(attrs.get("metalRouteCostInputKind")) + ", "
+                + "\"reason\": " + valueJson(attrs.get("metalRouteCostReason")) + ", "
+                + "\"comparison\": " + valueJson(attrs.get("metalRouteCostComparison")) + ", "
+                + "\"top_contributors\": " + valueJson(attrs.get("metalRouteCostTopContributors")) + ", "
+                + "\"components\": " + valueJson(attrs.get("metalRouteCostComponents"))
+                + "}";
     }
 
     private static String computeJson(graph.execution.trace.ComputeTraceMetadata compute) {

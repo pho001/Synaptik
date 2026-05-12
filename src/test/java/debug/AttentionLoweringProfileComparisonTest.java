@@ -1,8 +1,8 @@
 package debug;
 
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
-import config.optimizer.OptimizerStage;
+import config.compile.CompileConfig;
+import config.compile.GraphOptimizationConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.RuntimeConfig;
@@ -71,7 +71,7 @@ final class AttentionLoweringProfileComparisonTest {
                 "manual-no-opt",
                 dataType,
                 mode,
-                OptimizerConfig.noOptimization(),
+                CompileConfig.noGraphOptimizationBaseline(),
                 mode == ExecutionMode.FORWARD ? RuntimeConfig.inferenceDefaults() : RuntimeConfig.trainingDefaults(),
                 WorkloadProfile.none()
         );
@@ -83,8 +83,8 @@ final class AttentionLoweringProfileComparisonTest {
                 "manual-ar-lowered",
                 dataType,
                 mode,
-                (mode == ExecutionMode.FORWARD ? OptimizerConfig.inferenceDefaults() : OptimizerConfig.trainingDefaults())
-                        .withStageOrder(List.of(OptimizerStage.AR)),
+                (mode == ExecutionMode.FORWARD ? CompileConfig.inference() : CompileConfig.training())
+                        .withGraphOptimization(config.compile.GraphOptimizationConfig.stages(true, false, false, false, false)),
                 mode == ExecutionMode.FORWARD ? RuntimeConfig.inferenceDefaults() : RuntimeConfig.trainingDefaults(),
                 WorkloadProfile.none()
         );

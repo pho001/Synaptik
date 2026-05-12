@@ -109,7 +109,7 @@ public class TuningDefaultsTest {
                 name,
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );

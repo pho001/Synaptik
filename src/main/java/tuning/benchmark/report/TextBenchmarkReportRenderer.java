@@ -90,7 +90,7 @@ public final class TextBenchmarkReportRenderer {
                     sb.append("  winner=").append(shouldHighlight(report, candidate)).append('\n');
                     sb.append("  success=").append(candidate.success()).append('\n');
                     sb.append("  validation=").append(candidate.validation().status()).append('\n');
-                    sb.append("  stages=").append(formatStageOrder(candidate)).append('\n');
+                    sb.append("  compile=").append(formatCompilePolicy(candidate)).append('\n');
                     if (!candidate.failureReason().isBlank()) {
                         sb.append("  failure=").append(candidate.failureReason()).append('\n');
                     }
@@ -106,6 +106,7 @@ public final class TextBenchmarkReportRenderer {
                         appendGpuCoverageSummary(sb, GpuCoverageSummary.fromTrace(trace));
                         appendCrossBackendRouterEvidence(sb, CrossBackendRouterEvidence.fromTrace(trace));
                         appendBackendSelectionCost(sb, trace.prepare().backendSelection());
+                        appendOptimizerCost(sb, trace.compile().optimizerTrace());
                         sb.append("  parallelUsed=").append(usesParallel(trace.run().steps())).append('\n');
                         sb.append("  vectorUsed=").append(usesVector(trace.run().steps())).append('\n');
                         sb.append("  steadyStateMeanMs=").append(String.format(Locale.US, "%.6f", stats.meanMs())).append('\n');
@@ -239,7 +240,7 @@ public final class TextBenchmarkReportRenderer {
             }
             GpuCoverageGateResult gate = GpuCoverageRegressionGate.evaluate(
                     summary,
-                    GpuCoverageGatePolicy.nativeBufferTarget(entry.getKey(), 0.0d, 0)
+                    GpuCoverageGatePolicy.reportNativeBufferTarget(entry.getKey(), backend)
             );
             sb.append("      coverageGate backend=").append(entry.getKey())
                     .append(" gatePassed=").append(gate.passed())
@@ -345,6 +346,9 @@ public final class TextBenchmarkReportRenderer {
                     .append(" estimatedComputeWork=").append(summary.estimatedComputeWork())
                     .append(" reason=").append(decision.reason())
                     .append('\n');
+            sb.append("      ")
+                    .append(CostExplanationTextRenderer.renderCompact(summary.toCostScore().explain(summary.reasonCode())))
+                    .append('\n');
             if (decision.gpuLoweredRegionManifest() != null) {
                 appendIndentedBlock(
                         sb,
@@ -365,7 +369,25 @@ public final class TextBenchmarkReportRenderer {
                         .append(" estimatedComputeWork=").append(finalist.estimatedComputeWork())
                         .append(" reason=").append(finalist.reason())
                         .append('\n');
+                sb.append("        ")
+                        .append(CostExplanationTextRenderer.renderCompact(finalist.toCostScore().explain(finalist.reason())))
+                        .append('\n');
             }
+        }
+    }
+
+    private static void appendOptimizerCost(
+            StringBuilder sb,
+            graph.optimizer.state.OptimizerTrace trace
+    ) {
+        if (trace == null || trace.costExplanations().isEmpty()) {
+            return;
+        }
+        sb.append("  optimizerCost:\n");
+        for (var explanation : trace.costExplanations()) {
+            sb.append("    ")
+                    .append(CostExplanationTextRenderer.renderCompact(explanation))
+                    .append('\n');
         }
     }
 
@@ -430,6 +452,7 @@ public final class TextBenchmarkReportRenderer {
                         }
                     }
                     appendMetalHotStepSummary(sb, step);
+                    appendMetalRouteCostSummary(sb, step);
                     sb.append('\n');
                 });
     }
@@ -458,6 +481,7 @@ public final class TextBenchmarkReportRenderer {
             sb.append("      kind=").append(metadata.kind()).append('\n');
             if (metadata.attributes() != null && !metadata.attributes().isEmpty()) {
                 sb.append("      attributes=").append(formatMap(metadata.attributes())).append('\n');
+                appendMetalRouteCostLine(sb, metadata.attributes(), "      ");
             }
             if (metadata.compute() != null) {
                 sb.append("      compute: ")
@@ -547,11 +571,38 @@ public final class TextBenchmarkReportRenderer {
         return Double.isFinite(value) ? String.format(Locale.US, "%.6f", value) : "null";
     }
 
-    private static String formatStageOrder(BenchmarkCandidateReport candidate) {
+    private static String formatCompilePolicy(BenchmarkCandidateReport candidate) {
         if (candidate == null || candidate.entry() == null || candidate.entry().profile() == null) {
-            return "[]";
+            return "{}";
         }
-        return candidate.entry().profile().optimizer().stageOrder().toString();
+        var compile = candidate.entry().profile().compile();
+        return "{graphStages=" + graphStages(compile.graphOptimization())
+                + ", backendDiscovery=" + compile.backendPlanning().discoveryMode()
+                + ", backendTargets=" + compile.backendPlanning().targets()
+                + ", ownershipPlanner=" + compile.backendPlanning().ownershipPlanner()
+                + ", regionOptimization=" + compile.regionOptimization().enabled()
+                + ", memoryPlanning=" + compile.memoryPlanning().enabled()
+                + "}";
+    }
+
+    private static java.util.List<String> graphStages(config.compile.GraphOptimizationConfig graph) {
+        java.util.List<String> stages = new java.util.ArrayList<>();
+        if (graph.algebraicRewrite()) {
+            stages.add("AR");
+        }
+        if (graph.constantFolding()) {
+            stages.add("CF");
+        }
+        if (graph.commonSubexpressionElimination()) {
+            stages.add("CSE");
+        }
+        if (graph.deadCodeElimination()) {
+            stages.add("DCE");
+        }
+        if (graph.optionalLowering()) {
+            stages.add("LOWER");
+        }
+        return stages;
     }
 
     private static boolean usesParallel(java.util.List<graph.execution.trace.ExecutionStepTrace> steps) {
@@ -637,6 +688,41 @@ public final class TextBenchmarkReportRenderer {
         }
         sb.append('}');
         return sb.toString();
+    }
+
+    private static void appendMetalRouteCostSummary(StringBuilder sb, graph.execution.trace.ExecutionStepTrace step) {
+        if (step == null || step.metadata() == null || step.metadata().attributes() == null) {
+            return;
+        }
+        Map<String, Object> attrs = step.metadata().attributes();
+        Object model = attrs.get("metalRouteCostModel");
+        if (model == null || String.valueOf(model).isBlank()) {
+            return;
+        }
+        sb.append(" metalRouteCost=")
+                .append(model)
+                .append("/")
+                .append(attrs.getOrDefault("metalRouteCostReason", ""))
+                .append(" top=")
+                .append(attrs.getOrDefault("metalRouteCostTopContributors", java.util.List.of()));
+    }
+
+    private static void appendMetalRouteCostLine(StringBuilder sb, Map<String, Object> attrs, String indent) {
+        if (attrs == null || !attrs.containsKey("metalRouteCostModel")) {
+            return;
+        }
+        sb.append(indent)
+                .append("metalRouteCost: model=")
+                .append(attrs.get("metalRouteCostModel"))
+                .append(" input=")
+                .append(attrs.getOrDefault("metalRouteCostInputKind", ""))
+                .append(" reason=")
+                .append(attrs.getOrDefault("metalRouteCostReason", ""))
+                .append(" comparison=")
+                .append(attrs.getOrDefault("metalRouteCostComparison", ""))
+                .append(" top=")
+                .append(attrs.getOrDefault("metalRouteCostTopContributors", java.util.List.of()))
+                .append('\n');
     }
 
     private static void appendMetalHotStepSummary(StringBuilder sb, graph.execution.trace.ExecutionStepTrace step) {

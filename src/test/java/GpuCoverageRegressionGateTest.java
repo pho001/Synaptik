@@ -391,23 +391,23 @@ public class GpuCoverageRegressionGateTest {
     }
 
     @Test
-    void phaseThirtySixScatterIndexGradientRequiresDuplicateIndexBlockerVisibility() {
-        GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.expectationsForBackend("GPU_METAL")
+    void phaseThirtySixCudaScatterIndexGradientRequiresDuplicateIndexBlockerVisibility() {
+        GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA")
                 .stream()
                 .filter(item -> item.workloadName().equals("scatter_index_gradient_small"))
                 .findFirst()
                 .orElseThrow();
         var missingReason = reportWithRejectedReason(
                 "scatter_index_gradient_small",
-                "GPU_METAL",
-                backend.ComputeBackend.GPU_METAL,
+                "GPU_CUDA",
+                backend.ComputeBackend.GPU_CUDA,
                 "unsupported-layout"
         );
         var visibleReason = reportWithRejectedReason(
                 "scatter_index_gradient_small",
-                "GPU_METAL",
-                backend.ComputeBackend.GPU_METAL,
-                "UNSUPPORTED_DUPLICATE_INDEX: operation SCATTER_ADD GPU_METAL native duplicate-index accumulation is not proven"
+                "GPU_CUDA",
+                backend.ComputeBackend.GPU_CUDA,
+                "UNSUPPORTED_DUPLICATE_INDEX: operation SCATTER_ADD GPU_CUDA native duplicate-index accumulation is not proven"
         );
 
         List<GpuCoverageGateResult> missing = GpuCoverageRegressionGate.evaluateTargets(
@@ -423,6 +423,27 @@ public class GpuCoverageRegressionGateTest {
                 .anyMatch(failure -> failure.contains("scatter_index_gradient_small")
                         && failure.contains(expectation.backend())));
         assertTrue(visible.getFirst().passed(), visible.getFirst().failures().toString());
+    }
+
+    @Test
+    void phaseFiftyEightMetalScatterIndexGradientRequiresHardNativeCoverage() {
+        GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.expectationsForBackend("GPU_METAL")
+                .stream()
+                .filter(item -> item.workloadName().equals("scatter_index_gradient_small"))
+                .findFirst()
+                .orElseThrow();
+        var missing = GpuCoverageRegressionGate.evaluate(
+                summary("GPU_METAL", coverage(1.0d, 3, 0, 1, 0, 0, 0, 1, 3, 0, 0)),
+                expectation.policy()
+        );
+        var passed = GpuCoverageRegressionGate.evaluate(
+                summary("GPU_METAL", coverage(1.0d, 3, 0, 0, 0, 0, 1, 1, 3, 0, 0)),
+                expectation.policy()
+        );
+
+        assertTrue(missing.failures().contains("hidden tensor-array fallback"));
+        assertTrue(missing.failures().contains("lost native buffer binding"));
+        assertTrue(passed.passed(), passed.failures().toString());
     }
 
     @Test
@@ -447,38 +468,24 @@ public class GpuCoverageRegressionGateTest {
     }
 
     @Test
-    void phaseThirtySevenIndexLossTargetStillRequiresUnsupportedIndexReason() {
+    void phaseThirtySevenIndexLossTargetRequiresHardNativeCoverage() {
         GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.expectationsForBackend("GPU_METAL")
                 .stream()
                 .filter(item -> item.workloadName().equals("cross_entropy_small"))
                 .findFirst()
                 .orElseThrow();
-        var missingReason = reportWithRejectedReason(
-                "cross_entropy_small",
-                "GPU_METAL",
-                backend.ComputeBackend.GPU_METAL,
-                "DAG_PRIMITIVE_UNSUPPORTED: dense loss unsupported"
+        var missing = GpuCoverageRegressionGate.evaluate(
+                summary("GPU_METAL", coverage(1.0d, 1, 0, 1, 0, 0, 0, 1, 3, 0, 0)),
+                expectation.policy()
         );
-        var visibleReason = reportWithRejectedReason(
-                "cross_entropy_small",
-                "GPU_METAL",
-                backend.ComputeBackend.GPU_METAL,
-                "UNSUPPORTED_INDEX_SEMANTICS: operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering"
+        var passed = GpuCoverageRegressionGate.evaluate(
+                summary("GPU_METAL", coverage(1.0d, 1, 0, 0, 0, 0, 1, 1, 3, 0, 0)),
+                expectation.policy()
         );
 
-        List<GpuCoverageGateResult> missing = GpuCoverageRegressionGate.evaluateTargets(
-                missingReason,
-                List.of(expectation)
-        );
-        List<GpuCoverageGateResult> visible = GpuCoverageRegressionGate.evaluateTargets(
-                visibleReason,
-                List.of(expectation)
-        );
-
-        assertTrue(missing.getFirst().failures().stream()
-                .anyMatch(failure -> failure.contains("cross_entropy_small")
-                        && failure.contains(expectation.backend())));
-        assertTrue(visible.getFirst().passed(), visible.getFirst().failures().toString());
+        assertTrue(missing.failures().contains("hidden tensor-array fallback"));
+        assertTrue(missing.failures().contains("lost native buffer binding"));
+        assertTrue(passed.passed(), passed.failures().toString());
     }
 
     @Test
@@ -495,6 +502,34 @@ public class GpuCoverageRegressionGateTest {
 
         assertTrue(gradientPublication.passed(), gradientPublication.failures().toString());
         assertTrue(cpuConsumer.failures().contains("unexpected internal CPU materialization"));
+    }
+
+    @Test
+    void reportNativeBufferPolicyAllowsPublicationBoundariesButRejectsInternalCpuExits() {
+        var publicationCoverage = coverageWithMaterializationReasons(Map.of(
+                "GRAPH_OUTPUT", 1,
+                "GRADIENT_PUBLICATION", 2
+        ));
+        var publicationPolicy = GpuCoverageGatePolicy.reportNativeBufferTarget("GPU_METAL", publicationCoverage);
+        var publicationResult = GpuCoverageRegressionGate.evaluate(
+                summary("GPU_METAL", publicationCoverage),
+                publicationPolicy
+        );
+
+        var internalCoverage = coverageWithMaterializationReasons(Map.of(
+                "GRAPH_OUTPUT", 1,
+                "GRADIENT_PUBLICATION", 2,
+                "CPU_CONSUMER", 1
+        ));
+        var internalPolicy = GpuCoverageGatePolicy.reportNativeBufferTarget("GPU_METAL", internalCoverage);
+        var internalResult = GpuCoverageRegressionGate.evaluate(
+                summary("GPU_METAL", internalCoverage),
+                internalPolicy
+        );
+
+        assertTrue(publicationResult.passed(), publicationResult.failures().toString());
+        assertTrue(internalResult.failures().contains("unexpected CPU materialization"));
+        assertTrue(internalResult.failures().contains("unexpected internal CPU materialization"));
     }
 
     @Test
@@ -522,7 +557,7 @@ public class GpuCoverageRegressionGateTest {
                 "phase28-gate-profile",
                 tensor.DataType.FLOAT32,
                 backend.runtime.ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 config.profile.WorkloadProfile.transformerHotPathDefaults()
         );

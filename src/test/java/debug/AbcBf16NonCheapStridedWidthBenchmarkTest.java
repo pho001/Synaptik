@@ -69,7 +69,7 @@ final class AbcBf16NonCheapStridedWidthBenchmarkTest {
                 base.candidateName() + "-" + suffix,
                 DataType.BFLOAT16,
                 ExecutionMode.FORWARD_BACKWARD,
-                base.optimizer(),
+                base.compile(),
                 runtime,
                 base.workload()
         );

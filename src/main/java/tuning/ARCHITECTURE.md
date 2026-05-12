@@ -178,7 +178,7 @@ Runtime knobs affect prepared execution policy.
 
 Examples of graph policy:
 
-- `AR -> CSE -> FUSE -> MEM`
+- `AR -> CF -> CSE -> DCE -> LOWER -> PART -> FUSE -> MEM`
 - piecewise lowering enabled/disabled
 - conv2d lowering mode
 

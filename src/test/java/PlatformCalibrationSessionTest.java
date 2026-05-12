@@ -33,7 +33,7 @@ public class PlatformCalibrationSessionTest {
                 "seed",
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -79,7 +79,7 @@ public class PlatformCalibrationSessionTest {
                 "seed",
                 tensor.DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 new config.runtime.RuntimeConfig(
                         new config.backend.KernelTuningConfig(
                                 new config.backend.CpuKernelConfig(
@@ -199,7 +199,7 @@ public class PlatformCalibrationSessionTest {
                 "seed-f32",
                 tensor.DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -208,7 +208,7 @@ public class PlatformCalibrationSessionTest {
                 "seed-f64",
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -283,7 +283,7 @@ public class PlatformCalibrationSessionTest {
                 "default",
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );

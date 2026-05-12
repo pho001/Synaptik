@@ -2,7 +2,7 @@ package debug;
 
 import backend.runtime.ExecutionMode;
 import config.backend.CpuKernelConfig;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.RuntimeConfig;
@@ -54,7 +54,7 @@ final class StridedRank2ProfileComparisonTest {
                 candidateName,
                 dataType,
                 ExecutionMode.FORWARD,
-                OptimizerConfig.noOptimization(),
+                CompileConfig.noGraphOptimizationBaseline(),
                 new RuntimeConfig(
                         new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, materializeThreshold),
                         config.runtime.ApproximationConfig.defaults(),

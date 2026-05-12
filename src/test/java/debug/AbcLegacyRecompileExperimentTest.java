@@ -41,7 +41,7 @@ final class AbcLegacyRecompileExperimentTest {
 
         System.out.println();
         System.out.println("ABC_LEGACY_RECOMPILE_EXPERIMENT :: " + dtypeId);
-        System.out.println("stageOrder=" + profile.optimizer().stageOrder());
+        System.out.println("compile=" + profile.compile());
 
         report("baseline", instantiateRoot(profile), profile, reference);
         report("preopt-x1", preoptimizedRoot(profile, 1), profile, reference);
@@ -50,7 +50,7 @@ final class AbcLegacyRecompileExperimentTest {
 
     private static void report(String name, Tensor root, ExecutionProfile profile, Reference reference) {
         long compileStart = System.nanoTime();
-        CompiledGraph compiled = CompiledGraph.compile(root, profile.optimizer());
+        CompiledGraph compiled = CompiledGraph.compile(root, profile.compile());
         long compileEnd = System.nanoTime();
 
         long prepareStart = System.nanoTime();
@@ -92,7 +92,7 @@ final class AbcLegacyRecompileExperimentTest {
 
     private static Reference reference(ExecutionProfile profile) {
         Tensor root = instantiateRoot(profile);
-        CompiledGraph.compile(root, profile.optimizer()).prepare(profile.runtime()).execute(profile.mode());
+        CompiledGraph.compile(root, profile.compile()).prepare(profile.runtime()).execute(profile.mode());
         return new Reference(root.scalarAsDouble(), captureGradients(root, List.of("A", "B", "C")));
     }
 
@@ -106,7 +106,7 @@ final class AbcLegacyRecompileExperimentTest {
     private static Tensor preoptimizedRoot(ExecutionProfile profile, int rounds) {
         Tensor currentRoot = instantiateRoot(profile);
         for (int round = 0; round < rounds; round++) {
-            GraphOptimizer optimizer = OptimizerFactory.create(profile.optimizer());
+            GraphOptimizer optimizer = OptimizerFactory.create(profile.compile().graphOptimization());
             Tensor forwardAnchor = currentRoot.forwardOutput();
             List<Tensor> optimized = optimizer.optimize(forwardAnchor.topologicalSort());
             currentRoot = extractForwardRoot(optimized);

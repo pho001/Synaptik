@@ -76,10 +76,10 @@ public final class JsonFileBestProfileStore implements BestProfileStore {
                     "loaded-best",
                     tensor.DataType.FLOAT64,
                     backend.runtime.ExecutionMode.FORWARD,
-                    config.optimizer.OptimizerConfig.inferenceDefaults(),
+                    config.compile.CompileConfig.inference(),
                     config.runtime.RuntimeConfig.inferenceDefaults()
             );
-            ExecutionProfile profile = ExecutionProfileIO.fromJsonOrDefault(profileBody, fallback);
+            ExecutionProfile profile = ExecutionProfileIO.fromJsonStrict(profileBody, fallback);
             return Optional.of(new BestProfileRecord(
                     HardwareFingerprint.fromKey(hardwareKey),
                     WorkloadFingerprint.fromKey(workloadKey),

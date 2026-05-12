@@ -10,9 +10,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class TuningKnobOwnershipTest {
     @Test
-    void acceleratorBufferModeIsGraphWorkloadOwned() {
+    void acceleratorBufferModeIsPlatformDtypeOwned() {
         assertEquals(
-                TuningKnobOwner.GRAPH_WORKLOAD,
+                TuningKnobOwner.PLATFORM_DTYPE,
                 TuningKnobOwnership.ownerOf("runtime.accelerator.metal.buffer.bindingMode")
         );
     }
@@ -29,7 +29,7 @@ public class TuningKnobOwnershipTest {
     void metalTransferModelIsGraphWorkloadOwned() {
         assertEquals(
                 TuningKnobOwner.GRAPH_WORKLOAD,
-                TuningKnobOwnership.ownerOf("optimizer.partition.metalTransferModel")
+                TuningKnobOwnership.ownerOf("compile.backendPlanning.cost.metalTransferModel")
         );
     }
 
@@ -52,9 +52,9 @@ public class TuningKnobOwnershipTest {
     void platformValidationRejectsGraphKnobs() {
         IllegalStateException thrown = assertThrows(IllegalStateException.class, () ->
                 TuningKnobOwnership.validatePlatformDtype(
-                        Map.of("optimizer.partition.metalTransferModel", "MEASURED"),
+                        Map.of("compile.backendPlanning.cost.metalTransferModel", "MEASURED"),
                         "platform-test"
                 ));
-        assertTrue(thrown.getMessage().contains("optimizer.partition.metalTransferModel"));
+        assertTrue(thrown.getMessage().contains("compile.backendPlanning.cost.metalTransferModel"));
     }
 }

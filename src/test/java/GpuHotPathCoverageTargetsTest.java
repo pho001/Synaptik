@@ -344,7 +344,7 @@ public class GpuHotPathCoverageTargetsTest {
         assertEquals(0, layoutRepair.policy().maxTensorArrayStepCount());
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "bool_compare_where_small");
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "gather_take_small");
-        assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_METAL"), "scatter_index_gradient_small");
+        assertHardNativePolicy(metal.get("scatter_index_gradient_small"));
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "scatter_index_gradient_small");
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "layout_broadcast_repair_small");
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "masked_sdpa_small");
@@ -367,8 +367,10 @@ public class GpuHotPathCoverageTargetsTest {
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "conv2d_resnet_3x3");
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "max_pool2d_small");
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "avg_pool2d_small");
-        assertVisibleBlocker(expectations, "cross_entropy_small");
-        assertVisibleBlocker(expectations, "scatter_index_gradient_small");
+        assertHardNativePolicy(expectationsByName("GPU_METAL").get("cross_entropy_small"));
+        assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "cross_entropy_small");
+        assertHardNativePolicy(expectationsByName("GPU_METAL").get("scatter_index_gradient_small"));
+        assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "scatter_index_gradient_small");
 
         GpuCoverageHotPathExpectation cudaSdpa = expectationsByName("GPU_CUDA").get("transformer_block_hot_path");
         assertTrue(!cudaSdpa.nativeEvidenceRequired());
@@ -383,8 +385,8 @@ public class GpuHotPathCoverageTargetsTest {
         assertHardNativePolicy(metal.get("dense_loss_small"));
         assertTrue(metal.get("dense_loss_small").policy().minLoweredPrimitiveCount() >= 3);
 
-        assertVisibleBlocker(GpuHotPathCoverageTargets.defaultExpectations(), "cross_entropy_small");
-        assertTrue(metal.get("cross_entropy_small").expectedVisibleReasons().contains("UNSUPPORTED_INDEX_SEMANTICS"));
+        assertHardNativePolicy(metal.get("cross_entropy_small"));
+        assertTrue(metal.get("cross_entropy_small").expectedVisibleReasons().isEmpty());
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "dense_loss_small");
         assertTrue(cuda.get("dense_loss_small").expectedVisibleReasons().contains("DAG_PRIMITIVE_UNSUPPORTED"));
 
@@ -393,8 +395,11 @@ public class GpuHotPathCoverageTargetsTest {
                 .collect(Collectors.toMap(GpuTargetCoverageTruth.Row::opType, row -> row));
         assertEquals(GpuTargetExecutionStatus.NATIVE_EXECUTABLE, rows.get(operations.Operation.OpType.NLL_LOSS).executionStatus());
         assertEquals(GpuTargetExecutionStatus.NATIVE_EXECUTABLE, rows.get(operations.Operation.OpType.CROSS_ENTROPY_LOSS).executionStatus());
-        assertEquals(GpuTargetExecutionStatus.UNSUPPORTED_REJECTION, rows.get(operations.Operation.OpType.CROSS_ENTROPY_LOSS_INDICES).executionStatus());
-        assertEquals(GpuTargetExecutionStatus.UNSUPPORTED_REJECTION, rows.get(operations.Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD).executionStatus());
+        assertEquals(GpuTargetExecutionStatus.NATIVE_EXECUTABLE, rows.get(operations.Operation.OpType.CROSS_ENTROPY_LOSS_INDICES).executionStatus());
+        assertEquals(GpuTargetExecutionStatus.NATIVE_EXECUTABLE, rows.get(operations.Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD).executionStatus());
+        assertEquals(GpuTargetExecutionStatus.NATIVE_EXECUTABLE, rows.get(operations.Operation.OpType.SCATTER_ADD).executionStatus());
+        assertEquals(GpuTargetExecutionStatus.NATIVE_EXECUTABLE, rows.get(operations.Operation.OpType.GATHER_GRAD).executionStatus());
+        assertEquals(GpuTargetExecutionStatus.NATIVE_EXECUTABLE, rows.get(operations.Operation.OpType.TAKE_ALONG_AXIS_GRAD).executionStatus());
     }
 
     @Test
@@ -402,9 +407,11 @@ public class GpuHotPathCoverageTargetsTest {
         Map<String, GpuCoverageHotPathExpectation> metal = expectationsByName("GPU_METAL");
 
         for (String workload : List.of(
+                "training_transformer_block_hot_path",
                 "training_dense_loss_small",
                 "training_reduction_chain_small",
-                "training_layer_norm_small"
+                "training_layer_norm_small",
+                "training_cross_entropy_small"
         )) {
             GpuCoverageHotPathExpectation expectation = metal.get(workload);
             assertTrue(expectation.nativeEvidenceRequired(), workload);
@@ -415,14 +422,9 @@ public class GpuHotPathCoverageTargetsTest {
             assertEquals(
                     expectation.policy().maxGradientPublicationMaterializationCount(),
                     expectation.policy().maxCpuMaterializationCount(),
-                    workload
+                workload
             );
         }
-
-        assertVisibleBlocker(GpuHotPathCoverageTargets.defaultExpectations(), "training_transformer_block_hot_path");
-        assertVisibleBlocker(GpuHotPathCoverageTargets.defaultExpectations(), "training_cross_entropy_small");
-        assertTrue(metal.get("training_cross_entropy_small").expectedVisibleReasons()
-                .contains("CROSS_ENTROPY_LOSS_INDICES_GRAD"));
     }
 
     @Test
@@ -503,7 +505,7 @@ public class GpuHotPathCoverageTargetsTest {
                 "phase14-target-coverage",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.transformerHotPathDefaults()
         );

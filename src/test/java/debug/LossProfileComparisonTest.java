@@ -1,7 +1,7 @@
 package debug;
 
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.RuntimeConfig;
@@ -30,7 +30,7 @@ final class LossProfileComparisonTest {
                 "dense-cross-entropy-loss",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                OptimizerConfig.inferenceDefaults(),
+                CompileConfig.inference(),
                 RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -55,7 +55,7 @@ final class LossProfileComparisonTest {
                 "dense-nll-loss",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                OptimizerConfig.inferenceDefaults(),
+                CompileConfig.inference(),
                 RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );

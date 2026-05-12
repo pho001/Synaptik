@@ -1,7 +1,7 @@
 package tuning.api;
 
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.PlatformRuntimeProfile;
 import config.profile.WorkloadProfile;
@@ -14,7 +14,7 @@ import java.util.Objects;
  * Fluent builder for {@link ExecutionProfile}.
  *
  * <p>The builder is only a readability layer over the immutable {@code ExecutionProfile} record. It
- * does not introduce a second profile model and does not mutate runtime or optimizer configuration
+ * does not introduce a second profile model and does not mutate runtime or compile configuration
  * objects. Call {@link #build()} to create the record consumed by compile, prepare, benchmark, and
  * autotune flows.</p>
  *
@@ -26,7 +26,7 @@ import java.util.Objects;
  *         .candidate("calibrated-runtime")
  *         .dtype(DataType.FLOAT64)
  *         .mode().training()
- *         .optimizer().trainingDefaults()
+ *         .compile().trainingDefaults()
  *         .runtime().fromPlatformProfile(calibratedRuntime)
  *         .build();
  * }</pre>
@@ -38,7 +38,7 @@ public final class ExecutionProfileDsl {
     private String candidateName;
     private DataType dataType;
     private ExecutionMode mode = ExecutionMode.FORWARD_BACKWARD;
-    private OptimizerConfig optimizer;
+    private CompileConfig compile;
     private RuntimeConfig runtime;
     private WorkloadProfile workload = WorkloadProfile.none();
 
@@ -123,22 +123,22 @@ public final class ExecutionProfileDsl {
     }
 
     /**
-     * Opens the grouped optimizer selector.
+     * Opens the grouped compile-policy selector.
      *
-     * @return optimizer selector
+     * @return compile-policy selector
      */
-    public Optimizers optimizer() {
-        return new Optimizers(this);
+    public Compilers compile() {
+        return new Compilers(this);
     }
 
     /**
-     * Uses an explicit optimizer config.
+     * Uses an explicit compile config.
      *
-     * @param optimizer optimizer config
+     * @param compile compile config
      * @return this builder
      */
-    public ExecutionProfileDsl optimizer(OptimizerConfig optimizer) {
-        this.optimizer = Objects.requireNonNull(optimizer, "optimizer cannot be null");
+    public ExecutionProfileDsl compile(CompileConfig compile) {
+        this.compile = Objects.requireNonNull(compile, "compile cannot be null");
         return this;
     }
 
@@ -177,14 +177,14 @@ public final class ExecutionProfileDsl {
      * Builds an immutable execution profile.
      *
      * @return execution profile
-     * @throws IllegalStateException if dtype, optimizer, or runtime has not been selected
+     * @throws IllegalStateException if dtype, compile, or runtime has not been selected
      */
     public ExecutionProfile build() {
         if (dataType == null) {
             throw new IllegalStateException("ExecutionProfile dtype must be selected before build().");
         }
-        if (optimizer == null) {
-            throw new IllegalStateException("ExecutionProfile optimizer must be selected before build().");
+        if (compile == null) {
+            throw new IllegalStateException("ExecutionProfile compile policy must be selected before build().");
         }
         if (runtime == null) {
             throw new IllegalStateException("ExecutionProfile runtime must be selected before build().");
@@ -194,7 +194,7 @@ public final class ExecutionProfileDsl {
                 candidateName,
                 dataType,
                 mode,
-                optimizer,
+                compile,
                 runtime,
                 workload
         );
@@ -248,12 +248,12 @@ public final class ExecutionProfileDsl {
     }
 
     /**
-     * Grouped optimizer selector used by {@link ExecutionProfileDsl#optimizer()}.
+     * Grouped compile-policy selector used by {@link ExecutionProfileDsl#compile()}.
      */
-    public static final class Optimizers {
+    public static final class Compilers {
         private final ExecutionProfileDsl parent;
 
-        private Optimizers(ExecutionProfileDsl parent) {
+        private Compilers(ExecutionProfileDsl parent) {
             this.parent = parent;
         }
 
@@ -262,36 +262,54 @@ public final class ExecutionProfileDsl {
          *
          * @return parent builder
          */
-        public ExecutionProfileDsl noOptimization() {
-            return parent.optimizer(OptimizerConfig.noOptimization());
+        public ExecutionProfileDsl noGraphOptimization() {
+            return parent.compile(CompileConfig.noGraphOptimizationBaseline());
         }
 
         /**
-         * Uses inference optimizer defaults.
+         * Uses inference compile defaults.
          *
          * @return parent builder
          */
         public ExecutionProfileDsl inferenceDefaults() {
-            return parent.optimizer(OptimizerConfig.inferenceDefaults());
+            return parent.compile(CompileConfig.inference());
         }
 
         /**
-         * Uses training optimizer defaults.
+         * Uses training compile defaults.
          *
          * @return parent builder
          */
         public ExecutionProfileDsl trainingDefaults() {
-            return parent.optimizer(OptimizerConfig.trainingDefaults());
+            return parent.compile(CompileConfig.training());
         }
 
         /**
-         * Uses an explicit optimizer config.
+         * Uses training defaults with automatic accelerator discovery.
          *
-         * @param optimizer optimizer config
          * @return parent builder
          */
-        public ExecutionProfileDsl config(OptimizerConfig optimizer) {
-            return parent.optimizer(optimizer);
+        public ExecutionProfileDsl trainingAutoAccelerator() {
+            return parent.compile(CompileConfig.trainingAutoAccelerator());
+        }
+
+        /**
+         * Uses inference defaults with automatic accelerator discovery.
+         *
+         * @return parent builder
+         */
+        public ExecutionProfileDsl inferenceAutoAccelerator() {
+            return parent.compile(CompileConfig.inferenceAutoAccelerator());
+        }
+
+        /**
+         * Uses an explicit compile config.
+         *
+         * @param compile compile config
+         * @return parent builder
+         */
+        public ExecutionProfileDsl config(CompileConfig compile) {
+            return parent.compile(compile);
         }
     }
 

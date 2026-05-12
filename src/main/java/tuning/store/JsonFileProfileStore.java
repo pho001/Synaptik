@@ -3,6 +3,7 @@ package tuning.store;
 import config.profile.ExecutionProfile;
 import config.profile.ExecutionProfileIO;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 
@@ -32,6 +33,13 @@ public final class JsonFileProfileStore implements ProfileStore {
         if (fallbackProfile == null) {
             return Optional.empty();
         }
-        return Optional.of(ExecutionProfileIO.loadExecutionProfileOrDefault(path, fallbackProfile));
+        if (!Files.exists(path)) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(ExecutionProfileIO.loadExecutionProfileStrict(path, fallbackProfile));
+        } catch (RuntimeException e) {
+            return Optional.empty();
+        }
     }
 }

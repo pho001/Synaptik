@@ -2,7 +2,7 @@ package debug;
 
 import backend.ComputeBackend;
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.RuntimeConfig;
@@ -192,7 +192,7 @@ final class MetalMatMulBenchmarkTest {
                 name,
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                OptimizerConfig.noOptimization(),
+                CompileConfig.noGraphOptimizationBaseline(),
                 RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -204,7 +204,7 @@ final class MetalMatMulBenchmarkTest {
                 name,
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                OptimizerConfig.noOptimization(),
+                CompileConfig.noGraphOptimizationBaseline(),
                 RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );

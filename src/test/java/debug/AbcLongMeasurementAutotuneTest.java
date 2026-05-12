@@ -1,7 +1,7 @@
 package debug;
 
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.ExecutionProfileAssembler;
 import config.profile.GraphExecutionPolicy;
@@ -88,7 +88,7 @@ final class AbcLongMeasurementAutotuneTest {
                 "platform-seed-" + dtypeId + "-training",
                 dataType,
                 ExecutionMode.FORWARD_BACKWARD,
-                OptimizerConfig.trainingDefaults(),
+                CompileConfig.training(),
                 config.runtime.RuntimeConfig.trainingDefaults(),
                 WorkloadProfile.none()
         );

@@ -1,6 +1,6 @@
 import backend.ApproxMode;
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.runtime.ApproximationConfig;
 import config.runtime.RuntimeConfig;
@@ -63,7 +63,7 @@ public class ApproxModePolicyTest {
                 "test",
                 root.getDataType(),
                 ExecutionMode.FORWARD,
-                OptimizerConfig.noOptimization(),
+                CompileConfig.noGraphOptimizationBaseline(),
                 runtimeConfig
         );
     }

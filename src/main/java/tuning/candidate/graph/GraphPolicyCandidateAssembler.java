@@ -54,7 +54,7 @@ public final class GraphPolicyCandidateAssembler {
                 candidateName,
                 dataType,
                 executionMode,
-                graphPolicy.optimizer(),
+                graphPolicy.compile(),
                 overridden,
                 WorkloadProfile.none()
         );

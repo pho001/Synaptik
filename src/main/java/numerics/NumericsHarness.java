@@ -1,8 +1,8 @@
 package numerics;
 
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
-import config.optimizer.OptimizerStage;
+import config.compile.CompileConfig;
+import config.compile.GraphOptimizationConfig;
 import config.profile.ExecutionProfile;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
@@ -84,20 +84,20 @@ public final class NumericsHarness {
     }
 
     /**
-     * Builds an execution profile for a named candidate and optimizer stage list.
+     * Builds an execution profile for a named candidate and graph optimization stage list.
      *
      * @param name display and candidate name
-     * @param stages optimizer stage order
+     * @param stages graph optimization stage names
      * @return execution profile using training defaults and harness dtype
      */
-    public ExecutionProfile profile(String name, List<OptimizerStage> stages) {
-        OptimizerConfig defaults = OptimizerConfig.trainingDefaults();
+    public ExecutionProfile profile(String name, List<GraphOptimizationStage> stages) {
+        CompileConfig defaults = CompileConfig.training();
         return new ExecutionProfile(
                 name,
                 name,
                 config.dtype,
                 ExecutionMode.FORWARD_BACKWARD,
-                defaults.withStageOrder(stages),
+                defaults.withGraphOptimization(graphOptimizationFrom(stages)),
                 RuntimeConfig.trainingDefaults()
         );
     }
@@ -118,7 +118,7 @@ public final class NumericsHarness {
         Tensor out = NumericsGraphFactory.buildOptimizerLikeGraph(
                 A, B, C, linearIn, w1, b1, w2, b2, w3, b3, config.graphBlocks
         );
-        CompiledGraph trainingGraph = CompiledGraph.compile(out, profile.optimizer());
+        CompiledGraph trainingGraph = CompiledGraph.compile(out, profile.compile());
         trainingGraph.execute(profile.runtime(), ExecutionMode.FORWARD_BACKWARD);
         trainingGraph.execute(profile.runtime(), ExecutionMode.FORWARD_BACKWARD);
 
@@ -126,7 +126,7 @@ public final class NumericsHarness {
         Tensor BB = TensorDataFactory.prefixTensorWrap("BB", input.baseB, false, config.dtype, 1, config.b1, config.f);
         Tensor BC = TensorDataFactory.prefixTensorWrap("BC", input.baseC, false, config.dtype, config.b0, config.b1, config.f);
         Tensor broadcastOut = NumericsGraphFactory.buildBroadcastGraph(BA, BB, BC);
-        CompiledGraph.compile(broadcastOut, profile.optimizer()).execute(profile.runtime(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(broadcastOut, profile.compile()).execute(profile.runtime(), ExecutionMode.FORWARD);
 
         return new OutputSet(
                 out.toDoubleArrayCopy().clone(),
@@ -177,23 +177,44 @@ public final class NumericsHarness {
     /**
      * Parses a CLI stage specification such as {@code NONE}, {@code AR}, or {@code AR,CSE}.
      *
-     * @param stageSpec comma- or plus-separated optimizer stage names
-     * @return parsed optimizer stages, or an empty list for {@code null}, blank, or {@code NONE}
+     * @param stageSpec comma- or plus-separated graph optimization stage names
+     * @return parsed graph optimization stages, or an empty list for {@code null}, blank, or {@code NONE}
      */
-    public static List<OptimizerStage> parseStages(String stageSpec) {
+    public static List<GraphOptimizationStage> parseStages(String stageSpec) {
         String spec = stageSpec == null ? "" : stageSpec.trim();
         if (spec.isEmpty() || "NONE".equalsIgnoreCase(spec)) {
             return List.of();
         }
         String[] parts = spec.split("[+,]");
-        List<OptimizerStage> out = new ArrayList<>();
+        List<GraphOptimizationStage> out = new ArrayList<>();
         for (String p : parts) {
             String s = p.trim();
             if (s.isEmpty()) {
                 continue;
             }
-            out.add(OptimizerStage.valueOf(s.toUpperCase()));
+            out.add(GraphOptimizationStage.valueOf(s.toUpperCase()));
         }
         return out;
+    }
+
+    private static GraphOptimizationConfig graphOptimizationFrom(List<GraphOptimizationStage> stages) {
+        List<GraphOptimizationStage> normalized = stages == null ? List.of() : stages;
+        return new GraphOptimizationConfig(
+                normalized.contains(GraphOptimizationStage.AR),
+                normalized.contains(GraphOptimizationStage.CF),
+                normalized.contains(GraphOptimizationStage.CSE),
+                normalized.contains(GraphOptimizationStage.DCE),
+                normalized.contains(GraphOptimizationStage.LOWER),
+                null,
+                null
+        );
+    }
+
+    public enum GraphOptimizationStage {
+        AR,
+        CF,
+        CSE,
+        DCE,
+        LOWER
     }
 }

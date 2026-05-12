@@ -158,7 +158,7 @@ public class ValidationEngineTest {
                 "validation-profile",
                 DataType.FLOAT64,
                 mode,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );

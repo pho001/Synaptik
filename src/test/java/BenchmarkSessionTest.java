@@ -63,7 +63,7 @@ public class BenchmarkSessionTest {
                 "bench-default",
                 DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -102,7 +102,7 @@ public class BenchmarkSessionTest {
                 "profile-read-only",
                 DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -140,7 +140,7 @@ public class BenchmarkSessionTest {
                         "optimized",
                         DataType.FLOAT64,
                         ExecutionMode.FORWARD,
-                        config.optimizer.OptimizerConfig.inferenceDefaults(),
+                        config.compile.CompileConfig.inference(),
                         config.runtime.RuntimeConfig.inferenceDefaults(),
                         WorkloadProfile.none()
                 )
@@ -176,7 +176,7 @@ public class BenchmarkSessionTest {
                         "renderer-candidate",
                         DataType.FLOAT64,
                         ExecutionMode.FORWARD,
-                        config.optimizer.OptimizerConfig.noOptimization(),
+                        config.compile.CompileConfig.noGraphOptimizationBaseline(),
                         config.runtime.RuntimeConfig.inferenceDefaults(),
                         WorkloadProfile.none()
                 )
@@ -215,7 +215,7 @@ public class BenchmarkSessionTest {
                         "json-candidate",
                         DataType.FLOAT64,
                         ExecutionMode.FORWARD,
-                        config.optimizer.OptimizerConfig.noOptimization(),
+                        config.compile.CompileConfig.noGraphOptimizationBaseline(),
                         config.runtime.RuntimeConfig.inferenceDefaults(),
                         WorkloadProfile.none()
                 )
@@ -245,7 +245,7 @@ public class BenchmarkSessionTest {
                 "candidate",
                 DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -288,7 +288,7 @@ public class BenchmarkSessionTest {
                 "cost-candidate",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -366,6 +366,18 @@ public class BenchmarkSessionTest {
                                 List.of()
                         ))
         );
+        var optimizerTrace = new graph.optimizer.state.OptimizerTrace(
+                List.of("cleanup-cost iteration=1 reason=cleanup-improved"),
+                List.of(graph.optimizer.cost.CostScore.of(
+                        "GraphCleanupCostModel",
+                        "optimizer-cleanup-graph",
+                        List.of(graph.optimizer.cost.CostComponent.lowerIsBetter(
+                                "weightedOperationCost",
+                                12.0d,
+                                "lexicographic cleanup priority"
+                        ))
+                ).explain("cleanup-improved", graph.optimizer.cost.CostComparison.IMPROVED))
+        );
 
         BenchmarkReport report = BenchmarkReport.of(
                 "cost_report",
@@ -381,7 +393,8 @@ public class BenchmarkSessionTest {
                                                 0,
                                                 0,
                                                 false,
-                                                graph.execution.trace.PartitionCompileTrace.empty()
+                                                graph.execution.trace.PartitionCompileTrace.empty(),
+                                                optimizerTrace
                                         ),
                                         new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, selection),
                                         graph.execution.trace.RunTrace.empty(ExecutionMode.FORWARD)
@@ -401,11 +414,25 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("layoutFallbackBytes=1536"));
         assertTrue(text.contains("estimatedComputeWork=8192"));
         assertTrue(text.contains("reason=selected"));
+        assertTrue(text.contains("cost: model=AcceleratorPartitionCostModel"));
+        assertTrue(text.contains("input=accelerator-partition-materialization"));
+        assertTrue(text.contains("reason=accepted-static-profitable"));
+        assertTrue(text.contains("finalScore=7780.000000 HIGHER_IS_BETTER"));
+        assertTrue(text.contains("optimizerCost:"));
+        assertTrue(text.contains("model=GraphCleanupCostModel"));
+        assertTrue(text.contains("input=optimizer-cleanup-graph"));
+        assertTrue(text.contains("reason=cleanup-improved"));
         assertTrue(text.contains("rejectedFinalists:"));
         assertTrue(text.contains("reason=rejected-materialization-cost"));
+        assertTrue(text.contains("input=accelerator-partition-finalist"));
 
         String json = JsonBenchmarkReportRenderer.render(report);
         assertTrue(json.contains("\"backendSelectionCost\":"));
+        assertTrue(json.contains("\"optimizerCost\":"));
+        assertTrue(json.contains("\"events\": [\"cleanup-cost iteration=1 reason=cleanup-improved\"]"));
+        assertTrue(json.contains("\"model\": \"GraphCleanupCostModel\""));
+        assertTrue(json.contains("\"input_kind\": \"optimizer-cleanup-graph\""));
+        assertTrue(json.contains("\"comparison\": \"IMPROVED\""));
         assertTrue(json.contains("\"selected\": ["));
         assertTrue(json.contains("\"rejectedFinalists\": ["));
         assertTrue(json.contains("\"nodeIds\": [4, 5, 6]"));
@@ -417,9 +444,84 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"layoutFallbackBytes\": 1536"));
         assertTrue(json.contains("\"estimatedComputeWork\": 8192"));
         assertTrue(json.contains("\"preset\": \"CONSERVATIVE\""));
+        assertTrue(json.contains("\"cost_explanation\":"));
+        assertTrue(json.contains("\"model\": \"AcceleratorPartitionCostModel\""));
+        assertTrue(json.contains("\"input_kind\": \"accelerator-partition-materialization\""));
+        assertTrue(json.contains("\"reason\": \"accepted-static-profitable\""));
+        assertTrue(json.contains("\"name\": \"finalScore\""));
+        assertTrue(json.contains("\"direction\": \"HIGHER_IS_BETTER\""));
         assertTrue(json.contains("\"reason\": \"rejected-materialization-cost\""));
+        assertTrue(json.contains("\"input_kind\": \"accelerator-partition-finalist\""));
         assertTrue(json.contains("\"nodeIds\": [12]"));
         assertTrue(json.contains("\"reason\": \"estimated-work-below-minimum\""));
+    }
+
+    @Test
+    void renderersExposeMetalRouteCostDiagnosticsFromStepMetadata() {
+        var profile = new ExecutionProfile(
+                "metal-route-cost-profile",
+                "metal-route-cost",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        var attrs = Map.<String, Object>ofEntries(
+                Map.entry("metalBridgeAvailable", true),
+                Map.entry("metalExecutionPath", "BUFFER_BINDING"),
+                Map.entry("metalUsedCpuFallback", false),
+                Map.entry("metalInputBytes", 1024L),
+                Map.entry("metalOutputBytes", 1024L),
+                Map.entry("metalJavaToNativeCopyNs", 10L),
+                Map.entry("metalNativeExecuteNs", 20L),
+                Map.entry("metalNativeToJavaCopyNs", 30L),
+                Map.entry("metalRouteCostModel", "MetalBackendRouteCostModel"),
+                Map.entry("metalRouteCostInputKind", "metal-prepared-execution-route"),
+                Map.entry("metalRouteCostReason", "MPS_GRAPH_SELECTED"),
+                Map.entry("metalRouteCostComparison", "INCOMPARABLE"),
+                Map.entry("metalRouteCostTopContributors", List.of("estimatedRouteCost=20.000000 LOWER_IS_BETTER")),
+                Map.entry("metalRouteCostComponents", List.of("estimatedRouteCost=20.000000 LOWER_IS_BETTER"))
+        );
+        var step = new graph.execution.trace.ExecutionStepTrace(
+                0,
+                "metal-step",
+                "MATMUL",
+                List.of(16, 16),
+                DataType.FLOAT32,
+                "GPU_METAL",
+                "PreparedMetalExecutable",
+                20L,
+                new graph.execution.trace.StepExecutionMetadata("node", attrs, null, null, null, null, null, null, null)
+        );
+        BenchmarkReport report = BenchmarkReport.of(
+                "metal_route_cost_report",
+                List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
+                        BenchmarkEntry.candidate("metal-route-cost", profile),
+                        tuning.validate.ValidationResult.skipped(),
+                        new tuning.measure.MeasurementResult(
+                                tuning.measure.MeasurementPolicy.defaults(),
+                                new graph.execution.trace.ExecutionTrace(
+                                        graph.execution.trace.CompileTrace.skipped(),
+                                        graph.execution.trace.PrepareTrace.skipped(),
+                                        new graph.execution.trace.RunTrace(ExecutionMode.FORWARD, 20L, List.of(step))
+                                ),
+                                new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
+                        )
+                ))
+        );
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        assertTrue(text.contains("metalRouteCost=MetalBackendRouteCostModel/MPS_GRAPH_SELECTED"));
+        assertTrue(text.contains("metalRouteCost: model=MetalBackendRouteCostModel"));
+        assertTrue(text.contains("input=metal-prepared-execution-route"));
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+        assertTrue(json.contains("\"metalRouteCostExplanation\":"));
+        assertTrue(json.contains("\"model\": \"MetalBackendRouteCostModel\""));
+        assertTrue(json.contains("\"input_kind\": \"metal-prepared-execution-route\""));
+        assertTrue(json.contains("\"reason\": \"MPS_GRAPH_SELECTED\""));
+        assertTrue(json.contains("\"top_contributors\": [\"estimatedRouteCost=20.000000 LOWER_IS_BETTER\"]"));
     }
 
     @Test
@@ -513,7 +615,7 @@ public class BenchmarkSessionTest {
                 "accelerator-evidence",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -624,7 +726,7 @@ public class BenchmarkSessionTest {
                 "cuda-accelerator-evidence",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -721,7 +823,7 @@ public class BenchmarkSessionTest {
                 "accelerator-closure-transformer-block",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD_BACKWARD,
-                config.optimizer.OptimizerConfig.trainingDefaults(),
+                config.compile.CompileConfig.training(),
                 config.runtime.RuntimeConfig.trainingDefaults(),
                 StandardWorkloads.transformerHotPathDefaults()
         );
@@ -750,7 +852,7 @@ public class BenchmarkSessionTest {
                 "metal-candidate",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -845,7 +947,7 @@ public class BenchmarkSessionTest {
                 "gpu-coverage",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -1025,7 +1127,7 @@ public class BenchmarkSessionTest {
                 "cuda-gpu-coverage",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -1059,7 +1161,7 @@ public class BenchmarkSessionTest {
                 workloadName,
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -1113,7 +1215,7 @@ public class BenchmarkSessionTest {
                 "gpu-lowered-region",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -1267,7 +1369,7 @@ public class BenchmarkSessionTest {
                                 "",
                                 "",
                                 GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
-                                "UNSUPPORTED_INDEX_SEMANTICS: operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering family=LOSS_ADJACENT status=unsupported note=index-target loss uses INT32 targets plus bounds, ignore-index, and reduction-denominator semantics outside the current accelerator DAG contract; target=transformer_block_hot_path"
+                                "UNSUPPORTED_INDEX_SEMANTICS: GPU_METAL index-target loss target out of range: 17 for classes=16 family=LOSS_ADJACENT target=transformer_block_hot_path"
                         )
                 ),
                 GpuLoweredRegionCandidateSpan.none(List.of(4, 5, 6)),

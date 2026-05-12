@@ -31,6 +31,7 @@ public final class GpuTargetCoverageTruth {
             Operation.OpType.LAYER_NORM,
             Operation.OpType.RMS_NORM,
             Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION,
+            Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS,
             Operation.OpType.NLL_LOSS,
             Operation.OpType.CROSS_ENTROPY_LOSS,
             Operation.OpType.CROSS_ENTROPY_LOSS_INDICES,
@@ -141,8 +142,11 @@ public final class GpuTargetCoverageTruth {
         );
         EnumSet<Operation.OpType> metalTargets = EnumSet.copyOf(reductions);
         metalTargets.add(Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
+        metalTargets.add(Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS);
         metalTargets.add(Operation.OpType.NLL_LOSS);
         metalTargets.add(Operation.OpType.CROSS_ENTROPY_LOSS);
+        metalTargets.add(Operation.OpType.CROSS_ENTROPY_LOSS_INDICES);
+        metalTargets.add(Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD);
         metalTargets.add(Operation.OpType.GT);
         metalTargets.add(Operation.OpType.GE);
         metalTargets.add(Operation.OpType.LT);
@@ -161,11 +165,20 @@ public final class GpuTargetCoverageTruth {
         metalTargets.add(Operation.OpType.MIN_GRAD);
         metalTargets.add(Operation.OpType.MAX_GRAD);
         metalTargets.add(Operation.OpType.GATHER);
+        metalTargets.add(Operation.OpType.GATHER_GRAD);
         metalTargets.add(Operation.OpType.TAKE_ALONG_AXIS);
+        metalTargets.add(Operation.OpType.TAKE_ALONG_AXIS_GRAD);
+        metalTargets.add(Operation.OpType.SCATTER_ADD);
         metalTargets.add(Operation.OpType.CONV2D);
         metalTargets.add(Operation.OpType.CONV2D_GEMM);
+        metalTargets.add(Operation.OpType.CONV2D_BACKWARD_INPUT);
+        metalTargets.add(Operation.OpType.CONV2D_BACKWARD_WEIGHT);
+        metalTargets.add(Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM);
+        metalTargets.add(Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM);
         metalTargets.add(Operation.OpType.MAX_POOL2D);
         metalTargets.add(Operation.OpType.AVG_POOL2D);
+        metalTargets.add(Operation.OpType.MAX_POOL2D_BACKWARD_INPUT);
+        metalTargets.add(Operation.OpType.AVG_POOL2D_BACKWARD_INPUT);
         out.put(ComputeBackend.GPU_METAL, metalTargets);
         out.put(ComputeBackend.GPU_CUDA, EnumSet.copyOf(reductions));
         return Map.copyOf(out);

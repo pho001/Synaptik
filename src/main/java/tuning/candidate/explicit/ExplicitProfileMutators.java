@@ -226,18 +226,22 @@ public final class ExplicitProfileMutators {
         List<Conv2dLoweringMode> safeModes = modes == null ? List.of() : List.copyOf(modes);
         return (baseProfile, workload) -> {
             if (workload.kind() != WorkloadKind.CONV2D) {
-                return List.of(new ExecutionProfileVariant("conv2dLowering=" + baseProfile.optimizer().rewrite().conv2dLowering().mode().name(), baseProfile));
+                return List.of(new ExecutionProfileVariant(
+                        "conv2dLowering=" + baseProfile.compile().graphOptimization().rewrite().conv2dLowering().mode().name(),
+                        baseProfile
+                ));
             }
             List<ExecutionProfileVariant> variants = new ArrayList<>();
             for (Conv2dLoweringMode mode : safeModes) {
+                var graphOptimization = baseProfile.compile().graphOptimization().withRewrite(
+                        new RewriteConfig(new Conv2dLoweringConfig(mode))
+                );
                 ExecutionProfile profile = new ExecutionProfile(
                         baseProfile.profileName(),
                         baseProfile.candidateName(),
                         baseProfile.dataType(),
                         baseProfile.mode(),
-                        baseProfile.optimizer().withRewrite(
-                                new RewriteConfig(new Conv2dLoweringConfig(mode))
-                        ),
+                        baseProfile.compile().withGraphOptimization(graphOptimization),
                         baseProfile.runtime(),
                         baseProfile.workload()
                 );
@@ -268,7 +272,7 @@ public final class ExplicitProfileMutators {
                             baseProfile.candidateName(),
                             baseProfile.dataType(),
                             baseProfile.mode(),
-                            baseProfile.optimizer(),
+                            baseProfile.compile(),
                             new config.runtime.RuntimeConfig(
                                     baseProfile.runtime().kernel(),
                                     baseProfile.runtime().approximation(),
@@ -703,7 +707,7 @@ public final class ExplicitProfileMutators {
                 baseProfile.candidateName(),
                 baseProfile.dataType(),
                 baseProfile.mode(),
-                baseProfile.optimizer(),
+                baseProfile.compile(),
                 runtime,
                 baseProfile.workload()
         );
@@ -715,7 +719,7 @@ public final class ExplicitProfileMutators {
                 baseProfile.candidateName(),
                 baseProfile.dataType(),
                 baseProfile.mode(),
-                baseProfile.optimizer(),
+                baseProfile.compile(),
                 new config.runtime.RuntimeConfig(
                         new config.backend.KernelTuningConfig(
                                 cpu,

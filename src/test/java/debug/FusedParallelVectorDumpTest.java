@@ -5,8 +5,8 @@ import backend.ApproxMode;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuKernelConfig;
 import config.backend.SumAccuracyMode;
-import config.optimizer.OptimizerConfig;
-import config.optimizer.OptimizerStage;
+import config.compile.CompileConfig;
+import config.compile.GraphOptimizationConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.ApproximationConfig;
@@ -50,14 +50,14 @@ final class FusedParallelVectorDumpTest {
                 "fused-dump-" + dataType.name().toLowerCase(),
                 dataType,
                 backend.runtime.ExecutionMode.FORWARD,
-                OptimizerConfig.inferenceDefaults().withStageOrder(List.of(OptimizerStage.PART, OptimizerStage.FUSE, OptimizerStage.MEM)),
+                CompileConfig.inference().withGraphOptimization(config.compile.GraphOptimizationConfig.noGraphOptimization()),
                 runtimeForDump(),
                 WorkloadProfile.none()
         );
 
         Tensor root = fusedDumpRoot(dataType, 131_072);
 
-        PreparedExecution prepared = CompiledGraph.compile(root, profile.optimizer()).prepare(profile.runtime());
+        PreparedExecution prepared = CompiledGraph.compile(root, profile.compile()).prepare(profile.runtime());
 
         String fusedStepsSummary = prepared.forwardSteps().stream()
                 .filter(step -> step.executionOperation() instanceof FusedOperation)

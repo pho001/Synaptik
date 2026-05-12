@@ -40,7 +40,11 @@ public final class DefaultMeasurementEngine implements MeasurementEngine {
             throw new IllegalArgumentException("policy cannot be null");
         }
 
-        CompiledGraph compiled = CompiledGraph.compile(workload.root(), candidate.profile().optimizer());
+        CompiledGraph compiled = CompiledGraph.compile(
+                workload.root(),
+                candidate.profile().compile(),
+                compileModeFor(candidate.profile().mode())
+        );
 
         PreparedExecution prepared = compiled.prepare(candidate.profile().runtime());
 
@@ -48,22 +52,22 @@ public final class DefaultMeasurementEngine implements MeasurementEngine {
         boolean needsTrace = policy.measureColdRun() || policy.captureStepTrace();
 
         if (needsTrace && !policy.measureSteadyState()) {
-            reportRunTrace = prepared.executeTraced(candidate.profile().mode());
+            reportRunTrace = prepared.executeTraced(candidate.profile().mode(), policy.publicationPolicy());
         }
 
         MeasurementStatistics stats = MeasurementStatistics.zero();
         if (policy.measureSteadyState()) {
             for (int i = 0; i < policy.warmupIters(); i++) {
-                prepared.execute(candidate.profile().mode());
+                prepared.execute(candidate.profile().mode(), policy.publicationPolicy());
             }
             if (needsTrace) {
-                reportRunTrace = prepared.executeTraced(candidate.profile().mode());
+                reportRunTrace = prepared.executeTraced(candidate.profile().mode(), policy.publicationPolicy());
             }
             double[] samples = new double[policy.repeats()];
             for (int r = 0; r < policy.repeats(); r++) {
                 long start = System.nanoTime();
                 for (int i = 0; i < policy.measureIters(); i++) {
-                    prepared.execute(candidate.profile().mode());
+                    prepared.execute(candidate.profile().mode(), policy.publicationPolicy());
                 }
                 long end = System.nanoTime();
                 samples[r] = (end - start) / 1_000_000.0d / policy.measureIters();
@@ -89,6 +93,12 @@ public final class DefaultMeasurementEngine implements MeasurementEngine {
         double median = percentile(sorted, 50);
         double p90 = percentile(sorted, 90);
         return new MeasurementStatistics(mean, median, p90);
+    }
+
+    private static tensor.CompileMode compileModeFor(backend.runtime.ExecutionMode mode) {
+        return mode == backend.runtime.ExecutionMode.FORWARD_BACKWARD
+                ? tensor.CompileMode.TRAINING
+                : tensor.CompileMode.INFERENCE_ONLY;
     }
 
     private static double percentile(double[] sortedValues, int p) {

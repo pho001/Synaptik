@@ -4,8 +4,9 @@ import backend.blas.BlasProvider;
 import backend.runtime.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.backend.KernelTuningConfig;
-import config.optimizer.OptimizerConfig;
-import config.optimizer.OptimizerStage;
+import config.compile.CompileConfig;
+import config.compile.MemoryPlanningConfig;
+import config.compile.RegionOptimizationConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.BlasConfig;
@@ -101,38 +102,44 @@ public final class FrameworkEtalon {
 
     public static List<BenchmarkEntry> inferenceCandidates() {
         return List.of(
-                entry("f64_infer_default", DataType.FLOAT64, ExecutionMode.FORWARD, OptimizerConfig.inferenceDefaults(), RuntimeConfig.inferenceDefaults()),
-                entry("f32_infer_default", DataType.FLOAT32, ExecutionMode.FORWARD, OptimizerConfig.inferenceDefaults(), RuntimeConfig.inferenceDefaults()),
-                entry("bf16_infer_default", DataType.BFLOAT16, ExecutionMode.FORWARD, OptimizerConfig.inferenceDefaults(), RuntimeConfig.inferenceDefaults()),
-                entry("f64_infer_no_fuse", DataType.FLOAT64, ExecutionMode.FORWARD, OptimizerConfig.inferenceDefaults().withStageOrder(List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.PART)), RuntimeConfig.inferenceDefaults()),
-                entry("f32_infer_no_fuse", DataType.FLOAT32, ExecutionMode.FORWARD, OptimizerConfig.inferenceDefaults().withStageOrder(List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.PART)), RuntimeConfig.inferenceDefaults()),
-                entry("f64_infer_blas", DataType.FLOAT64, ExecutionMode.FORWARD, OptimizerConfig.inferenceDefaults(), withRuntime(RuntimeConfig.inferenceDefaults(), 100000, BlasProvider.OPENBLAS_FFM, 1_000_000L, 0)),
-                entry("f32_infer_blas", DataType.FLOAT32, ExecutionMode.FORWARD, OptimizerConfig.inferenceDefaults(), withRuntime(RuntimeConfig.inferenceDefaults(), 100000, BlasProvider.OPENBLAS_FFM, 1_000_000L, 0))
+                entry("f64_infer_default", DataType.FLOAT64, ExecutionMode.FORWARD, CompileConfig.inference(), RuntimeConfig.inferenceDefaults()),
+                entry("f32_infer_default", DataType.FLOAT32, ExecutionMode.FORWARD, CompileConfig.inference(), RuntimeConfig.inferenceDefaults()),
+                entry("bf16_infer_default", DataType.BFLOAT16, ExecutionMode.FORWARD, CompileConfig.inference(), RuntimeConfig.inferenceDefaults()),
+                entry("f64_infer_no_fuse", DataType.FLOAT64, ExecutionMode.FORWARD, noRegionOptimization(CompileConfig.inference()), RuntimeConfig.inferenceDefaults()),
+                entry("f32_infer_no_fuse", DataType.FLOAT32, ExecutionMode.FORWARD, noRegionOptimization(CompileConfig.inference()), RuntimeConfig.inferenceDefaults()),
+                entry("f64_infer_blas", DataType.FLOAT64, ExecutionMode.FORWARD, CompileConfig.inference(), withRuntime(RuntimeConfig.inferenceDefaults(), 100000, BlasProvider.OPENBLAS_FFM, 1_000_000L, 0)),
+                entry("f32_infer_blas", DataType.FLOAT32, ExecutionMode.FORWARD, CompileConfig.inference(), withRuntime(RuntimeConfig.inferenceDefaults(), 100000, BlasProvider.OPENBLAS_FFM, 1_000_000L, 0))
         );
     }
 
     public static List<BenchmarkEntry> trainingCandidates() {
         return List.of(
-                entry("f64_train_default", DataType.FLOAT64, ExecutionMode.FORWARD_BACKWARD, OptimizerConfig.trainingDefaults(), RuntimeConfig.trainingDefaults()),
-                entry("f32_train_default", DataType.FLOAT32, ExecutionMode.FORWARD_BACKWARD, OptimizerConfig.trainingDefaults(), RuntimeConfig.trainingDefaults()),
-                entry("bf16_train_default", DataType.BFLOAT16, ExecutionMode.FORWARD_BACKWARD, OptimizerConfig.trainingDefaults(), RuntimeConfig.trainingDefaults()),
-                entry("f64_train_fuse_mem", DataType.FLOAT64, ExecutionMode.FORWARD_BACKWARD, OptimizerConfig.trainingDefaults().withStageOrder(List.of(OptimizerStage.PART, OptimizerStage.FUSE, OptimizerStage.MEM)), RuntimeConfig.trainingDefaults()),
-                entry("f32_train_fuse_mem", DataType.FLOAT32, ExecutionMode.FORWARD_BACKWARD, OptimizerConfig.trainingDefaults().withStageOrder(List.of(OptimizerStage.PART, OptimizerStage.FUSE, OptimizerStage.MEM)), RuntimeConfig.trainingDefaults()),
-                entry("f64_train_blas", DataType.FLOAT64, ExecutionMode.FORWARD_BACKWARD, OptimizerConfig.trainingDefaults(), withRuntime(RuntimeConfig.trainingDefaults(), 100000, BlasProvider.OPENBLAS_FFM, 1_000_000L, 0)),
-                entry("f32_train_blas", DataType.FLOAT32, ExecutionMode.FORWARD_BACKWARD, OptimizerConfig.trainingDefaults(), withRuntime(RuntimeConfig.trainingDefaults(), 100000, BlasProvider.OPENBLAS_FFM, 1_000_000L, 0))
+                entry("f64_train_default", DataType.FLOAT64, ExecutionMode.FORWARD_BACKWARD, CompileConfig.training(), RuntimeConfig.trainingDefaults()),
+                entry("f32_train_default", DataType.FLOAT32, ExecutionMode.FORWARD_BACKWARD, CompileConfig.training(), RuntimeConfig.trainingDefaults()),
+                entry("bf16_train_default", DataType.BFLOAT16, ExecutionMode.FORWARD_BACKWARD, CompileConfig.training(), RuntimeConfig.trainingDefaults()),
+                entry("f64_train_fuse_mem", DataType.FLOAT64, ExecutionMode.FORWARD_BACKWARD, CompileConfig.noGraphOptimization(), RuntimeConfig.trainingDefaults()),
+                entry("f32_train_fuse_mem", DataType.FLOAT32, ExecutionMode.FORWARD_BACKWARD, CompileConfig.noGraphOptimization(), RuntimeConfig.trainingDefaults()),
+                entry("f64_train_blas", DataType.FLOAT64, ExecutionMode.FORWARD_BACKWARD, CompileConfig.training(), withRuntime(RuntimeConfig.trainingDefaults(), 100000, BlasProvider.OPENBLAS_FFM, 1_000_000L, 0)),
+                entry("f32_train_blas", DataType.FLOAT32, ExecutionMode.FORWARD_BACKWARD, CompileConfig.training(), withRuntime(RuntimeConfig.trainingDefaults(), 100000, BlasProvider.OPENBLAS_FFM, 1_000_000L, 0))
         );
+    }
+
+    private static CompileConfig noRegionOptimization(CompileConfig base) {
+        return base
+                .withRegionOptimization(RegionOptimizationConfig.disabled())
+                .withMemoryPlanning(MemoryPlanningConfig.disabledUnlessRequired());
     }
 
     private static BenchmarkEntry entry(
             String name,
             DataType dataType,
             ExecutionMode mode,
-            OptimizerConfig optimizer,
+            CompileConfig compile,
             RuntimeConfig runtime
     ) {
         return BenchmarkEntry.candidate(
                 name,
-                new ExecutionProfile(name, name, dataType, mode, optimizer, runtime, WorkloadProfile.none())
+                new ExecutionProfile(name, name, dataType, mode, compile, runtime, WorkloadProfile.none())
         );
     }
 

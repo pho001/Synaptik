@@ -1,7 +1,7 @@
 package debug;
 
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.RuntimeConfig;
@@ -40,7 +40,7 @@ final class CrossEntropyLossIndicesProfileComparisonTest {
                 "cross-entropy-indices-profile",
                 DataType.FLOAT32,
                 mode,
-                mode == ExecutionMode.FORWARD ? OptimizerConfig.noOptimization() : OptimizerConfig.trainingDefaults(),
+                mode == ExecutionMode.FORWARD ? CompileConfig.noGraphOptimizationBaseline() : CompileConfig.training(),
                 mode == ExecutionMode.FORWARD ? RuntimeConfig.inferenceDefaults() : RuntimeConfig.trainingDefaults(),
                 WorkloadProfile.none()
         );

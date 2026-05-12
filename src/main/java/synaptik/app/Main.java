@@ -65,7 +65,7 @@ public final class Main {
                 .candidate("baseline-no-opt")
                 .dtype(dtype)
                 .mode().training()
-                .optimizer().noOptimization()
+                .compile().noGraphOptimization()
                 .runtime().noOptNoVecNoPar()
                 .build();
         ExecutionProfile calibrated = Synaptik.tuning()
@@ -74,7 +74,7 @@ public final class Main {
                 .candidate("calibrated-runtime")
                 .dtype(dtype)
                 .mode().training()
-                .optimizer().trainingDefaults()
+                .compile().trainingDefaults()
                 .runtime().fromPlatformProfile(calibratedRuntime)
                 .build();
 

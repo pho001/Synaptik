@@ -1,5 +1,7 @@
 package tuning.measure;
 
+import graph.execution.PublicationPolicy;
+
 /**
  * Controls how a candidate workload is measured.
  *
@@ -16,6 +18,7 @@ package tuning.measure;
  * @param measureColdRun whether one traced cold run is included
  * @param measureSteadyState whether steady-state latency samples are collected
  * @param captureStepTrace whether run traces should include per-step detail
+ * @param publicationPolicy values to publish back to user-visible tensors during measured runs
  */
 public record MeasurementPolicy(
         int warmupIters,
@@ -25,7 +28,8 @@ public record MeasurementPolicy(
         boolean measurePrepare,
         boolean measureColdRun,
         boolean measureSteadyState,
-        boolean captureStepTrace
+        boolean captureStepTrace,
+        PublicationPolicy publicationPolicy
 ) {
     public MeasurementPolicy {
         if (warmupIters < 0) {
@@ -37,6 +41,33 @@ public record MeasurementPolicy(
         if (repeats < 1) {
             throw new IllegalArgumentException("repeats must be >= 1");
         }
+        publicationPolicy = publicationPolicy == null ? PublicationPolicy.defaultExecution() : publicationPolicy;
+    }
+
+    /**
+     * Creates a measurement policy with default public execution publication semantics.
+     */
+    public MeasurementPolicy(
+            int warmupIters,
+            int measureIters,
+            int repeats,
+            boolean measureCompile,
+            boolean measurePrepare,
+            boolean measureColdRun,
+            boolean measureSteadyState,
+            boolean captureStepTrace
+    ) {
+        this(
+                warmupIters,
+                measureIters,
+                repeats,
+                measureCompile,
+                measurePrepare,
+                measureColdRun,
+                measureSteadyState,
+                captureStepTrace,
+                PublicationPolicy.defaultExecution()
+        );
     }
 
     /**
@@ -52,7 +83,8 @@ public record MeasurementPolicy(
                 true,
                 true,
                 true,
-                false
+                false,
+                PublicationPolicy.defaultExecution()
         );
     }
 }

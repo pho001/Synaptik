@@ -123,13 +123,13 @@ Current standard production graph autotune exposes only:
 
 The following graph-resident fields are research-only or excluded from standard graph autotune:
 
-- `optimizer.stageOrder`
-  - optimizer pipeline contract, not a tuning axis
-- `optimizer.rewrite.conv2dLowering.mode`
+- `compile.graphOptimization.*`
+  - graph cleanup/lowering contract, not a broad production tuning axis
+- `compile.graphOptimization.rewrite.conv2dLowering.mode`
   - GEMM/BLAS/runtime-family proxy
-- `optimizer.fuse.*`
+- `compile.regionOptimization.fuse.*`
   - persisted fields, but current production region optimization does not consume their scoring values
-- `optimizer.partition.*`
+- `compile.backendPlanning.search.*`
   - accelerator/backend partition scoring and target policy
 - `optimizer.cse.strictSafety`
   - research-only safety/correctness policy

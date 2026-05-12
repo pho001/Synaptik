@@ -3,7 +3,7 @@ package debug;
 import backend.runtime.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.backend.KernelTuningConfig;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.profile.WorkloadKind;
@@ -51,7 +51,7 @@ final class TransformerFusedProfileComparisonTest {
                 candidateName,
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                OptimizerConfig.inferenceDefaults(),
+                CompileConfig.inference(),
                 RuntimeConfig.inferenceDefaults(),
                 new WorkloadProfile(
                         WorkloadKind.TRANSFORMER_HOT_PATH,
@@ -78,7 +78,7 @@ final class TransformerFusedProfileComparisonTest {
                 candidateName,
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                OptimizerConfig.inferenceDefaults(),
+                CompileConfig.inference(),
                 runtimeWithFusedAsmWidths(cheapContiguous, cheapStrided, nonCheapContiguous, nonCheapStrided),
                 new WorkloadProfile(
                         WorkloadKind.TRANSFORMER_HOT_PATH,

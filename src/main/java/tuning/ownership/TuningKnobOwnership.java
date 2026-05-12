@@ -57,14 +57,12 @@ public final class TuningKnobOwnership {
     private static Map<String, TuningKnobOwner> buildOwners() {
         LinkedHashMap<String, TuningKnobOwner> owners = new LinkedHashMap<>();
         add(owners, TuningKnobOwner.GRAPH_WORKLOAD,
-                "optimizer.offload.policy",
-                "optimizer.offload.acceleratorRegionPolicy",
-                "optimizer.partition.metalTransferModel",
-                "optimizer.cpuRegion.policy",
-                "optimizer.cpuFusion.mode",
-                "runtime.accelerator.cuda.buffer.bindingMode",
-                "runtime.accelerator.opencl.buffer.bindingMode",
-                "runtime.accelerator.metal.buffer.bindingMode"
+                "compile.backendPlanning.discoveryMode",
+                "compile.backendPlanning.failurePolicy",
+                "compile.backendPlanning.ownershipPlanner",
+                "compile.backendPlanning.cost.metalTransferModel",
+                "compile.backendPlanning.cpuRegion.policy",
+                "compile.regionOptimization.cpuFusion.mode"
         );
         add(owners, TuningKnobOwner.PLATFORM_DTYPE,
                 "cpu.lowCostTargetChunksPerWorker",
@@ -120,7 +118,10 @@ public final class TuningKnobOwnership {
                 "cpu.whereMaterializeThreshold",
                 "runtime.accelerator.metal.enabled",
                 "runtime.accelerator.metal.requireRuntimeAvailability",
-                "runtime.accelerator.metal.minimumEstimatedWork"
+                "runtime.accelerator.metal.minimumEstimatedWork",
+                "runtime.accelerator.cuda.buffer.bindingMode",
+                "runtime.accelerator.opencl.buffer.bindingMode",
+                "runtime.accelerator.metal.buffer.bindingMode"
         );
         return Map.copyOf(owners);
     }

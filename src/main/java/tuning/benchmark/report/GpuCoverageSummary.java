@@ -468,6 +468,12 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
             return cpuMaterializationReasonCounts.getOrDefault("GRADIENT_PUBLICATION", 0);
         }
 
+        public int publicationCpuMaterializationCount() {
+            return cpuMaterializationReasonCounts.getOrDefault("GRAPH_OUTPUT", 0)
+                    + cpuMaterializationReasonCounts.getOrDefault("GRAPH_VALUE_PUBLICATION", 0)
+                    + gradientPublicationMaterializationCount();
+        }
+
         public int internalCpuMaterializationCount() {
             int count = 0;
             count += cpuMaterializationReasonCounts.getOrDefault("CPU_CONSUMER", 0);

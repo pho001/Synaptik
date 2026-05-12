@@ -1,8 +1,8 @@
 package debug;
 
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
-import config.optimizer.OptimizerStage;
+import config.compile.CompileConfig;
+import config.compile.GraphOptimizationConfig;
 import config.profile.ExecutionProfile;
 import config.profile.ExecutionProfileAssembler;
 import config.profile.GraphExecutionPolicy;
@@ -40,7 +40,7 @@ final class AttentionCurrentProfileBenchmarkTest {
                 "platform-seed-f32-training",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD_BACKWARD,
-                OptimizerConfig.trainingDefaults(),
+                CompileConfig.training(),
                 config.runtime.RuntimeConfig.trainingDefaults(),
                 WorkloadProfile.none()
         );
@@ -56,7 +56,7 @@ final class AttentionCurrentProfileBenchmarkTest {
         );
         PlatformRuntimeProfile current = PlatformRuntimeProfileIO.loadOrDefault(layout.profilePath(), fallback);
         GraphExecutionPolicy loweredPolicy = GraphExecutionPolicy.of(
-                OptimizerConfig.trainingDefaults().withStageOrder(List.of(OptimizerStage.AR))
+                CompileConfig.training().withGraphOptimization(GraphOptimizationConfig.stages(true, false, false, false, false))
         );
 
         BenchmarkRequest request = new BenchmarkRequest(
@@ -92,7 +92,7 @@ final class AttentionCurrentProfileBenchmarkTest {
                 "manual-no-opt",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD_BACKWARD,
-                OptimizerConfig.noOptimization(),
+                CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.noOptNoVecNoPar(),
                 WorkloadProfile.none()
         );

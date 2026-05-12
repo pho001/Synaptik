@@ -258,7 +258,7 @@ public final class TuningCli {
                 "platform-seed-" + dtype.id + "-training",
                 dtype.dataType,
                 ExecutionMode.FORWARD_BACKWARD,
-                config.optimizer.OptimizerConfig.trainingDefaults(),
+                config.compile.CompileConfig.training(),
                 config.runtime.RuntimeConfig.trainingDefaults(),
                 WorkloadProfile.none()
         );
@@ -290,7 +290,7 @@ public final class TuningCli {
                 namespace + "-baseline-no-opt-" + dtype.id,
                 dtype.dataType,
                 ExecutionMode.FORWARD_BACKWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.noOptNoVecNoPar(),
                 workload.profile(shape)
         );

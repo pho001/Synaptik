@@ -50,7 +50,7 @@ final class AbcF32MetalBenchmarkTest {
                 cpuProfile.candidateName() + "-gpu-metal",
                 cpuProfile.dataType(),
                 cpuProfile.mode(),
-                cpuProfile.optimizer(),
+                cpuProfile.compile(),
                 cpuProfile.runtime(),
                 cpuProfile.workload()
         );

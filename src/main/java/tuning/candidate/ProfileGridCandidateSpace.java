@@ -73,7 +73,7 @@ public final class ProfileGridCandidateSpace implements RefinableCandidateSpace 
                                     candidateName,
                                     profile.dataType(),
                                     profile.mode(),
-                                    profile.optimizer(),
+                                    profile.compile(),
                                     profile.runtime(),
                                     profile.workload()
                             )

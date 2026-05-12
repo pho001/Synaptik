@@ -32,25 +32,57 @@ public final class ExecutableProfileFingerprint {
         sb.append("dataType=").append(profile.dataType().name()).append('|');
         sb.append("mode=").append(profile.mode().name()).append('|');
 
-        var optimizer = profile.optimizer();
-        sb.append("stageOrder=");
-        for (var stage : optimizer.stageOrder()) {
-            sb.append(stage.name()).append(',');
-        }
+        var compile = profile.compile();
+        var graph = compile.graphOptimization();
+        var backend = compile.backendPlanning();
+        var region = compile.regionOptimization();
+        var memoryPlanning = compile.memoryPlanning();
+        sb.append("graph.ar=").append(graph.algebraicRewrite()).append('|');
+        sb.append("graph.cf=").append(graph.constantFolding()).append('|');
+        sb.append("graph.cse=").append(graph.commonSubexpressionElimination()).append('|');
+        sb.append("graph.dce=").append(graph.deadCodeElimination()).append('|');
+        sb.append("graph.lower=").append(graph.optionalLowering()).append('|');
+        sb.append("conv2dLowering=").append(graph.rewrite().conv2dLowering().mode().name()).append('|');
+        sb.append("cse.strict=").append(graph.cse().strictSafety()).append('|');
+        sb.append("backend.discovery=").append(backend.discoveryMode().name()).append('|');
+        sb.append("backend.failure=").append(backend.failurePolicy().name()).append('|');
+        sb.append("backend.requirementScope=").append(backend.requirementScope().name()).append('|');
+        sb.append("backend.targets=");
+        backend.targets().stream()
+                .map(Enum::name)
+                .sorted()
+                .forEach(target -> sb.append(target).append(','));
         sb.append('|');
-        sb.append("conv2dLowering=").append(optimizer.rewrite().conv2dLowering().mode().name()).append('|');
-        sb.append("cse.strict=").append(optimizer.cse().strictSafety()).append('|');
-        sb.append("fuse.maxClusterNodes=").append(optimizer.fuse().maxClusterNodes()).append('|');
-        sb.append("fuse.scoreThreshold=").append(fmt(optimizer.fuse().scoreThreshold())).append('|');
-        sb.append("fuse.internalEdgeBonus=").append(fmt(optimizer.fuse().internalEdgeBonus())).append('|');
-        sb.append("fuse.externalInputPenalty=").append(fmt(optimizer.fuse().externalInputPenalty())).append('|');
-        sb.append("fuse.sharedExpensivePenalty=").append(fmt(optimizer.fuse().sharedExpensivePenalty())).append('|');
-        sb.append("fuse.nonCheapBonus=").append(fmt(optimizer.fuse().nonCheapBonus())).append('|');
-        sb.append("fuse.preserveSharedExpensiveNodes=").append(optimizer.fuse().preserveSharedExpensiveNodes()).append('|');
-        sb.append("memory.separatePools=").append(optimizer.memory().separateForwardBackwardPools()).append('|');
-        sb.append("memory.crossPhase=").append(optimizer.memory().allowCrossPhaseReuse()).append('|');
-        sb.append("memory.allowLarger=").append(optimizer.memory().allowLargerBufferReuse()).append('|');
-        sb.append("memory.minReusable=").append(optimizer.memory().minReusableBufferSize()).append('|');
+        sb.append("backend.ownershipPlanner=").append(backend.ownershipPlanner().name()).append('|');
+        sb.append("backend.search.maxSearchNodes=").append(backend.search().maxSearchNodes()).append('|');
+        sb.append("backend.search.maxVisitedCandidates=").append(backend.search().maxVisitedCandidates()).append('|');
+        sb.append("backend.cost.metalTransferModel=")
+                .append(backend.cost().planningCostProfile().metalTransferModel().name())
+                .append('|');
+        sb.append("cpuRegion.policy=").append(backend.cpuRegions().policy().name()).append('|');
+        sb.append("cpuRegion.maxRegionNodes=").append(backend.cpuRegions().maxRegionNodes()).append('|');
+        sb.append("cpuRegion.fanout=").append(backend.cpuRegions().fanoutPolicy().name()).append('|');
+        sb.append("cpuRegion.boundary=").append(backend.cpuRegions().boundaryPolicy().name()).append('|');
+        sb.append("region.enabled=").append(region.enabled()).append('|');
+        sb.append("fuse.maxClusterNodes=").append(region.fuse().maxClusterNodes()).append('|');
+        sb.append("fuse.scoreThreshold=").append(fmt(region.fuse().scoreThreshold())).append('|');
+        sb.append("fuse.internalEdgeBonus=").append(fmt(region.fuse().internalEdgeBonus())).append('|');
+        sb.append("fuse.externalInputPenalty=").append(fmt(region.fuse().externalInputPenalty())).append('|');
+        sb.append("fuse.sharedExpensivePenalty=").append(fmt(region.fuse().sharedExpensivePenalty())).append('|');
+        sb.append("fuse.nonCheapBonus=").append(fmt(region.fuse().nonCheapBonus())).append('|');
+        sb.append("fuse.preserveSharedExpensiveNodes=").append(region.fuse().preserveSharedExpensiveNodes()).append('|');
+        sb.append("cpuFusion.mode=").append(region.cpuFusion().mode().name()).append('|');
+        sb.append("cpuFusion.maxChainNodes=").append(region.cpuFusion().maxChainNodes()).append('|');
+        sb.append("cpuFusion.fanout=").append(region.cpuFusion().fanoutPolicy().name()).append('|');
+        sb.append("cpuFusion.layout=").append(region.cpuFusion().layoutPolicy().name()).append('|');
+        sb.append("cpuFusion.cheapProducer=").append(region.cpuFusion().cheapProducerPolicy().name()).append('|');
+        sb.append("memoryPlanning.enabled=").append(memoryPlanning.enabled()).append('|');
+        var memory = memoryPlanning.memory();
+        sb.append('|');
+        sb.append("memory.separatePools=").append(memory.separateForwardBackwardPools()).append('|');
+        sb.append("memory.crossPhase=").append(memory.allowCrossPhaseReuse()).append('|');
+        sb.append("memory.allowLarger=").append(memory.allowLargerBufferReuse()).append('|');
+        sb.append("memory.minReusable=").append(memory.minReusableBufferSize()).append('|');
 
         var runtime = profile.runtime();
         var cpu = runtime.kernel().cpu();

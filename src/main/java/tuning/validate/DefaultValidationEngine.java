@@ -145,7 +145,15 @@ public final class DefaultValidationEngine implements ValidationEngine {
     }
 
     private static void execute(Tensor root, ExecutionProfile profile) {
-        CompiledGraph.compile(root, profile.optimizer()).prepare(profile.runtime()).execute(profile.mode());
+        CompiledGraph.compile(root, profile.compile(), compileModeFor(profile.mode()))
+                .prepare(profile.runtime())
+                .execute(profile.mode());
+    }
+
+    private static tensor.CompileMode compileModeFor(backend.runtime.ExecutionMode mode) {
+        return mode == backend.runtime.ExecutionMode.FORWARD_BACKWARD
+                ? tensor.CompileMode.TRAINING
+                : tensor.CompileMode.INFERENCE_ONLY;
     }
 
     private ValidationResult compareSnapshotGradients(

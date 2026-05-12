@@ -23,7 +23,7 @@ public class PlatformCalibrationDefaultsTest {
                 "seed",
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -65,7 +65,7 @@ public class PlatformCalibrationDefaultsTest {
                 "seed",
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -105,7 +105,7 @@ public class PlatformCalibrationDefaultsTest {
                 "seed",
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -133,7 +133,7 @@ public class PlatformCalibrationDefaultsTest {
                         "seed-f64",
                         tensor.DataType.FLOAT64,
                         ExecutionMode.FORWARD,
-                        config.optimizer.OptimizerConfig.inferenceDefaults(),
+                        config.compile.CompileConfig.inference(),
                         config.runtime.RuntimeConfig.inferenceDefaults(),
                         WorkloadProfile.none()
                 )
@@ -155,7 +155,7 @@ public class PlatformCalibrationDefaultsTest {
                         "seed-f32",
                         tensor.DataType.FLOAT32,
                         ExecutionMode.FORWARD,
-                        config.optimizer.OptimizerConfig.inferenceDefaults(),
+                        config.compile.CompileConfig.inference(),
                         config.runtime.RuntimeConfig.inferenceDefaults(),
                         WorkloadProfile.none()
                 )
@@ -177,7 +177,7 @@ public class PlatformCalibrationDefaultsTest {
                         "seed-bf16",
                         tensor.DataType.BFLOAT16,
                         ExecutionMode.FORWARD,
-                        config.optimizer.OptimizerConfig.inferenceDefaults(),
+                        config.compile.CompileConfig.inference(),
                         config.runtime.RuntimeConfig.inferenceDefaults(),
                         WorkloadProfile.none()
                 )
@@ -227,7 +227,7 @@ public class PlatformCalibrationDefaultsTest {
                         "seed-f64",
                         tensor.DataType.FLOAT64,
                         ExecutionMode.FORWARD,
-                        config.optimizer.OptimizerConfig.inferenceDefaults(),
+                        config.compile.CompileConfig.inference(),
                         config.runtime.RuntimeConfig.inferenceDefaults(),
                         WorkloadProfile.none()
                 )
@@ -258,7 +258,7 @@ public class PlatformCalibrationDefaultsTest {
                         "seed-bf16",
                         tensor.DataType.BFLOAT16,
                         ExecutionMode.FORWARD,
-                        config.optimizer.OptimizerConfig.inferenceDefaults(),
+                        config.compile.CompileConfig.inference(),
                         config.runtime.RuntimeConfig.inferenceDefaults(),
                         WorkloadProfile.none()
                 )
@@ -289,7 +289,7 @@ public class PlatformCalibrationDefaultsTest {
                         "seed-f32",
                         tensor.DataType.FLOAT32,
                         ExecutionMode.FORWARD,
-                        config.optimizer.OptimizerConfig.inferenceDefaults(),
+                        config.compile.CompileConfig.inference(),
                         config.runtime.RuntimeConfig.inferenceDefaults(),
                         WorkloadProfile.none()
                 )
@@ -322,7 +322,7 @@ public class PlatformCalibrationDefaultsTest {
                         "seed-f32",
                         tensor.DataType.FLOAT32,
                         ExecutionMode.FORWARD,
-                        config.optimizer.OptimizerConfig.inferenceDefaults(),
+                        config.compile.CompileConfig.inference(),
                         config.runtime.RuntimeConfig.inferenceDefaults(),
                         WorkloadProfile.none()
                 )
@@ -353,7 +353,7 @@ public class PlatformCalibrationDefaultsTest {
                         "seed-f32",
                         tensor.DataType.FLOAT32,
                         ExecutionMode.FORWARD_BACKWARD,
-                        config.optimizer.OptimizerConfig.trainingDefaults(),
+                        config.compile.CompileConfig.training(),
                         config.runtime.RuntimeConfig.trainingDefaults(),
                         WorkloadProfile.none()
                 )
@@ -380,7 +380,7 @@ public class PlatformCalibrationDefaultsTest {
                         "seed-f32",
                         tensor.DataType.FLOAT32,
                         ExecutionMode.FORWARD,
-                        config.optimizer.OptimizerConfig.inferenceDefaults(),
+                        config.compile.CompileConfig.inference(),
                         config.runtime.RuntimeConfig.inferenceDefaults(),
                         WorkloadProfile.none()
                 )

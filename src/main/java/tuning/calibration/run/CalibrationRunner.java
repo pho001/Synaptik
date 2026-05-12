@@ -141,7 +141,7 @@ public final class CalibrationRunner {
                 "platform-seed-" + CalibrationCommand.dtypeId(dataType) + "-" + modeId(mode),
                 dataType,
                 mode,
-                training ? config.optimizer.OptimizerConfig.trainingDefaults() : config.optimizer.OptimizerConfig.inferenceDefaults(),
+                training ? config.compile.CompileConfig.training() : config.compile.CompileConfig.inference(),
                 training ? config.runtime.RuntimeConfig.trainingDefaults() : config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );

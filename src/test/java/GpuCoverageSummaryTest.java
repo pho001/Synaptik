@@ -98,11 +98,15 @@ public class GpuCoverageSummaryTest {
                 );
             }
             assertEquals(
-                    GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                    backend == ComputeBackend.GPU_METAL
+                            ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
+                            : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
                     rows.get(operations.Operation.OpType.CROSS_ENTROPY_LOSS_INDICES).executionStatus()
             );
             assertEquals(
-                    GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                    backend == ComputeBackend.GPU_METAL
+                            ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
+                            : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
                     rows.get(operations.Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD).executionStatus()
             );
             for (operations.Operation.OpType opType : List.of(
@@ -136,11 +140,15 @@ public class GpuCoverageSummaryTest {
                     operations.Operation.OpType.AVG_POOL2D_BACKWARD_INPUT
             )) {
                 assertEquals(
-                        GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                        backend == ComputeBackend.GPU_METAL
+                                ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
+                                : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
                         rows.get(opType).executionStatus(),
                         opType.name()
                 );
-                assertTrue(rows.get(opType).detail().contains("CAPABILITY_MISSING"), opType.name());
+                if (backend == ComputeBackend.GPU_CUDA) {
+                    assertTrue(rows.get(opType).detail().contains("CAPABILITY_MISSING"), opType.name());
+                }
             }
             assertEquals(
                     backend == ComputeBackend.GPU_METAL
@@ -155,20 +163,28 @@ public class GpuCoverageSummaryTest {
                     rows.get(operations.Operation.OpType.TAKE_ALONG_AXIS).executionStatus()
             );
             assertEquals(
-                    GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                    backend == ComputeBackend.GPU_METAL
+                            ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
+                            : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
                     rows.get(operations.Operation.OpType.GATHER_GRAD).executionStatus()
             );
             assertEquals(
-                    GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                    backend == ComputeBackend.GPU_METAL
+                            ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
+                            : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
                     rows.get(operations.Operation.OpType.TAKE_ALONG_AXIS_GRAD).executionStatus()
             );
             assertEquals(
-                    GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                    backend == ComputeBackend.GPU_METAL
+                            ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
+                            : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
                     rows.get(operations.Operation.OpType.SCATTER_ADD).executionStatus()
             );
-            assertTrue(rows.get(operations.Operation.OpType.GATHER_GRAD).detail().contains("UNSUPPORTED_DUPLICATE_INDEX"));
-            assertTrue(rows.get(operations.Operation.OpType.TAKE_ALONG_AXIS_GRAD).detail().contains("UNSUPPORTED_DUPLICATE_INDEX"));
-            assertTrue(rows.get(operations.Operation.OpType.SCATTER_ADD).detail().contains("UNSUPPORTED_DUPLICATE_INDEX"));
+            if (backend == ComputeBackend.GPU_CUDA) {
+                assertTrue(rows.get(operations.Operation.OpType.GATHER_GRAD).detail().contains("UNSUPPORTED_DUPLICATE_INDEX"));
+                assertTrue(rows.get(operations.Operation.OpType.TAKE_ALONG_AXIS_GRAD).detail().contains("UNSUPPORTED_DUPLICATE_INDEX"));
+                assertTrue(rows.get(operations.Operation.OpType.SCATTER_ADD).detail().contains("UNSUPPORTED_DUPLICATE_INDEX"));
+            }
             assertEquals(
                     backend == ComputeBackend.GPU_METAL
                             ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
@@ -439,7 +455,7 @@ public class GpuCoverageSummaryTest {
                 GpuLoweredRegionCandidateSpan.none(List.of(30, 31, 32)),
                 Map.of(
                         "dtypeResidency.input.20", "backend=GPU_METAL role=externalInput dtype=BOOL residentRepresentable=true",
-                        "dtypeResidency.compute.30", "backend=GPU_METAL role=compute dtype=BFLOAT16 unsupported"
+                        "dtypeResidency.compute.30", "backend=GPU_METAL role=compute dtype=BFLOAT16 residentRepresentable=true nativeCompute=true"
                 )
         );
 
@@ -558,7 +574,7 @@ public class GpuCoverageSummaryTest {
     @Test
     void coverageSummaryCountsUnsupportedNormVariantAndLossReasons() {
         String normReason = "UNSUPPORTED_LAYOUT: GPU_METAL normalization inputs require dense layout family=NORMALIZATION target=layer_norm_small";
-        String lossReason = "UNSUPPORTED_INDEX_SEMANTICS: operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering family=LOSS_ADJACENT status=unsupported note=index-target loss uses INT32 targets plus bounds, ignore-index, and reduction-denominator semantics outside the current accelerator DAG contract; target=transformer_block_hot_path";
+        String lossReason = "UNSUPPORTED_INDEX_SEMANTICS: GPU_METAL index-target loss target out of range: 17 for classes=16 family=LOSS_ADJACENT target=transformer_block_hot_path";
         GpuLoweredRegionManifest manifest = new GpuLoweredRegionManifest(
                 "gpu-metal-region-phase17",
                 ComputeBackend.GPU_METAL,

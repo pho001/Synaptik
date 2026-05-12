@@ -1,7 +1,7 @@
 package debug;
 
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.RuntimeConfig;
@@ -32,7 +32,7 @@ final class SoftmaxProfileComparisonTest {
                 "softmax-transformer-like",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                OptimizerConfig.inferenceDefaults(),
+                CompileConfig.inference(),
                 RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );

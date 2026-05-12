@@ -3,7 +3,7 @@ package debug;
 import backend.runtime.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.backend.KernelTuningConfig;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
 import config.runtime.FusedExecutionPolicy;
@@ -72,7 +72,7 @@ final class MaskedScaleWhereProfileComparisonTest {
                 candidateName,
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                OptimizerConfig.inferenceDefaults(),
+                CompileConfig.inference(),
                 runtime,
                 config.profile.WorkloadProfile.none()
         );

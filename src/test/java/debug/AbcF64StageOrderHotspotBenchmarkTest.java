@@ -3,7 +3,9 @@ package debug;
 import backend.runtime.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.backend.KernelTuningConfig;
-import config.optimizer.OptimizerStage;
+import config.compile.CompileConfig;
+import config.compile.GraphOptimizationConfig;
+import config.compile.MemoryPlanningConfig;
 import config.profile.ExecutionProfile;
 import config.runtime.RuntimeConfig;
 import org.junit.jupiter.api.Test;
@@ -28,27 +30,18 @@ final class AbcF64StageOrderHotspotBenchmarkTest {
     @Test
     void compareArBeforeFuseVariants() {
         ExecutionProfile best = loadBestProfile();
-        ExecutionProfile arCseFuse = withStageOrder(best, "ar-cse-fuse", List.of(
-                OptimizerStage.AR,
-                OptimizerStage.CSE,
-                OptimizerStage.PART,
-                OptimizerStage.FUSE
-        ));
+        ExecutionProfile cleanupFuse = withCompile(best, "cleanup-fuse", best.compile()
+                .withMemoryPlanning(MemoryPlanningConfig.disabledUnlessRequired()));
         ExecutionProfile bestNonCheapStridedW2 = withRuntime(best, "noncheap-strided-w2", runtimeWithNonCheapStridedAsmWidth(best.runtime(), 2));
-        ExecutionProfile cseArFuse = withStageOrder(best, "cse-ar-fuse", List.of(
-                OptimizerStage.CSE,
-                OptimizerStage.AR,
-                OptimizerStage.PART,
-                OptimizerStage.FUSE
-        ));
+        ExecutionProfile cleanupFuseMem = withCompile(best, "cleanup-fuse-mem", best.compile());
 
         BenchmarkRequest request = new BenchmarkRequest(
                 StandardWorkloads.abcSequenceMatmulBlasBenchmark("abc_sequence_matmul_f64_stage_order_probe"),
                 List.of(
                         BenchmarkEntry.candidate("best-current", best),
                         BenchmarkEntry.candidate("best-current-noncheap-strided-w2", bestNonCheapStridedW2),
-                        BenchmarkEntry.candidate("ar-cse-fuse", arCseFuse),
-                        BenchmarkEntry.candidate("cse-ar-fuse", cseArFuse)
+                        BenchmarkEntry.candidate("cleanup-fuse", cleanupFuse),
+                        BenchmarkEntry.candidate("cleanup-fuse-mem", cleanupFuseMem)
                 ),
                 MEASUREMENT,
                 ValidationPolicy.disabled(),
@@ -72,17 +65,17 @@ final class AbcF64StageOrderHotspotBenchmarkTest {
                 .profile();
     }
 
-    private static ExecutionProfile withStageOrder(
+    private static ExecutionProfile withCompile(
             ExecutionProfile base,
             String suffix,
-            List<OptimizerStage> stageOrder
+            CompileConfig compile
     ) {
         return new ExecutionProfile(
                 base.profileName() + "-" + suffix,
                 base.candidateName() + "-" + suffix,
                 DataType.FLOAT64,
                 ExecutionMode.FORWARD_BACKWARD,
-                base.optimizer().withStageOrder(stageOrder),
+                compile,
                 base.runtime(),
                 base.workload()
         );
@@ -98,7 +91,7 @@ final class AbcF64StageOrderHotspotBenchmarkTest {
                 base.candidateName() + "-" + suffix,
                 DataType.FLOAT64,
                 ExecutionMode.FORWARD_BACKWARD,
-                base.optimizer(),
+                base.compile(),
                 runtime,
                 base.workload()
         );

@@ -5,7 +5,7 @@ Navigation: [Index](index.md#recommended-reading-paths) | [Tensor API](tensor-ap
 
 Chapters: [System Overview](#system-overview) | [Core Artifact Boundaries](#core-artifact-boundaries) | [Graph Construction](#graph-construction) | [Compile Pipeline](#compile-pipeline) | [Optimizer And Partitioning](#optimizer-and-partitioning) | [Prepare Pipeline](#prepare-pipeline) | [Execution Pipeline](#execution-pipeline) | [CPU Backend](#cpu-backend) | [Accelerator Scaffolding](#accelerator-scaffolding) | [Configuration, Profiles, And Tuning](#configuration-profiles-and-tuning) | [Memory And Layout Model](#memory-and-layout-model) | [Tracing And Observability](#tracing-and-observability) | [Numerics Harness](#numerics-harness) | [Verification Anchors](#verification-anchors)
 
-Synaptik is a layered Java tensor runtime built around a compiled graph lifecycle rather than eager-only execution. User code builds semantic `Tensor` graphs, `CompiledGraph` snapshots and optimizes those graphs, `PreparedExecution` attaches runtime/backend metadata, and `ComputeEngine` dispatches prepared steps to backend implementations. CPU is the broadest backend. Metal has a real MPSGraph FFM path for a tested operation-scoped subset, including native buffer binding between adjacent Metal regions, scoped BF16/BOOL/index support, direct SDPA, and scoped dense FLOAT32 conv/pool forward execution; CUDA has a narrow dense `FLOAT32` native-buffer path with explicit fallback, trace, and benchmark-report evidence; OpenCL currently exposes only a minimal no-op registry path.
+Synaptik is a layered Java tensor runtime built around a compiled graph lifecycle rather than eager-only execution. User code builds semantic `Tensor` graphs, `CompiledGraph` snapshots and optimizes those graphs, `PreparedExecution` attaches runtime/backend metadata, and `ComputeEngine` dispatches prepared steps to backend implementations. CPU is the broadest backend. Metal has a real MPSGraph FFM path for a tested operation-scoped subset, including native buffer binding between adjacent Metal regions, BF16 parity for Metal-supported floating operation families, scoped BOOL/index support, direct SDPA, and dense FLOAT32/BFLOAT16 conv/pool execution; CUDA has a narrow dense `FLOAT32` native-buffer path with explicit fallback, trace, and benchmark-report evidence; OpenCL currently exposes only a minimal no-op registry path.
 
 ## Table Of Contents
 
@@ -115,7 +115,7 @@ The actual compile session in `src/main/java/graph/compile/GraphCompiler.java` p
 7. Run the ordered optimizer pipeline.
 8. Rebuild `CompiledNode` snapshots.
 9. Capture gradient bindings through `GradientBindingCollector`.
-10. Build partition planning snapshots through `PartitionPlanningSnapshotBuilder`.
+10. Run backend planning through `BackendPlanningService`.
 11. Return immutable `CompileArtifacts`.
 
 ```mermaid
@@ -124,7 +124,7 @@ sequenceDiagram
     participant CG as CompiledGraph
     participant GC as GraphCompiler
     participant O as GraphOptimizer
-    participant PP as PartitionPlanningSnapshotBuilder
+    participant BP as BackendPlanningService
 
     T->>CG: compile(mode, optimizerConfig)
     CG->>GC: new GraphCompiler(...)
@@ -133,8 +133,8 @@ sequenceDiagram
     GC->>O: optimize(OptimizerState)
     O-->>GC: optimized graph/state
     GC->>GC: CompiledNode.snapshot(...)
-    GC->>PP: build partition plans
-    PP-->>GC: partitions and backend candidates
+    GC->>BP: plan backend ownership
+    BP-->>GC: partitions and backend candidates
     GC-->>CG: CompileArtifacts + CompileTrace
 ```
 
@@ -164,7 +164,7 @@ The stages map through `src/main/java/graph/optimizer/OptimizerFactory.java`:
 
 `config.optimizer.OptimizerConfig` validates stage order: `FUSE` requires `PART`, `PART` must run before `FUSE`, and `MEM` requires `FUSE`. That validation means downstream docs or examples should not present `AR -> CSE -> FUSE -> MEM` as the full default stage order without `PART`.
 
-Partition planning bridges graph optimization and backend preparation. `src/main/java/graph/compile/PartitionPlanningSnapshotBuilder.java` creates backend candidate partitions, and backend descriptors are registered in `src/main/java/backend/partition/BackendPartitionDescriptorRegistry.java`. The default registry includes CPU plus Metal and CUDA accelerator partition descriptors.
+Partition planning bridges graph optimization and backend preparation. `src/main/java/graph/compile/BackendPlanningService.java` creates backend candidate partitions from `BackendPlanningConfig`, and backend descriptors are registered in `src/main/java/backend/partition/BackendPartitionDescriptorRegistry.java`. The default registry includes CPU plus Metal and CUDA accelerator partition descriptors.
 
 ### Materialization-aware region planning
 
@@ -321,20 +321,20 @@ The current Metal path is intentionally narrower than the full tensor dtype mode
 - `BOOL` is native only for scoped compare/logical/reduction outputs and predicate-style consumers such as `WHERE`.
 - `INT32` is legal as an external index input for supported forward `GATHER` / `TAKE_ALONG_AXIS`, not generic INT32 compute/output.
 - Dense `FLOAT32` `CONV2D`, `CONV2D_GEMM`, `MAX_POOL2D`, and `AVG_POOL2D` forward paths are supported through MPSGraph when their operation-specific rank, layout, stride/padding, group/dilation, and divisor gates pass.
-- `FLOAT64`, generic `INT32` compute/output, unsupported `BFLOAT16` families, unsupported `BOOL` consumers, grouped/dilated conv, conv backward, pool backward, and `AVG_POOL2D countIncludePad=true` remain explicit rejection/fallback cases.
+- `FLOAT64`, generic `INT32` compute/output, unsupported `BOOL` consumers, grouped/dilated conv, dtype-mismatched floating inputs, and `AVG_POOL2D countIncludePad=true` remain explicit rejection/fallback cases.
 
 That boundary is checked in two places for different reasons. `MetalRegionLegalityAdapter` and `MetalPartitionSupport` reject illegal candidates during partition planning so traces do not claim a Metal region for a dtype the bridge cannot execute. `PreparedMetalExecutable` repeats cheap runtime checks for contiguity, storage offset, and direct Java array availability because legal compile-time dtype does not guarantee that a particular runtime tensor layout can be handed to the FFM bridge.
 
-Direct FLOAT32 rank-3/4 `SCALED_DOT_PRODUCT_ATTENTION` can be selected for Metal partitions after native scale and mask parity verification. The lowerer encodes the operation scale into the accelerator DAG scalar bits and the native bridge executes the SDPA node as a primitive MPSGraph DAG: `Q * K^T`, scale, optional BOOL mask select using public mask polarity, softmax, and `* V`. External BOOL masks, causal masks, and external+causal effective masks use SDPA input 3 when the effective mask layout is dense.
+Direct FLOAT32/BFLOAT16 rank-3/4 `SCALED_DOT_PRODUCT_ATTENTION` can be selected for Metal partitions after native scale and mask parity verification. The lowerer encodes the operation scale into the accelerator DAG scalar bits and the native bridge executes the SDPA node as a primitive MPSGraph DAG: `Q * K^T`, scale, optional BOOL mask select using public mask polarity, softmax, and `* V`. External BOOL masks, causal masks, and external+causal effective masks use SDPA input 3 when the effective mask layout is dense.
 
 The source-level SDPA support matrix is:
 
 | Attention form | Planner status | Reason |
 |---|---|---|
-| Direct unmasked forward `SCALED_DOT_PRODUCT_ATTENTION` | Supported for legal FLOAT32 rank-3/4 inputs | The native MPSGraph primitive DAG has scale parity evidence for the admitted contract. |
+| Direct unmasked forward `SCALED_DOT_PRODUCT_ATTENTION` | Supported for legal FLOAT32/BFLOAT16 rank-3/4 inputs | The native MPSGraph primitive DAG has scale parity evidence for the admitted contract. |
 | Direct masked/causal forward SDPA | Supported for dense effective BOOL masks | External BOOL masks, causal masks, and external+causal masks feed SDPA input 3 and are applied before softmax with CPU-compatible polarity. |
 | Generic lowered attention-like `matmul -> scale -> softmax -> matmul` fragments | Legal only for operations already in the Metal allowlist | This keeps tested primitive pieces available without pretending native direct SDPA is equivalent. |
-| `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD` fragments | Present in the backward allowlist | Training flow is still guarded by `PreparedMetalExecutable`, which falls back when a forward SDPA DAG appears in backward execution. |
+| `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD` fragments | Present in the backward allowlist | Metal buffer execution can now attempt the native MPSGraph SDPA backward DAG in training flow; runtime fallback remains explicit when another transport or layout gate fails. |
 
 This remains intentionally conservative. The planner can explain why direct SDPA did not enter a Metal region, while
 `AcceleratorSubgraphLowerer` contains the DAG encoding path used by the verified native primitive implementation without

@@ -1,7 +1,7 @@
 package debug;
 
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.optimizer.PiecewiseLoweringConfig;
 import graph.CompiledGraph;
 import operations.Operation;
@@ -26,9 +26,11 @@ final class PiecewiseLoweringRealGraphAuditTest {
                 StandardWorkloads.normalization("audit_layer_norm", tuning.workload.NormalizationWorkloadSpec.NormalizationKind.LAYER_NORM, 4, 64, 8, 1, 1e-5)
         );
 
-        OptimizerConfig baseline = OptimizerConfig.trainingDefaults();
-        OptimizerConfig piecewise = baseline.withRewrite(
-                baseline.rewrite().withPiecewiseLowering(PiecewiseLoweringConfig.aggressiveDefaults())
+        CompileConfig baseline = CompileConfig.training();
+        CompileConfig piecewise = baseline.withGraphOptimization(
+                baseline.graphOptimization().withRewrite(
+                        baseline.graphOptimization().rewrite().withPiecewiseLowering(PiecewiseLoweringConfig.aggressiveDefaults())
+                )
         );
 
         for (WorkloadSpec spec : workloads) {

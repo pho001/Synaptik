@@ -2,7 +2,7 @@ package debug;
 
 import backend.ComputeBackend;
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.RuntimeConfig;
@@ -130,7 +130,7 @@ final class MetalBackwardBenchmarkTest {
                 name,
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD_BACKWARD,
-                OptimizerConfig.noOptimization(),
+                CompileConfig.noGraphOptimizationBaseline(),
                 RuntimeConfig.trainingDefaults(),
                 WorkloadProfile.none()
         );
@@ -142,7 +142,7 @@ final class MetalBackwardBenchmarkTest {
                 name,
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD_BACKWARD,
-                OptimizerConfig.noOptimization(),
+                CompileConfig.noGraphOptimizationBaseline(),
                 RuntimeConfig.trainingDefaults(),
                 WorkloadProfile.none()
         );

@@ -1,7 +1,9 @@
 package debug;
 
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerStage;
+import config.compile.CompileConfig;
+import config.compile.GraphOptimizationConfig;
+import config.compile.MemoryPlanningConfig;
 import config.profile.ExecutionProfile;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -25,31 +27,14 @@ final class AbcF32StageOrderHotspotBenchmarkTest {
     @Test
     void compareCommonStageOrderVariants() {
         ExecutionProfile best = loadBestProfile();
-        ExecutionProfile arFuse = withStageOrder(best, "ar-fuse", List.of(
-                OptimizerStage.AR,
-                OptimizerStage.PART,
-                OptimizerStage.FUSE
-        ));
-        ExecutionProfile arPartFuseMem = withStageOrder(best, "ar-part-fuse-mem", List.of(
-                OptimizerStage.AR,
-                OptimizerStage.PART,
-                OptimizerStage.FUSE,
-                OptimizerStage.MEM
-        ));
-        ExecutionProfile arFuseCseMem = withStageOrder(best, "ar-fuse-cse-mem", List.of(
-                OptimizerStage.AR,
-                OptimizerStage.CSE,
-                OptimizerStage.PART,
-                OptimizerStage.FUSE,
-                OptimizerStage.MEM
-        ));
-        ExecutionProfile cseArFuseMem = withStageOrder(best, "cse-ar-fuse-mem", List.of(
-                OptimizerStage.CSE,
-                OptimizerStage.AR,
-                OptimizerStage.PART,
-                OptimizerStage.FUSE,
-                OptimizerStage.MEM
-        ));
+        ExecutionProfile arFuse = withCompile(best, "ar-fuse", best.compile()
+                .withGraphOptimization(GraphOptimizationConfig.stages(true, false, false, false, false))
+                .withMemoryPlanning(MemoryPlanningConfig.disabledUnlessRequired()));
+        ExecutionProfile arPartFuseMem = withCompile(best, "ar-part-fuse-mem", best.compile()
+                .withGraphOptimization(GraphOptimizationConfig.stages(true, false, false, false, false)));
+        ExecutionProfile cleanupFuseMem = withCompile(best, "cleanup-fuse-mem", best.compile());
+        ExecutionProfile cleanupNoMem = withCompile(best, "cleanup-fuse", best.compile()
+                .withMemoryPlanning(MemoryPlanningConfig.disabledUnlessRequired()));
 
         BenchmarkRequest request = new BenchmarkRequest(
                 StandardWorkloads.abcSequenceMatmulBlasBenchmark("abc_sequence_matmul_f32_stage_order_probe"),
@@ -57,8 +42,8 @@ final class AbcF32StageOrderHotspotBenchmarkTest {
                         BenchmarkEntry.candidate("best-current", best),
                         BenchmarkEntry.candidate("ar-fuse", arFuse),
                         BenchmarkEntry.candidate("ar-part-fuse-mem", arPartFuseMem),
-                        BenchmarkEntry.candidate("ar-fuse-cse-mem", arFuseCseMem),
-                        BenchmarkEntry.candidate("cse-ar-fuse-mem", cseArFuseMem)
+                        BenchmarkEntry.candidate("cleanup-fuse-mem", cleanupFuseMem),
+                        BenchmarkEntry.candidate("cleanup-fuse", cleanupNoMem)
                 ),
                 MEASUREMENT,
                 ValidationPolicy.disabled(),
@@ -82,17 +67,17 @@ final class AbcF32StageOrderHotspotBenchmarkTest {
                 .profile();
     }
 
-    private static ExecutionProfile withStageOrder(
+    private static ExecutionProfile withCompile(
             ExecutionProfile base,
             String suffix,
-            List<OptimizerStage> stageOrder
+            CompileConfig compile
     ) {
         return new ExecutionProfile(
                 base.profileName() + "-" + suffix,
                 base.candidateName() + "-" + suffix,
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD_BACKWARD,
-                base.optimizer().withStageOrder(stageOrder),
+                compile,
                 base.runtime(),
                 base.workload()
         );

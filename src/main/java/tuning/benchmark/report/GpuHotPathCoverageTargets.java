@@ -167,7 +167,7 @@ public final class GpuHotPathCoverageTargets {
                         "index_scatter_gradient",
                         List.of("GPUNATIVE", "GPULOSSIDX", "GPUCLOSE", "METALSCATTER", "CUDATRAIN"),
                         36,
-                        "Exercises SCATTER_ADD, GATHER_GRAD, and TAKE_ALONG_AXIS_GRAD as separately reported duplicate-index blockers."
+                        "Exercises SCATTER_ADD, GATHER_GRAD, and TAKE_ALONG_AXIS_GRAD with native Metal duplicate-index accumulation evidence."
                 ),
                 new GpuHotPathCoverageTarget(
                         "layout_broadcast_repair_small",
@@ -293,16 +293,20 @@ public final class GpuHotPathCoverageTargets {
                 new GpuCoverageHotPathExpectation(
                         "cross_entropy_small",
                         resolvedBackend,
-                        partialBlockerPolicy(resolvedBackend),
-                        List.of("UNSUPPORTED_INDEX_SEMANTICS", "INT32", "CROSS_ENTROPY_LOSS_INDICES"),
-                        false
+                        "GPU_METAL".equals(resolvedBackend) ? denseLossPolicy(resolvedBackend) : partialBlockerPolicy(resolvedBackend),
+                        "GPU_METAL".equals(resolvedBackend)
+                                ? List.of()
+                                : List.of("UNSUPPORTED_INDEX_SEMANTICS", "INT32", "CROSS_ENTROPY_LOSS_INDICES"),
+                        "GPU_METAL".equals(resolvedBackend)
                 ),
                 new GpuCoverageHotPathExpectation(
                         "training_transformer_block_hot_path",
                         resolvedBackend,
-                        partialBlockerPolicy(resolvedBackend),
-                        List.of("SCALED_DOT_PRODUCT_ATTENTION_BACKWARD", "BRIDGE_UNAVAILABLE", "forward SDPA DAG unsupported"),
-                        false
+                        "GPU_METAL".equals(resolvedBackend) ? trainingTransformerPolicy(resolvedBackend) : partialBlockerPolicy(resolvedBackend),
+                        "GPU_METAL".equals(resolvedBackend)
+                                ? List.of()
+                                : List.of("SCALED_DOT_PRODUCT_ATTENTION_BACKWARD"),
+                        "GPU_METAL".equals(resolvedBackend)
                 ),
                 new GpuCoverageHotPathExpectation(
                         "training_dense_loss_small",
@@ -330,9 +334,11 @@ public final class GpuHotPathCoverageTargets {
                 new GpuCoverageHotPathExpectation(
                         "training_cross_entropy_small",
                         resolvedBackend,
-                        partialBlockerPolicy(resolvedBackend),
-                        List.of("UNSUPPORTED_INDEX_SEMANTICS", "CROSS_ENTROPY_LOSS_INDICES_GRAD", "INT32"),
-                        false
+                        "GPU_METAL".equals(resolvedBackend) ? trainingDenseLossPolicy(resolvedBackend) : partialBlockerPolicy(resolvedBackend),
+                        "GPU_METAL".equals(resolvedBackend)
+                                ? List.of()
+                                : List.of("UNSUPPORTED_INDEX_SEMANTICS", "CROSS_ENTROPY_LOSS_INDICES_GRAD", "INT32"),
+                        "GPU_METAL".equals(resolvedBackend)
                 ),
                 new GpuCoverageHotPathExpectation(
                         "bool_compare_where_small",
@@ -351,9 +357,11 @@ public final class GpuHotPathCoverageTargets {
                 new GpuCoverageHotPathExpectation(
                         "scatter_index_gradient_small",
                         resolvedBackend,
-                        partialBlockerPolicy(resolvedBackend),
-                        List.of("UNSUPPORTED_DUPLICATE_INDEX", "SCATTER_ADD", "GATHER_GRAD", "TAKE_ALONG_AXIS_GRAD"),
-                        false
+                        "GPU_METAL".equals(resolvedBackend) ? scatterIndexGradientPolicy(resolvedBackend) : partialBlockerPolicy(resolvedBackend),
+                        "GPU_METAL".equals(resolvedBackend)
+                                ? List.of()
+                                : List.of("UNSUPPORTED_DUPLICATE_INDEX", "SCATTER_ADD", "GATHER_GRAD", "TAKE_ALONG_AXIS_GRAD"),
+                        "GPU_METAL".equals(resolvedBackend)
                 ),
                 new GpuCoverageHotPathExpectation(
                         "layout_broadcast_repair_small",
@@ -421,6 +429,25 @@ public final class GpuHotPathCoverageTargets {
                 4,
                 1,
                 4,
+                0,
+                0,
+                0,
+                0,
+                1,
+                true
+        );
+    }
+
+    private static GpuCoverageGatePolicy scatterIndexGradientPolicy(String backend) {
+        if (!"GPU_METAL".equals(backend)) {
+            return partialBlockerPolicy(backend);
+        }
+        return new GpuCoverageGatePolicy(
+                backend,
+                0.5d,
+                3,
+                1,
+                3,
                 0,
                 0,
                 0,
@@ -603,6 +630,13 @@ public final class GpuHotPathCoverageTargets {
             return partialBlockerPolicy(backend);
         }
         return GpuCoverageGatePolicy.trainingHotPathTarget(backend, 0.1d, 1, 0, 3, 0, 8);
+    }
+
+    private static GpuCoverageGatePolicy trainingTransformerPolicy(String backend) {
+        if (!"GPU_METAL".equals(backend)) {
+            return partialBlockerPolicy(backend);
+        }
+        return GpuCoverageGatePolicy.trainingHotPathTarget(backend, 0.1d, 1, 0, 8, 0, 8);
     }
 
     private static GpuCoverageGatePolicy trainingReductionPolicy(String backend) {

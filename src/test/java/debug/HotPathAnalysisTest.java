@@ -3,7 +3,7 @@ package debug;
 import backend.runtime.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.backend.KernelTuningConfig;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadKind;
 import config.profile.WorkloadProfile;
@@ -84,7 +84,7 @@ final class HotPathAnalysisTest {
                 candidateName,
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                OptimizerConfig.inferenceDefaults(),
+                CompileConfig.inference(),
                 RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -96,7 +96,7 @@ final class HotPathAnalysisTest {
                 candidateName,
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                OptimizerConfig.inferenceDefaults(),
+                CompileConfig.inference(),
                 RuntimeConfig.inferenceDefaults(),
                 new WorkloadProfile(
                         WorkloadKind.TRANSFORMER_HOT_PATH,
@@ -117,7 +117,7 @@ final class HotPathAnalysisTest {
                 candidateName,
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                OptimizerConfig.inferenceDefaults(),
+                CompileConfig.inference(),
                 runtimeWithFusedAsmWidths(4, 4, 4, 4),
                 new WorkloadProfile(
                         WorkloadKind.TRANSFORMER_HOT_PATH,

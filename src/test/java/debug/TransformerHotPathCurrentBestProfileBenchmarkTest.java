@@ -1,7 +1,7 @@
 package debug;
 
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.RuntimeConfig;
@@ -72,7 +72,7 @@ final class TransformerHotPathCurrentBestProfileBenchmarkTest {
                 "transformer-hot-path-baseline-" + dtypeId,
                 dataType,
                 ExecutionMode.FORWARD_BACKWARD,
-                OptimizerConfig.noOptimization(),
+                CompileConfig.noGraphOptimizationBaseline(),
                 RuntimeConfig.noOptNoVecNoPar(),
                 WorkloadProfile.transformerHotPathDefaults()
         );
