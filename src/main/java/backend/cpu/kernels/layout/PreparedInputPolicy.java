@@ -17,7 +17,7 @@ final class PreparedInputPolicy {
             return false;
         }
         return switch (op.opType()) {
-            case CONTIGUOUS, RESHAPE, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE,
+            case CONTIGUOUS, RESHAPE, EXPAND, SELECT, SLICE, CONCAT, PERMUTE, EXPAND_DIMS, SQUEEZE, CAST,
                     SUM, MEAN, REDUCE_MIN, REDUCE_MAX,
                     SOFTMAX, SOFTMAX_GRAD, LOG_SOFTMAX, LOG_SOFTMAX_GRAD, SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS,
                     NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD,
@@ -65,7 +65,7 @@ final class PreparedInputPolicy {
                 return true;
             }
             return switch (op.opType()) {
-                case RESHAPE, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE,
+                case RESHAPE, EXPAND, SELECT, SLICE, CONCAT, PERMUTE, EXPAND_DIMS, SQUEEZE, CAST,
                         GATHER, GATHER_GRAD, TAKE_ALONG_AXIS, TAKE_ALONG_AXIS_GRAD, SCATTER_ADD,
                         SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY,
                         SOFTMAX, SOFTMAX_GRAD, LOG_SOFTMAX, LOG_SOFTMAX_GRAD, SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS,
@@ -85,7 +85,7 @@ final class PreparedInputPolicy {
         }
 
         return switch (op.opType()) {
-            case CONTIGUOUS, RESHAPE, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE,
+            case CONTIGUOUS, RESHAPE, EXPAND, SELECT, SLICE, CONCAT, PERMUTE, EXPAND_DIMS, SQUEEZE, CAST,
                     SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY,
                     SOFTMAX, SOFTMAX_GRAD, LOG_SOFTMAX, LOG_SOFTMAX_GRAD, SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS,
                     NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD,

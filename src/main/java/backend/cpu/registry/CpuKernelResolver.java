@@ -91,6 +91,8 @@ public final class CpuKernelResolver {
     private static final CpuReshapeLikeKernel RESHAPE = new CpuReshapeLikeKernel();
     private static final CpuExpandKernel EXPAND = new CpuExpandKernel();
     private static final CpuAliasViewKernel ALIAS_VIEW = new CpuAliasViewKernel();
+    private static final CpuConcatKernel CONCAT = new CpuConcatKernel();
+    private static final CpuCastKernel CAST = new CpuCastKernel();
     private static final CpuPermuteKernel PERMUTE = new CpuPermuteKernel();
     private static final CpuNoopKernel NOOP = new CpuNoopKernel();
     private static final CpuFusedKernel FUSED = new CpuFusedKernel();
@@ -174,7 +176,9 @@ public final class CpuKernelResolver {
             case CONTIGUOUS -> CONTIGUOUS;
             case RESHAPE -> RESHAPE;
             case EXPAND -> EXPAND;
-            case SELECT, EXPAND_DIMS, SQUEEZE -> ALIAS_VIEW;
+            case SELECT, SLICE, EXPAND_DIMS, SQUEEZE -> ALIAS_VIEW;
+            case CONCAT -> CONCAT;
+            case CAST -> CAST;
             case PERMUTE -> PERMUTE;
             case CONST_SCALAR -> throw new IllegalStateException("CONST_SCALAR is an internal fused-plan op and has no standalone CPU kernel");
             case NOOP -> NOOP;

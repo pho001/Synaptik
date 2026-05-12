@@ -45,7 +45,7 @@ public final class DefaultRegionLoweringPolicy implements RegionLoweringPolicy {
                     RegionLoweringDecision.keep(level, RegionLoweringForm.SDPA, "GPU SDPA region primitive");
             case CONV2D, CONV2D_GEMM, MAX_POOL2D, AVG_POOL2D ->
                     RegionLoweringDecision.keep(level, RegionLoweringForm.CONV_POOL, "GPU conv/pool region primitive");
-            case RESHAPE, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS, NOOP ->
+            case RESHAPE, EXPAND, SELECT, SLICE, CONCAT, PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS, NOOP ->
                     RegionLoweringDecision.lower(level, RegionLoweringForm.LAYOUT_REPAIR, "GPU layout/view handling");
             case NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES ->
                     RegionLoweringDecision.lower(level, RegionLoweringForm.LOSS_SUBDAG, "GPU loss-adjacent DAG");

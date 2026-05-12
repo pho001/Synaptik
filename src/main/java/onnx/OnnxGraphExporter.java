@@ -1,14 +1,18 @@
 package onnx;
 
 import operations.Operation;
+import operations.dtype.cast;
 import operations.elementwise.unary.clampMax;
 import operations.elementwise.unary.clampMin;
 import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.pow;
+import operations.layout.concat;
 import operations.layout.expandDims;
+import operations.layout.expand;
 import operations.layout.permute;
 import operations.layout.reshape;
 import operations.layout.squeeze;
+import operations.layout.slice;
 import operations.linalg.linear;
 import operations.reduction.logSoftmax;
 import operations.reduction.mean;
@@ -127,6 +131,10 @@ final class OnnxGraphExporter {
             case LINEAR -> exportLinear(node, op);
             case PERMUTE -> exportPermute(node, op);
             case RESHAPE -> exportReshape(node, op, names, graphBuilder);
+            case EXPAND -> exportExpand(node, op, names, graphBuilder);
+            case SLICE -> exportSlice(node, op, names, graphBuilder);
+            case CONCAT -> exportConcat(node, op);
+            case CAST -> exportCast(node, op);
             case SQUEEZE -> exportSqueeze(node, op, names, graphBuilder);
             case EXPAND_DIMS -> exportUnsqueeze(node, op, names, graphBuilder);
             case SUM -> exportReduction(node, "ReduceSum", ((sum) op).getDimension(), ((sum) op).keepDims(), names, graphBuilder);
@@ -168,6 +176,50 @@ final class OnnxGraphExporter {
         String shapeName = names.auxiliary(node.getOutput(0) + "_shape");
         graphBuilder.addInitializer(OnnxTensorProtoUtil.int64Initializer(shapeName, toLong(((reshape) op).getTargetShape())));
         node.addInput(shapeName);
+    }
+
+    private static void exportExpand(
+            OnnxProto.NodeProto.Builder node,
+            Operation op,
+            OnnxNameRegistry names,
+            OnnxProto.GraphProto.Builder graphBuilder
+    ) {
+        node.setOpType("Expand");
+        String shapeName = names.auxiliary(node.getOutput(0) + "_shape");
+        graphBuilder.addInitializer(OnnxTensorProtoUtil.int64Initializer(shapeName, toLong(((expand) op).getTargetShape())));
+        node.addInput(shapeName);
+    }
+
+    private static void exportSlice(
+            OnnxProto.NodeProto.Builder node,
+            Operation op,
+            OnnxNameRegistry names,
+            OnnxProto.GraphProto.Builder graphBuilder
+    ) {
+        node.setOpType("Slice");
+        slice slice = (slice) op;
+        String startsName = names.auxiliary(node.getOutput(0) + "_starts");
+        String endsName = names.auxiliary(node.getOutput(0) + "_ends");
+        String axesName = names.auxiliary(node.getOutput(0) + "_axes");
+        String stepsName = names.auxiliary(node.getOutput(0) + "_steps");
+        graphBuilder.addInitializer(OnnxTensorProtoUtil.int64Initializer(startsName, toLong(slice.getStarts())));
+        graphBuilder.addInitializer(OnnxTensorProtoUtil.int64Initializer(endsName, toLong(slice.getEnds())));
+        graphBuilder.addInitializer(OnnxTensorProtoUtil.int64Initializer(axesName, toLong(slice.getAxes())));
+        graphBuilder.addInitializer(OnnxTensorProtoUtil.int64Initializer(stepsName, toLong(slice.getSteps())));
+        node.addInput(startsName);
+        node.addInput(endsName);
+        node.addInput(axesName);
+        node.addInput(stepsName);
+    }
+
+    private static void exportConcat(OnnxProto.NodeProto.Builder node, Operation op) {
+        node.setOpType("Concat")
+                .addAttribute(intAttr("axis", ((concat) op).getAxis()));
+    }
+
+    private static void exportCast(OnnxProto.NodeProto.Builder node, Operation op) {
+        node.setOpType("Cast")
+                .addAttribute(intAttr("to", OnnxDataTypes.toOnnx(((cast) op).getTargetType())));
     }
 
     private static void exportSqueeze(

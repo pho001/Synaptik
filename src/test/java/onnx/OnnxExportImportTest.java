@@ -324,7 +324,112 @@ class OnnxExportImportTest {
     }
 
     @Test
-    void importRejectsCastUntilGraphCastExists() {
+    void importCastSliceConcatExpandAndFlattenExecute() {
+        OnnxProto.ModelProto model = model("shape_index_values", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2, 3}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("row", DataType.FLOAT32, new int[]{1, 2}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("starts", new long[]{0, 1}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("ends", new long[]{2, 3}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("axes", new long[]{0, 1}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("steps", new long[]{1, 1}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("expand_shape", new long[]{3, 2}))
+                .addNode(node("slice", "Slice", "sliced", "x", "starts", "ends", "axes", "steps"))
+                .addNode(axisNode("concat", "Concat", "joined", 0, "sliced", "sliced"))
+                .addNode(castNode("cast", "joined", "casted", OnnxProto.TensorProto.DataType.DOUBLE))
+                .addNode(node("expand", "Expand", "expanded", "row", "expand_shape"))
+                .addNode(axisNode("flatten", "Flatten", "flat", 1, "expanded"))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("casted", DataType.FLOAT64, new int[]{4, 2}))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("flat", DataType.FLOAT32, new int[]{3, 2})));
+
+        ImportedOnnxModel imported = Onnx.importModel(model);
+        imported.input("x").setData(new float[]{1f, 2f, 3f, 4f, 5f, 6f});
+        imported.input("row").setData(new float[]{7f, 8f});
+
+        execute(imported, "casted");
+        assertEquals(DataType.FLOAT64, imported.output("casted").getDataType());
+        assertArrayEquals(new double[]{2.0, 3.0, 5.0, 6.0, 2.0, 3.0, 5.0, 6.0},
+                imported.output("casted").toDoubleArrayCopy(), 1e-9);
+
+        execute(imported, "flat");
+        assertArrayEquals(new double[]{7.0, 8.0, 7.0, 8.0, 7.0, 8.0},
+                imported.output("flat").toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void importPyTorchStyleShapeSubgraphFeedsReshape() {
+        OnnxProto.ModelProto model = model("shape_subgraph", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2, 3, 4}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("idx0", new long[]{0}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("axes0", new long[]{0}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("tail", new long[]{12}))
+                .addNode(node("shape", "Shape", "shape", "x"))
+                .addNode(node("gather", "Gather", "dim0_scalar", "shape", "idx0"))
+                .addNode(node("unsqueeze", "Unsqueeze", "dim0", "dim0_scalar", "axes0"))
+                .addNode(axisNode("concat", "Concat", "target_shape", 0, "dim0", "tail"))
+                .addNode(node("reshape", "Reshape", "y", "x", "target_shape"))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 12})));
+
+        ImportedOnnxModel imported = Onnx.importModel(model);
+        imported.input("x").setData(new float[]{
+                1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f, 11f, 12f,
+                13f, 14f, 15f, 16f, 17f, 18f, 19f, 20f, 21f, 22f, 23f, 24f
+        });
+
+        execute(imported, "y");
+
+        assertArrayEquals(new int[]{2, 12}, imported.output("y").getShape());
+        assertArrayEquals(new double[]{
+                1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24
+        }, imported.output("y").toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void importShapeSliceAndShapeStartEndFeedReshape() {
+        OnnxProto.ModelProto model = model("shape_slice_subgraph", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2, 3, 4}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("starts", new long[]{1}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("ends", new long[]{Long.MAX_VALUE}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("axes", new long[]{0}))
+                .addNode(node("shape", "Shape", "shape", "x"))
+                .addNode(nodeBuilder("batch_shape", "Shape", "batch_shape", "x")
+                        .addAttribute(OnnxProto.AttributeProto.newBuilder().setName("start").setI(0))
+                        .addAttribute(OnnxProto.AttributeProto.newBuilder().setName("end").setI(1))
+                        .build())
+                .addNode(node("tail_slice", "Slice", "tail_shape", "shape", "starts", "ends", "axes"))
+                .addNode(axisNode("concat", "Concat", "target_shape", 0, "batch_shape", "tail_shape"))
+                .addNode(node("reshape", "Reshape", "y", "x", "target_shape"))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 3, 4})));
+
+        ImportedOnnxModel imported = Onnx.importModel(model);
+        imported.input("x").setData(new float[]{
+                1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f, 11f, 12f,
+                13f, 14f, 15f, 16f, 17f, 18f, 19f, 20f, 21f, 22f, 23f, 24f
+        });
+
+        execute(imported, "y");
+
+        assertArrayEquals(new int[]{2, 3, 4}, imported.output("y").getShape());
+        assertArrayEquals(new double[]{
+                1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24
+        }, imported.output("y").toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void exportShapeIndexSubsetUsesOnnxOperatorNames() {
+        Tensor x = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "x", DataType.FLOAT32);
+        Tensor y = new Tensor(new float[]{10f, 20f, 30f, 40f, 50f, 60f}, new int[]{2, 3}, null, "y", DataType.FLOAT32);
+
+        assertEquals("Cast", singleNode(x.cast(DataType.FLOAT64)).getOpType());
+        assertEquals("Slice", singleNode(x.slice(new int[]{0, 1}, new int[]{2, 3}, new int[]{0, 1}, new int[]{1, 1})).getOpType());
+        assertEquals("Concat", singleNode(Tensor.concat(0, x, y)).getOpType());
+        assertEquals("Expand", singleNode(new Tensor(new float[]{1f, 2f, 3f}, new int[]{1, 3}, null, "row", DataType.FLOAT32)
+                .expand(2, 3)).getOpType());
+    }
+
+    @Test
+    void importCastToBoolProducesBoolTensor() {
         OnnxProto.ModelProto model = model("cast", graph -> graph
                 .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2}))
                 .addNode(OnnxProto.NodeProto.newBuilder()
@@ -334,11 +439,37 @@ class OnnxExportImportTest {
                         .addOutput("y")
                         .addAttribute(OnnxProto.AttributeProto.newBuilder()
                                 .setName("to")
-                                .setI(OnnxProto.TensorProto.DataType.DOUBLE.getNumber())))
-                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT64, new int[]{2})));
+                                .setI(OnnxProto.TensorProto.DataType.BOOL.getNumber())))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.BOOL, new int[]{2})));
 
-        OnnxUnsupportedException ex = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(model));
-        assertTrue(ex.getMessage().contains("unsupported op type"));
+        ImportedOnnxModel imported = Onnx.importModel(model);
+        imported.input("x").setData(new float[]{0f, -2f});
+
+        execute(imported, "y");
+
+        assertArrayEquals(new boolean[]{false, true}, imported.output("y").toBooleanArrayCopy());
+    }
+
+    @Test
+    void importRejectsNonConstantSliceParametersAndRuntimeGather() {
+        OnnxProto.ModelProto dynamicSlice = model("dynamic_slice", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{4}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("starts", DataType.INT32, new int[]{1}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("ends", new long[]{3}))
+                .addNode(node("slice", "Slice", "y", "x", "starts", "ends"))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{3})));
+
+        OnnxUnsupportedException sliceEx = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(dynamicSlice));
+        assertTrue(sliceEx.getMessage().contains("constant initializer or Constant node"));
+
+        OnnxProto.ModelProto runtimeGather = model("runtime_gather", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{3}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("idx", new Tensor(new int[]{0}, new int[]{1}, null, "idx", DataType.INT32)))
+                .addNode(node("gather", "Gather", "y", "x", "idx"))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{1})));
+
+        OnnxUnsupportedException gatherEx = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(runtimeGather));
+        assertTrue(gatherEx.getMessage().contains("runtime tensor Gather"));
     }
 
     @Test
@@ -386,6 +517,28 @@ class OnnxExportImportTest {
             node.addInput(input);
         }
         return node.addOutput(output).build();
+    }
+
+    private static OnnxProto.NodeProto axisNode(String name, String opType, String output, int axis, String... inputs) {
+        return nodeBuilder(name, opType, output, inputs)
+                .addAttribute(OnnxProto.AttributeProto.newBuilder().setName("axis").setI(axis))
+                .build();
+    }
+
+    private static OnnxProto.NodeProto castNode(String name, String input, String output, OnnxProto.TensorProto.DataType target) {
+        return nodeBuilder(name, "Cast", output, input)
+                .addAttribute(OnnxProto.AttributeProto.newBuilder().setName("to").setI(target.getNumber()))
+                .build();
+    }
+
+    private static OnnxProto.NodeProto.Builder nodeBuilder(String name, String opType, String output, String... inputs) {
+        OnnxProto.NodeProto.Builder node = OnnxProto.NodeProto.newBuilder()
+                .setName(name)
+                .setOpType(opType);
+        for (String input : inputs) {
+            node.addInput(input);
+        }
+        return node.addOutput(output);
     }
 
     private static void execute(ImportedOnnxModel imported, String outputName) {

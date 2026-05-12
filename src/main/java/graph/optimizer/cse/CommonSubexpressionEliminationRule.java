@@ -21,6 +21,8 @@ import operations.nn.conv.conv2dBackwardWeight;
 import operations.nn.conv.conv2dBackwardWeightGemm;
 import operations.layout.expand;
 import operations.layout.expandDims;
+import operations.layout.concat;
+import operations.dtype.cast;
 import operations.index.gather;
 import operations.index.gatherGrad;
 import operations.normalization.layerNorm;
@@ -49,6 +51,7 @@ import operations.reduction.logSoftmaxGrad;
 import operations.linalg.linear;
 import operations.normalization.rmsNorm;
 import operations.layout.select;
+import operations.layout.slice;
 import operations.layout.squeeze;
 import operations.reduction.sum;
 import operations.reduction.softmax;
@@ -248,6 +251,9 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case PERMUTE -> IntArrayValue.copyOf(((permute) op).getAxes());
             case EXPAND -> IntArrayValue.copyOf(((expand) op).getTargetShape());
             case SELECT -> IntArrayValue.copyOf(new int[]{((select) op).getDimension(), ((select) op).getIndex()});
+            case SLICE -> IntArrayValue.copyOf(sliceSignature((slice) op));
+            case CONCAT -> new AxisSignature(((concat) op).getAxis());
+            case CAST -> new AxisSignature(((cast) op).getTargetType().ordinal());
             case EXPAND_DIMS -> new AxisSignature(((expandDims) op).getAxis());
             case GATHER -> new AxisSignature(((gather) op).getDimension());
             case GATHER_GRAD -> new AxisSignature(((gatherGrad) op).getDimension());
@@ -280,6 +286,27 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
                 options.groups(),
                 hasBias
         });
+    }
+
+    private int[] sliceSignature(slice op) {
+        int[] starts = op.getStarts();
+        int[] ends = op.getEnds();
+        int[] axes = op.getAxes();
+        int[] steps = op.getSteps();
+        int[] outputShape = op.getOutputShape();
+        int[] out = new int[starts.length + ends.length + axes.length + steps.length + outputShape.length + 5];
+        int p = 0;
+        out[p++] = starts.length;
+        for (int value : starts) out[p++] = value;
+        out[p++] = ends.length;
+        for (int value : ends) out[p++] = value;
+        out[p++] = axes.length;
+        for (int value : axes) out[p++] = value;
+        out[p++] = steps.length;
+        for (int value : steps) out[p++] = value;
+        out[p++] = outputShape.length;
+        for (int value : outputShape) out[p++] = value;
+        return out;
     }
 
     private SignatureComponent conv2dBackwardInputSignature(conv2dBackwardInput op) {

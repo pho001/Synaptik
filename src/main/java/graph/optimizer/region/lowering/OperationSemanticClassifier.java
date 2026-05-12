@@ -28,7 +28,7 @@ public final class OperationSemanticClassifier {
                  POW, SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX,
                  SIGMOID, MATMUL, SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY ->
                     OperationSemanticLevel.PRIMITIVE;
-            case RESHAPE, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS, NOOP ->
+            case RESHAPE, EXPAND, SELECT, SLICE, CONCAT, PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS, NOOP ->
                     OperationSemanticLevel.LAYOUT;
             case LINEAR, LOG_SOFTMAX, SOFTMAX, LAYER_NORM, RMS_NORM ->
                     OperationSemanticLevel.CANONICAL_HIGH_LEVEL;
@@ -49,7 +49,7 @@ public final class OperationSemanticClassifier {
             case GATHER, TAKE_ALONG_AXIS, SCATTER_ADD ->
                     OperationSemanticLevel.BACKEND_FRIENDLY_HIGH_LEVEL;
             case FUSED -> OperationSemanticLevel.FUSED;
-            case CONST_SCALAR, UNKNOWN -> OperationSemanticLevel.UNKNOWN;
+            case CAST, CONST_SCALAR, UNKNOWN -> OperationSemanticLevel.UNKNOWN;
         };
     }
 }

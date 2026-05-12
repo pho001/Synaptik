@@ -1294,6 +1294,21 @@ public class Tensor {
         return TensorOps.squeeze(this, axis);
     }
 
+    public Tensor slice(int[] starts, int[] ends, int[] axes, int[] steps) {
+        return TensorOps.slice(this, starts, ends, axes, steps);
+    }
+
+    public Tensor cast(DataType targetType) {
+        return TensorOps.cast(this, targetType);
+    }
+
+    public static Tensor concat(int axis, Tensor... inputs) {
+        if (inputs == null) {
+            throw new IllegalArgumentException("concat inputs cannot be null");
+        }
+        return TensorOps.concat(axis, List.of(inputs));
+    }
+
     /**
      * Adds another tensor elementwise with broadcasting.
      *

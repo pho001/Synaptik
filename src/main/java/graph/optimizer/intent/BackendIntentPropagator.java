@@ -125,7 +125,7 @@ public final class BackendIntentPropagator {
 
     private static boolean isLayoutSupportProducer(Operation.OpType opType) {
         return switch (opType) {
-            case RESHAPE, CONTIGUOUS, PERMUTE, EXPAND, EXPAND_DIMS, SQUEEZE -> true;
+            case RESHAPE, CONTIGUOUS, PERMUTE, EXPAND, EXPAND_DIMS, SQUEEZE, SLICE -> true;
             default -> false;
         };
     }

@@ -46,7 +46,7 @@ public final class FusedAccessResolver {
             return false;
         }
         return switch (operation.opType()) {
-            case SELECT, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE -> true;
+            case SELECT, SLICE, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE -> true;
             default -> false;
         };
     }

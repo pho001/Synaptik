@@ -2,11 +2,13 @@ package tensor.ops.layout;
 
 import operations.Operation;
 import operations.layout.contiguous;
+import operations.layout.concat;
 import operations.layout.expand;
 import operations.layout.expandDims;
 import operations.layout.permute;
 import operations.layout.reshape;
 import operations.layout.squeeze;
+import operations.layout.slice;
 import tensor.Tensor;
 import tensor.TensorBroadcastOps;
 import tensor.TensorInternalAccess;
@@ -107,6 +109,64 @@ public final class TensorLayoutOps {
         return out;
     }
 
+    public static Tensor slice(Tensor input, int[] starts, int[] ends, int[] axes, int[] steps) {
+        if (input == null) {
+            throw new IllegalArgumentException("slice input cannot be null");
+        }
+        SliceSpec spec = normalizeSlice(input.getShapeUnsafe(), starts, ends, axes, steps);
+        int[] inputStrides = input.getStridesUnsafe();
+        int[] outStrides = inputStrides.clone();
+        int storageOffset = input.getStorageOffsetUnsafe();
+        for (int i = 0; i < spec.axes.length; i++) {
+            int axis = spec.axes[i];
+            storageOffset += spec.starts[i] * inputStrides[axis];
+            outStrides[axis] = inputStrides[axis] * spec.steps[i];
+        }
+        return TensorPrimitiveBuilder.unaryView(
+                input,
+                spec.outputShape,
+                outStrides,
+                storageOffset,
+                new slice(spec.starts, spec.ends, spec.axes, spec.steps, spec.outputShape),
+                "slice",
+                input.getDataType()
+        );
+    }
+
+    public static Tensor concat(int axis, List<Tensor> inputs) {
+        if (inputs == null || inputs.isEmpty()) {
+            throw new IllegalArgumentException("concat requires at least one input tensor.");
+        }
+        Tensor first = inputs.getFirst();
+        if (first == null) {
+            throw new IllegalArgumentException("concat inputs cannot contain null tensors.");
+        }
+        int rank = first.getShapeUnsafe().length;
+        int normalizedAxis = TensorLayoutTransform.normalizeAxis(axis, rank);
+        int[] outShape = first.getShape();
+        int concatSize = 0;
+        for (Tensor input : inputs) {
+            if (input == null) {
+                throw new IllegalArgumentException("concat inputs cannot contain null tensors.");
+            }
+            if (input.getDataType() != first.getDataType()) {
+                throw new IllegalArgumentException("concat inputs must have matching dtypes.");
+            }
+            int[] shape = input.getShapeUnsafe();
+            if (shape.length != rank) {
+                throw new IllegalArgumentException("concat inputs must have matching ranks.");
+            }
+            for (int d = 0; d < rank; d++) {
+                if (d != normalizedAxis && shape[d] != outShape[d]) {
+                    throw new IllegalArgumentException("concat input shapes must match outside the concat axis.");
+                }
+            }
+            concatSize += shape[normalizedAxis];
+        }
+        outShape[normalizedAxis] = concatSize;
+        return TensorPrimitiveBuilder.nary(outShape, List.copyOf(inputs), new concat(normalizedAxis), "concat", first.getDataType());
+    }
+
     /**
      * Reorders axes by returning a strided view.
      *
@@ -146,6 +206,66 @@ public final class TensorLayoutOps {
             LayoutSupport.accumulateGradient(input, outGrad.permute(inverse));
         });
         return out;
+    }
+
+    private static SliceSpec normalizeSlice(int[] inputShape, int[] starts, int[] ends, int[] axes, int[] steps) {
+        if (starts == null || ends == null) {
+            throw new IllegalArgumentException("slice starts and ends cannot be null.");
+        }
+        if (starts.length != ends.length) {
+            throw new IllegalArgumentException("slice starts and ends length mismatch.");
+        }
+        int count = starts.length;
+        int rank = inputShape.length;
+        int[] normalizedAxes = axes == null || axes.length == 0 ? defaultAxes(count) : axes.clone();
+        int[] normalizedSteps = steps == null || steps.length == 0 ? ones(count) : steps.clone();
+        if (normalizedAxes.length != count || normalizedSteps.length != count) {
+            throw new IllegalArgumentException("slice starts, ends, axes, and steps must have matching lengths.");
+        }
+        int[] outShape = inputShape.clone();
+        int[] normalizedStarts = new int[count];
+        int[] normalizedEnds = new int[count];
+        boolean[] seen = new boolean[rank];
+        for (int i = 0; i < count; i++) {
+            int axis = TensorLayoutTransform.normalizeAxis(normalizedAxes[i], rank);
+            if (seen[axis]) {
+                throw new IllegalArgumentException("slice axes cannot contain duplicates.");
+            }
+            seen[axis] = true;
+            int step = normalizedSteps[i];
+            if (step <= 0) {
+                throw new IllegalArgumentException("slice currently supports positive steps only.");
+            }
+            int dim = inputShape[axis];
+            int start = starts[i] < 0 ? starts[i] + dim : starts[i];
+            int end = ends[i] < 0 ? ends[i] + dim : ends[i];
+            start = Math.max(0, Math.min(start, dim));
+            end = Math.max(0, Math.min(end, dim));
+            int length = start >= end ? 0 : ((end - start + step - 1) / step);
+            normalizedAxes[i] = axis;
+            normalizedSteps[i] = step;
+            normalizedStarts[i] = start;
+            normalizedEnds[i] = end;
+            outShape[axis] = length;
+        }
+        return new SliceSpec(normalizedStarts, normalizedEnds, normalizedAxes, normalizedSteps, outShape);
+    }
+
+    private static int[] defaultAxes(int count) {
+        int[] out = new int[count];
+        for (int i = 0; i < count; i++) {
+            out[i] = i;
+        }
+        return out;
+    }
+
+    private static int[] ones(int count) {
+        int[] out = new int[count];
+        java.util.Arrays.fill(out, 1);
+        return out;
+    }
+
+    private record SliceSpec(int[] starts, int[] ends, int[] axes, int[] steps, int[] outputShape) {
     }
 
     /**

@@ -29,6 +29,7 @@ public final class CpuTypeContractResolver {
             case TAKE_ALONG_AXIS -> resolveTakeAlongAxisContract(inputs);
             case TAKE_ALONG_AXIS_GRAD -> resolveTakeAlongAxisGradContract(inputs);
             case SCATTER_ADD -> resolveScatterAddContract(inputs);
+            case CAST -> resolveCastContract(node, inputs);
             case SCALED_DOT_PRODUCT_ATTENTION -> resolveAttentionContract(inputs);
             case SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> resolveSameFloatingBinaryContract(inputs, "scaledDotProductAttentionBackward");
             case SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS -> resolveSingleFloatingInputContract(inputs, "scaledDotProductAttentionWeights");
@@ -58,6 +59,13 @@ public final class CpuTypeContractResolver {
         }
         DataType outputType = fused.getPlan().outputNode().outputType();
         return new PreparedTypeContract(outputType, List.copyOf(expectedInputTypes));
+    }
+
+    private static PreparedTypeContract resolveCastContract(Tensor node, List<Tensor> inputs) {
+        if (inputs == null || inputs.size() != 1) {
+            throw new IllegalArgumentException("cast expects exactly one input.");
+        }
+        return new PreparedTypeContract(node.getDataType(), List.of(inputs.getFirst().getDataType()));
     }
 
     private static PreparedTypeContract uniformTypeContract(DataType outputType, int arity) {

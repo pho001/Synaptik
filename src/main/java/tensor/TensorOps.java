@@ -4,6 +4,7 @@ import tensor.ops.binary.TensorBinaryOps;
 import tensor.ops.bool.TensorBoolOps;
 import tensor.ops.compare.TensorCompareOps;
 import tensor.ops.conv.TensorConvOps;
+import tensor.ops.dtype.TensorDTypeOps;
 import tensor.ops.index.TensorIndexOps;
 import tensor.ops.layout.TensorLayoutOps;
 import tensor.ops.linalg.TensorAttentionOps;
@@ -19,6 +20,8 @@ import tensor.loss.LossReduction;
 import tensor.options.AttentionOptions;
 import tensor.options.Conv2dOptions;
 import tensor.options.Pool2dOptions;
+
+import java.util.List;
 
 /**
  * Static facade for tensor operations.
@@ -54,6 +57,18 @@ public final class TensorOps {
 
     public static Tensor squeeze(Tensor input, int axis) {
         return TensorLayoutOps.squeeze(input, axis);
+    }
+
+    public static Tensor slice(Tensor input, int[] starts, int[] ends, int[] axes, int[] steps) {
+        return TensorLayoutOps.slice(input, starts, ends, axes, steps);
+    }
+
+    public static Tensor concat(int axis, List<Tensor> inputs) {
+        return TensorLayoutOps.concat(axis, inputs);
+    }
+
+    public static Tensor cast(Tensor input, DataType targetType) {
+        return TensorDTypeOps.cast(input, targetType);
     }
 
     public static Tensor add(Tensor first, Tensor second) {
