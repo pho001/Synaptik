@@ -71,6 +71,53 @@ class OnnxShapeBroadcastHardeningTest {
         assertTrue(expandEx.getMessage().contains("constant initializer or Constant node"));
     }
 
+    @Test
+    void dynamicStaticParameterInputsAreRejectedClearly() {
+        OnnxProto.ModelProto dynamicTile = model("dynamic_tile", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2, 3}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("repeats", DataType.INT32, new int[]{2}))
+                .addNode(nodeBuilder("tile", "Tile", "y", "x", "repeats").build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 3})));
+        OnnxProto.ModelProto dynamicReduceAxes = model("dynamic_reduce_axes", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2, 3}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("axes", DataType.INT32, new int[]{1}))
+                .addNode(nodeBuilder("reduce", "ReduceSum", "y", "x", "axes").build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2})));
+        OnnxProto.ModelProto dynamicSqueezeAxes = model("dynamic_squeeze_axes", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{1, 3}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("axes", DataType.INT32, new int[]{1}))
+                .addNode(nodeBuilder("squeeze", "Squeeze", "y", "x", "axes").build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{3})));
+        OnnxProto.ModelProto dynamicUnsqueezeAxes = model("dynamic_unsqueeze_axes", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{3}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("axes", DataType.INT32, new int[]{1}))
+                .addNode(nodeBuilder("unsqueeze", "Unsqueeze", "y", "x", "axes").build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{1, 3})));
+
+        assertStaticParameterRejected(dynamicTile);
+        assertStaticParameterRejected(dynamicReduceAxes);
+        assertStaticParameterRejected(dynamicSqueezeAxes);
+        assertStaticParameterRejected(dynamicUnsqueezeAxes);
+    }
+
+    @Test
+    void invalidBroadcastShapesAreRejectedAsOnnxUnsupported() {
+        OnnxProto.ModelProto model = model("invalid_broadcast", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("a", DataType.FLOAT32, new int[]{2, 3}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("b", DataType.FLOAT32, new int[]{2}))
+                .addNode(nodeBuilder("add", "Add", "y", "a", "b").build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 3})));
+
+        OnnxUnsupportedException ex = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(model));
+
+        assertTrue(ex.getMessage().contains("add"));
+    }
+
+    private static void assertStaticParameterRejected(OnnxProto.ModelProto model) {
+        OnnxUnsupportedException ex = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(model));
+        assertTrue(ex.getMessage().contains("constant initializer or Constant node"));
+    }
+
     private static OnnxProto.ModelProto model(String graphName, Consumer<OnnxProto.GraphProto.Builder> configure) {
         OnnxProto.GraphProto.Builder graph = OnnxProto.GraphProto.newBuilder().setName(graphName);
         configure.accept(graph);

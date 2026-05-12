@@ -40,10 +40,13 @@ import tensor.Tensor;
 import tensor.options.Conv2dOptions;
 import tensor.options.Pool2dOptions;
 
+import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 
 final class OnnxGraphExporter {
     private OnnxGraphExporter() {
@@ -60,11 +63,28 @@ final class OnnxGraphExporter {
             ids.put(graph.get(i), i);
             names.nameFor(graph.get(i), i);
         }
+        IdentityHashMap<Tensor, Integer> consumerCounts = consumerCounts(graph);
+        OnnxExportPatternContext patternContext = new OnnxExportPatternContext(output, consumerCounts, ids, names);
+        IdentityHashMap<Tensor, OnnxExportPatternMatch> patternMatches = new IdentityHashMap<>();
+        Set<Tensor> patternConsumed = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Tensor tensor : graph) {
+            if (tensor.getOperation() == null) {
+                continue;
+            }
+            Optional<OnnxExportPatternMatch> match = OnnxExportPatternRegistry.match(tensor, patternContext);
+            if (match.isPresent()) {
+                patternMatches.put(tensor, match.get());
+                patternConsumed.addAll(match.get().consumedTensors());
+            }
+        }
 
         OnnxProto.GraphProto.Builder graphBuilder = OnnxProto.GraphProto.newBuilder()
                 .setName(options.graphName());
         for (int i = 0; i < graph.size(); i++) {
             Tensor tensor = graph.get(i);
+            if (patternConsumed.contains(tensor)) {
+                continue;
+            }
             String name = names.nameFor(tensor, i);
             Operation op = tensor.getOperation();
             if (op == null) {
@@ -73,6 +93,11 @@ final class OnnxGraphExporter {
                 } else {
                     graphBuilder.addInitializer(OnnxTensorProtoUtil.tensorInitializer(name, tensor));
                 }
+                continue;
+            }
+            OnnxExportPatternMatch patternMatch = patternMatches.get(tensor);
+            if (patternMatch != null) {
+                graphBuilder.addNode(patternMatch.node());
                 continue;
             }
             graphBuilder.addNode(nodeFor(tensor, name, ids, names, graphBuilder, op));
@@ -99,6 +124,16 @@ final class OnnxGraphExporter {
             case INITIALIZERS -> false;
             case TRAINABLE_INPUTS -> tensor.getRequiresGrad();
         };
+    }
+
+    private static IdentityHashMap<Tensor, Integer> consumerCounts(List<Tensor> graph) {
+        IdentityHashMap<Tensor, Integer> counts = new IdentityHashMap<>();
+        for (Tensor tensor : graph) {
+            for (Tensor input : tensor.getPrevTensors()) {
+                counts.merge(input, 1, Integer::sum);
+            }
+        }
+        return counts;
     }
 
     private static OnnxProto.NodeProto nodeFor(

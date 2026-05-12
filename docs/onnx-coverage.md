@@ -5,11 +5,11 @@ Generated from `OnnxCoverageMatrix`; do not hand-edit status rows.
 ## Summary
 
 - Import: supported=78, partial=0, unsupported=1
-- Export: supported=61, partial=1, unsupported=17
+- Export: supported=65, partial=1, unsupported=13
 - CPU: supported=78, partial=0, unsupported=1
 - Metal: supported=50, partial=9, unsupported=20
 - CUDA: supported=34, partial=9, unsupported=36
-- Round-trip evidence: round_trip_tested=13, explicitly_classified=49, import_only_tested=16, rejection_tested=1, not_applicable=0
+- Round-trip evidence: round_trip_tested=17, explicitly_classified=49, import_only_tested=12, rejection_tested=1, not_applicable=0
 
 ## Matrix
 
@@ -25,10 +25,10 @@ Generated from `OnnxCoverageMatrix`; do not hand-edit status rows.
 | Neg | neg | supported | supported | supported | supported | supported | explicitly_classified | NEG |  |
 | Abs | abs | supported | supported | supported | supported | supported | explicitly_classified | ABS |  |
 | Relu | relu | supported | supported | supported | supported | supported | explicitly_classified | RELU |  |
-| LeakyRelu | where(x >= 0, x, alpha * x) | supported | unsupported | supported | partial | partial | import_only_tested | GE, WHERE, MUL | import-only composed lowering; no canonical LeakyRelu export recognizer |
-| Elu | where(x >= 0, x, alpha * (exp(x) - 1)) | supported | unsupported | supported | partial | partial | import_only_tested | GE, WHERE, EXP, SUB, MUL | import-only composed lowering; no canonical Elu export recognizer |
-| HardSigmoid | clip(alpha * x + beta, 0, 1) | supported | unsupported | supported | partial | partial | import_only_tested | MUL, ADD, CLAMP_MIN, CLAMP_MAX | import-only composed lowering; no canonical HardSigmoid export recognizer |
-| Softplus | log(exp(x) + 1) | supported | unsupported | supported | partial | partial | import_only_tested | EXP, ADD, LOG | import-only direct lowering; not numerically stabilized with thresholding yet |
+| LeakyRelu | where(x >= 0, x, alpha * x) | supported | supported | supported | partial | partial | round_trip_tested | GE, WHERE, MUL, MUL_SCALAR | canonical export recognizes the conservative where/ge/scale composition |
+| Elu | where(x >= 0, x, alpha * (exp(x) - 1)) | supported | supported | supported | partial | partial | round_trip_tested | GE, WHERE, EXP, SUB, MUL, MUL_SCALAR | canonical export recognizes the conservative where/ge/exp/sub/scale composition |
+| HardSigmoid | clip(alpha * x + beta, 0, 1) | supported | supported | supported | partial | partial | round_trip_tested | MUL, MUL_SCALAR, ADD, CLAMP_MIN, CLAMP_MAX | canonical export recognizes clampMin(clampMax(alpha*x + beta, 1), 0) |
+| Softplus | log(exp(x) + 1) | supported | supported | supported | partial | partial | round_trip_tested | EXP, ADD, LOG | canonical export recognizes log(exp(x) + 1); not numerically stabilized with thresholding yet |
 | Tanh | tanh | supported | supported | supported | supported | supported | explicitly_classified | TANH |  |
 | Sigmoid | sigmoid | supported | supported | supported | supported | supported | explicitly_classified | SIGMOID |  |
 | Exp | exp | supported | supported | supported | supported | supported | explicitly_classified | EXP |  |

@@ -188,11 +188,11 @@ final class OnnxGraphImporter {
             case "Flatten" -> flatten(node, tensors, attrs);
             case "Expand" -> expand(node, tensors, int64Constants, constantTensors);
             case "Pad" -> pad(node, tensors, int64Constants, constantTensors, attrs);
-            case "Tile" -> tile(node, tensors, int64Constants);
+            case "Tile" -> tile(node, tensors, int64Constants, constantTensors);
             case "ConstantOfShape" -> constantOfShape(node, tensors, int64Constants, constantTensors, attrs);
             case "Range" -> range(node, tensors, int64Constants, constantTensors);
-            case "Squeeze" -> squeeze(node, tensors, int64Constants, attrs);
-            case "Unsqueeze" -> unsqueeze(node, tensors, int64Constants, attrs);
+            case "Squeeze" -> squeeze(node, tensors, int64Constants, constantTensors, attrs);
+            case "Unsqueeze" -> unsqueeze(node, tensors, int64Constants, constantTensors, attrs);
             case "Slice" -> slice(node, tensors, int64Constants, constantTensors);
             case "Concat" -> concat(node, tensors, int64Constants, attrs);
             case "Shape" -> shape(node, tensors, int64Constants, attrs);
@@ -202,15 +202,15 @@ final class OnnxGraphImporter {
             case "GatherND" -> gatherNd(node, tensors, int64Constants, attrs);
             case "ScatterElements" -> scatterElements(node, tensors, int64Constants, attrs);
             case "ScatterND" -> scatterNd(node, tensors, int64Constants, attrs);
-            case "ReduceSum" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.SUM);
-            case "ReduceMean" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.MEAN);
-            case "ReduceMax" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.MAX);
-            case "ReduceMin" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.MIN);
-            case "ReduceProd" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.PROD);
-            case "ReduceL1" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.L1);
-            case "ReduceL2" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.L2);
-            case "ReduceLogSum" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.LOG_SUM);
-            case "ReduceLogSumExp" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.LOG_SUM_EXP);
+            case "ReduceSum" -> reduce(node, tensors, int64Constants, constantTensors, attrs, ReductionKind.SUM);
+            case "ReduceMean" -> reduce(node, tensors, int64Constants, constantTensors, attrs, ReductionKind.MEAN);
+            case "ReduceMax" -> reduce(node, tensors, int64Constants, constantTensors, attrs, ReductionKind.MAX);
+            case "ReduceMin" -> reduce(node, tensors, int64Constants, constantTensors, attrs, ReductionKind.MIN);
+            case "ReduceProd" -> reduce(node, tensors, int64Constants, constantTensors, attrs, ReductionKind.PROD);
+            case "ReduceL1" -> reduce(node, tensors, int64Constants, constantTensors, attrs, ReductionKind.L1);
+            case "ReduceL2" -> reduce(node, tensors, int64Constants, constantTensors, attrs, ReductionKind.L2);
+            case "ReduceLogSum" -> reduce(node, tensors, int64Constants, constantTensors, attrs, ReductionKind.LOG_SUM);
+            case "ReduceLogSumExp" -> reduce(node, tensors, int64Constants, constantTensors, attrs, ReductionKind.LOG_SUM_EXP);
             case "ArgMax" -> argMax(node, tensors, attrs);
             case "CumSum" -> cumSum(node, tensors, int64Constants, constantTensors, attrs);
             case "GlobalAveragePool" -> globalAveragePool(node, tensors);
@@ -583,10 +583,15 @@ final class OnnxGraphImporter {
         return TensorOps.pad(input, before, after, value);
     }
 
-    private static Tensor tile(OnnxProto.NodeProto node, Map<String, Tensor> tensors, Map<String, long[]> int64Constants) {
+    private static Tensor tile(
+            OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
+            Map<String, long[]> int64Constants,
+            Set<String> constantTensors
+    ) {
         requireInputCount(node, 2, 2);
         Tensor input = tensorInput(node, tensors, 0);
-        int[] repeats = toIntArray(intConstantInput(node, tensors, int64Constants, 1), node, "repeats");
+        int[] repeats = staticIntVectorInput(node, tensors, int64Constants, constantTensors, 1, "repeats");
         if (repeats.length != input.getShapeUnsafe().length) {
             throw unsupported(node, "Tile repeats length must match input rank");
         }
@@ -809,6 +814,7 @@ final class OnnxGraphImporter {
             OnnxProto.NodeProto node,
             Map<String, Tensor> tensors,
             Map<String, long[]> int64Constants,
+            Set<String> constantTensors,
             OnnxAttributeReader attrs
     ) {
         requireInputCount(node, 1, 2);
@@ -818,7 +824,7 @@ final class OnnxGraphImporter {
             return null;
         }
         Tensor input = tensorInput(node, tensors, 0);
-        int[] axes = axes(node, tensors, int64Constants, attrs);
+        int[] axes = axes(node, tensors, int64Constants, constantTensors, attrs);
         if (axes.length == 0) {
             axes = singletonAxes(input);
         } else {
@@ -836,6 +842,7 @@ final class OnnxGraphImporter {
             OnnxProto.NodeProto node,
             Map<String, Tensor> tensors,
             Map<String, long[]> int64Constants,
+            Set<String> constantTensors,
             OnnxAttributeReader attrs
     ) {
         requireInputCount(node, 1, 2);
@@ -845,7 +852,7 @@ final class OnnxGraphImporter {
             return null;
         }
         Tensor input = tensorInput(node, tensors, 0);
-        int[] rawAxes = axes(node, tensors, int64Constants, attrs);
+        int[] rawAxes = axes(node, tensors, int64Constants, constantTensors, attrs);
         if (rawAxes.length == 0) {
             throw unsupported(node, "Unsqueeze requires at least one axis");
         }
@@ -1139,6 +1146,7 @@ final class OnnxGraphImporter {
             OnnxProto.NodeProto node,
             Map<String, Tensor> tensors,
             Map<String, long[]> int64Constants,
+            Set<String> constantTensors,
             OnnxAttributeReader attrs,
             ReductionKind kind
     ) {
@@ -1153,7 +1161,7 @@ final class OnnxGraphImporter {
         }
         boolean keepDims = attrs.intAttribute("keepdims", 1) != 0;
         int[] axes = node.getInputCount() >= 2 && !node.getInput(1).isBlank()
-                ? toIntArray(intConstantInput(node, tensors, int64Constants, 1), node, "axes")
+                ? staticIntVectorInput(node, tensors, int64Constants, constantTensors, 1, "axes")
                 : allAxes(out);
         axes = normalizeAxes(axes, out.getShapeUnsafe().length, node, "axes");
         Arrays.sort(axes);
@@ -1242,12 +1250,20 @@ final class OnnxGraphImporter {
 
     private static Tensor binary(OnnxProto.NodeProto node, Map<String, Tensor> tensors, BinaryOp op) {
         requireInputCount(node, 2, 2);
-        return op.apply(tensorInput(node, tensors, 0), tensorInput(node, tensors, 1));
+        try {
+            return op.apply(tensorInput(node, tensors, 0), tensorInput(node, tensors, 1));
+        } catch (IllegalArgumentException e) {
+            throw unsupported(node, e.getMessage());
+        }
     }
 
     private static Tensor ternary(OnnxProto.NodeProto node, Map<String, Tensor> tensors, TernaryOp op) {
         requireInputCount(node, 3, 3);
-        return op.apply(tensorInput(node, tensors, 0), tensorInput(node, tensors, 1), tensorInput(node, tensors, 2));
+        try {
+            return op.apply(tensorInput(node, tensors, 0), tensorInput(node, tensors, 1), tensorInput(node, tensors, 2));
+        } catch (IllegalArgumentException e) {
+            throw unsupported(node, e.getMessage());
+        }
     }
 
     private static Tensor tensorInput(OnnxProto.NodeProto node, Map<String, Tensor> tensors, int index) {
@@ -1256,29 +1272,6 @@ final class OnnxGraphImporter {
             throw unsupported(node, "input '" + node.getInput(index) + "' is missing or is not a tensor");
         }
         return tensor;
-    }
-
-    private static long[] intConstantInput(
-            OnnxProto.NodeProto node,
-            Map<String, Tensor> tensors,
-            Map<String, long[]> int64Constants,
-            int index
-    ) {
-        String name = node.getInput(index);
-        long[] int64 = int64Constants.get(name);
-        if (int64 != null) {
-            return int64;
-        }
-        Tensor tensor = tensors.get(name);
-        if (tensor != null && tensor.getDataType() == DataType.INT32) {
-            int[] values = tensor.getInt32Data();
-            long[] out = new long[values.length];
-            for (int i = 0; i < values.length; i++) {
-                out[i] = values[i];
-            }
-            return out;
-        }
-        throw unsupported(node, "input '" + name + "' must be an INT64/INT32 constant");
     }
 
     private static long[] intConstantInput(
@@ -1340,13 +1333,25 @@ final class OnnxGraphImporter {
             OnnxProto.NodeProto node,
             Map<String, Tensor> tensors,
             Map<String, long[]> int64Constants,
+            Set<String> constantTensors,
             OnnxAttributeReader attrs
     ) {
         if (node.getInputCount() >= 2 && !node.getInput(1).isBlank()) {
-            return toIntArray(intConstantInput(node, tensors, int64Constants, 1), node, "axes");
+            return staticIntVectorInput(node, tensors, int64Constants, constantTensors, 1, "axes");
         }
         int[] attrAxes = attrs.intsAttribute("axes");
         return attrAxes == null ? new int[0] : attrAxes;
+    }
+
+    private static int[] staticIntVectorInput(
+            OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
+            Map<String, long[]> int64Constants,
+            Set<String> constantTensors,
+            int index,
+            String role
+    ) {
+        return toIntArray(intConstantInput(node, tensors, int64Constants, constantTensors, index), node, role);
     }
 
     private static int[] singletonAxes(Tensor input) {

@@ -89,18 +89,18 @@ public final class OnnxCoverageMatrix {
         addUnary(out, "Neg", Operation.OpType.NEG);
         addUnary(out, "Abs", Operation.OpType.ABS);
         addUnary(out, "Relu", Operation.OpType.RELU);
-        add(out, "LeakyRelu", "where(x >= 0, x, alpha * x)", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+        add(out, "LeakyRelu", "where(x >= 0, x, alpha * x)", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, CoverageStatus.PARTIAL, CoverageStatus.PARTIAL,
-                "import-only composed lowering; no canonical LeakyRelu export recognizer", Operation.OpType.GE, Operation.OpType.WHERE, Operation.OpType.MUL);
-        add(out, "Elu", "where(x >= 0, x, alpha * (exp(x) - 1))", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+                "canonical export recognizes the conservative where/ge/scale composition", Operation.OpType.GE, Operation.OpType.WHERE, Operation.OpType.MUL, Operation.OpType.MUL_SCALAR);
+        add(out, "Elu", "where(x >= 0, x, alpha * (exp(x) - 1))", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, CoverageStatus.PARTIAL, CoverageStatus.PARTIAL,
-                "import-only composed lowering; no canonical Elu export recognizer", Operation.OpType.GE, Operation.OpType.WHERE, Operation.OpType.EXP, Operation.OpType.SUB, Operation.OpType.MUL);
-        add(out, "HardSigmoid", "clip(alpha * x + beta, 0, 1)", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+                "canonical export recognizes the conservative where/ge/exp/sub/scale composition", Operation.OpType.GE, Operation.OpType.WHERE, Operation.OpType.EXP, Operation.OpType.SUB, Operation.OpType.MUL, Operation.OpType.MUL_SCALAR);
+        add(out, "HardSigmoid", "clip(alpha * x + beta, 0, 1)", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, CoverageStatus.PARTIAL, CoverageStatus.PARTIAL,
-                "import-only composed lowering; no canonical HardSigmoid export recognizer", Operation.OpType.MUL, Operation.OpType.ADD, Operation.OpType.CLAMP_MIN, Operation.OpType.CLAMP_MAX);
-        add(out, "Softplus", "log(exp(x) + 1)", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+                "canonical export recognizes clampMin(clampMax(alpha*x + beta, 1), 0)", Operation.OpType.MUL, Operation.OpType.MUL_SCALAR, Operation.OpType.ADD, Operation.OpType.CLAMP_MIN, Operation.OpType.CLAMP_MAX);
+        add(out, "Softplus", "log(exp(x) + 1)", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, CoverageStatus.PARTIAL, CoverageStatus.PARTIAL,
-                "import-only direct lowering; not numerically stabilized with thresholding yet", Operation.OpType.EXP, Operation.OpType.ADD, Operation.OpType.LOG);
+                "canonical export recognizes log(exp(x) + 1); not numerically stabilized with thresholding yet", Operation.OpType.EXP, Operation.OpType.ADD, Operation.OpType.LOG);
         addUnary(out, "Tanh", Operation.OpType.TANH);
         addUnary(out, "Sigmoid", Operation.OpType.SIGMOID);
         addUnary(out, "Exp", Operation.OpType.EXP);
@@ -323,7 +323,8 @@ public final class OnnxCoverageMatrix {
         return switch (onnxOp) {
             case "Add", "MatMul", "Conv", "LayerNormalization",
                  "GatherElements", "GatherND", "ScatterElements", "ScatterND",
-                 "Reciprocal", "Erf", "Floor", "Ceil", "Sign" -> true;
+                 "Reciprocal", "Erf", "Floor", "Ceil", "Sign",
+                 "LeakyRelu", "Elu", "HardSigmoid", "Softplus" -> true;
             default -> false;
         };
     }
