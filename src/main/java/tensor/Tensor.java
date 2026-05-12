@@ -1299,6 +1299,14 @@ public class Tensor {
         return TensorOps.slice(this, starts, ends, axes, steps);
     }
 
+    public Tensor pad(int[] before, int[] after, double constantValue) {
+        return TensorOps.pad(this, before, after, constantValue);
+    }
+
+    public Tensor tile(int... repeats) {
+        return TensorOps.tile(this, repeats);
+    }
+
     public Tensor cast(DataType targetType) {
         return TensorOps.cast(this, targetType);
     }
@@ -1962,6 +1970,26 @@ public class Tensor {
      */
     public Tensor mean() {
         return TensorOps.meanAll(this);
+    }
+
+    public Tensor prod(int dimension) {
+        return TensorOps.prod(this, dimension);
+    }
+
+    public Tensor prod(int dimension, boolean keepDims) {
+        return TensorOps.prod(this, dimension, keepDims);
+    }
+
+    public Tensor prod() {
+        return TensorOps.prodAll(this);
+    }
+
+    public Tensor argMax(int dimension) {
+        return TensorOps.argMax(this, dimension);
+    }
+
+    public Tensor argMax(int dimension, boolean keepDims) {
+        return TensorOps.argMax(this, dimension, keepDims);
     }
 
     /**

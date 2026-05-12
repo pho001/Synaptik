@@ -26,9 +26,9 @@ public final class OperationSemanticClassifier {
                  LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT, WHERE,
                  NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH,
                  POW, SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX,
-                 SIGMOID, MATMUL, SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY ->
+                 SIGMOID, MATMUL, SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_PROD, ARGMAX, REDUCE_ALL, REDUCE_ANY ->
                     OperationSemanticLevel.PRIMITIVE;
-            case RESHAPE, EXPAND, SELECT, SLICE, CONCAT, PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS, NOOP ->
+            case RESHAPE, EXPAND, SELECT, SLICE, CONCAT, PAD, TILE, PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS, NOOP ->
                     OperationSemanticLevel.LAYOUT;
             case LINEAR, LOG_SOFTMAX, SOFTMAX, LAYER_NORM, RMS_NORM ->
                     OperationSemanticLevel.CANONICAL_HIGH_LEVEL;

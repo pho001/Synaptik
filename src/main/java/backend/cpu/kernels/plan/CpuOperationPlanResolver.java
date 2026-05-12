@@ -72,7 +72,7 @@ final class CpuOperationPlanResolver {
             return false;
         }
         return switch (op.opType()) {
-            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY,
+            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_PROD, ARGMAX, REDUCE_ALL, REDUCE_ANY,
                     SOFTMAX, SOFTMAX_GRAD, LOG_SOFTMAX, LOG_SOFTMAX_GRAD,
                     NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD -> true;
             default -> false;

@@ -24,8 +24,8 @@ final class OnnxGraphImporter {
             "Where", "Identity", "Clip", "Cast",
             "MatMul", "Gemm",
             "Conv", "MaxPool", "AveragePool", "LayerNormalization", "BatchNormalization",
-            "Transpose", "Reshape", "Flatten", "Expand", "Squeeze", "Unsqueeze", "Slice", "Concat", "Shape", "Size", "Gather", "GatherElements", "GatherND", "ScatterElements", "ScatterND",
-            "ReduceSum", "ReduceMean", "ReduceMax", "ReduceMin",
+            "Transpose", "Reshape", "Flatten", "Expand", "Pad", "Tile", "Squeeze", "Unsqueeze", "Slice", "Concat", "Split", "Shape", "Size", "Gather", "GatherElements", "GatherND", "ScatterElements", "ScatterND",
+            "ReduceSum", "ReduceMean", "ReduceMax", "ReduceMin", "ReduceProd", "ArgMax", "GlobalAveragePool",
             "Softmax", "LogSoftmax",
             "Constant"
     );
@@ -125,11 +125,15 @@ final class OnnxGraphImporter {
         if (!SUPPORTED_OPS.contains(node.getOpType())) {
             throw unsupported(node, "unsupported op type");
         }
+        OnnxAttributeReader attrs = new OnnxAttributeReader(node);
+        if (node.getOpType().equals("Split")) {
+            split(node, tensors, int64Constants, constantTensors, attrs);
+            return;
+        }
         if (node.getOutputCount() != 1) {
             throw unsupported(node, "only single-output nodes are supported");
         }
 
-        OnnxAttributeReader attrs = new OnnxAttributeReader(node);
         Tensor out = switch (node.getOpType()) {
             case "Add" -> binary(node, tensors, TensorOps::add);
             case "Sub" -> binary(node, tensors, TensorOps::sub);
@@ -169,6 +173,8 @@ final class OnnxGraphImporter {
             case "Reshape" -> reshape(node, tensors, int64Constants);
             case "Flatten" -> flatten(node, tensors, attrs);
             case "Expand" -> expand(node, tensors, int64Constants);
+            case "Pad" -> pad(node, tensors, int64Constants, constantTensors, attrs);
+            case "Tile" -> tile(node, tensors, int64Constants);
             case "Squeeze" -> squeeze(node, tensors, int64Constants, attrs);
             case "Unsqueeze" -> unsqueeze(node, tensors, int64Constants, attrs);
             case "Slice" -> slice(node, tensors, int64Constants, constantTensors);
@@ -184,6 +190,9 @@ final class OnnxGraphImporter {
             case "ReduceMean" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.MEAN);
             case "ReduceMax" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.MAX);
             case "ReduceMin" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.MIN);
+            case "ReduceProd" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.PROD);
+            case "ArgMax" -> argMax(node, tensors, attrs);
+            case "GlobalAveragePool" -> globalAveragePool(node, tensors);
             case "Softmax" -> unaryAxis(node, tensors, attrs, TensorOps::softmax);
             case "LogSoftmax" -> unaryAxis(node, tensors, attrs, TensorOps::logSoftmax);
             case "Constant" -> constant(node, attrs, int64Constants, constantTensors);
@@ -469,6 +478,55 @@ final class OnnxGraphImporter {
         return tensorInput(node, tensors, 0).expand(toIntArray(intConstantInput(node, tensors, int64Constants, 1), node, "shape"));
     }
 
+    private static Tensor pad(
+            OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
+            Map<String, long[]> int64Constants,
+            Set<String> constantTensors,
+            OnnxAttributeReader attrs
+    ) {
+        requireInputCount(node, 2, 3);
+        String mode = attrs.stringAttribute("mode", "constant");
+        if (!mode.equals("constant")) {
+            throw unsupported(node, "Pad supports only mode='constant'");
+        }
+        Tensor input = tensorInput(node, tensors, 0);
+        int rank = input.getShapeUnsafe().length;
+        long[] padsRaw = intConstantInput(node, tensors, int64Constants, constantTensors, 1);
+        if (padsRaw.length != rank * 2) {
+            throw unsupported(node, "Pad pads length must be 2 * input rank");
+        }
+        int[] before = new int[rank];
+        int[] after = new int[rank];
+        for (int i = 0; i < rank; i++) {
+            before[i] = Math.toIntExact(padsRaw[i]);
+            after[i] = Math.toIntExact(padsRaw[i + rank]);
+            if (before[i] < 0 || after[i] < 0) {
+                throw unsupported(node, "Pad supports non-negative pads only");
+            }
+        }
+        double value = 0.0d;
+        if (node.getInputCount() >= 3 && !node.getInput(2).isBlank()) {
+            value = scalarConstantInput(node, tensors, int64Constants, constantTensors, 2);
+        }
+        return TensorOps.pad(input, before, after, value);
+    }
+
+    private static Tensor tile(OnnxProto.NodeProto node, Map<String, Tensor> tensors, Map<String, long[]> int64Constants) {
+        requireInputCount(node, 2, 2);
+        Tensor input = tensorInput(node, tensors, 0);
+        int[] repeats = toIntArray(intConstantInput(node, tensors, int64Constants, 1), node, "repeats");
+        if (repeats.length != input.getShapeUnsafe().length) {
+            throw unsupported(node, "Tile repeats length must match input rank");
+        }
+        for (int repeat : repeats) {
+            if (repeat <= 0) {
+                throw unsupported(node, "Tile repeats must be positive");
+            }
+        }
+        return TensorOps.tile(input, repeats);
+    }
+
     private static Tensor squeeze(
             OnnxProto.NodeProto node,
             Map<String, Tensor> tensors,
@@ -593,6 +651,76 @@ final class OnnxGraphImporter {
             inputs.add(tensors.get(input));
         }
         return TensorOps.concat(axis, inputs);
+    }
+
+    private static void split(
+            OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
+            Map<String, long[]> int64Constants,
+            Set<String> constantTensors,
+            OnnxAttributeReader attrs
+    ) {
+        requireInputCount(node, 1, 2);
+        if (node.getOutputCount() < 1) {
+            throw unsupported(node, "Split requires at least one output");
+        }
+        Tensor input = tensorInput(node, tensors, 0);
+        int rank = input.getShapeUnsafe().length;
+        int axis = attrs.intAttribute("axis", 0);
+        axis = axis < 0 ? axis + rank : axis;
+        if (axis < 0 || axis >= rank) {
+            throw unsupported(node, "Split axis out of range for rank " + rank + ": " + attrs.intAttribute("axis", 0));
+        }
+        int[] splitSizes = splitSizes(node, tensors, int64Constants, constantTensors, attrs, input.getShapeUnsafe()[axis]);
+        if (splitSizes.length != node.getOutputCount()) {
+            throw unsupported(node, "Split size count must match output count");
+        }
+        int total = 0;
+        for (int size : splitSizes) {
+            if (size <= 0) {
+                throw unsupported(node, "Split sizes must be positive");
+            }
+            total += size;
+        }
+        if (total != input.getShapeUnsafe()[axis]) {
+            throw unsupported(node, "Split sizes must sum to the selected input dimension");
+        }
+        int offset = 0;
+        for (int i = 0; i < node.getOutputCount(); i++) {
+            int[] starts = new int[rank];
+            int[] ends = input.getShape();
+            int[] axes = allAxes(rank);
+            int[] steps = ones(rank);
+            starts[axis] = offset;
+            ends[axis] = offset + splitSizes[i];
+            Tensor part = TensorOps.slice(input, starts, ends, axes, steps);
+            part.setLabel(node.getOutput(i));
+            tensors.put(node.getOutput(i), part);
+            offset += splitSizes[i];
+        }
+    }
+
+    private static int[] splitSizes(
+            OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
+            Map<String, long[]> int64Constants,
+            Set<String> constantTensors,
+            OnnxAttributeReader attrs,
+            int axisSize
+    ) {
+        if (node.getInputCount() >= 2 && !node.getInput(1).isBlank()) {
+            return toIntArray(intConstantInput(node, tensors, int64Constants, constantTensors, 1), node, "split");
+        }
+        int[] attrSplit = attrs.intsAttribute("split");
+        if (attrSplit != null) {
+            return attrSplit;
+        }
+        if (axisSize % node.getOutputCount() != 0) {
+            throw unsupported(node, "Split without explicit sizes requires equal divisibility");
+        }
+        int[] out = new int[node.getOutputCount()];
+        Arrays.fill(out, axisSize / node.getOutputCount());
+        return out;
     }
 
     private static Tensor shape(
@@ -762,7 +890,29 @@ final class OnnxGraphImporter {
             case MEAN -> input.mean(axis, keepDims);
             case MAX -> input.max(axis, keepDims);
             case MIN -> input.min(axis, keepDims);
+            case PROD -> input.prod(axis, keepDims);
         };
+    }
+
+    private static Tensor argMax(OnnxProto.NodeProto node, Map<String, Tensor> tensors, OnnxAttributeReader attrs) {
+        requireInputCount(node, 1, 1);
+        if (attrs.intAttribute("select_last_index", 0) != 0) {
+            throw unsupported(node, "ArgMax select_last_index=1 is not supported; first-index tie semantics are used");
+        }
+        return tensorInput(node, tensors, 0).argMax(attrs.intAttribute("axis", 0), attrs.intAttribute("keepdims", 1) != 0);
+    }
+
+    private static Tensor globalAveragePool(OnnxProto.NodeProto node, Map<String, Tensor> tensors) {
+        requireInputCount(node, 1, 1);
+        Tensor out = tensorInput(node, tensors, 0);
+        int rank = out.getShapeUnsafe().length;
+        if (rank < 3) {
+            throw unsupported(node, "GlobalAveragePool requires rank >= 3 with N,C plus spatial axes");
+        }
+        for (int axis = 2; axis < rank; axis++) {
+            out = out.mean(axis, true);
+        }
+        return out;
     }
 
     private static Tensor unaryAxis(
@@ -908,6 +1058,14 @@ final class OnnxGraphImporter {
 
     private static int[] allAxes(Tensor input) {
         int[] axes = new int[input.getShapeUnsafe().length];
+        for (int i = 0; i < axes.length; i++) {
+            axes[i] = i;
+        }
+        return axes;
+    }
+
+    private static int[] allAxes(int rank) {
+        int[] axes = new int[rank];
         for (int i = 0; i < axes.length; i++) {
             axes[i] = i;
         }
@@ -1061,6 +1219,12 @@ final class OnnxGraphImporter {
         return out;
     }
 
+    private static int[] ones(int count) {
+        int[] out = new int[count];
+        Arrays.fill(out, 1);
+        return out;
+    }
+
     private static int saturatingInt(long value) {
         if (value > Integer.MAX_VALUE) {
             return Integer.MAX_VALUE;
@@ -1098,7 +1262,8 @@ final class OnnxGraphImporter {
         SUM,
         MEAN,
         MAX,
-        MIN
+        MIN,
+        PROD
     }
 
     @FunctionalInterface

@@ -15,10 +15,12 @@ import operations.index.takeAlongAxis;
 import operations.layout.concat;
 import operations.layout.expandDims;
 import operations.layout.expand;
+import operations.layout.pad;
 import operations.layout.permute;
 import operations.layout.reshape;
 import operations.layout.squeeze;
 import operations.layout.slice;
+import operations.layout.tile;
 import operations.linalg.linear;
 import operations.nn.conv.conv2d;
 import operations.nn.pool.avgPool2d;
@@ -26,8 +28,10 @@ import operations.nn.pool.maxPool2d;
 import operations.normalization.layerNorm;
 import operations.reduction.logSoftmax;
 import operations.reduction.mean;
+import operations.reduction.argMax;
 import operations.reduction.reduceMax;
 import operations.reduction.reduceMin;
+import operations.reduction.reduceProd;
 import operations.reduction.softmax;
 import operations.reduction.sum;
 import tensor.DataType;
@@ -150,6 +154,8 @@ final class OnnxGraphExporter {
             case EXPAND -> exportExpand(node, op, names, graphBuilder);
             case SLICE -> exportSlice(node, op, names, graphBuilder);
             case CONCAT -> exportConcat(node, op);
+            case PAD -> exportPad(node, op, tensor, names, graphBuilder);
+            case TILE -> exportTile(node, op, names, graphBuilder);
             case CAST -> exportCast(node, op);
             case GATHER_AXIS -> exportGatherAxis(node, op);
             case GATHER_ND -> exportGatherNd(node, op);
@@ -162,6 +168,8 @@ final class OnnxGraphExporter {
             case MEAN -> exportReduction(node, "ReduceMean", ((mean) op).getDimension(), ((mean) op).keepDims(), names, graphBuilder);
             case REDUCE_MAX -> exportReduction(node, "ReduceMax", ((reduceMax) op).getDimension(), ((reduceMax) op).keepDims(), names, graphBuilder);
             case REDUCE_MIN -> exportReduction(node, "ReduceMin", ((reduceMin) op).getDimension(), ((reduceMin) op).keepDims(), names, graphBuilder);
+            case REDUCE_PROD -> exportReduction(node, "ReduceProd", ((reduceProd) op).getDimension(), ((reduceProd) op).keepDims(), names, graphBuilder);
+            case ARGMAX -> exportArgMax(node, op);
             case SOFTMAX -> exportAxisOp(node, "Softmax", ((softmax) op).getDimension());
             case LOG_SOFTMAX -> exportAxisOp(node, "LogSoftmax", ((logSoftmax) op).getDimension());
             case MUL_SCALAR -> exportMulScalar(node, op, tensor, names, graphBuilder);
@@ -293,6 +301,37 @@ final class OnnxGraphExporter {
                 .addAttribute(intAttr("axis", ((concat) op).getAxis()));
     }
 
+    private static void exportPad(
+            OnnxProto.NodeProto.Builder node,
+            Operation op,
+            Tensor tensor,
+            OnnxNameRegistry names,
+            OnnxProto.GraphProto.Builder graphBuilder
+    ) {
+        pad pad = (pad) op;
+        node.setOpType("Pad");
+        String padsName = names.auxiliary(node.getOutput(0) + "_pads");
+        graphBuilder.addInitializer(OnnxTensorProtoUtil.int64Initializer(padsName, concatLong(pad.getBefore(), pad.getAfter())));
+        node.addInput(padsName);
+        if (pad.getConstantValue() != 0.0d) {
+            String valueName = names.auxiliary(node.getOutput(0) + "_constant_value");
+            graphBuilder.addInitializer(scalarInitializer(valueName, pad.getConstantValue(), tensor.getDataType()));
+            node.addInput(valueName);
+        }
+    }
+
+    private static void exportTile(
+            OnnxProto.NodeProto.Builder node,
+            Operation op,
+            OnnxNameRegistry names,
+            OnnxProto.GraphProto.Builder graphBuilder
+    ) {
+        node.setOpType("Tile");
+        String repeatsName = names.auxiliary(node.getOutput(0) + "_repeats");
+        graphBuilder.addInitializer(OnnxTensorProtoUtil.int64Initializer(repeatsName, toLong(((tile) op).getRepeats())));
+        node.addInput(repeatsName);
+    }
+
     private static void exportCast(OnnxProto.NodeProto.Builder node, Operation op) {
         node.setOpType("Cast")
                 .addAttribute(intAttr("to", OnnxDataTypes.toOnnx(((cast) op).getTargetType())));
@@ -379,6 +418,14 @@ final class OnnxGraphExporter {
     private static void exportAxisOp(OnnxProto.NodeProto.Builder node, String opType, int axis) {
         node.setOpType(opType)
                 .addAttribute(intAttr("axis", axis));
+    }
+
+    private static void exportArgMax(OnnxProto.NodeProto.Builder node, Operation op) {
+        argMax argMax = (argMax) op;
+        node.setOpType("ArgMax")
+                .addAttribute(intAttr("axis", argMax.getDimension()))
+                .addAttribute(intAttr("keepdims", argMax.keepDims() ? 1 : 0))
+                .addAttribute(intAttr("select_last_index", 0));
     }
 
     private static void exportMulScalar(
@@ -480,6 +527,17 @@ final class OnnxGraphExporter {
         long[] out = new long[values.length];
         for (int i = 0; i < values.length; i++) {
             out[i] = values[i];
+        }
+        return out;
+    }
+
+    private static long[] concatLong(int[] first, int[] second) {
+        long[] out = new long[first.length + second.length];
+        for (int i = 0; i < first.length; i++) {
+            out[i] = first[i];
+        }
+        for (int i = 0; i < second.length; i++) {
+            out[first.length + i] = second[i];
         }
         return out;
     }

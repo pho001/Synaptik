@@ -427,6 +427,13 @@ class OnnxExportImportTest {
         assertEquals("Cast", singleNode(x.cast(DataType.FLOAT64)).getOpType());
         assertEquals("Slice", singleNode(x.slice(new int[]{0, 1}, new int[]{2, 3}, new int[]{0, 1}, new int[]{1, 1})).getOpType());
         assertEquals("Concat", singleNode(Tensor.concat(0, x, y)).getOpType());
+        assertEquals("Pad", singleNode(x.pad(new int[]{1, 0}, new int[]{0, 1}, -1.0)).getOpType());
+        assertEquals("Tile", singleNode(x.tile(2, 1)).getOpType());
+        assertEquals("ReduceProd", singleNode(x.prod(1, true)).getOpType());
+        OnnxProto.NodeProto argMax = singleNode(x.argMax(1, false));
+        assertEquals("ArgMax", argMax.getOpType());
+        assertTrue(argMax.getAttributeList().stream()
+                .anyMatch(attr -> attr.getName().equals("select_last_index") && attr.getI() == 0));
         assertEquals("Expand", singleNode(new Tensor(new float[]{1f, 2f, 3f}, new int[]{1, 3}, null, "row", DataType.FLOAT32)
                 .expand(2, 3)).getOpType());
         assertEquals("Gather", singleNode(x.gatherAxis(new Tensor(new int[]{2, 0}, new int[]{2}, null, "idx", DataType.INT32), 1)).getOpType());
@@ -618,6 +625,72 @@ class OnnxExportImportTest {
                 .getMessage().contains("ceil_mode"));
         assertTrue(assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(trainingBatchNorm))
                 .getMessage().contains("training_mode"));
+    }
+
+    @Test
+    void importStaticInferenceBreadthWave2Executes() {
+        OnnxProto.ModelProto model = model("breadth_wave_2", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("pad_x", DataType.FLOAT32, new int[]{2, 2}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("tile_x", DataType.FLOAT32, new int[]{2, 2}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("reduce_x", DataType.FLOAT32, new int[]{2, 3}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("arg_x", DataType.FLOAT32, new int[]{2, 3}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("pool_x", DataType.FLOAT32, new int[]{1, 2, 2, 2}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("split_x", DataType.FLOAT32, new int[]{2, 4}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("pads", new long[]{1, 0, 0, 1}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("pad_value", Tensor.scalar(-1.0, DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("repeats", new long[]{2, 3}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("axes", new long[]{1}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("split_sizes", new long[]{1, 3}))
+                .addNode(nodeBuilder("pad", "Pad", "pad_y", "pad_x", "pads", "pad_value").build())
+                .addNode(node("tile", "Tile", "tile_y", "tile_x", "repeats"))
+                .addNode(nodeBuilder("reduce_prod", "ReduceProd", "prod_y", "reduce_x", "axes")
+                        .addAttribute(intAttr("keepdims", 0))
+                        .build())
+                .addNode(nodeBuilder("argmax", "ArgMax", "arg_y", "arg_x")
+                        .addAttribute(intAttr("axis", 1))
+                        .addAttribute(intAttr("keepdims", 1))
+                        .build())
+                .addNode(node("global_avg_pool", "GlobalAveragePool", "pool_y", "pool_x"))
+                .addNode(nodeBuilder("split", "Split", "split_a", "split_x", "split_sizes")
+                        .addOutput("split_b")
+                        .addAttribute(intAttr("axis", 1))
+                        .build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("pad_y", DataType.FLOAT32, new int[]{3, 3}))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("tile_y", DataType.FLOAT32, new int[]{4, 6}))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("prod_y", DataType.FLOAT32, new int[]{2}))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("arg_y", DataType.INT32, new int[]{2, 1}))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("pool_y", DataType.FLOAT32, new int[]{1, 2, 1, 1}))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("split_a", DataType.FLOAT32, new int[]{2, 1}))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("split_b", DataType.FLOAT32, new int[]{2, 3})));
+
+        ImportedOnnxModel imported = Onnx.importModel(model);
+        imported.input("pad_x").setData(new float[]{1f, 2f, 3f, 4f});
+        imported.input("tile_x").setData(new float[]{1f, 2f, 3f, 4f});
+        imported.input("reduce_x").setData(new float[]{1f, 2f, 3f, 4f, 5f, 6f});
+        imported.input("arg_x").setData(new float[]{1f, 4f, 4f, 7f, 6f, 7f});
+        imported.input("pool_x").setData(new float[]{1f, 2f, 3f, 4f, 10f, 20f, 30f, 40f});
+        imported.input("split_x").setData(new float[]{1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f});
+
+        execute(imported, "pad_y");
+        assertArrayEquals(new double[]{-1, -1, -1, 1, 2, -1, 3, 4, -1}, imported.output("pad_y").toDoubleArrayCopy(), 1e-6);
+        execute(imported, "tile_y");
+        assertArrayEquals(new double[]{
+                1, 2, 1, 2, 1, 2,
+                3, 4, 3, 4, 3, 4,
+                1, 2, 1, 2, 1, 2,
+                3, 4, 3, 4, 3, 4
+        }, imported.output("tile_y").toDoubleArrayCopy(), 1e-6);
+        execute(imported, "prod_y");
+        assertArrayEquals(new double[]{6.0, 120.0}, imported.output("prod_y").toDoubleArrayCopy(), 1e-6);
+        execute(imported, "arg_y");
+        assertEquals(DataType.INT32, imported.output("arg_y").getDataType());
+        assertArrayEquals(new double[]{1.0, 0.0}, imported.output("arg_y").toDoubleArrayCopy(), 1e-6);
+        execute(imported, "pool_y");
+        assertArrayEquals(new double[]{2.5, 25.0}, imported.output("pool_y").toDoubleArrayCopy(), 1e-6);
+        execute(imported, "split_a");
+        assertArrayEquals(new double[]{1.0, 5.0}, imported.output("split_a").toDoubleArrayCopy(), 1e-6);
+        execute(imported, "split_b");
+        assertArrayEquals(new double[]{2.0, 3.0, 4.0, 6.0, 7.0, 8.0}, imported.output("split_b").toDoubleArrayCopy(), 1e-6);
     }
 
     @Test

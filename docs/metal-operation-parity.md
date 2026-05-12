@@ -23,6 +23,8 @@ Generated from `MetalOperationParityMatrix`; do not hand-edit status rows.
 | MAX_GRAD | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | native accelerator DAG backward-adjacent path |
 | REDUCE_MIN | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | native accelerator DAG forward reduce-min path; target=reduction_chain_small |
 | REDUCE_MAX | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | native accelerator DAG forward reduce-max path; target=reduction_chain_small |
+| REDUCE_PROD | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
+| ARGMAX | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
 | REDUCE_ALL | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | BOOL all reduction has native Metal BOOL output DAG execution and one-byte BOOL buffer residency; external BOOL predicate input residency for WHERE is separate |
 | REDUCE_ANY | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | BOOL any reduction has native Metal BOOL output DAG execution and one-byte BOOL buffer residency; external BOOL predicate input residency for WHERE is separate |
 | SOFTMAX | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | native accelerator DAG softmax path; target=transformer_block_hot_path |
@@ -88,6 +90,8 @@ Generated from `MetalOperationParityMatrix`; do not hand-edit status rows.
 | SLICE | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
 | SLICE_GRAD | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
 | CONCAT | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
+| PAD | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
+| TILE | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
 | PERMUTE | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | layout/view-adjacent accelerator DAG metadata or materialization path |
 | EXPAND_DIMS | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | layout/view-adjacent accelerator DAG metadata or materialization path |
 | SQUEEZE | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | layout/view-adjacent accelerator DAG metadata or materialization path |

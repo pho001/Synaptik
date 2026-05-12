@@ -5,11 +5,13 @@ import operations.layout.contiguous;
 import operations.layout.concat;
 import operations.layout.expand;
 import operations.layout.expandDims;
+import operations.layout.pad;
 import operations.layout.permute;
 import operations.layout.reshape;
 import operations.layout.squeeze;
 import operations.layout.slice;
 import operations.layout.sliceGrad;
+import operations.layout.tile;
 import tensor.Tensor;
 import tensor.TensorBroadcastOps;
 import tensor.TensorInternalAccess;
@@ -204,6 +206,93 @@ public final class TensorLayoutOps {
         return out;
     }
 
+    public static Tensor pad(Tensor input, int[] before, int[] after, double constantValue) {
+        if (input == null) {
+            throw new IllegalArgumentException("pad input cannot be null");
+        }
+        int rank = input.getShapeUnsafe().length;
+        int[] normalizedBefore = normalizePads(before, rank, "before");
+        int[] normalizedAfter = normalizePads(after, rank, "after");
+        int[] outShape = input.getShape();
+        for (int d = 0; d < rank; d++) {
+            outShape[d] = Math.addExact(Math.addExact(outShape[d], normalizedBefore[d]), normalizedAfter[d]);
+        }
+        Tensor out = TensorPrimitiveBuilder.unary(
+                input,
+                outShape,
+                new pad(normalizedBefore, normalizedAfter, constantValue),
+                "pad",
+                input.getDataType()
+        );
+        TensorInternalAccess.setBackwardFunction(out, () -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null || !input.getRequiresGrad()) {
+                return;
+            }
+            int[] starts = normalizedBefore.clone();
+            int[] ends = new int[rank];
+            int[] axes = allAxes(rank);
+            int[] steps = ones(rank);
+            int[] inputShape = input.getShapeUnsafe();
+            for (int d = 0; d < rank; d++) {
+                ends[d] = starts[d] + inputShape[d];
+            }
+            LayoutSupport.accumulateGradient(input, outGrad.slice(starts, ends, axes, steps));
+        });
+        return out;
+    }
+
+    public static Tensor tile(Tensor input, int[] repeats) {
+        if (input == null) {
+            throw new IllegalArgumentException("tile input cannot be null");
+        }
+        int rank = input.getShapeUnsafe().length;
+        if (repeats == null || repeats.length != rank) {
+            throw new IllegalArgumentException("tile repeats length must match input rank.");
+        }
+        int[] normalizedRepeats = repeats.clone();
+        int[] outShape = input.getShape();
+        for (int d = 0; d < rank; d++) {
+            if (normalizedRepeats[d] <= 0) {
+                throw new IllegalArgumentException("tile repeats must be positive.");
+            }
+            outShape[d] = Math.multiplyExact(outShape[d], normalizedRepeats[d]);
+        }
+        Tensor out = TensorPrimitiveBuilder.unary(
+                input,
+                outShape,
+                new tile(normalizedRepeats),
+                "tile",
+                input.getDataType()
+        );
+        TensorInternalAccess.setBackwardFunction(out, () -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null || !input.getRequiresGrad()) {
+                return;
+            }
+            Tensor grad = Tensor.zerosLike(input);
+            int[] inputShape = input.getShapeUnsafe();
+            int repeatCount = 1;
+            for (int repeat : normalizedRepeats) {
+                repeatCount = Math.multiplyExact(repeatCount, repeat);
+            }
+            for (int logical = 0; logical < repeatCount; logical++) {
+                int tmp = logical;
+                int[] starts = new int[rank];
+                int[] ends = new int[rank];
+                for (int d = rank - 1; d >= 0; d--) {
+                    int repeatCoord = tmp % normalizedRepeats[d];
+                    tmp /= normalizedRepeats[d];
+                    starts[d] = repeatCoord * inputShape[d];
+                    ends[d] = starts[d] + inputShape[d];
+                }
+                grad = grad.add(outGrad.slice(starts, ends, allAxes(rank), ones(rank)));
+            }
+            LayoutSupport.accumulateGradient(input, grad);
+        });
+        return out;
+    }
+
     /**
      * Reorders axes by returning a strided view.
      *
@@ -310,6 +399,19 @@ public final class TensorLayoutOps {
     private static int[] ones(int count) {
         int[] out = new int[count];
         java.util.Arrays.fill(out, 1);
+        return out;
+    }
+
+    private static int[] normalizePads(int[] pads, int rank, String name) {
+        if (pads == null || pads.length != rank) {
+            throw new IllegalArgumentException("pad " + name + " length must match input rank.");
+        }
+        int[] out = pads.clone();
+        for (int value : out) {
+            if (value < 0) {
+                throw new IllegalArgumentException("pad " + name + " values must be non-negative.");
+            }
+        }
         return out;
     }
 

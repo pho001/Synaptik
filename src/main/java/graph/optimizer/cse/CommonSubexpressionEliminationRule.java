@@ -22,6 +22,7 @@ import operations.nn.conv.conv2dBackwardWeightGemm;
 import operations.layout.expand;
 import operations.layout.expandDims;
 import operations.layout.concat;
+import operations.layout.pad;
 import operations.dtype.cast;
 import operations.index.gather;
 import operations.index.gatherAxis;
@@ -51,6 +52,8 @@ import operations.reduction.reduceMax;
 import operations.reduction.reduceMaxGrad;
 import operations.reduction.reduceMin;
 import operations.reduction.reduceMinGrad;
+import operations.reduction.reduceProd;
+import operations.reduction.argMax;
 import operations.layout.reshape;
 import operations.reduction.logSoftmax;
 import operations.reduction.logSoftmaxGrad;
@@ -61,6 +64,7 @@ import operations.layout.slice;
 import operations.layout.sliceGrad;
 import operations.layout.squeeze;
 import operations.reduction.sum;
+import operations.layout.tile;
 import operations.reduction.softmax;
 import operations.reduction.softmaxGrad;
 import tensor.Tensor;
@@ -250,6 +254,8 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case CROSS_ENTROPY_LOSS_INDICES_GRAD -> new AxisSignature(((crossEntropyLossIndicesGrad) op).getClassDimension());
             case REDUCE_MIN -> new ReductionSignature(((reduceMin) op).getDimension(), ((reduceMin) op).keepDims());
             case REDUCE_MAX -> new ReductionSignature(((reduceMax) op).getDimension(), ((reduceMax) op).keepDims());
+            case REDUCE_PROD -> new ReductionSignature(((reduceProd) op).getDimension(), ((reduceProd) op).keepDims());
+            case ARGMAX -> new ReductionSignature(((argMax) op).getDimension(), ((argMax) op).keepDims());
             case MIN_GRAD -> new InputSelectorSignature(((minGrad) op).isForFirstInput());
             case MAX_GRAD -> new InputSelectorSignature(((maxGrad) op).isForFirstInput());
             case REDUCE_MIN_GRAD -> new AxisSignature(((reduceMinGrad) op).getDimension());
@@ -261,6 +267,8 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case SLICE -> IntArrayValue.copyOf(sliceSignature((slice) op));
             case SLICE_GRAD -> IntArrayValue.copyOf(sliceGradSignature((sliceGrad) op));
             case CONCAT -> new AxisSignature(((concat) op).getAxis());
+            case PAD -> IntArrayValue.copyOf(padSignature((pad) op));
+            case TILE -> IntArrayValue.copyOf(((tile) op).getRepeats());
             case CAST -> new AxisSignature(((cast) op).getTargetType().ordinal());
             case EXPAND_DIMS -> new AxisSignature(((expandDims) op).getAxis());
             case GATHER -> new AxisSignature(((gather) op).getDimension());
@@ -341,6 +349,19 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
         for (int value : steps) out[p++] = value;
         out[p++] = inputShape.length;
         for (int value : inputShape) out[p++] = value;
+        return out;
+    }
+
+    private int[] padSignature(pad op) {
+        int[] before = op.getBefore();
+        int[] after = op.getAfter();
+        int[] out = new int[before.length + after.length + 3];
+        int p = 0;
+        out[p++] = before.length;
+        for (int value : before) out[p++] = value;
+        out[p++] = after.length;
+        for (int value : after) out[p++] = value;
+        out[p] = Long.hashCode(Double.doubleToLongBits(op.getConstantValue()));
         return out;
     }
 

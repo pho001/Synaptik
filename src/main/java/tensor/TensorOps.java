@@ -68,6 +68,14 @@ public final class TensorOps {
         return TensorLayoutOps.concat(axis, inputs);
     }
 
+    public static Tensor pad(Tensor input, int[] before, int[] after, double constantValue) {
+        return TensorLayoutOps.pad(input, before, after, constantValue);
+    }
+
+    public static Tensor tile(Tensor input, int[] repeats) {
+        return TensorLayoutOps.tile(input, repeats);
+    }
+
     public static Tensor cast(Tensor input, DataType targetType) {
         return TensorDTypeOps.cast(input, targetType);
     }
@@ -310,6 +318,26 @@ public final class TensorOps {
 
     public static Tensor meanAll(Tensor input) {
         return TensorReduceOps.meanAll(input);
+    }
+
+    public static Tensor prod(Tensor input, int dimension) {
+        return TensorReduceOps.prod(input, dimension);
+    }
+
+    public static Tensor prod(Tensor input, int dimension, boolean keepDims) {
+        return TensorReduceOps.prod(input, dimension, keepDims);
+    }
+
+    public static Tensor prodAll(Tensor input) {
+        return TensorReduceOps.prodAll(input);
+    }
+
+    public static Tensor argMax(Tensor input, int dimension) {
+        return TensorReduceOps.argMax(input, dimension);
+    }
+
+    public static Tensor argMax(Tensor input, int dimension, boolean keepDims) {
+        return TensorReduceOps.argMax(input, dimension, keepDims);
     }
 
     public static Tensor softmax(Tensor input, int dimension) {

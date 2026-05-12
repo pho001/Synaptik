@@ -133,10 +133,16 @@ public final class OnnxCoverageMatrix {
         addLayout(out, "Reshape", Operation.OpType.RESHAPE, "constant target shape");
         addLayout(out, "Flatten", Operation.OpType.RESHAPE, "static axis reshape");
         addLayout(out, "Expand", Operation.OpType.EXPAND, "constant target shape");
+        addLayout(out, "Pad", Operation.OpType.PAD, "constant mode, static non-negative pads, scalar constant value");
+        addLayout(out, "Tile", Operation.OpType.TILE, "constant positive repeats");
         addLayout(out, "Squeeze", Operation.OpType.SQUEEZE, "constant axes");
         addLayout(out, "Unsqueeze", Operation.OpType.EXPAND_DIMS, "constant axes");
         addLayout(out, "Slice", Operation.OpType.SLICE, "constant positive-step slice parameters");
         addLayout(out, "Concat", Operation.OpType.CONCAT, "runtime tensors or shape-only axis-0 constants");
+        add(out, "Split", "slice per output", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+                CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.SLICE),
+                gpu(ComputeBackend.GPU_CUDA, Operation.OpType.SLICE),
+                "import-only multi-output lowering with static split sizes", Operation.OpType.SLICE);
         add(out, "Shape", "shape constant", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
                 CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED, CoverageStatus.UNSUPPORTED,
                 "import-time static shape plumbing only");
@@ -166,6 +172,15 @@ public final class OnnxCoverageMatrix {
         addReduction(out, "ReduceMean", Operation.OpType.MEAN);
         addReduction(out, "ReduceMax", Operation.OpType.REDUCE_MAX);
         addReduction(out, "ReduceMin", Operation.OpType.REDUCE_MIN);
+        addReduction(out, "ReduceProd", Operation.OpType.REDUCE_PROD);
+        add(out, "ArgMax", "argMax", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
+                CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.ARGMAX),
+                gpu(ComputeBackend.GPU_CUDA, Operation.OpType.ARGMAX),
+                "output is INT32 because runtime INT64 tensors are unsupported; select_last_index=0 only", Operation.OpType.ARGMAX);
+        add(out, "GlobalAveragePool", "repeated mean over spatial axes", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+                CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.MEAN),
+                gpu(ComputeBackend.GPU_CUDA, Operation.OpType.MEAN),
+                "import-only static rank >= 3 lowering to MEAN", Operation.OpType.MEAN);
         add(out, "Softmax", "softmax", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.SOFTMAX),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.SOFTMAX), "", Operation.OpType.SOFTMAX);

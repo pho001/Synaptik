@@ -7,6 +7,8 @@ import operations.reduction.reduceAll;
 import operations.reduction.reduceAny;
 import operations.reduction.reduceMax;
 import operations.reduction.reduceMin;
+import operations.reduction.reduceProd;
+import operations.reduction.argMax;
 import operations.reduction.sum;
 import tensor.DataType;
 import tensor.Tensor;
@@ -146,6 +148,54 @@ public final class TensorReduceOps {
             ReductionSupport.accumulateGradient(input, grad);
         });
         return out;
+    }
+
+    public static Tensor prod(Tensor input, int dimension) {
+        return prod(input, dimension, false);
+    }
+
+    public static Tensor prod(Tensor input, int dimension, boolean keepDims) {
+        ReductionSupport.requireFloatingInput(input, "prod");
+        int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, input.getShape().length);
+        return TensorPrimitiveBuilder.unaryNoGrad(
+                input,
+                ReductionSupport.reduceShape(input.getShape(), normalizedDimension, keepDims),
+                new reduceProd(normalizedDimension, keepDims),
+                "prod_reduce",
+                input.getDataType()
+        );
+    }
+
+    public static Tensor prodAll(Tensor input) {
+        ReductionSupport.requireFloatingInput(input, "prod");
+        return TensorPrimitiveBuilder.unaryNoGrad(
+                input,
+                new int[]{1},
+                new reduceProd(-1),
+                "prod_reduce",
+                input.getDataType()
+        );
+    }
+
+    public static Tensor argMax(Tensor input, int dimension) {
+        return argMax(input, dimension, false);
+    }
+
+    public static Tensor argMax(Tensor input, int dimension, boolean keepDims) {
+        if (input == null) {
+            throw new IllegalArgumentException("argMax input cannot be null");
+        }
+        if (input.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("argMax requires numeric input.");
+        }
+        int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, input.getShape().length);
+        return TensorPrimitiveBuilder.unaryNoGrad(
+                input,
+                ReductionSupport.reduceShape(input.getShape(), normalizedDimension, keepDims),
+                new argMax(normalizedDimension, keepDims),
+                "argmax",
+                DataType.INT32
+        );
     }
 
     /**

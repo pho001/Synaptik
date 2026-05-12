@@ -27,6 +27,7 @@ public final class CpuTypeContractResolver {
             case LOGICAL_AND, LOGICAL_OR -> resolveLogicalBinaryContract(inputs);
             case LOGICAL_NOT -> resolveLogicalUnaryContract(inputs);
             case REDUCE_ALL, REDUCE_ANY -> resolveBoolReductionContract(inputs);
+            case ARGMAX -> resolveArgMaxContract(inputs);
             case GATHER -> resolveGatherContract(inputs);
             case GATHER_GRAD -> resolveGatherGradContract(inputs);
             case GATHER_AXIS -> resolveGatherContract(inputs);
@@ -143,6 +144,17 @@ public final class CpuTypeContractResolver {
             throw new IllegalArgumentException("BOOL reductions require BOOL input.");
         }
         return new PreparedTypeContract(DataType.BOOL, List.of(DataType.BOOL));
+    }
+
+    private static PreparedTypeContract resolveArgMaxContract(List<Tensor> inputs) {
+        if (inputs == null || inputs.size() != 1) {
+            throw new IllegalArgumentException("argMax expects exactly one input.");
+        }
+        DataType inputType = inputs.getFirst().getDataType();
+        if (inputType == DataType.BOOL) {
+            throw new IllegalArgumentException("argMax requires numeric input.");
+        }
+        return new PreparedTypeContract(DataType.INT32, List.of(inputType));
     }
 
     private static PreparedTypeContract resolveGatherContract(List<Tensor> inputs) {

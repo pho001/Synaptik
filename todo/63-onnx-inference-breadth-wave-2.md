@@ -2,7 +2,7 @@
 
 ## Stav Rozpracovani
 
-Status: `PLANNED`
+Status: `IMPLEMENTED`
 
 Wave 1 uz zavedla `OnnxCoverageMatrix`, NN inference subset (`Conv`, `MaxPool`, `AveragePool`, `LayerNormalization`, import-only `BatchNormalization`) a checked-in NN fixtures.
 
@@ -119,6 +119,14 @@ Kazda nova operace musi mit radek v `OnnxCoverageMatrix`, import/export testy, e
   - `./gradlew test --tests DataTypeExecutionCoverageTest --tests PreparedExecutionBuildTest`
   - `./gradlew test --tests backend.accelerator.lowering.GpuLoweringCoverageMatrixTest`
   - `./gradlew test --tests SourceTreeHygieneTest`
+
+## Implementacni Poznamky
+
+- `Pad`, `Tile`, `ArgMax` a `ReduceProd` maji first-class Synaptik op, Tensor API, CPU kernel, ONNX import/export a coverage row.
+- `Split` zustava zamerne import-only special-case lowering na staticke `Slice` vystupy.
+- `GlobalAveragePool` zustava import-only lowering na opakovane `Mean` pres spatial axes.
+- Breadth fixtures jsou checked-in pod `src/test/resources/onnx/breadth/` a generuje je `OnnxBreadthFixtureModels`.
+- `OnnxBreadthFixtureTest` byte-porovnava generovane protobufy proti checked-in souborum a executuje vsechny deklarovane vystupy, vcetne obou vystupu `Split`.
 
 ## Assumptions
 

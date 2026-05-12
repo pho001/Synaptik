@@ -62,6 +62,8 @@ public final class CpuKernelResolver {
     private static final CpuMaxGradKernel MAX_GRAD = new CpuMaxGradKernel();
     private static final CpuReduceMinKernel REDUCE_MIN = new CpuReduceMinKernel();
     private static final CpuReduceMaxKernel REDUCE_MAX = new CpuReduceMaxKernel();
+    private static final CpuReduceProdKernel REDUCE_PROD = new CpuReduceProdKernel();
+    private static final CpuArgMaxKernel ARGMAX = new CpuArgMaxKernel();
     private static final CpuReduceAllKernel REDUCE_ALL = new CpuReduceAllKernel();
     private static final CpuReduceAnyKernel REDUCE_ANY = new CpuReduceAnyKernel();
     private static final CpuSoftmaxKernel SOFTMAX = new CpuSoftmaxKernel();
@@ -99,6 +101,8 @@ public final class CpuKernelResolver {
     private static final CpuAliasViewKernel ALIAS_VIEW = new CpuAliasViewKernel();
     private static final CpuSliceGradKernel SLICE_GRAD = new CpuSliceGradKernel();
     private static final CpuConcatKernel CONCAT = new CpuConcatKernel();
+    private static final CpuPadKernel PAD = new CpuPadKernel();
+    private static final CpuTileKernel TILE = new CpuTileKernel();
     private static final CpuCastKernel CAST = new CpuCastKernel();
     private static final CpuPermuteKernel PERMUTE = new CpuPermuteKernel();
     private static final CpuNoopKernel NOOP = new CpuNoopKernel();
@@ -155,6 +159,8 @@ public final class CpuKernelResolver {
             case MAX_GRAD -> MAX_GRAD;
             case REDUCE_MIN -> REDUCE_MIN;
             case REDUCE_MAX -> REDUCE_MAX;
+            case REDUCE_PROD -> REDUCE_PROD;
+            case ARGMAX -> ARGMAX;
             case REDUCE_ALL -> REDUCE_ALL;
             case REDUCE_ANY -> REDUCE_ANY;
             case SOFTMAX -> SOFTMAX;
@@ -192,6 +198,8 @@ public final class CpuKernelResolver {
             case SELECT, SLICE, EXPAND_DIMS, SQUEEZE -> ALIAS_VIEW;
             case SLICE_GRAD -> SLICE_GRAD;
             case CONCAT -> CONCAT;
+            case PAD -> PAD;
+            case TILE -> TILE;
             case CAST -> CAST;
             case PERMUTE -> PERMUTE;
             case CONST_SCALAR -> throw new IllegalStateException("CONST_SCALAR is an internal fused-plan op and has no standalone CPU kernel");
