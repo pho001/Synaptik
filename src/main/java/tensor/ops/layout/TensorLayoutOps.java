@@ -9,6 +9,7 @@ import operations.layout.permute;
 import operations.layout.reshape;
 import operations.layout.squeeze;
 import operations.layout.slice;
+import operations.layout.sliceGrad;
 import tensor.Tensor;
 import tensor.TensorBroadcastOps;
 import tensor.TensorInternalAccess;
@@ -122,7 +123,7 @@ public final class TensorLayoutOps {
             storageOffset += spec.starts[i] * inputStrides[axis];
             outStrides[axis] = inputStrides[axis] * spec.steps[i];
         }
-        return TensorPrimitiveBuilder.unaryView(
+        Tensor out = TensorPrimitiveBuilder.unaryView(
                 input,
                 spec.outputShape,
                 outStrides,
@@ -131,6 +132,21 @@ public final class TensorLayoutOps {
                 "slice",
                 input.getDataType()
         );
+        TensorInternalAccess.setBackwardFunction(out, () -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null || !input.getRequiresGrad()) {
+                return;
+            }
+            Tensor grad = TensorPrimitiveBuilder.unaryNoGrad(
+                    outGrad,
+                    input.getShape(),
+                    new sliceGrad(spec.starts, spec.axes, spec.steps, input.getShape()),
+                    "slice_grad",
+                    input.getDataType()
+            );
+            LayoutSupport.accumulateGradient(input, grad);
+        });
+        return out;
     }
 
     public static Tensor concat(int axis, List<Tensor> inputs) {
@@ -164,7 +180,28 @@ public final class TensorLayoutOps {
             concatSize += shape[normalizedAxis];
         }
         outShape[normalizedAxis] = concatSize;
-        return TensorPrimitiveBuilder.nary(outShape, List.copyOf(inputs), new concat(normalizedAxis), "concat", first.getDataType());
+        List<Tensor> copiedInputs = List.copyOf(inputs);
+        Tensor out = TensorPrimitiveBuilder.nary(outShape, copiedInputs, new concat(normalizedAxis), "concat", first.getDataType());
+        TensorInternalAccess.setBackwardFunction(out, () -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null) {
+                return;
+            }
+            int offset = 0;
+            for (Tensor input : copiedInputs) {
+                int axisSize = input.getShapeUnsafe()[normalizedAxis];
+                if (input.getRequiresGrad()) {
+                    int[] starts = new int[rank];
+                    int[] ends = out.getShape();
+                    starts[normalizedAxis] = offset;
+                    ends[normalizedAxis] = offset + axisSize;
+                    Tensor grad = outGrad.slice(starts, ends, allAxes(rank), ones(rank));
+                    LayoutSupport.accumulateGradient(input, grad);
+                }
+                offset += axisSize;
+            }
+        });
+        return out;
     }
 
     /**
@@ -242,6 +279,9 @@ public final class TensorLayoutOps {
             start = Math.max(0, Math.min(start, dim));
             end = Math.max(0, Math.min(end, dim));
             int length = start >= end ? 0 : ((end - start + step - 1) / step);
+            if (length <= 0) {
+                throw new IllegalArgumentException("slice cannot produce empty dimensions.");
+            }
             normalizedAxes[i] = axis;
             normalizedSteps[i] = step;
             normalizedStarts[i] = start;
@@ -254,6 +294,14 @@ public final class TensorLayoutOps {
     private static int[] defaultAxes(int count) {
         int[] out = new int[count];
         for (int i = 0; i < count; i++) {
+            out[i] = i;
+        }
+        return out;
+    }
+
+    private static int[] allAxes(int rank) {
+        int[] out = new int[rank];
+        for (int i = 0; i < rank; i++) {
             out[i] = i;
         }
         return out;

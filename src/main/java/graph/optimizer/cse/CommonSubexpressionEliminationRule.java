@@ -24,6 +24,8 @@ import operations.layout.expandDims;
 import operations.layout.concat;
 import operations.dtype.cast;
 import operations.index.gather;
+import operations.index.gatherAxis;
+import operations.index.gatherAxisGrad;
 import operations.index.gatherGrad;
 import operations.normalization.layerNorm;
 import operations.nn.pool.maxPool2d;
@@ -52,6 +54,7 @@ import operations.linalg.linear;
 import operations.normalization.rmsNorm;
 import operations.layout.select;
 import operations.layout.slice;
+import operations.layout.sliceGrad;
 import operations.layout.squeeze;
 import operations.reduction.sum;
 import operations.reduction.softmax;
@@ -252,11 +255,14 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case EXPAND -> IntArrayValue.copyOf(((expand) op).getTargetShape());
             case SELECT -> IntArrayValue.copyOf(new int[]{((select) op).getDimension(), ((select) op).getIndex()});
             case SLICE -> IntArrayValue.copyOf(sliceSignature((slice) op));
+            case SLICE_GRAD -> IntArrayValue.copyOf(sliceGradSignature((sliceGrad) op));
             case CONCAT -> new AxisSignature(((concat) op).getAxis());
             case CAST -> new AxisSignature(((cast) op).getTargetType().ordinal());
             case EXPAND_DIMS -> new AxisSignature(((expandDims) op).getAxis());
             case GATHER -> new AxisSignature(((gather) op).getDimension());
             case GATHER_GRAD -> new AxisSignature(((gatherGrad) op).getDimension());
+            case GATHER_AXIS -> new AxisSignature(((gatherAxis) op).getAxis());
+            case GATHER_AXIS_GRAD -> IntArrayValue.copyOf(gatherAxisGradSignature((gatherAxisGrad) op));
             case TAKE_ALONG_AXIS -> new AxisSignature(((takeAlongAxis) op).getDimension());
             case TAKE_ALONG_AXIS_GRAD -> new AxisSignature(((takeAlongAxisGrad) op).getDimension());
             case SCATTER_ADD -> new AxisSignature(((scatterAdd) op).getDimension());
@@ -306,6 +312,33 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
         for (int value : steps) out[p++] = value;
         out[p++] = outputShape.length;
         for (int value : outputShape) out[p++] = value;
+        return out;
+    }
+
+    private int[] sliceGradSignature(sliceGrad op) {
+        int[] starts = op.getStarts();
+        int[] axes = op.getAxes();
+        int[] steps = op.getSteps();
+        int[] inputShape = op.getInputShape();
+        int[] out = new int[starts.length + axes.length + steps.length + inputShape.length + 4];
+        int p = 0;
+        out[p++] = starts.length;
+        for (int value : starts) out[p++] = value;
+        out[p++] = axes.length;
+        for (int value : axes) out[p++] = value;
+        out[p++] = steps.length;
+        for (int value : steps) out[p++] = value;
+        out[p++] = inputShape.length;
+        for (int value : inputShape) out[p++] = value;
+        return out;
+    }
+
+    private int[] gatherAxisGradSignature(gatherAxisGrad op) {
+        int[] dataShape = op.getDataShape();
+        int[] out = new int[dataShape.length + 2];
+        out[0] = op.getAxis();
+        out[1] = dataShape.length;
+        System.arraycopy(dataShape, 0, out, 2, dataShape.length);
         return out;
     }
 

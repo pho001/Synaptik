@@ -33,6 +33,8 @@ public final class DefaultRegionLoweringPolicy implements RegionLoweringPolicy {
 
     private static RegionLoweringDecision decideGpu(OperationSemanticLevel level, Operation.OpType opType) {
         return switch (opType) {
+            case GATHER_AXIS, GATHER_AXIS_GRAD, SLICE_GRAD ->
+                    RegionLoweringDecision.reject(level, "CPU-only shape/index primitive");
             case ADD, SUB, MUL, DIV, MIN, MAX, WHERE,
                  NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH,
                  POW, SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID ->

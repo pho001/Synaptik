@@ -87,7 +87,7 @@ public final class BackendIntentPropagator {
             }
             case ADD, SUB, MUL, DIV, MIN, MAX, GT, GE, LT, LE, EQ, NE,
                     LOGICAL_AND, LOGICAL_OR, WHERE, MUL_SCALAR,
-                    GATHER, TAKE_ALONG_AXIS, SCATTER_ADD,
+                    GATHER, GATHER_AXIS, TAKE_ALONG_AXIS, SCATTER_ADD,
                     MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD -> {
                 for (Tensor input : inputs) {
                     propagateBackwardIntent(input, backend, seen);

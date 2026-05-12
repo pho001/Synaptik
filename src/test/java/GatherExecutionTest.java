@@ -10,6 +10,7 @@ import tensor.Tensor;
 import tensor.TensorPrimitiveBuilder;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -56,6 +57,67 @@ public class GatherExecutionTest {
                 0.0, 0.0, 1.0,
                 1.0, 0.0, 0.0
         }, x.getGradient().toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void gatherAxisUsesOnnxOutputShapeAndNegativeIndices() {
+        Tensor x = new Tensor(new double[]{
+                1, 2, 3,
+                4, 5, 6
+        }, new int[]{2, 3}, null, "x", DataType.FLOAT64);
+        Tensor indices = new Tensor(new int[]{2, 0, -1, 1}, new int[]{2, 2}, null, "indices", DataType.INT32);
+        Tensor y = x.gatherAxis(indices, 1);
+
+        CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new int[]{2, 2, 2}, y.getShape());
+        assertArrayEquals(new double[]{
+                3.0, 1.0, 3.0, 2.0,
+                6.0, 4.0, 6.0, 5.0
+        }, y.toDoubleArrayCopy(), 1e-9);
+        assertTrue(containsOp(CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline()), Operation.OpType.GATHER_AXIS));
+    }
+
+    @Test
+    void gatherAxisBackwardAccumulatesRepeatedIndices() {
+        Tensor x = new Tensor(new double[]{
+                1, 2, 3,
+                4, 5, 6
+        }, new int[]{2, 3}, null, "x", DataType.FLOAT64);
+        x.setRequiresGrad(true);
+        Tensor indices = new Tensor(new int[]{2, 0, 2, 1}, new int[]{2, 2}, null, "indices", DataType.INT32);
+        Tensor y = x.gatherAxis(indices, 1);
+
+        CompiledGraph.compile(y, CompileConfig.training())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(new double[]{
+                1.0, 1.0, 2.0,
+                1.0, 1.0, 2.0
+        }, x.getGradient().toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void gatherAxisSupportsIntAndBoolValues() {
+        Tensor ints = new Tensor(new int[]{10, 20, 30}, new int[]{3}, null, "ints", DataType.INT32);
+        Tensor intIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "intIndices", DataType.INT32);
+        Tensor intOut = ints.gatherAxis(intIndices, 0);
+
+        CompiledGraph.compile(intOut, CompileConfig.noGraphOptimizationBaseline())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertEquals(DataType.INT32, intOut.getDataType());
+        assertArrayEquals(new double[]{30.0, 10.0}, intOut.toDoubleArrayCopy(), 1e-9);
+
+        Tensor bools = new Tensor(new byte[]{1, 0, 1}, new int[]{3}, null, "bools", DataType.BOOL);
+        Tensor boolOut = bools.gatherAxis(intIndices, 0);
+
+        CompiledGraph.compile(boolOut, CompileConfig.noGraphOptimizationBaseline())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertEquals(DataType.BOOL, boolOut.getDataType());
+        assertArrayEquals(new boolean[]{true, true}, boolOut.toBooleanArrayCopy());
     }
 
     @Test

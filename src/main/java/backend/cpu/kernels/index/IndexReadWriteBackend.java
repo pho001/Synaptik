@@ -55,6 +55,46 @@ final class IndexReadWriteBackend {
         );
     }
 
+    public static void gatherAxisF64(Tensor input, Tensor indices, Tensor out, int axis) {
+        validateGatherAxis(input, indices, out, axis);
+        double[] dst = out.getFloat64Data();
+        forEachGatherAxis(input, indices, out, axis, (sourceLogical, outLogical) ->
+                dst[outLogical] = input.getByFlatIndex(sourceLogical)
+        );
+    }
+
+    public static void gatherAxisF32(Tensor input, Tensor indices, Tensor out, int axis) {
+        validateGatherAxis(input, indices, out, axis);
+        float[] dst = out.getFloat32Data();
+        forEachGatherAxis(input, indices, out, axis, (sourceLogical, outLogical) ->
+                dst[outLogical] = (float) input.getByFlatIndex(sourceLogical)
+        );
+    }
+
+    public static void gatherAxisBF16(Tensor input, Tensor indices, Tensor out, int axis) {
+        validateGatherAxis(input, indices, out, axis);
+        short[] dst = out.getBFloat16Data();
+        forEachGatherAxis(input, indices, out, axis, (sourceLogical, outLogical) ->
+                dst[outLogical] = CpuDTypeOps.toBFloat16Bits((float) input.getByFlatIndex(sourceLogical))
+        );
+    }
+
+    public static void gatherAxisBOOL(Tensor input, Tensor indices, Tensor out, int axis) {
+        validateGatherAxis(input, indices, out, axis);
+        byte[] dst = out.getBoolData();
+        forEachGatherAxis(input, indices, out, axis, (sourceLogical, outLogical) ->
+                dst[outLogical] = input.getByFlatIndex(sourceLogical) == 0.0d ? (byte) 0 : (byte) 1
+        );
+    }
+
+    public static void gatherAxisI32(Tensor input, Tensor indices, Tensor out, int axis) {
+        validateGatherAxis(input, indices, out, axis);
+        int[] dst = out.getInt32Data();
+        forEachGatherAxis(input, indices, out, axis, (sourceLogical, outLogical) ->
+                dst[outLogical] = (int) input.getByFlatIndex(sourceLogical)
+        );
+    }
+
     public static void takeAlongAxisF64(Tensor input, Tensor indices, Tensor out, int dimension) {
         validateTakeAlongAxis(input, indices, out, dimension);
         double[] in = input.getFloat64Data();
@@ -128,6 +168,34 @@ final class IndexReadWriteBackend {
         });
     }
 
+    public static void gatherAxisGradF64(Tensor indices, Tensor outGrad, Tensor node, int axis) {
+        validateGatherAxisGrad(indices, outGrad, node, axis);
+        java.util.Arrays.fill(node.getFloat64Data(), 0.0d);
+        double[] dst = node.getFloat64Data();
+        forEachGatherAxisGrad(indices, outGrad, node, axis, (sourceLogical, outLogical) ->
+                dst[sourceLogical] += outGrad.getByFlatIndex(outLogical)
+        );
+    }
+
+    public static void gatherAxisGradF32(Tensor indices, Tensor outGrad, Tensor node, int axis) {
+        validateGatherAxisGrad(indices, outGrad, node, axis);
+        java.util.Arrays.fill(node.getFloat32Data(), 0.0f);
+        float[] dst = node.getFloat32Data();
+        forEachGatherAxisGrad(indices, outGrad, node, axis, (sourceLogical, outLogical) ->
+                dst[sourceLogical] += (float) outGrad.getByFlatIndex(outLogical)
+        );
+    }
+
+    public static void gatherAxisGradBF16(Tensor indices, Tensor outGrad, Tensor node, int axis) {
+        validateGatherAxisGrad(indices, outGrad, node, axis);
+        java.util.Arrays.fill(node.getBFloat16Data(), CpuDTypeOps.toBFloat16Bits(0.0f));
+        short[] dst = node.getBFloat16Data();
+        forEachGatherAxisGrad(indices, outGrad, node, axis, (sourceLogical, outLogical) -> {
+            float acc = CpuDTypeOps.fromBFloat16Bits(dst[sourceLogical]) + (float) outGrad.getByFlatIndex(outLogical);
+            dst[sourceLogical] = CpuDTypeOps.toBFloat16Bits(acc);
+        });
+    }
+
     public static void scatterAddF64(Tensor base, Tensor indices, Tensor src, Tensor out, int dimension) {
         validateScatterAdd(base, indices, src, out, dimension);
         out.copyDataFrom(base);
@@ -198,6 +266,35 @@ final class IndexReadWriteBackend {
         validateShape(out.getShapeUnsafe(), expectedOutShape, "Gather output shape must equal indices shape.");
         if (input.getDataType() != out.getDataType()) {
             throw new IllegalArgumentException("Gather output dtype must match input dtype.");
+        }
+    }
+
+    private static void validateGatherAxis(Tensor input, Tensor indices, Tensor out, int axis) {
+        int[] inputShape = input.getShapeUnsafe();
+        if (axis < 0 || axis >= inputShape.length) {
+            throw new IllegalArgumentException("gatherAxis axis out of bounds: " + axis);
+        }
+        validateIndexTensor(indices);
+        validateShape(out.getShapeUnsafe(), gatherAxisOutputShape(inputShape, indices.getShapeUnsafe(), axis),
+                "gatherAxis output shape mismatch.");
+        if (input.getDataType() != out.getDataType()) {
+            throw new IllegalArgumentException("gatherAxis output dtype must match input dtype.");
+        }
+    }
+
+    private static void validateGatherAxisGrad(Tensor indices, Tensor outGrad, Tensor node, int axis) {
+        int[] nodeShape = node.getShapeUnsafe();
+        if (axis < 0 || axis >= nodeShape.length) {
+            throw new IllegalArgumentException("gatherAxisGrad axis out of bounds: " + axis);
+        }
+        validateIndexTensor(indices);
+        validateShape(outGrad.getShapeUnsafe(), gatherAxisOutputShape(nodeShape, indices.getShapeUnsafe(), axis),
+                "gatherAxisGrad outGrad shape mismatch.");
+        if (outGrad.getDataType() != node.getDataType()) {
+            throw new IllegalArgumentException("gatherAxisGrad output dtype must match outGrad dtype.");
+        }
+        if (node.getDataType() == DataType.BOOL || node.getDataType() == DataType.INT32) {
+            throw new IllegalArgumentException("gatherAxisGrad requires floating output dtype.");
         }
     }
 
@@ -310,6 +407,21 @@ final class IndexReadWriteBackend {
             }
         }
         return reduced;
+    }
+
+    private static int[] gatherAxisOutputShape(int[] dataShape, int[] indicesShape, int axis) {
+        int[] out = new int[dataShape.length + indicesShape.length - 1];
+        int p = 0;
+        for (int i = 0; i < axis; i++) {
+            out[p++] = dataShape[i];
+        }
+        for (int dim : indicesShape) {
+            out[p++] = dim;
+        }
+        for (int i = axis + 1; i < dataShape.length; i++) {
+            out[p++] = dataShape[i];
+        }
+        return out;
     }
 
     private static void forEachGather(Tensor input, Tensor indices, Tensor out, int dimension, GatherConsumer consumer) {
@@ -432,6 +544,74 @@ final class IndexReadWriteBackend {
         }
     }
 
+    private static void forEachGatherAxis(Tensor input, Tensor indices, Tensor out, int axis, GatherAxisConsumer consumer) {
+        int[] inputShape = input.getShapeUnsafe();
+        int[] inputDense = TensorMetadata.computeStrides(inputShape);
+        int[] indicesShape = indices.getShapeUnsafe();
+        int[] indicesDense = TensorMetadata.computeStrides(indicesShape);
+        int[] outShape = out.getShapeUnsafe();
+        int[] outDense = TensorMetadata.computeStrides(outShape);
+        int total = out.getFlatDataSize();
+        int axisSize = inputShape[axis];
+        int indicesRank = indicesShape.length;
+
+        for (int outLogical = 0; outLogical < total; outLogical++) {
+            int sourceLogical = gatherAxisSourceLogical(outLogical, outShape, outDense, inputShape, inputDense,
+                    indices, indicesDense, axis, axisSize, indicesRank);
+            consumer.accept(sourceLogical, outLogical);
+        }
+    }
+
+    private static void forEachGatherAxisGrad(Tensor indices, Tensor outGrad, Tensor node, int axis, GatherAxisConsumer consumer) {
+        int[] inputShape = node.getShapeUnsafe();
+        int[] inputDense = TensorMetadata.computeStrides(inputShape);
+        int[] indicesShape = indices.getShapeUnsafe();
+        int[] indicesDense = TensorMetadata.computeStrides(indicesShape);
+        int[] outShape = outGrad.getShapeUnsafe();
+        int[] outDense = TensorMetadata.computeStrides(outShape);
+        int total = outGrad.getFlatDataSize();
+        int axisSize = inputShape[axis];
+        int indicesRank = indicesShape.length;
+
+        for (int outLogical = 0; outLogical < total; outLogical++) {
+            int sourceLogical = gatherAxisSourceLogical(outLogical, outShape, outDense, inputShape, inputDense,
+                    indices, indicesDense, axis, axisSize, indicesRank);
+            consumer.accept(sourceLogical, outLogical);
+        }
+    }
+
+    private static int gatherAxisSourceLogical(
+            int outLogical,
+            int[] outShape,
+            int[] outDense,
+            int[] inputShape,
+            int[] inputDense,
+            Tensor indices,
+            int[] indicesDense,
+            int axis,
+            int axisSize,
+            int indicesRank
+    ) {
+        int rem = outLogical;
+        int sourceLogical = 0;
+        int indexLogical = 0;
+        for (int d = 0; d < outShape.length; d++) {
+            int coord = rem / outDense[d];
+            rem %= outDense[d];
+            if (d < axis) {
+                sourceLogical += coord * inputDense[d];
+            } else if (d < axis + indicesRank) {
+                indexLogical += coord * indicesDense[d - axis];
+            } else {
+                int inputDim = d - indicesRank + 1;
+                sourceLogical += coord * inputDense[inputDim];
+            }
+        }
+        int axisIndex = readAxisIndexAllowNegative(indices, indexLogical, axisSize);
+        sourceLogical += axisIndex * inputDense[axis];
+        return sourceLogical;
+    }
+
     private static int readAxisIndex(Tensor indices, int logicalIndex, int axisSize) {
         double raw = indices.getByFlatIndex(logicalIndex);
         if (!Double.isFinite(raw)) {
@@ -443,6 +623,24 @@ final class IndexReadWriteBackend {
         }
         if (integral < 0 || integral >= axisSize) {
             throw new IllegalArgumentException("Gather index out of bounds: " + integral + " for axis size " + axisSize);
+        }
+        return (int) integral;
+    }
+
+    private static int readAxisIndexAllowNegative(Tensor indices, int logicalIndex, int axisSize) {
+        double raw = indices.getByFlatIndex(logicalIndex);
+        if (!Double.isFinite(raw)) {
+            throw new IllegalArgumentException("Gather index must be finite.");
+        }
+        long integral = Math.round(raw);
+        if (Math.abs(raw - integral) > 1e-9) {
+            throw new IllegalArgumentException("Gather index must be an integer value. got=" + raw);
+        }
+        if (integral < 0) {
+            integral += axisSize;
+        }
+        if (integral < 0 || integral >= axisSize) {
+            throw new IllegalArgumentException("Gather index out of bounds: " + raw + " for axis size " + axisSize);
         }
         return (int) integral;
     }
@@ -465,5 +663,10 @@ final class IndexReadWriteBackend {
     @FunctionalInterface
     private interface TakeAlongAxisScatterConsumer {
         void accept(int baseNode, int gradOffset, int axisStrideNode, int axisIndex);
+    }
+
+    @FunctionalInterface
+    private interface GatherAxisConsumer {
+        void accept(int sourceLogical, int outLogical);
     }
 }

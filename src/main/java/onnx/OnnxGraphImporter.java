@@ -162,7 +162,7 @@ final class OnnxGraphImporter {
             case "Concat" -> concat(node, tensors, int64Constants, attrs);
             case "Shape" -> shape(node, tensors, int64Constants, attrs);
             case "Size" -> size(node, tensors, int64Constants);
-            case "Gather" -> gather(node, int64Constants, constantTensors, attrs);
+            case "Gather" -> gather(node, tensors, int64Constants, constantTensors, attrs);
             case "ReduceSum" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.SUM);
             case "ReduceMean" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.MEAN);
             case "ReduceMax" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.MAX);
@@ -481,6 +481,9 @@ final class OnnxGraphImporter {
         int start = attrs.intAttribute("start", 0);
         int end = attrs.hasAttribute("end") ? attrs.intAttribute("end", shape.length) : shape.length;
         int[] range = normalizeShapeRange(start, end, shape.length);
+        if (range[0] >= range[1]) {
+            throw unsupported(node, "Shape start/end cannot produce an empty shape vector");
+        }
         long[] out = new long[range[1] - range[0]];
         for (int i = 0; i < out.length; i++) {
             out[i] = shape[range[0] + i];
@@ -497,32 +500,33 @@ final class OnnxGraphImporter {
 
     private static Tensor gather(
             OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
             Map<String, long[]> int64Constants,
             Set<String> constantTensors,
             OnnxAttributeReader attrs
     ) {
         requireInputCount(node, 2, 2);
-        if (attrs.intAttribute("axis", 0) != 0) {
-            throw unsupported(node, "shape-only Gather supports only axis 0");
-        }
         long[] data = int64Constants.get(node.getInput(0));
-        if (data == null) {
-            throw unsupported(node, "runtime tensor Gather is not supported by the ONNX subset");
-        }
-        long[] indices = intConstantInput(node, Map.of(), int64Constants, constantTensors, 1);
-        long[] out = new long[indices.length];
-        for (int i = 0; i < indices.length; i++) {
-            int index = Math.toIntExact(indices[i]);
-            if (index < 0) {
-                index += data.length;
+        if (data != null) {
+            if (attrs.intAttribute("axis", 0) != 0) {
+                throw unsupported(node, "shape-only Gather supports only axis 0");
             }
-            if (index < 0 || index >= data.length) {
-                throw unsupported(node, "Gather index out of bounds: " + indices[i]);
+            long[] indices = intConstantInput(node, Map.of(), int64Constants, constantTensors, 1);
+            long[] out = new long[indices.length];
+            for (int i = 0; i < indices.length; i++) {
+                int index = Math.toIntExact(indices[i]);
+                if (index < 0) {
+                    index += data.length;
+                }
+                if (index < 0 || index >= data.length) {
+                    throw unsupported(node, "Gather index out of bounds: " + indices[i]);
+                }
+                out[i] = data[index];
             }
-            out[i] = data[index];
+            int64Constants.put(node.getOutput(0), out);
+            return null;
         }
-        int64Constants.put(node.getOutput(0), out);
-        return null;
+        return TensorOps.gatherAxis(tensorInput(node, tensors, 0), tensorInput(node, tensors, 1), attrs.intAttribute("axis", 0));
     }
 
     private static Tensor reduce(
@@ -782,6 +786,9 @@ final class OnnxGraphImporter {
         }
         int[] range = normalizeShapeRange(saturatingInt(starts[0]), saturatingInt(ends[0]), values.length);
         int length = range[0] >= range[1] ? 0 : ((range[1] - range[0] + (int) step - 1) / (int) step);
+        if (length <= 0) {
+            throw unsupported(node, "shape-only Slice cannot produce an empty shape vector");
+        }
         long[] out = new long[length];
         for (int i = 0, p = range[0]; i < length; i++, p += (int) step) {
             out[i] = values[p];

@@ -426,6 +426,30 @@ class OnnxExportImportTest {
         assertEquals("Concat", singleNode(Tensor.concat(0, x, y)).getOpType());
         assertEquals("Expand", singleNode(new Tensor(new float[]{1f, 2f, 3f}, new int[]{1, 3}, null, "row", DataType.FLOAT32)
                 .expand(2, 3)).getOpType());
+        assertEquals("Gather", singleNode(x.gatherAxis(new Tensor(new int[]{2, 0}, new int[]{2}, null, "idx", DataType.INT32), 1)).getOpType());
+        assertThrows(OnnxUnsupportedException.class,
+                () -> exportInputs(x.gather(new Tensor(new int[]{2, 0}, new int[]{2}, null, "old_idx", DataType.INT32), 1)));
+    }
+
+    @Test
+    void importRuntimeGatherExecutesOnnxShapeSemantics() {
+        OnnxProto.ModelProto model = model("runtime_gather", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2, 3}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("idx",
+                        new Tensor(new int[]{2, 0, -1, 1}, new int[]{2, 2}, null, "idx", DataType.INT32)))
+                .addNode(axisNode("gather", "Gather", "y", 1, "x", "idx"))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 2, 2})));
+
+        ImportedOnnxModel imported = Onnx.importModel(model);
+        imported.input("x").setData(new float[]{1f, 2f, 3f, 4f, 5f, 6f});
+
+        execute(imported, "y");
+
+        assertArrayEquals(new int[]{2, 2, 2}, imported.output("y").getShape());
+        assertArrayEquals(new double[]{
+                3.0, 1.0, 3.0, 2.0,
+                6.0, 4.0, 6.0, 5.0
+        }, imported.output("y").toDoubleArrayCopy(), 1e-6);
     }
 
     @Test
@@ -451,7 +475,7 @@ class OnnxExportImportTest {
     }
 
     @Test
-    void importRejectsNonConstantSliceParametersAndRuntimeGather() {
+    void importRejectsNonConstantSliceParameters() {
         OnnxProto.ModelProto dynamicSlice = model("dynamic_slice", graph -> graph
                 .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{4}))
                 .addInput(OnnxTensorProtoUtil.valueInfo("starts", DataType.INT32, new int[]{1}))
@@ -461,15 +485,6 @@ class OnnxExportImportTest {
 
         OnnxUnsupportedException sliceEx = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(dynamicSlice));
         assertTrue(sliceEx.getMessage().contains("constant initializer or Constant node"));
-
-        OnnxProto.ModelProto runtimeGather = model("runtime_gather", graph -> graph
-                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{3}))
-                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("idx", new Tensor(new int[]{0}, new int[]{1}, null, "idx", DataType.INT32)))
-                .addNode(node("gather", "Gather", "y", "x", "idx"))
-                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{1})));
-
-        OnnxUnsupportedException gatherEx = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(runtimeGather));
-        assertTrue(gatherEx.getMessage().contains("runtime tensor Gather"));
     }
 
     @Test

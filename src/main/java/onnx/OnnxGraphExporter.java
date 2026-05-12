@@ -6,6 +6,7 @@ import operations.elementwise.unary.clampMax;
 import operations.elementwise.unary.clampMin;
 import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.pow;
+import operations.index.gatherAxis;
 import operations.layout.concat;
 import operations.layout.expandDims;
 import operations.layout.expand;
@@ -135,6 +136,7 @@ final class OnnxGraphExporter {
             case SLICE -> exportSlice(node, op, names, graphBuilder);
             case CONCAT -> exportConcat(node, op);
             case CAST -> exportCast(node, op);
+            case GATHER_AXIS -> exportGatherAxis(node, op);
             case SQUEEZE -> exportSqueeze(node, op, names, graphBuilder);
             case EXPAND_DIMS -> exportUnsqueeze(node, op, names, graphBuilder);
             case SUM -> exportReduction(node, "ReduceSum", ((sum) op).getDimension(), ((sum) op).keepDims(), names, graphBuilder);
@@ -220,6 +222,11 @@ final class OnnxGraphExporter {
     private static void exportCast(OnnxProto.NodeProto.Builder node, Operation op) {
         node.setOpType("Cast")
                 .addAttribute(intAttr("to", OnnxDataTypes.toOnnx(((cast) op).getTargetType())));
+    }
+
+    private static void exportGatherAxis(OnnxProto.NodeProto.Builder node, Operation op) {
+        node.setOpType("Gather")
+                .addAttribute(intAttr("axis", ((gatherAxis) op).getAxis()));
     }
 
     private static void exportSqueeze(

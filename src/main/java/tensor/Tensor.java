@@ -1527,6 +1527,17 @@ public class Tensor {
     }
 
     /**
+     * ONNX-style gather that inserts the index tensor shape at the gathered axis.
+     *
+     * @param indices numeric integral index tensor
+     * @param axis source axis; negative axes are normalized
+     * @return gathered tensor with shape {@code dataShape[:axis] + indicesShape + dataShape[axis + 1:]}
+     */
+    public Tensor gatherAxis(Tensor indices, int axis) {
+        return TensorOps.gatherAxis(this, indices, axis);
+    }
+
+    /**
      * Adds source values into indexed positions of this tensor's shape.
      *
      * @param indices numeric integral index tensor

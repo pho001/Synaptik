@@ -26,9 +26,12 @@ public final class CpuTypeContractResolver {
             case REDUCE_ALL, REDUCE_ANY -> resolveBoolReductionContract(inputs);
             case GATHER -> resolveGatherContract(inputs);
             case GATHER_GRAD -> resolveGatherGradContract(inputs);
+            case GATHER_AXIS -> resolveGatherContract(inputs);
+            case GATHER_AXIS_GRAD -> resolveGatherGradContract(inputs);
             case TAKE_ALONG_AXIS -> resolveTakeAlongAxisContract(inputs);
             case TAKE_ALONG_AXIS_GRAD -> resolveTakeAlongAxisGradContract(inputs);
             case SCATTER_ADD -> resolveScatterAddContract(inputs);
+            case SLICE_GRAD -> resolveSingleFloatingInputContract(inputs, "sliceGrad");
             case CAST -> resolveCastContract(node, inputs);
             case SCALED_DOT_PRODUCT_ATTENTION -> resolveAttentionContract(inputs);
             case SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> resolveSameFloatingBinaryContract(inputs, "scaledDotProductAttentionBackward");

@@ -911,7 +911,7 @@ public final class PreparedExecution {
             return false;
         }
         return switch (tensor.getOperation().opType()) {
-            case NOOP, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE -> true;
+            case NOOP, EXPAND, SELECT, SLICE, PERMUTE, EXPAND_DIMS, SQUEEZE -> true;
             case RESHAPE -> tensor.getPrevTensors().getFirst().isContiguous();
             default -> false;
         };

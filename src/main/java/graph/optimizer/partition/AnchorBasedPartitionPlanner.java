@@ -149,6 +149,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
             case ADD, SUB, MUL, DIV, MIN, MAX, RELU, TANH, FAST_TANH, SIGMOID, EXP, FAST_EXP,
                     LOG, SQRT, NEG, ABS, INV, POW, MUL_SCALAR -> 4_000;
             case RESHAPE, PERMUTE, CONTIGUOUS, EXPAND, EXPAND_DIMS, SQUEEZE, SELECT, SLICE, CONCAT, NOOP -> 1_000;
+            case SLICE_GRAD, GATHER_AXIS, GATHER_AXIS_GRAD -> 2_000;
             default -> 2_000;
         };
         if (allowsMixedTrainingPhases(request)) {

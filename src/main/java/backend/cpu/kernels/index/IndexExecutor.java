@@ -27,6 +27,26 @@ final class IndexExecutor {
         IndexReadWriteBackend.runI32(input, indices, out, dimension);
     }
 
+    static void gatherAxisF64(Tensor input, Tensor indices, Tensor out, int axis, CpuKernelContext context) {
+        IndexReadWriteBackend.gatherAxisF64(input, indices, out, axis);
+    }
+
+    static void gatherAxisF32(Tensor input, Tensor indices, Tensor out, int axis, CpuKernelContext context) {
+        IndexReadWriteBackend.gatherAxisF32(input, indices, out, axis);
+    }
+
+    static void gatherAxisBF16(Tensor input, Tensor indices, Tensor out, int axis, CpuKernelContext context) {
+        IndexReadWriteBackend.gatherAxisBF16(input, indices, out, axis);
+    }
+
+    static void gatherAxisBOOL(Tensor input, Tensor indices, Tensor out, int axis, CpuKernelContext context) {
+        IndexReadWriteBackend.gatherAxisBOOL(input, indices, out, axis);
+    }
+
+    static void gatherAxisI32(Tensor input, Tensor indices, Tensor out, int axis, CpuKernelContext context) {
+        IndexReadWriteBackend.gatherAxisI32(input, indices, out, axis);
+    }
+
     static void gatherGradF64(Tensor indices, Tensor outGrad, Tensor node, int dimension, CpuKernelContext context) {
         IndexReadWriteBackend.scatterF64(indices, outGrad, node, dimension);
     }
@@ -37,6 +57,18 @@ final class IndexExecutor {
 
     static void gatherGradBF16(Tensor indices, Tensor outGrad, Tensor node, int dimension, CpuKernelContext context) {
         IndexReadWriteBackend.scatterBF16(indices, outGrad, node, dimension);
+    }
+
+    static void gatherAxisGradF64(Tensor indices, Tensor outGrad, Tensor node, int axis, CpuKernelContext context) {
+        IndexReadWriteBackend.gatherAxisGradF64(indices, outGrad, node, axis);
+    }
+
+    static void gatherAxisGradF32(Tensor indices, Tensor outGrad, Tensor node, int axis, CpuKernelContext context) {
+        IndexReadWriteBackend.gatherAxisGradF32(indices, outGrad, node, axis);
+    }
+
+    static void gatherAxisGradBF16(Tensor indices, Tensor outGrad, Tensor node, int axis, CpuKernelContext context) {
+        IndexReadWriteBackend.gatherAxisGradBF16(indices, outGrad, node, axis);
     }
 
     static void takeAlongAxisF64(Tensor input, Tensor indices, Tensor out, int dimension, CpuKernelContext context) {

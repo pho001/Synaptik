@@ -33,6 +33,8 @@ public final class CpuKernelResolver {
     private static final CpuLogicalNotKernel LOGICAL_NOT = new CpuLogicalNotKernel();
     private static final CpuGatherKernel GATHER = new CpuGatherKernel();
     private static final CpuGatherGradKernel GATHER_GRAD = new CpuGatherGradKernel();
+    private static final CpuGatherAxisKernel GATHER_AXIS = new CpuGatherAxisKernel();
+    private static final CpuGatherAxisGradKernel GATHER_AXIS_GRAD = new CpuGatherAxisGradKernel();
     private static final CpuTakeAlongAxisKernel TAKE_ALONG_AXIS = new CpuTakeAlongAxisKernel();
     private static final CpuTakeAlongAxisGradKernel TAKE_ALONG_AXIS_GRAD = new CpuTakeAlongAxisGradKernel();
     private static final CpuScatterAddKernel SCATTER_ADD = new CpuScatterAddKernel();
@@ -91,6 +93,7 @@ public final class CpuKernelResolver {
     private static final CpuReshapeLikeKernel RESHAPE = new CpuReshapeLikeKernel();
     private static final CpuExpandKernel EXPAND = new CpuExpandKernel();
     private static final CpuAliasViewKernel ALIAS_VIEW = new CpuAliasViewKernel();
+    private static final CpuSliceGradKernel SLICE_GRAD = new CpuSliceGradKernel();
     private static final CpuConcatKernel CONCAT = new CpuConcatKernel();
     private static final CpuCastKernel CAST = new CpuCastKernel();
     private static final CpuPermuteKernel PERMUTE = new CpuPermuteKernel();
@@ -119,6 +122,8 @@ public final class CpuKernelResolver {
             case LOGICAL_NOT -> LOGICAL_NOT;
             case GATHER -> GATHER;
             case GATHER_GRAD -> GATHER_GRAD;
+            case GATHER_AXIS -> GATHER_AXIS;
+            case GATHER_AXIS_GRAD -> GATHER_AXIS_GRAD;
             case TAKE_ALONG_AXIS -> TAKE_ALONG_AXIS;
             case TAKE_ALONG_AXIS_GRAD -> TAKE_ALONG_AXIS_GRAD;
             case SCATTER_ADD -> SCATTER_ADD;
@@ -177,6 +182,7 @@ public final class CpuKernelResolver {
             case RESHAPE -> RESHAPE;
             case EXPAND -> EXPAND;
             case SELECT, SLICE, EXPAND_DIMS, SQUEEZE -> ALIAS_VIEW;
+            case SLICE_GRAD -> SLICE_GRAD;
             case CONCAT -> CONCAT;
             case CAST -> CAST;
             case PERMUTE -> PERMUTE;

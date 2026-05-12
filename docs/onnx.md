@@ -104,7 +104,7 @@ Supported node families:
 | `Squeeze`, `Unsqueeze` | `Tensor.squeeze` / `Tensor.expandDims` with constant axes. |
 | `Slice` | Static positive-step slice with constant `starts`, `ends`, `axes`, and `steps`. Runtime tensor slicing maps to `Tensor.slice`; importer-internal shape-vector slicing is evaluated during import. Very large ONNX end sentinels such as `INT64_MAX` are saturated and then clamped to the known static dimension. |
 | `Concat` | Runtime tensor concat for matching dtypes/ranks; shape-only concat for importer-internal `INT64` shape vectors. |
-| `Shape`, `Size`, shape-only `Gather` | Import-time shape constants used to feed `Reshape`, `Expand`, and similar shape parameters. `Shape` supports static `start`/`end` attributes. Shape-only `Gather` and `Slice` are limited to axis `0` because the importer represents shape tensors as flat compile-time vectors. |
+| `Shape`, `Size`, `Gather` | Runtime `Gather` maps to ONNX-style `Tensor.gatherAxis`, where the index tensor shape is inserted at the gathered axis. Shape-only `Gather` remains import-time shape plumbing and is limited to axis `0` because the importer represents shape tensors as flat compile-time vectors. |
 | `ReduceSum`, `ReduceMean`, `ReduceMax`, `ReduceMin` | Axis reductions; multi-axis reductions are applied as repeated Synaptik reductions. |
 | `Softmax`, `LogSoftmax` | Axis normalization ops. |
 | `Constant` | Tensor initializer in graph-node form. |
@@ -113,7 +113,7 @@ Explicit non-goals in the current algebra subset:
 
 - Tensor-by-tensor `Pow` is rejected. It needs either a first-class Synaptik tensor exponent op or a documented lowering strategy before import/export can claim support.
 - Variadic ONNX `Min`/`Max` are rejected unless represented as binary nodes. A future importer can lower a variadic ONNX node into a left-associated chain if that behavior is intentionally added.
-- Runtime ONNX `Gather` is rejected except for importer-internal shape vectors. ONNX `Gather` has broader output-shape semantics than Synaptik's current `gather` graph op, so broad support needs a dedicated semantic mapping.
+- `GatherElements` and `GatherND` are not supported yet. Runtime ONNX `Gather` is supported through the dedicated `gatherAxis` graph op, not the older Synaptik `gather` helper with reduced output shape.
 - Dynamic shape, slice, reshape, and expand parameters are rejected; the current importer remains static dense inference.
 
 Unsupported by design in the first subset:

@@ -1,6 +1,8 @@
 package tensor.ops.index;
 
 import operations.index.gather;
+import operations.index.gatherAxis;
+import operations.index.gatherAxisGrad;
 import operations.index.gatherGrad;
 import operations.index.scatterAdd;
 import operations.layout.select;
@@ -122,6 +124,48 @@ public final class TensorIndexOps {
     }
 
     /**
+     * ONNX-style gather that inserts the index tensor shape at the gathered axis.
+     *
+     * <p>For data shape {@code [A, B, C]}, indices shape {@code [I, J]}, and
+     * axis {@code 1}, the output shape is {@code [A, I, J, C]}.</p>
+     */
+    public static Tensor gatherAxis(Tensor input, Tensor indices, int axis) {
+        if (input == null || indices == null) {
+            throw new IllegalArgumentException("gatherAxis inputs cannot be null");
+        }
+        if (indices.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("gatherAxis indices must be numeric integral values.");
+        }
+        int normalizedAxis = TensorLayoutTransform.normalizeAxis(axis, input.getShapeUnsafe().length);
+        int[] outputShape = gatherAxisOutputShape(input.getShapeUnsafe(), indices.getShapeUnsafe(), normalizedAxis);
+        Tensor out = TensorPrimitiveBuilder.binary(
+                input,
+                indices,
+                outputShape,
+                new gatherAxis(normalizedAxis),
+                "gatherAxis",
+                input.getDataType()
+        );
+        out.setRequiresGrad(input.getRequiresGrad() && isFloating(input.getDataType()));
+        TensorInternalAccess.setBackwardFunction(out, () -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null || !input.getRequiresGrad() || !isFloating(input.getDataType())) {
+                return;
+            }
+            Tensor grad = TensorPrimitiveBuilder.binaryNoGrad(
+                    indices,
+                    outGrad,
+                    input.getShape(),
+                    new gatherAxisGrad(normalizedAxis, input.getShape()),
+                    "gather_axis_grad",
+                    input.getDataType()
+            );
+            IndexSupport.accumulateGradient(input, grad);
+        });
+        return out;
+    }
+
+    /**
      * Adds source values into a copy-shaped output at indexed positions.
      *
      * <p>{@code base} and {@code src} must be floating tensors of the same dtype.
@@ -180,6 +224,25 @@ public final class TensorIndexOps {
             }
         });
         return out;
+    }
+
+    private static int[] gatherAxisOutputShape(int[] dataShape, int[] indicesShape, int axis) {
+        int[] out = new int[dataShape.length + indicesShape.length - 1];
+        int p = 0;
+        for (int i = 0; i < axis; i++) {
+            out[p++] = dataShape[i];
+        }
+        for (int dim : indicesShape) {
+            out[p++] = dim;
+        }
+        for (int i = axis + 1; i < dataShape.length; i++) {
+            out[p++] = dataShape[i];
+        }
+        return out;
+    }
+
+    private static boolean isFloating(DataType type) {
+        return type == DataType.FLOAT64 || type == DataType.FLOAT32 || type == DataType.BFLOAT16;
     }
 
     /**
