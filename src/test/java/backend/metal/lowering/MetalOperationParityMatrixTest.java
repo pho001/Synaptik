@@ -91,7 +91,7 @@ class MetalOperationParityMatrixTest {
         for (MetalOperationParityMatrix.Row row : MetalOperationParityMatrix.rows()) {
             seen.add(row.opType());
             if (row.cpuFallbackOnly()) {
-                assertTrue(row.opType() == Operation.OpType.FUSED || row.opType() == Operation.OpType.CONST_SCALAR,
+                assertTrue(!row.plannerSupported() && !row.dagLowerable() && !row.bufferExecutable(),
                         () -> "unexpected Metal cpuFallbackOnly row: " + row);
             }
         }
