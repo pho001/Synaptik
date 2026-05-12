@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'application'
+    id 'com.google.protobuf' version '0.9.5'
 }
 
 group = 'computationalgraph'
@@ -13,9 +14,16 @@ repositories {
 dependencies {
     implementation 'org.ow2.asm:asm:9.6'
     implementation 'org.ow2.asm:asm-commons:9.6'
+    implementation 'com.google.protobuf:protobuf-java:4.29.3'
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+protobuf {
+    protoc {
+        artifact = 'com.google.protobuf:protoc:4.29.3'
+    }
 }
 
 java {

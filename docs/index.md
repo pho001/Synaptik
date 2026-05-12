@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Documentation Index
 
-Navigation: [README](../README.md#reading-guide) | [Architecture](architecture.md#system-overview) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Adding Tensor Operation](adding-tensor-operation.md#implementation-checklist) | [Compute Flow](compute-flow.md#lifecycle-map) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-regions.md#backend-planning-and-regions) | [CPU BF16](cpu-bf16.md#cpu-bf16-runtime) | [Native Bridges & BLAS](native-bridges-and-blas.md#term-map-at-a-glance) | [Metal Backend](metal-backend.md#end-to-end-flow) | [Calibration & Autotune](calibration-autotune.md#core-distinction) | [Public API](public-api.md#stability-map) | [Examples](examples.md#running-examples)
+Navigation: [README](../README.md#reading-guide) | [Architecture](architecture.md#system-overview) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Adding Tensor Operation](adding-tensor-operation.md#implementation-checklist) | [Compute Flow](compute-flow.md#lifecycle-map) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-regions.md#backend-planning-and-regions) | [ONNX](onnx.md#onnx-import-and-export) | [CPU BF16](cpu-bf16.md#cpu-bf16-runtime) | [Native Bridges & BLAS](native-bridges-and-blas.md#term-map-at-a-glance) | [Metal Backend](metal-backend.md#end-to-end-flow) | [Calibration & Autotune](calibration-autotune.md#core-distinction) | [Public API](public-api.md#stability-map) | [Examples](examples.md#running-examples)
 
 Chapters: [Recommended Reading Paths](#recommended-reading-paths) | [Document Map](#document-map) | [Source Documentation](#source-documentation) | [Verification Notes](#verification-notes)
 
@@ -83,6 +83,7 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 | [compute-flow.md](compute-flow.md#lifecycle-map) | Deep end-to-end walkthrough from graph building to `Tensor.compute(...)`, compile, prepare, execution, traces, and reuse rules. |
 | [graph-optimizer.md](graph-optimizer.md#graph-optimizer) | Backend-neutral graph optimization, cleanup fixpoint behavior, lowering, snapshot safety, and optimizer diagnostics. |
 | [backend-planning-and-regions.md](backend-planning-and-regions.md#backend-planning-and-regions) | Backend ownership planning, CPU natural regions, accelerator regions, region optimization, memory planning, publication policy, and benchmark semantics. |
+| [onnx.md](onnx.md#onnx-import-and-export) | ONNX import/export boundary, public API, supported static dense inference subset, dtype/op mapping, and failure policy. |
 | [cpu-bf16.md](cpu-bf16.md#cpu-bf16-runtime) | CPU BF16 storage/compute/accumulation contract, conversion costs, fusion limits, BLAS implications, and trace-reading guidance. |
 | [native-bridges-and-blas.md](native-bridges-and-blas.md#term-map-at-a-glance) | Explanation of BLAS/GEMM, OpenBLAS dispatch, Java FFM bridges, native lookup, fallbacks, and performance tradeoffs. |
 | [metal-backend.md](metal-backend.md#end-to-end-flow) | Detailed Metal backend guide covering planner legality, Java FFM, Objective-C MPS shim, native buffer ABI, residency, traces, and fallbacks. |
