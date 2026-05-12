@@ -28,6 +28,14 @@ public final class OnnxCoverageMatrix {
         UNSUPPORTED
     }
 
+    public enum RoundTripEvidence {
+        ROUND_TRIP_TESTED,
+        EXPLICITLY_CLASSIFIED,
+        IMPORT_ONLY_TESTED,
+        REJECTION_TESTED,
+        NOT_APPLICABLE
+    }
+
     public record Entry(
             String onnxOp,
             String synaptikMapping,
@@ -36,6 +44,7 @@ public final class OnnxCoverageMatrix {
             CoverageStatus cpuStatus,
             CoverageStatus metalStatus,
             CoverageStatus cudaStatus,
+            RoundTripEvidence roundTripEvidence,
             String limitations,
             List<Operation.OpType> mappedOpTypes
     ) {
@@ -47,6 +56,7 @@ public final class OnnxCoverageMatrix {
             Objects.requireNonNull(cpuStatus, "cpuStatus cannot be null");
             Objects.requireNonNull(metalStatus, "metalStatus cannot be null");
             Objects.requireNonNull(cudaStatus, "cudaStatus cannot be null");
+            Objects.requireNonNull(roundTripEvidence, "roundTripEvidence cannot be null");
             limitations = limitations == null ? "" : limitations;
             mappedOpTypes = List.copyOf(mappedOpTypes == null ? List.of() : mappedOpTypes);
         }
@@ -279,7 +289,43 @@ public final class OnnxCoverageMatrix {
             String limitations,
             Operation.OpType... mappedOps
     ) {
-        out.add(new Entry(onnxOp, mapping, importStatus, exportStatus, cpuStatus, metalStatus, cudaStatus, limitations, List.of(mappedOps)));
+        out.add(new Entry(
+                onnxOp,
+                mapping,
+                importStatus,
+                exportStatus,
+                cpuStatus,
+                metalStatus,
+                cudaStatus,
+                roundTripEvidence(onnxOp, importStatus, exportStatus),
+                limitations,
+                List.of(mappedOps)
+        ));
+    }
+
+    private static RoundTripEvidence roundTripEvidence(String onnxOp, CoverageStatus importStatus, CoverageStatus exportStatus) {
+        if (onnxOp.equals("NonZero")) {
+            return RoundTripEvidence.REJECTION_TESTED;
+        }
+        if (roundTripTested(onnxOp)) {
+            return RoundTripEvidence.ROUND_TRIP_TESTED;
+        }
+        if (exportStatus == CoverageStatus.UNSUPPORTED && importStatus != CoverageStatus.UNSUPPORTED) {
+            return RoundTripEvidence.IMPORT_ONLY_TESTED;
+        }
+        if (exportStatus == CoverageStatus.SUPPORTED || exportStatus == CoverageStatus.PARTIAL) {
+            return RoundTripEvidence.EXPLICITLY_CLASSIFIED;
+        }
+        return RoundTripEvidence.NOT_APPLICABLE;
+    }
+
+    private static boolean roundTripTested(String onnxOp) {
+        return switch (onnxOp) {
+            case "Add", "MatMul", "Conv", "LayerNormalization",
+                 "GatherElements", "GatherND", "ScatterElements", "ScatterND",
+                 "Reciprocal", "Erf", "Floor", "Ceil", "Sign" -> true;
+            default -> false;
+        };
     }
 
     private static CoverageStatus gpu(ComputeBackend backend, Operation.OpType opType) {

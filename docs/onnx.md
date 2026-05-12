@@ -133,7 +133,7 @@ Supported node families:
 
 ## Coverage Matrix
 
-The code-level source of truth for interchange coverage is `onnx.OnnxCoverageMatrix`. Each row separates:
+The code-level source of truth for interchange coverage is `onnx.OnnxCoverageMatrix`. The generated human-readable report is `docs/onnx-coverage.md`; it is rendered by `onnx.OnnxCoverageReport` and checked by `OnnxCoverageMatrixTest`, so status rows are not hand-maintained. Each row separates:
 
 - ONNX import support: whether an ONNX node can be translated into a Synaptik graph.
 - ONNX export support: whether a Synaptik semantic op can be serialized as that ONNX op.

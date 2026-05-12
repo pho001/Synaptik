@@ -184,9 +184,9 @@ final class OnnxGraphImporter {
             case "LayerNormalization" -> layerNormalization(node, tensors, attrs);
             case "BatchNormalization" -> batchNormalization(node, tensors, attrs);
             case "Transpose" -> transpose(node, tensors, attrs);
-            case "Reshape" -> reshape(node, tensors, int64Constants);
+            case "Reshape" -> reshape(node, tensors, int64Constants, constantTensors);
             case "Flatten" -> flatten(node, tensors, attrs);
-            case "Expand" -> expand(node, tensors, int64Constants);
+            case "Expand" -> expand(node, tensors, int64Constants, constantTensors);
             case "Pad" -> pad(node, tensors, int64Constants, constantTensors, attrs);
             case "Tile" -> tile(node, tensors, int64Constants);
             case "ConstantOfShape" -> constantOfShape(node, tensors, int64Constants, constantTensors, attrs);
@@ -507,9 +507,14 @@ final class OnnxGraphImporter {
         return input.permute(perm);
     }
 
-    private static Tensor reshape(OnnxProto.NodeProto node, Map<String, Tensor> tensors, Map<String, long[]> int64Constants) {
+    private static Tensor reshape(
+            OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
+            Map<String, long[]> int64Constants,
+            Set<String> constantTensors
+    ) {
         requireInputCount(node, 2, 2);
-        return tensorInput(node, tensors, 0).reshape(toIntArray(intConstantInput(node, tensors, int64Constants, 1), node, "shape"));
+        return tensorInput(node, tensors, 0).reshape(toIntArray(intConstantInput(node, tensors, int64Constants, constantTensors, 1), node, "shape"));
     }
 
     private static Tensor flatten(OnnxProto.NodeProto node, Map<String, Tensor> tensors, OnnxAttributeReader attrs) {
@@ -534,9 +539,14 @@ final class OnnxGraphImporter {
         return input.reshape(new int[]{left, right});
     }
 
-    private static Tensor expand(OnnxProto.NodeProto node, Map<String, Tensor> tensors, Map<String, long[]> int64Constants) {
+    private static Tensor expand(
+            OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
+            Map<String, long[]> int64Constants,
+            Set<String> constantTensors
+    ) {
         requireInputCount(node, 2, 2);
-        return tensorInput(node, tensors, 0).expand(toIntArray(intConstantInput(node, tensors, int64Constants, 1), node, "shape"));
+        return tensorInput(node, tensors, 0).expand(toIntArray(intConstantInput(node, tensors, int64Constants, constantTensors, 1), node, "shape"));
     }
 
     private static Tensor pad(

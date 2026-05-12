@@ -6,6 +6,9 @@ import backend.accelerator.lowering.GpuLoweringCoverageStatus;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -26,6 +29,7 @@ class OnnxCoverageMatrixTest {
             assertNotNull(entry.cpuStatus(), entry.onnxOp());
             assertNotNull(entry.metalStatus(), entry.onnxOp());
             assertNotNull(entry.cudaStatus(), entry.onnxOp());
+            assertNotNull(entry.roundTripEvidence(), entry.onnxOp());
         }
         Set<String> importSupportedRows = new HashSet<>();
         for (OnnxCoverageMatrix.Entry entry : OnnxCoverageMatrix.entries()) {
@@ -63,29 +67,18 @@ class OnnxCoverageMatrixTest {
 
     @Test
     void exportSupportedRowsAreRoundTrippedOrExplicitlyClassified() {
-        Set<String> roundTripCovered = Set.of(
-                "Add", "MatMul", "Conv", "LayerNormalization",
-                "GatherElements", "GatherND", "ScatterElements", "ScatterND",
-                "Reciprocal", "Erf", "Floor", "Ceil", "Sign"
-        );
-        Set<String> explicitlyClassified = Set.of(
-                "Sub", "Mul", "Div", "Min", "Max", "Pow",
-                "Neg", "Abs", "Relu", "Tanh", "Sigmoid", "Exp", "Log", "Sqrt",
-                "Equal", "Greater", "GreaterOrEqual", "Less", "LessOrEqual",
-                "Not", "And", "Or", "Where", "Clip", "Cast", "Gemm",
-                "MaxPool", "AveragePool",
-                "Transpose", "Reshape", "Flatten", "Expand", "Pad", "Tile",
-                "Squeeze", "Unsqueeze", "Slice", "Concat", "Gather",
-                "ReduceSum", "ReduceMean", "ReduceMax", "ReduceMin", "ReduceProd",
-                "ArgMax", "CumSum", "Softmax", "LogSoftmax"
-        );
-
         for (OnnxCoverageMatrix.Entry entry : OnnxCoverageMatrix.entries()) {
             if (entry.exportStatus() == OnnxCoverageMatrix.CoverageStatus.SUPPORTED) {
-                assertTrue(roundTripCovered.contains(entry.onnxOp()) || explicitlyClassified.contains(entry.onnxOp()),
+                assertTrue(entry.roundTripEvidence() == OnnxCoverageMatrix.RoundTripEvidence.ROUND_TRIP_TESTED
+                                || entry.roundTripEvidence() == OnnxCoverageMatrix.RoundTripEvidence.EXPLICITLY_CLASSIFIED,
                         "export-supported ONNX row needs a round-trip test or explicit classification: " + entry.onnxOp());
             }
         }
+    }
+
+    @Test
+    void checkedInCoverageReportMatchesGeneratedMarkdown() throws IOException {
+        assertEquals(OnnxCoverageReport.renderMarkdown(), Files.readString(Path.of("docs/onnx-coverage.md")));
     }
 
     private static void assertBackendStatus(String onnxOp, Operation.OpType opType) {
