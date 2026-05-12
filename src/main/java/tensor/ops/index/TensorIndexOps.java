@@ -4,6 +4,8 @@ import operations.index.gather;
 import operations.index.gatherAxis;
 import operations.index.gatherAxisGrad;
 import operations.index.gatherGrad;
+import operations.index.gatherNd;
+import operations.index.gatherNdGrad;
 import operations.index.ScatterReduction;
 import operations.index.scatterAdd;
 import operations.index.scatterElements;
@@ -169,6 +171,51 @@ public final class TensorIndexOps {
     }
 
     /**
+     * ONNX GatherND with batch_dims=0: tuple-index read with slice-preserving suffix.
+     */
+    public static Tensor gatherNd(Tensor input, Tensor indices) {
+        return gatherNd(input, indices, 0);
+    }
+
+    /**
+     * ONNX GatherND: tuple-index read with optional leading batch dimensions.
+     */
+    public static Tensor gatherNd(Tensor input, Tensor indices, int batchDims) {
+        if (input == null || indices == null) {
+            throw new IllegalArgumentException("gatherNd inputs cannot be null");
+        }
+        if (indices.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("gatherNd indices must be numeric integral values.");
+        }
+        int[] outputShape = gatherNdOutputShape(input.getShapeUnsafe(), indices.getShapeUnsafe(), batchDims);
+        Tensor out = TensorPrimitiveBuilder.binary(
+                input,
+                indices,
+                outputShape,
+                new gatherNd(batchDims),
+                "gatherNd",
+                input.getDataType()
+        );
+        out.setRequiresGrad(input.getRequiresGrad() && isFloating(input.getDataType()));
+        TensorInternalAccess.setBackwardFunction(out, () -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null || !input.getRequiresGrad() || !isFloating(input.getDataType())) {
+                return;
+            }
+            Tensor grad = TensorPrimitiveBuilder.binaryNoGrad(
+                    indices,
+                    outGrad,
+                    input.getShape().clone(),
+                    new gatherNdGrad(batchDims, input.getShape()),
+                    "gather_nd_grad",
+                    input.getDataType()
+            );
+            IndexSupport.accumulateGradient(input, grad);
+        });
+        return out;
+    }
+
+    /**
      * Adds source values into a copy-shaped output at indexed positions.
      *
      * <p>{@code base} and {@code src} must be floating tensors of the same dtype.
@@ -306,8 +353,8 @@ public final class TensorIndexOps {
         validateScatterNdShape(data.getShapeUnsafe(), indices.getShapeUnsafe(), updates.getShapeUnsafe());
         boolean differentiable = isFloating(data.getDataType())
                 && (data.getRequiresGrad() || updates.getRequiresGrad());
-        if (differentiable) {
-            throw new UnsupportedOperationException("scatterNd backward is not supported until GatherND is implemented.");
+        if (differentiable && effectiveReduction != ScatterReduction.NONE && effectiveReduction != ScatterReduction.ADD) {
+            throw new UnsupportedOperationException("scatterNd backward supports only NONE and ADD reductions.");
         }
 
         Tensor out = TensorPrimitiveBuilder.ternary(
@@ -319,7 +366,25 @@ public final class TensorIndexOps {
                 "scatterNd",
                 data.getDataType()
         );
-        out.setRequiresGrad(false);
+        out.setRequiresGrad(differentiable);
+        TensorInternalAccess.setBackwardFunction(out, () -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null || !isFloating(data.getDataType())) {
+                return;
+            }
+            if (data.getRequiresGrad()) {
+                Tensor dataGrad = switch (effectiveReduction) {
+                    case NONE -> outGrad.scatterNd(indices, Tensor.zerosLike(updates), ScatterReduction.NONE);
+                    case ADD -> outGrad;
+                    case MUL, MAX, MIN -> throw new UnsupportedOperationException("scatterNd backward supports only NONE and ADD reductions.");
+                };
+                IndexSupport.accumulateGradient(data, dataGrad);
+            }
+            if (updates.getRequiresGrad()) {
+                Tensor updatesGrad = outGrad.gatherNd(indices);
+                IndexSupport.accumulateGradient(updates, updatesGrad);
+            }
+        });
         return out;
     }
 
@@ -341,13 +406,8 @@ public final class TensorIndexOps {
     }
 
     private static void validateScatterNdShape(int[] dataShape, int[] indicesShape, int[] updatesShape) {
-        if (indicesShape.length == 0) {
-            throw new IllegalArgumentException("scatterNd indices rank must be at least 1.");
-        }
+        validateGatherNdShape(dataShape, indicesShape, 0);
         int tupleRank = indicesShape[indicesShape.length - 1];
-        if (tupleRank <= 0 || tupleRank > dataShape.length) {
-            throw new IllegalArgumentException("scatterNd final indices dimension must be in [1, data rank].");
-        }
         int expectedRank = indicesShape.length - 1 + dataShape.length - tupleRank;
         if (updatesShape.length != expectedRank) {
             if (expectedRank == 0 && updatesShape.length == 1 && updatesShape[0] == 1) {
@@ -365,6 +425,45 @@ public final class TensorIndexOps {
             if (updatesShape[p++] != dataShape[i]) {
                 throw new IllegalArgumentException("scatterNd updates suffix shape must match indexed data slice shape.");
             }
+        }
+    }
+
+    private static int[] gatherNdOutputShape(int[] dataShape, int[] indicesShape, int batchDims) {
+        validateGatherNdShape(dataShape, indicesShape, batchDims);
+        int tupleRank = indicesShape[indicesShape.length - 1];
+        int outputRank = indicesShape.length - 1 + dataShape.length - batchDims - tupleRank;
+        if (outputRank == 0) {
+            return new int[]{1};
+        }
+        int[] outputShape = new int[outputRank];
+        int p = 0;
+        for (int i = 0; i < indicesShape.length - 1; i++) {
+            outputShape[p++] = indicesShape[i];
+        }
+        for (int i = batchDims + tupleRank; i < dataShape.length; i++) {
+            outputShape[p++] = dataShape[i];
+        }
+        return outputShape;
+    }
+
+    private static void validateGatherNdShape(int[] dataShape, int[] indicesShape, int batchDims) {
+        if (indicesShape.length == 0) {
+            throw new IllegalArgumentException("gatherNd indices rank must be at least 1.");
+        }
+        if (batchDims < 0 || batchDims >= indicesShape.length) {
+            throw new IllegalArgumentException("gatherNd batchDims must be in [0, indices rank).");
+        }
+        if (batchDims > dataShape.length) {
+            throw new IllegalArgumentException("gatherNd batchDims cannot exceed data rank.");
+        }
+        for (int i = 0; i < batchDims; i++) {
+            if (indicesShape[i] != dataShape[i]) {
+                throw new IllegalArgumentException("gatherNd batch dimensions must match data leading dimensions.");
+            }
+        }
+        int tupleRank = indicesShape[indicesShape.length - 1];
+        if (tupleRank <= 0 || batchDims + tupleRank > dataShape.length) {
+            throw new IllegalArgumentException("gatherNd final indices dimension must be in [1, data rank - batchDims].");
         }
     }
 

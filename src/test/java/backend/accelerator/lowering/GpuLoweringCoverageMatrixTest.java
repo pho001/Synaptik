@@ -151,6 +151,8 @@ class GpuLoweringCoverageMatrixTest {
                 Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD,
                 Operation.OpType.GATHER,
                 Operation.OpType.GATHER_GRAD,
+                Operation.OpType.GATHER_ND,
+                Operation.OpType.GATHER_ND_GRAD,
                 Operation.OpType.TAKE_ALONG_AXIS,
                 Operation.OpType.TAKE_ALONG_AXIS_GRAD,
                 Operation.OpType.SCATTER_ADD,
@@ -197,6 +199,10 @@ class GpuLoweringCoverageMatrixTest {
                     : GpuLoweringUnsupportedReason.CAPABILITY_MISSING;
             assertEquals(expectedForwardIndexReason,
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.GATHER).reason());
+            assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
+                    GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.GATHER_ND).reason());
+            assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
+                    GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.GATHER_ND_GRAD).reason());
             assertEquals(expectedForwardIndexReason,
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.TAKE_ALONG_AXIS).reason());
             GpuLoweringUnsupportedReason expectedIndexWriteReason = backend == ComputeBackend.GPU_METAL

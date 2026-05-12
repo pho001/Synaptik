@@ -31,6 +31,8 @@ public final class CpuTypeContractResolver {
             case GATHER_GRAD -> resolveGatherGradContract(inputs);
             case GATHER_AXIS -> resolveGatherContract(inputs);
             case GATHER_AXIS_GRAD -> resolveGatherGradContract(inputs);
+            case GATHER_ND -> resolveGatherContract(inputs);
+            case GATHER_ND_GRAD -> resolveGatherGradContract(inputs);
             case TAKE_ALONG_AXIS -> resolveTakeAlongAxisContract(inputs);
             case TAKE_ALONG_AXIS_GRAD -> resolveTakeAlongAxisGradContract(inputs);
             case SCATTER_ADD -> resolveScatterAddContract(inputs);

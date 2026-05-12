@@ -181,7 +181,7 @@ public class ScatterNdExecutionTest {
     }
 
     @Test
-    void scatterNdRejectsShapeDtypeAndTrainingContracts() {
+    void scatterNdRejectsShapeDtypeAndUnsupportedTrainingReductions() {
         Tensor data = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "data", DataType.FLOAT64);
         Tensor indices = new Tensor(new int[]{0, 1}, new int[]{1, 2}, null, "indices", DataType.INT32);
         Tensor updates = new Tensor(new double[]{9}, new int[]{1}, null, "updates", DataType.FLOAT64);
@@ -194,7 +194,128 @@ public class ScatterNdExecutionTest {
                 () -> data.scatterNd(indices, new Tensor(new float[]{1}, new int[]{1}, null, "wrongDtype", DataType.FLOAT32)));
 
         data.setRequiresGrad(true);
-        assertThrows(UnsupportedOperationException.class, () -> data.scatterNd(indices, updates));
+        assertThrows(UnsupportedOperationException.class, () -> data.scatterNd(indices, updates, ScatterReduction.MUL));
+        assertThrows(UnsupportedOperationException.class, () -> data.scatterNd(indices, updates, ScatterReduction.MAX));
+        assertThrows(UnsupportedOperationException.class, () -> data.scatterNd(indices, updates, ScatterReduction.MIN));
+    }
+
+    @Test
+    void scatterNdBackwardForNoneZerosOverwrittenDataAndGathersUpdates() {
+        Tensor data = new Tensor(new double[]{
+                10, 20, 30,
+                40, 50, 60
+        }, new int[]{2, 3}, null, "data", DataType.FLOAT64);
+        Tensor indices = new Tensor(new int[]{0, 2, 1, 0}, new int[]{2, 2}, null, "indices", DataType.INT32);
+        Tensor updates = new Tensor(new double[]{1, 7}, new int[]{2}, null, "updates", DataType.FLOAT64);
+        data.setRequiresGrad(true);
+        updates.setRequiresGrad(true);
+
+        Tensor out = data.scatterNd(indices, updates).mul(2.0);
+
+        CompiledGraph.compile(out, CompileConfig.training())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(new double[]{
+                2.0, 2.0, 0.0,
+                0.0, 2.0, 2.0
+        }, data.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{2.0, 2.0}, updates.getGradient().toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void scatterNdBackwardForAddPropagatesDataAndGathersUpdates() {
+        Tensor data = new Tensor(new double[]{
+                10, 20, 30,
+                40, 50, 60
+        }, new int[]{2, 3}, null, "data", DataType.FLOAT64);
+        Tensor indices = new Tensor(new int[]{0, 1, 0, 1, 1, 2}, new int[]{3, 2}, null, "indices", DataType.INT32);
+        Tensor updates = new Tensor(new double[]{5, 7, 9}, new int[]{3}, null, "updates", DataType.FLOAT64);
+        data.setRequiresGrad(true);
+        updates.setRequiresGrad(true);
+
+        Tensor out = data.scatterNd(indices, updates, ScatterReduction.ADD).mul(3.0);
+
+        CompiledGraph.compile(out, CompileConfig.training())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(new double[]{
+                3.0, 3.0, 3.0,
+                3.0, 3.0, 3.0
+        }, data.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{3.0, 3.0, 3.0}, updates.getGradient().toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void scatterNdBackwardForSliceUpdatesUsesGatherNdSuffixShape() {
+        Tensor data = new Tensor(new double[]{
+                1, 2, 3,
+                4, 5, 6
+        }, new int[]{2, 3}, null, "data", DataType.FLOAT64);
+        Tensor indices = new Tensor(new int[]{1}, new int[]{1, 1}, null, "indices", DataType.INT32);
+        Tensor updates = new Tensor(new double[]{40, 50, 60}, new int[]{1, 3}, null, "updates", DataType.FLOAT64);
+        data.setRequiresGrad(true);
+        updates.setRequiresGrad(true);
+
+        Tensor out = data.scatterNd(indices, updates).mul(5.0);
+
+        CompiledGraph.compile(out, CompileConfig.training())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(new double[]{
+                5.0, 5.0, 5.0,
+                0.0, 0.0, 0.0
+        }, data.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new int[]{1, 3}, updates.getGradient().getShape());
+        assertArrayEquals(new double[]{5.0, 5.0, 5.0}, updates.getGradient().toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void scatterNdBackwardSupportsNonContiguousSliceUpdates() {
+        Tensor data = new Tensor(new double[4], new int[]{2, 2}, null, "data", DataType.FLOAT64);
+        Tensor indices = new Tensor(new int[]{0, 1}, new int[]{2, 1}, null, "indices", DataType.INT32);
+        Tensor updateBase = new Tensor(new double[]{
+                1, 7,
+                5, 9
+        }, new int[]{2, 2}, null, "updateBase", DataType.FLOAT64);
+        Tensor updates = updateBase.permute(1, 0);
+        data.setRequiresGrad(true);
+        updates.setRequiresGrad(true);
+
+        Tensor out = data.scatterNd(indices, updates).mul(4.0);
+
+        CompiledGraph.compile(out, CompileConfig.training())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(new double[4], data.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{4.0, 4.0, 4.0, 4.0}, updates.getGradient().toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void scatterNdBackwardSupportsBfloat16NoneAndAdd() {
+        Tensor dataNone = new Tensor(new short[]{(short) 0x4120, (short) 0x41a0}, new int[]{2}, null, "dataNone", DataType.BFLOAT16);
+        Tensor indices = new Tensor(new int[]{1}, new int[]{1, 1}, null, "indices", DataType.INT32);
+        Tensor updatesNone = new Tensor(new short[]{(short) 0x3f80}, new int[]{1}, null, "updatesNone", DataType.BFLOAT16);
+        dataNone.setRequiresGrad(true);
+        updatesNone.setRequiresGrad(true);
+
+        Tensor none = dataNone.scatterNd(indices, updatesNone).mul(2.0);
+        CompiledGraph.compile(none, CompileConfig.training())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(new double[]{2.0, 0.0}, dataNone.getGradient().toDoubleArrayCopy(), 1e-6);
+        assertArrayEquals(new double[]{2.0}, updatesNone.getGradient().toDoubleArrayCopy(), 1e-6);
+
+        Tensor dataAdd = new Tensor(new short[]{(short) 0x4120, (short) 0x41a0}, new int[]{2}, null, "dataAdd", DataType.BFLOAT16);
+        Tensor updatesAdd = new Tensor(new short[]{(short) 0x3f80}, new int[]{1}, null, "updatesAdd", DataType.BFLOAT16);
+        dataAdd.setRequiresGrad(true);
+        updatesAdd.setRequiresGrad(true);
+
+        Tensor add = dataAdd.scatterNd(indices, updatesAdd, ScatterReduction.ADD).mul(3.0);
+        CompiledGraph.compile(add, CompileConfig.training())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(new double[]{3.0, 3.0}, dataAdd.getGradient().toDoubleArrayCopy(), 1e-6);
+        assertArrayEquals(new double[]{3.0}, updatesAdd.getGradient().toDoubleArrayCopy(), 1e-6);
     }
 
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {

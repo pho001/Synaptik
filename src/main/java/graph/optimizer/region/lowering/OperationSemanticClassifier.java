@@ -39,14 +39,14 @@ public final class OperationSemanticClassifier {
                     OperationSemanticLevel.COMPOSITE;
             case SOFTMAX_GRAD, LOG_SOFTMAX_GRAD, MIN_GRAD, MAX_GRAD,
                  REDUCE_MIN_GRAD, REDUCE_MAX_GRAD,
-                 GATHER_GRAD, GATHER_AXIS_GRAD, TAKE_ALONG_AXIS_GRAD, SLICE_GRAD,
+                 GATHER_GRAD, GATHER_AXIS_GRAD, GATHER_ND_GRAD, TAKE_ALONG_AXIS_GRAD, SLICE_GRAD,
                  CROSS_ENTROPY_LOSS_INDICES_GRAD,
                  SCALED_DOT_PRODUCT_ATTENTION_BACKWARD,
                  CONV2D_BACKWARD_INPUT, CONV2D_BACKWARD_WEIGHT,
                  CONV2D_BACKWARD_INPUT_GEMM, CONV2D_BACKWARD_WEIGHT_GEMM,
                  MAX_POOL2D_BACKWARD_INPUT, AVG_POOL2D_BACKWARD_INPUT ->
                     OperationSemanticLevel.TRAINING_BACKWARD;
-            case GATHER, GATHER_AXIS, TAKE_ALONG_AXIS, SCATTER_ADD, SCATTER_ELEMENTS, SCATTER_ND ->
+            case GATHER, GATHER_AXIS, GATHER_ND, TAKE_ALONG_AXIS, SCATTER_ADD, SCATTER_ELEMENTS, SCATTER_ND ->
                     OperationSemanticLevel.BACKEND_FRIENDLY_HIGH_LEVEL;
             case FUSED -> OperationSemanticLevel.FUSED;
             case CAST, CONST_SCALAR, UNKNOWN -> OperationSemanticLevel.UNKNOWN;

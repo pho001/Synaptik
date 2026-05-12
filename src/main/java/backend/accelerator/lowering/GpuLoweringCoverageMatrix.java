@@ -260,11 +260,27 @@ public final class GpuLoweringCoverageMatrix {
                     GpuLoweringCoverageStatus.SUPPORTED,
                     GpuLoweringUnsupportedReason.SUPPORTED,
                     "forward gather lowers to Metal gatherAlongAxis with expanded INT32 indices; scoped to dense FLOAT32/BFLOAT16 value input and static in-bounds INT32 index input; target=gather_take_small");
+            add(entries, backend, Operation.OpType.GATHER_ND, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
+                    "gather-nd remains CPU-owned until tuple-index read, slice suffix addressing, and static bounds checks are proven for Metal");
+            add(entries, backend, Operation.OpType.GATHER_ND_GRAD, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
+                    "gather-nd gradient remains CPU-owned until tuple-index duplicate accumulation and batch_dims semantics are proven for Metal");
         } else {
             add(entries, backend, Operation.OpType.GATHER, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
                     GpuLoweringCoverageStatus.UNSUPPORTED,
                     GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
                     "CUDA forward gather native/lowered path is not implemented yet");
+            add(entries, backend, Operation.OpType.GATHER_ND, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
+                    "gather-nd remains CPU-owned until tuple-index read, slice suffix addressing, and static bounds checks are proven for CUDA");
+            add(entries, backend, Operation.OpType.GATHER_ND_GRAD, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
+                    "gather-nd gradient remains CPU-owned until tuple-index duplicate accumulation and batch_dims semantics are proven for CUDA");
         }
         if (backend == ComputeBackend.GPU_METAL) {
             add(entries, backend, Operation.OpType.GATHER_GRAD, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
@@ -573,7 +589,7 @@ public final class GpuLoweringCoverageMatrix {
             case CONV2D, CONV2D_GEMM, CONV2D_BACKWARD_INPUT, CONV2D_BACKWARD_WEIGHT, CONV2D_BACKWARD_INPUT_GEMM,
                     CONV2D_BACKWARD_WEIGHT_GEMM, MAX_POOL2D, MAX_POOL2D_BACKWARD_INPUT, AVG_POOL2D,
                     AVG_POOL2D_BACKWARD_INPUT -> GpuLoweringOperationFamily.CONV_POOL;
-            case GATHER, GATHER_GRAD, TAKE_ALONG_AXIS, TAKE_ALONG_AXIS_GRAD, SCATTER_ADD, SCATTER_ELEMENTS, SCATTER_ND -> GpuLoweringOperationFamily.INDEX_SCATTER_GATHER;
+            case GATHER, GATHER_GRAD, GATHER_ND, GATHER_ND_GRAD, TAKE_ALONG_AXIS, TAKE_ALONG_AXIS_GRAD, SCATTER_ADD, SCATTER_ELEMENTS, SCATTER_ND -> GpuLoweringOperationFamily.INDEX_SCATTER_GATHER;
             case REDUCE_MIN_GRAD, REDUCE_MAX_GRAD, MIN_GRAD, MAX_GRAD -> GpuLoweringOperationFamily.BACKWARD_ADJACENT;
             default -> GpuLoweringOperationFamily.ELEMENTWISE_CHAIN;
         };

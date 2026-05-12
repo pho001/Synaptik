@@ -8,6 +8,7 @@ import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.pow;
 import operations.index.ScatterReduction;
 import operations.index.gatherAxis;
+import operations.index.gatherNd;
 import operations.index.scatterElements;
 import operations.index.scatterNd;
 import operations.index.takeAlongAxis;
@@ -141,6 +142,7 @@ final class OnnxGraphExporter {
             case CONCAT -> exportConcat(node, op);
             case CAST -> exportCast(node, op);
             case GATHER_AXIS -> exportGatherAxis(node, op);
+            case GATHER_ND -> exportGatherNd(node, op);
             case TAKE_ALONG_AXIS -> exportGatherElements(node, op);
             case SCATTER_ELEMENTS -> exportScatterElements(node, op);
             case SCATTER_ND -> exportScatterNd(node, op);
@@ -239,6 +241,16 @@ final class OnnxGraphExporter {
     private static void exportGatherElements(OnnxProto.NodeProto.Builder node, Operation op) {
         node.setOpType("GatherElements")
                 .addAttribute(intAttr("axis", ((takeAlongAxis) op).getDimension()));
+    }
+
+    private static void exportGatherNd(OnnxProto.NodeProto.Builder node, Operation op) {
+        if (!(op instanceof gatherNd gatherOp)) {
+            throw new OnnxUnsupportedException("GatherND export requires gatherNd operation.");
+        }
+        node.setOpType("GatherND");
+        if (gatherOp.getBatchDims() != 0) {
+            node.addAttribute(intAttr("batch_dims", gatherOp.getBatchDims()));
+        }
     }
 
     private static void exportScatterElements(OnnxProto.NodeProto.Builder node, Operation op) {

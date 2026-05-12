@@ -123,8 +123,11 @@ When adding new tensor semantics:
 - [Indexing Operations](#indexing-operations)
   - [`select(int dimension, int index)`](#selectint-dimension-int-index)
   - [`gather(Tensor indices, int dimension)`](#gathertensor-indices-int-dimension)
+  - [`gatherNd(Tensor indices[, int batchDims])`](#gatherndtensor-indices-int-batchdims)
   - [`takeAlongAxis(Tensor indices, int dimension)`](#takealongaxistensor-indices-int-dimension)
   - [`scatterAdd(Tensor indices, Tensor src, int dimension)`](#scatteraddtensor-indices-tensor-src-int-dimension)
+  - [`scatterElements(Tensor indices, Tensor updates, int axis[, ScatterReduction reduction])`](#scatterelementstensor-indices-tensor-updates-int-axis-scatterreduction-reduction)
+  - [`scatterNd(Tensor indices, Tensor updates[, ScatterReduction reduction])`](#scatterndtensor-indices-tensor-updates-scatterreduction-reduction)
 - [Logical Bool Operations](#logical-bool-operations)
   - [`logicalAnd(Tensor second)`](#logicalandtensor-second)
   - [`logicalOr(Tensor second)`](#logicalortensor-second)
@@ -2085,6 +2088,38 @@ Tensor y = data.scatterElements(indices, updates, 1);
 //  [7, 50, 9]]
 ```
 
+### `gatherNd(Tensor indices[, int batchDims])`
+
+Gathers values or slices using tuple indices.
+
+Parameters:
+- `indices`: integral index tensor; its final dimension is the coordinate tuple length
+- `batchDims`: optional number of leading dimensions shared by input and indices; defaults to `0`
+
+Returns:
+- tensor with shape `indices.shape[:batchDims] + indices.shape[batchDims:-1] + input.shape[batchDims + indices.shape[-1]:]`
+
+Behavior:
+- leading batch dimensions select matching input/index slices and are not stored inside each coordinate tuple
+- if the tuple length covers the non-batch input rank, each tuple reads one element; Synaptik uses its internal scalar shape `[1]` for the one-index scalar case
+- if the tuple length is smaller than the non-batch input rank, each tuple reads a slice
+- backward scatters upstream gradients back with duplicate-index accumulation
+
+Example:
+```java
+Tensor data = new Tensor(new double[]{10, 20, 30, 40, 50, 60}, new int[]{2, 3}, null, "data");
+Tensor indices = new Tensor(new int[]{0, 2, 1, 0}, new int[]{2, 2}, null, "indices", DataType.INT32);
+Tensor y = data.gatherNd(indices);
+// y has shape [2] and values [30, 40].
+```
+
+```java
+Tensor batched = new Tensor(new double[12], new int[]{2, 3, 2}, null, "batched");
+Tensor idx = new Tensor(new int[]{2, 0, 1, 0}, new int[]{2, 2, 1}, null, "idx", DataType.INT32);
+Tensor y = batched.gatherNd(idx, 1);
+// y has shape [2, 2, 2]; y[b, i, :] = batched[b, idx[b, i, 0], :].
+```
+
 ### `scatterNd(Tensor indices, Tensor updates[, ScatterReduction reduction])`
 
 Writes updates into tuple-indexed positions.
@@ -2101,7 +2136,7 @@ Behavior:
 - starts from a copy of the base tensor
 - if the tuple length equals the base rank, each update writes one element; Synaptik also accepts its internal scalar shape `[1]` for the one-index case
 - if the tuple length is smaller than the base rank, each update writes a slice
-- backward is currently unsupported until a matching `GatherND` primitive exists
+- backward is supported for floating `NONE` and `ADD`; `MUL`, `MAX`, and `MIN` remain inference-only
 
 Example:
 ```java

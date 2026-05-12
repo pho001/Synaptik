@@ -48,6 +48,38 @@ final class IndexExecutor {
         IndexReadWriteBackend.gatherAxisI32(input, indices, out, axis);
     }
 
+    static void gatherNdF64(Tensor input, Tensor indices, Tensor out, int batchDims, CpuKernelContext context) {
+        IndexReadWriteBackend.gatherNdF64(input, indices, out, batchDims);
+    }
+
+    static void gatherNdF32(Tensor input, Tensor indices, Tensor out, int batchDims, CpuKernelContext context) {
+        IndexReadWriteBackend.gatherNdF32(input, indices, out, batchDims);
+    }
+
+    static void gatherNdBF16(Tensor input, Tensor indices, Tensor out, int batchDims, CpuKernelContext context) {
+        IndexReadWriteBackend.gatherNdBF16(input, indices, out, batchDims);
+    }
+
+    static void gatherNdBOOL(Tensor input, Tensor indices, Tensor out, int batchDims, CpuKernelContext context) {
+        IndexReadWriteBackend.gatherNdBOOL(input, indices, out, batchDims);
+    }
+
+    static void gatherNdI32(Tensor input, Tensor indices, Tensor out, int batchDims, CpuKernelContext context) {
+        IndexReadWriteBackend.gatherNdI32(input, indices, out, batchDims);
+    }
+
+    static void gatherNdGradF64(Tensor indices, Tensor outGrad, Tensor node, int batchDims, CpuKernelContext context) {
+        IndexReadWriteBackend.gatherNdGradF64(indices, outGrad, node, batchDims);
+    }
+
+    static void gatherNdGradF32(Tensor indices, Tensor outGrad, Tensor node, int batchDims, CpuKernelContext context) {
+        IndexReadWriteBackend.gatherNdGradF32(indices, outGrad, node, batchDims);
+    }
+
+    static void gatherNdGradBF16(Tensor indices, Tensor outGrad, Tensor node, int batchDims, CpuKernelContext context) {
+        IndexReadWriteBackend.gatherNdGradBF16(indices, outGrad, node, batchDims);
+    }
+
     static void gatherGradF64(Tensor indices, Tensor outGrad, Tensor node, int dimension, CpuKernelContext context) {
         IndexReadWriteBackend.scatterF64(indices, outGrad, node, dimension);
     }

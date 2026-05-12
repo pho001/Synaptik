@@ -21,7 +21,7 @@ final class OnnxGraphImporter {
             "And", "Or", "Not",
             "Where", "Identity", "Clip", "Cast",
             "MatMul", "Gemm",
-            "Transpose", "Reshape", "Flatten", "Expand", "Squeeze", "Unsqueeze", "Slice", "Concat", "Shape", "Size", "Gather", "GatherElements", "ScatterElements", "ScatterND",
+            "Transpose", "Reshape", "Flatten", "Expand", "Squeeze", "Unsqueeze", "Slice", "Concat", "Shape", "Size", "Gather", "GatherElements", "GatherND", "ScatterElements", "ScatterND",
             "ReduceSum", "ReduceMean", "ReduceMax", "ReduceMin",
             "Softmax", "LogSoftmax",
             "Constant"
@@ -165,6 +165,7 @@ final class OnnxGraphImporter {
             case "Size" -> size(node, tensors, int64Constants);
             case "Gather" -> gather(node, tensors, int64Constants, constantTensors, attrs);
             case "GatherElements" -> gatherElements(node, tensors, int64Constants, attrs);
+            case "GatherND" -> gatherNd(node, tensors, int64Constants, attrs);
             case "ScatterElements" -> scatterElements(node, tensors, int64Constants, attrs);
             case "ScatterND" -> scatterNd(node, tensors, int64Constants, attrs);
             case "ReduceSum" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.SUM);
@@ -544,6 +545,20 @@ final class OnnxGraphImporter {
             throw unsupported(node, "GatherElements requires runtime INT32 indices; INT64 is supported only for shape constants");
         }
         return TensorOps.takeAlongAxis(tensorInput(node, tensors, 0), tensorInput(node, tensors, 1), attrs.intAttribute("axis", 0));
+    }
+
+    private static Tensor gatherNd(
+            OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
+            Map<String, long[]> int64Constants,
+            OnnxAttributeReader attrs
+    ) {
+        requireInputCount(node, 2, 2);
+        int batchDims = attrs.intAttribute("batch_dims", 0);
+        if (int64Constants.containsKey(node.getInput(1))) {
+            throw unsupported(node, "GatherND requires runtime INT32 indices; INT64 is supported only for shape constants");
+        }
+        return TensorOps.gatherNd(tensorInput(node, tensors, 0), tensorInput(node, tensors, 1), batchDims);
     }
 
     private static Tensor scatterElements(

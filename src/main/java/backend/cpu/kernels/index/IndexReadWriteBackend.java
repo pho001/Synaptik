@@ -96,6 +96,82 @@ final class IndexReadWriteBackend {
         );
     }
 
+    public static void gatherNdF64(Tensor input, Tensor indices, Tensor out, int batchDims) {
+        validateGatherNd(input, indices, out, batchDims);
+        double[] in = input.getFloat64Data();
+        double[] dst = out.getFloat64Data();
+        forEachGatherNd(input, indices, out, batchDims, (sourceOffset, outOffset) ->
+                dst[outOffset] = in[sourceOffset]
+        );
+    }
+
+    public static void gatherNdF32(Tensor input, Tensor indices, Tensor out, int batchDims) {
+        validateGatherNd(input, indices, out, batchDims);
+        float[] in = input.getFloat32Data();
+        float[] dst = out.getFloat32Data();
+        forEachGatherNd(input, indices, out, batchDims, (sourceOffset, outOffset) ->
+                dst[outOffset] = in[sourceOffset]
+        );
+    }
+
+    public static void gatherNdBF16(Tensor input, Tensor indices, Tensor out, int batchDims) {
+        validateGatherNd(input, indices, out, batchDims);
+        short[] in = input.getBFloat16Data();
+        short[] dst = out.getBFloat16Data();
+        forEachGatherNd(input, indices, out, batchDims, (sourceOffset, outOffset) ->
+                dst[outOffset] = in[sourceOffset]
+        );
+    }
+
+    public static void gatherNdBOOL(Tensor input, Tensor indices, Tensor out, int batchDims) {
+        validateGatherNd(input, indices, out, batchDims);
+        byte[] in = input.getBoolData();
+        byte[] dst = out.getBoolData();
+        forEachGatherNd(input, indices, out, batchDims, (sourceOffset, outOffset) ->
+                dst[outOffset] = in[sourceOffset]
+        );
+    }
+
+    public static void gatherNdI32(Tensor input, Tensor indices, Tensor out, int batchDims) {
+        validateGatherNd(input, indices, out, batchDims);
+        int[] in = input.getInt32Data();
+        int[] dst = out.getInt32Data();
+        forEachGatherNd(input, indices, out, batchDims, (sourceOffset, outOffset) ->
+                dst[outOffset] = in[sourceOffset]
+        );
+    }
+
+    public static void gatherNdGradF64(Tensor indices, Tensor outGrad, Tensor node, int batchDims) {
+        validateGatherNdGrad(indices, outGrad, node, batchDims);
+        java.util.Arrays.fill(node.getFloat64Data(), 0.0d);
+        double[] grad = outGrad.getFloat64Data();
+        double[] dst = node.getFloat64Data();
+        forEachGatherNd(node, indices, outGrad, batchDims, (targetOffset, gradOffset) ->
+                dst[targetOffset] += grad[gradOffset]
+        );
+    }
+
+    public static void gatherNdGradF32(Tensor indices, Tensor outGrad, Tensor node, int batchDims) {
+        validateGatherNdGrad(indices, outGrad, node, batchDims);
+        java.util.Arrays.fill(node.getFloat32Data(), 0.0f);
+        float[] grad = outGrad.getFloat32Data();
+        float[] dst = node.getFloat32Data();
+        forEachGatherNd(node, indices, outGrad, batchDims, (targetOffset, gradOffset) ->
+                dst[targetOffset] += grad[gradOffset]
+        );
+    }
+
+    public static void gatherNdGradBF16(Tensor indices, Tensor outGrad, Tensor node, int batchDims) {
+        validateGatherNdGrad(indices, outGrad, node, batchDims);
+        java.util.Arrays.fill(node.getBFloat16Data(), CpuDTypeOps.toBFloat16Bits(0.0f));
+        short[] grad = outGrad.getBFloat16Data();
+        short[] dst = node.getBFloat16Data();
+        forEachGatherNd(node, indices, outGrad, batchDims, (targetOffset, gradOffset) -> {
+            float acc = CpuDTypeOps.fromBFloat16Bits(dst[targetOffset]) + CpuDTypeOps.fromBFloat16Bits(grad[gradOffset]);
+            dst[targetOffset] = CpuDTypeOps.toBFloat16Bits(acc);
+        });
+    }
+
     public static void takeAlongAxisF64(Tensor input, Tensor indices, Tensor out, int dimension) {
         validateTakeAlongAxis(input, indices, out, dimension);
         double[] in = input.getFloat64Data();
@@ -423,6 +499,31 @@ final class IndexReadWriteBackend {
         }
     }
 
+    private static void validateGatherNd(Tensor input, Tensor indices, Tensor out, int batchDims) {
+        validateIndexTensor(indices);
+        int[] inputShape = input.getShapeUnsafe();
+        int[] indicesShape = indices.getShapeUnsafe();
+        validateShape(out.getShapeUnsafe(), gatherNdOutputShape(inputShape, indicesShape, batchDims),
+                "gatherNd output shape mismatch.");
+        if (input.getDataType() != out.getDataType()) {
+            throw new IllegalArgumentException("gatherNd output dtype must match input dtype.");
+        }
+    }
+
+    private static void validateGatherNdGrad(Tensor indices, Tensor outGrad, Tensor node, int batchDims) {
+        validateIndexTensor(indices);
+        int[] nodeShape = node.getShapeUnsafe();
+        int[] indicesShape = indices.getShapeUnsafe();
+        validateShape(outGrad.getShapeUnsafe(), gatherNdOutputShape(nodeShape, indicesShape, batchDims),
+                "gatherNdGrad outGrad shape mismatch.");
+        if (outGrad.getDataType() != node.getDataType()) {
+            throw new IllegalArgumentException("gatherNdGrad output dtype must match outGrad dtype.");
+        }
+        if (node.getDataType() == DataType.BOOL || node.getDataType() == DataType.INT32) {
+            throw new IllegalArgumentException("gatherNdGrad requires floating output dtype.");
+        }
+    }
+
     private static void validateScatter(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
         int[] nodeShape = node.getShapeUnsafe();
         if (dimension < 0 || dimension >= nodeShape.length) {
@@ -637,6 +738,45 @@ final class IndexReadWriteBackend {
         return out;
     }
 
+    private static int[] gatherNdOutputShape(int[] dataShape, int[] indicesShape, int batchDims) {
+        validateGatherNdShape(dataShape, indicesShape, batchDims);
+        int tupleRank = indicesShape[indicesShape.length - 1];
+        int outputRank = indicesShape.length - 1 + dataShape.length - batchDims - tupleRank;
+        if (outputRank == 0) {
+            return new int[]{1};
+        }
+        int[] out = new int[outputRank];
+        int p = 0;
+        for (int i = 0; i < indicesShape.length - 1; i++) {
+            out[p++] = indicesShape[i];
+        }
+        for (int i = batchDims + tupleRank; i < dataShape.length; i++) {
+            out[p++] = dataShape[i];
+        }
+        return out;
+    }
+
+    private static void validateGatherNdShape(int[] dataShape, int[] indicesShape, int batchDims) {
+        if (indicesShape.length == 0) {
+            throw new IllegalArgumentException("gatherNd indices rank must be at least 1.");
+        }
+        if (batchDims < 0 || batchDims >= indicesShape.length) {
+            throw new IllegalArgumentException("gatherNd batchDims must be in [0, indices rank).");
+        }
+        if (batchDims > dataShape.length) {
+            throw new IllegalArgumentException("gatherNd batchDims cannot exceed data rank.");
+        }
+        for (int i = 0; i < batchDims; i++) {
+            if (indicesShape[i] != dataShape[i]) {
+                throw new IllegalArgumentException("gatherNd batch dimensions must match data leading dimensions.");
+            }
+        }
+        int tupleRank = indicesShape[indicesShape.length - 1];
+        if (tupleRank <= 0 || batchDims + tupleRank > dataShape.length) {
+            throw new IllegalArgumentException("gatherNd final indices dimension must be in [1, data rank - batchDims].");
+        }
+    }
+
     private static void forEachGather(Tensor input, Tensor indices, Tensor out, int dimension, GatherConsumer consumer) {
         int[] inputShape = input.getShapeUnsafe();
         int[] inputStrides = input.getStridesUnsafe();
@@ -847,6 +987,54 @@ final class IndexReadWriteBackend {
         }
     }
 
+    private static void forEachGatherNd(Tensor input, Tensor indices, Tensor out, int batchDims, GatherNdConsumer consumer) {
+        int[] inputShape = input.getShapeUnsafe();
+        int[] inputStrides = input.getStridesUnsafe();
+        int[] indicesShape = indices.getShapeUnsafe();
+        int[] indicesDense = TensorMetadata.computeStrides(indicesShape);
+        int[] outShape = out.getShapeUnsafe();
+        int[] outStrides = out.getStridesUnsafe();
+        int[] outDense = TensorMetadata.computeStrides(outShape);
+        int inputBaseOffset = input.getStorageOffsetUnsafe();
+        int outBaseOffset = out.getStorageOffsetUnsafe();
+        int total = out.getFlatDataSize();
+        int tupleRank = indicesShape[indicesShape.length - 1];
+        int prefixRank = indicesShape.length - 1;
+        int tupleStride = indicesDense[indicesShape.length - 1];
+        int[] coords = new int[outShape.length];
+
+        for (int logical = 0; logical < total; logical++) {
+            int rem = logical;
+            int outOffset = outBaseOffset;
+            for (int d = 0; d < outShape.length; d++) {
+                int coord = rem / outDense[d];
+                rem %= outDense[d];
+                coords[d] = coord;
+                outOffset += coord * outStrides[d];
+            }
+
+            int indexBaseLogical = 0;
+            for (int d = 0; d < prefixRank; d++) {
+                indexBaseLogical += coords[d] * indicesDense[d];
+            }
+
+            int sourceOffset = inputBaseOffset;
+            for (int d = 0; d < batchDims; d++) {
+                sourceOffset += coords[d] * inputStrides[d];
+            }
+            for (int d = 0; d < tupleRank; d++) {
+                int inputDim = batchDims + d;
+                int sourceCoord = readAxisIndexAllowNegative(indices, indexBaseLogical + d * tupleStride, inputShape[inputDim]);
+                sourceOffset += sourceCoord * inputStrides[inputDim];
+            }
+            for (int d = batchDims + tupleRank; d < inputShape.length; d++) {
+                int suffixCoord = coords[prefixRank + d - batchDims - tupleRank];
+                sourceOffset += suffixCoord * inputStrides[d];
+            }
+            consumer.accept(sourceOffset, outOffset);
+        }
+    }
+
     private static void forEachGatherAxis(Tensor input, Tensor indices, Tensor out, int axis, GatherAxisConsumer consumer) {
         int[] inputShape = input.getShapeUnsafe();
         int[] inputDense = TensorMetadata.computeStrides(inputShape);
@@ -998,6 +1186,11 @@ final class IndexReadWriteBackend {
     @FunctionalInterface
     private interface ScatterElementsConsumer {
         void accept(int updateOffset, int targetOffset, int targetLogical);
+    }
+
+    @FunctionalInterface
+    private interface GatherNdConsumer {
+        void accept(int sourceOffset, int outOffset);
     }
 
     @FunctionalInterface

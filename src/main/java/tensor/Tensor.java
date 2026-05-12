@@ -1539,6 +1539,35 @@ public class Tensor {
     }
 
     /**
+     * ONNX GatherND with {@code batch_dims=0}.
+     *
+     * <p>The final dimension of {@code indices} contains a tuple of coordinates
+     * into this tensor. The output shape is
+     * {@code indices.shape[:-1] + this.shape[indices.shape[-1]:]}.</p>
+     *
+     * @param indices numeric integral index tensor whose final dimension is the tuple rank
+     * @return gathered tensor with tuple-indexed values or slices
+     */
+    public Tensor gatherNd(Tensor indices) {
+        return TensorOps.gatherNd(this, indices);
+    }
+
+    /**
+     * ONNX GatherND with explicit leading batch dimensions.
+     *
+     * <p>The output shape is
+     * {@code indices.shape[:batchDims] + indices.shape[batchDims:-1]
+     * + this.shape[batchDims + indices.shape[-1]:]}.</p>
+     *
+     * @param indices numeric integral index tensor whose final dimension is the tuple rank
+     * @param batchDims number of leading dimensions shared by this tensor and {@code indices}
+     * @return gathered tensor with tuple-indexed values or slices
+     */
+    public Tensor gatherNd(Tensor indices, int batchDims) {
+        return TensorOps.gatherNd(this, indices, batchDims);
+    }
+
+    /**
      * Adds source values into indexed positions of this tensor's shape.
      *
      * @param indices numeric integral index tensor

@@ -60,6 +60,8 @@ public interface Operation {
         GATHER_GRAD(OpArityClass.SPECIAL, false),
         GATHER_AXIS(OpArityClass.SPECIAL, false),
         GATHER_AXIS_GRAD(OpArityClass.SPECIAL, false),
+        GATHER_ND(OpArityClass.SPECIAL, false),
+        GATHER_ND_GRAD(OpArityClass.SPECIAL, false),
         TAKE_ALONG_AXIS(OpArityClass.SPECIAL, false),
         TAKE_ALONG_AXIS_GRAD(OpArityClass.SPECIAL, false),
         SCATTER_ADD(OpArityClass.SPECIAL, false),

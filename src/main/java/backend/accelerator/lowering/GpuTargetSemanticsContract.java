@@ -119,6 +119,8 @@ public record GpuTargetSemanticsContract(
         addConvPool(out, Operation.OpType.AVG_POOL2D_BACKWARD_INPUT, "avg-pool backward divisor and countIncludePad semantics must match CPU");
         addIndex(out, Operation.OpType.GATHER, "INT32 indices; bounds and axis behavior must match CPU gather");
         addIndex(out, Operation.OpType.GATHER_GRAD, "duplicate-index accumulation must match CPU gather gradient");
+        addIndex(out, Operation.OpType.GATHER_ND, "INT32 tuple indices, slice suffix shape, bounds, and batch_dims behavior must match CPU gather-nd");
+        addIndex(out, Operation.OpType.GATHER_ND_GRAD, "duplicate tuple-index accumulation, slice suffix shape, and batch_dims behavior must match CPU gather-nd gradient");
         addIndex(out, Operation.OpType.TAKE_ALONG_AXIS, "INT32 indices; axis-aligned take semantics must match CPU");
         addIndex(out, Operation.OpType.TAKE_ALONG_AXIS_GRAD, "duplicate-index accumulation must match CPU take-along-axis gradient");
         addIndex(out, Operation.OpType.SCATTER_ADD, "duplicate-index accumulation order/tolerance must match CPU scatter-add");
@@ -199,13 +201,20 @@ public record GpuTargetSemanticsContract(
     }
 
     private static void addIndex(ArrayList<GpuTargetSemanticsContract> out, Operation.OpType opType, String parameter) {
+        boolean tupleRead = opType == Operation.OpType.GATHER_ND;
+        boolean tupleGradient = opType == Operation.OpType.GATHER_ND_GRAD;
         boolean writeOrGradient = opType == Operation.OpType.GATHER_GRAD
+                || tupleGradient
                 || opType == Operation.OpType.TAKE_ALONG_AXIS_GRAD
                 || opType == Operation.OpType.SCATTER_ADD
                 || opType == Operation.OpType.SCATTER_ELEMENTS
                 || opType == Operation.OpType.SCATTER_ND;
         String blockerReason = "";
-        if (writeOrGradient) {
+        if (tupleRead) {
+            blockerReason = "UNSUPPORTED_INDEX_SEMANTICS until backend proves tuple-index read, slice suffix addressing, and static bounds checks";
+        } else if (tupleGradient) {
+            blockerReason = "UNSUPPORTED_INDEX_SEMANTICS until backend proves tuple-index duplicate accumulation, slice suffix addressing, and static bounds checks";
+        } else if (writeOrGradient) {
             blockerReason = (opType == Operation.OpType.SCATTER_ELEMENTS || opType == Operation.OpType.SCATTER_ND)
                     ? "UNSUPPORTED_INDEX_SEMANTICS until backend proves write reductions, duplicate policy, tuple/rank addressing, and static bounds checks"
                     : "UNSUPPORTED_DUPLICATE_INDEX until backend proves CPU-compatible duplicate-index accumulation and static bounds checks";
@@ -219,7 +228,7 @@ public record GpuTargetSemanticsContract(
                 "output shape must match CPU indexing shape inference; gather-grad and take-along-axis-grad output the original input shape, scatter-add outputs the base shape",
                 parameter,
                 "CPU parity must cover duplicate indices, logical-index accumulation order/tolerance, repeated writes to one destination, and bounds behavior",
-                writeOrGradient,
+                tupleRead || writeOrGradient,
                 blockerReason
         ));
     }

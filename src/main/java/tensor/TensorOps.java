@@ -156,6 +156,14 @@ public final class TensorOps {
         return TensorIndexOps.gatherAxis(input, indices, axis);
     }
 
+    public static Tensor gatherNd(Tensor input, Tensor indices) {
+        return TensorIndexOps.gatherNd(input, indices);
+    }
+
+    public static Tensor gatherNd(Tensor input, Tensor indices, int batchDims) {
+        return TensorIndexOps.gatherNd(input, indices, batchDims);
+    }
+
     public static Tensor scatterAdd(Tensor base, Tensor indices, Tensor src, int dimension) {
         return TensorIndexOps.scatterAdd(base, indices, src, dimension);
     }

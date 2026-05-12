@@ -27,6 +27,8 @@ import operations.index.gather;
 import operations.index.gatherAxis;
 import operations.index.gatherAxisGrad;
 import operations.index.gatherGrad;
+import operations.index.gatherNd;
+import operations.index.gatherNdGrad;
 import operations.normalization.layerNorm;
 import operations.nn.pool.maxPool2d;
 import operations.nn.pool.maxPool2dBackwardInput;
@@ -265,6 +267,8 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case GATHER_GRAD -> new AxisSignature(((gatherGrad) op).getDimension());
             case GATHER_AXIS -> new AxisSignature(((gatherAxis) op).getAxis());
             case GATHER_AXIS_GRAD -> IntArrayValue.copyOf(gatherAxisGradSignature((gatherAxisGrad) op));
+            case GATHER_ND -> new AxisSignature(((gatherNd) op).getBatchDims());
+            case GATHER_ND_GRAD -> IntArrayValue.copyOf(gatherNdGradSignature((gatherNdGrad) op));
             case TAKE_ALONG_AXIS -> new AxisSignature(((takeAlongAxis) op).getDimension());
             case TAKE_ALONG_AXIS_GRAD -> new AxisSignature(((takeAlongAxisGrad) op).getDimension());
             case SCATTER_ADD -> new AxisSignature(((scatterAdd) op).getDimension());
@@ -344,6 +348,15 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
         int[] dataShape = op.getDataShape();
         int[] out = new int[dataShape.length + 2];
         out[0] = op.getAxis();
+        out[1] = dataShape.length;
+        System.arraycopy(dataShape, 0, out, 2, dataShape.length);
+        return out;
+    }
+
+    private int[] gatherNdGradSignature(gatherNdGrad op) {
+        int[] dataShape = op.getDataShape();
+        int[] out = new int[dataShape.length + 2];
+        out[0] = op.getBatchDims();
         out[1] = dataShape.length;
         System.arraycopy(dataShape, 0, out, 2, dataShape.length);
         return out;

@@ -35,6 +35,8 @@ public final class CpuKernelResolver {
     private static final CpuGatherGradKernel GATHER_GRAD = new CpuGatherGradKernel();
     private static final CpuGatherAxisKernel GATHER_AXIS = new CpuGatherAxisKernel();
     private static final CpuGatherAxisGradKernel GATHER_AXIS_GRAD = new CpuGatherAxisGradKernel();
+    private static final CpuGatherNdKernel GATHER_ND = new CpuGatherNdKernel();
+    private static final CpuGatherNdGradKernel GATHER_ND_GRAD = new CpuGatherNdGradKernel();
     private static final CpuTakeAlongAxisKernel TAKE_ALONG_AXIS = new CpuTakeAlongAxisKernel();
     private static final CpuTakeAlongAxisGradKernel TAKE_ALONG_AXIS_GRAD = new CpuTakeAlongAxisGradKernel();
     private static final CpuScatterAddKernel SCATTER_ADD = new CpuScatterAddKernel();
@@ -126,6 +128,8 @@ public final class CpuKernelResolver {
             case GATHER_GRAD -> GATHER_GRAD;
             case GATHER_AXIS -> GATHER_AXIS;
             case GATHER_AXIS_GRAD -> GATHER_AXIS_GRAD;
+            case GATHER_ND -> GATHER_ND;
+            case GATHER_ND_GRAD -> GATHER_ND_GRAD;
             case TAKE_ALONG_AXIS -> TAKE_ALONG_AXIS;
             case TAKE_ALONG_AXIS_GRAD -> TAKE_ALONG_AXIS_GRAD;
             case SCATTER_ADD -> SCATTER_ADD;

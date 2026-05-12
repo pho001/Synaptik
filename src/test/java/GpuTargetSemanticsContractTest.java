@@ -104,6 +104,8 @@ public class GpuTargetSemanticsContractTest {
     void phaseTwentySixContractsDistinguishResidencyFromNativeIndexCompute() {
         GpuTargetSemanticsContract loss = GpuTargetSemanticsContract.forOp(Operation.OpType.CROSS_ENTROPY_LOSS_INDICES);
         GpuTargetSemanticsContract gather = GpuTargetSemanticsContract.forOp(Operation.OpType.GATHER);
+        GpuTargetSemanticsContract gatherNd = GpuTargetSemanticsContract.forOp(Operation.OpType.GATHER_ND);
+        GpuTargetSemanticsContract gatherNdGrad = GpuTargetSemanticsContract.forOp(Operation.OpType.GATHER_ND_GRAD);
         GpuTargetSemanticsContract scatter = GpuTargetSemanticsContract.forOp(Operation.OpType.SCATTER_ADD);
         GpuTargetSemanticsContract scatterElements = GpuTargetSemanticsContract.forOp(Operation.OpType.SCATTER_ELEMENTS);
         GpuTargetSemanticsContract scatterNd = GpuTargetSemanticsContract.forOp(Operation.OpType.SCATTER_ND);
@@ -112,6 +114,8 @@ public class GpuTargetSemanticsContractTest {
 
         assertNotNull(loss);
         assertNotNull(gather);
+        assertNotNull(gatherNd);
+        assertNotNull(gatherNdGrad);
         assertNotNull(scatter);
         assertNotNull(scatterElements);
         assertNotNull(scatterNd);
@@ -123,6 +127,10 @@ public class GpuTargetSemanticsContractTest {
         assertTrue(loss.dtypeContract().contains("admitted Metal loss candidates"));
         assertTrue(loss.numericalContract().contains("ignore-index"));
         assertTrue(gather.dtypeContract().contains("native compute support is operation-specific"));
+        assertTrue(gatherNd.plannerAdmissionBlocked());
+        assertTrue(gatherNd.blockerReason().contains("UNSUPPORTED_INDEX_SEMANTICS"));
+        assertTrue(gatherNdGrad.plannerAdmissionBlocked());
+        assertTrue(gatherNdGrad.blockerReason().contains("UNSUPPORTED_INDEX_SEMANTICS"));
         assertTrue(scatter.numericalContract().contains("duplicate indices"));
         assertTrue(scatter.plannerAdmissionBlocked());
         assertTrue(scatterElements.plannerAdmissionBlocked());

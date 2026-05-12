@@ -428,6 +428,12 @@ class OnnxExportImportTest {
         assertEquals("Expand", singleNode(new Tensor(new float[]{1f, 2f, 3f}, new int[]{1, 3}, null, "row", DataType.FLOAT32)
                 .expand(2, 3)).getOpType());
         assertEquals("Gather", singleNode(x.gatherAxis(new Tensor(new int[]{2, 0}, new int[]{2}, null, "idx", DataType.INT32), 1)).getOpType());
+        assertEquals("GatherND", singleNode(x.gatherNd(new Tensor(new int[]{0, 2, 1, 0}, new int[]{2, 2}, null, "gather_nd_idx", DataType.INT32))).getOpType());
+        OnnxProto.NodeProto batchedGatherNd = singleNode(new Tensor(new float[12], new int[]{2, 3, 2}, null, "gather_nd_batch_data", DataType.FLOAT32)
+                .gatherNd(new Tensor(new int[]{2, 0, 1, 0}, new int[]{2, 2, 1}, null, "gather_nd_batch_idx", DataType.INT32), 1));
+        assertEquals("GatherND", batchedGatherNd.getOpType());
+        assertEquals("batch_dims", batchedGatherNd.getAttribute(0).getName());
+        assertEquals(1, batchedGatherNd.getAttribute(0).getI());
         OnnxProto.NodeProto gatherElements = singleNode(x.takeAlongAxis(new Tensor(new int[]{2, 1, 0, 0}, new int[]{2, 2}, null, "take_idx", DataType.INT32), 1));
         assertEquals("GatherElements", gatherElements.getOpType());
         assertEquals(1, gatherElements.getAttribute(0).getI());
@@ -533,6 +539,122 @@ class OnnxExportImportTest {
 
         OnnxUnsupportedException ex = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(model));
         assertTrue(ex.getMessage().contains("GatherElements requires runtime INT32 indices"));
+    }
+
+    @Test
+    void importGatherNdExecutesTupleIndexedElementsAndSlices() {
+        OnnxProto.ModelProto elementModel = model("gather_nd_elements", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("data", DataType.FLOAT32, new int[]{2, 3}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("indices",
+                        new Tensor(new int[]{0, 2, 1, 0}, new int[]{2, 2}, null, "indices", DataType.INT32)))
+                .addNode(node("gather_nd", "GatherND", "y", "data", "indices"))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2})));
+        OnnxProto.ModelProto sliceModel = model("gather_nd_slices", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("data", DataType.FLOAT32, new int[]{2, 3}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("indices",
+                        new Tensor(new int[]{1, 0}, new int[]{2, 1}, null, "indices", DataType.INT32)))
+                .addNode(node("gather_nd", "GatherND", "y", "data", "indices"))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 3})));
+
+        ImportedOnnxModel elements = Onnx.importModel(elementModel);
+        elements.input("data").setData(new float[]{10f, 20f, 30f, 40f, 50f, 60f});
+        execute(elements, "y");
+
+        assertArrayEquals(new double[]{30.0, 40.0}, elements.output("y").toDoubleArrayCopy(), 1e-6);
+
+        ImportedOnnxModel slices = Onnx.importModel(sliceModel);
+        slices.input("data").setData(new float[]{1f, 2f, 3f, 4f, 5f, 6f});
+        execute(slices, "y");
+
+        assertArrayEquals(new double[]{
+                4.0, 5.0, 6.0,
+                1.0, 2.0, 3.0
+        }, slices.output("y").toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void gatherNdRoundTripsThroughOnnx() {
+        Tensor data = new Tensor(new float[6], new int[]{2, 3}, null, "data", DataType.FLOAT32);
+        Tensor indices = new Tensor(new int[4], new int[]{2, 2}, null, "indices", DataType.INT32);
+        Tensor out = data.gatherNd(indices);
+        out.setLabel("gather_nd_out");
+
+        OnnxModel exported = Onnx.exportModel(out, OnnxExportOptions.defaults().withLeafTensorPolicy(OnnxLeafTensorPolicy.INPUTS));
+        ImportedOnnxModel imported = Onnx.importModel(exported.proto());
+        imported.input("data").setData(new float[]{10f, 20f, 30f, 40f, 50f, 60f});
+        imported.input("indices").setData(new int[]{0, 2, 1, 0});
+
+        execute(imported, "gather_nd_out");
+
+        assertArrayEquals(new double[]{30.0, 40.0}, imported.output("gather_nd_out").toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void gatherNdBatchDimsRoundTripsThroughOnnx() {
+        Tensor data = new Tensor(new float[12], new int[]{2, 3, 2}, null, "data", DataType.FLOAT32);
+        Tensor indices = new Tensor(new int[4], new int[]{2, 2, 1}, null, "indices", DataType.INT32);
+        Tensor out = data.gatherNd(indices, 1);
+        out.setLabel("gather_nd_batch_out");
+
+        OnnxModel exported = Onnx.exportModel(out, OnnxExportOptions.defaults().withLeafTensorPolicy(OnnxLeafTensorPolicy.INPUTS));
+        ImportedOnnxModel imported = Onnx.importModel(exported.proto());
+        imported.input("data").setData(new float[]{
+                1f, 2f,
+                3f, 4f,
+                5f, 6f,
+                7f, 8f,
+                9f, 10f,
+                11f, 12f
+        });
+        imported.input("indices").setData(new int[]{2, 0, 1, 0});
+
+        execute(imported, "gather_nd_batch_out");
+
+        assertArrayEquals(new int[]{2, 2, 2}, imported.output("gather_nd_batch_out").getShape());
+        assertArrayEquals(new double[]{
+                5.0, 6.0,
+                1.0, 2.0,
+                9.0, 10.0,
+                7.0, 8.0
+        }, imported.output("gather_nd_batch_out").toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void importGatherNdSupportsBatchDimsAndRejectsInvalidIndices() {
+        OnnxProto.ModelProto batchDims = model("gather_nd_batch_dims", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("data", DataType.FLOAT32, new int[]{2, 3, 2}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("indices",
+                        new Tensor(new int[]{2, 0, 1, 0}, new int[]{2, 2, 1}, null, "indices", DataType.INT32)))
+                .addNode(nodeBuilder("gather_nd", "GatherND", "y", "data", "indices")
+                        .addAttribute(OnnxProto.AttributeProto.newBuilder().setName("batch_dims").setI(1))
+                        .build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 2, 2})));
+        OnnxProto.ModelProto int64Indices = model("gather_nd_int64_indices", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("data", DataType.FLOAT32, new int[]{2, 3}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("indices", new long[]{0, 2}))
+                .addNode(node("gather_nd", "GatherND", "y", "data", "indices"))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{1})));
+
+        ImportedOnnxModel imported = Onnx.importModel(batchDims);
+        OnnxUnsupportedException int64Ex = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(int64Indices));
+
+        imported.input("data").setData(new float[]{
+                1f, 2f,
+                3f, 4f,
+                5f, 6f,
+                7f, 8f,
+                9f, 10f,
+                11f, 12f
+        });
+        execute(imported, "y");
+
+        assertArrayEquals(new double[]{
+                5.0, 6.0,
+                1.0, 2.0,
+                9.0, 10.0,
+                7.0, 8.0
+        }, imported.output("y").toDoubleArrayCopy(), 1e-6);
+        assertTrue(int64Ex.getMessage().contains("GatherND requires runtime INT32 indices"));
     }
 
     @Test

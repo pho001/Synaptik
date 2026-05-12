@@ -1497,10 +1497,11 @@ Implementation: `src/main/java/tensor/ops/index/TensorIndexOps.java`, `src/main/
 
 Index tensors may be `INT32` or floating numeric tensors containing integral values. `BOOL` indices are rejected.
 
-Mental model: `select` is a metadata alias view, while `gather`, `takeAlongAxis`, `scatterAdd`, `scatterElements`, and `scatterNd` are index kernels that materialize values based on an index tensor.
+Mental model: `select` is a metadata alias view, while `gather`, `gatherNd`, `takeAlongAxis`, `scatterAdd`, `scatterElements`, and `scatterNd` are index kernels that materialize values based on an index tensor.
 
 - `select` picks one fixed index for the whole slice and can be represented as shape/stride/storage-offset metadata.
 - `gather` picks one index per output coordinate after removing the gathered axis.
+- `gatherNd` reads values or slices using coordinate tuples stored in the final dimension of `indices`.
 - `takeAlongAxis` keeps the same rank as the input and lets the index tensor choose positions along one axis.
 - `scatterAdd` is the reverse direction: values from `src` are added into a base-shaped output at indexed positions.
 - `scatterElements` writes or reduces same-rank updates along one selected axis.
@@ -1532,6 +1533,36 @@ Tensor indices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "indices", Data
 Tensor y = x.gather(indices, 1);
 // formula: y[row] = x[row, indices[row]]
 // y = [3, 4]
+```
+
+### `gatherNd`
+
+```java
+Tensor gatherNd(Tensor indices)
+Tensor gatherNd(Tensor indices, int batchDims)
+static Tensor TensorOps.gatherNd(Tensor input, Tensor indices)
+static Tensor TensorOps.gatherNd(Tensor input, Tensor indices, int batchDims)
+```
+
+Reads values or slices from `input` using tuple indices. The final dimension of `indices` is the tuple rank: for `indices.shape == [N, K]`, each row contains `K` coordinates into the first `K` dimensions of `input`.
+
+Shape rule: with `batchDims == B` and `K = indices.shape[-1]`, output shape is `indices.shape[:B] + indices.shape[B:-1] + input.shape[B + K:]`. The default overload uses `B == 0`, so the shape is `indices.shape[:-1] + input.shape[K:]`. Leading batch dimensions must match between `input` and `indices`; they choose the corresponding batch slice and are not stored inside each coordinate tuple. If `K` covers the remaining input rank, each tuple reads one element; Synaptik uses its internal scalar shape `[1]` for the one-index scalar case. If `K` is smaller, each tuple reads a slice.
+
+Gradient: only `input` receives gradients. Backward scatters the upstream gradient back with duplicate-index accumulation inside each batch slice. `indices` has no gradient.
+
+```java
+Tensor data = new Tensor(new double[]{10, 20, 30, 40, 50, 60}, new int[]{2, 3}, null, "data", DataType.FLOAT64);
+Tensor indices = new Tensor(new int[]{0, 2, 1, 0}, new int[]{2, 2}, null, "indices", DataType.INT32);
+Tensor y = data.gatherNd(indices);
+// y = [30, 40]
+```
+
+```java
+Tensor batched = new Tensor(new double[12], new int[]{2, 3, 2}, null, "batched", DataType.FLOAT64);
+Tensor idx = new Tensor(new int[]{2, 0, 1, 0}, new int[]{2, 2, 1}, null, "idx", DataType.INT32);
+Tensor y = batched.gatherNd(idx, 1);
+// shape: [2, 2, 2]
+// formula: y[b, i, :] = batched[b, idx[b, i, 0], :]
 ```
 
 ### `scatterAdd`
@@ -1603,7 +1634,7 @@ Shape rule: `updates.shape` must equal `indices.shape[:-1] + data.shape[K:]`, wh
 
 Reduction policy matches `scatterElements`: `NONE` rejects duplicate target elements; `ADD`, `MUL`, `MAX`, and `MIN` reduce into the copied output. `BOOL` supports only `NONE`.
 
-Gradient: currently unsupported. A complete backward needs a matching `GatherND`-style read primitive for `updates.grad`, so training graphs reject `scatterNd` when floating inputs require gradients.
+Gradient: `NONE` and `ADD` support backward for floating tensors. For `NONE`, overwritten data positions receive zero gradient and untouched positions receive the upstream gradient. For `ADD`, all data positions receive the upstream gradient. `updates.grad` is computed with `gatherNd(indices)`. `MUL`, `MAX`, and `MIN` reject training until derivative and tie policies are defined.
 
 ```java
 Tensor data = new Tensor(new double[]{10, 20, 30, 40, 50, 60}, new int[]{2, 3}, null, "data", DataType.FLOAT64);
