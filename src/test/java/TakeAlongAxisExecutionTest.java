@@ -30,6 +30,18 @@ public class TakeAlongAxisExecutionTest {
     }
 
     @Test
+    void takeAlongAxisNormalizesNegativeIndices() {
+        Tensor x = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x", DataType.FLOAT64);
+        Tensor indices = new Tensor(new int[]{2, -1, 0, 1}, new int[]{2, 2}, null, "indices", DataType.INT32);
+        Tensor y = x.takeAlongAxis(indices, 1);
+
+        CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{3.0, 3.0, 4.0, 5.0}, y.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
     void takeAlongAxisBackwardScattersGradientToSelectedPositions() {
         Tensor x = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x", DataType.FLOAT64);
         x.setRequiresGrad(true);

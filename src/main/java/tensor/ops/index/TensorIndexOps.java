@@ -4,7 +4,9 @@ import operations.index.gather;
 import operations.index.gatherAxis;
 import operations.index.gatherAxisGrad;
 import operations.index.gatherGrad;
+import operations.index.ScatterReduction;
 import operations.index.scatterAdd;
+import operations.index.scatterElements;
 import operations.layout.select;
 import operations.index.takeAlongAxis;
 import operations.index.takeAlongAxisGrad;
@@ -224,6 +226,80 @@ public final class TensorIndexOps {
             }
         });
         return out;
+    }
+
+    /**
+     * Writes update values into a copy of {@code data} using rank-preserving axis indices.
+     */
+    public static Tensor scatterElements(Tensor data, Tensor indices, Tensor updates, int axis, ScatterReduction reduction) {
+        if (data == null || indices == null || updates == null) {
+            throw new IllegalArgumentException("scatterElements inputs cannot be null");
+        }
+        if (indices.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("scatterElements indices must be numeric integral values.");
+        }
+        if (data.getDataType() != updates.getDataType()) {
+            throw new IllegalArgumentException("scatterElements requires data and updates to have matching dtypes.");
+        }
+        ScatterReduction effectiveReduction = reduction == null ? ScatterReduction.NONE : reduction;
+        if (data.getDataType() == DataType.BOOL && effectiveReduction != ScatterReduction.NONE) {
+            throw new IllegalArgumentException("scatterElements BOOL tensors support only NONE reduction.");
+        }
+        int[] dataShape = data.getShape();
+        int normalizedAxis = TensorLayoutTransform.normalizeAxis(axis, dataShape.length);
+        validateScatterElementsShape(dataShape, indices.getShapeUnsafe(), updates.getShapeUnsafe(), normalizedAxis);
+        boolean differentiable = isFloating(data.getDataType())
+                && (data.getRequiresGrad() || updates.getRequiresGrad());
+        if (differentiable && effectiveReduction != ScatterReduction.NONE && effectiveReduction != ScatterReduction.ADD) {
+            throw new UnsupportedOperationException("scatterElements backward supports only NONE and ADD reductions.");
+        }
+
+        Tensor out = TensorPrimitiveBuilder.ternary(
+                data,
+                indices,
+                updates,
+                dataShape.clone(),
+                new scatterElements(normalizedAxis, effectiveReduction),
+                "scatterElements",
+                data.getDataType()
+        );
+        out.setRequiresGrad(differentiable);
+        TensorInternalAccess.setBackwardFunction(out, () -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null || !isFloating(data.getDataType())) {
+                return;
+            }
+            if (data.getRequiresGrad()) {
+                Tensor dataGrad = switch (effectiveReduction) {
+                    case NONE -> outGrad.scatterElements(indices, Tensor.zerosLike(updates), normalizedAxis, ScatterReduction.NONE);
+                    case ADD -> outGrad;
+                    case MUL, MAX, MIN -> throw new UnsupportedOperationException("scatterElements backward supports only NONE and ADD reductions.");
+                };
+                IndexSupport.accumulateGradient(data, dataGrad);
+            }
+            if (updates.getRequiresGrad()) {
+                Tensor updatesGrad = outGrad.takeAlongAxis(indices, normalizedAxis);
+                IndexSupport.accumulateGradient(updates, updatesGrad);
+            }
+        });
+        return out;
+    }
+
+    private static void validateScatterElementsShape(int[] dataShape, int[] indicesShape, int[] updatesShape, int axis) {
+        if (indicesShape.length != dataShape.length) {
+            throw new IllegalArgumentException("scatterElements indices rank must match data rank.");
+        }
+        if (updatesShape.length != indicesShape.length) {
+            throw new IllegalArgumentException("scatterElements updates rank must match indices rank.");
+        }
+        for (int i = 0; i < indicesShape.length; i++) {
+            if (indicesShape[i] != updatesShape[i]) {
+                throw new IllegalArgumentException("scatterElements updates shape must equal indices shape.");
+            }
+            if (i != axis && indicesShape[i] != dataShape[i]) {
+                throw new IllegalArgumentException("scatterElements indices must match data shape on all non-axis dimensions.");
+            }
+        }
     }
 
     private static int[] gatherAxisOutputShape(int[] dataShape, int[] indicesShape, int axis) {

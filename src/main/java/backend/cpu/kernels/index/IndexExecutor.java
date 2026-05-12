@@ -1,6 +1,7 @@
 package backend.cpu.kernels.index;
 
 import backend.cpu.kernels.CpuKernelContext;
+import operations.index.ScatterReduction;
 import tensor.Tensor;
 
 final class IndexExecutor {
@@ -113,5 +114,25 @@ final class IndexExecutor {
 
     static void scatterAddBF16(Tensor base, Tensor indices, Tensor src, Tensor out, int dimension, CpuKernelContext context) {
         IndexReadWriteBackend.scatterAddBF16(base, indices, src, out, dimension);
+    }
+
+    static void scatterElementsF64(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, ScatterReduction reduction, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterElementsF64(data, indices, updates, out, axis, reduction);
+    }
+
+    static void scatterElementsF32(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, ScatterReduction reduction, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterElementsF32(data, indices, updates, out, axis, reduction);
+    }
+
+    static void scatterElementsBF16(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, ScatterReduction reduction, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterElementsBF16(data, indices, updates, out, axis, reduction);
+    }
+
+    static void scatterElementsBOOL(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, ScatterReduction reduction, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterElementsBOOL(data, indices, updates, out, axis, reduction);
+    }
+
+    static void scatterElementsI32(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, ScatterReduction reduction, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterElementsI32(data, indices, updates, out, axis, reduction);
     }
 }

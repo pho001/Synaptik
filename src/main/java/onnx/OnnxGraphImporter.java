@@ -3,6 +3,7 @@ package onnx;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorOps;
+import operations.index.ScatterReduction;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -20,7 +21,7 @@ final class OnnxGraphImporter {
             "And", "Or", "Not",
             "Where", "Identity", "Clip", "Cast",
             "MatMul", "Gemm",
-            "Transpose", "Reshape", "Flatten", "Expand", "Squeeze", "Unsqueeze", "Slice", "Concat", "Shape", "Size", "Gather",
+            "Transpose", "Reshape", "Flatten", "Expand", "Squeeze", "Unsqueeze", "Slice", "Concat", "Shape", "Size", "Gather", "GatherElements", "ScatterElements",
             "ReduceSum", "ReduceMean", "ReduceMax", "ReduceMin",
             "Softmax", "LogSoftmax",
             "Constant"
@@ -163,6 +164,8 @@ final class OnnxGraphImporter {
             case "Shape" -> shape(node, tensors, int64Constants, attrs);
             case "Size" -> size(node, tensors, int64Constants);
             case "Gather" -> gather(node, tensors, int64Constants, constantTensors, attrs);
+            case "GatherElements" -> gatherElements(node, tensors, int64Constants, attrs);
+            case "ScatterElements" -> scatterElements(node, tensors, int64Constants, attrs);
             case "ReduceSum" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.SUM);
             case "ReduceMean" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.MEAN);
             case "ReduceMax" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.MAX);
@@ -527,6 +530,49 @@ final class OnnxGraphImporter {
             return null;
         }
         return TensorOps.gatherAxis(tensorInput(node, tensors, 0), tensorInput(node, tensors, 1), attrs.intAttribute("axis", 0));
+    }
+
+    private static Tensor gatherElements(
+            OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
+            Map<String, long[]> int64Constants,
+            OnnxAttributeReader attrs
+    ) {
+        requireInputCount(node, 2, 2);
+        if (int64Constants.containsKey(node.getInput(1))) {
+            throw unsupported(node, "GatherElements requires runtime INT32 indices; INT64 is supported only for shape constants");
+        }
+        return TensorOps.takeAlongAxis(tensorInput(node, tensors, 0), tensorInput(node, tensors, 1), attrs.intAttribute("axis", 0));
+    }
+
+    private static Tensor scatterElements(
+            OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
+            Map<String, long[]> int64Constants,
+            OnnxAttributeReader attrs
+    ) {
+        requireInputCount(node, 3, 3);
+        if (int64Constants.containsKey(node.getInput(1))) {
+            throw unsupported(node, "ScatterElements requires runtime INT32 indices; INT64 is supported only for shape constants");
+        }
+        return TensorOps.scatterElements(
+                tensorInput(node, tensors, 0),
+                tensorInput(node, tensors, 1),
+                tensorInput(node, tensors, 2),
+                attrs.intAttribute("axis", 0),
+                scatterReduction(node, attrs.stringAttribute("reduction", "none"))
+        );
+    }
+
+    private static ScatterReduction scatterReduction(OnnxProto.NodeProto node, String value) {
+        return switch (value) {
+            case "none" -> ScatterReduction.NONE;
+            case "add" -> ScatterReduction.ADD;
+            case "mul" -> ScatterReduction.MUL;
+            case "max" -> ScatterReduction.MAX;
+            case "min" -> ScatterReduction.MIN;
+            default -> throw unsupported(node, "unsupported ScatterElements reduction '" + value + "'");
+        };
     }
 
     private static Tensor reduce(

@@ -1,6 +1,7 @@
 package backend.cpu.kernels.index;
 
 import backend.cpu.kernels.*;
+import operations.index.ScatterReduction;
 
 import tensor.DataType;
 import tensor.Tensor;
@@ -227,6 +228,68 @@ final class IndexReadWriteBackend {
         });
     }
 
+    public static void scatterElementsF64(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, ScatterReduction reduction) {
+        ScatterReduction effectiveReduction = validateScatterElements(data, indices, updates, out, axis, reduction);
+        out.copyDataFrom(data);
+        double[] updateData = updates.getFloat64Data();
+        double[] dst = out.getFloat64Data();
+        scatterElementsDuplicateState(out, effectiveReduction, state ->
+                forEachScatterElements(data, indices, updates, out, axis, (updateOffset, targetOffset, targetLogical) -> {
+                    state.mark(targetLogical);
+                    dst[targetOffset] = reduce(dst[targetOffset], updateData[updateOffset], effectiveReduction);
+                }));
+    }
+
+    public static void scatterElementsF32(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, ScatterReduction reduction) {
+        ScatterReduction effectiveReduction = validateScatterElements(data, indices, updates, out, axis, reduction);
+        out.copyDataFrom(data);
+        float[] updateData = updates.getFloat32Data();
+        float[] dst = out.getFloat32Data();
+        scatterElementsDuplicateState(out, effectiveReduction, state ->
+                forEachScatterElements(data, indices, updates, out, axis, (updateOffset, targetOffset, targetLogical) -> {
+                    state.mark(targetLogical);
+                    dst[targetOffset] = (float) reduce(dst[targetOffset], updateData[updateOffset], effectiveReduction);
+                }));
+    }
+
+    public static void scatterElementsBF16(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, ScatterReduction reduction) {
+        ScatterReduction effectiveReduction = validateScatterElements(data, indices, updates, out, axis, reduction);
+        out.copyDataFrom(data);
+        short[] updateData = updates.getBFloat16Data();
+        short[] dst = out.getBFloat16Data();
+        scatterElementsDuplicateState(out, effectiveReduction, state ->
+                forEachScatterElements(data, indices, updates, out, axis, (updateOffset, targetOffset, targetLogical) -> {
+                    state.mark(targetLogical);
+                    float current = CpuDTypeOps.fromBFloat16Bits(dst[targetOffset]);
+                    float update = CpuDTypeOps.fromBFloat16Bits(updateData[updateOffset]);
+                    dst[targetOffset] = CpuDTypeOps.toBFloat16Bits((float) reduce(current, update, effectiveReduction));
+                }));
+    }
+
+    public static void scatterElementsBOOL(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, ScatterReduction reduction) {
+        ScatterReduction effectiveReduction = validateScatterElements(data, indices, updates, out, axis, reduction);
+        out.copyDataFrom(data);
+        byte[] updateData = updates.getBoolData();
+        byte[] dst = out.getBoolData();
+        scatterElementsDuplicateState(out, effectiveReduction, state ->
+                forEachScatterElements(data, indices, updates, out, axis, (updateOffset, targetOffset, targetLogical) -> {
+                    state.mark(targetLogical);
+                    dst[targetOffset] = updateData[updateOffset] == 0 ? (byte) 0 : (byte) 1;
+                }));
+    }
+
+    public static void scatterElementsI32(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, ScatterReduction reduction) {
+        ScatterReduction effectiveReduction = validateScatterElements(data, indices, updates, out, axis, reduction);
+        out.copyDataFrom(data);
+        int[] updateData = updates.getInt32Data();
+        int[] dst = out.getInt32Data();
+        scatterElementsDuplicateState(out, effectiveReduction, state ->
+                forEachScatterElements(data, indices, updates, out, axis, (updateOffset, targetOffset, targetLogical) -> {
+                    state.mark(targetLogical);
+                    dst[targetOffset] = reduceInt(dst[targetOffset], updateData[updateOffset], effectiveReduction);
+                }));
+    }
+
     public static void takeAlongAxisScatterF64(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
         validateTakeAlongAxisScatter(indices, outGrad, node, dimension);
         double[] grad = outGrad.getFloat64Data();
@@ -329,6 +392,41 @@ final class IndexReadWriteBackend {
         if (base.getDataType() != src.getDataType() || base.getDataType() != out.getDataType()) {
             throw new IllegalArgumentException("scatterAdd requires matching dtypes for base, src and output.");
         }
+    }
+
+    private static ScatterReduction validateScatterElements(
+            Tensor data,
+            Tensor indices,
+            Tensor updates,
+            Tensor out,
+            int axis,
+            ScatterReduction reduction
+    ) {
+        ScatterReduction effectiveReduction = reduction == null ? ScatterReduction.NONE : reduction;
+        int[] dataShape = data.getShapeUnsafe();
+        if (axis < 0 || axis >= dataShape.length) {
+            throw new IllegalArgumentException("scatterElements axis out of bounds: " + axis);
+        }
+        validateIndexTensor(indices);
+        int[] indicesShape = indices.getShapeUnsafe();
+        int[] updatesShape = updates.getShapeUnsafe();
+        validateShape(out.getShapeUnsafe(), dataShape, "scatterElements output shape must equal data shape.");
+        if (indicesShape.length != dataShape.length) {
+            throw new IllegalArgumentException("scatterElements indices rank must match data rank.");
+        }
+        validateShape(updatesShape, indicesShape, "scatterElements updates shape must equal indices shape.");
+        for (int i = 0; i < indicesShape.length; i++) {
+            if (i != axis && indicesShape[i] != dataShape[i]) {
+                throw new IllegalArgumentException("scatterElements indices must match data shape on all non-axis dimensions.");
+            }
+        }
+        if (data.getDataType() != updates.getDataType() || data.getDataType() != out.getDataType()) {
+            throw new IllegalArgumentException("scatterElements requires matching dtypes for data, updates and output.");
+        }
+        if (data.getDataType() == DataType.BOOL && effectiveReduction != ScatterReduction.NONE) {
+            throw new IllegalArgumentException("scatterElements BOOL tensors support only NONE reduction.");
+        }
+        return effectiveReduction;
     }
 
     private static void validateTakeAlongAxis(Tensor input, Tensor indices, Tensor out, int dimension) {
@@ -510,7 +608,7 @@ final class IndexReadWriteBackend {
                     baseIn += coord * inputStrides[d];
                 }
             }
-            int axisIndex = readAxisIndex(indices, logical, axisSize);
+            int axisIndex = readAxisIndexAllowNegative(indices, logical, axisSize);
             consumer.accept(baseIn, outOffset, axisStrideIn, axisIndex);
         }
     }
@@ -539,8 +637,44 @@ final class IndexReadWriteBackend {
                     baseNode += coord * nodeStrides[d];
                 }
             }
-            int axisIndex = readAxisIndex(indices, logical, axisSize);
+            int axisIndex = readAxisIndexAllowNegative(indices, logical, axisSize);
             consumer.accept(baseNode, gradOffset, axisStrideNode, axisIndex);
+        }
+    }
+
+    private static void forEachScatterElements(
+            Tensor data,
+            Tensor indices,
+            Tensor updates,
+            Tensor out,
+            int axis,
+            ScatterElementsConsumer consumer
+    ) {
+        int[] dataShape = data.getShapeUnsafe();
+        int[] dataDense = TensorMetadata.computeStrides(dataShape);
+        int[] updatesShape = updates.getShapeUnsafe();
+        int[] updatesStrides = updates.getStridesUnsafe();
+        int[] updatesDense = TensorMetadata.computeStrides(updatesShape);
+        int[] outStrides = out.getStridesUnsafe();
+        int updatesBaseOffset = updates.getStorageOffsetUnsafe();
+        int outBaseOffset = out.getStorageOffsetUnsafe();
+        int total = updates.getFlatDataSize();
+        int axisSize = dataShape[axis];
+
+        for (int logical = 0; logical < total; logical++) {
+            int rem = logical;
+            int updateOffset = updatesBaseOffset;
+            int targetOffset = outBaseOffset;
+            int targetLogical = 0;
+            for (int d = 0; d < updatesShape.length; d++) {
+                int coord = rem / updatesDense[d];
+                rem %= updatesDense[d];
+                updateOffset += coord * updatesStrides[d];
+                int targetCoord = d == axis ? readAxisIndexAllowNegative(indices, logical, axisSize) : coord;
+                targetOffset += targetCoord * outStrides[d];
+                targetLogical += targetCoord * dataDense[d];
+            }
+            consumer.accept(updateOffset, targetOffset, targetLogical);
         }
     }
 
@@ -645,6 +779,33 @@ final class IndexReadWriteBackend {
         return (int) integral;
     }
 
+    private static double reduce(double current, double update, ScatterReduction reduction) {
+        return switch (reduction) {
+            case NONE -> update;
+            case ADD -> current + update;
+            case MUL -> current * update;
+            case MAX -> Math.max(current, update);
+            case MIN -> Math.min(current, update);
+        };
+    }
+
+    private static int reduceInt(int current, int update, ScatterReduction reduction) {
+        return switch (reduction) {
+            case NONE -> update;
+            case ADD -> Math.addExact(current, update);
+            case MUL -> Math.multiplyExact(current, update);
+            case MAX -> Math.max(current, update);
+            case MIN -> Math.min(current, update);
+        };
+    }
+
+    private static void scatterElementsDuplicateState(Tensor out, ScatterReduction reduction, DuplicateStateConsumer consumer) {
+        DuplicateState state = reduction == ScatterReduction.NONE
+                ? new DuplicateState(new boolean[out.getFlatDataSize()])
+                : DuplicateState.NOOP;
+        consumer.accept(state);
+    }
+
     @FunctionalInterface
     private interface GatherConsumer {
         void accept(int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisIndex);
@@ -663,6 +824,36 @@ final class IndexReadWriteBackend {
     @FunctionalInterface
     private interface TakeAlongAxisScatterConsumer {
         void accept(int baseNode, int gradOffset, int axisStrideNode, int axisIndex);
+    }
+
+    @FunctionalInterface
+    private interface ScatterElementsConsumer {
+        void accept(int updateOffset, int targetOffset, int targetLogical);
+    }
+
+    @FunctionalInterface
+    private interface DuplicateStateConsumer {
+        void accept(DuplicateState state);
+    }
+
+    private static final class DuplicateState {
+        private static final DuplicateState NOOP = new DuplicateState(null);
+
+        private final boolean[] seen;
+
+        private DuplicateState(boolean[] seen) {
+            this.seen = seen;
+        }
+
+        private void mark(int targetLogical) {
+            if (seen == null) {
+                return;
+            }
+            if (seen[targetLogical]) {
+                throw new IllegalArgumentException("scatterElements NONE reduction does not allow duplicate target indices.");
+            }
+            seen[targetLogical] = true;
+        }
     }
 
     @FunctionalInterface

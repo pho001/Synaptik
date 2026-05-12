@@ -34,6 +34,15 @@ final class OnnxAttributeReader {
         return defaultValue;
     }
 
+    String stringAttribute(String name, String defaultValue) {
+        for (OnnxProto.AttributeProto attr : node.getAttributeList()) {
+            if (attr.getName().equals(name)) {
+                return attr.getS().toStringUtf8();
+            }
+        }
+        return defaultValue;
+    }
+
     int[] intsAttribute(String name) {
         for (OnnxProto.AttributeProto attr : node.getAttributeList()) {
             if (attr.getName().equals(name)) {

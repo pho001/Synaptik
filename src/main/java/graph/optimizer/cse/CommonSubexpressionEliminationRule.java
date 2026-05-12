@@ -31,6 +31,7 @@ import operations.normalization.layerNorm;
 import operations.nn.pool.maxPool2d;
 import operations.nn.pool.maxPool2dBackwardInput;
 import operations.index.scatterAdd;
+import operations.index.scatterElements;
 import operations.linalg.scaledDotProductAttention;
 import operations.linalg.scaledDotProductAttentionBackward;
 import operations.index.takeAlongAxis;
@@ -266,6 +267,10 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case TAKE_ALONG_AXIS -> new AxisSignature(((takeAlongAxis) op).getDimension());
             case TAKE_ALONG_AXIS_GRAD -> new AxisSignature(((takeAlongAxisGrad) op).getDimension());
             case SCATTER_ADD -> new AxisSignature(((scatterAdd) op).getDimension());
+            case SCATTER_ELEMENTS -> IntArrayValue.copyOf(new int[]{
+                    ((scatterElements) op).getAxis(),
+                    ((scatterElements) op).getReduction().ordinal()
+            });
             case SCALED_DOT_PRODUCT_ATTENTION -> new AttentionSignature(Double.doubleToLongBits(((scaledDotProductAttention) op).getScale()), ((scaledDotProductAttention) op).hasMask());
             case SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> IntArrayValue.copyOf(new int[]{((scaledDotProductAttentionBackward) op).getOutputKind().ordinal()});
             case LINEAR -> new InputSelectorSignature(((linear) op).hasBias());

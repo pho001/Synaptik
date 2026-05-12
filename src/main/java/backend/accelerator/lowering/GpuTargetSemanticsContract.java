@@ -122,6 +122,7 @@ public record GpuTargetSemanticsContract(
         addIndex(out, Operation.OpType.TAKE_ALONG_AXIS, "INT32 indices; axis-aligned take semantics must match CPU");
         addIndex(out, Operation.OpType.TAKE_ALONG_AXIS_GRAD, "duplicate-index accumulation must match CPU take-along-axis gradient");
         addIndex(out, Operation.OpType.SCATTER_ADD, "duplicate-index accumulation order/tolerance must match CPU scatter-add");
+        addIndex(out, Operation.OpType.SCATTER_ELEMENTS, "rank-preserving write, reduction, and duplicate-index policy must match CPU scatter-elements");
         addCompare(out, Operation.OpType.GT);
         addCompare(out, Operation.OpType.GE);
         addCompare(out, Operation.OpType.LT);
@@ -199,7 +200,14 @@ public record GpuTargetSemanticsContract(
     private static void addIndex(ArrayList<GpuTargetSemanticsContract> out, Operation.OpType opType, String parameter) {
         boolean writeOrGradient = opType == Operation.OpType.GATHER_GRAD
                 || opType == Operation.OpType.TAKE_ALONG_AXIS_GRAD
-                || opType == Operation.OpType.SCATTER_ADD;
+                || opType == Operation.OpType.SCATTER_ADD
+                || opType == Operation.OpType.SCATTER_ELEMENTS;
+        String blockerReason = "";
+        if (writeOrGradient) {
+            blockerReason = opType == Operation.OpType.SCATTER_ELEMENTS
+                    ? "UNSUPPORTED_INDEX_SEMANTICS until backend proves rank-preserving write reductions, duplicate policy, and static bounds checks"
+                    : "UNSUPPORTED_DUPLICATE_INDEX until backend proves CPU-compatible duplicate-index accumulation and static bounds checks";
+        }
         out.add(new GpuTargetSemanticsContract(
                 opType,
                 GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
@@ -210,9 +218,7 @@ public record GpuTargetSemanticsContract(
                 parameter,
                 "CPU parity must cover duplicate indices, logical-index accumulation order/tolerance, repeated writes to one destination, and bounds behavior",
                 writeOrGradient,
-                writeOrGradient
-                        ? "UNSUPPORTED_DUPLICATE_INDEX until backend proves CPU-compatible duplicate-index accumulation and static bounds checks"
-                        : ""
+                blockerReason
         ));
     }
 

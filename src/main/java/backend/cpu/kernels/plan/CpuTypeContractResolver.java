@@ -3,6 +3,8 @@ package backend.cpu.kernels.plan;
 import backend.cpu.fused.codegen.FusedExternalInputPlan;
 import operations.Operation;
 import backend.cpu.fused.plan.FusedOperation;
+import operations.index.ScatterReduction;
+import operations.index.scatterElements;
 import tensor.DataType;
 import tensor.Tensor;
 
@@ -31,6 +33,7 @@ public final class CpuTypeContractResolver {
             case TAKE_ALONG_AXIS -> resolveTakeAlongAxisContract(inputs);
             case TAKE_ALONG_AXIS_GRAD -> resolveTakeAlongAxisGradContract(inputs);
             case SCATTER_ADD -> resolveScatterAddContract(inputs);
+            case SCATTER_ELEMENTS -> resolveScatterElementsContract(op, inputs);
             case SLICE_GRAD -> resolveSingleFloatingInputContract(inputs, "sliceGrad");
             case CAST -> resolveCastContract(node, inputs);
             case SCALED_DOT_PRODUCT_ATTENTION -> resolveAttentionContract(inputs);
@@ -176,6 +179,27 @@ public final class CpuTypeContractResolver {
             throw new IllegalArgumentException("scatterAdd requires base and src to have matching dtypes.");
         }
         return new PreparedTypeContract(baseType, List.of(baseType, indexType, srcType));
+    }
+
+    private static PreparedTypeContract resolveScatterElementsContract(Operation op, List<Tensor> inputs) {
+        if (inputs == null || inputs.size() != 3) {
+            throw new IllegalArgumentException("scatterElements expects exactly three inputs.");
+        }
+        DataType dataType = inputs.get(0).getDataType();
+        DataType indexType = inputs.get(1).getDataType();
+        DataType updatesType = inputs.get(2).getDataType();
+        if (indexType == DataType.BOOL) {
+            throw new IllegalArgumentException("scatterElements indices must be numeric integral values.");
+        }
+        if (dataType != updatesType) {
+            throw new IllegalArgumentException("scatterElements requires data and updates to have matching dtypes.");
+        }
+        if (op instanceof scatterElements scatterOp
+                && scatterOp.getReduction() != ScatterReduction.NONE
+                && dataType == DataType.BOOL) {
+            throw new IllegalArgumentException("scatterElements BOOL tensors support only NONE reduction.");
+        }
+        return new PreparedTypeContract(dataType, List.of(dataType, indexType, updatesType));
     }
 
     private static PreparedTypeContract resolveCrossEntropyLossIndicesContract(List<Tensor> inputs) {

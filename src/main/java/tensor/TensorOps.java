@@ -1,5 +1,6 @@
 package tensor;
 
+import operations.index.ScatterReduction;
 import tensor.ops.binary.TensorBinaryOps;
 import tensor.ops.bool.TensorBoolOps;
 import tensor.ops.compare.TensorCompareOps;
@@ -157,6 +158,14 @@ public final class TensorOps {
 
     public static Tensor scatterAdd(Tensor base, Tensor indices, Tensor src, int dimension) {
         return TensorIndexOps.scatterAdd(base, indices, src, dimension);
+    }
+
+    public static Tensor scatterElements(Tensor data, Tensor indices, Tensor updates, int axis) {
+        return TensorIndexOps.scatterElements(data, indices, updates, axis, ScatterReduction.NONE);
+    }
+
+    public static Tensor scatterElements(Tensor data, Tensor indices, Tensor updates, int axis, ScatterReduction reduction) {
+        return TensorIndexOps.scatterElements(data, indices, updates, axis, reduction);
     }
 
     public static Tensor takeAlongAxis(Tensor input, Tensor indices, int dimension) {

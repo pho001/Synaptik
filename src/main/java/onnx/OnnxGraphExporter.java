@@ -6,7 +6,10 @@ import operations.elementwise.unary.clampMax;
 import operations.elementwise.unary.clampMin;
 import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.pow;
+import operations.index.ScatterReduction;
 import operations.index.gatherAxis;
+import operations.index.scatterElements;
+import operations.index.takeAlongAxis;
 import operations.layout.concat;
 import operations.layout.expandDims;
 import operations.layout.expand;
@@ -137,6 +140,8 @@ final class OnnxGraphExporter {
             case CONCAT -> exportConcat(node, op);
             case CAST -> exportCast(node, op);
             case GATHER_AXIS -> exportGatherAxis(node, op);
+            case TAKE_ALONG_AXIS -> exportGatherElements(node, op);
+            case SCATTER_ELEMENTS -> exportScatterElements(node, op);
             case SQUEEZE -> exportSqueeze(node, op, names, graphBuilder);
             case EXPAND_DIMS -> exportUnsqueeze(node, op, names, graphBuilder);
             case SUM -> exportReduction(node, "ReduceSum", ((sum) op).getDimension(), ((sum) op).keepDims(), names, graphBuilder);
@@ -227,6 +232,20 @@ final class OnnxGraphExporter {
     private static void exportGatherAxis(OnnxProto.NodeProto.Builder node, Operation op) {
         node.setOpType("Gather")
                 .addAttribute(intAttr("axis", ((gatherAxis) op).getAxis()));
+    }
+
+    private static void exportGatherElements(OnnxProto.NodeProto.Builder node, Operation op) {
+        node.setOpType("GatherElements")
+                .addAttribute(intAttr("axis", ((takeAlongAxis) op).getDimension()));
+    }
+
+    private static void exportScatterElements(OnnxProto.NodeProto.Builder node, Operation op) {
+        scatterElements scatter = (scatterElements) op;
+        node.setOpType("ScatterElements")
+                .addAttribute(intAttr("axis", scatter.getAxis()));
+        if (scatter.getReduction() != ScatterReduction.NONE) {
+            node.addAttribute(stringAttr("reduction", scatterReduction(scatter.getReduction())));
+        }
     }
 
     private static void exportSqueeze(
@@ -347,6 +366,23 @@ final class OnnxGraphExporter {
             builder.addInts(value);
         }
         return builder.build();
+    }
+
+    private static OnnxProto.AttributeProto stringAttr(String name, String value) {
+        return OnnxProto.AttributeProto.newBuilder()
+                .setName(name)
+                .setS(com.google.protobuf.ByteString.copyFromUtf8(value))
+                .build();
+    }
+
+    private static String scatterReduction(ScatterReduction reduction) {
+        return switch (reduction) {
+            case NONE -> "none";
+            case ADD -> "add";
+            case MUL -> "mul";
+            case MAX -> "max";
+            case MIN -> "min";
+        };
     }
 
     private static long[] toLong(int[] values) {

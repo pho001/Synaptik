@@ -6,6 +6,7 @@ import config.profile.ExecutionProfile;
 import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
 import operations.Operation;
+import operations.index.ScatterReduction;
 import operations.layout.noop;
 import tensor.factory.TensorArrayData;
 import tensor.loss.LossReduction;
@@ -1547,6 +1548,31 @@ public class Tensor {
      */
     public Tensor scatterAdd(Tensor indices, Tensor src, int dimension) {
         return TensorOps.scatterAdd(this, indices, src, dimension);
+    }
+
+    /**
+     * Writes updates into a copy of this tensor using rank-preserving axis indices.
+     *
+     * @param indices numeric integral index tensor with the same rank as this tensor
+     * @param updates update values with shape equal to {@code indices}
+     * @param axis target axis; negative axes are normalized
+     * @return tensor with this tensor's shape and scattered updates
+     */
+    public Tensor scatterElements(Tensor indices, Tensor updates, int axis) {
+        return TensorOps.scatterElements(this, indices, updates, axis);
+    }
+
+    /**
+     * Writes or reduces updates into a copy of this tensor using rank-preserving axis indices.
+     *
+     * @param indices numeric integral index tensor with the same rank as this tensor
+     * @param updates update values with shape equal to {@code indices}
+     * @param axis target axis; negative axes are normalized
+     * @param reduction scatter reduction policy
+     * @return tensor with this tensor's shape and scattered updates
+     */
+    public Tensor scatterElements(Tensor indices, Tensor updates, int axis, ScatterReduction reduction) {
+        return TensorOps.scatterElements(this, indices, updates, axis, reduction);
     }
 
     /**
