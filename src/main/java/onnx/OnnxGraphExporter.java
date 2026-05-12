@@ -132,6 +132,11 @@ final class OnnxGraphExporter {
             case EXP -> node.setOpType("Exp");
             case LOG -> node.setOpType("Log");
             case SQRT -> node.setOpType("Sqrt");
+            case INV -> node.setOpType("Reciprocal");
+            case ERF -> node.setOpType("Erf");
+            case FLOOR -> node.setOpType("Floor");
+            case CEIL -> node.setOpType("Ceil");
+            case SIGN -> node.setOpType("Sign");
             case POW -> exportPow(node, op, tensor, names, graphBuilder);
             case CLAMP_MIN -> exportClampMin(node, op, tensor, names, graphBuilder);
             case CLAMP_MAX -> exportClampMax(node, op, tensor, names, graphBuilder);

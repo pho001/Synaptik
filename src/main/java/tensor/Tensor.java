@@ -1787,6 +1787,15 @@ public class Tensor {
     }
 
     /**
+     * Computes the Gaussian error function elementwise.
+     *
+     * @return shape-preserving error-function tensor
+     */
+    public Tensor erf() {
+        return TensorOps.erf(this);
+    }
+
+    /**
      * Computes implementation-specific approximate exponential elementwise.
      *
      * @return shape-preserving approximate exponential tensor
@@ -1881,6 +1890,18 @@ public class Tensor {
      */
     public Tensor sqrt() {
         return TensorOps.sqrt(this);
+    }
+
+    public Tensor floor() {
+        return TensorOps.floor(this);
+    }
+
+    public Tensor ceil() {
+        return TensorOps.ceil(this);
+    }
+
+    public Tensor sign() {
+        return TensorOps.sign(this);
     }
 
     /**

@@ -85,8 +85,8 @@ public record GraphOptimizationScore(
             case NOOP, RESHAPE, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS -> 1;
             case ADD, SUB, MUL, DIV, MIN, MAX, GT, GE, LT, LE, EQ, NE,
                  LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT, WHERE, NEG, INV, ABS,
-                 MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX -> 2;
-            case SQRT, LOG, EXP, FAST_EXP, TANH, FAST_TANH, POW, SIGMOID -> 4;
+                 FLOOR, CEIL, SIGN, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX -> 2;
+            case SQRT, LOG, EXP, FAST_EXP, ERF, TANH, FAST_TANH, POW, SIGMOID -> 4;
             case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY,
                  SOFTMAX, SOFTMAX_GRAD, LOG_SOFTMAX, LOG_SOFTMAX_GRAD -> 8;
             case MATMUL, LINEAR -> 16;

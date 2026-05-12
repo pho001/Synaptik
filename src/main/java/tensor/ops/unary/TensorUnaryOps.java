@@ -2,17 +2,21 @@ package tensor.ops.unary;
 
 import operations.Operation;
 import operations.elementwise.unary.abs;
+import operations.elementwise.unary.ceil;
 import operations.elementwise.unary.clampMax;
 import operations.elementwise.unary.clampMin;
+import operations.elementwise.unary.erf;
 import operations.elementwise.unary.exp;
 import operations.elementwise.unary.fastExp;
 import operations.elementwise.unary.fastTanh;
+import operations.elementwise.unary.floor;
 import operations.elementwise.unary.inv;
 import operations.elementwise.unary.log;
 import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.neg;
 import operations.elementwise.unary.pow;
 import operations.elementwise.unary.relu;
+import operations.elementwise.unary.sign;
 import operations.elementwise.unary.sigmoid;
 import operations.elementwise.unary.sqrt;
 import operations.elementwise.unary.tanh;
@@ -153,6 +157,29 @@ public final class TensorUnaryOps {
     }
 
     /**
+     * Computes the Gaussian error function elementwise.
+     *
+     * @param input floating tensor; must be non-null
+     * @return shape-preserving error-function tensor
+     * @throws NullPointerException if {@code input} is null
+     * @throws IllegalArgumentException if {@code input} is non-floating
+     */
+    public static Tensor erf(Tensor input) {
+        Operation op = new erf();
+        Tensor out = TensorPrimitiveBuilder.unary(input, op, "erf", TensorDataTypeUtil.unary(input));
+        TensorInternalAccess.setBackwardFunction(out, () -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null || !input.getRequiresGrad()) {
+                return;
+            }
+            Tensor scale = Tensor.scalar(2.0d / Math.sqrt(Math.PI), input.getDataType());
+            Tensor gradForInput = outGrad.mul(scale).mul(input.mul(input).neg().exp());
+            UnarySupport.accumulateGradient(input, gradForInput);
+        });
+        return out;
+    }
+
+    /**
      * Raises each element to a scalar exponent.
      *
      * @param input floating tensor; must be non-null
@@ -280,6 +307,45 @@ public final class TensorUnaryOps {
             UnarySupport.accumulateGradient(input, outGrad.mul(0.5).mul(out.inv()));
         });
         return out;
+    }
+
+    /**
+     * Computes the floor of every element.
+     *
+     * @param input floating tensor; must be non-null
+     * @return shape-preserving floor tensor
+     * @throws NullPointerException if {@code input} is null
+     * @throws IllegalArgumentException if {@code input} is non-floating
+     */
+    public static Tensor floor(Tensor input) {
+        Operation op = new floor();
+        return TensorPrimitiveBuilder.unaryNoGrad(input, input.getShape(), op, "floor", TensorDataTypeUtil.unary(input));
+    }
+
+    /**
+     * Computes the ceiling of every element.
+     *
+     * @param input floating tensor; must be non-null
+     * @return shape-preserving ceiling tensor
+     * @throws NullPointerException if {@code input} is null
+     * @throws IllegalArgumentException if {@code input} is non-floating
+     */
+    public static Tensor ceil(Tensor input) {
+        Operation op = new ceil();
+        return TensorPrimitiveBuilder.unaryNoGrad(input, input.getShape(), op, "ceil", TensorDataTypeUtil.unary(input));
+    }
+
+    /**
+     * Computes the sign of every element.
+     *
+     * @param input floating tensor; must be non-null
+     * @return shape-preserving sign tensor with the same dtype as {@code input}
+     * @throws NullPointerException if {@code input} is null
+     * @throws IllegalArgumentException if {@code input} is non-floating
+     */
+    public static Tensor sign(Tensor input) {
+        Operation op = new sign();
+        return TensorPrimitiveBuilder.unaryNoGrad(input, input.getShape(), op, "sign", TensorDataTypeUtil.unary(input));
     }
 
     /**

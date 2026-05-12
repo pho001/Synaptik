@@ -252,6 +252,10 @@ public final class TensorOps {
         return TensorUnaryOps.fastExp(input);
     }
 
+    public static Tensor erf(Tensor input) {
+        return TensorUnaryOps.erf(input);
+    }
+
     public static Tensor fastTanh(Tensor input) {
         return TensorUnaryOps.fastTanh(input);
     }
@@ -286,6 +290,18 @@ public final class TensorOps {
 
     public static Tensor sqrt(Tensor input) {
         return TensorUnaryOps.sqrt(input);
+    }
+
+    public static Tensor floor(Tensor input) {
+        return TensorUnaryOps.floor(input);
+    }
+
+    public static Tensor ceil(Tensor input) {
+        return TensorUnaryOps.ceil(input);
+    }
+
+    public static Tensor sign(Tensor input) {
+        return TensorUnaryOps.sign(input);
     }
 
     public static Tensor sigmoid(Tensor input) {

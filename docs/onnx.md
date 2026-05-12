@@ -88,7 +88,8 @@ Supported node families:
 |---|---|
 | `Add`, `Sub`, `Mul`, `Div`, `Min`, `Max` | Binary floating tensor ops with existing broadcasting rules. ONNX variadic `Min`/`Max` forms are not expanded; the supported form has exactly two inputs. |
 | `Pow` | Scalar-exponent power. The exponent must be a scalar initializer or scalar `Constant` node because Synaptik's graph op is `pow(Tensor, double)`, not tensor-by-tensor exponentiation. |
-| `Neg`, `Abs`, `Relu`, `Tanh`, `Sigmoid`, `Exp`, `Log`, `Sqrt` | Unary floating tensor ops. |
+| `Neg`, `Abs`, `Relu`, `Tanh`, `Sigmoid`, `Exp`, `Log`, `Sqrt`, `Reciprocal`, `Erf`, `Floor`, `Ceil`, `Sign` | Unary floating tensor ops. `Reciprocal` maps to Synaptik `inv`. `Erf` uses a scalar CPU approximation because Java has no standard `Math.erf`. `Floor`, `Ceil`, and `Sign` are inference-friendly non-smooth unary ops and currently do not define useful gradients. |
+| `LeakyRelu`, `Elu`, `HardSigmoid`, `Softplus` | Import-only composed activation lowerings. `LeakyRelu` lowers to `Where(x >= 0, x, alpha * x)`, `Elu` lowers to `Where(x >= 0, x, alpha * (Exp(x) - 1))`, `HardSigmoid` lowers to `Clip(alpha * x + beta, 0, 1)`, and `Softplus` lowers to `Log(Exp(x) + 1)`. Export intentionally writes the composed Synaptik graph rather than pretending there is a canonical first-class Synaptik `LeakyRelu`/`Elu`/`HardSigmoid`/`Softplus` descriptor. |
 | `Equal`, `Greater`, `GreaterOrEqual`, `Less`, `LessOrEqual` | Binary floating comparisons with boolean output. |
 | `And`, `Or`, `Not` | Boolean tensor logic. |
 | `Where` | Boolean condition plus two floating branches using Synaptik broadcast and dtype promotion rules. |
@@ -148,6 +149,10 @@ NN inference conformance is covered the same way under `src/test/resources/onnx/
 Static breadth conformance is covered under `src/test/resources/onnx/breadth/`. `OnnxBreadthFixtureModels` generates checked-in fixtures for `Pad`, `Split`, `Tile`, `ArgMax`, `ReduceProd`, and `GlobalAveragePool`; `OnnxBreadthFixtureTest` byte-compares them and executes every declared output, including both outputs of the special-case `Split` lowering.
 The same fixture set also covers wave 3 static inference breadth: `ConstantOfShape`, static tensor `Range`, `ReduceL1`, `ReduceL2`, `ReduceLogSum`, `ReduceLogSumExp`, and `CumSum`.
 
+Activation/math conformance is covered under `src/test/resources/onnx/activation/`. `OnnxActivationFixtureModels` generates the checked-in fixture file and `OnnxActivationFixtureTest` byte-compares it before execution. The fixture exercises first-class unary interchange rows (`Reciprocal`, `Erf`, `Floor`, `Ceil`, `Sign`) and composed activation imports (`LeakyRelu`, `Elu`, `HardSigmoid`, `Softplus`). `OnnxWave4ActivationExecutionTest` also checks export operator names and Synaptik graph -> ONNX export -> ONNX import -> execution round trips for the new unary primitives.
+
+A small compatibility harness lives under `src/test/resources/onnx/compat/`. `OnnxCompatibilityFixtureModels` classifies each miniature model as `IMPORTED`, `EXECUTED`, or `REJECTED_WITH_REASON`; `OnnxCompatibilityHarnessTest` byte-compares every checked-in fixture and then either executes expected outputs or verifies the expected rejection. Current cases cover an activation MLP, an `Erf`/`Softplus` tiny graph, a conv/pool/classifier graph, a shape-helper/reduction graph, and an explicit `NonZero` dynamic-shape rejection.
+
 Static helper terminology in this importer:
 
 - **Importer-internal shape constant** means a Java `long[]` tracked by the ONNX importer for shape plumbing. It is not a Synaptik runtime tensor and cannot be a graph output.
@@ -158,6 +163,8 @@ Explicit non-goals in the current algebra subset:
 
 - Tensor-by-tensor `Pow` is rejected. It needs either a first-class Synaptik tensor exponent op or a documented lowering strategy before import/export can claim support.
 - Variadic ONNX `Min`/`Max` are rejected unless represented as binary nodes. A future importer can lower a variadic ONNX node into a left-associated chain if that behavior is intentionally added.
+- `Softplus` currently uses the direct mathematical lowering `Log(Exp(x) + 1)`. It is correct for the small/static compatibility fixtures, but it is not the numerically stabilized thresholded implementation used by some inference runtimes for very large positive inputs.
+- Canonical export recognizers for composed activation patterns are not implemented. A Synaptik graph that happens to match `Where(x >= 0, x, alpha*x)` exports as its primitive ONNX nodes, not as one `LeakyRelu` node.
 - Runtime ONNX `Gather` is supported through the dedicated `gatherAxis` graph op, not the older Synaptik `gather` helper with reduced output shape. Runtime ONNX `GatherElements` is supported through `takeAlongAxis`, which preserves rank and uses the index tensor shape as the output shape. `GatherND` supports ONNX `batch_dims`; the leading batch dimensions select matching slices and are not part of the coordinate tuple stored in the final index dimension.
 - General multi-output graph support is still not part of the importer. `Split` is a named exception because it can be lowered immediately to independent `Slice` tensors with static shapes and no shared mutable output state.
 - Dynamic shape, slice, reshape, and expand parameters are rejected; the current importer remains static dense inference.

@@ -72,11 +72,15 @@ Generated from `MetalOperationParityMatrix`; do not hand-edit status rows.
 | LOG | yes | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED | native accelerator DAG elementwise path |
 | EXP | yes | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED | native accelerator DAG elementwise path |
 | FAST_EXP | yes | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED | native accelerator DAG elementwise path |
+| ERF | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
 | TANH | yes | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED | native accelerator DAG elementwise path |
 | FAST_TANH | yes | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED | native accelerator DAG elementwise path |
 | POW | yes | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED | MPSGraph-first elementwise parity gap closed through native accelerator DAG mapping |
 | SQRT | yes | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED | native accelerator DAG elementwise path |
 | ABS | yes | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED | native accelerator DAG elementwise path |
+| FLOOR | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
+| CEIL | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
+| SIGN | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
 | MUL_SCALAR | yes | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED | native accelerator DAG elementwise path |
 | SUM | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | native accelerator DAG forward sum reduction path; target=reduction_chain_small |
 | MEAN | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | native accelerator DAG forward mean reduction path; target=reduction_chain_small |

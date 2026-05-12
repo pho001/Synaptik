@@ -79,11 +79,28 @@ public final class OnnxCoverageMatrix {
         addUnary(out, "Neg", Operation.OpType.NEG);
         addUnary(out, "Abs", Operation.OpType.ABS);
         addUnary(out, "Relu", Operation.OpType.RELU);
+        add(out, "LeakyRelu", "where(x >= 0, x, alpha * x)", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+                CoverageStatus.SUPPORTED, CoverageStatus.PARTIAL, CoverageStatus.PARTIAL,
+                "import-only composed lowering; no canonical LeakyRelu export recognizer", Operation.OpType.GE, Operation.OpType.WHERE, Operation.OpType.MUL);
+        add(out, "Elu", "where(x >= 0, x, alpha * (exp(x) - 1))", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+                CoverageStatus.SUPPORTED, CoverageStatus.PARTIAL, CoverageStatus.PARTIAL,
+                "import-only composed lowering; no canonical Elu export recognizer", Operation.OpType.GE, Operation.OpType.WHERE, Operation.OpType.EXP, Operation.OpType.SUB, Operation.OpType.MUL);
+        add(out, "HardSigmoid", "clip(alpha * x + beta, 0, 1)", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+                CoverageStatus.SUPPORTED, CoverageStatus.PARTIAL, CoverageStatus.PARTIAL,
+                "import-only composed lowering; no canonical HardSigmoid export recognizer", Operation.OpType.MUL, Operation.OpType.ADD, Operation.OpType.CLAMP_MIN, Operation.OpType.CLAMP_MAX);
+        add(out, "Softplus", "log(exp(x) + 1)", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+                CoverageStatus.SUPPORTED, CoverageStatus.PARTIAL, CoverageStatus.PARTIAL,
+                "import-only direct lowering; not numerically stabilized with thresholding yet", Operation.OpType.EXP, Operation.OpType.ADD, Operation.OpType.LOG);
         addUnary(out, "Tanh", Operation.OpType.TANH);
         addUnary(out, "Sigmoid", Operation.OpType.SIGMOID);
         addUnary(out, "Exp", Operation.OpType.EXP);
         addUnary(out, "Log", Operation.OpType.LOG);
         addUnary(out, "Sqrt", Operation.OpType.SQRT);
+        addUnary(out, "Reciprocal", Operation.OpType.INV);
+        addUnary(out, "Erf", Operation.OpType.ERF);
+        addUnary(out, "Floor", Operation.OpType.FLOOR);
+        addUnary(out, "Ceil", Operation.OpType.CEIL);
+        addUnary(out, "Sign", Operation.OpType.SIGN);
         addBinary(out, "Equal", Operation.OpType.EQ);
         addBinary(out, "Greater", Operation.OpType.GT);
         addBinary(out, "GreaterOrEqual", Operation.OpType.GE);

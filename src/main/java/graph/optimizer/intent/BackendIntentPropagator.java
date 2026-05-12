@@ -78,7 +78,7 @@ public final class BackendIntentPropagator {
         }
 
         switch (op.opType()) {
-            case RELU, TANH, FAST_TANH, SIGMOID, ABS, EXP, FAST_EXP, LOG, NEG, INV, POW, SQRT,
+            case RELU, TANH, FAST_TANH, SIGMOID, ABS, EXP, FAST_EXP, ERF, LOG, NEG, INV, POW, SQRT, FLOOR, CEIL, SIGN,
                     CLAMP_MIN, CLAMP_MAX, SUM, MEAN, REDUCE_MIN, REDUCE_MAX,
                     RESHAPE, CONTIGUOUS, PERMUTE, EXPAND, EXPAND_DIMS, SQUEEZE, SELECT, NOOP -> {
                 if (inputs.size() == 1) {

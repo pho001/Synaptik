@@ -61,6 +61,33 @@ class OnnxCoverageMatrixTest {
         assertBackendStatus("ScatterND", Operation.OpType.SCATTER_ND);
     }
 
+    @Test
+    void exportSupportedRowsAreRoundTrippedOrExplicitlyClassified() {
+        Set<String> roundTripCovered = Set.of(
+                "Add", "MatMul", "Conv", "LayerNormalization",
+                "GatherElements", "GatherND", "ScatterElements", "ScatterND",
+                "Reciprocal", "Erf", "Floor", "Ceil", "Sign"
+        );
+        Set<String> explicitlyClassified = Set.of(
+                "Sub", "Mul", "Div", "Min", "Max", "Pow",
+                "Neg", "Abs", "Relu", "Tanh", "Sigmoid", "Exp", "Log", "Sqrt",
+                "Equal", "Greater", "GreaterOrEqual", "Less", "LessOrEqual",
+                "Not", "And", "Or", "Where", "Clip", "Cast", "Gemm",
+                "MaxPool", "AveragePool",
+                "Transpose", "Reshape", "Flatten", "Expand", "Pad", "Tile",
+                "Squeeze", "Unsqueeze", "Slice", "Concat", "Gather",
+                "ReduceSum", "ReduceMean", "ReduceMax", "ReduceMin", "ReduceProd",
+                "ArgMax", "CumSum", "Softmax", "LogSoftmax"
+        );
+
+        for (OnnxCoverageMatrix.Entry entry : OnnxCoverageMatrix.entries()) {
+            if (entry.exportStatus() == OnnxCoverageMatrix.CoverageStatus.SUPPORTED) {
+                assertTrue(roundTripCovered.contains(entry.onnxOp()) || explicitlyClassified.contains(entry.onnxOp()),
+                        "export-supported ONNX row needs a round-trip test or explicit classification: " + entry.onnxOp());
+            }
+        }
+    }
+
     private static void assertBackendStatus(String onnxOp, Operation.OpType opType) {
         OnnxCoverageMatrix.Entry entry = OnnxCoverageMatrix.entryFor(onnxOp);
         assertEquals(toOnnxStatus(GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, opType).status()),

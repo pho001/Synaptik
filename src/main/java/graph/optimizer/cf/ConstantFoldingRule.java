@@ -8,6 +8,7 @@ import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.pow;
 import tensor.DataType;
 import tensor.Tensor;
+import utils.SpecialFunctions;
 
 import java.util.Arrays;
 import java.util.List;
@@ -35,8 +36,8 @@ public final class ConstantFoldingRule extends AbstractRewriteRule {
             case ADD, SUB, MUL, DIV, MIN, MAX,
                  GT, GE, LT, LE, EQ, NE,
                  LOGICAL_AND, LOGICAL_OR,
-                 NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH, SQRT, ABS,
-                 MUL_SCALAR, POW, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID,
+                 NEG, INV, LOG, EXP, FAST_EXP, ERF, TANH, FAST_TANH, SQRT, ABS,
+                 FLOOR, CEIL, SIGN, MUL_SCALAR, POW, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID,
                  LOGICAL_NOT, WHERE -> foldElementwise(tensor, operation, inputs);
             default -> tensor;
         };
@@ -102,9 +103,13 @@ public final class ConstantFoldingRule extends AbstractRewriteRule {
             case INV -> 1.0d / numeric(inputs.get(0), outShape, outFlatIndex);
             case LOG -> Math.log(numeric(inputs.get(0), outShape, outFlatIndex));
             case EXP, FAST_EXP -> Math.exp(numeric(inputs.get(0), outShape, outFlatIndex));
+            case ERF -> SpecialFunctions.erf(numeric(inputs.get(0), outShape, outFlatIndex));
             case TANH, FAST_TANH -> Math.tanh(numeric(inputs.get(0), outShape, outFlatIndex));
             case SQRT -> Math.sqrt(numeric(inputs.get(0), outShape, outFlatIndex));
             case ABS -> Math.abs(numeric(inputs.get(0), outShape, outFlatIndex));
+            case FLOOR -> Math.floor(numeric(inputs.get(0), outShape, outFlatIndex));
+            case CEIL -> Math.ceil(numeric(inputs.get(0), outShape, outFlatIndex));
+            case SIGN -> Math.signum(numeric(inputs.get(0), outShape, outFlatIndex));
             case MUL_SCALAR -> numeric(inputs.get(0), outShape, outFlatIndex) * ((mulScalar) operation).getScalar();
             case POW -> Math.pow(numeric(inputs.get(0), outShape, outFlatIndex), ((pow) operation).getExponent());
             case RELU -> Math.max(0.0d, numeric(inputs.get(0), outShape, outFlatIndex));

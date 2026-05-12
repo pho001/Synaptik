@@ -19,7 +19,8 @@ final class OnnxGraphImporter {
     private static final Set<String> SUPPORTED_OPS = Set.of(
             "Add", "Sub", "Mul", "Div",
             "Min", "Max", "Pow",
-            "Neg", "Abs", "Relu", "Tanh", "Sigmoid", "Exp", "Log", "Sqrt",
+            "Neg", "Abs", "Relu", "LeakyRelu", "Elu", "HardSigmoid", "Softplus",
+            "Tanh", "Sigmoid", "Exp", "Log", "Sqrt", "Reciprocal", "Erf", "Floor", "Ceil", "Sign",
             "Equal", "Greater", "GreaterOrEqual", "Less", "LessOrEqual",
             "And", "Or", "Not",
             "Where", "Identity", "Clip", "Cast",
@@ -123,6 +124,9 @@ final class OnnxGraphImporter {
         if (!node.getDomain().isEmpty()) {
             throw unsupported(node, "custom domain '" + node.getDomain() + "' is unsupported");
         }
+        if (node.getOpType().equals("NonZero")) {
+            throw unsupported(node, "runtime output shape depends on input values; NonZero requires dynamic-shape execution");
+        }
         if (!SUPPORTED_OPS.contains(node.getOpType())) {
             throw unsupported(node, "unsupported op type");
         }
@@ -146,11 +150,20 @@ final class OnnxGraphImporter {
             case "Neg" -> unary(node, tensors, TensorOps::neg);
             case "Abs" -> unary(node, tensors, TensorOps::abs);
             case "Relu" -> unary(node, tensors, TensorOps::relu);
+            case "LeakyRelu" -> leakyRelu(node, tensors, attrs);
+            case "Elu" -> elu(node, tensors, attrs);
+            case "HardSigmoid" -> hardSigmoid(node, tensors, attrs);
+            case "Softplus" -> softplus(node, tensors);
             case "Tanh" -> unary(node, tensors, TensorOps::tanh);
             case "Sigmoid" -> unary(node, tensors, TensorOps::sigmoid);
             case "Exp" -> unary(node, tensors, TensorOps::exp);
             case "Log" -> unary(node, tensors, TensorOps::log);
             case "Sqrt" -> unary(node, tensors, TensorOps::sqrt);
+            case "Reciprocal" -> unary(node, tensors, TensorOps::inv);
+            case "Erf" -> unary(node, tensors, TensorOps::erf);
+            case "Floor" -> unary(node, tensors, TensorOps::floor);
+            case "Ceil" -> unary(node, tensors, TensorOps::ceil);
+            case "Sign" -> unary(node, tensors, TensorOps::sign);
             case "Equal" -> binary(node, tensors, TensorOps::equalTo);
             case "Greater" -> binary(node, tensors, TensorOps::greaterThan);
             case "GreaterOrEqual" -> binary(node, tensors, TensorOps::greaterOrEqual);
@@ -243,6 +256,46 @@ final class OnnxGraphImporter {
     ) {
         requireInputCount(node, 2, 2);
         return TensorOps.pow(tensorInput(node, tensors, 0), scalarConstantInput(node, tensors, int64Constants, constantTensors, 1));
+    }
+
+    private static Tensor leakyRelu(OnnxProto.NodeProto node, Map<String, Tensor> tensors, OnnxAttributeReader attrs) {
+        requireInputCount(node, 1, 1);
+        Tensor input = tensorInput(node, tensors, 0);
+        double alpha = attrs.floatAttribute("alpha", 0.01f);
+        Tensor zero = scalarLike(input, 0.0d);
+        return TensorOps.where(
+                TensorOps.greaterOrEqual(input, zero),
+                input,
+                TensorOps.mul(input, scalarLike(input, alpha))
+        );
+    }
+
+    private static Tensor elu(OnnxProto.NodeProto node, Map<String, Tensor> tensors, OnnxAttributeReader attrs) {
+        requireInputCount(node, 1, 1);
+        Tensor input = tensorInput(node, tensors, 0);
+        double alpha = attrs.floatAttribute("alpha", 1.0f);
+        Tensor zero = scalarLike(input, 0.0d);
+        Tensor negative = TensorOps.mul(TensorOps.sub(TensorOps.exp(input), scalarLike(input, 1.0d)), scalarLike(input, alpha));
+        return TensorOps.where(TensorOps.greaterOrEqual(input, zero), input, negative);
+    }
+
+    private static Tensor hardSigmoid(OnnxProto.NodeProto node, Map<String, Tensor> tensors, OnnxAttributeReader attrs) {
+        requireInputCount(node, 1, 1);
+        Tensor input = tensorInput(node, tensors, 0);
+        double alpha = attrs.floatAttribute("alpha", 0.2f);
+        double beta = attrs.floatAttribute("beta", 0.5f);
+        Tensor affine = TensorOps.add(TensorOps.mul(input, scalarLike(input, alpha)), scalarLike(input, beta));
+        return TensorOps.clamp(affine, 0.0d, 1.0d);
+    }
+
+    private static Tensor softplus(OnnxProto.NodeProto node, Map<String, Tensor> tensors) {
+        requireInputCount(node, 1, 1);
+        Tensor input = tensorInput(node, tensors, 0);
+        return TensorOps.log(TensorOps.add(TensorOps.exp(input), scalarLike(input, 1.0d)));
+    }
+
+    private static Tensor scalarLike(Tensor input, double value) {
+        return Tensor.scalar(value, input.getDataType());
     }
 
     private static Tensor clip(
