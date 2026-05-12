@@ -309,7 +309,7 @@ final class IndexReadWriteBackend {
         out.copyDataFrom(data);
         double[] updateData = updates.getFloat64Data();
         double[] dst = out.getFloat64Data();
-        scatterElementsDuplicateState(out, effectiveReduction, state ->
+        scatterDuplicateState(out, effectiveReduction, "scatterElements", state ->
                 forEachScatterElements(data, indices, updates, out, axis, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
                     dst[targetOffset] = reduce(dst[targetOffset], updateData[updateOffset], effectiveReduction);
@@ -321,7 +321,7 @@ final class IndexReadWriteBackend {
         out.copyDataFrom(data);
         float[] updateData = updates.getFloat32Data();
         float[] dst = out.getFloat32Data();
-        scatterElementsDuplicateState(out, effectiveReduction, state ->
+        scatterDuplicateState(out, effectiveReduction, "scatterElements", state ->
                 forEachScatterElements(data, indices, updates, out, axis, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
                     dst[targetOffset] = (float) reduce(dst[targetOffset], updateData[updateOffset], effectiveReduction);
@@ -333,7 +333,7 @@ final class IndexReadWriteBackend {
         out.copyDataFrom(data);
         short[] updateData = updates.getBFloat16Data();
         short[] dst = out.getBFloat16Data();
-        scatterElementsDuplicateState(out, effectiveReduction, state ->
+        scatterDuplicateState(out, effectiveReduction, "scatterElements", state ->
                 forEachScatterElements(data, indices, updates, out, axis, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
                     float current = CpuDTypeOps.fromBFloat16Bits(dst[targetOffset]);
@@ -347,7 +347,7 @@ final class IndexReadWriteBackend {
         out.copyDataFrom(data);
         byte[] updateData = updates.getBoolData();
         byte[] dst = out.getBoolData();
-        scatterElementsDuplicateState(out, effectiveReduction, state ->
+        scatterDuplicateState(out, effectiveReduction, "scatterElements", state ->
                 forEachScatterElements(data, indices, updates, out, axis, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
                     dst[targetOffset] = updateData[updateOffset] == 0 ? (byte) 0 : (byte) 1;
@@ -359,7 +359,7 @@ final class IndexReadWriteBackend {
         out.copyDataFrom(data);
         int[] updateData = updates.getInt32Data();
         int[] dst = out.getInt32Data();
-        scatterElementsDuplicateState(out, effectiveReduction, state ->
+        scatterDuplicateState(out, effectiveReduction, "scatterElements", state ->
                 forEachScatterElements(data, indices, updates, out, axis, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
                     dst[targetOffset] = reduceInt(dst[targetOffset], updateData[updateOffset], effectiveReduction);
@@ -371,7 +371,7 @@ final class IndexReadWriteBackend {
         out.copyDataFrom(data);
         double[] updateData = updates.getFloat64Data();
         double[] dst = out.getFloat64Data();
-        scatterElementsDuplicateState(out, effectiveReduction, state ->
+        scatterDuplicateState(out, effectiveReduction, "scatterNd", state ->
                 forEachScatterNd(data, indices, updates, out, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
                     dst[targetOffset] = reduce(dst[targetOffset], updateData[updateOffset], effectiveReduction);
@@ -383,7 +383,7 @@ final class IndexReadWriteBackend {
         out.copyDataFrom(data);
         float[] updateData = updates.getFloat32Data();
         float[] dst = out.getFloat32Data();
-        scatterElementsDuplicateState(out, effectiveReduction, state ->
+        scatterDuplicateState(out, effectiveReduction, "scatterNd", state ->
                 forEachScatterNd(data, indices, updates, out, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
                     dst[targetOffset] = (float) reduce(dst[targetOffset], updateData[updateOffset], effectiveReduction);
@@ -395,7 +395,7 @@ final class IndexReadWriteBackend {
         out.copyDataFrom(data);
         short[] updateData = updates.getBFloat16Data();
         short[] dst = out.getBFloat16Data();
-        scatterElementsDuplicateState(out, effectiveReduction, state ->
+        scatterDuplicateState(out, effectiveReduction, "scatterNd", state ->
                 forEachScatterNd(data, indices, updates, out, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
                     float current = CpuDTypeOps.fromBFloat16Bits(dst[targetOffset]);
@@ -409,7 +409,7 @@ final class IndexReadWriteBackend {
         out.copyDataFrom(data);
         byte[] updateData = updates.getBoolData();
         byte[] dst = out.getBoolData();
-        scatterElementsDuplicateState(out, effectiveReduction, state ->
+        scatterDuplicateState(out, effectiveReduction, "scatterNd", state ->
                 forEachScatterNd(data, indices, updates, out, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
                     dst[targetOffset] = updateData[updateOffset] == 0 ? (byte) 0 : (byte) 1;
@@ -421,7 +421,7 @@ final class IndexReadWriteBackend {
         out.copyDataFrom(data);
         int[] updateData = updates.getInt32Data();
         int[] dst = out.getInt32Data();
-        scatterElementsDuplicateState(out, effectiveReduction, state ->
+        scatterDuplicateState(out, effectiveReduction, "scatterNd", state ->
                 forEachScatterNd(data, indices, updates, out, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
                     dst[targetOffset] = reduceInt(dst[targetOffset], updateData[updateOffset], effectiveReduction);
@@ -1156,9 +1156,9 @@ final class IndexReadWriteBackend {
         };
     }
 
-    private static void scatterElementsDuplicateState(Tensor out, ScatterReduction reduction, DuplicateStateConsumer consumer) {
+    private static void scatterDuplicateState(Tensor out, ScatterReduction reduction, String operationName, DuplicateStateConsumer consumer) {
         DuplicateState state = reduction == ScatterReduction.NONE
-                ? new DuplicateState(new boolean[out.getFlatDataSize()])
+                ? new DuplicateState(new boolean[out.getFlatDataSize()], operationName)
                 : DuplicateState.NOOP;
         consumer.accept(state);
     }
@@ -1199,12 +1199,14 @@ final class IndexReadWriteBackend {
     }
 
     private static final class DuplicateState {
-        private static final DuplicateState NOOP = new DuplicateState(null);
+        private static final DuplicateState NOOP = new DuplicateState(null, "scatter");
 
         private final boolean[] seen;
+        private final String operationName;
 
-        private DuplicateState(boolean[] seen) {
+        private DuplicateState(boolean[] seen, String operationName) {
             this.seen = seen;
+            this.operationName = operationName;
         }
 
         private void mark(int targetLogical) {
@@ -1212,7 +1214,7 @@ final class IndexReadWriteBackend {
                 return;
             }
             if (seen[targetLogical]) {
-                throw new IllegalArgumentException("scatterElements NONE reduction does not allow duplicate target indices.");
+                throw new IllegalArgumentException(operationName + " NONE reduction does not allow duplicate target indices.");
             }
             seen[targetLogical] = true;
         }

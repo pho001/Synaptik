@@ -113,6 +113,8 @@ Supported node families:
 | `Softmax`, `LogSoftmax` | Axis normalization ops. |
 | `Constant` | Tensor initializer in graph-node form. |
 
+Index conformance is covered by checked-in miniature ONNX models under `src/test/resources/onnx/index/`. Those fixtures are regenerated from the Java builder in `OnnxIndexFixtureModels` and then byte-compared in tests, so review can inspect both executable ONNX files and the source definition. The current fixture set covers executable `GatherElements`, `GatherND`, `ScatterElements`, and `ScatterND` variants, including axes, negative axes/indices, tuple slices, `GatherND batch_dims`, and `ScatterND` inference reductions. Invalid duplicate-write cases are kept as code-built rejection tests instead of executable fixture files.
+
 Explicit non-goals in the current algebra subset:
 
 - Tensor-by-tensor `Pow` is rejected. It needs either a first-class Synaptik tensor exponent op or a documented lowering strategy before import/export can claim support.
