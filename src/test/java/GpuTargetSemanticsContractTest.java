@@ -106,6 +106,7 @@ public class GpuTargetSemanticsContractTest {
         GpuTargetSemanticsContract gather = GpuTargetSemanticsContract.forOp(Operation.OpType.GATHER);
         GpuTargetSemanticsContract scatter = GpuTargetSemanticsContract.forOp(Operation.OpType.SCATTER_ADD);
         GpuTargetSemanticsContract scatterElements = GpuTargetSemanticsContract.forOp(Operation.OpType.SCATTER_ELEMENTS);
+        GpuTargetSemanticsContract scatterNd = GpuTargetSemanticsContract.forOp(Operation.OpType.SCATTER_ND);
         GpuTargetSemanticsContract gatherGrad = GpuTargetSemanticsContract.forOp(Operation.OpType.GATHER_GRAD);
         GpuTargetSemanticsContract takeGrad = GpuTargetSemanticsContract.forOp(Operation.OpType.TAKE_ALONG_AXIS_GRAD);
 
@@ -113,6 +114,7 @@ public class GpuTargetSemanticsContractTest {
         assertNotNull(gather);
         assertNotNull(scatter);
         assertNotNull(scatterElements);
+        assertNotNull(scatterNd);
         assertNotNull(gatherGrad);
         assertNotNull(takeGrad);
         assertEquals(GpuLoweringOperationFamily.LOSS_ADJACENT, loss.family());
@@ -124,10 +126,12 @@ public class GpuTargetSemanticsContractTest {
         assertTrue(scatter.numericalContract().contains("duplicate indices"));
         assertTrue(scatter.plannerAdmissionBlocked());
         assertTrue(scatterElements.plannerAdmissionBlocked());
+        assertTrue(scatterNd.plannerAdmissionBlocked());
         assertTrue(gatherGrad.plannerAdmissionBlocked());
         assertTrue(takeGrad.plannerAdmissionBlocked());
         assertTrue(scatter.blockerReason().contains("UNSUPPORTED_DUPLICATE_INDEX"));
         assertTrue(scatterElements.blockerReason().contains("UNSUPPORTED_INDEX_SEMANTICS"));
+        assertTrue(scatterNd.blockerReason().contains("UNSUPPORTED_INDEX_SEMANTICS"));
         assertTrue(gatherGrad.shapeContract().contains("original input shape"));
         assertTrue(takeGrad.shapeContract().contains("original input shape"));
         assertTrue(takeGrad.numericalContract().contains("logical-index accumulation order"));

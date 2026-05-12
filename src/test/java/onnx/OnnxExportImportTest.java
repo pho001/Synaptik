@@ -439,6 +439,12 @@ class OnnxExportImportTest {
         assertEquals("ScatterElements", scatterElements.getOpType());
         assertEquals(1, scatterElements.getAttribute(0).getI());
         assertEquals("add", scatterElements.getAttribute(1).getS().toStringUtf8());
+        OnnxProto.NodeProto scatterNd = singleNode(x.scatterNd(
+                new Tensor(new int[]{0, 2, 1, 0}, new int[]{2, 2}, null, "scatter_nd_idx", DataType.INT32),
+                new Tensor(new float[]{1f, 7f}, new int[]{2}, null, "scatter_nd_updates", DataType.FLOAT32),
+                ScatterReduction.ADD));
+        assertEquals("ScatterND", scatterNd.getOpType());
+        assertEquals("add", scatterNd.getAttribute(0).getS().toStringUtf8());
         assertThrows(OnnxUnsupportedException.class,
                 () -> exportInputs(x.gather(new Tensor(new int[]{2, 0}, new int[]{2}, null, "old_idx", DataType.INT32), 1)));
     }
@@ -601,7 +607,67 @@ class OnnxExportImportTest {
     }
 
     @Test
-    void importRejectsScatterElementsInvalidCasesAndScatterNd() {
+    void importScatterNdExecutesTupleIndexedElementsAndSlices() {
+        OnnxProto.ModelProto elementModel = model("scatter_nd_elements", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("data", DataType.FLOAT32, new int[]{2, 3}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("indices",
+                        new Tensor(new int[]{0, 2, 1, 0}, new int[]{2, 2}, null, "indices", DataType.INT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("updates",
+                        new Tensor(new float[]{1f, 7f}, new int[]{2}, null, "updates", DataType.FLOAT32)))
+                .addNode(node("scatter_nd", "ScatterND", "y", "data", "indices", "updates"))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 3})));
+        OnnxProto.ModelProto sliceModel = model("scatter_nd_slices", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("data", DataType.FLOAT32, new int[]{2, 3}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("indices",
+                        new Tensor(new int[]{1}, new int[]{1, 1}, null, "indices", DataType.INT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("updates",
+                        new Tensor(new float[]{40f, 50f, 60f}, new int[]{1, 3}, null, "updates", DataType.FLOAT32)))
+                .addNode(node("scatter_nd", "ScatterND", "y", "data", "indices", "updates"))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 3})));
+
+        ImportedOnnxModel elements = Onnx.importModel(elementModel);
+        elements.input("data").setData(new float[]{10f, 20f, 30f, 40f, 50f, 60f});
+        execute(elements, "y");
+
+        assertArrayEquals(new double[]{
+                10.0, 20.0, 1.0,
+                7.0, 50.0, 60.0
+        }, elements.output("y").toDoubleArrayCopy(), 1e-6);
+
+        ImportedOnnxModel slices = Onnx.importModel(sliceModel);
+        slices.input("data").setData(new float[]{1f, 2f, 3f, 4f, 5f, 6f});
+        execute(slices, "y");
+
+        assertArrayEquals(new double[]{
+                1.0, 2.0, 3.0,
+                40.0, 50.0, 60.0
+        }, slices.output("y").toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void scatterNdRoundTripsThroughOnnx() {
+        Tensor data = new Tensor(new float[6], new int[]{2, 3}, null, "data", DataType.FLOAT32);
+        Tensor indices = new Tensor(new int[4], new int[]{2, 2}, null, "indices", DataType.INT32);
+        Tensor updates = new Tensor(new float[2], new int[]{2}, null, "updates", DataType.FLOAT32);
+        Tensor out = data.scatterNd(indices, updates, ScatterReduction.ADD);
+        out.setLabel("scatter_nd_out");
+
+        OnnxModel exported = Onnx.exportModel(out, OnnxExportOptions.defaults().withLeafTensorPolicy(OnnxLeafTensorPolicy.INPUTS));
+        ImportedOnnxModel imported = Onnx.importModel(exported.proto());
+        imported.input("data").setData(new float[]{10f, 20f, 30f, 40f, 50f, 60f});
+        imported.input("indices").setData(new int[]{0, 1, 0, 1});
+        imported.input("updates").setData(new float[]{5f, 7f});
+
+        execute(imported, "scatter_nd_out");
+
+        assertArrayEquals(new double[]{
+                10.0, 32.0, 30.0,
+                40.0, 50.0, 60.0
+        }, imported.output("scatter_nd_out").toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void importRejectsScatterElementsAndScatterNdInvalidCases() {
         OnnxProto.ModelProto int64ScatterElements = model("scatter_elements_int64_indices", graph -> graph
                 .addInput(OnnxTensorProtoUtil.valueInfo("data", DataType.FLOAT32, new int[]{2, 3}))
                 .addInitializer(OnnxTensorProtoUtil.int64Initializer("indices", new long[]{2, 0, 0, 2}))
@@ -617,20 +683,21 @@ class OnnxExportImportTest {
                         new Tensor(new float[]{1f, 5f, 7f, 9f}, new int[]{2, 2}, null, "updates", DataType.FLOAT32)))
                 .addNode(axisNode("scatter_elements", "ScatterElements", "y", 1, "data", "indices", "updates"))
                 .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 3})));
-        OnnxProto.ModelProto scatterNd = model("scatter_nd", graph -> graph
+        OnnxProto.ModelProto int64ScatterNd = model("scatter_nd_int64_indices", graph -> graph
                 .addInput(OnnxTensorProtoUtil.valueInfo("data", DataType.FLOAT32, new int[]{2, 3}))
-                .addInput(OnnxTensorProtoUtil.valueInfo("indices", DataType.INT32, new int[]{1, 2}))
-                .addInput(OnnxTensorProtoUtil.valueInfo("updates", DataType.FLOAT32, new int[]{1}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("indices", new long[]{0, 1}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("updates",
+                        new Tensor(new float[]{9f}, new int[]{1}, null, "updates", DataType.FLOAT32)))
                 .addNode(node("scatter_nd", "ScatterND", "y", "data", "indices", "updates"))
                 .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 3})));
 
         OnnxUnsupportedException elementsEx = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(int64ScatterElements));
-        OnnxUnsupportedException ndEx = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(scatterNd));
+        OnnxUnsupportedException ndEx = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(int64ScatterNd));
         ImportedOnnxModel duplicateImported = Onnx.importModel(duplicateNone);
         duplicateImported.input("data").setData(new float[]{10f, 20f, 30f, 40f, 50f, 60f});
 
         assertTrue(elementsEx.getMessage().contains("ScatterElements requires runtime INT32 indices"));
-        assertTrue(ndEx.getMessage().contains("unsupported op type"));
+        assertTrue(ndEx.getMessage().contains("ScatterND requires runtime INT32 indices"));
         assertThrows(IllegalArgumentException.class, () -> execute(duplicateImported, "y"));
     }
 

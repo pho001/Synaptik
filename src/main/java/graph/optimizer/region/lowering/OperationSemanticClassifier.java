@@ -46,7 +46,7 @@ public final class OperationSemanticClassifier {
                  CONV2D_BACKWARD_INPUT_GEMM, CONV2D_BACKWARD_WEIGHT_GEMM,
                  MAX_POOL2D_BACKWARD_INPUT, AVG_POOL2D_BACKWARD_INPUT ->
                     OperationSemanticLevel.TRAINING_BACKWARD;
-            case GATHER, GATHER_AXIS, TAKE_ALONG_AXIS, SCATTER_ADD, SCATTER_ELEMENTS ->
+            case GATHER, GATHER_AXIS, TAKE_ALONG_AXIS, SCATTER_ADD, SCATTER_ELEMENTS, SCATTER_ND ->
                     OperationSemanticLevel.BACKEND_FRIENDLY_HIGH_LEVEL;
             case FUSED -> OperationSemanticLevel.FUSED;
             case CAST, CONST_SCALAR, UNKNOWN -> OperationSemanticLevel.UNKNOWN;

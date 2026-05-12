@@ -1,0 +1,207 @@
+import backend.runtime.ExecutionMode;
+import config.compile.CompileConfig;
+import config.runtime.RuntimeConfig;
+import graph.CompiledGraph;
+import operations.Operation;
+import operations.index.ScatterReduction;
+import org.junit.jupiter.api.Test;
+import tensor.DataType;
+import tensor.Tensor;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+public class ScatterNdExecutionTest {
+    @Test
+    void scatterNdNoneWritesTupleIndexedElements() {
+        Tensor data = new Tensor(new double[]{
+                10, 20, 30,
+                40, 50, 60
+        }, new int[]{2, 3}, null, "data", DataType.FLOAT64);
+        Tensor indices = new Tensor(new int[]{0, 2, 1, 0}, new int[]{2, 2}, null, "indices", DataType.INT32);
+        Tensor updates = new Tensor(new double[]{1, 7}, new int[]{2}, null, "updates", DataType.FLOAT64);
+        Tensor out = data.scatterNd(indices, updates);
+
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
+        compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{
+                10, 20, 1,
+                7, 50, 60
+        }, out.toDoubleArrayCopy(), 1e-9);
+        assertTrue(containsOp(compiledGraph, Operation.OpType.SCATTER_ND));
+    }
+
+    @Test
+    void scatterNdWritesTupleIndexedSlices() {
+        Tensor data = new Tensor(new double[]{
+                1, 2, 3,
+                4, 5, 6
+        }, new int[]{2, 3}, null, "data", DataType.FLOAT64);
+        Tensor indices = new Tensor(new int[]{1}, new int[]{1, 1}, null, "indices", DataType.INT32);
+        Tensor updates = new Tensor(new double[]{40, 50, 60}, new int[]{1, 3}, null, "updates", DataType.FLOAT64);
+        Tensor out = data.scatterNd(indices, updates);
+
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{
+                1, 2, 3,
+                40, 50, 60
+        }, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void scatterNdAcceptsProjectScalarShapeForFullRankSingleIndex() {
+        Tensor data = new Tensor(new double[]{
+                10, 20, 30,
+                40, 50, 60
+        }, new int[]{2, 3}, null, "data", DataType.FLOAT64);
+        Tensor indices = new Tensor(new int[]{1, 2}, new int[]{2}, null, "indices", DataType.INT32);
+        Tensor updates = new Tensor(new double[]{9}, new int[]{1}, null, "updates", DataType.FLOAT64);
+        Tensor out = data.scatterNd(indices, updates);
+
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{
+                10, 20, 30,
+                40, 50, 9
+        }, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void scatterNdAddAccumulatesDuplicateTupleTargets() {
+        Tensor data = new Tensor(new double[]{
+                10, 20, 30,
+                40, 50, 60
+        }, new int[]{2, 3}, null, "data", DataType.FLOAT64);
+        Tensor indices = new Tensor(new int[]{0, 1, 0, 1}, new int[]{2, 2}, null, "indices", DataType.INT32);
+        Tensor updates = new Tensor(new double[]{5, 7}, new int[]{2}, null, "updates", DataType.FLOAT64);
+        Tensor out = data.scatterNd(indices, updates, ScatterReduction.ADD);
+
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{
+                10, 32, 30,
+                40, 50, 60
+        }, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void scatterNdNoneRejectsDuplicateTupleTargets() {
+        Tensor data = new Tensor(new double[]{
+                10, 20, 30,
+                40, 50, 60
+        }, new int[]{2, 3}, null, "data", DataType.FLOAT64);
+        Tensor indices = new Tensor(new int[]{0, 1, 0, 1}, new int[]{2, 2}, null, "indices", DataType.INT32);
+        Tensor updates = new Tensor(new double[]{5, 7}, new int[]{2}, null, "updates", DataType.FLOAT64);
+        Tensor out = data.scatterNd(indices, updates);
+
+        assertThrows(IllegalArgumentException.class, () ->
+                CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
+                        .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD));
+    }
+
+    @Test
+    void scatterNdSupportsNegativeIndicesAndNonContiguousInputs() {
+        Tensor dataBase = new Tensor(new double[]{
+                10, 20,
+                30, 40,
+                50, 60
+        }, new int[]{3, 2}, null, "dataBase", DataType.FLOAT64);
+        Tensor data = dataBase.permute(1, 0);
+        Tensor indices = new Tensor(new int[]{0, -1}, new int[]{1, 2}, null, "indices", DataType.INT32);
+        Tensor updates = new Tensor(new double[]{1}, new int[]{1}, null, "updates", DataType.FLOAT64);
+        Tensor out = data.scatterNd(indices, updates);
+
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{
+                10, 30, 1,
+                20, 40, 60
+        }, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void scatterNdSupportsNonContiguousSliceUpdates() {
+        Tensor data = new Tensor(new double[4], new int[]{2, 2}, null, "data", DataType.FLOAT64);
+        Tensor indices = new Tensor(new int[]{0, 1}, new int[]{2, 1}, null, "indices", DataType.INT32);
+        Tensor updateBase = new Tensor(new double[]{
+                1, 7,
+                5, 9
+        }, new int[]{2, 2}, null, "updateBase", DataType.FLOAT64);
+        Tensor updates = updateBase.permute(1, 0);
+        Tensor out = data.scatterNd(indices, updates);
+
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{
+                1, 5,
+                7, 9
+        }, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void scatterNdSupportsIntReductionsBfloat16AndBoolNone() {
+        Tensor ints = new Tensor(new int[]{2, 10, 4, 8}, new int[]{2, 2}, null, "ints", DataType.INT32);
+        Tensor intIndices = new Tensor(new int[]{0, 1, 0, 1}, new int[]{2, 2}, null, "intIndices", DataType.INT32);
+        Tensor intUpdates = new Tensor(new int[]{3, 4}, new int[]{2}, null, "intUpdates", DataType.INT32);
+        Tensor mul = ints.scatterNd(intIndices, intUpdates, ScatterReduction.MUL);
+
+        CompiledGraph.compile(mul, CompileConfig.noGraphOptimizationBaseline())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{2, 120, 4, 8}, mul.toDoubleArrayCopy(), 1e-9);
+
+        Tensor bf16 = new Tensor(new short[]{(short) 0x4120, (short) 0x41a0}, new int[]{2}, null, "bf16", DataType.BFLOAT16);
+        Tensor bf16Indices = new Tensor(new int[]{1}, new int[]{1, 1}, null, "bf16Indices", DataType.INT32);
+        Tensor bf16Updates = new Tensor(new short[]{(short) 0x3f80}, new int[]{1}, null, "bf16Updates", DataType.BFLOAT16);
+        Tensor bf16Out = bf16.scatterNd(bf16Indices, bf16Updates);
+
+        CompiledGraph.compile(bf16Out, CompileConfig.noGraphOptimizationBaseline())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{10.0, 1.0}, bf16Out.toDoubleArrayCopy(), 1e-6);
+
+        Tensor bools = new Tensor(new byte[]{1, 0}, new int[]{2}, null, "bools", DataType.BOOL);
+        Tensor boolUpdates = new Tensor(new byte[]{1}, new int[]{1}, null, "boolUpdates", DataType.BOOL);
+        Tensor boolOut = bools.scatterNd(bf16Indices, boolUpdates);
+
+        CompiledGraph.compile(boolOut, CompileConfig.noGraphOptimizationBaseline())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new boolean[]{true, true}, boolOut.toBooleanArrayCopy());
+        assertThrows(IllegalArgumentException.class,
+                () -> bools.scatterNd(bf16Indices, boolUpdates, ScatterReduction.ADD));
+    }
+
+    @Test
+    void scatterNdRejectsShapeDtypeAndTrainingContracts() {
+        Tensor data = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "data", DataType.FLOAT64);
+        Tensor indices = new Tensor(new int[]{0, 1}, new int[]{1, 2}, null, "indices", DataType.INT32);
+        Tensor updates = new Tensor(new double[]{9}, new int[]{1}, null, "updates", DataType.FLOAT64);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> data.scatterNd(new Tensor(new int[]{0, 1, 2}, new int[]{1, 3}, null, "badTuple", DataType.INT32), updates));
+        assertThrows(IllegalArgumentException.class,
+                () -> data.scatterNd(indices, new Tensor(new double[]{1, 2}, new int[]{2}, null, "badUpdates", DataType.FLOAT64)));
+        assertThrows(IllegalArgumentException.class,
+                () -> data.scatterNd(indices, new Tensor(new float[]{1}, new int[]{1}, null, "wrongDtype", DataType.FLOAT32)));
+
+        data.setRequiresGrad(true);
+        assertThrows(UnsupportedOperationException.class, () -> data.scatterNd(indices, updates));
+    }
+
+    private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
+        return compiledGraph.getCompiledGraphAsList().stream()
+                .map(Tensor::getOperation)
+                .filter(op -> op != null)
+                .map(Operation::opType)
+                .anyMatch(type -> type == opType);
+    }
+}

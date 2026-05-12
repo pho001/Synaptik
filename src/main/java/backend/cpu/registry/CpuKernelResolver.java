@@ -39,6 +39,7 @@ public final class CpuKernelResolver {
     private static final CpuTakeAlongAxisGradKernel TAKE_ALONG_AXIS_GRAD = new CpuTakeAlongAxisGradKernel();
     private static final CpuScatterAddKernel SCATTER_ADD = new CpuScatterAddKernel();
     private static final CpuScatterElementsKernel SCATTER_ELEMENTS = new CpuScatterElementsKernel();
+    private static final CpuScatterNdKernel SCATTER_ND = new CpuScatterNdKernel();
     private static final CpuScaledDotProductAttentionKernel SCALED_DOT_PRODUCT_ATTENTION = new CpuScaledDotProductAttentionKernel();
     private static final CpuScaledDotProductAttentionBackwardKernel SCALED_DOT_PRODUCT_ATTENTION_BACKWARD = new CpuScaledDotProductAttentionBackwardKernel();
     private static final CpuScaledDotProductAttentionWeightsKernel SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS = new CpuScaledDotProductAttentionWeightsKernel();
@@ -129,6 +130,7 @@ public final class CpuKernelResolver {
             case TAKE_ALONG_AXIS_GRAD -> TAKE_ALONG_AXIS_GRAD;
             case SCATTER_ADD -> SCATTER_ADD;
             case SCATTER_ELEMENTS -> SCATTER_ELEMENTS;
+            case SCATTER_ND -> SCATTER_ND;
             case SCALED_DOT_PRODUCT_ATTENTION -> SCALED_DOT_PRODUCT_ATTENTION;
             case SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> SCALED_DOT_PRODUCT_ATTENTION_BACKWARD;
             case SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS -> SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS;

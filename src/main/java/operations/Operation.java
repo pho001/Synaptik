@@ -64,6 +64,7 @@ public interface Operation {
         TAKE_ALONG_AXIS_GRAD(OpArityClass.SPECIAL, false),
         SCATTER_ADD(OpArityClass.SPECIAL, false),
         SCATTER_ELEMENTS(OpArityClass.SPECIAL, false),
+        SCATTER_ND(OpArityClass.SPECIAL, false),
         SCALED_DOT_PRODUCT_ATTENTION(OpArityClass.SPECIAL, false),
         SCALED_DOT_PRODUCT_ATTENTION_BACKWARD(OpArityClass.SPECIAL, false),
         SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS(OpArityClass.SPECIAL, false),

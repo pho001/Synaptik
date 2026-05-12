@@ -21,7 +21,7 @@ final class OnnxGraphImporter {
             "And", "Or", "Not",
             "Where", "Identity", "Clip", "Cast",
             "MatMul", "Gemm",
-            "Transpose", "Reshape", "Flatten", "Expand", "Squeeze", "Unsqueeze", "Slice", "Concat", "Shape", "Size", "Gather", "GatherElements", "ScatterElements",
+            "Transpose", "Reshape", "Flatten", "Expand", "Squeeze", "Unsqueeze", "Slice", "Concat", "Shape", "Size", "Gather", "GatherElements", "ScatterElements", "ScatterND",
             "ReduceSum", "ReduceMean", "ReduceMax", "ReduceMin",
             "Softmax", "LogSoftmax",
             "Constant"
@@ -166,6 +166,7 @@ final class OnnxGraphImporter {
             case "Gather" -> gather(node, tensors, int64Constants, constantTensors, attrs);
             case "GatherElements" -> gatherElements(node, tensors, int64Constants, attrs);
             case "ScatterElements" -> scatterElements(node, tensors, int64Constants, attrs);
+            case "ScatterND" -> scatterNd(node, tensors, int64Constants, attrs);
             case "ReduceSum" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.SUM);
             case "ReduceMean" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.MEAN);
             case "ReduceMax" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.MAX);
@@ -564,6 +565,24 @@ final class OnnxGraphImporter {
         );
     }
 
+    private static Tensor scatterNd(
+            OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
+            Map<String, long[]> int64Constants,
+            OnnxAttributeReader attrs
+    ) {
+        requireInputCount(node, 3, 3);
+        if (int64Constants.containsKey(node.getInput(1))) {
+            throw unsupported(node, "ScatterND requires runtime INT32 indices; INT64 is supported only for shape constants");
+        }
+        return TensorOps.scatterNd(
+                tensorInput(node, tensors, 0),
+                tensorInput(node, tensors, 1),
+                tensorInput(node, tensors, 2),
+                scatterReduction(node, attrs.stringAttribute("reduction", "none"))
+        );
+    }
+
     private static ScatterReduction scatterReduction(OnnxProto.NodeProto node, String value) {
         return switch (value) {
             case "none" -> ScatterReduction.NONE;
@@ -571,7 +590,7 @@ final class OnnxGraphImporter {
             case "mul" -> ScatterReduction.MUL;
             case "max" -> ScatterReduction.MAX;
             case "min" -> ScatterReduction.MIN;
-            default -> throw unsupported(node, "unsupported ScatterElements reduction '" + value + "'");
+            default -> throw unsupported(node, "unsupported scatter reduction '" + value + "'");
         };
     }
 

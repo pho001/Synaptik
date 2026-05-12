@@ -1576,6 +1576,33 @@ public class Tensor {
     }
 
     /**
+     * Writes updates into a copy of this tensor using tuple indices.
+     *
+     * <p>The final dimension of {@code indices} contains a tuple of coordinates
+     * into this tensor. {@code updates} must have shape
+     * {@code indices.shape[:-1] + this.shape[indices.shape[-1]:]}.</p>
+     *
+     * @param indices numeric integral index tensor whose final dimension is the tuple rank
+     * @param updates update values matching the indexed slice shape
+     * @return tensor with this tensor's shape and scattered updates
+     */
+    public Tensor scatterNd(Tensor indices, Tensor updates) {
+        return TensorOps.scatterNd(this, indices, updates);
+    }
+
+    /**
+     * Writes or reduces updates into a copy of this tensor using tuple indices.
+     *
+     * @param indices numeric integral index tensor whose final dimension is the tuple rank
+     * @param updates update values matching the indexed slice shape
+     * @param reduction scatter reduction policy
+     * @return tensor with this tensor's shape and scattered updates
+     */
+    public Tensor scatterNd(Tensor indices, Tensor updates, ScatterReduction reduction) {
+        return TensorOps.scatterNd(this, indices, updates, reduction);
+    }
+
+    /**
      * Gathers values using an output-shaped index tensor.
      *
      * @param indices numeric integral index tensor whose shape is the output shape

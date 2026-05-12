@@ -153,7 +153,9 @@ class GpuLoweringCoverageMatrixTest {
                 Operation.OpType.GATHER_GRAD,
                 Operation.OpType.TAKE_ALONG_AXIS,
                 Operation.OpType.TAKE_ALONG_AXIS_GRAD,
-                Operation.OpType.SCATTER_ADD
+                Operation.OpType.SCATTER_ADD,
+                Operation.OpType.SCATTER_ELEMENTS,
+                Operation.OpType.SCATTER_ND
         );
 
         for (ComputeBackend backend : List.of(ComputeBackend.GPU_METAL, ComputeBackend.GPU_CUDA)) {

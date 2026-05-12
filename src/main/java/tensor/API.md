@@ -2055,6 +2055,65 @@ Tensor y = base.scatterAdd(indices, src, 1);
 // Returns: a tensor with scattered additions applied.
 ```
 
+### `scatterElements(Tensor indices, Tensor updates, int axis[, ScatterReduction reduction])`
+
+Writes same-rank updates into positions selected along one axis.
+
+Parameters:
+- `indices`: integral index tensor with the same rank as the base tensor
+- `updates`: tensor with the same shape as `indices` and the same dtype as the base tensor
+- `axis`: axis whose coordinate is read from `indices`
+- `reduction`: optional write policy; defaults to `NONE`
+
+Returns:
+- tensor with the same shape as the base tensor
+
+Behavior:
+- starts from a copy of the base tensor
+- `NONE` overwrites and rejects duplicate target elements
+- `ADD`, `MUL`, `MAX`, and `MIN` reduce repeated writes
+- backward is supported only for floating `NONE` and `ADD`
+
+Example:
+```java
+Tensor data = new Tensor(new double[]{10, 20, 30, 40, 50, 60}, new int[]{2, 3}, null, "data");
+Tensor indices = new Tensor(new int[]{2, 0, 0, 2}, new int[]{2, 2}, null, "indices", DataType.INT32);
+Tensor updates = new Tensor(new double[]{1, 5, 7, 9}, new int[]{2, 2}, null, "updates");
+Tensor y = data.scatterElements(indices, updates, 1);
+// y has shape [2, 3] and values:
+// [[5, 20, 1],
+//  [7, 50, 9]]
+```
+
+### `scatterNd(Tensor indices, Tensor updates[, ScatterReduction reduction])`
+
+Writes updates into tuple-indexed positions.
+
+Parameters:
+- `indices`: integral index tensor; its final dimension is the coordinate tuple length
+- `updates`: tensor with shape `indices.shape[:-1] + base.shape[indices.shape[-1]:]`
+- `reduction`: optional write policy; defaults to `NONE`
+
+Returns:
+- tensor with the same shape as the base tensor
+
+Behavior:
+- starts from a copy of the base tensor
+- if the tuple length equals the base rank, each update writes one element; Synaptik also accepts its internal scalar shape `[1]` for the one-index case
+- if the tuple length is smaller than the base rank, each update writes a slice
+- backward is currently unsupported until a matching `GatherND` primitive exists
+
+Example:
+```java
+Tensor data = new Tensor(new double[]{10, 20, 30, 40, 50, 60}, new int[]{2, 3}, null, "data");
+Tensor indices = new Tensor(new int[]{0, 2, 1, 0}, new int[]{2, 2}, null, "indices", DataType.INT32);
+Tensor updates = new Tensor(new double[]{1, 7}, new int[]{2}, null, "updates");
+Tensor y = data.scatterNd(indices, updates);
+// y has shape [2, 3] and values:
+// [[10, 20, 1],
+//  [7, 50, 60]]
+```
+
 ## Logical Bool Operations
 
 Logical bool ops:

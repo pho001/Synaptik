@@ -1497,12 +1497,14 @@ Implementation: `src/main/java/tensor/ops/index/TensorIndexOps.java`, `src/main/
 
 Index tensors may be `INT32` or floating numeric tensors containing integral values. `BOOL` indices are rejected.
 
-Mental model: `select` is a metadata alias view, while `gather`, `scatterAdd`, and `takeAlongAxis` are index kernels that materialize values based on an index tensor.
+Mental model: `select` is a metadata alias view, while `gather`, `takeAlongAxis`, `scatterAdd`, `scatterElements`, and `scatterNd` are index kernels that materialize values based on an index tensor.
 
 - `select` picks one fixed index for the whole slice and can be represented as shape/stride/storage-offset metadata.
 - `gather` picks one index per output coordinate after removing the gathered axis.
 - `takeAlongAxis` keeps the same rank as the input and lets the index tensor choose positions along one axis.
 - `scatterAdd` is the reverse direction: values from `src` are added into a base-shaped output at indexed positions.
+- `scatterElements` writes or reduces same-rank updates along one selected axis.
+- `scatterNd` writes or reduces updates using coordinate tuples stored in the final dimension of `indices`.
 
 ### `gather`
 
@@ -1558,6 +1560,60 @@ Tensor src = new Tensor(new double[]{5}, new int[]{1}, null, "src", DataType.FLO
 Tensor y = base.scatterAdd(indices, src, 0);
 // formula: y = base; y[1] += 5
 // y = [10, 25, 30]
+```
+
+### `scatterElements`
+
+```java
+Tensor scatterElements(Tensor indices, Tensor updates, int axis)
+Tensor scatterElements(Tensor indices, Tensor updates, int axis, ScatterReduction reduction)
+static Tensor TensorOps.scatterElements(Tensor data, Tensor indices, Tensor updates, int axis, ScatterReduction reduction)
+```
+
+Returns a tensor shaped like `data` with `updates` written into positions selected by `indices` along one axis. `indices` and `updates` must have identical shapes. Their rank must match `data.rank`, and every non-axis dimension must match `data`.
+
+Implementation mechanism: the output starts as a copy of `data`. For each coordinate in `updates`, the same coordinate is used for every dimension except `axis`; on `axis`, the target coordinate comes from `indices`.
+
+Reduction policy: `NONE` overwrites and rejects duplicate target positions. `ADD`, `MUL`, `MAX`, and `MIN` combine repeated writes with the current output value. `BOOL` supports only `NONE`.
+
+Gradient: `NONE` and `ADD` support backward for floating tensors. `indices` has no gradient. `MUL`, `MAX`, and `MIN` reject training until derivative and tie policies are defined.
+
+```java
+Tensor data = new Tensor(new double[]{10, 20, 30, 40, 50, 60}, new int[]{2, 3}, null, "data", DataType.FLOAT64);
+Tensor indices = new Tensor(new int[]{2, 0, 0, 2}, new int[]{2, 2}, null, "indices", DataType.INT32);
+Tensor updates = new Tensor(new double[]{1, 5, 7, 9}, new int[]{2, 2}, null, "updates", DataType.FLOAT64);
+Tensor y = data.scatterElements(indices, updates, 1);
+// y = [
+//   [5, 20, 1],
+//   [7, 50, 9]
+// ]
+```
+
+### `scatterNd`
+
+```java
+Tensor scatterNd(Tensor indices, Tensor updates)
+Tensor scatterNd(Tensor indices, Tensor updates, ScatterReduction reduction)
+static Tensor TensorOps.scatterNd(Tensor data, Tensor indices, Tensor updates, ScatterReduction reduction)
+```
+
+Returns a tensor shaped like `data` with updates written by tuple indices. The final dimension of `indices` is the tuple rank: for `indices.shape == [N, K]`, each row contains `K` coordinates into the first `K` dimensions of `data`.
+
+Shape rule: `updates.shape` must equal `indices.shape[:-1] + data.shape[K:]`, where `K = indices.shape[-1]`. If `K == data.rank`, each update is a single element; Synaptik also accepts its internal scalar shape `[1]` for the one-index case. If `K < data.rank`, each update is a slice.
+
+Reduction policy matches `scatterElements`: `NONE` rejects duplicate target elements; `ADD`, `MUL`, `MAX`, and `MIN` reduce into the copied output. `BOOL` supports only `NONE`.
+
+Gradient: currently unsupported. A complete backward needs a matching `GatherND`-style read primitive for `updates.grad`, so training graphs reject `scatterNd` when floating inputs require gradients.
+
+```java
+Tensor data = new Tensor(new double[]{10, 20, 30, 40, 50, 60}, new int[]{2, 3}, null, "data", DataType.FLOAT64);
+Tensor indices = new Tensor(new int[]{0, 2, 1, 0}, new int[]{2, 2}, null, "indices", DataType.INT32);
+Tensor updates = new Tensor(new double[]{1, 7}, new int[]{2}, null, "updates", DataType.FLOAT64);
+Tensor y = data.scatterNd(indices, updates);
+// y = [
+//   [10, 20, 1],
+//   [7, 50, 60]
+// ]
 ```
 
 ### `takeAlongAxis`

@@ -135,4 +135,24 @@ final class IndexExecutor {
     static void scatterElementsI32(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, ScatterReduction reduction, CpuKernelContext context) {
         IndexReadWriteBackend.scatterElementsI32(data, indices, updates, out, axis, reduction);
     }
+
+    static void scatterNdF64(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterNdF64(data, indices, updates, out, reduction);
+    }
+
+    static void scatterNdF32(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterNdF32(data, indices, updates, out, reduction);
+    }
+
+    static void scatterNdBF16(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterNdBF16(data, indices, updates, out, reduction);
+    }
+
+    static void scatterNdBOOL(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterNdBOOL(data, indices, updates, out, reduction);
+    }
+
+    static void scatterNdI32(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterNdI32(data, indices, updates, out, reduction);
+    }
 }

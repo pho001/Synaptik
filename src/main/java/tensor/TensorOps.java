@@ -168,6 +168,14 @@ public final class TensorOps {
         return TensorIndexOps.scatterElements(data, indices, updates, axis, reduction);
     }
 
+    public static Tensor scatterNd(Tensor data, Tensor indices, Tensor updates) {
+        return TensorIndexOps.scatterNd(data, indices, updates, ScatterReduction.NONE);
+    }
+
+    public static Tensor scatterNd(Tensor data, Tensor indices, Tensor updates, ScatterReduction reduction) {
+        return TensorIndexOps.scatterNd(data, indices, updates, reduction);
+    }
+
     public static Tensor takeAlongAxis(Tensor input, Tensor indices, int dimension) {
         return TensorIndexOps.takeAlongAxis(input, indices, dimension);
     }

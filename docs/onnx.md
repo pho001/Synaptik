@@ -107,6 +107,7 @@ Supported node families:
 | `Shape`, `Size`, `Gather` | Runtime `Gather` maps to ONNX-style `Tensor.gatherAxis`, where the index tensor shape is inserted at the gathered axis. Shape-only `Gather` remains import-time shape plumbing and is limited to axis `0` because the importer represents shape tensors as flat compile-time vectors. |
 | `GatherElements` | Runtime `GatherElements` maps to `Tensor.takeAlongAxis`. The data and index tensors must have the same rank, the output shape equals the index tensor shape, and all non-axis dimensions must match. Runtime indices are `INT32`; ONNX `INT64` remains shape-constant-only in this importer. Export writes `takeAlongAxis` as `GatherElements`. |
 | `ScatterElements` | Runtime `ScatterElements` maps to functional `Tensor.scatterElements`. The output shape equals `data.shape`; `indices` and `updates` must have the same rank and shape, and non-axis dimensions must match `data`. Supported reductions are `none`, `add`, `mul`, `max`, and `min` for inference; backward is defined only for `none` and `add`. Runtime indices are `INT32`; ONNX `INT64` remains shape-constant-only. |
+| `ScatterND` | Runtime `ScatterND` maps to functional `Tensor.scatterNd`. The output shape equals `data.shape`; the final dimension of `indices` is the coordinate tuple length; `updates.shape` must equal `indices.shape[:-1] + data.shape[indices.shape[-1]:]`. Supported reductions are `none`, `add`, `mul`, `max`, and `min` for inference. Backward is explicitly unsupported until a matching `GatherND` primitive exists. Runtime indices are `INT32`; ONNX `INT64` remains shape-constant-only. |
 | `ReduceSum`, `ReduceMean`, `ReduceMax`, `ReduceMin` | Axis reductions; multi-axis reductions are applied as repeated Synaptik reductions. |
 | `Softmax`, `LogSoftmax` | Axis normalization ops. |
 | `Constant` | Tensor initializer in graph-node form. |
@@ -115,8 +116,7 @@ Explicit non-goals in the current algebra subset:
 
 - Tensor-by-tensor `Pow` is rejected. It needs either a first-class Synaptik tensor exponent op or a documented lowering strategy before import/export can claim support.
 - Variadic ONNX `Min`/`Max` are rejected unless represented as binary nodes. A future importer can lower a variadic ONNX node into a left-associated chain if that behavior is intentionally added.
-- `GatherND` is not supported yet. Runtime ONNX `Gather` is supported through the dedicated `gatherAxis` graph op, not the older Synaptik `gather` helper with reduced output shape. Runtime ONNX `GatherElements` is supported through `takeAlongAxis`, which preserves rank and uses the index tensor shape as the output shape.
-- `ScatterND` is not supported yet. It needs tuple-index addressing through the final index dimension, which is intentionally separate from axis-local `ScatterElements`.
+- `GatherND` is not supported yet. Runtime ONNX `Gather` is supported through the dedicated `gatherAxis` graph op, not the older Synaptik `gather` helper with reduced output shape. Runtime ONNX `GatherElements` is supported through `takeAlongAxis`, which preserves rank and uses the index tensor shape as the output shape. `ScatterND` import/export is supported for inference, but its backward path remains unsupported until `GatherND` exists.
 - Dynamic shape, slice, reshape, and expand parameters are rejected; the current importer remains static dense inference.
 
 Unsupported by design in the first subset:

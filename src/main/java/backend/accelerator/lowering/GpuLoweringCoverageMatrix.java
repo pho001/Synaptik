@@ -301,6 +301,10 @@ public final class GpuLoweringCoverageMatrix {
                     GpuLoweringCoverageStatus.UNSUPPORTED,
                     GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
                     "scatter-elements remains CPU-owned until rank-preserving write, reduction, and duplicate-index policies are proven for Metal");
+            add(entries, backend, Operation.OpType.SCATTER_ND, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
+                    "scatter-nd remains CPU-owned until tuple-index write, slice update, reduction, and duplicate-index policies are proven for Metal");
         } else {
             add(entries, backend, Operation.OpType.TAKE_ALONG_AXIS_GRAD, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
                     GpuLoweringCoverageStatus.UNSUPPORTED,
@@ -314,6 +318,10 @@ public final class GpuLoweringCoverageMatrix {
                     GpuLoweringCoverageStatus.UNSUPPORTED,
                     GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
                     "scatter-elements remains CPU-owned until rank-preserving write, reduction, and duplicate-index policies are proven for CUDA");
+            add(entries, backend, Operation.OpType.SCATTER_ND, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
+                    "scatter-nd remains CPU-owned until tuple-index write, slice update, reduction, and duplicate-index policies are proven for CUDA");
         }
         addBoolOutputRows(entries, backend);
         addSupported(entries, backend, GpuLoweringOperationFamily.BACKWARD_ADJACENT,
@@ -565,7 +573,7 @@ public final class GpuLoweringCoverageMatrix {
             case CONV2D, CONV2D_GEMM, CONV2D_BACKWARD_INPUT, CONV2D_BACKWARD_WEIGHT, CONV2D_BACKWARD_INPUT_GEMM,
                     CONV2D_BACKWARD_WEIGHT_GEMM, MAX_POOL2D, MAX_POOL2D_BACKWARD_INPUT, AVG_POOL2D,
                     AVG_POOL2D_BACKWARD_INPUT -> GpuLoweringOperationFamily.CONV_POOL;
-            case GATHER, GATHER_GRAD, TAKE_ALONG_AXIS, TAKE_ALONG_AXIS_GRAD, SCATTER_ADD, SCATTER_ELEMENTS -> GpuLoweringOperationFamily.INDEX_SCATTER_GATHER;
+            case GATHER, GATHER_GRAD, TAKE_ALONG_AXIS, TAKE_ALONG_AXIS_GRAD, SCATTER_ADD, SCATTER_ELEMENTS, SCATTER_ND -> GpuLoweringOperationFamily.INDEX_SCATTER_GATHER;
             case REDUCE_MIN_GRAD, REDUCE_MAX_GRAD, MIN_GRAD, MAX_GRAD -> GpuLoweringOperationFamily.BACKWARD_ADJACENT;
             default -> GpuLoweringOperationFamily.ELEMENTWISE_CHAIN;
         };

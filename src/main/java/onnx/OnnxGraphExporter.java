@@ -9,6 +9,7 @@ import operations.elementwise.unary.pow;
 import operations.index.ScatterReduction;
 import operations.index.gatherAxis;
 import operations.index.scatterElements;
+import operations.index.scatterNd;
 import operations.index.takeAlongAxis;
 import operations.layout.concat;
 import operations.layout.expandDims;
@@ -142,6 +143,7 @@ final class OnnxGraphExporter {
             case GATHER_AXIS -> exportGatherAxis(node, op);
             case TAKE_ALONG_AXIS -> exportGatherElements(node, op);
             case SCATTER_ELEMENTS -> exportScatterElements(node, op);
+            case SCATTER_ND -> exportScatterNd(node, op);
             case SQUEEZE -> exportSqueeze(node, op, names, graphBuilder);
             case EXPAND_DIMS -> exportUnsqueeze(node, op, names, graphBuilder);
             case SUM -> exportReduction(node, "ReduceSum", ((sum) op).getDimension(), ((sum) op).keepDims(), names, graphBuilder);
@@ -243,6 +245,14 @@ final class OnnxGraphExporter {
         scatterElements scatter = (scatterElements) op;
         node.setOpType("ScatterElements")
                 .addAttribute(intAttr("axis", scatter.getAxis()));
+        if (scatter.getReduction() != ScatterReduction.NONE) {
+            node.addAttribute(stringAttr("reduction", scatterReduction(scatter.getReduction())));
+        }
+    }
+
+    private static void exportScatterNd(OnnxProto.NodeProto.Builder node, Operation op) {
+        scatterNd scatter = (scatterNd) op;
+        node.setOpType("ScatterND");
         if (scatter.getReduction() != ScatterReduction.NONE) {
             node.addAttribute(stringAttr("reduction", scatterReduction(scatter.getReduction())));
         }

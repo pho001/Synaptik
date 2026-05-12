@@ -7,6 +7,7 @@ import operations.index.gatherGrad;
 import operations.index.ScatterReduction;
 import operations.index.scatterAdd;
 import operations.index.scatterElements;
+import operations.index.scatterNd;
 import operations.layout.select;
 import operations.index.takeAlongAxis;
 import operations.index.takeAlongAxisGrad;
@@ -285,6 +286,43 @@ public final class TensorIndexOps {
         return out;
     }
 
+    /**
+     * Writes update values into a copy of {@code data} using tuple indices.
+     */
+    public static Tensor scatterNd(Tensor data, Tensor indices, Tensor updates, ScatterReduction reduction) {
+        if (data == null || indices == null || updates == null) {
+            throw new IllegalArgumentException("scatterNd inputs cannot be null");
+        }
+        if (indices.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("scatterNd indices must be numeric integral values.");
+        }
+        if (data.getDataType() != updates.getDataType()) {
+            throw new IllegalArgumentException("scatterNd requires data and updates to have matching dtypes.");
+        }
+        ScatterReduction effectiveReduction = reduction == null ? ScatterReduction.NONE : reduction;
+        if (data.getDataType() == DataType.BOOL && effectiveReduction != ScatterReduction.NONE) {
+            throw new IllegalArgumentException("scatterNd BOOL tensors support only NONE reduction.");
+        }
+        validateScatterNdShape(data.getShapeUnsafe(), indices.getShapeUnsafe(), updates.getShapeUnsafe());
+        boolean differentiable = isFloating(data.getDataType())
+                && (data.getRequiresGrad() || updates.getRequiresGrad());
+        if (differentiable) {
+            throw new UnsupportedOperationException("scatterNd backward is not supported until GatherND is implemented.");
+        }
+
+        Tensor out = TensorPrimitiveBuilder.ternary(
+                data,
+                indices,
+                updates,
+                data.getShape().clone(),
+                new scatterNd(effectiveReduction),
+                "scatterNd",
+                data.getDataType()
+        );
+        out.setRequiresGrad(false);
+        return out;
+    }
+
     private static void validateScatterElementsShape(int[] dataShape, int[] indicesShape, int[] updatesShape, int axis) {
         if (indicesShape.length != dataShape.length) {
             throw new IllegalArgumentException("scatterElements indices rank must match data rank.");
@@ -298,6 +336,34 @@ public final class TensorIndexOps {
             }
             if (i != axis && indicesShape[i] != dataShape[i]) {
                 throw new IllegalArgumentException("scatterElements indices must match data shape on all non-axis dimensions.");
+            }
+        }
+    }
+
+    private static void validateScatterNdShape(int[] dataShape, int[] indicesShape, int[] updatesShape) {
+        if (indicesShape.length == 0) {
+            throw new IllegalArgumentException("scatterNd indices rank must be at least 1.");
+        }
+        int tupleRank = indicesShape[indicesShape.length - 1];
+        if (tupleRank <= 0 || tupleRank > dataShape.length) {
+            throw new IllegalArgumentException("scatterNd final indices dimension must be in [1, data rank].");
+        }
+        int expectedRank = indicesShape.length - 1 + dataShape.length - tupleRank;
+        if (updatesShape.length != expectedRank) {
+            if (expectedRank == 0 && updatesShape.length == 1 && updatesShape[0] == 1) {
+                return;
+            }
+            throw new IllegalArgumentException("scatterNd updates shape must equal indices.shape[:-1] + data.shape[indices.shape[-1]:].");
+        }
+        int p = 0;
+        for (int i = 0; i < indicesShape.length - 1; i++) {
+            if (updatesShape[p++] != indicesShape[i]) {
+                throw new IllegalArgumentException("scatterNd updates prefix shape must match indices prefix shape.");
+            }
+        }
+        for (int i = tupleRank; i < dataShape.length; i++) {
+            if (updatesShape[p++] != dataShape[i]) {
+                throw new IllegalArgumentException("scatterNd updates suffix shape must match indexed data slice shape.");
             }
         }
     }
