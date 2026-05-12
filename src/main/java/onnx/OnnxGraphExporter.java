@@ -1,7 +1,10 @@
 package onnx;
 
 import operations.Operation;
+import operations.elementwise.unary.clampMax;
+import operations.elementwise.unary.clampMin;
 import operations.elementwise.unary.mulScalar;
+import operations.elementwise.unary.pow;
 import operations.layout.expandDims;
 import operations.layout.permute;
 import operations.layout.reshape;
@@ -13,6 +16,7 @@ import operations.reduction.reduceMax;
 import operations.reduction.reduceMin;
 import operations.reduction.softmax;
 import operations.reduction.sum;
+import tensor.DataType;
 import tensor.Tensor;
 
 import java.util.IdentityHashMap;
@@ -97,6 +101,8 @@ final class OnnxGraphExporter {
             case SUB -> node.setOpType("Sub");
             case MUL -> node.setOpType("Mul");
             case DIV -> node.setOpType("Div");
+            case MIN -> node.setOpType("Min");
+            case MAX -> node.setOpType("Max");
             case NEG -> node.setOpType("Neg");
             case ABS -> node.setOpType("Abs");
             case RELU -> node.setOpType("Relu");
@@ -105,6 +111,18 @@ final class OnnxGraphExporter {
             case EXP -> node.setOpType("Exp");
             case LOG -> node.setOpType("Log");
             case SQRT -> node.setOpType("Sqrt");
+            case POW -> exportPow(node, op, tensor, names, graphBuilder);
+            case CLAMP_MIN -> exportClampMin(node, op, tensor, names, graphBuilder);
+            case CLAMP_MAX -> exportClampMax(node, op, tensor, names, graphBuilder);
+            case EQ -> node.setOpType("Equal");
+            case GT -> node.setOpType("Greater");
+            case GE -> node.setOpType("GreaterOrEqual");
+            case LT -> node.setOpType("Less");
+            case LE -> node.setOpType("LessOrEqual");
+            case LOGICAL_AND -> node.setOpType("And");
+            case LOGICAL_OR -> node.setOpType("Or");
+            case LOGICAL_NOT -> node.setOpType("Not");
+            case WHERE -> node.setOpType("Where");
             case MATMUL -> node.setOpType("MatMul");
             case LINEAR -> exportLinear(node, op);
             case PERMUTE -> exportPermute(node, op);
@@ -211,6 +229,53 @@ final class OnnxGraphExporter {
         Tensor scalarTensor = Tensor.scalar(scalar.getScalar(), tensor.getDataType());
         graphBuilder.addInitializer(OnnxTensorProtoUtil.tensorInitializer(scalarName, scalarTensor));
         node.addInput(scalarName);
+    }
+
+    private static void exportPow(
+            OnnxProto.NodeProto.Builder node,
+            Operation op,
+            Tensor tensor,
+            OnnxNameRegistry names,
+            OnnxProto.GraphProto.Builder graphBuilder
+    ) {
+        node.setOpType("Pow");
+        pow pow = (pow) op;
+        String exponentName = names.auxiliary(node.getOutput(0) + "_exponent");
+        graphBuilder.addInitializer(scalarInitializer(exponentName, pow.getExponent(), tensor.getDataType()));
+        node.addInput(exponentName);
+    }
+
+    private static void exportClampMin(
+            OnnxProto.NodeProto.Builder node,
+            Operation op,
+            Tensor tensor,
+            OnnxNameRegistry names,
+            OnnxProto.GraphProto.Builder graphBuilder
+    ) {
+        node.setOpType("Clip");
+        clampMin clamp = (clampMin) op;
+        String minName = names.auxiliary(node.getOutput(0) + "_min");
+        graphBuilder.addInitializer(scalarInitializer(minName, clamp.getMinValue(), tensor.getDataType()));
+        node.addInput(minName);
+    }
+
+    private static void exportClampMax(
+            OnnxProto.NodeProto.Builder node,
+            Operation op,
+            Tensor tensor,
+            OnnxNameRegistry names,
+            OnnxProto.GraphProto.Builder graphBuilder
+    ) {
+        node.setOpType("Clip");
+        clampMax clamp = (clampMax) op;
+        String maxName = names.auxiliary(node.getOutput(0) + "_max");
+        graphBuilder.addInitializer(scalarInitializer(maxName, clamp.getMaxValue(), tensor.getDataType()));
+        node.addInput("");
+        node.addInput(maxName);
+    }
+
+    private static OnnxProto.TensorProto scalarInitializer(String name, double value, DataType dataType) {
+        return OnnxTensorProtoUtil.tensorInitializer(name, Tensor.scalar(value, dataType));
     }
 
     private static OnnxProto.AttributeProto intAttr(String name, long value) {

@@ -86,8 +86,14 @@ Supported node families:
 
 | ONNX op | Synaptik mapping |
 |---|---|
-| `Add`, `Sub`, `Mul`, `Div` | Binary tensor ops with existing broadcasting rules. |
-| `Neg`, `Abs`, `Relu`, `Tanh`, `Sigmoid`, `Exp`, `Log`, `Sqrt` | Unary tensor ops. |
+| `Add`, `Sub`, `Mul`, `Div`, `Min`, `Max` | Binary floating tensor ops with existing broadcasting rules. ONNX variadic `Min`/`Max` forms are not expanded; the supported form has exactly two inputs. |
+| `Pow` | Scalar-exponent power. The exponent must be a scalar initializer or scalar `Constant` node because Synaptik's graph op is `pow(Tensor, double)`, not tensor-by-tensor exponentiation. |
+| `Neg`, `Abs`, `Relu`, `Tanh`, `Sigmoid`, `Exp`, `Log`, `Sqrt` | Unary floating tensor ops. |
+| `Equal`, `Greater`, `GreaterOrEqual`, `Less`, `LessOrEqual` | Binary floating comparisons with boolean output. |
+| `And`, `Or`, `Not` | Boolean tensor logic. |
+| `Where` | Boolean condition plus two floating branches using Synaptik broadcast and dtype promotion rules. |
+| `Identity` | Import-only pass-through mapping to the input tensor. |
+| `Clip` | Scalar min/max clamp. Opset-style optional min/max inputs are supported when present as scalar initializers or scalar `Constant` nodes; legacy float `min`/`max` attributes are also accepted. Export emits one-sided `Clip` nodes for Synaptik `clampMin` and `clampMax`. |
 | `MatMul` | `Tensor.matmul`. |
 | `Gemm` | `matmul` plus optional bias and scalar `alpha`/`beta`; rank-2 transpose flags are supported. |
 | `Transpose` | `Tensor.permute`. |
@@ -96,6 +102,12 @@ Supported node families:
 | `ReduceSum`, `ReduceMean`, `ReduceMax`, `ReduceMin` | Axis reductions; multi-axis reductions are applied as repeated Synaptik reductions. |
 | `Softmax`, `LogSoftmax` | Axis normalization ops. |
 | `Constant` | Tensor initializer in graph-node form. |
+
+Explicit non-goals in the current algebra subset:
+
+- `Cast` is rejected. Synaptik currently has storage dtype mutation helpers, but no semantic graph cast operation. Importing ONNX `Cast` by mutating a tensor would erase a real runtime operation and would be wrong for graph interchange.
+- Tensor-by-tensor `Pow` is rejected. It needs either a first-class Synaptik tensor exponent op or a documented lowering strategy before import/export can claim support.
+- Variadic ONNX `Min`/`Max` are rejected unless represented as binary nodes. A future importer can lower a variadic ONNX node into a left-associated chain if that behavior is intentionally added.
 
 Unsupported by design in the first subset:
 

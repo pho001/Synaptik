@@ -7,6 +7,15 @@ final class OnnxAttributeReader {
         this.node = node;
     }
 
+    boolean hasAttribute(String name) {
+        for (OnnxProto.AttributeProto attr : node.getAttributeList()) {
+            if (attr.getName().equals(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     int intAttribute(String name, int defaultValue) {
         for (OnnxProto.AttributeProto attr : node.getAttributeList()) {
             if (attr.getName().equals(name)) {

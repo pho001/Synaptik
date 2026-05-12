@@ -5,6 +5,7 @@ import tensor.Tensor;
 import tensor.TensorOps;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -13,7 +14,11 @@ import java.util.Set;
 final class OnnxGraphImporter {
     private static final Set<String> SUPPORTED_OPS = Set.of(
             "Add", "Sub", "Mul", "Div",
+            "Min", "Max", "Pow",
             "Neg", "Abs", "Relu", "Tanh", "Sigmoid", "Exp", "Log", "Sqrt",
+            "Equal", "Greater", "GreaterOrEqual", "Less", "LessOrEqual",
+            "And", "Or", "Not",
+            "Where", "Identity", "Clip",
             "MatMul", "Gemm",
             "Transpose", "Reshape", "Squeeze", "Unsqueeze",
             "ReduceSum", "ReduceMean", "ReduceMax", "ReduceMin",
@@ -36,6 +41,7 @@ final class OnnxGraphImporter {
         Map<String, Tensor> tensors = new LinkedHashMap<>();
         Map<String, long[]> int64Constants = new LinkedHashMap<>();
         Map<String, Tensor> inputs = new LinkedHashMap<>();
+        Set<String> constantTensors = new HashSet<>();
 
         for (OnnxProto.TensorProto initializer : graph.getInitializerList()) {
             String name = initializer.getName();
@@ -45,6 +51,7 @@ final class OnnxGraphImporter {
             );
             if (constant.isTensor()) {
                 tensors.put(name, constant.tensor());
+                constantTensors.add(name);
             } else {
                 int64Constants.put(name, constant.int64Values());
             }
@@ -66,7 +73,7 @@ final class OnnxGraphImporter {
         }
 
         for (OnnxProto.NodeProto node : graph.getNodeList()) {
-            importNode(node, tensors, int64Constants);
+            importNode(node, tensors, int64Constants, constantTensors);
         }
 
         Map<String, Tensor> outputs = new LinkedHashMap<>();
@@ -101,7 +108,8 @@ final class OnnxGraphImporter {
     private static void importNode(
             OnnxProto.NodeProto node,
             Map<String, Tensor> tensors,
-            Map<String, long[]> int64Constants
+            Map<String, long[]> int64Constants,
+            Set<String> constantTensors
     ) {
         if (!node.getDomain().isEmpty()) {
             throw unsupported(node, "custom domain '" + node.getDomain() + "' is unsupported");
@@ -119,6 +127,9 @@ final class OnnxGraphImporter {
             case "Sub" -> binary(node, tensors, TensorOps::sub);
             case "Mul" -> binary(node, tensors, TensorOps::mul);
             case "Div" -> binary(node, tensors, TensorOps::div);
+            case "Min" -> binary(node, tensors, TensorOps::min);
+            case "Max" -> binary(node, tensors, TensorOps::max);
+            case "Pow" -> pow(node, tensors, int64Constants, constantTensors);
             case "Neg" -> unary(node, tensors, TensorOps::neg);
             case "Abs" -> unary(node, tensors, TensorOps::abs);
             case "Relu" -> unary(node, tensors, TensorOps::relu);
@@ -127,6 +138,17 @@ final class OnnxGraphImporter {
             case "Exp" -> unary(node, tensors, TensorOps::exp);
             case "Log" -> unary(node, tensors, TensorOps::log);
             case "Sqrt" -> unary(node, tensors, TensorOps::sqrt);
+            case "Equal" -> binary(node, tensors, TensorOps::equalTo);
+            case "Greater" -> binary(node, tensors, TensorOps::greaterThan);
+            case "GreaterOrEqual" -> binary(node, tensors, TensorOps::greaterOrEqual);
+            case "Less" -> binary(node, tensors, TensorOps::lessThan);
+            case "LessOrEqual" -> binary(node, tensors, TensorOps::lessOrEqual);
+            case "And" -> binary(node, tensors, TensorOps::logicalAnd);
+            case "Or" -> binary(node, tensors, TensorOps::logicalOr);
+            case "Not" -> unary(node, tensors, TensorOps::logicalNot);
+            case "Where" -> ternary(node, tensors, TensorOps::where);
+            case "Identity" -> identity(node, tensors);
+            case "Clip" -> clip(node, tensors, int64Constants, attrs, constantTensors);
             case "MatMul" -> binary(node, tensors, TensorOps::matmul);
             case "Gemm" -> gemm(node, tensors, attrs);
             case "Transpose" -> transpose(node, tensors, attrs);
@@ -139,7 +161,7 @@ final class OnnxGraphImporter {
             case "ReduceMin" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.MIN);
             case "Softmax" -> unaryAxis(node, tensors, attrs, TensorOps::softmax);
             case "LogSoftmax" -> unaryAxis(node, tensors, attrs, TensorOps::logSoftmax);
-            case "Constant" -> constant(node, attrs, int64Constants);
+            case "Constant" -> constant(node, attrs, int64Constants, constantTensors);
             default -> throw unsupported(node, "unsupported op type");
         };
 
@@ -152,7 +174,8 @@ final class OnnxGraphImporter {
     private static Tensor constant(
             OnnxProto.NodeProto node,
             OnnxAttributeReader attrs,
-            Map<String, long[]> int64Constants
+            Map<String, long[]> int64Constants,
+            Set<String> constantTensors
     ) {
         OnnxProto.TensorProto value = attrs.tensorAttribute("value");
         if (value == null) {
@@ -166,7 +189,56 @@ final class OnnxGraphImporter {
             int64Constants.put(node.getOutput(0), constant.int64Values());
             return null;
         }
+        constantTensors.add(node.getOutput(0));
         return constant.tensor();
+    }
+
+    private static Tensor pow(
+            OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
+            Map<String, long[]> int64Constants,
+            Set<String> constantTensors
+    ) {
+        requireInputCount(node, 2, 2);
+        return TensorOps.pow(tensorInput(node, tensors, 0), scalarConstantInput(node, tensors, int64Constants, constantTensors, 1));
+    }
+
+    private static Tensor clip(
+            OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
+            Map<String, long[]> int64Constants,
+            OnnxAttributeReader attrs,
+            Set<String> constantTensors
+    ) {
+        requireInputCount(node, 1, 3);
+        Tensor out = tensorInput(node, tensors, 0);
+        Double minValue = null;
+        Double maxValue = null;
+        if (node.getInputCount() >= 2 && !node.getInput(1).isBlank()) {
+            minValue = scalarConstantInput(node, tensors, int64Constants, constantTensors, 1);
+        } else if (attrs.hasAttribute("min")) {
+            minValue = (double) attrs.floatAttribute("min", 0.0f);
+        }
+        if (node.getInputCount() >= 3 && !node.getInput(2).isBlank()) {
+            maxValue = scalarConstantInput(node, tensors, int64Constants, constantTensors, 2);
+        } else if (attrs.hasAttribute("max")) {
+            maxValue = (double) attrs.floatAttribute("max", 0.0f);
+        }
+        if (minValue != null && maxValue != null) {
+            return TensorOps.clamp(out, minValue, maxValue);
+        }
+        if (minValue != null) {
+            return TensorOps.clampMin(out, minValue);
+        }
+        if (maxValue != null) {
+            return TensorOps.clampMax(out, maxValue);
+        }
+        return out;
+    }
+
+    private static Tensor identity(OnnxProto.NodeProto node, Map<String, Tensor> tensors) {
+        requireInputCount(node, 1, 1);
+        return tensorInput(node, tensors, 0);
     }
 
     private static Tensor gemm(OnnxProto.NodeProto node, Map<String, Tensor> tensors, OnnxAttributeReader attrs) {
@@ -311,6 +383,11 @@ final class OnnxGraphImporter {
         return op.apply(tensorInput(node, tensors, 0), tensorInput(node, tensors, 1));
     }
 
+    private static Tensor ternary(OnnxProto.NodeProto node, Map<String, Tensor> tensors, TernaryOp op) {
+        requireInputCount(node, 3, 3);
+        return op.apply(tensorInput(node, tensors, 0), tensorInput(node, tensors, 1), tensorInput(node, tensors, 2));
+    }
+
     private static Tensor tensorInput(OnnxProto.NodeProto node, Map<String, Tensor> tensors, int index) {
         Tensor tensor = tensors.get(node.getInput(index));
         if (tensor == null) {
@@ -340,6 +417,34 @@ final class OnnxGraphImporter {
             return out;
         }
         throw unsupported(node, "input '" + name + "' must be an INT64/INT32 constant");
+    }
+
+    private static double scalarConstantInput(
+            OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
+            Map<String, long[]> int64Constants,
+            Set<String> constantTensors,
+            int index
+    ) {
+        String name = node.getInput(index);
+        long[] int64 = int64Constants.get(name);
+        if (int64 != null) {
+            if (int64.length != 1) {
+                throw unsupported(node, "input '" + name + "' must be a scalar constant");
+            }
+            return int64[0];
+        }
+        if (!constantTensors.contains(name)) {
+            throw unsupported(node, "input '" + name + "' must be a scalar initializer or Constant node");
+        }
+        Tensor tensor = tensors.get(name);
+        if (tensor == null) {
+            throw unsupported(node, "input '" + name + "' is missing or is not a tensor");
+        }
+        if (tensor.getFlatDataSize() != 1) {
+            throw unsupported(node, "input '" + name + "' must be a scalar constant");
+        }
+        return tensor.scalarAsDouble();
     }
 
     private static int[] axes(
@@ -442,6 +547,11 @@ final class OnnxGraphImporter {
     @FunctionalInterface
     private interface BinaryOp {
         Tensor apply(Tensor left, Tensor right);
+    }
+
+    @FunctionalInterface
+    private interface TernaryOp {
+        Tensor apply(Tensor first, Tensor second, Tensor third);
     }
 
     @FunctionalInterface
