@@ -78,6 +78,31 @@ public class TensorShapeIndexOpsExecutionTest {
     }
 
     @Test
+    public void sliceBackwardFromNonContiguousSourceThroughElementwise() {
+        Tensor base = new Tensor(new double[]{
+                1, 2, 3,
+                4, 5, 6
+        }, new int[]{2, 3}, null, "base", DataType.FLOAT64);
+        base.setRequiresGrad(true);
+        Tensor view = base.permute(1, 0);
+
+        Tensor out = view.slice(
+                new int[]{1, 0},
+                new int[]{3, 2},
+                new int[]{0, 1},
+                new int[]{1, 1}
+        ).mul(2.0);
+
+        CompiledGraph.compile(out, CompileConfig.training())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(new double[]{
+                0.0, 2.0, 2.0,
+                0.0, 2.0, 2.0
+        }, base.getGradient().toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
     public void concatBackwardSplitsGradientAcrossInputs() {
         Tensor a = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2}, null, "a", DataType.FLOAT64);
         Tensor b = new Tensor(new double[]{5, 6}, new int[]{1, 2}, null, "b", DataType.FLOAT64);
@@ -91,6 +116,22 @@ public class TensorShapeIndexOpsExecutionTest {
 
         assertArrayEquals(new double[]{1.0, 1.0, 1.0, 1.0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{1.0, 1.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    public void concatBackwardSplitsGradientAcrossInnerAxis() {
+        Tensor a = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{5, 6}, new int[]{2, 1}, null, "b", DataType.FLOAT64);
+        a.setRequiresGrad(true);
+        b.setRequiresGrad(true);
+
+        Tensor out = Tensor.concat(1, a, b).mul(3.0);
+
+        CompiledGraph.compile(out, CompileConfig.training())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(new double[]{3.0, 3.0, 3.0, 3.0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{3.0, 3.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 
     @Test

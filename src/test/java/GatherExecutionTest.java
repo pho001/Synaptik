@@ -80,6 +80,27 @@ public class GatherExecutionTest {
     }
 
     @Test
+    void gatherAxisSupportsNonContiguousDataInput() {
+        Tensor base = new Tensor(new double[]{
+                1, 2, 3,
+                4, 5, 6
+        }, new int[]{2, 3}, null, "base", DataType.FLOAT64);
+        Tensor view = base.permute(1, 0);
+        Tensor indices = new Tensor(new int[]{1, 0}, new int[]{2}, null, "indices", DataType.INT32);
+        Tensor y = view.gatherAxis(indices, 1);
+
+        CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new int[]{3, 2}, y.getShape());
+        assertArrayEquals(new double[]{
+                4.0, 1.0,
+                5.0, 2.0,
+                6.0, 3.0
+        }, y.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
     void gatherAxisBackwardAccumulatesRepeatedIndices() {
         Tensor x = new Tensor(new double[]{
                 1, 2, 3,
