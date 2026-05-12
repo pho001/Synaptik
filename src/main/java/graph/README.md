@@ -71,7 +71,8 @@ Contains:
   - [compile/BackwardGraphBuilder.java](../graph/compile/BackwardGraphBuilder.java)
   - [compile/GradientBindingCollector.java](../graph/compile/GradientBindingCollector.java)
   - [compile/OptimizerGraphSnapshot.java](../graph/compile/OptimizerGraphSnapshot.java)
-  - [compile/PartitionPlanningSnapshotBuilder.java](../graph/compile/PartitionPlanningSnapshotBuilder.java)
+  - [compile/BackendPlanningService.java](../graph/compile/BackendPlanningService.java)
+  - [compile/BackendPlanningJobResolver.java](../graph/compile/BackendPlanningJobResolver.java)
   - [SemanticForwardCanonicalizer.java](../graph/SemanticForwardCanonicalizer.java)
 - prepare pipeline:
   - [backend/prepare/PreparedExecutionBuilder.java](../backend/prepare/PreparedExecutionBuilder.java)
@@ -89,7 +90,7 @@ Contains:
 
 ## Compile Pipeline
 
-`CompiledGraph.compile(root, optimizerConfig, compileMode)` is the public entry point. Internally,
+`CompiledGraph.compile(root, compileConfig, compileMode)` is the public entry point. Internally,
 `graph.compile.GraphCompiler` owns the mutable compile session and returns immutable
 `CompileArtifacts` for the facade and prepare layer.
 
@@ -172,7 +173,7 @@ Tensor y = x.relu().sum();
 
 CompiledGraph compiled = CompiledGraph.compile(
         y,
-        OptimizerConfig.inferenceDefaults(),
+        CompileConfig.inference(),
         CompileMode.INFERENCE_ONLY
 );
 ```
@@ -192,7 +193,7 @@ x.setRequiresGrad(true);
 Tensor loss = x.mul(x).sum();
 CompiledGraph compiled = CompiledGraph.compile(
         loss,
-        OptimizerConfig.trainingDefaults(),
+        CompileConfig.training(),
         CompileMode.TRAINING
 );
 ```

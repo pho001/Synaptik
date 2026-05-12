@@ -1,7 +1,7 @@
 package graph.optimizer;
 
-import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
+import graph.CompiledGraph;
 import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.state.OptimizerState;
 import org.junit.jupiter.api.Test;
@@ -35,19 +35,15 @@ public class GraphOptimizerSinglePassTest {
     }
 
     @Test
-    void optimizerFactoryPreservesPartFuseAndMemArtifactsAcrossStages() {
+    void compilerPreservesBackendPlanningRegionAndMemoryArtifacts() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "b", DataType.FLOAT32);
         Tensor out = a.add(b).relu();
-        OptimizerState initial = OptimizerState.ofGraph(out.topologicalSort(), out)
-                .withExecutionMetadata(ExecutionMode.FORWARD, false, out.topologicalSort().indexOf(out));
 
-        OptimizerConfig config = OptimizerConfig.inferenceDefaults()
-                .withPartition(OptimizerConfig.inferenceDefaults().partition().withTarget(PartitionTarget.CPU));
+        CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
+        OptimizerState optimized = compiled.compileArtifacts().requireLoweringReadyOptimizerState();
 
-        OptimizerState optimized = OptimizerFactory.create(config).optimize(initial);
-
-        assertEquals(1, optimized.partitions().size());
+        assertEquals(1, compiled.compileArtifacts().partitions().size());
         assertEquals(1, optimized.optimizedRegions().size());
         assertEquals(PartitionTarget.CPU, optimized.partitions().getFirst().target());
         assertEquals(1, optimized.memoryPlan().structuralView().optimizedRegionIds().size());

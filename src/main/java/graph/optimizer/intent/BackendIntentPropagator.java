@@ -78,23 +78,56 @@ public final class BackendIntentPropagator {
         }
 
         switch (op.opType()) {
-            case RELU, TANH, FAST_TANH, SIGMOID, ABS, EXP, FAST_EXP, LOG,
-                    SUM, MEAN, RESHAPE, CONTIGUOUS, NOOP -> {
+            case RELU, TANH, FAST_TANH, SIGMOID, ABS, EXP, FAST_EXP, LOG, NEG, INV, POW, SQRT,
+                    CLAMP_MIN, CLAMP_MAX, SUM, MEAN, REDUCE_MIN, REDUCE_MAX,
+                    RESHAPE, CONTIGUOUS, PERMUTE, EXPAND, EXPAND_DIMS, SQUEEZE, SELECT, NOOP -> {
                 if (inputs.size() == 1) {
                     propagateBackwardIntent(inputs.getFirst(), backend, seen);
                 }
             }
-            case ADD -> {
+            case ADD, SUB, MUL, DIV, MIN, MAX, GT, GE, LT, LE, EQ, NE,
+                    LOGICAL_AND, LOGICAL_OR, WHERE, MUL_SCALAR,
+                    GATHER, TAKE_ALONG_AXIS, SCATTER_ADD,
+                    MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD -> {
                 for (Tensor input : inputs) {
                     propagateBackwardIntent(input, backend, seen);
                 }
             }
             case MATMUL, LINEAR -> {
-                // Compute roots are terminal claims for the current prototype.
+                for (Tensor input : inputs) {
+                    propagateLayoutProducerIntent(input, backend, seen);
+                }
             }
             default -> {
             }
         }
+    }
+
+    private static void propagateLayoutProducerIntent(Tensor tensor, ComputeBackend backend, Set<Tensor> seen) {
+        if (tensor == null || !isAcceleratorBackend(backend) || !seen.add(tensor)) {
+            return;
+        }
+        Operation op = tensor.getOperation();
+        if (op == null || !isLayoutSupportProducer(op.opType())) {
+            return;
+        }
+        if (tensor.resolveBackend() == ComputeBackend.CPU) {
+            TensorInternalAccess.setBackend(tensor, backend);
+        }
+        List<Tensor> inputs = tensor.getPrevTensors();
+        if (inputs == null) {
+            return;
+        }
+        for (Tensor input : inputs) {
+            propagateLayoutProducerIntent(input, backend, seen);
+        }
+    }
+
+    private static boolean isLayoutSupportProducer(Operation.OpType opType) {
+        return switch (opType) {
+            case RESHAPE, CONTIGUOUS, PERMUTE, EXPAND, EXPAND_DIMS, SQUEEZE -> true;
+            default -> false;
+        };
     }
 
     private static boolean isAcceleratorBackend(ComputeBackend backend) {

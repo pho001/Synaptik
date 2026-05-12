@@ -3,14 +3,14 @@
 
 Navigation: [Index](index.md#recommended-reading-paths) | [Calibration & Autotune](calibration-autotune.md#runtime-and-graph-artifacts) | [Compute Flow](compute-flow.md#tensor-compute-api) | [Native Bridges & BLAS](native-bridges-and-blas.md#configuration-and-library-lookup) | [Metal Backend](metal-backend.md#supported-operations-and-dtypes) | [Development](development.md#local-setup) | [Testing](testing.md#exact-commands) | [Troubleshooting](troubleshooting.md#openblas-missing-or-unavailable)
 
-Chapters: [Build Requirements](#build-requirements) | [OptimizerConfig](#optimizerconfig) | [RuntimeConfig](#runtimeconfig) | [Execution Profiles](#execution-profiles) | [Platform Runtime Profiles](#platform-runtime-profiles) | [Tuning And Calibration Persistence](#tuning-and-calibration-persistence) | [System Properties And Environment Variables](#system-properties-and-environment-variables) | [CLI Configuration Behavior](#cli-configuration-behavior) | [Verification Notes](#verification-notes)
+Chapters: [Build Requirements](#build-requirements) | [CompileConfig](#compileconfig) | [RuntimeConfig](#runtimeconfig) | [Execution Profiles](#execution-profiles) | [Platform Runtime Profiles](#platform-runtime-profiles) | [Tuning And Calibration Persistence](#tuning-and-calibration-persistence) | [System Properties And Environment Variables](#system-properties-and-environment-variables) | [CLI Configuration Behavior](#cli-configuration-behavior) | [Verification Notes](#verification-notes)
 
-This document covers build/runtime requirements, optimizer and runtime configuration, backend knobs, profile persistence, tuning/calibration artifacts, system properties, and CLI configuration behavior.
+This document covers build/runtime requirements, compile and runtime configuration, backend knobs, profile persistence, tuning/calibration artifacts, system properties, and CLI configuration behavior.
 
 ## Table Of Contents
 
 - [Build Requirements](#build-requirements)
-- [OptimizerConfig](#optimizerconfig)
+- [CompileConfig](#compileconfig)
 - [RuntimeConfig](#runtimeconfig)
 - [Execution Profiles](#execution-profiles)
 - [Platform Runtime Profiles](#platform-runtime-profiles)
@@ -53,47 +53,41 @@ The `test` task defaults to `maxHeapSize = 2g`. Override it with:
 ./gradlew test -Dsynaptik.testMaxHeap=4g
 ```
 
-## OptimizerConfig
+## CompileConfig
 
-**Source:** `src/main/java/config/optimizer/OptimizerConfig.java`
+**Source:** `src/main/java/config/compile/CompileConfig.java`
 
-`OptimizerConfig` controls compile-time graph stages and stage-specific settings.
+`CompileConfig` is the compile-time source of truth. It separates graph cleanup from backend ownership planning, region optimization, and memory planning:
 
 ```java
-new OptimizerConfig(
-        List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.PART, OptimizerStage.FUSE, OptimizerStage.MEM),
-        RewriteConfig.defaults(),
-        CseConfig.strictDefaults(),
-        FuseConfig.trainingDefaults(),
-        MemoryConfig.defaults(),
-        PartitionConfig.defaults()
-)
+CompileConfig.training()
+        .withGraphOptimization(GraphOptimizationConfig.trainingDefaults())
+        .withBackendPlanning(BackendPlanningConfig.autoAccelerator());
 ```
+
+Primary layers:
+
+| Layer | Source | Responsibility |
+|---|---|---|
+| `SemanticCanonicalizationConfig` | `config.compile` | Required semantic forward canonicalization before compile artifacts are produced. |
+| `GraphOptimizationConfig` | `config.compile` | Backend-neutral graph rewrite/cleanup/lowering: AR, CF, CSE, DCE, optional LOWER. |
+| `BackendPlanningConfig` | `config.compile` | Compile-time backend ownership planning: `CPU_ONLY`, `EXPLICIT`, or `AUTO`. |
+| `RegionOptimizationConfig` | `config.compile` | Optimization inside already-owned execution regions, including CPU fusion policy. |
+| `MemoryPlanningConfig` | `config.compile` | Compile-time memory reuse policy. |
 
 Preset methods:
 
-| Preset | Stage order | Notable settings |
-|---|---|---|
-| `OptimizerConfig.noOptimization()` | Empty list | Strict CSE config object is still present, but no stages run. |
-| `OptimizerConfig.trainingDefaults()` | `AR, CSE, PART, FUSE, MEM` | Strict CSE and training fusion defaults. |
-| `OptimizerConfig.inferenceDefaults()` | `AR, CSE, PART, FUSE, MEM` | Aggressive CSE and inference fusion defaults. |
-
-Validation:
-
-- `stageOrder` cannot be null, contain null stages, or contain duplicates.
-- `FUSE` requires `PART`.
-- `PART` must come before `FUSE`.
-- `MEM` requires `FUSE`.
-
-### Optimizer Stages
-
-| Stage | Meaning |
+| Preset | Meaning |
 |---|---|
-| `AR` | Algebraic and lowering rewrites. |
-| `CSE` | Common subexpression elimination. |
-| `PART` | Backend partition planning. |
-| `FUSE` | Fused CPU execution cluster planning. |
-| `MEM` | Runtime memory reuse planning. |
+| `CompileConfig.training()` | Training graph optimization, explicit backend intent planning, region optimization, memory planning. |
+| `CompileConfig.inference()` | Inference graph optimization, explicit backend intent planning, region optimization, memory planning. |
+| `CompileConfig.trainingAutoAccelerator()` | Training defaults with automatic accelerator region discovery. |
+| `CompileConfig.inferenceAutoAccelerator()` | Inference defaults with automatic accelerator region discovery. |
+| `CompileConfig.noGraphOptimization()` | Disables graph optimization only; backend planning and prepare invariants remain active. |
+| `CompileConfig.noGraphOptimizationBaseline()` | Benchmark-friendly no-graph-optimization preset that still honors explicit backend intent. |
+| `CompileConfig.cpuOnlyBaseline()` | Strict CPU-only baseline with graph optimization, CPU regions, region optimization, and memory planning disabled. |
+
+`BackendPlanningConfig.cpuOnly()` means no accelerator ownership regions. `BackendPlanningConfig.explicitOnly()` honors explicit GPU backend intent without auto-discovering GPU regions from a CPU-owned graph. `BackendPlanningConfig.autoAccelerator()` may discover GPU regions from CPU-owned graphs according to legality and cost policy.
 
 ### RewriteConfig
 
@@ -164,33 +158,9 @@ Validation:
 - `minReusableBufferSize` must be at least `1`.
 - `allowCrossPhaseReuse` cannot be enabled when forward/backward pools are separated.
 
-### PartitionConfig
+### Backend Planning Search
 
-**Source:** `src/main/java/config/optimizer/PartitionConfig.java`
-
-Default:
-
-```java
-new PartitionConfig(
-        16,     // maxSearchNodes
-        512,    // maxVisitedCandidates
-        1000.0, // nodeWeight
-        120.0,  // internalEdgeWeight
-        450.0,  // mergeNodeBonus
-        80.0,   // tailDepthWeight
-        60.0,   // externalInputPenalty
-        1.0,    // workWeight
-        PartitionPlannerStrategy.GREEDY_MAX_REGION,
-        PartitionTarget.AUTO,
-        MetalTransferModel.CONSERVATIVE
-)
-```
-
-`maxSearchNodes` and `maxVisitedCandidates` are clamped to at least `1`. Null strategy and target values default to `GREEDY_MAX_REGION` and `AUTO`. Null `metalTransferModel` defaults to `CONSERVATIVE`.
-
-`metalTransferModel` is consumed only by scored Metal planning. It changes the transfer-cost weights used when
-`ScoredCandidatePartitionPlanner` evaluates `GPU_METAL` candidates. It does not make additional dtypes, operations,
-mask semantics, layouts, or native bridge modes legal.
+`PartitionSearchConfig` now carries only search and scoring limits. Backend target, discovery mode, planner strategy, CPU region policy, and Metal transfer cost profile live under `BackendPlanningConfig`.
 
 ## RuntimeConfig
 
@@ -368,7 +338,7 @@ Fields:
 | `candidateName` | No | Null/blank becomes `profileName` |
 | `dataType` | Yes | Must be non-null |
 | `mode` | Yes | Must be non-null |
-| `optimizer` | Yes | Must be non-null |
+| `compile` | Yes | Must be non-null |
 | `runtime` | Yes | Must be non-null |
 | `workload` | No | Null becomes `WorkloadProfile.none()` |
 
@@ -380,7 +350,7 @@ ExecutionProfile profile = new ExecutionProfile(
         "demo",
         DataType.FLOAT64,
         ExecutionMode.FORWARD,
-        OptimizerConfig.inferenceDefaults(),
+        CompileConfig.inference(),
         RuntimeConfig.inferenceDefaults()
 );
 ```
@@ -389,13 +359,13 @@ ExecutionProfile profile = new ExecutionProfile(
 
 **Source:** `src/main/java/config/profile/GraphExecutionPolicy.java`
 
-`GraphExecutionPolicy` wraps `OptimizerConfig` for graph autotune candidate assembly.
+`GraphExecutionPolicy` wraps `CompileConfig` for graph/autotune candidate assembly. It is compile-side policy only; runtime hardware thresholds remain in `RuntimeConfig` or persisted platform runtime profiles.
 
 Presets:
 
 - `GraphExecutionPolicy.trainingDefaults()`
 - `GraphExecutionPolicy.inferenceDefaults()`
-- `GraphExecutionPolicy.noOptimization()`
+- `GraphExecutionPolicy.noGraphOptimization()`
 
 ## Platform Runtime Profiles
 

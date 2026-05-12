@@ -22,7 +22,7 @@ public class ProfileGridCandidateSpaceTest {
                 "grid",
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -57,7 +57,7 @@ public class ProfileGridCandidateSpaceTest {
                 "transformer-grid",
                 tensor.DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 new config.runtime.RuntimeConfig(
                         config.backend.CpuKernelConfig.defaultsInference(),
                         config.runtime.ApproximationConfig.defaults(),
@@ -93,7 +93,7 @@ public class ProfileGridCandidateSpaceTest {
                 "policy-grid",
                 tensor.DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -132,7 +132,7 @@ public class ProfileGridCandidateSpaceTest {
                 "advanced-scheduler",
                 tensor.DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -161,7 +161,7 @@ public class ProfileGridCandidateSpaceTest {
                 "matmul-heuristics",
                 tensor.DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -185,7 +185,7 @@ public class ProfileGridCandidateSpaceTest {
                 "parallel-thresholds",
                 tensor.DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -214,7 +214,7 @@ public class ProfileGridCandidateSpaceTest {
                 "metal-selection",
                 tensor.DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -253,7 +253,7 @@ public class ProfileGridCandidateSpaceTest {
                 "generic-grid",
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );

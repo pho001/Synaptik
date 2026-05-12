@@ -2,19 +2,16 @@ package graph.compile;
 
 import backend.partition.BackendPartitionDescriptorRegistry;
 import backend.runtime.ExecutionMode;
-import config.optimizer.CpuFusionConfig;
-import config.optimizer.CpuRegionConfig;
-import config.optimizer.FuseConfig;
-import config.optimizer.MemoryConfig;
-import config.optimizer.OffloadConfig;
-import config.optimizer.OptimizerConfig;
-import config.optimizer.PartitionConfig;
+import config.compile.CompileConfig;
 import graph.CompiledGradientBinding;
 import graph.CompiledNode;
 import graph.SemanticForwardCanonicalizer;
 import graph.execution.trace.CompileTrace;
 import graph.execution.trace.PartitionCompileTrace;
+import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.optimizer.GraphOptimizer;
+import graph.optimizer.intent.BackendIntentPropagator;
 import graph.optimizer.memory.MemoryPlan;
 import graph.optimizer.memory.MemoryPlanner;
 import graph.optimizer.memory.MemoryPlannerPolicy;
@@ -25,6 +22,7 @@ import graph.optimizer.region.DefaultRegionOptimizer;
 import graph.optimizer.region.OptimizedRegion;
 import graph.optimizer.region.RegionOptimizationContext;
 import graph.optimizer.state.OptimizerState;
+import graph.optimizer.state.OptimizerTrace;
 import tensor.AutogradCompilationScope;
 import tensor.CompileMode;
 import tensor.Tensor;
@@ -51,45 +49,10 @@ public final class GraphCompiler {
     private final Tensor rootTensor;
     private final SemanticForwardCanonicalizer forwardCanonicalizer;
     private final GraphOptimizer optimizer;
-    private final PartitionConfig partitionConfig;
-    private final OffloadConfig offloadConfig;
-    private final CpuRegionConfig cpuRegionConfig;
-    private final FuseConfig fuseConfig;
-    private final CpuFusionConfig cpuFusionConfig;
-    private final MemoryConfig memoryConfig;
+    private final CompileConfig compileConfig;
     private final BackendPartitionDescriptorRegistry backendPartitionDescriptors;
+    private final BackendPlanningService backendPlanningService;
     private final CompileMode compileMode;
-
-    /**
-     * Creates a compiler using the default backend partition descriptor registry.
-     *
-     * @param rootTensor output tensor that anchors the graph
-     * @param forwardCanonicalizer optional semantic forward canonicalizer; {@code null} disables this stage
-     * @param optimizer optimizer pipeline applied after graph construction
-     * @param optimizerConfig graph optimizer policy configuration, or {@code null} for defaults
-     * @param compileMode requested compile mode, or {@code null} for {@link CompileMode#AUTO}
-     */
-    public GraphCompiler(
-            Tensor rootTensor,
-            SemanticForwardCanonicalizer forwardCanonicalizer,
-            GraphOptimizer optimizer,
-            OptimizerConfig optimizerConfig,
-            CompileMode compileMode
-    ) {
-        this(
-                rootTensor,
-                forwardCanonicalizer,
-                optimizer,
-                optimizerConfig == null ? PartitionConfig.defaults() : optimizerConfig.partition(),
-                optimizerConfig == null ? OffloadConfig.defaults() : optimizerConfig.offload(),
-                optimizerConfig == null ? CpuRegionConfig.defaults() : optimizerConfig.cpuRegion(),
-                optimizerConfig == null ? FuseConfig.inferenceDefaults() : optimizerConfig.fuse(),
-                optimizerConfig == null ? CpuFusionConfig.defaults() : optimizerConfig.cpuFusion(),
-                optimizerConfig == null ? MemoryConfig.defaults() : optimizerConfig.memory(),
-                compileMode,
-                BackendPartitionDescriptorRegistry.defaults()
-        );
-    }
 
     /**
      * Creates a compiler using the default graph policy configuration.
@@ -104,19 +67,14 @@ public final class GraphCompiler {
             Tensor rootTensor,
             SemanticForwardCanonicalizer forwardCanonicalizer,
             GraphOptimizer optimizer,
-            PartitionConfig partitionConfig,
+            CompileConfig compileConfig,
             CompileMode compileMode
     ) {
         this(
                 rootTensor,
                 forwardCanonicalizer,
                 optimizer,
-                partitionConfig,
-                OffloadConfig.defaults(),
-                CpuRegionConfig.defaults(),
-                FuseConfig.inferenceDefaults(),
-                CpuFusionConfig.defaults(),
-                MemoryConfig.defaults(),
+                compileConfig,
                 compileMode,
                 BackendPartitionDescriptorRegistry.defaults()
         );
@@ -137,67 +95,22 @@ public final class GraphCompiler {
             Tensor rootTensor,
             SemanticForwardCanonicalizer forwardCanonicalizer,
             GraphOptimizer optimizer,
-            PartitionConfig partitionConfig,
-            CompileMode compileMode,
-            BackendPartitionDescriptorRegistry backendPartitionDescriptors
-    ) {
-        this(
-                rootTensor,
-                forwardCanonicalizer,
-                optimizer,
-                partitionConfig,
-                OffloadConfig.defaults(),
-                CpuRegionConfig.defaults(),
-                FuseConfig.inferenceDefaults(),
-                CpuFusionConfig.defaults(),
-                MemoryConfig.defaults(),
-                compileMode,
-                backendPartitionDescriptors
-        );
-    }
-
-    /**
-     * Creates a compiler with explicit graph policy and backend descriptor configuration.
-     *
-     * @param rootTensor output tensor that anchors the graph
-     * @param forwardCanonicalizer optional semantic forward canonicalizer; {@code null} disables this stage
-     * @param optimizer optimizer pipeline applied after graph construction
-     * @param partitionConfig shared partition planning limits, or {@code null} for defaults
-     * @param offloadConfig accelerator/offload policy, or {@code null} for defaults
-     * @param cpuRegionConfig CPU execution region policy, or {@code null} for defaults
-     * @param fuseConfig region fusion config, or {@code null} for inference defaults
-     * @param cpuFusionConfig CPU fused-loop policy, or {@code null} for defaults
-     * @param memoryConfig memory planner policy, or {@code null} for defaults
-     * @param compileMode requested compile mode, or {@code null} for {@link CompileMode#AUTO}
-     * @param backendPartitionDescriptors registry used to resolve backend legality and lowering plans
-     * @throws NullPointerException if {@code rootTensor} or {@code optimizer} is {@code null}
-     */
-    public GraphCompiler(
-            Tensor rootTensor,
-            SemanticForwardCanonicalizer forwardCanonicalizer,
-            GraphOptimizer optimizer,
-            PartitionConfig partitionConfig,
-            OffloadConfig offloadConfig,
-            CpuRegionConfig cpuRegionConfig,
-            FuseConfig fuseConfig,
-            CpuFusionConfig cpuFusionConfig,
-            MemoryConfig memoryConfig,
+            CompileConfig compileConfig,
             CompileMode compileMode,
             BackendPartitionDescriptorRegistry backendPartitionDescriptors
     ) {
         this.rootTensor = Objects.requireNonNull(rootTensor, "rootTensor cannot be null");
         this.forwardCanonicalizer = forwardCanonicalizer;
         this.optimizer = Objects.requireNonNull(optimizer, "optimizer cannot be null");
-        this.partitionConfig = partitionConfig == null ? PartitionConfig.defaults() : partitionConfig;
-        this.offloadConfig = offloadConfig == null ? OffloadConfig.defaults() : offloadConfig;
-        this.cpuRegionConfig = cpuRegionConfig == null ? CpuRegionConfig.defaults() : cpuRegionConfig;
-        this.fuseConfig = fuseConfig == null ? FuseConfig.inferenceDefaults() : fuseConfig;
-        this.cpuFusionConfig = cpuFusionConfig == null ? CpuFusionConfig.defaults() : cpuFusionConfig;
-        this.memoryConfig = memoryConfig == null ? MemoryConfig.defaults() : memoryConfig;
+        this.compileConfig = compileConfig == null ? CompileConfig.inference() : compileConfig;
         this.compileMode = compileMode == null ? CompileMode.AUTO : compileMode;
         this.backendPartitionDescriptors = backendPartitionDescriptors == null
                 ? BackendPartitionDescriptorRegistry.defaults()
                 : backendPartitionDescriptors;
+        this.backendPlanningService = new BackendPlanningService(
+                new BackendPlanningJobResolver(),
+                this.backendPartitionDescriptors
+        );
     }
 
     /**
@@ -218,7 +131,8 @@ public final class GraphCompiler {
                 artifacts.finalGraph().size(),
                 session.forwardGraphSize(),
                 artifacts.supportsBackward(),
-                artifacts.partitionPlanningTrace()
+                artifacts.partitionPlanningTrace(),
+                artifacts.optimizerState() == null ? OptimizerTrace.empty() : artifacts.optimizerState().trace()
         );
         return new Result(artifacts, trace);
     }
@@ -241,6 +155,7 @@ public final class GraphCompiler {
         private final List<Tensor> finalGraph = new ArrayList<>();
         private final List<Tensor> forwardGraph = new ArrayList<>();
         private List<CompiledNode> compiledNodes = List.of();
+        private CompiledTensorDescriptorIndex compiledDescriptorIndex = CompiledTensorDescriptorIndex.empty();
         private Map<Tensor, CompiledNode> compiledNodeByTensor = Map.of();
         private Map<Tensor, CompiledGradientBinding> compiledGradients = Map.of();
         private CompiledGradientBinding forwardSeedGradient;
@@ -329,6 +244,7 @@ public final class GraphCompiler {
                     rootTensor,
                     finalGraph,
                     compiledNodes,
+                    compiledDescriptorIndex,
                     compiledGradients,
                     forwardSeedGradient,
                     compiledForwardOutput,
@@ -384,6 +300,7 @@ public final class GraphCompiler {
         }
 
         private List<Tensor> optimizeWorkingGraph(List<Tensor> workingGraph, Map<Tensor, Tensor> sourceTensors) {
+            BackendIntentPropagator.propagateBackwardClosure(workingGraph);
             OptimizerGraphSnapshot snapshot = OptimizerGraphSnapshot.capture(workingGraph, forwardOutput);
             OptimizerState optimizedState = optimizer.optimize(
                     OptimizerState.ofGraph(
@@ -410,7 +327,9 @@ public final class GraphCompiler {
         }
 
         private void rebuildCompiledNodeSnapshot(Map<Tensor, Tensor> sourceTensors) {
+            BackendIntentPropagator.propagateBackwardClosure(finalGraph);
             compiledNodes = CompiledNode.snapshot(finalGraph, sourceTensors);
+            compiledDescriptorIndex = CompiledTensorDescriptorBuilder.build(compiledNodes);
             IdentityHashMap<Tensor, CompiledNode> index = new IdentityHashMap<>();
             for (CompiledNode node : compiledNodes) {
                 index.put(node.semanticTensor(), node);
@@ -423,41 +342,34 @@ public final class GraphCompiler {
         }
 
         private void rebuildPartitionPlanningSnapshot() {
-            PartitionPlanningSnapshotBuilder.Snapshot snapshot = PartitionPlanningSnapshotBuilder.build(
-                    partitionConfig,
-                    offloadConfig,
-                    cpuRegionConfig,
+            BackendPlanningResult planning = backendPlanningService.plan(new BackendPlanningRequest(
+                    compileConfig.backendPlanning(),
                     compiledSupportsBackward,
                     compiledNodes,
+                    compiledDescriptorIndex,
                     compiledForwardOutput,
                     compiledGradients,
                     backendPartitionDescriptors
-            );
-            compiledPartitions = snapshot.partitions();
-            compiledBackendPlans = snapshot.backendPlans();
-            compiledBackendSelectionCandidates = snapshot.backendSelectionCandidates();
-            compiledPartitionPlanningTrace = snapshot.trace();
+            ));
+            compiledPartitions = planning.partitions();
+            compiledBackendPlans = planning.backendPlans();
+            compiledBackendSelectionCandidates = planning.backendSelectionCandidates();
+            compiledPartitionPlanningTrace = planning.trace();
         }
 
         private void completeLoweringReadyOptimizerState() {
-            if (compiledOptimizerState != null
-                    && !compiledOptimizerState.optimizedRegions().isEmpty()
-                    && compiledOptimizerState.memoryPlan() != null) {
-                return;
-            }
-            if (compiledBackendSelectionCandidates.isEmpty() || compiledPartitions.isEmpty()) {
-                return;
-            }
-            List<OptimizedRegion> optimizedRegions = compiledPartitions.stream()
-                    .map(partition -> new DefaultRegionOptimizer().optimize(
-                            partition,
-                            new RegionOptimizationContext(
-                                    compiledNodes,
-                                    fuseConfig,
-                                    cpuFusionConfig
-                            )
-                    ))
-                    .toList();
+            List<OptimizedRegion> optimizedRegions = compileConfig.regionOptimization().enabled()
+                    ? compiledPartitions.stream()
+                            .map(partition -> new DefaultRegionOptimizer().optimize(
+                                    partition,
+                                    new RegionOptimizationContext(
+                                            compiledNodes,
+                                            compileConfig.regionOptimization().fuse(),
+                                            compileConfig.regionOptimization().cpuFusion()
+                                    )
+                            ))
+                            .toList()
+                    : List.of();
             OptimizerState base = compiledOptimizerState == null
                     ? OptimizerState.ofGraph(finalGraph, compiledForwardOutput.semanticTensor())
                     : compiledOptimizerState;
@@ -469,10 +381,13 @@ public final class GraphCompiler {
                     )
                     .withPartitions(compiledPartitions, planByPartitionId())
                     .withOptimizedRegions(optimizedRegions);
-            compiledOptimizerState = loweringReady.withMemoryPlan(MemoryPlanner.plan(
-                    loweringReady,
-                    MemoryPlannerPolicy.fromConfig(memoryConfig)
-            ));
+            boolean memoryRequired = !compiledPartitions.isEmpty();
+            compiledOptimizerState = (compileConfig.memoryPlanning().enabled() || memoryRequired)
+                    ? loweringReady.withMemoryPlan(MemoryPlanner.plan(
+                            loweringReady,
+                            MemoryPlannerPolicy.fromConfig(compileConfig.memoryPlanning().memory())
+                    ))
+                    : loweringReady;
             compiledMemoryPlan = compiledOptimizerState.memoryPlan();
         }
 

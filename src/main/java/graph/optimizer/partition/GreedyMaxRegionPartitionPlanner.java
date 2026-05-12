@@ -163,13 +163,9 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
                     )
             );
         }
-        PartitionCandidate bestCandidate = request.adapter().tryCreateStructuralCandidate(
-                selected,
-                context,
-                request.requiredMaterializedValueRefs()
-        );
-        PartitionPlan bestPlan = bestCandidate == null ? null : request.adapter().tryCreatePlan(bestCandidate, context);
-        if (bestPlan == null) {
+        seedRejection = absorbSupportedConsumerClosure(selected, request, covered);
+        boolean initialBudgetStop = seedRejection != null && "max-search-nodes".equals(seedRejection.reason());
+        if (seedRejection != null && !initialBudgetStop) {
             return new AttemptResult(
                     null,
                     null,
@@ -178,10 +174,39 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
                             request.target(),
                             startIndex,
                             false,
-                            "lowerer-rejected",
+                            seedRejection.reason(),
                             List.of(start.id()),
-                            bestCandidate == null ? List.of(start.id()) : bestCandidate.orderedNodeIds(),
-                            opNames(bestCandidate == null ? List.of(start.id()) : bestCandidate.orderedNodeIds(), context),
+                            List.copyOf(selected),
+                            opNames(List.copyOf(selected), context),
+                            0L,
+                            Double.NEGATIVE_INFINITY,
+                            Double.NEGATIVE_INFINITY,
+                            0,
+                            false,
+                            seedRejection.nodeId()
+                    )
+            );
+        }
+        PartitionCandidate bestCandidate = request.adapter().tryCreateStructuralCandidate(
+                selected,
+                context,
+                request.requiredMaterializedValueRefs()
+        );
+        PartitionPlan bestPlan = bestCandidate == null ? null : request.adapter().tryCreatePlan(bestCandidate, context);
+        if (bestPlan == null) {
+            String reason = bestCandidate == null ? "missing-structural-candidate" : "lowerer-rejected";
+            return new AttemptResult(
+                    null,
+                    null,
+                    new PartitionDecisionTrace(
+                            request.strategy(),
+                            request.target(),
+                            startIndex,
+                            false,
+                            reason,
+                            List.of(start.id()),
+                            bestCandidate == null ? List.copyOf(selected) : bestCandidate.orderedNodeIds(),
+                            opNames(bestCandidate == null ? List.copyOf(selected) : bestCandidate.orderedNodeIds(), context),
                             0L,
                             Double.NEGATIVE_INFINITY,
                             Double.NEGATIVE_INFINITY,
@@ -193,9 +218,9 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
         }
 
         int explored = 0;
-        boolean budgetHit = false;
-        Rejection lastRejection = new Rejection("frontier-exhausted", -1);
-        while (true) {
+        Rejection lastRejection = initialBudgetStop ? seedRejection : new Rejection("frontier-exhausted", -1);
+        boolean budgetHit = initialBudgetStop;
+        while (!budgetHit) {
             List<Integer> frontier = expandableConsumers(selected, request, covered);
             if (frontier.isEmpty()) {
                 break;
@@ -296,6 +321,9 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
             if (expanded.contains(currentNodeId)) {
                 continue;
             }
+            if (crossesSelectedPhase(expanded, currentNodeId, request)) {
+                return new Rejection("producer-closure-phase-boundary", currentNodeId);
+            }
             if (expanded.size() >= request.policy().maxSearchNodes()) {
                 return new Rejection("max-search-nodes", currentNodeId);
             }
@@ -330,6 +358,9 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
                         && !covered[inputId]
                         && request.adapter().isNodeSupported(producer, request.context());
                 if (sameTargetSupported && !externalInputAllowed) {
+                    if (crossesSelectedPhase(expanded, inputId, request)) {
+                        return new Rejection("producer-closure-phase-boundary", inputId);
+                    }
                     stack.push(inputId);
                     continue;
                 }
@@ -353,6 +384,9 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
             for (int nodeId : currentNodes) {
                 for (CompiledNode consumer : request.context().consumersFor(nodeId)) {
                     if (consumer == null || expanded.contains(consumer.id())) {
+                        continue;
+                    }
+                    if (crossesSelectedPhase(expanded, consumer.id(), request)) {
                         continue;
                     }
                     if (covered[consumer.id()]) {
@@ -386,6 +420,9 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
         if (covered[frontierNodeId]) {
             return "covered-by-earlier-partition";
         }
+        if (crossesSelectedPhase(selected, frontierNodeId, request)) {
+            return "consumer-closure-phase-boundary";
+        }
         if (!request.canConsiderNode(node) || !request.adapter().isNodeSupported(node, request.context())) {
             return "unsupported-node";
         }
@@ -407,13 +444,74 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
                     && !covered[inputId]
                     && request.adapter().isNodeSupported(producer, request.context());
             if (sameTargetSupported && !externalInputAllowed) {
-                return "lowerer-rejected";
+                if (crossesSelectedPhase(selected, inputId, request)) {
+                    return "producer-closure-phase-boundary";
+                }
             }
             if (!externalInputAllowed) {
                 return "external-input-not-allowed";
             }
         }
-        return "lowerer-rejected";
+        LinkedHashSet<Integer> expanded = new LinkedHashSet<>(selected);
+        Rejection rejection = absorbWithProducerClosure(frontierNodeId, expanded, request, covered);
+        if (rejection != null) {
+            return rejection.reason();
+        }
+        rejection = absorbSupportedConsumerClosure(expanded, request, covered);
+        if (rejection != null) {
+            return rejection.reason();
+        }
+        PartitionCandidate candidate = request.adapter().tryCreateStructuralCandidate(
+                expanded,
+                request.context(),
+                request.requiredMaterializedValueRefs()
+        );
+        if (candidate == null) {
+            return "missing-structural-candidate";
+        }
+        PartitionPlan plan = request.adapter().tryCreatePlan(candidate, request.context());
+        if (plan == null) {
+            return "lowerer-rejected";
+        }
+        return "unknown-expansion-rejected";
+    }
+
+    private boolean crossesSelectedPhase(
+            Set<Integer> selectedNodeIds,
+            int candidateNodeId,
+            PartitionPlanningRequest request
+    ) {
+        PartitionPlanningContext context = request == null ? null : request.context();
+        if (selectedNodeIds == null || selectedNodeIds.isEmpty() || context == null || candidateNodeId < 0) {
+            return false;
+        }
+        if (allowsMixedTrainingPhases(request)) {
+            return false;
+        }
+        CompiledNode candidate = context.compiledNode(candidateNodeId);
+        if (candidate == null) {
+            return false;
+        }
+        Boolean selectedBackward = null;
+        for (int selectedNodeId : selectedNodeIds) {
+            CompiledNode selected = context.compiledNode(selectedNodeId);
+            if (selected == null) {
+                continue;
+            }
+            if (selectedBackward == null) {
+                selectedBackward = selected.backwardNode();
+            } else if (selectedBackward.booleanValue() != selected.backwardNode()) {
+                return false;
+            }
+        }
+        return selectedBackward != null && selectedBackward.booleanValue() != candidate.backwardNode();
+    }
+
+    private boolean allowsMixedTrainingPhases(PartitionPlanningRequest request) {
+        return request != null
+                && request.context().supportsBackward()
+                && request.sourcePolicy() == PartitionSourcePolicy.CPU_OR_TARGET_BACKEND
+                && (request.target() == PartitionTarget.GPU_METAL || request.target() == PartitionTarget.GPU_CUDA);
     }
 
     private List<Integer> expandableConsumers(

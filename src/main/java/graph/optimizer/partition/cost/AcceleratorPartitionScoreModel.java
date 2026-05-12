@@ -1,7 +1,11 @@
 package graph.optimizer.partition.cost;
 
 import config.optimizer.MetalTransferModel;
-import config.optimizer.PartitionConfig;
+import config.compile.PartitionSearchConfig;
+import graph.optimizer.cost.CostComponent;
+import graph.optimizer.cost.CostScore;
+
+import java.util.List;
 
 /**
  * Scoring helpers for accelerator-oriented partition search.
@@ -443,6 +447,73 @@ public final class AcceleratorPartitionScoreModel {
             fallbackMode = fallbackMode == null ? "" : fallbackMode;
             layoutClass = layoutClass == null ? "" : layoutClass;
         }
+
+        /**
+         * Exports this accelerator partition summary through the shared cost vocabulary.
+         *
+         * <p>This is report-only. It does not change {@link AcceleratorPartitionScoreModel}
+         * formulas or accelerator acceptance decisions.</p>
+         *
+         * @return shared cost score explanation input
+         */
+        public CostScore toCostScore() {
+            return CostScore.of(
+                    "AcceleratorPartitionCostModel",
+                    "accelerator-partition-materialization",
+                    List.of(
+                            CostComponent.higherIsBetter(
+                                    "finalScore",
+                                    finalScore,
+                                    "materialization-aware accelerator partition score"
+                            ),
+                            CostComponent.higherIsBetter(
+                                    "estimatedComputeWork",
+                                    estimatedComputeWork,
+                                    "larger accelerator work can amortize dispatch and transfer cost"
+                            ),
+                            CostComponent.higherIsBetter(
+                                    "avoidedIntermediateBytes",
+                                    avoidedIntermediateBytes,
+                                    "intermediate bytes retained inside the accelerator region"
+                            ),
+                            CostComponent.lowerIsBetter(
+                                    "boundaryCount",
+                                    boundaryCount,
+                                    "CPU/accelerator boundaries introduce handoff cost"
+                            ),
+                            CostComponent.lowerIsBetter(
+                                    "estimatedTransferBytes",
+                                    estimatedTransferBytes,
+                                    "estimated bytes copied across accelerator boundaries"
+                            ),
+                            CostComponent.lowerIsBetter(
+                                    "layoutFallbackBytes",
+                                    layoutFallbackBytes,
+                                    "bytes affected by layout fallback or dense materialization"
+                            ),
+                            CostComponent.lowerIsBetter(
+                                    "dispatchCost",
+                                    dispatchCost,
+                                    "fixed accelerator dispatch cost applied by the preset"
+                            ),
+                            CostComponent.informational(
+                                    "preset",
+                                    0.0d,
+                                    preset
+                            ),
+                            CostComponent.informational(
+                                    "fallbackMode",
+                                    0.0d,
+                                    fallbackMode
+                            ),
+                            CostComponent.informational(
+                                    "layoutClass",
+                                    0.0d,
+                                    layoutClass
+                            )
+                    )
+            );
+        }
     }
 
     /**
@@ -479,7 +550,7 @@ public final class AcceleratorPartitionScoreModel {
          */
         public static PlannerPolicy defaults() {
             return new PlannerPolicy(
-                    16,
+                    64,
                     512,
                     1000.0,
                     120.0,
@@ -491,22 +562,23 @@ public final class AcceleratorPartitionScoreModel {
         }
 
         /**
-         * Builds a scorer policy from partition configuration.
+         * Builds a scorer policy from backend planning search configuration.
          *
-         * @param config partition configuration, or {@code null} for defaults
+         * @param config search configuration, or {@code null} for defaults
          * @return scorer policy
          */
-        public static PlannerPolicy fromConfig(PartitionConfig config) {
-            PartitionConfig resolved = config == null ? PartitionConfig.defaults() : config;
+        public static PlannerPolicy fromConfig(PartitionSearchConfig config) {
+            PartitionSearchConfig resolved = config == null ? PartitionSearchConfig.defaults() : config;
+            var weights = resolved.scoreWeights();
             return new PlannerPolicy(
                     resolved.maxSearchNodes(),
                     resolved.maxVisitedCandidates(),
-                    resolved.nodeWeight(),
-                    resolved.internalEdgeWeight(),
-                    resolved.mergeNodeBonus(),
-                    resolved.tailDepthWeight(),
-                    resolved.externalInputPenalty(),
-                    resolved.workWeight()
+                    weights.nodeWeight(),
+                    weights.internalEdgeWeight(),
+                    weights.mergeNodeBonus(),
+                    weights.tailDepthWeight(),
+                    weights.externalInputPenalty(),
+                    weights.workWeight()
             );
         }
     }

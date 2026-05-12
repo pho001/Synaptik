@@ -100,13 +100,33 @@ public final class ReductionLoweringRewrite extends AbstractRewriteRule {
 
     private SoftmaxOutputMatch matchSoftmaxOutput(Tensor tensor) {
         if (!(tensor != null && tensor.getOperation() instanceof softmax softmaxOp)) {
-            return null;
+            return matchDecomposedSoftmaxOutput(tensor);
         }
         List<Tensor> inputs = tensor.getPrevTensors();
         if (inputs == null || inputs.size() != 1) {
             return null;
         }
         return new SoftmaxOutputMatch(tensor, softmaxOp.getDimension());
+    }
+
+    private SoftmaxOutputMatch matchDecomposedSoftmaxOutput(Tensor tensor) {
+        if (!isOp(tensor, Operation.OpType.DIV) || !"softmax".equals(tensor.getLabel())) {
+            return null;
+        }
+        List<Tensor> inputs = tensor.getPrevTensors();
+        if (inputs == null || inputs.size() != 2) {
+            return null;
+        }
+        Tensor numerator = inputs.get(0);
+        Tensor denominator = inputs.get(1);
+        if (!(denominator != null && denominator.getOperation() instanceof sum sumOp) || !sumOp.keepDims()) {
+            return null;
+        }
+        List<Tensor> denominatorInputs = denominator.getPrevTensors();
+        if (denominatorInputs == null || denominatorInputs.size() != 1 || denominatorInputs.get(0) != numerator) {
+            return null;
+        }
+        return new SoftmaxOutputMatch(tensor, sumOp.getDimension());
     }
 
     private Tensor matchSoftmaxGradSub(Tensor tensor, Tensor softmaxOut, int dimension) {
@@ -165,10 +185,36 @@ public final class ReductionLoweringRewrite extends AbstractRewriteRule {
             return null;
         }
         Tensor logSoftmaxOut = inputs.get(0);
-        if (!(logSoftmaxOut.getOperation() instanceof logSoftmax logSoftmaxOp)) {
+        return matchLogSoftmaxOutput(logSoftmaxOut);
+    }
+
+    private LogSoftmaxOutputMatch matchLogSoftmaxOutput(Tensor tensor) {
+        if (tensor == null) {
             return null;
         }
-        return new LogSoftmaxOutputMatch(logSoftmaxOut, logSoftmaxOp.getDimension());
+        if (tensor.getOperation() instanceof logSoftmax logSoftmaxOp) {
+            return new LogSoftmaxOutputMatch(tensor, logSoftmaxOp.getDimension());
+        }
+        if (!isOp(tensor, Operation.OpType.SUB) || !"logSoftmax".equals(tensor.getLabel())) {
+            return null;
+        }
+        List<Tensor> inputs = tensor.getPrevTensors();
+        if (inputs == null || inputs.size() != 2) {
+            return null;
+        }
+        Tensor logDenominator = inputs.get(1);
+        if (!isOp(logDenominator, Operation.OpType.LOG)) {
+            return null;
+        }
+        List<Tensor> logInputs = logDenominator.getPrevTensors();
+        if (logInputs == null || logInputs.size() != 1) {
+            return null;
+        }
+        Tensor denominator = logInputs.get(0);
+        if (!(denominator != null && denominator.getOperation() instanceof sum sumOp) || !sumOp.keepDims()) {
+            return null;
+        }
+        return new LogSoftmaxOutputMatch(tensor, sumOp.getDimension());
     }
 
     private boolean matchLogSoftmaxGradSum(Tensor tensor, Tensor outGrad, int dimension) {

@@ -1,15 +1,15 @@
 package graph.optimizer.partition;
 
+import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+
 import backend.cpu.partition.CpuRegionLegalityAdapter;
 import config.optimizer.CpuRegionConfig;
-import config.optimizer.OffloadConfig;
-import config.optimizer.OptimizerConfig;
-import config.optimizer.PartitionConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.CompiledNode;
 import graph.optimizer.partition.cost.AcceleratorPartitionScoreModel;
-import graph.optimizer.state.OptimizerState;
 import graph.optimizer.region.DefaultRegionOptimizer;
 import graph.optimizer.region.ExecutionUnitKind;
 import graph.optimizer.region.OptimizedRegion;
@@ -39,6 +39,7 @@ class CpuNaturalExecutionRegionPlannerTest {
                 RuntimeConfig.inferenceDefaults(),
                 false,
                 nodes,
+                CompiledTensorDescriptorBuilder.build(nodes),
                 consumers(nodes)
         );
 
@@ -72,10 +73,10 @@ class CpuNaturalExecutionRegionPlannerTest {
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "b", DataType.FLOAT32);
         Tensor root = a.add(b).relu().sum();
 
-        OptimizerState result = new PartitionIntentRule().apply(OptimizerState.ofGraph(root.topologicalSort(), root));
+        CompiledGraph result = CompiledGraph.compile(root, CompileConfig.inference());
 
-        assertEquals(1, result.partitions().size());
-        Partition partition = result.partitions().getFirst();
+        assertEquals(1, result.compileArtifacts().partitions().size());
+        Partition partition = result.compileArtifacts().partitions().getFirst();
         assertEquals(ExecutionRegionKind.CPU_EXECUTION, partition.regionKind());
         assertEquals(PartitionPlannerStrategy.CPU_NATURAL_EXECUTION_REGION, partition.plannerStrategy());
         assertTrue(partition.orderedNodeIds().size() >= 3);
@@ -87,7 +88,7 @@ class CpuNaturalExecutionRegionPlannerTest {
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "b", DataType.FLOAT32);
         Tensor root = a.add(b).relu().sum();
 
-        CompiledGraph enabled = CompiledGraph.compile(root, OptimizerConfig.inferenceDefaults());
+        CompiledGraph enabled = CompiledGraph.compile(root, CompileConfig.inference());
 
         assertEquals(1, enabled.compileArtifacts().partitions().size());
         assertEquals(
@@ -97,7 +98,9 @@ class CpuNaturalExecutionRegionPlannerTest {
 
         CompiledGraph disabled = CompiledGraph.compile(
                 root,
-                OptimizerConfig.inferenceDefaults().withCpuRegion(CpuRegionConfig.off())
+                CompileConfig.inference().withBackendPlanning(
+                        CompileConfig.inference().backendPlanning().withCpuRegions(CpuRegionConfig.off())
+                )
         );
 
         assertTrue(disabled.compileArtifacts().partitions().isEmpty());
@@ -111,7 +114,7 @@ class CpuNaturalExecutionRegionPlannerTest {
 
         CompiledGraph compiled = CompiledGraph.compile(
                 root,
-                OptimizerConfig.inferenceDefaults().withOffload(OffloadConfig.acceleratorScored())
+                CompileConfig.inference().withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withOwnershipPlanner(config.compile.RegionOwnershipPlannerStrategy.SCORED))
         );
 
         assertTrue(compiled.compileArtifacts().partitions().stream()
@@ -125,14 +128,15 @@ class CpuNaturalExecutionRegionPlannerTest {
         Tensor b = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
         Tensor root = a.matmul(b).relu();
 
-        OptimizerState result = new PartitionIntentRule(
-                PartitionConfig.defaults(),
-                OffloadConfig.defaults(),
-                CpuRegionConfig.elementwiseIslands()
-        ).apply(OptimizerState.ofGraph(root.topologicalSort(), root));
+        CompiledGraph result = CompiledGraph.compile(
+                root,
+                CompileConfig.inference().withBackendPlanning(
+                        CompileConfig.inference().backendPlanning().withCpuRegions(CpuRegionConfig.elementwiseIslands())
+                )
+        );
 
-        assertEquals(1, result.partitions().size());
-        Partition partition = result.partitions().getFirst();
+        assertEquals(1, result.compileArtifacts().partitions().size());
+        Partition partition = result.compileArtifacts().partitions().getFirst();
         assertEquals(List.of(3), partition.orderedNodeIds());
     }
 

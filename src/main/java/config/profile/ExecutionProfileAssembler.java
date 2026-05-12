@@ -48,7 +48,7 @@ public final class ExecutionProfileAssembler {
                 candidateName,
                 dataType,
                 executionMode,
-                graphPolicy.optimizer(),
+                graphPolicy.compile(),
                 runtimeProfile.toRuntimeConfig(),
                 workload
         );

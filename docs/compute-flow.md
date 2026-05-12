@@ -631,13 +631,13 @@ Compile does the structural work:
 8. Complete lowering-ready optimizer state and memory planning when partitions require it.
 9. Publish a `CompileTrace`.
 
-Default optimizer stage order for both inference and training is:
+Default compile flow for both inference and training is:
 
 ```text
-AR -> CSE -> PART -> FUSE -> MEM
+semantic canonicalization -> graph optimization -> backend planning -> region optimization -> memory planning
 ```
 
-`OptimizerConfig.noOptimization()` uses an empty stage list. That means no memory plan is produced in the simple no-optimization path verified below.
+`CompileConfig.noGraphOptimization()` disables graph rewrite/cleanup only. It does not disable backend planning, region optimization, memory planning required by prepare invariants, or runtime backend selection.
 
 ```mermaid
 flowchart TD
@@ -646,10 +646,10 @@ flowchart TD
     Canon["SemanticForwardCanonicalizer"]
     BackwardDecision{"Backward needed?"}
     Backward["BackwardGraphBuilder"]
-    Optimizer["GraphOptimizer\nAR, CSE, PART, FUSE, MEM"]
+    Optimizer["GraphOptimizer\nAR, CF, CSE, DCE, LOWER"]
     Snapshot["CompiledNode.snapshot"]
     Gradients["GradientBindingCollector"]
-    Partition["PartitionPlanningSnapshotBuilder"]
+    Partition["BackendPlanningService"]
     LowerReady["completeLoweringReadyOptimizerState"]
     Artifacts["CompileArtifacts"]
 
@@ -724,7 +724,7 @@ Compile can attach backend plans to partitions. Prepare decides which non-CPU pl
 Current lowerer roles:
 
 - `CpuRegionLowerer` lowers CPU regions to `DIRECT_KERNEL`, `BLAS`, or `FUSED_NATIVE` units.
-- `MetalRegionLowerer` lowers selected Metal regions to `METAL_GRAPH_REGION` or `METAL_FUSED_ELEMENTWISE_GRAPH`.
+- `MetalRegionLowerer` lowers selected Metal regions to `METAL_GRAPH_REGION`; fused elementwise subpatterns stay as region-internal metadata.
 - `CudaRegionLowerer` lowers selected CUDA regions to `CUDA_GRAPH_REGION` or `CUDA_FUSED_ELEMENTWISE_GRAPH`.
 
 GPU compound region lowering is the Metal/CUDA path for named multi-node accelerator regions. It currently reports supported `LINEAR_BIAS_ACTIVATION` and `ELEMENTWISE_CHAIN` summaries, while `REDUCTION_ADJACENT` candidates reject explicitly until a verified reduction-adjacent GPU subset exists. `Operation.OpType.FUSED remains CPU-only`; GPU compound lowering does not consume CPU fused ASM/vector operation nodes.

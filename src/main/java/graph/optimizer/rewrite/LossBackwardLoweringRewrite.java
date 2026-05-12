@@ -6,6 +6,7 @@ import operations.layout.expand;
 import operations.layout.expandDims;
 import operations.loss.crossEntropyLossIndicesGrad;
 import operations.reduction.softmax;
+import graph.optimizer.intent.BackendIntentPropagator;
 import tensor.Tensor;
 
 import java.util.List;
@@ -39,6 +40,7 @@ public final class LossBackwardLoweringRewrite extends AbstractRewriteRule {
                 tensor.getDataType()
         );
         lowered.setRequiresGrad(tensor.getRequiresGrad());
+        BackendIntentPropagator.preserve(lowered, tensor);
         return lowered;
     }
 

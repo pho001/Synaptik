@@ -18,7 +18,7 @@ import java.util.Map;
  * {@link #rewriteTensor(Tensor)}, preserves backward markings, fixes gradient references, and rebuilds the observable
  * closure by default. Subclasses only decide whether a tensor should be replaced.
  */
-abstract class AbstractRewriteRule implements OptimizationRule {
+public abstract class AbstractRewriteRule implements OptimizationRule {
     /**
      * Applies the rewrite to every tensor in topological order.
      *

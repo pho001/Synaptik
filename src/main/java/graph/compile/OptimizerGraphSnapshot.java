@@ -111,6 +111,7 @@ public final class OptimizerGraphSnapshot {
                 original.getDataType()
         );
         clone.setRequiresGrad(original.getRequiresGrad());
+        clone.setTrainableParameter(original.isTrainableParameter());
         TensorInternalAccess.setBackward(clone, original.isBackward());
         TensorInternalAccess.setBackend(clone, original.resolveBackend());
         TensorInternalAccess.setBackwardFunction(clone, TensorInternalAccess.backwardFunction(original));

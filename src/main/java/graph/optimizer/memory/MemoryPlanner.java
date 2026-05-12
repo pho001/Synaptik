@@ -186,7 +186,7 @@ public final class MemoryPlanner {
                 continue;
             }
             RuntimeMemoryBindingPolicy policy = switch (operation.opType()) {
-                case MAX_POOL2D, MAX_POOL2D_BACKWARD_INPUT ->
+                case MAX_POOL2D ->
                         RuntimeMemoryBindingPolicy.skip("workspace-sensitive-storage");
                 default -> RuntimeMemoryBindingPolicy.REGION_BINDING_ALLOWED;
             };

@@ -13,35 +13,22 @@ Output:
 The optimizer does not execute kernels.
 It also does not decide prepared-execution dispatch knobs such as vector width, worker count, BLAS thresholds, or approximation mode.
 
-## Public Stage Model
+## Graph Optimization Model
 
-The user-facing stage names are currently:
+`OptimizerFactory` now owns only backend-neutral graph optimization:
 
-1. `AR`
-2. `CSE`
-3. `FUSE`
-4. `MEM`
+- algebraic/light canonical rewrites
+- constant folding
+- common subexpression elimination
+- dead-code elimination
+- optional backend-neutral lowering
 
-`OptimizerFactory` maps them to:
+Backend ownership planning, region optimization, and memory planning are compile-flow responsibilities owned by
+`CompileConfig`, `BackendPlanningConfig`, `RegionOptimizationConfig`, and `MemoryPlanningConfig`.
 
-- `AR` -> rewrite family
-- `CSE` -> common subexpression elimination
-- `FUSE` -> graph-level elementwise fusion
-- `MEM` -> memory planning and reuse
-
-Default presets:
-
-- `OptimizerConfig.noOptimization()`
-  - no stages
-- `OptimizerConfig.trainingDefaults()`
-  - `AR -> CSE -> MEM`
-- `OptimizerConfig.inferenceDefaults()`
-  - `AR -> CSE -> FUSE -> MEM`
-
-So today:
-
-- training defaults do not enable graph fusion
-- inference defaults do enable graph fusion
+The contiguous cleanup block `AR -> CF -> CSE -> DCE` is executed by `CleanupFixpointRule`, not as four one-shot
+passes. The loop stops when the graph fingerprint is stable, when the max iteration count is reached, or when the next
+iteration does not improve the structural graph score.
 
 ## What The Optimizer Owns
 
@@ -50,13 +37,15 @@ The optimizer owns graph structure.
 Typical examples:
 
 - replace `x + 0` with `x`
-- lower `matmul + bias` into `LINEAR`
-- replace `softmax` gradient patterns with `SOFTMAX_GRAD`
-- fuse a chain like `relu(add(mul(x, y), b))` into one `FUSED` node
-- plan memory reuse after final graph shape is known
+- fold small constant-only expressions
+- remove nodes unreachable from forward output or gradient publication roots
+- lower backend-neutral compound operations when optional lowering is enabled
 
 The optimizer does not own:
 
+- backend ownership/partition planning
+- region fusion/execution-unit planning
+- memory reuse planning
 - vector widths
 - worker counts
 - matmul tile thresholds
@@ -67,23 +56,24 @@ Those belong to the runtime profile, backend planners, and the tuning layer.
 
 ## Current Execution Model
 
-`GraphOptimizer` is a single-pass ordered pipeline.
+`GraphOptimizer` is an ordered pipeline, but cleanup is a nested fixpoint stage.
 
 A stage order such as:
 
 ```text
-AR -> CSE -> FUSE -> MEM
+CLEANUP_FIXPOINT(AR -> CF -> CSE -> DCE) -> LOWER -> PART -> FUSE -> MEM
 ```
 
-is executed exactly once in that order:
+is executed as:
 
-1. run `AR`
-2. run `CSE`
-3. run `FUSE`
-4. run `MEM`
+1. repeat `AR`, `CF`, `CSE`, `DCE` until stable/improvement stops/max iterations
+2. run `LOWER`
+3. run `PART`
+4. run `FUSE`
+5. run `MEM`
 
-There is no outer fixpoint loop around the stage sequence.
-If a future optimization needs iterative behavior, it should live inside the specific stage that owns that transformation rather than by replaying the whole public pipeline.
+Heavy executable/decomposition lowering is not part of `AR`. Backend-neutral operation lowering runs in `LOWER`;
+backend-specific executable lowering still happens later, where the target backend and region contract are known.
 
 ## Snapshot Boundary
 
@@ -117,23 +107,32 @@ Those helpers are what make local rewrites safe in a larger mutable graph snapsh
 
 ### `AR`
 
-Composite rewrite/lowering stage.
+Algebraic and light canonical rewrite stage.
 
 Owns:
 
 - algebraic simplification
 - piecewise canonicalization
-- structural lowerings into primitives such as:
-  - `LINEAR`
-  - `SOFTMAX_GRAD`
-  - `LOG_SOFTMAX_GRAD`
-  - `CROSS_ENTROPY_LOSS_INDICES`
-  - `CROSS_ENTROPY_LOSS_INDICES_GRAD`
-  - `SCALED_DOT_PRODUCT_ATTENTION`
-  - `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD`
-  - optional conv2d GEMM lowerings
+- cheap local canonical forms that do not need backend ownership context
+
+Does not own:
+
+- `matmul + bias -> LINEAR`
+- loss/attention/reduction decomposition
+- conv2d GEMM lowering
+- backend-specific executable primitive selection
 
 See [AR.md](./AR.md).
+
+### `CF`
+
+Deterministic constant folding for small pure constant subgraphs.
+
+Owns:
+
+- scalar known-constant elementwise evaluation
+- safe boolean predicate folding
+- preserving dtype semantics while replacing folded operation nodes with leaf constants
 
 ### `CSE`
 
@@ -146,6 +145,32 @@ Owns:
 - redirect the others
 
 See [CSE.md](./CSE.md).
+
+### `DCE`
+
+Dead-code elimination.
+
+Owns:
+
+- keeping forward output reachable
+- keeping gradient publication roots reachable
+- removing disconnected compile-only intermediates
+
+### `LOWER`
+
+Backend-neutral operation lowering.
+
+Owns:
+
+- `matmul + bias -> LINEAR`
+- loss/reduction/attention specialized operation surfaces
+- optional conv2d GEMM primitive lowering according to rewrite config
+
+Does not own:
+
+- selecting CUDA/Metal/CPU executable primitives
+- region-internal backend fusion
+- device buffer/layout planning
 
 ### `FUSE`
 
@@ -185,20 +210,30 @@ z = exp(log(x)).add(0)
 
 After that, later stages can act on the already simplified graph:
 
+- `CF` can fold constant-only subgraphs exposed by `AR`
 - `CSE` can collapse duplicates that remain after rewriting
+- `DCE` can remove nodes made unreachable by replacements
+- `LOWER` can create backend-neutral specialized operation surfaces
 - `FUSE` can group surviving elementwise chains
 - `MEM` can plan reuse on the final graph shape
 
-The important point is that these interactions happen inside one ordered optimizer pass, not by replaying the whole stage sequence multiple times.
+The cleanup stages are replayed by `CleanupFixpointRule` until stable or no longer improving. `LOWER`, `PART`, `FUSE`,
+and `MEM` still run after cleanup.
 
 ## What To Change When
 
 Use this rule of thumb:
 
-- new algebraic identity or pattern lowering:
+- new algebraic identity or light canonical pattern:
   - `AR`
+- deterministic small constant evaluation:
+  - `CF`
 - duplicate elimination:
   - `CSE`
+- unreachable graph cleanup:
+  - `DCE`
+- backend-neutral op surface lowering:
+  - `LOWER`
 - elementwise cluster profitability:
   - `FUSE`
 - allocation/reuse policy:

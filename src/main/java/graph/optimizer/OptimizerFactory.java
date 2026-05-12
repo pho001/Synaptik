@@ -1,12 +1,13 @@
 package graph.optimizer;
 
-import config.optimizer.OptimizerConfig;
-import config.optimizer.OptimizerStage;
+import config.compile.GraphOptimizationConfig;
+import config.compile.SemanticCanonicalizationConfig;
+import graph.optimizer.cf.ConstantFoldingRule;
+import graph.optimizer.cleanup.CleanupFixpointRule;
 import graph.optimizer.cse.CommonSubexpressionEliminationRule;
-import graph.optimizer.memory.MemoryOptimizerRule;
-import graph.optimizer.partition.PartitionIntentRule;
+import graph.optimizer.dce.DeadCodeEliminationRule;
 import graph.SemanticForwardCanonicalizer;
-import graph.optimizer.region.RegionOptimizationRule;
+import graph.optimizer.rewrite.LoweringRule;
 import graph.optimizer.rewrite.RewriteRule;
 
 import java.util.ArrayList;
@@ -14,64 +15,61 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Builds optimizer pipelines from {@link OptimizerConfig}.
- *
- * <p>The factory is the single place that maps configured {@link OptimizerStage} values to rule implementations:
- * rewrite ({@code AR}), common subexpression elimination ({@code CSE}), partition planning ({@code PART}), region
- * fusion ({@code FUSE}), and memory planning ({@code MEM}). The returned rules are ordered exactly as requested by the
- * configuration.
+ * Builds backend-neutral graph optimization pipelines.
  */
 public final class OptimizerFactory {
     private OptimizerFactory() {}
 
     /**
-     * Creates a graph optimizer for the configured stage order.
+     * Creates a graph optimizer for backend-neutral graph optimization only.
      *
-     * @param config optimizer configuration
-     * @return optimizer with one rule per configured stage
+     * @param config graph optimization configuration
+     * @return optimizer containing only graph rewrite/cleanup/lowering rules
      */
-    public static GraphOptimizer create(OptimizerConfig config) {
+    public static GraphOptimizer create(GraphOptimizationConfig config) {
         Objects.requireNonNull(config, "config cannot be null");
-        List<OptimizationRule> rules = new ArrayList<>(config.stageOrder().size());
-        for (OptimizerStage stage : config.stageOrder()) {
-            rules.add(createRule(stage, config));
+        List<OptimizationRule> rules = new ArrayList<>();
+        List<OptimizationRule> cleanup = new ArrayList<>(4);
+        if (config.algebraicRewrite()) {
+            cleanup.add(new RewriteRule(config.rewrite()));
+        }
+        if (config.constantFolding()) {
+            cleanup.add(new ConstantFoldingRule());
+        }
+        if (config.commonSubexpressionElimination()) {
+            cleanup.add(new CommonSubexpressionEliminationRule(config.cse()));
+        }
+        if (config.deadCodeElimination()) {
+            cleanup.add(new DeadCodeEliminationRule());
+        }
+        flushCleanup(rules, cleanup);
+        if (config.optionalLowering()) {
+            rules.add(new LoweringRule(config.rewrite()));
         }
         return new GraphOptimizer(rules);
     }
 
     /**
-     * Creates the semantic forward canonicalizer associated with the rewrite configuration.
+     * Creates the semantic forward canonicalizer for the compile contract.
      *
-     * @param config optimizer configuration
-     * @return canonicalizer used before full graph compilation
+     * @param config semantic canonicalization configuration
+     * @return canonicalizer, or {@code null} when semantic canonicalization is explicitly disabled
      */
-    public static SemanticForwardCanonicalizer createSemanticForwardCanonicalizer(OptimizerConfig config) {
+    public static SemanticForwardCanonicalizer createSemanticForwardCanonicalizer(SemanticCanonicalizationConfig config) {
         Objects.requireNonNull(config, "config cannot be null");
-        return new SemanticForwardCanonicalizer(config.rewrite());
+        return config.enabled() ? new SemanticForwardCanonicalizer(config.rewrite()) : null;
     }
 
-    /**
-     * Creates optimizer rules without wrapping them in a {@link GraphOptimizer}.
-     *
-     * @param config optimizer configuration
-     * @return immutable rules in configured stage order
-     */
-    public static List<OptimizationRule> createRules(OptimizerConfig config) {
-        Objects.requireNonNull(config, "config cannot be null");
-        List<OptimizationRule> rules = new ArrayList<>(config.stageOrder().size());
-        for (OptimizerStage stage : config.stageOrder()) {
-            rules.add(createRule(stage, config));
+    private static void flushCleanup(List<OptimizationRule> rules, List<OptimizationRule> cleanup) {
+        if (cleanup.isEmpty()) {
+            return;
         }
-        return List.copyOf(rules);
+        if (cleanup.size() == 1) {
+            rules.add(cleanup.getFirst());
+        } else {
+            rules.add(new CleanupFixpointRule(cleanup));
+        }
+        cleanup.clear();
     }
 
-    private static OptimizationRule createRule(OptimizerStage stage, OptimizerConfig config) {
-        return switch (stage) {
-            case AR -> new RewriteRule(config.rewrite());
-            case CSE -> new CommonSubexpressionEliminationRule(config.cse());
-            case PART -> new PartitionIntentRule(config.partition(), config.offload(), config.cpuRegion());
-            case FUSE -> new RegionOptimizationRule(config.fuse(), config.cpuFusion());
-            case MEM -> new MemoryOptimizerRule(graph.optimizer.memory.MemoryPlannerPolicy.fromConfig(config.memory()));
-        };
-    }
 }

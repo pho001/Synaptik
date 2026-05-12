@@ -2,7 +2,7 @@ package graph.optimizer.memory;
 
 import backend.runtime.ExecutionMode;
 import config.optimizer.FuseConfig;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import graph.CompiledGraph;
 import graph.CompiledNode;
 import graph.execution.trace.PartitionDecisionTrace;
@@ -188,7 +188,7 @@ class MemoryPlannerRegionViewTest {
         b.setRequiresGrad(true);
 
         Tensor min = a.minimum(b);
-        CompiledGraph compiled = CompiledGraph.compile(min, OptimizerConfig.trainingDefaults());
+        CompiledGraph compiled = CompiledGraph.compile(min, CompileConfig.training());
 
         Method compiledMemoryPlan = CompiledGraph.class.getDeclaredMethod("compiledMemoryPlan");
         compiledMemoryPlan.setAccessible(true);

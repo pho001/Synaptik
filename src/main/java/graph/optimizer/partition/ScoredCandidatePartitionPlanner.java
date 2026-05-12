@@ -1,6 +1,8 @@
 package graph.optimizer.partition;
 
 import graph.CompiledNode;
+import graph.compile.descriptor.CompiledTensorDescriptor;
+import graph.compile.descriptor.LayoutClass;
 import graph.execution.trace.PartitionCompileTrace;
 import graph.execution.trace.PartitionDecisionTrace;
 import graph.optimizer.partition.cost.AcceleratorPartitionScoreModel;
@@ -428,14 +430,14 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
         long outputBytes = 0L;
         long avoidedIntermediateBytes = 0L;
         for (int nodeId : candidate.externalInputIds()) {
-            inputBytes += nodeBytes(context.compiledNode(nodeId));
+            inputBytes += nodeBytes(context.descriptor(nodeId));
         }
         for (int nodeId : candidate.outputNodeIds()) {
-            outputBytes += nodeBytes(context.compiledNode(nodeId));
+            outputBytes += nodeBytes(context.descriptor(nodeId));
         }
         for (int nodeId : candidate.orderedNodeIds()) {
             if (!outputs.contains(nodeId)) {
-                avoidedIntermediateBytes += nodeBytes(context.compiledNode(nodeId));
+                avoidedIntermediateBytes += nodeBytes(context.descriptor(nodeId));
             }
         }
         return new AcceleratorPartitionScoreModel.TransferMetrics(inputBytes, outputBytes, avoidedIntermediateBytes);
@@ -461,28 +463,28 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
     private long layoutFallbackBytesFor(PartitionCandidate candidate, PartitionPlanningContext context) {
         long bytes = 0L;
         for (int nodeId : candidate.externalInputIds()) {
-            CompiledNode node = context.compiledNode(nodeId);
-            if (requiresDenseInputMaterialization(node)) {
-                bytes += nodeBytes(node);
+            CompiledTensorDescriptor descriptor = context.descriptor(nodeId);
+            if (requiresDenseInputMaterialization(descriptor)) {
+                bytes += nodeBytes(descriptor);
             }
         }
         for (int nodeId : candidate.orderedNodeIds()) {
             CompiledNode node = context.compiledNode(nodeId);
             if (isExplicitDenseLayoutMaterialization(node)) {
-                bytes += nodeBytes(node);
+                bytes += nodeBytes(context.descriptor(nodeId));
             }
         }
         for (int nodeId : candidate.outputNodeIds()) {
-            CompiledNode node = context.compiledNode(nodeId);
-            if (node != null && (!node.contiguous() || node.hasStorageOffset())) {
-                bytes += nodeBytes(node);
+            CompiledTensorDescriptor descriptor = context.descriptor(nodeId);
+            if (descriptor != null && (!descriptor.contiguous() || descriptor.hasStorageOffset())) {
+                bytes += nodeBytes(descriptor);
             }
         }
         return bytes;
     }
 
-    private static boolean requiresDenseInputMaterialization(CompiledNode node) {
-        return node != null && (!node.contiguous() || node.hasStorageOffset());
+    private static boolean requiresDenseInputMaterialization(CompiledTensorDescriptor descriptor) {
+        return descriptor != null && (!descriptor.contiguous() || descriptor.hasStorageOffset());
     }
 
     private static boolean isExplicitDenseLayoutMaterialization(CompiledNode node) {
@@ -498,14 +500,17 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
         boolean hasStrided = false;
         boolean hasOffset = false;
         for (int nodeId : candidate.outputNodeIds()) {
-            CompiledNode node = context.compiledNode(nodeId);
-            if (node == null) {
+            CompiledTensorDescriptor descriptor = context.descriptor(nodeId);
+            if (descriptor == null) {
                 continue;
             }
-            if (!node.contiguous()) {
+            if (descriptor.layoutClass() == LayoutClass.BROADCAST_ZERO_STRIDE) {
+                return "BROADCAST_ZERO_STRIDE";
+            }
+            if (!descriptor.contiguous()) {
                 hasStrided = true;
             }
-            if (node.hasStorageOffset()) {
+            if (descriptor.hasStorageOffset()) {
                 hasOffset = true;
             }
         }
@@ -518,24 +523,11 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
         return "DENSE_CONTIGUOUS";
     }
 
-    private static long nodeBytes(CompiledNode node) {
-        if (node == null) {
+    private static long nodeBytes(CompiledTensorDescriptor descriptor) {
+        if (descriptor == null) {
             return 0L;
         }
-        return (long) node.flatDataSize() * elementByteSize(node.dataType());
-    }
-
-    private static int elementByteSize(tensor.DataType dataType) {
-        if (dataType == null) {
-            return 0;
-        }
-        return switch (dataType) {
-            case FLOAT64 -> Double.BYTES;
-            case FLOAT32 -> Float.BYTES;
-            case BFLOAT16 -> Short.BYTES;
-            case BOOL -> Byte.BYTES;
-            case INT32 -> Integer.BYTES;
-        };
+        return descriptor.logicalByteLength();
     }
 
     private boolean isBetterStructural(

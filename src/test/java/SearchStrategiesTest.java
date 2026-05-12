@@ -70,7 +70,7 @@ public class SearchStrategiesTest {
                 "base",
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -132,7 +132,7 @@ public class SearchStrategiesTest {
                 "tree",
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -195,7 +195,7 @@ public class SearchStrategiesTest {
                 "tree-report",
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -239,7 +239,7 @@ public class SearchStrategiesTest {
                 "best-first",
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -294,7 +294,7 @@ public class SearchStrategiesTest {
                 "bb",
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -418,7 +418,7 @@ public class SearchStrategiesTest {
                         name,
                         tensor.DataType.FLOAT64,
                         ExecutionMode.FORWARD,
-                        config.optimizer.OptimizerConfig.noOptimization(),
+                        config.compile.CompileConfig.noGraphOptimizationBaseline(),
                         config.runtime.RuntimeConfig.inferenceDefaults(),
                         WorkloadProfile.none()
                 )

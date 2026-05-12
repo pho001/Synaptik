@@ -31,15 +31,9 @@ public class GraphAutotuneCandidateSpaceTest {
 
         assertTrue(candidates.size() > 1);
         assertTrue(candidates.stream().anyMatch(candidate -> candidate.name().equals("graphPolicy=current")));
-        assertTrue(candidates.stream().anyMatch(candidate -> candidate.name().equals("acceleratorBuffer=off")));
-        assertTrue(candidates.stream().anyMatch(candidate -> candidate.name().equals("acceleratorBuffer=auto")));
+        assertTrue(candidates.stream().anyMatch(candidate -> candidate.name().contains("backendDiscovery=auto")));
         assertTrue(candidates.stream().allMatch(candidate -> candidate.kind() == CandidateKind.GRAPH_STANDARD));
-        assertTrue(candidates.stream()
-                .filter(candidate -> !candidate.name().startsWith("acceleratorBuffer="))
-                .allMatch(candidate -> candidate.metadata().runtimeFrozen()));
-        assertTrue(candidates.stream()
-                .filter(candidate -> candidate.name().startsWith("acceleratorBuffer="))
-                .allMatch(candidate -> !candidate.metadata().runtimeFrozen()));
+        assertTrue(candidates.stream().allMatch(candidate -> candidate.metadata().runtimeFrozen()));
         assertTrue(candidates.stream().allMatch(candidate -> candidate.metadata().productionEligible()));
         assertTrue(candidates.stream()
                 .filter(candidate -> candidate.name().equals("graphPolicy=current"))
@@ -52,7 +46,7 @@ public class GraphAutotuneCandidateSpaceTest {
     }
 
     @Test
-    void standardModeGeneratesAcceleratorBufferRuntimeCandidates() {
+    void standardModeKeepsRuntimeFixed() {
         var seed = seedProfile();
         var runtime = PlatformRuntimeProfile.fromExecutionProfile("platform", "hardware", "TEST", seed);
         var candidates = new GraphAutotuneCandidateSpace(
@@ -64,27 +58,18 @@ public class GraphAutotuneCandidateSpaceTest {
                 GraphAutotuneMode.STANDARD
         ).generate(workload());
 
-        var off = candidates.stream()
-                .filter(candidate -> candidate.name().equals("acceleratorBuffer=off"))
-                .findFirst()
-                .orElseThrow();
         var auto = candidates.stream()
-                .filter(candidate -> candidate.name().equals("acceleratorBuffer=auto"))
+                .filter(candidate -> candidate.name().contains("backendDiscovery=auto"))
                 .findFirst()
                 .orElseThrow();
 
-        assertEquals("accelerator-buffer", off.metadata().parameterFamily());
-        assertEquals("buffer-off", off.metadata().parameterVariant());
-        assertEquals("OFF", off.metadata().attributes().get("acceleratorBufferBindingMode"));
-        assertEquals("GRAPH_WORKLOAD", off.metadata().attributes().get("knobOwner"));
-        assertTrue(off.metadata().attributes().get("knobAssignments")
-                .contains("runtime.accelerator.metal.buffer.bindingMode"));
-        assertEquals(config.runtime.AcceleratorBufferBindingMode.OFF,
-                off.profile().runtime().accelerator().metal().buffer().bindingMode());
-        assertEquals(config.runtime.AcceleratorBufferBindingMode.AUTO,
-                auto.profile().runtime().accelerator().metal().buffer().bindingMode());
-        assertEquals(runtime.toRuntimeConfig().blas(), off.profile().runtime().blas());
-        assertEquals(GraphExecutionPolicy.fromExecutionProfile(seed).optimizer(), off.profile().optimizer());
+        assertEquals("BACKEND_DISCOVERY_POLICY", auto.metadata().parameterFamily());
+        assertEquals("GRAPH_WORKLOAD", auto.metadata().attributes().get("knobOwner"));
+        assertTrue(auto.metadata().attributes().get("knobAssignments")
+                .contains("compile.backendPlanning.discoveryMode"));
+        assertEquals(runtime.toRuntimeConfig().accelerator(), auto.profile().runtime().accelerator());
+        assertEquals(runtime.toRuntimeConfig().blas(), auto.profile().runtime().blas());
+        assertEquals("AUTO", auto.profile().compile().backendPlanning().discoveryMode().name());
     }
 
     @Test
@@ -112,7 +97,7 @@ public class GraphAutotuneCandidateSpaceTest {
                 expectedRuntime.cpuKernelConfig().cheapVectorMinSize(),
                 candidate.profile().runtime().cpuKernelConfig().cheapVectorMinSize()
         );
-        assertEquals(policy.optimizer(), candidate.profile().optimizer());
+        assertEquals(policy.compile(), candidate.profile().compile());
     }
 
     @Test
@@ -139,7 +124,7 @@ public class GraphAutotuneCandidateSpaceTest {
     }
 
     @Test
-    void graphAutotuneMarksAcceleratorBufferModeAsGraphOwned() {
+    void graphAutotuneMarksBackendPlanningAsGraphOwned() {
         var seed = seedProfile();
         var candidate = new GraphAutotuneCandidateSpace(
                 "graph-standard",
@@ -149,17 +134,17 @@ public class GraphAutotuneCandidateSpaceTest {
                 GraphExecutionPolicy.fromExecutionProfile(seed),
                 GraphAutotuneMode.STANDARD
         ).generate(workload()).stream()
-                .filter(generated -> generated.name().equals("acceleratorBuffer=auto"))
+                .filter(generated -> generated.name().contains("backendDiscovery=auto"))
                 .findFirst()
                 .orElseThrow();
 
         assertEquals("GRAPH_WORKLOAD", candidate.metadata().attributes().get("knobOwner"));
         assertTrue(candidate.metadata().attributes().get("knobAssignments")
-                .contains("runtime.accelerator.cuda.buffer.bindingMode"));
-        assertTrue(candidate.metadata().attributes().get("knobAssignments")
-                .contains("runtime.accelerator.opencl.buffer.bindingMode"));
-        assertTrue(candidate.metadata().attributes().get("knobAssignments")
-                .contains("runtime.accelerator.metal.buffer.bindingMode"));
+                .contains("compile.backendPlanning.discoveryMode"));
+        assertEquals(
+                PlatformRuntimeProfile.fromExecutionProfile("platform", "hardware", "TEST", seed).toRuntimeConfig().accelerator(),
+                candidate.profile().runtime().accelerator()
+        );
     }
 
     @Test
@@ -191,7 +176,7 @@ public class GraphAutotuneCandidateSpaceTest {
                 "seed",
                 DataType.FLOAT64,
                 ExecutionMode.FORWARD_BACKWARD,
-                config.optimizer.OptimizerConfig.trainingDefaults(),
+                config.compile.CompileConfig.training(),
                 config.runtime.RuntimeConfig.trainingDefaults()
         );
     }

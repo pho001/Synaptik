@@ -1,6 +1,6 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
-import config.optimizer.OptimizerStage;
+import config.compile.CompileConfig;
+import config.compile.GraphOptimizationConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.optimizer.memory.MemoryOptimizerRule;
@@ -24,7 +24,7 @@ public class MemoryOptimizerRuleDataTypeTest {
         double[] bData = new double[]{1.2, 1.22, 1.24, 1.26, 1.28, 1.30, 1.32, 1.34};
         double[] cData = new double[]{0.2, 0.21, 0.22, 0.23, 0.24, 0.25, 0.26, 0.27};
 
-        RunResult baseline = runSequence(aData, bData, cData, dataType, OptimizerConfig.trainingDefaults());
+        RunResult baseline = runSequence(aData, bData, cData, dataType, CompileConfig.training());
 
         RunResult mem = runSequence(aData, bData, cData, dataType, memOnlyTrainingConfig());
 
@@ -55,7 +55,7 @@ public class MemoryOptimizerRuleDataTypeTest {
         assertSame(graph, out);
     }
 
-    private static RunResult runSequence(double[] aData, double[] bData, double[] cData, DataType dataType, OptimizerConfig optimizerConfig) {
+    private static RunResult runSequence(double[] aData, double[] bData, double[] cData, DataType dataType, CompileConfig optimizerConfig) {
         Tensor A = new Tensor(aData.clone(), new int[]{aData.length}, null, "A", dataType);
         Tensor B = new Tensor(bData.clone(), new int[]{bData.length}, null, "B", dataType);
         Tensor C = new Tensor(cData.clone(), new int[]{cData.length}, null, "C", dataType);
@@ -86,7 +86,7 @@ public class MemoryOptimizerRuleDataTypeTest {
 
     private record RunResult(double[] out, double[] gradA, double[] gradB, double[] gradC) {}
 
-    private static OptimizerConfig memOnlyTrainingConfig() {
-        return OptimizerConfig.trainingDefaults().withStageOrder(java.util.List.of(OptimizerStage.PART, OptimizerStage.FUSE, OptimizerStage.MEM));
+    private static CompileConfig memOnlyTrainingConfig() {
+        return CompileConfig.training().withGraphOptimization(GraphOptimizationConfig.noGraphOptimization());
     }
 }

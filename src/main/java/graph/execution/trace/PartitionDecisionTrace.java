@@ -1,5 +1,7 @@
 package graph.execution.trace;
 
+import graph.optimizer.cost.CostComponent;
+import graph.optimizer.cost.CostScore;
 import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.partition.PartitionPlannerStrategy;
 import graph.optimizer.partition.cost.AcceleratorPartitionScoreModel;
@@ -129,6 +131,52 @@ public record PartitionDecisionTrace(
             layoutFallbackBytes = Math.max(0L, layoutFallbackBytes);
             estimatedComputeWork = Math.max(0L, estimatedComputeWork);
             preset = preset == null ? "" : preset;
+        }
+
+        /**
+         * Exports this finalist summary through the shared cost vocabulary.
+         *
+         * <p>This is report-only. It does not change partition planning or backend selection.</p>
+         *
+         * @return shared cost score explanation input
+         */
+        public CostScore toCostScore() {
+            return CostScore.of(
+                    "AcceleratorPartitionCostModel",
+                    "accelerator-partition-finalist",
+                    List.of(
+                            CostComponent.higherIsBetter(
+                                    "finalScore",
+                                    finalScore,
+                                    "materialization-aware accelerator partition finalist score"
+                            ),
+                            CostComponent.higherIsBetter(
+                                    "estimatedComputeWork",
+                                    estimatedComputeWork,
+                                    "larger accelerator work can amortize dispatch and transfer cost"
+                            ),
+                            CostComponent.lowerIsBetter(
+                                    "boundaryCount",
+                                    boundaryCount,
+                                    "CPU/accelerator boundaries introduce handoff cost"
+                            ),
+                            CostComponent.lowerIsBetter(
+                                    "estimatedTransferBytes",
+                                    estimatedTransferBytes,
+                                    "estimated bytes copied across accelerator boundaries"
+                            ),
+                            CostComponent.lowerIsBetter(
+                                    "layoutFallbackBytes",
+                                    layoutFallbackBytes,
+                                    "bytes affected by layout fallback or dense materialization"
+                            ),
+                            CostComponent.informational(
+                                    "preset",
+                                    0.0d,
+                                    preset
+                            )
+                    )
+            );
         }
     }
 }

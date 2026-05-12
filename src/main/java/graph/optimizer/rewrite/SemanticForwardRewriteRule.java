@@ -35,7 +35,6 @@ public final class SemanticForwardRewriteRule implements OptimizationRule {
             configured.add(new LinearLoweringRewrite());
         }
         configured.add(new LossForwardLoweringRewrite());
-        configured.add(new AttentionLoweringRewrite());
         this.delegates = List.copyOf(configured);
     }
 

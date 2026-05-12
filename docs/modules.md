@@ -169,7 +169,8 @@ Key compile classes:
 - `graph.compile.BackwardGraphBuilder` builds backward graph nodes when training mode requires them.
 - `graph.compile.GradientBindingCollector` captures semantic-to-compiled gradient bindings.
 - `graph.compile.OptimizerGraphSnapshot` creates snapshot graphs for optimizer passes.
-- `graph.compile.PartitionPlanningSnapshotBuilder` derives partition and backend candidate artifacts.
+- `graph.compile.BackendPlanningService` derives partition and backend candidate artifacts.
+- `graph.compile.BackendPlanningJobResolver` is the single backend planning job resolver.
 
 Key execution classes:
 

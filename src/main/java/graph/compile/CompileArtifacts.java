@@ -3,6 +3,7 @@ package graph.compile;
 import graph.CompiledGradientBinding;
 import graph.CompiledNode;
 import graph.execution.trace.PartitionCompileTrace;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.optimizer.memory.MemoryPlan;
 import graph.optimizer.partition.BackendCandidatePartition;
 import graph.optimizer.partition.Partition;
@@ -24,6 +25,7 @@ import java.util.Objects;
  * @param rootTensor source root tensor that initiated compilation
  * @param finalGraph optimized tensors in execution order
  * @param compiledNodes immutable node snapshots derived from {@code finalGraph}
+ * @param descriptorIndex immutable tensor descriptor index derived from {@code compiledNodes}
  * @param gradientBindings mappings used to publish compiled backward outputs to source tensor gradients
  * @param forwardSeedGradient binding used to seed the root gradient for backward execution
  * @param forwardOutputNode compiled node that represents the forward output value
@@ -40,6 +42,7 @@ public record CompileArtifacts(
         Tensor rootTensor,
         List<Tensor> finalGraph,
         List<CompiledNode> compiledNodes,
+        CompiledTensorDescriptorIndex descriptorIndex,
         Map<Tensor, CompiledGradientBinding> gradientBindings,
         CompiledGradientBinding forwardSeedGradient,
         CompiledNode forwardOutputNode,
@@ -56,6 +59,7 @@ public record CompileArtifacts(
         rootTensor = Objects.requireNonNull(rootTensor, "rootTensor cannot be null");
         finalGraph = List.copyOf(finalGraph == null ? List.of() : finalGraph);
         compiledNodes = List.copyOf(compiledNodes == null ? List.of() : compiledNodes);
+        descriptorIndex = Objects.requireNonNull(descriptorIndex, "descriptorIndex cannot be null");
         gradientBindings = Map.copyOf(gradientBindings == null ? Map.of() : gradientBindings);
         partitions = List.copyOf(partitions == null ? List.of() : partitions);
         backendPlans = List.copyOf(backendPlans == null ? List.of() : backendPlans);

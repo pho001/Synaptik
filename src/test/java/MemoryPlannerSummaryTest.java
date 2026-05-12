@@ -1,4 +1,4 @@
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import graph.CompiledGraph;
 import graph.optimizer.OptimizationRule;
 import graph.optimizer.OptimizerFactory;
@@ -24,7 +24,7 @@ public class MemoryPlannerSummaryTest {
         c.setRequiresGrad(true);
 
         Tensor graph = a.div(b).div(a.sub(c)).add(b.add(c).mul(a.div(b).div(a.sub(c)))).pow(2);
-        CompiledGraph compiled = CompiledGraph.compile(graph, OptimizerConfig.trainingDefaults());
+        CompiledGraph compiled = CompiledGraph.compile(graph, CompileConfig.training());
 
         MemoryPlan plan = MemoryPlanner.plan(compiled.getCompiledGraphAsList(), MemoryPlannerPolicy.defaults());
         String explain = plan.explain();
@@ -56,7 +56,7 @@ public class MemoryPlannerSummaryTest {
         b.setRequiresGrad(true);
 
         Tensor out = a.mul(b).add(a).pow(2.0);
-        new MemoryOptimizerRule().apply(CompiledGraph.compile(out, OptimizerConfig.trainingDefaults()).getCompiledGraphAsList());
+        new MemoryOptimizerRule().apply(CompiledGraph.compile(out, CompileConfig.training()).getCompiledGraphAsList());
 
         assertNotNull(MemoryOptimizerRule.lastPlan());
         assertNotNull(MemoryOptimizerRule.lastSummary());
@@ -73,7 +73,7 @@ public class MemoryPlannerSummaryTest {
         Tensor t2 = t1.sum(1, true);   // size 2
         Tensor out = t2.add(c.reshape(2, 1)); // size 2
 
-        var graph = CompiledGraph.compile(out, OptimizerConfig.noOptimization()).getCompiledGraphAsList();
+        var graph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).getCompiledGraphAsList();
         MemoryPlan strict = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 1));
         MemoryPlan flexible = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, true, 1));
 
@@ -89,7 +89,7 @@ public class MemoryPlannerSummaryTest {
         Tensor t1 = a.add(b);          // size 4
         Tensor out = t1.sum(1, true);  // size 2
 
-        var graph = CompiledGraph.compile(out, OptimizerConfig.noOptimization()).getCompiledGraphAsList();
+        var graph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).getCompiledGraphAsList();
         MemoryPlan smallAllowed = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 1));
         MemoryPlan smallExcluded = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 3));
 
@@ -106,21 +106,17 @@ public class MemoryPlannerSummaryTest {
 
     @Test
     void optimizerFactoryPassesConfiguredMemoryPolicyToMemStage() {
-        var optimizerConfig = OptimizerConfig.trainingDefaults().withMemory(
-                new config.optimizer.MemoryConfig(false, false, true, 16)
+        var optimizerConfig = CompileConfig.training().withMemoryPlanning(
+                new config.compile.MemoryPlanningConfig(true, new config.optimizer.MemoryConfig(false, false, true, 16))
         );
 
-        MemoryOptimizerRule memRule = null;
-        for (OptimizationRule rule : OptimizerFactory.createRules(optimizerConfig)) {
-            if (rule instanceof MemoryOptimizerRule found) {
-                memRule = found;
-                break;
-            }
-        }
+        MemoryOptimizerRule memRule = new MemoryOptimizerRule(
+                MemoryPlannerPolicy.fromConfig(optimizerConfig.memoryPlanning().memory())
+        );
 
         assertNotNull(memRule);
         assertEquals(
-                MemoryPlannerPolicy.fromConfig(optimizerConfig.memory()),
+                MemoryPlannerPolicy.fromConfig(optimizerConfig.memoryPlanning().memory()),
                 memRule.policy()
         );
     }
@@ -144,7 +140,7 @@ public class MemoryPlannerSummaryTest {
         Tensor t2 = t1.sum(1, true);         // size 2
         Tensor out = t2.add(c.reshape(2, 1)); // size 2
 
-        var graph = CompiledGraph.compile(out, OptimizerConfig.noOptimization()).getCompiledGraphAsList();
+        var graph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).getCompiledGraphAsList();
         MemoryPlan strict = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 1));
         MemoryPlan flexible = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, true, 1));
 
@@ -160,7 +156,7 @@ public class MemoryPlannerSummaryTest {
         Tensor t1 = a.add(b);         // size 4
         Tensor out = t1.sum(1, true); // size 2
 
-        var graph = CompiledGraph.compile(out, OptimizerConfig.noOptimization()).getCompiledGraphAsList();
+        var graph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).getCompiledGraphAsList();
         MemoryPlan allIntervals = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 1));
         MemoryPlan largerOnly = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 3));
 

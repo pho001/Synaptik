@@ -27,7 +27,7 @@ public final class CpuRegionOptimizationPolicy implements RegionOptimizationPoli
         }
         if (partition.orderedNodeIds().size() <= context.cpuFusionConfig().maxChainNodes()
                 && RegionOptimizationUnitSupport.shouldFuseWholePartition(partition, context)) {
-            return List.of(RegionOptimizationUnitSupport.buildFusedUnit(partition));
+            return List.of(RegionOptimizationUnitSupport.buildFusedUnit(partition, context));
         }
         return buildMixedCpuUnits(partition, context);
     }
@@ -42,7 +42,7 @@ public final class CpuRegionOptimizationPolicy implements RegionOptimizationPoli
             int nodeId = ordered.get(index);
             CompiledNode node = context.compiledNode(nodeId);
             if (!RegionOptimizationUnitSupport.isSubchainFusable(node)) {
-                out.add(RegionOptimizationUnitSupport.buildSingleOpUnit(partition, nodeId, node, selected, materialized));
+                out.add(RegionOptimizationUnitSupport.buildSingleOpUnit(partition, nodeId, node, selected, materialized, context));
                 index++;
                 continue;
             }
@@ -66,7 +66,7 @@ public final class CpuRegionOptimizationPolicy implements RegionOptimizationPoli
                 out.add(RegionOptimizationUnitSupport.buildFusedSubchainUnit(partition, chain, context, materialized, chainOutputs));
                 index = cursor;
             } else {
-                out.add(RegionOptimizationUnitSupport.buildSingleOpUnit(partition, nodeId, node, selected, materialized));
+                out.add(RegionOptimizationUnitSupport.buildSingleOpUnit(partition, nodeId, node, selected, materialized, context));
                 index++;
             }
         }

@@ -29,9 +29,7 @@ The current delegate order is:
 3. `LinearLoweringRewrite`
 4. `LossLoweringRewrite`
 5. `ReductionLoweringRewrite`
-6. `AttentionLoweringRewrite`
-7. `AttentionBackwardLoweringRewrite`
-8. optional `Conv2dLoweringRewrite`
+6. optional `Conv2dLoweringRewrite`
 
 That order is intentional:
 
@@ -334,45 +332,14 @@ and lowers it to:
 logSoftmaxGrad(logSoftmaxOut, outGrad, dimension)
 ```
 
-## Attention Lowering
+## Attention
 
-Files:
-
-- [rewrite/AttentionLoweringRewrite.java](./rewrite/AttentionLoweringRewrite.java)
-- [rewrite/AttentionBackwardLoweringRewrite.java](./rewrite/AttentionBackwardLoweringRewrite.java)
-
-### Forward attention
-
-Current forward lowering recognizes:
-
-```text
-matmul(
-  softmax(
-    where(mask, mulScalar(matmul(query, permute(key)), scale), fill)
-  ),
-  value
-)
-```
-
-and the same shape without `where(mask, ...)` for unmasked attention.
-
-Lowering target:
-
-```text
-scaledDotProductAttention(query, key, value[, mask], options)
-```
-
-### Backward attention
-
-Current backward lowering recognizes several raw backward subgraphs and lowers them to:
-
-```text
-scaledDotProductAttentionBackward(attentionOut, outGrad, outputKind)
-```
-
-Currently supported output kinds:
-
-- `VALUE`
+Attention is intentionally not lowered by this graph rewrite stage. The public
+`scaledDotProductAttention` API builds a primitive DAG from matmul, permute,
+stable softmax, optional masking, and value projection. Backend-specific SDPA
+recognition belongs in accelerator region lowering, where a backend may lower
+that primitive region to an SDPA DAG primitive without changing the compiled
+semantic graph.
 - `QUERY`
 - `KEY`
 

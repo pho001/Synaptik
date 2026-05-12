@@ -2,9 +2,11 @@ package graph;
 
 import backend.runtime.ExecutionMode;
 import backend.prepare.PreparedExecutionBuilder;
+import config.compile.CompileConfig;
 import graph.compile.CompileArtifacts;
 import graph.compile.GraphCompiler;
 import graph.execution.PreparedExecution;
+import graph.execution.PublicationPolicy;
 import graph.execution.trace.CompileTrace;
 import graph.execution.trace.PartitionCompileTrace;
 import graph.execution.trace.RunTrace;
@@ -16,6 +18,7 @@ import graph.optimizer.partition.Partition;
 import graph.optimizer.partition.PartitionPlan;
 import tensor.CompileMode;
 import tensor.Tensor;
+import training.optimizer.TrainingOptimizer;
 
 import java.util.List;
 import java.util.Map;
@@ -25,13 +28,13 @@ import java.util.Map;
  *
  * <p>The lifecycle is:
  * <ol>
- *     <li>{@link #compile(Tensor, config.optimizer.OptimizerConfig)} captures the root tensor's forward graph,
+ *     <li>{@link #compile(Tensor, CompileConfig)} captures the root tensor's forward graph,
  *     optionally builds backward nodes, applies optimizer stages, snapshots compiled nodes, plans partitions and
  *     computes a memory plan.</li>
  *     <li>{@link #prepare(config.runtime.RuntimeConfig)} lowers those compile artifacts into runtime execution steps
  *     for a specific runtime configuration.</li>
  *     <li>{@link PreparedExecution#execute(ExecutionMode)} or the convenience {@code execute(...)} methods run the
- *     prepared steps and publish forward data and gradients back to the source tensors.</li>
+ *     prepared steps and publish values according to the selected {@link PublicationPolicy}.</li>
  * </ol>
  *
  * <p>Compilation and preparation allocate new artifact objects, while execution mutates tensor data, gradient buffers,
@@ -49,7 +52,7 @@ public class CompiledGraph {
             Tensor rootTensor,
             SemanticForwardCanonicalizer forwardCanonicalizer,
             GraphOptimizer forwardOptimizer,
-            config.optimizer.OptimizerConfig optimizerConfig,
+            CompileConfig compileConfig,
             CompileMode compileMode
     ) {
         this.rootTensor = rootTensor;
@@ -58,48 +61,48 @@ public class CompiledGraph {
                 rootTensor,
                 forwardCanonicalizer,
                 forwardOptimizer,
-                optimizerConfig,
+                compileConfig,
                 this.compileMode
         );
         compile();
     }
 
     /**
-     * Compiles {@code rootTensor} using an optimizer built from {@code optimizerConfig} and automatic compile mode.
+     * Compiles {@code rootTensor} using a compile configuration and automatic compile mode.
      *
      * @param rootTensor output tensor that anchors the graph to compile
-     * @param optimizerConfig optimizer, partition, fusion, rewrite, and memory planning configuration
+     * @param compileConfig compile-time semantic, graph, backend, region, and memory planning configuration
      * @return compiled graph facade ready for preparation or direct execution
      * @throws IllegalArgumentException if either argument is {@code null}
      */
-    public static CompiledGraph compile(Tensor rootTensor, config.optimizer.OptimizerConfig optimizerConfig) {
-        return compile(rootTensor, optimizerConfig, CompileMode.AUTO);
+    public static CompiledGraph compile(Tensor rootTensor, CompileConfig compileConfig) {
+        return compile(rootTensor, compileConfig, CompileMode.AUTO);
     }
 
     /**
-     * Compiles {@code rootTensor} using an optimizer built from {@code optimizerConfig}.
+     * Compiles {@code rootTensor} using a compile configuration.
      *
      * <p>{@code compileMode} controls whether backward artifacts are built. When it is {@code null}, the compiler uses
      * {@link CompileMode#AUTO}.
      *
      * @param rootTensor output tensor that anchors the graph to compile
-     * @param optimizerConfig optimizer, partition, fusion, rewrite, and memory planning configuration
+     * @param compileConfig compile-time semantic, graph, backend, region, and memory planning configuration
      * @param compileMode requested forward/backward compilation mode, or {@code null} for automatic mode
      * @return compiled graph facade ready for preparation or direct execution
-     * @throws IllegalArgumentException if {@code rootTensor} or {@code optimizerConfig} is {@code null}
+     * @throws IllegalArgumentException if {@code rootTensor} or {@code compileConfig} is {@code null}
      */
-    public static CompiledGraph compile(Tensor rootTensor, config.optimizer.OptimizerConfig optimizerConfig, CompileMode compileMode) {
+    public static CompiledGraph compile(Tensor rootTensor, CompileConfig compileConfig, CompileMode compileMode) {
         if (rootTensor == null) {
             throw new IllegalArgumentException("rootTensor cannot be null");
         }
-        if (optimizerConfig == null) {
-            throw new IllegalArgumentException("optimizerConfig cannot be null");
+        if (compileConfig == null) {
+            throw new IllegalArgumentException("compileConfig cannot be null");
         }
         return new CompiledGraph(
                 rootTensor,
-                graph.optimizer.OptimizerFactory.createSemanticForwardCanonicalizer(optimizerConfig),
-                graph.optimizer.OptimizerFactory.create(optimizerConfig),
-                optimizerConfig,
+                graph.optimizer.OptimizerFactory.createSemanticForwardCanonicalizer(compileConfig.semanticCanonicalization()),
+                graph.optimizer.OptimizerFactory.create(compileConfig.graphOptimization()),
+                compileConfig,
                 compileMode
         );
     }
@@ -135,7 +138,7 @@ public class CompiledGraph {
         if (optimizer == null) {
             throw new IllegalArgumentException("optimizer cannot be null");
         }
-        return new CompiledGraph(rootTensor, null, optimizer, config.optimizer.OptimizerConfig.inferenceDefaults(), compileMode);
+        return new CompiledGraph(rootTensor, null, optimizer, CompileConfig.inference(), compileMode);
     }
 
     /**
@@ -221,6 +224,21 @@ public class CompiledGraph {
     }
 
     /**
+     * Prepares and immediately executes this graph with an explicit publication policy.
+     *
+     * @param runtimeConfig runtime settings, or {@code null} for defaults
+     * @param mode execution mode to run
+     * @param publicationPolicy values to publish back to user-visible tensors after execution
+     */
+    public void execute(
+            config.runtime.RuntimeConfig runtimeConfig,
+            ExecutionMode mode,
+            PublicationPolicy publicationPolicy
+    ) {
+        prepare(runtimeConfig).execute(mode, publicationPolicy);
+    }
+
+    /**
      * Prepares and immediately executes this graph using an execution profile.
      *
      * @param profile profile that supplies runtime settings and execution mode
@@ -234,6 +252,20 @@ public class CompiledGraph {
     }
 
     /**
+     * Prepares and immediately executes this graph using an execution profile and publication policy.
+     *
+     * @param profile profile that supplies runtime settings and execution mode
+     * @param publicationPolicy values to publish back to user-visible tensors after execution
+     * @throws IllegalArgumentException if {@code profile} is {@code null}
+     */
+    public void execute(config.profile.ExecutionProfile profile, PublicationPolicy publicationPolicy) {
+        if (profile == null) {
+            throw new IllegalArgumentException("profile cannot be null");
+        }
+        prepare(profile.runtime()).execute(profile.mode(), publicationPolicy);
+    }
+
+    /**
      * Prepares, executes, and returns per-run trace metadata.
      *
      * @param runtimeConfig runtime settings, or {@code null} for defaults
@@ -242,6 +274,22 @@ public class CompiledGraph {
      */
     public RunTrace executeTraced(config.runtime.RuntimeConfig runtimeConfig, ExecutionMode mode) {
         return prepare(runtimeConfig).executeTraced(mode);
+    }
+
+    /**
+     * Prepares, executes, and returns per-run trace metadata with an explicit publication policy.
+     *
+     * @param runtimeConfig runtime settings, or {@code null} for defaults
+     * @param mode execution mode to run
+     * @param publicationPolicy values to publish back to user-visible tensors after execution
+     * @return run trace with duration and step metadata
+     */
+    public RunTrace executeTraced(
+            config.runtime.RuntimeConfig runtimeConfig,
+            ExecutionMode mode,
+            PublicationPolicy publicationPolicy
+    ) {
+        return prepare(runtimeConfig).executeTraced(mode, publicationPolicy);
     }
 
     /**
@@ -259,6 +307,21 @@ public class CompiledGraph {
     }
 
     /**
+     * Prepares, executes, and returns per-run trace metadata using an execution profile and publication policy.
+     *
+     * @param profile profile that supplies runtime settings and execution mode
+     * @param publicationPolicy values to publish back to user-visible tensors after execution
+     * @return run trace with duration and step metadata
+     * @throws IllegalArgumentException if {@code profile} is {@code null}
+     */
+    public RunTrace executeTraced(config.profile.ExecutionProfile profile, PublicationPolicy publicationPolicy) {
+        if (profile == null) {
+            throw new IllegalArgumentException("profile cannot be null");
+        }
+        return prepare(profile.runtime()).executeTraced(profile.mode(), publicationPolicy);
+    }
+
+    /**
      * Executes a previously prepared plan.
      *
      * <p>The prepared plan must have been created from compatible compile artifacts. This method does not check that the
@@ -269,6 +332,70 @@ public class CompiledGraph {
      */
     public void executePrepared(PreparedExecution execution, ExecutionMode mode) {
         execution.execute(mode);
+    }
+
+    /**
+     * Executes a previously prepared plan with an explicit publication policy.
+     *
+     * @param execution prepared execution plan to run
+     * @param mode execution mode to run
+     * @param publicationPolicy values to publish back to user-visible tensors after execution
+     */
+    public void executePrepared(PreparedExecution execution, ExecutionMode mode, PublicationPolicy publicationPolicy) {
+        execution.execute(mode, publicationPolicy);
+    }
+
+    /**
+     * Executes forward/backward and applies an optimizer to trainable parameters without eager public gradient
+     * publication.
+     *
+     * @param runtimeConfig runtime settings, or {@code null} for defaults
+     * @param optimizer optimizer to apply
+     */
+    public void executeOptimizerStep(config.runtime.RuntimeConfig runtimeConfig, TrainingOptimizer optimizer) {
+        prepare(runtimeConfig).executeOptimizerStep(optimizer);
+    }
+
+    /**
+     * Executes forward/backward, applies an optimizer, and publishes values according to policy.
+     *
+     * @param runtimeConfig runtime settings, or {@code null} for defaults
+     * @param optimizer optimizer to apply
+     * @param publicationPolicy values to publish back to user-visible tensors after execution
+     */
+    public void executeOptimizerStep(
+            config.runtime.RuntimeConfig runtimeConfig,
+            TrainingOptimizer optimizer,
+            PublicationPolicy publicationPolicy
+    ) {
+        prepare(runtimeConfig).executeOptimizerStep(optimizer, publicationPolicy);
+    }
+
+    /**
+     * Executes a traced forward/backward optimizer step.
+     *
+     * @param runtimeConfig runtime settings, or {@code null} for defaults
+     * @param optimizer optimizer to apply
+     * @return run trace
+     */
+    public RunTrace executeOptimizerStepTraced(config.runtime.RuntimeConfig runtimeConfig, TrainingOptimizer optimizer) {
+        return prepare(runtimeConfig).executeOptimizerStepTraced(optimizer);
+    }
+
+    /**
+     * Executes a traced forward/backward optimizer step with an explicit publication policy.
+     *
+     * @param runtimeConfig runtime settings, or {@code null} for defaults
+     * @param optimizer optimizer to apply
+     * @param publicationPolicy values to publish back to user-visible tensors after execution
+     * @return run trace
+     */
+    public RunTrace executeOptimizerStepTraced(
+            config.runtime.RuntimeConfig runtimeConfig,
+            TrainingOptimizer optimizer,
+            PublicationPolicy publicationPolicy
+    ) {
+        return prepare(runtimeConfig).executeOptimizerStepTraced(optimizer, publicationPolicy);
     }
 
     /**
@@ -294,6 +421,20 @@ public class CompiledGraph {
                 case BOOL -> java.util.Arrays.fill(gradient.getBoolData(), (byte) 0);
             }
         }
+    }
+
+    /**
+     * Returns source tensors marked as trainable parameters in the compiled forward graph.
+     *
+     * @return immutable trainable parameter list
+     */
+    public List<Tensor> trainableParameters() {
+        return compileArtifacts().compiledNodes().stream()
+                .filter(node -> !node.backwardNode())
+                .filter(CompiledNode::trainableParameter)
+                .map(CompiledNode::sourceTensor)
+                .distinct()
+                .toList();
     }
 
     /**

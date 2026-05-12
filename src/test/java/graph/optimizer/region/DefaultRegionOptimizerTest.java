@@ -11,6 +11,8 @@ import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.partition.PartitionValue;
 import graph.optimizer.partition.PartitionValueRef;
 import graph.optimizer.partition.cost.AcceleratorPartitionScoreModel;
+import graph.optimizer.region.lowering.OperationSemanticClassifier;
+import graph.optimizer.region.lowering.OperationSemanticLevel;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -189,13 +191,65 @@ class DefaultRegionOptimizerTest {
         assertEquals(selectedNodeIds, region.sourcePartition().orderedNodeIds());
         assertEquals(1, region.executionUnits().size());
         ExecutionUnit epilogue = region.executionUnits().getFirst();
-        assertEquals(ExecutionUnitKind.SPECIALIZED_PRIMITIVE, epilogue.kind());
+        assertEquals(ExecutionUnitKind.MATMUL_EPILOGUE, epilogue.kind());
         assertEquals(selectedNodeIds, epilogue.orderedNodeIds());
-        assertTrue(epilogue.trace().events().stream().anyMatch(message -> message.contains("gpu-epilogue-subregion:")));
+        assertTrue(epilogue.trace().events().stream().anyMatch(message -> message.contains("matmul-epilogue:")));
+        assertTrue(epilogue.trace().events().stream().anyMatch(message -> message.contains("FUSE_WITH_NEIGHBORS")));
         assertFalse(epilogue.requiredPreparedInputNodeIds().contains(addNodeId));
         assertFalse(region.regionValues().stream()
                 .filter(value -> value.producerNodeId() == addNodeId)
                 .anyMatch(value -> value.transportKind() == ValueTransportKind.MATERIALIZED));
+    }
+
+    @Test
+    void gpuRegionDoesNotUseCpuFusedNodeForRegionInternalFusion() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "gpuNoCpuFusedA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "gpuNoCpuFusedB", DataType.FLOAT32);
+        Tensor mul = a.mul(b);
+        Tensor tanh = mul.tanh();
+        Tensor out = tanh.sigmoid();
+
+        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort());
+        int mulNodeId = nodeId(nodes, Operation.OpType.MUL);
+        int tanhNodeId = nodeId(nodes, Operation.OpType.TANH);
+        int sigmoidNodeId = nodeId(nodes, Operation.OpType.SIGMOID);
+        List<Integer> selectedNodeIds = List.of(mulNodeId, tanhNodeId, sigmoidNodeId);
+        Partition partition = partition(
+                "gpu-no-cpu-fused",
+                PartitionTarget.GPU_METAL,
+                selectedNodeIds,
+                externalInputNodeIds(nodes, selectedNodeIds),
+                List.of(PartitionValueRef.ofNode(sigmoidNodeId)),
+                List.of(PartitionValueRef.ofNode(sigmoidNodeId))
+        );
+
+        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+                partition,
+                new RegionOptimizationContext(nodes, FuseConfig.inferenceDefaults())
+        );
+
+        assertEquals(1, region.executionUnits().size());
+        ExecutionUnit unit = region.executionUnits().getFirst();
+        assertEquals(ExecutionUnitKind.FUSED_ELEMENTWISE, unit.kind());
+        assertTrue(unit.trace().events().stream().anyMatch(message -> message.contains("FUSED_ELEMENTWISE")));
+        assertFalse(unit.orderedNodeIds().stream()
+                .map(nodes::get)
+                .map(CompiledNode::operation)
+                .anyMatch(operation -> operation != null && operation.opType() == Operation.OpType.FUSED));
+    }
+
+    @Test
+    void operationSemanticClassifierKeepsHighLevelOpsVisibleForRegionPolicy() {
+        assertEquals(OperationSemanticLevel.CANONICAL_HIGH_LEVEL,
+                OperationSemanticClassifier.classify(Operation.OpType.LINEAR));
+        assertEquals(OperationSemanticLevel.BACKEND_FRIENDLY_HIGH_LEVEL,
+                OperationSemanticClassifier.classify(Operation.OpType.CONV2D));
+        assertEquals(OperationSemanticLevel.BACKEND_FRIENDLY_HIGH_LEVEL,
+                OperationSemanticClassifier.classify(Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
+        assertEquals(OperationSemanticLevel.TRAINING_BACKWARD,
+                OperationSemanticClassifier.classify(Operation.OpType.LOG_SOFTMAX_GRAD));
+        assertEquals(OperationSemanticLevel.FUSED,
+                OperationSemanticClassifier.classify(Operation.OpType.FUSED));
     }
 
     @Test

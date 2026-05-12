@@ -25,7 +25,7 @@ public final class GenericGpuRegionOptimizationPolicy implements RegionOptimizat
     @Override
     public List<ExecutionUnit> buildUnits(Partition partition, RegionOptimizationContext context) {
         if (RegionOptimizationUnitSupport.shouldFuseWholePartition(partition, context)) {
-            return List.of(RegionOptimizationUnitSupport.buildFusedUnit(partition));
+            return List.of(RegionOptimizationUnitSupport.buildFusedUnit(partition, context));
         }
         List<ExecutionUnit> out = new ArrayList<>(partition.orderedNodeIds().size());
         Set<Integer> selected = Set.copyOf(partition.orderedNodeIds());
@@ -56,7 +56,8 @@ public final class GenericGpuRegionOptimizationPolicy implements RegionOptimizat
                         nodeId,
                         node,
                         selected,
-                        materialized
+                        materialized,
+                        context
                 ));
                 index++;
                 continue;
@@ -90,7 +91,8 @@ public final class GenericGpuRegionOptimizationPolicy implements RegionOptimizat
                         nodeId,
                         node,
                         selected,
-                        materialized
+                        materialized,
+                        context
                 ));
                 index++;
             }

@@ -1,20 +1,18 @@
 package graph.optimizer.rewrite;
 
 import config.optimizer.RewriteConfig;
-import config.optimizer.Conv2dLoweringMode;
 import graph.optimizer.OptimizationRule;
 import graph.optimizer.state.OptimizerState;
-import tensor.Tensor;
 
 import java.util.List;
 import java.util.Objects;
 
 /**
- * Aggregate rewrite stage for algebraic and lowering rewrites.
+ * Aggregate rewrite stage for algebraic and light canonical rewrites.
  *
- * <p>This rule runs configured delegates in sequence. It is the {@code AR} optimizer stage used before CSE, partition
- * planning, fusion, and memory planning. Delegates may lower high-level operations such as linear, loss, reduction,
- * attention, and convolution forms into execution-friendly tensor graphs.
+ * <p>This rule runs configured delegates in sequence. It is the {@code AR} optimizer stage used before constant
+ * folding, CSE, partition planning, fusion, and memory planning. Backend/execution lowering is deliberately not part
+ * of this stage.
  */
 public class RewriteRule implements OptimizationRule {
     private final List<OptimizationRule> delegates;
@@ -73,16 +71,6 @@ public class RewriteRule implements OptimizationRule {
         addImportCanonicalizationDelegates(delegates, resolved);
         if (resolved.algebraic().enabled()) {
             delegates.add(new AlgebraicRewrite());
-        }
-        if (resolved.linearLowering().enabled()) {
-            delegates.add(new LinearLoweringRewrite());
-        }
-        delegates.add(new LossLoweringRewrite());
-        delegates.add(new ReductionLoweringRewrite());
-        delegates.add(new AttentionLoweringRewrite());
-        delegates.add(new AttentionBackwardLoweringRewrite());
-        if (resolved.conv2dLowering().mode() != Conv2dLoweringMode.OFF) {
-            delegates.add(new Conv2dLoweringRewrite(resolved.conv2dLowering()));
         }
         return List.copyOf(delegates);
     }

@@ -16,7 +16,8 @@ import java.util.Objects;
  *
  * <p>The semantic tensor reference remains available as a runtime value/storage handle and for debug
  * introspection, but graph topology and node metadata are captured here so prepared execution does
- * not depend on live mutable Tensor structure.
+ * not depend on live mutable Tensor structure. Operation instances referenced by compiled nodes are
+ * compile metadata and must be treated as immutable.
  */
 public final class CompiledNode {
     private final int id;
@@ -32,6 +33,8 @@ public final class CompiledNode {
     private final DataType dataType;
     private final boolean backwardNode;
     private final boolean leaf;
+    private final boolean requiresGrad;
+    private final boolean trainableParameter;
     private final boolean contiguous;
     private final boolean hasStorageOffset;
     private final int flatDataSize;
@@ -51,6 +54,8 @@ public final class CompiledNode {
             DataType dataType,
             boolean backwardNode,
             boolean leaf,
+            boolean requiresGrad,
+            boolean trainableParameter,
             boolean contiguous,
             boolean hasStorageOffset,
             int flatDataSize,
@@ -69,6 +74,8 @@ public final class CompiledNode {
         this.dataType = Objects.requireNonNull(dataType, "dataType cannot be null");
         this.backwardNode = backwardNode;
         this.leaf = leaf;
+        this.requiresGrad = requiresGrad;
+        this.trainableParameter = trainableParameter;
         this.contiguous = contiguous;
         this.hasStorageOffset = hasStorageOffset;
         this.flatDataSize = flatDataSize;
@@ -129,6 +136,8 @@ public final class CompiledNode {
                     tensor.getDataType(),
                     tensor.isBackward(),
                     tensor.getOperation() == null,
+                    tensor.getRequiresGrad(),
+                    tensor.isTrainableParameter(),
                     tensor.isContiguous(),
                     tensor.hasStorageOffset(),
                     tensor.getFlatDataSize(),
@@ -188,6 +197,14 @@ public final class CompiledNode {
 
     public boolean leaf() {
         return leaf;
+    }
+
+    public boolean requiresGrad() {
+        return requiresGrad;
+    }
+
+    public boolean trainableParameter() {
+        return trainableParameter;
     }
 
     public boolean contiguous() {

@@ -275,14 +275,16 @@ FUSE says: these specific operations become fused loops or unit kernels.
 | Field | Values | Current behavior |
 | --- | --- | --- |
 | `policy` | `CPU_ONLY`, `ACCELERATOR_IF_PROFITABLE` | `CPU_ONLY` prevents proactive accelerator offload for CPU-only graphs. Existing Metal/CUDA backend intent may still be planned as accelerator regions. `ACCELERATOR_IF_PROFITABLE` allows Metal/CUDA jobs when accelerator backend intent is present. It does not invent accelerator backend intent for an all-CPU graph. |
-| `acceleratorRegionPolicy` | `OFF`, `GREEDY_CLOSED_REGIONS`, `SCORED_PROFITABLE_REGIONS` | Selects the accelerator planner strategy. `OFF` creates no accelerator jobs. |
+| `acceleratorRegionPolicy` | `OFF`, `ANCHOR_BASED_REGIONS`, `GREEDY_CLOSED_REGIONS`, `SCORED_PROFITABLE_REGIONS` | Selects the accelerator planner strategy. `OFF` creates no accelerator jobs. |
 
 Convenience presets:
 
 | Method | Result |
 | --- | --- |
 | `OffloadConfig.defaults()` | `CPU_ONLY + OFF` |
-| `OffloadConfig.acceleratorGreedy()` | `ACCELERATOR_IF_PROFITABLE + GREEDY_CLOSED_REGIONS` |
+| `OffloadConfig.acceleratorGreedy()` | `ACCELERATOR_IF_PROFITABLE + ANCHOR_BASED_REGIONS` |
+| `OffloadConfig.acceleratorAnchor()` | `ACCELERATOR_IF_PROFITABLE + ANCHOR_BASED_REGIONS` |
+| `OffloadConfig.acceleratorLegacyGreedy()` | `ACCELERATOR_IF_PROFITABLE + GREEDY_CLOSED_REGIONS` |
 | `OffloadConfig.acceleratorScored()` | `ACCELERATOR_IF_PROFITABLE + SCORED_PROFITABLE_REGIONS` |
 
 Important implementation detail: `OffloadConfig` normalizes impossible combinations. If `policy == CPU_ONLY`, `acceleratorRegionPolicy` becomes `OFF` even if a caller passes a different accelerator policy. That keeps "CPU-only" unambiguous.
@@ -294,6 +296,7 @@ Important implementation detail: `OffloadConfig` normalizes impossible combinati
 | Policy | Planner strategy | Mental model |
 | --- | --- | --- |
 | `OFF` | no accelerator planner job | Do not create accelerator ownership regions. |
+| `ANCHOR_BASED_REGIONS` | `ANCHOR_MAX_REGION` | Visit high-value compute anchors first, then grow the largest legal backend-owned region around them. This prevents cheap layout/view nodes from consuming coverage before SDPA/matmul/norm/reduction anchors are planned. |
 | `GREEDY_CLOSED_REGIONS` | `GREEDY_MAX_REGION` | Start from a legal accelerator seed and greedily close over supported producer/consumer structure while legality holds. |
 | `SCORED_PROFITABLE_REGIONS` | `SCORED_CANDIDATE_SEARCH` | Explore candidate regions up to the configured budget and select the best accepted candidate by score. |
 
@@ -501,9 +504,7 @@ flowchart TD
     A --> L[LinearLoweringRewrite]
     L --> LOSS[LossLoweringRewrite]
     LOSS --> R[ReductionLoweringRewrite]
-    R --> ATT[AttentionLoweringRewrite]
-    ATT --> ATTB[AttentionBackwardLoweringRewrite]
-    ATTB --> CONV[Conv2dLoweringRewrite if not OFF]
+    R --> CONV[Conv2dLoweringRewrite if not OFF]
 ```
 
 ### Key Concepts
@@ -534,8 +535,6 @@ flowchart TD
    - `LinearLoweringRewrite`
    - `LossLoweringRewrite`
    - `ReductionLoweringRewrite`
-   - `AttentionLoweringRewrite`
-   - `AttentionBackwardLoweringRewrite`
    - optional `Conv2dLoweringRewrite`
 3. Each delegate receives an `OptimizerState`.
 4. Most delegates use `AbstractRewriteRule.apply(...)`.
@@ -602,13 +601,7 @@ Loss lowering includes forward and backward forms:
 
 Reduction lowering in [`ReductionLoweringRewrite.java`](../src/main/java/graph/optimizer/rewrite/ReductionLoweringRewrite.java) recognizes backward-only softmax and log-softmax gradient expressions and lowers them to `softmaxGrad` or `logSoftmaxGrad`.
 
-Attention lowering in [`AttentionLoweringRewrite.java`](../src/main/java/graph/optimizer/rewrite/AttentionLoweringRewrite.java) recognizes:
-
-```text
-softmax((q.matmul(k.permute(...)) * positiveScale)).matmul(v)
-```
-
-and the masked variant using `where(mask, scores, maskFillScalar)`, then lowers to `scaledDotProductAttention`. [`AttentionBackwardLoweringRewrite.java`](../src/main/java/graph/optimizer/rewrite/AttentionBackwardLoweringRewrite.java) recognizes backward graph fragments and lowers query, key, and value gradients to `scaledDotProductAttentionBackward`.
+Attention is not lowered by graph optimization. The public attention API builds a primitive semantic DAG from matmul, permute, stable softmax, optional masking, and value projection. Backend-specific SDPA recognition belongs in accelerator region lowering, where a backend may lower that primitive region to an SDPA DAG primitive without changing the compiled graph's semantic operation set.
 
 Conv2d lowering in [`Conv2dLoweringRewrite.java`](../src/main/java/graph/optimizer/rewrite/Conv2dLoweringRewrite.java) maps supported conv ops to explicit GEMM variants. `Conv2dLoweringMode.OFF` disables the pass, `ALWAYS` lowers every matched conv op, and `HEURISTIC` uses [`Conv2dLoweringHeuristics.java`](../src/main/java/graph/optimizer/rewrite/Conv2dLoweringHeuristics.java). Current heuristic requirements include rank-4 shapes, `groups == 1`, dilation of `1`, and either large pointwise projection or large standard 3x3 convolution shapes.
 
@@ -632,9 +625,6 @@ The current lowering-oriented catalog is:
 | `LossBackwardLoweringRewrite` | indexed cross-entropy gradient expression | `crossEntropyLossIndicesGrad` | Replaces a decomposed backward gradient with a dedicated primitive. |
 | `ReductionLoweringRewrite` | backward softmax gradient expression | `softmaxGrad` | Makes softmax backward explicit for backend lowering. |
 | `ReductionLoweringRewrite` | backward log-softmax gradient expression | `logSoftmaxGrad` | Makes log-softmax backward explicit for backend lowering. |
-| `AttentionLoweringRewrite` | `softmax((q.matmul(k.permute(...)) * scale)).matmul(v)` | `scaledDotProductAttention(q, k, v, options)` | Collapses attention score, softmax, and value projection into one attention primitive. |
-| `AttentionLoweringRewrite` | masked score expression using `where(mask, scores, maskFillScalar)` before softmax | masked `scaledDotProductAttention(...)` | Preserves mask semantics while giving the backend a single attention op. |
-| `AttentionBackwardLoweringRewrite` | query/key/value gradient fragments for lowered attention | `scaledDotProductAttentionBackward` variants | Gives backward preparation dedicated attention-gradient operations. |
 | `Conv2dLoweringRewrite` | supported `conv2d` forward op | `conv2dGemm` | Uses explicit GEMM-style conv lowering when policy allows it. |
 | `Conv2dLoweringRewrite` | supported conv2d input-gradient op | `conv2dBackwardInputGemm` | Uses GEMM-style backward-input lowering. |
 | `Conv2dLoweringRewrite` | supported conv2d weight-gradient op | `conv2dBackwardWeightGemm` | Uses GEMM-style backward-weight lowering. |
@@ -706,20 +696,20 @@ Tensor loss = logits.logSoftmax(1).nllLossFromIndices(target, 1);
 // loss approximately = [0.239545]
 ```
 
-Worked lowering example, attention:
+Attention backend specialization example:
 
 ```text
-Before AR:
+Compiled semantic graph:
 scores  = q.matmul(k.permute(...)).mul(scale)
 masked  = where(mask, scores, veryNegativeScalar)   // masked variant only
 weights = softmax(masked or scores, keyAxis)
 out     = weights.matmul(v)
 
-After AR:
-out = scaledDotProductAttention(q, k, v, mask, AttentionOptions)
+Optional accelerator region lowering:
+out-region = SDPA_DAG_PRIMITIVE(q, k, v, mask, scale)
 ```
 
-The numerical equation is the same, but later stages see one attention semantic primitive rather than a chain of matmul, permute, multiply, optional where, softmax, and matmul.
+The numerical equation is the same, but the semantic graph remains the primitive DAG. Only the backend-owned lowered artifact may collapse the region to an SDPA primitive.
 
 ### Edge Cases
 
@@ -1083,27 +1073,27 @@ This distinction is what lets `FUSE` optimize only partition-owned nodes while `
 - [`graph/optimizer/partition/ScoredCandidatePartitionPlanner.java`](../src/main/java/graph/optimizer/partition/ScoredCandidatePartitionPlanner.java)
 - [`graph/optimizer/partition/CpuNaturalExecutionRegionPlanner.java`](../src/main/java/graph/optimizer/partition/CpuNaturalExecutionRegionPlanner.java)
 - [`graph/optimizer/partition/ExecutionRegionKind.java`](../src/main/java/graph/optimizer/partition/ExecutionRegionKind.java)
-- [`graph/compile/PartitionPlanningSnapshotBuilder.java`](../src/main/java/graph/compile/PartitionPlanningSnapshotBuilder.java)
+- [`graph/compile/BackendPlanningService.java`](../src/main/java/graph/compile/BackendPlanningService.java)
+- [`graph/compile/BackendPlanningJobResolver.java`](../src/main/java/graph/compile/BackendPlanningJobResolver.java)
 
 ### Step-by-Step Walkthrough
 
-1. `PartitionIntentRule.apply(...)` receives the current optimizer state.
-2. It propagates backend intent through `BackendIntentPropagator.propagateBackwardClosure(...)`.
-3. It snapshots the current graph into `CompiledNode` records.
-4. It resolves one or more planning jobs:
-   - explicit non-`AUTO` `PartitionConfig.target()` creates one job for that target
-   - `AUTO` can create accelerator jobs from `OffloadConfig`
-   - `AUTO` can also create a CPU job from `CpuRegionConfig`
-5. If no jobs are resolved, the state is returned with no partitions.
-6. It builds a consumer map from compiled node input ids.
-7. It builds a `PartitionPlanningContext`.
-8. For each job, it chooses the planner:
+1. `GraphCompiler` propagates backend intent through `BackendIntentPropagator.propagateBackwardClosure(...)`.
+2. It snapshots the current graph into `CompiledNode` records and builds descriptor metadata.
+3. `BackendPlanningService` receives `BackendPlanningConfig`, compiled nodes, gradient bindings, and backend descriptors.
+4. `BackendPlanningJobResolver` resolves one or more planning jobs from the compile-time backend planning policy:
+   - `CPU_ONLY` creates no accelerator discovery jobs
+   - `EXPLICIT` creates accelerator jobs only for explicit backend intents
+   - `AUTO` may create accelerator jobs from CPU-owned graph regions
+   - CPU natural-region jobs are controlled by CPU region planning policy
+5. If no jobs are resolved, planning returns no partitions.
+6. The service builds a `PartitionPlanningContext`.
+7. For each job, it chooses the planner:
    - `GREEDY_MAX_REGION` for greedy accelerator ownership
    - `SCORED_CANDIDATE_SEARCH` for scored accelerator ownership
    - `CPU_NATURAL_EXECUTION_REGION` for CPU natural regions
-9. It asks the job's legality adapter to create structural candidates and attach backend plans.
-10. It concatenates all accepted partitions and attached plans.
-11. It returns `state.withPartitions(partitions, plansByPartitionId)`.
+8. It asks the job's legality adapter to create structural candidates and attach backend plans.
+9. It concatenates all accepted partitions, attached plans, backend-selection candidates, diagnostics, and trace decisions into `BackendPlanningResult`.
 
 ### Worked Example With Concrete Values
 
@@ -1144,7 +1134,7 @@ Naive execution prepares separate add and relu steps. Partitioned execution give
 `PartitionConfig.defaults()` uses:
 
 ```text
-maxSearchNodes = 16
+maxSearchNodes = 64
 maxVisitedCandidates = 512
 nodeWeight = 1000.0
 internalEdgeWeight = 120.0
@@ -1157,18 +1147,17 @@ target = AUTO
 metalTransferModel = CONSERVATIVE
 ```
 
-These are shared planning/search values. They are not the complete graph policy anymore. In `AUTO` mode the actual planning jobs are resolved from `OffloadConfig` and `CpuRegionConfig`.
+These are legacy shared planning/search values. In the current compile flow, search limits live in `PartitionSearchConfig` and target/discovery semantics live in `BackendPlanningConfig`.
 
-`PartitionIntentRule.resolvePlanningJobs(...)` behaves like this:
+`BackendPlanningJobResolver.resolve(...)` behaves like this:
 
 | Situation | Jobs created |
 | --- | --- |
-| `PartitionConfig.target() == NONE` | No jobs. |
-| Explicit `target == CPU` | One CPU job using `CPU_NATURAL_EXECUTION_REGION`. |
-| Explicit `target == GPU_METAL` or `GPU_CUDA` | One accelerator job using `PartitionConfig.plannerStrategy()`. |
-| `AUTO` + `OffloadPolicy.CPU_ONLY` + CPU-only backend intent | One CPU natural-region job if `CpuRegionConfig.policy() != OFF`. |
-| `AUTO` + `ACCELERATOR_IF_PROFITABLE` + Metal/CUDA backend intent | Accelerator jobs using `OffloadConfig.acceleratorRegionPolicy()`, plus CPU job when CPU nodes exist and CPU regions are enabled. |
-| `AUTO` + `CPU_ONLY` + existing Metal/CUDA backend intent | Accelerator jobs can still be created from the existing backend intent using `PartitionConfig.plannerStrategy()`. `CPU_ONLY` prevents proactive offload policy, not explicit/preselected accelerator backend nodes. |
+| `BackendDiscoveryMode.CPU_ONLY` | No accelerator jobs; CPU natural-region job may be created when CPU region planning is enabled. |
+| `BackendDiscoveryMode.EXPLICIT` with explicit Metal/CUDA intent | Accelerator jobs for targets with explicit backend intent, using target-backend-only source policy. |
+| `BackendDiscoveryMode.EXPLICIT` without explicit intent | No accelerator jobs. |
+| `BackendDiscoveryMode.AUTO` with CPU or target-owned nodes | Accelerator jobs using CPU-or-target source policy, plus CPU job when CPU nodes exist and CPU regions are enabled. |
+| Required accelerator modes | Same job resolution, followed by required-region validation in `BackendPlanningService`. |
 
 `GreedyMaxRegionPartitionPlanner` walks compiled nodes in order. For each uncovered target-backend node, it tries to seed a region, absorbs supported producer closure, validates a structural candidate, attaches a backend plan, then expands through consumers until the frontier is exhausted or a budget stops the search. It records decision reasons such as `unsupported-start-node`, `lowerer-rejected`, `covered-by-earlier-partition`, `external-input-not-allowed`, `max-search-nodes`, and `budget-stop`.
 
@@ -1176,7 +1165,7 @@ These are shared planning/search values. They are not the complete graph policy 
 
 `CpuNaturalExecutionRegionPlanner` is the CPU-specific strategy. It walks CPU nodes in topological order, groups supported CPU operations up to the configured node budget, skips leaf/external values, and stops at unsupported compute nodes. It does not use accelerator-style producer closure as a hard requirement. That is deliberate: CPU FUSE can later split the region into fused loops and unit kernels, so a matmul/reduction/layout operation can be a boundary inside the region rather than a reason to abandon the region.
 
-`PartitionPlanningSnapshotBuilder` repeats similar planning after `CompiledNode` snapshots are rebuilt in `GraphCompiler`. It stores compile artifacts such as partitions, attached backend plans, backend selection candidates, and `PartitionCompileTrace`.
+`PartitionIntentRule` remains only as a legacy optimizer-stage adapter. It delegates planning to `BackendPlanningService`, so `GraphCompiler` and direct legacy optimizer tests use the same backend planning resolver.
 
 ### GPU Compound Region Lowering
 
@@ -1429,7 +1418,7 @@ So when debugging partition behavior, ask two separate questions:
 - The legality adapter can reject a structurally plausible candidate.
 - CPU `ELEMENTWISE_ISLANDS` rejects non-fusable CPU operations at the region policy layer even if the CPU adapter structurally supports them.
 - Required forward outputs and gradient bindings are carried into planning so they are not accidentally virtualized away.
-- `PartitionPlanningSnapshotBuilder.backendSelectionCandidates(...)` filters backend selection candidates to non-CPU plans. CPU partitions can still exist, but backend selection candidates are currently for accelerator plans.
+- `BackendPlanningService` exposes backend selection candidates for non-CPU plans. CPU partitions can still exist, but backend selection candidates are currently for accelerator plans.
 
 ### Common Misconceptions
 
@@ -1738,7 +1727,7 @@ flowchart TD
 
 For CPU, a fused unit is lowered to `LoweringFamily.FUSED_NATIVE`, then `LoweredFusedOperationBuilder` reconstructs the fused tensor cluster and creates a `FusedOperationPreparation`. `CpuNodePreparer` then builds a `FusedExecutionPlan` and asks `FusedExecutionBackendResolver` for a prepared executable. The current resolver uses the ASM backend.
 
-For Metal and CUDA, region lowerers classify a one-unit fused elementwise region as `METAL_FUSED_ELEMENTWISE_GRAPH` or `CUDA_FUSED_ELEMENTWISE_GRAPH`. The accelerator path uses `AcceleratorDagSpec` and the backend bridge to compile a graph-style executable for the whole lowered region. If the bridge is unavailable or input/output requirements are not met, prepared accelerator execution falls back to CPU fallback steps.
+For Metal, region lowering is MPSGraph-first: even a one-unit fused elementwise region lowers as `METAL_GRAPH_REGION`, while fused subpatterns remain trace/manifest metadata. CUDA still keeps the separate `CUDA_FUSED_ELEMENTWISE_GRAPH` family for its fused elementwise route. The accelerator path uses `AcceleratorDagSpec` and the backend bridge to compile a graph-style executable for the whole lowered region. If the bridge is unavailable or input/output requirements are not met, prepared accelerator execution falls back to CPU fallback steps.
 
 ### CPU Fused Execution: ASM Loop Generation
 
@@ -1849,7 +1838,7 @@ The graph optimizer marks a whole GPU partition as `FUSED_ELEMENTWISE` only when
 
 | Target | Fused family | Non-fused family |
 |---|---|---|
-| Metal | `METAL_FUSED_ELEMENTWISE_GRAPH` | `METAL_GRAPH_REGION` |
+| Metal | `METAL_GRAPH_REGION` with fused subpattern metadata | `METAL_GRAPH_REGION` |
 | CUDA | `CUDA_FUSED_ELEMENTWISE_GRAPH` | `CUDA_GRAPH_REGION` |
 
 The actual DAG is built earlier by `AcceleratorSubgraphLowerer`. It converts supported graph nodes into `AcceleratorDagNode` records with typed references to external inputs or prior node outputs.
@@ -2024,7 +2013,7 @@ If `relu` is not required materialized and is handed to another region, it can b
 - PART defines the region boundaries that FUSE optimizes.
 - MEM consumes region values and materialization decisions.
 - Backend CPU fused planning and code generation consume optimized execution units during preparation.
-- Metal/CUDA accelerator lowering consumes fused GPU regions and produces graph-region lowering families such as `METAL_FUSED_ELEMENTWISE_GRAPH` and `CUDA_FUSED_ELEMENTWISE_GRAPH`.
+- Metal accelerator lowering consumes fused GPU regions as one `METAL_GRAPH_REGION` MPSGraph DAG with fused subpattern metadata; CUDA accelerator lowering may still produce `CUDA_FUSED_ELEMENTWISE_GRAPH`.
 
 ## Stage MEM: Memory and Lifetime Planning
 

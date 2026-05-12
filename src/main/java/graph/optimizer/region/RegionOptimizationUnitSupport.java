@@ -5,6 +5,10 @@ import graph.optimizer.partition.Partition;
 import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.partition.PartitionValue;
 import graph.optimizer.partition.PartitionValueRef;
+import graph.optimizer.region.lowering.DefaultRegionLoweringPolicy;
+import graph.optimizer.region.lowering.RegionLoweringDecision;
+import graph.optimizer.region.lowering.RegionLoweringPolicy;
+import graph.optimizer.region.lowering.RegionLoweringPolicyContext;
 import operations.Operation;
 
 import java.util.ArrayList;
@@ -13,6 +17,8 @@ import java.util.List;
 import java.util.Set;
 
 final class RegionOptimizationUnitSupport {
+    private static final RegionLoweringPolicy LOWERING_POLICY = new DefaultRegionLoweringPolicy();
+
     private RegionOptimizationUnitSupport() {
     }
 
@@ -39,7 +45,7 @@ final class RegionOptimizationUnitSupport {
         return true;
     }
 
-    static ExecutionUnit buildFusedUnit(Partition partition) {
+    static ExecutionUnit buildFusedUnit(Partition partition, RegionOptimizationContext context) {
         List<RegionValueRef> outputs = partition.outputValueRefs().stream().map(RegionOptimizationUnitSupport::toRegionValueRef).toList();
         Set<PartitionValueRef> outputSet = Set.copyOf(partition.outputValueRefs());
         List<RegionValueRef> virtuals = partition.values().stream()
@@ -62,7 +68,12 @@ final class RegionOptimizationUnitSupport {
                 partition.orderedNodeIds(),
                 partition.estimatedWork(),
                 partition.externalInputNodeIds(),
-                new RegionOptimizationTrace(List.of("fused-whole-partition"))
+                new RegionOptimizationTrace(unitTraceEvents(
+                        "fused-whole-partition",
+                        partition,
+                        partition.orderedNodeIds(),
+                        context
+                ))
         );
     }
 
@@ -75,7 +86,7 @@ final class RegionOptimizationUnitSupport {
             if (node == null) {
                 continue;
             }
-            out.add(buildSingleOpUnit(partition, nodeId, node, selected, materialized));
+            out.add(buildSingleOpUnit(partition, nodeId, node, selected, materialized, context));
         }
         return List.copyOf(out);
     }
@@ -85,7 +96,8 @@ final class RegionOptimizationUnitSupport {
             int nodeId,
             CompiledNode node,
             Set<Integer> selected,
-            Set<PartitionValueRef> materialized
+            Set<PartitionValueRef> materialized,
+            RegionOptimizationContext context
     ) {
         List<RegionValueRef> inputRefs = node.inputIds().stream()
                 .filter(selected::contains)
@@ -107,7 +119,12 @@ final class RegionOptimizationUnitSupport {
                 List.of(nodeId),
                 Math.max(1L, node.flatDataSize()),
                 node.inputIds().stream().filter(inputId -> !selected.contains(inputId)).toList(),
-                new RegionOptimizationTrace(List.of("single-op:" + nodeId))
+                new RegionOptimizationTrace(unitTraceEvents(
+                        "single-op:" + nodeId,
+                        partition,
+                        List.of(nodeId),
+                        context
+                ))
         );
     }
 
@@ -143,9 +160,9 @@ final class RegionOptimizationUnitSupport {
                 context,
                 materialized,
                 outputRefs,
-                ExecutionUnitKind.SPECIALIZED_PRIMITIVE,
+                ExecutionUnitKind.MATMUL_EPILOGUE,
                 "-epilogue",
-                "gpu-epilogue-subregion:"
+                "matmul-epilogue:"
         );
     }
 
@@ -196,8 +213,42 @@ final class RegionOptimizationUnitSupport {
                 List.copyOf(chain),
                 Math.max(1L, estimatedWork),
                 List.copyOf(externalInputIds),
-                new RegionOptimizationTrace(List.of(tracePrefix + chain))
+                new RegionOptimizationTrace(unitTraceEvents(
+                        tracePrefix + chain,
+                        partition,
+                        chain,
+                        context
+                ))
         );
+    }
+
+    private static List<String> unitTraceEvents(
+            String baseEvent,
+            Partition partition,
+            List<Integer> nodeIds,
+            RegionOptimizationContext context
+    ) {
+        ArrayList<String> events = new ArrayList<>();
+        events.add(baseEvent);
+        if (partition == null || nodeIds == null || nodeIds.isEmpty() || context == null) {
+            return List.copyOf(events);
+        }
+        RegionLoweringPolicyContext policyContext = new RegionLoweringPolicyContext(
+                partition.target(),
+                partition.partitionId(),
+                partition.orderedNodeIds(),
+                context
+        );
+        for (int nodeId : nodeIds) {
+            CompiledNode node = context.compiledNode(nodeId);
+            RegionLoweringDecision decision = LOWERING_POLICY.decide(policyContext, node);
+            events.add("lowering-decision:node=" + nodeId
+                    + ",semantic=" + decision.semanticLevel()
+                    + ",action=" + decision.action()
+                    + ",forms=" + decision.forms()
+                    + ",reason=" + decision.reason());
+        }
+        return List.copyOf(events);
     }
 
     static List<RegionValueRef> unitOutputsForChain(

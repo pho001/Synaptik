@@ -1,6 +1,5 @@
-import config.optimizer.OffloadConfig;
-import config.optimizer.OptimizerConfig;
-import config.optimizer.OptimizerStage;
+import config.compile.CompileConfig;
+import config.compile.GraphOptimizationConfig;
 import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
 import operations.Operation;
@@ -21,7 +20,7 @@ public class OptimizerFuseTest {
         b0.setRequiresGrad(true);
        c0.setRequiresGrad(true);
         Tensor e0 = a0.add(b0).add(c0);
-        CompiledGraph baselineGraph = CompiledGraph.compile(e0, OptimizerConfig.noOptimization());
+        CompiledGraph baselineGraph = CompiledGraph.compile(e0, CompileConfig.noGraphOptimizationBaseline());
         PreparedExecution baselinePrepared = baselineGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
         int baselineForwardSteps = baselinePrepared.forwardSteps().size();
 
@@ -207,12 +206,12 @@ public class OptimizerFuseTest {
     }
 
     @Test
-    public void cpuFusionRemainsAvailableWithAcceleratorOffloadPolicy() {
+    public void cpuFusionRemainsAvailableWithAutoAcceleratorPlanning() {
         Tensor a = new Tensor(new double[]{1, 2, 3, 4}, new int[]{4}, null, "a");
         Tensor b = new Tensor(new double[]{5, 6, 7, 8}, new int[]{4}, null, "b");
         Tensor out = a.add(b).relu().exp();
 
-        OptimizerConfig optimizer = fuseOnlyInferenceConfig().withOffload(OffloadConfig.acceleratorScored());
+        CompileConfig optimizer = fuseOnlyInferenceConfig().withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withOwnershipPlanner(config.compile.RegionOwnershipPlannerStrategy.SCORED));
         PreparedExecution prepared = CompiledGraph.compile(out, optimizer)
                 .prepare(config.runtime.RuntimeConfig.inferenceDefaults()
                         .withAccelerator(config.runtime.AcceleratorConfig.disabled()));
@@ -221,7 +220,7 @@ public class OptimizerFuseTest {
                 .anyMatch(step -> step.metadata().fusedExecutable() != null));
     }
 
-    private static OptimizerConfig fuseOnlyInferenceConfig() {
-        return OptimizerConfig.inferenceDefaults().withStageOrder(java.util.List.of(OptimizerStage.PART, OptimizerStage.FUSE, OptimizerStage.MEM));
+    private static CompileConfig fuseOnlyInferenceConfig() {
+        return CompileConfig.inference().withGraphOptimization(GraphOptimizationConfig.noGraphOptimization());
     }
 }
