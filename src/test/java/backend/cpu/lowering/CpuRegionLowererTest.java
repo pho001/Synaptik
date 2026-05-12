@@ -1,5 +1,8 @@
 package backend.cpu.lowering;
 
+import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+
 import backend.ComputeBackend;
 import backend.blas.BlasProvider;
 import backend.cpu.fused.plan.FusedOperationPreparation;
@@ -59,7 +62,7 @@ class CpuRegionLowererTest {
                 region,
                 MemoryPlanner.plan(graph),
                 new BackendCapabilities(Set.of(ComputeBackend.CPU)),
-                new LoweringContext(RuntimeConfig.inferenceDefaults(), compiledNodes)
+                new LoweringContext(RuntimeConfig.inferenceDefaults(), compiledNodes, CompiledTensorDescriptorBuilder.build(compiledNodes), java.util.Map.of())
         ));
 
         LoweredRegion lowered = result.loweredRegion();
@@ -103,7 +106,7 @@ class CpuRegionLowererTest {
                 region,
                 MemoryPlanner.plan(graph),
                 new BackendCapabilities(Set.of(ComputeBackend.CPU)),
-                new LoweringContext(blasRuntime, compiledNodes)
+                new LoweringContext(blasRuntime, compiledNodes, CompiledTensorDescriptorBuilder.build(compiledNodes), java.util.Map.of())
         ));
 
         assertEquals(backend.lowering.LoweringFamily.BLAS, result.loweredRegion().units().getFirst().loweringFamily());
@@ -131,7 +134,7 @@ class CpuRegionLowererTest {
                 region,
                 MemoryPlanner.plan(graph),
                 new BackendCapabilities(Set.of(ComputeBackend.CPU)),
-                new LoweringContext(RuntimeConfig.inferenceDefaults(), compiledNodes)
+                new LoweringContext(RuntimeConfig.inferenceDefaults(), compiledNodes, CompiledTensorDescriptorBuilder.build(compiledNodes), java.util.Map.of())
         ));
 
         LoweredRegion lowered = result.loweredRegion();

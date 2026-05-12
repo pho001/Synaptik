@@ -1,8 +1,8 @@
 import backend.runtime.ExecutionMode;
 import config.optimizer.CseConfig;
 import config.optimizer.FuseConfig;
-import config.optimizer.OptimizerConfig;
-import config.optimizer.OptimizerStage;
+import config.compile.CompileConfig;
+import config.compile.GraphOptimizationConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import tensor.DataType;
@@ -19,7 +19,7 @@ public class GradientEngineRegressionTest {
 
     @Test
     public void testScalarSequenceForwardAndGradientsNoOptVsOpt() {
-        RunResult noOpt = runSequence(OptimizerConfig.trainingDefaults());
+        RunResult noOpt = runSequence(CompileConfig.training());
 
         RunResult opt = runSequence(optimizedTrainingConfig());
 
@@ -45,7 +45,7 @@ public class GradientEngineRegressionTest {
             cData[i] = 0.2 + i * 0.01;
         }
 
-        RunResultVec noOpt = runSequenceVec(aData, bData, cData, OptimizerConfig.trainingDefaults());
+        RunResultVec noOpt = runSequenceVec(aData, bData, cData, CompileConfig.training());
 
         RunResultVec opt = runSequenceVec(aData, bData, cData, optimizedTrainingConfig());
 
@@ -55,7 +55,7 @@ public class GradientEngineRegressionTest {
         assertArrayEquals(noOpt.gradC, opt.gradC, VECTOR_EPS);
     }
 
-    private static RunResult runSequence(OptimizerConfig optimizerConfig) {
+    private static RunResult runSequence(CompileConfig optimizerConfig) {
         Tensor A = Tensor.scalar(10.0);
         Tensor B = Tensor.scalar(2.0);
         Tensor C = Tensor.scalar(5.0);
@@ -78,7 +78,7 @@ public class GradientEngineRegressionTest {
         );
     }
 
-    private static RunResultVec runSequenceVec(double[] aData, double[] bData, double[] cData, OptimizerConfig optimizerConfig) {
+    private static RunResultVec runSequenceVec(double[] aData, double[] bData, double[] cData, CompileConfig optimizerConfig) {
         Tensor A = new Tensor(aData.clone(), new int[]{aData.length}, null, "A", DataType.FLOAT64);
         Tensor B = new Tensor(bData.clone(), new int[]{bData.length}, null, "B", DataType.FLOAT64);
         Tensor C = new Tensor(cData.clone(), new int[]{cData.length}, null, "C", DataType.FLOAT64);
@@ -112,12 +112,7 @@ public class GradientEngineRegressionTest {
 
     private record RunResultVec(double[] te7, double[] gradA, double[] gradB, double[] gradC) {}
 
-    private static OptimizerConfig optimizedTrainingConfig() {
-        return new OptimizerConfig(
-                java.util.List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.PART, OptimizerStage.FUSE, OptimizerStage.MEM),
-                CseConfig.strictDefaults(),
-                FuseConfig.trainingDefaults(),
-                config.optimizer.MemoryConfig.defaults()
-        );
+    private static CompileConfig optimizedTrainingConfig() {
+        return CompileConfig.training();
     }
 }

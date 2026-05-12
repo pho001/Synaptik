@@ -1,5 +1,8 @@
 package graph.execution;
 
+import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+
 import backend.ComputeBackend;
 import backend.cuda.buffer.CudaBufferAccess;
 import backend.cuda.buffer.CudaBufferBinding;
@@ -195,7 +198,7 @@ class DeviceLayoutViewPropagationTest {
                 List.of(),
                 PartitionExecutionRole.NONE
         );
-        ExecutionState state = ExecutionState.create(nodes, Map.of(targetNode.id(), metadata), targetNode.id());
+        ExecutionState state = ExecutionState.create(nodes, CompiledTensorDescriptorBuilder.build(nodes), Map.of(targetNode.id(), metadata), targetNode.id());
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(runtimeConfig, ExecutionMode.FORWARD, Map.of(targetNode.id(), metadata), state);
         Fixture fixture = new Fixture(sourceNode, targetNode, state, context, new PreparedNodeExecution(targetNode, metadata));
         if (includeSourceBinding && backend == ComputeBackend.GPU_CUDA) {

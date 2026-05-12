@@ -1,8 +1,11 @@
 package graph.execution;
 
+import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+
 import backend.ComputeBackend;
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.CompiledNode;
@@ -40,7 +43,7 @@ class RuntimeMemoryBinderTest {
         short[] secondBefore = fixture.runtimeTensor("second").getBFloat16Data();
         assertNotSame(firstBefore, secondBefore);
 
-        RuntimeMemoryBinder.bind(fixture.memoryPlan(), fixture.nodes(), fixture.state());
+        RuntimeMemoryBinder.bind(fixture.memoryPlan(), fixture.nodes(), CompiledTensorDescriptorBuilder.build(fixture.nodes()), fixture.state());
 
         assertSame(fixture.runtimeTensor("first").getBFloat16Data(), fixture.runtimeTensor("second").getBFloat16Data());
     }
@@ -53,7 +56,7 @@ class RuntimeMemoryBinderTest {
         int[] secondBefore = fixture.runtimeTensor("second").getInt32Data();
         assertNotSame(firstBefore, secondBefore);
 
-        RuntimeMemoryBinder.bind(fixture.memoryPlan(), fixture.nodes(), fixture.state());
+        RuntimeMemoryBinder.bind(fixture.memoryPlan(), fixture.nodes(), CompiledTensorDescriptorBuilder.build(fixture.nodes()), fixture.state());
 
         assertSame(fixture.runtimeTensor("first").getInt32Data(), fixture.runtimeTensor("second").getInt32Data());
     }
@@ -66,7 +69,7 @@ class RuntimeMemoryBinderTest {
         byte[] secondBefore = fixture.runtimeTensor("second").getBoolData();
         assertNotSame(firstBefore, secondBefore);
 
-        RuntimeMemoryBinder.bind(fixture.memoryPlan(), fixture.nodes(), fixture.state());
+        RuntimeMemoryBinder.bind(fixture.memoryPlan(), fixture.nodes(), CompiledTensorDescriptorBuilder.build(fixture.nodes()), fixture.state());
 
         assertSame(fixture.runtimeTensor("first").getBoolData(), fixture.runtimeTensor("second").getBoolData());
     }
@@ -78,10 +81,10 @@ class RuntimeMemoryBinderTest {
         Tensor peer = new Tensor(new int[]{4}, List.of(input), new TestOperation(Operation.OpType.ADD), "peer", DataType.BFLOAT16);
         Tensor root = new Tensor(new int[]{4}, List.of(alias, peer), new TestOperation(Operation.OpType.ADD), "root", DataType.BFLOAT16);
         List<CompiledNode> nodes = CompiledNode.snapshot(root.topologicalSort());
-        ExecutionState state = ExecutionState.create(nodes, Map.of(), nodes.getLast().id());
+        ExecutionState state = ExecutionState.create(nodes, CompiledTensorDescriptorBuilder.build(nodes), Map.of(), nodes.getLast().id());
         MemoryPlan memoryPlan = memoryPlanFor(nodes, List.of("alias", "peer"), DataType.BFLOAT16);
 
-        RuntimeMemoryBinder.bind(memoryPlan, nodes, state);
+        RuntimeMemoryBinder.bind(memoryPlan, nodes, CompiledTensorDescriptorBuilder.build(nodes), state);
 
         assertSame(runtimeTensor(nodes, state, "input").getBFloat16Data(), runtimeTensor(nodes, state, "alias").getBFloat16Data());
         assertNotSame(runtimeTensor(nodes, state, "alias").getBFloat16Data(), runtimeTensor(nodes, state, "peer").getBFloat16Data());
@@ -90,11 +93,11 @@ class RuntimeMemoryBinderTest {
     @Test
     void typedSlotBindingPreservesFloat32AndFloat64Behavior() {
         RuntimeBindingFixture f32 = runtimeBindingFixture(DataType.FLOAT32, new TestOperation(Operation.OpType.ADD));
-        RuntimeMemoryBinder.bind(f32.memoryPlan(), f32.nodes(), f32.state());
+        RuntimeMemoryBinder.bind(f32.memoryPlan(), f32.nodes(), CompiledTensorDescriptorBuilder.build(f32.nodes()), f32.state());
         assertSame(f32.runtimeTensor("first").getFloat32Data(), f32.runtimeTensor("second").getFloat32Data());
 
         RuntimeBindingFixture f64 = runtimeBindingFixture(DataType.FLOAT64, new TestOperation(Operation.OpType.ADD));
-        RuntimeMemoryBinder.bind(f64.memoryPlan(), f64.nodes(), f64.state());
+        RuntimeMemoryBinder.bind(f64.memoryPlan(), f64.nodes(), CompiledTensorDescriptorBuilder.build(f64.nodes()), f64.state());
         assertSame(f64.runtimeTensor("first").getFloat64Data(), f64.runtimeTensor("second").getFloat64Data());
     }
 
@@ -115,7 +118,7 @@ class RuntimeMemoryBinderTest {
         Tensor reluSum = relu.sum();
         Tensor out = pooledSum.add(reluSum);
 
-        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution prepared = compiled.prepare(RuntimeConfig.inferenceDefaults());
         MemoryPlan memoryPlan = compiled.compileArtifacts().memoryPlan();
         assertNotNull(memoryPlan);
@@ -125,7 +128,7 @@ class RuntimeMemoryBinderTest {
         for (PreparedNodeExecution step : prepared.executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
-        ExecutionState state = ExecutionState.create(nodes, metadata, compiled.compileArtifacts().forwardOutputNode().id());
+        ExecutionState state = ExecutionState.create(nodes, compiled.compileArtifacts().descriptorIndex(), metadata, compiled.compileArtifacts().forwardOutputNode().id());
 
         CompiledNode maxPoolNode = nodes.stream()
                 .filter(node -> node.operation() != null && node.operation().opType() == Operation.OpType.MAX_POOL2D)
@@ -141,7 +144,7 @@ class RuntimeMemoryBinderTest {
             }
         }
 
-        RuntimeMemoryBinder.bind(memoryPlan, nodes, state);
+        RuntimeMemoryBinder.bind(memoryPlan, nodes, CompiledTensorDescriptorBuilder.build(nodes), state);
 
         assertSame(maxPoolStorageBefore, state.runtimeTensorForNodeId(maxPoolNode.id()).getFloat32Data());
         for (CompiledNode node : nodes) {
@@ -177,7 +180,7 @@ class RuntimeMemoryBinderTest {
         Tensor second = new Tensor(new int[]{4}, List.of(input), operation, "second", dataType);
         Tensor root = new Tensor(new int[]{4}, List.of(first, second), operation, "root", dataType);
         List<CompiledNode> nodes = CompiledNode.snapshot(root.topologicalSort());
-        ExecutionState state = ExecutionState.create(nodes, Map.of(), nodes.getLast().id());
+        ExecutionState state = ExecutionState.create(nodes, CompiledTensorDescriptorBuilder.build(nodes), Map.of(), nodes.getLast().id());
         MemoryPlan memoryPlan = memoryPlanFor(nodes, List.of("first", "second"), dataType);
         return new RuntimeBindingFixture(nodes, state, memoryPlan);
     }

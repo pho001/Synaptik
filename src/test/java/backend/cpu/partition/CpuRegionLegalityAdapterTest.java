@@ -1,5 +1,8 @@
 package backend.cpu.partition;
 
+import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
 import graph.optimizer.partition.PartitionPlanningContext;
@@ -97,6 +100,7 @@ class CpuRegionLegalityAdapterTest {
                 RuntimeConfig.inferenceDefaults(),
                 false,
                 compiledNodes,
+                CompiledTensorDescriptorBuilder.build(compiledNodes),
                 consumers(compiledNodes)
         );
     }

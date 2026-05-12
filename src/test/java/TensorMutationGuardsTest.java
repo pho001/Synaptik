@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
@@ -31,7 +31,7 @@ public class TensorMutationGuardsTest {
         Tensor a = new Tensor(new double[]{1.0}, new int[]{1}, null, "a", DataType.FLOAT64);
         Tensor b = new Tensor(new double[]{2.0}, new int[]{1}, null, "b", DataType.FLOAT64);
         Tensor out = a.add(b);
-        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
 
         List<Tensor> nodes = compiled.getCompiledGraphAsList();
 
@@ -44,7 +44,7 @@ public class TensorMutationGuardsTest {
         Tensor b = new Tensor(new double[]{5.0, 7.0}, new int[]{2}, null, "b", DataType.FLOAT64);
         Tensor out = a.add(b);
 
-        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
 
         TensorInternalAccess.setPrevTensors(out, List.of(a));
@@ -60,7 +60,7 @@ public class TensorMutationGuardsTest {
         Tensor b = new Tensor(new double[]{5.0, 7.0}, new int[]{2}, null, "b", DataType.FLOAT64);
         Tensor out = a.add(b);
 
-        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
 
         Tensor forwardOutput = compiled.getCompiledGraphAsList().stream()
@@ -79,7 +79,7 @@ public class TensorMutationGuardsTest {
         Tensor b = new Tensor(new double[]{5.0, 7.0}, new int[]{2}, null, "b", DataType.FLOAT64);
         Tensor out = a.add(b);
 
-        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
 
         TensorInternalAccess.setPrevTensors(out, List.of(a));
         TensorInternalAccess.setOperation(out, new mul());

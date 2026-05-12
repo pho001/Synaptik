@@ -1,6 +1,8 @@
 package graph.execution;
 
 import graph.CompiledNode;
+import graph.compile.descriptor.CompiledTensorDescriptor;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.optimizer.memory.MemoryPlan;
 import graph.optimizer.memory.RegionMemoryBinding;
 import graph.optimizer.memory.RegionMemoryBindingKind;
@@ -13,9 +15,9 @@ import tensor.Tensor;
 import tensor.TensorInternalAccess;
 
 import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 final class RuntimeMemoryBinder {
     private RuntimeMemoryBinder() {
@@ -24,21 +26,19 @@ final class RuntimeMemoryBinder {
     static void bind(
             MemoryPlan memoryPlan,
             List<CompiledNode> compiledNodes,
+            CompiledTensorDescriptorIndex descriptorIndex,
             ExecutionState executionState
     ) {
-        if (memoryPlan == null || compiledNodes == null || compiledNodes.isEmpty() || executionState == null) {
+        if (memoryPlan == null || compiledNodes == null || compiledNodes.isEmpty()) {
             return;
         }
+        Objects.requireNonNull(descriptorIndex, "descriptorIndex cannot be null");
+        Objects.requireNonNull(executionState, "executionState cannot be null");
         Map<Integer, double[]> regionF64Slots = new HashMap<>();
         Map<Integer, float[]> regionF32Slots = new HashMap<>();
         Map<Integer, short[]> regionBF16Slots = new HashMap<>();
         Map<Integer, int[]> regionI32Slots = new HashMap<>();
         Map<Integer, byte[]> regionBoolSlots = new HashMap<>();
-        Map<Tensor, Tensor> runtimeTensorBySemanticTensor = new IdentityHashMap<>(compiledNodes.size());
-        for (CompiledNode node : compiledNodes) {
-            runtimeTensorBySemanticTensor.put(node.semanticTensor(), executionState.runtimeTensorForNodeId(node.id()));
-        }
-
         for (CompiledNode node : compiledNodes) {
             if (node.operation() == null) {
                 continue;
@@ -48,7 +48,7 @@ final class RuntimeMemoryBinder {
             }
             Tensor semanticTensor = node.semanticTensor();
             Tensor runtimeTensor = executionState.runtimeTensorForNodeId(node.id());
-            if (aliasesInput0AtRuntime(node, runtimeTensorBySemanticTensor, runtimeTensor)) {
+            if (aliasesInput0AtRuntime(node, descriptorIndex, executionState, runtimeTensor)) {
                 continue;
             }
             tryBindRegionMapped(
@@ -66,22 +66,25 @@ final class RuntimeMemoryBinder {
 
     private static boolean aliasesInput0AtRuntime(
             CompiledNode node,
-            Map<Tensor, Tensor> runtimeTensorBySemanticTensor,
+            CompiledTensorDescriptorIndex descriptorIndex,
+            ExecutionState executionState,
             Tensor runtimeTensor
     ) {
-        if (node == null || node.operation() == null || node.inputTensors().isEmpty()) {
+        if (node == null || node.operation() == null || node.inputIds().isEmpty()) {
             return false;
         }
         boolean aliases = switch (node.operation().opType()) {
             case NOOP, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE -> true;
-            case RESHAPE -> node.inputTensors().getFirst().isContiguous();
+            case RESHAPE -> {
+                CompiledTensorDescriptor source = descriptorIndex.byNodeId(node.inputIds().getFirst());
+                yield source.contiguous();
+            }
             default -> false;
         };
         if (!aliases) {
             return false;
         }
-        Tensor sourceSemantic = node.inputTensors().getFirst();
-        Tensor sourceRuntime = runtimeTensorBySemanticTensor.get(sourceSemantic);
+        Tensor sourceRuntime = executionState.runtimeTensorForNodeId(node.inputIds().getFirst());
         if (sourceRuntime != null) {
             TensorInternalAccess.aliasRuntimeFrom(runtimeTensor, sourceRuntime);
         }

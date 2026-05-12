@@ -500,7 +500,7 @@ Tensor dense = expanded.contiguous();
 Builds a compiled graph using the convenience default:
 
 - `CompileMode.INFERENCE_ONLY`
-- `OptimizerConfig.inferenceDefaults()`
+- `CompileConfig.inference()`
 
 Returns:
 - `CompiledGraph`
@@ -541,7 +541,7 @@ prepared.execute(ExecutionMode.FORWARD_BACKWARD);
 Builds a prepared execution for the graph rooted at this tensor.
 
 Parameters:
-- `profile`: execution profile containing optimizer, runtime config, and execution mode defaults
+- `profile`: execution profile containing compile policy, runtime config, and execution mode defaults
 
 Returns:
 - `PreparedExecution`
@@ -554,11 +554,11 @@ ExecutionProfile profile = new ExecutionProfile(
         "manual-infer",
         y.getDataType(),
         ExecutionMode.FORWARD,
-        OptimizerConfig.inferenceDefaults(),
+        CompileConfig.inference(),
         RuntimeConfig.inferenceDefaults()
 );
 PreparedExecution execution = y.prepare(profile);
-// Returns: a PreparedExecution bound to the selected optimizer/runtime profile.
+// Returns: a PreparedExecution bound to the selected compile/runtime profile.
 ```
 
 ### `compute()`
@@ -667,7 +667,7 @@ ExecutionProfile profile = new ExecutionProfile(
         "manual-train",
         loss.getDataType(),
         ExecutionMode.FORWARD_BACKWARD,
-        OptimizerConfig.trainingDefaults(),
+        CompileConfig.training(),
         RuntimeConfig.trainingDefaults()
 );
 loss.compute(profile);
@@ -2594,7 +2594,7 @@ Returns:
 Behavior:
 - subtracts the per-axis maximum before exponentiation for numerical stability
 - keeps the original shape
-- uses the dedicated `SOFTMAX` primitive
+- builds a canonical primitive DAG: max-shift, exponentiation, sum, and division
 
 Example:
 ```java
@@ -2620,7 +2620,7 @@ Returns:
 Behavior:
 - computes `x - logsumexp(x)` along the selected axis
 - keeps the original shape
-- uses the dedicated `LOG_SOFTMAX` primitive
+- builds a canonical primitive DAG: max-shift, exponentiation, sum, log, and subtraction
 
 Example:
 ```java

@@ -1,5 +1,8 @@
 package backend.metal.exec;
 
+import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+
 import backend.accelerator.buffer.AcceleratorBufferAccessMode;
 import backend.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
@@ -42,7 +45,7 @@ import backend.metal.kernel.MetalCustomKernelExecutable;
 import backend.metal.lowering.MetalPartitionPlan;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.AcceleratorBackendConfig;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
@@ -238,17 +241,19 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     @Test
-    void customKernelRouteExecutesThroughCustomBufferBridgeWhenScopedCandidateIsAvailable() {
+    void mpsGraphFirstRouteExecutesThroughBufferBridgeWhenCustomKernelIsEligible() {
         Fixture fixture = fixture();
         FakeBridge bridge = new FakeBridge(true);
         FakeCustomKernelBridge customBridge = new FakeCustomKernelBridge(true);
         PreparedMetalExecutable executable = executable(fixture, bridge, customBridge);
         assertTrue(executable.preparedTransportPlan().contains("preferredPath=BUFFER_BINDING"));
-        assertEquals(MetalExecutionRoute.CUSTOM_KERNEL, executable.routeDecision().selectedRoute());
-        assertEquals(MetalRouteReasonCode.CUSTOM_KERNEL_SELECTED, executable.routeDecision().reasonCode());
+        assertEquals(MetalExecutionRoute.MPS_GRAPH, executable.routeDecision().selectedRoute());
+        assertEquals(MetalRouteReasonCode.MPS_GRAPH_SELECTED, executable.routeDecision().reasonCode());
         assertTrue(executable.routeDecision().customKernelAvailable());
-        assertTrue(executable.routeDecision().rejectedRoutes().contains(MetalExecutionRoute.MPS_GRAPH));
-        assertFalse(executable.routeDecision().rejectedRoutes().contains(MetalExecutionRoute.CUSTOM_KERNEL));
+        assertTrue(executable.routeDecision().detail().contains("metalRegionLowering=MPSGRAPH_DAG"));
+        assertTrue(executable.routeDecision().detail().contains("metalExecutionRoute=MPS_GRAPH"));
+        assertTrue(executable.routeDecision().rejectedRoutes().contains(MetalExecutionRoute.CUSTOM_KERNEL));
+        assertTrue(executable.routeDecision().rejectedReasonCodes().contains(MetalRouteReasonCode.CUSTOM_KERNEL_NOT_PROFITABLE));
         fixture.state().attachDeviceBufferBinding(
                 fixture.inputNode().id(),
                 binding(fixture.inputNode().id(), MetalBufferAccess.READ, 8),
@@ -260,17 +265,11 @@ class PreparedMetalExecutableBufferBindingTest {
 
         executable.execute(fixture.context());
 
-        assertEquals(0, bridge.bufferExecutions);
+        assertEquals(1, bridge.bufferExecutions);
         assertEquals(0, bridge.tensorExecutions);
-        assertEquals(1, customBridge.bufferExecutions);
-        assertEquals(MetalMpsBridgeExecutionPath.CUSTOM_KERNEL, executable.lastExecutionStats().executionPath());
+        assertEquals(0, customBridge.bufferExecutions);
+        assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, executable.lastExecutionStats().executionPath());
         assertEquals(MetalCustomKernelCandidate.RELU_F32_KERNEL_ID, executable.customKernelExecutable().kernelId());
-        assertEquals(List.of(fixture.inputNode().id()), customBridge.lastBufferInputs.stream()
-                .map(MetalBufferBinding::nodeId)
-                .toList());
-        assertEquals(List.of(fixture.outputNode().id()), customBridge.lastBufferOutputs.stream()
-                .map(MetalBufferBinding::nodeId)
-                .toList());
         assertEquals(outputBinding, fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
         assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.outputNode().id()).residency());
     }
@@ -299,7 +298,8 @@ class PreparedMetalExecutableBufferBindingTest {
         FakeBridge bridge = new FakeBridge(true);
         FakeCustomKernelBridge customBridge = new FakeCustomKernelBridge(true);
         PreparedMetalExecutable executable = executable(fixture, bridge, customBridge);
-        assertEquals(MetalExecutionRoute.CUSTOM_KERNEL, executable.routeDecision().selectedRoute());
+        assertEquals(MetalExecutionRoute.MPS_GRAPH, executable.routeDecision().selectedRoute());
+        assertTrue(executable.routeDecision().rejectedReasonCodes().contains(MetalRouteReasonCode.CUSTOM_KERNEL_NOT_PROFITABLE));
 
         executable.execute(fixture.context());
 
@@ -307,7 +307,7 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(0, customBridge.bufferExecutions);
         assertEquals(MetalExecutionRoute.MPS_GRAPH, executable.routeDecision().selectedRoute());
         assertEquals(MetalRouteReasonCode.MPS_GRAPH_SELECTED, executable.routeDecision().reasonCode());
-        assertTrue(executable.routeDecision().rejectedReasonCodes().contains(MetalRouteReasonCode.UNSUPPORTED_LAYOUT));
+        assertTrue(executable.routeDecision().rejectedReasonCodes().contains(MetalRouteReasonCode.CUSTOM_KERNEL_NOT_PROFITABLE));
         assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, executable.lastExecutionStats().executionPath());
     }
 
@@ -333,6 +333,7 @@ class PreparedMetalExecutableBufferBindingTest {
                 List.of(step),
                 List.of(),
                 List.of(fixture.inputNode(), fixture.outputNode()),
+                CompiledTensorDescriptorBuilder.build(List.of(fixture.inputNode(), fixture.outputNode())),
                 Map.of(),
                 fixture.outputNode().semanticTensor(),
                 fixture.outputNode(),
@@ -352,6 +353,11 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(-1L, attrs.get("metalRouteEstimatedCopyCost"));
         assertEquals(false, attrs.get("metalRouteNativeCopyCostKnown"));
         assertEquals(false, attrs.get("metalRouteCustomKernelAvailable"));
+        assertEquals("MetalBackendRouteCostModel", attrs.get("metalRouteCostModel"));
+        assertEquals("metal-prepared-execution-route", attrs.get("metalRouteCostInputKind"));
+        assertEquals("MPS_GRAPH_SELECTED", attrs.get("metalRouteCostReason"));
+        assertTrue(((List<?>) attrs.get("metalRouteCostTopContributors")).stream()
+                .anyMatch(value -> String.valueOf(value).contains("estimatedRouteCost")));
         assertEquals(false, attrs.get("metalOutputBufferWriteProbeSupported"));
         assertEquals("MPSGRAPH_RESULT_COPY", attrs.get("metalNativeCopyStrategy"));
         assertEquals(false, attrs.get("metalOutputBufferWriteProven"));
@@ -381,6 +387,7 @@ class PreparedMetalExecutableBufferBindingTest {
                 List.of(step),
                 List.of(),
                 List.of(fixture.inputNode(), fixture.outputNode()),
+                CompiledTensorDescriptorBuilder.build(List.of(fixture.inputNode(), fixture.outputNode())),
                 Map.of(),
                 fixture.outputNode().semanticTensor(),
                 fixture.outputNode(),
@@ -393,12 +400,16 @@ class PreparedMetalExecutableBufferBindingTest {
         Map<String, Object> attrs = trace.steps().getFirst().metadata().attributes();
 
         assertEquals("BUFFER_BINDING", attrs.get("acceleratorBufferExecutionPath"));
-        assertEquals("CUSTOM_KERNEL", attrs.get("metalExecutionRoute"));
-        assertEquals("CUSTOM_KERNEL_SELECTED", attrs.get("metalRouteReasonCode"));
-        assertEquals(List.of("MPS_GRAPH"), attrs.get("metalRouteRejectedRoutes"));
-        assertEquals(List.of("MPS_GRAPH_SELECTED"), attrs.get("metalRouteRejectedReasonCodes"));
+        assertEquals("MPS_GRAPH", attrs.get("metalExecutionRoute"));
+        assertEquals("MPS_GRAPH_SELECTED", attrs.get("metalRouteReasonCode"));
+        assertEquals(List.of("CUSTOM_KERNEL"), attrs.get("metalRouteRejectedRoutes"));
+        assertEquals(List.of("CUSTOM_KERNEL_NOT_PROFITABLE"), attrs.get("metalRouteRejectedReasonCodes"));
         assertEquals(true, attrs.get("metalRouteCustomKernelAvailable"));
-        assertEquals("CUSTOM_KERNEL", attrs.get("metalExecutionPath"));
+        assertEquals("MetalBackendRouteCostModel", attrs.get("metalRouteCostModel"));
+        assertEquals("MPS_GRAPH_SELECTED", attrs.get("metalRouteCostReason"));
+        assertTrue(((List<?>) attrs.get("metalRouteCostComponents")).stream()
+                .anyMatch(value -> String.valueOf(value).contains("customKernelAvailable")));
+        assertEquals("BUFFER_BINDING", attrs.get("metalExecutionPath"));
     }
 
 
@@ -577,9 +588,9 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     @Test
-    void existingDeviceInputWithPermutedLayoutUsesDensePhysicalLogicalViewPolicy() {
+    void existingDeviceInputWithPermutedLayoutMaterializesDenseBeforeBufferCompute() {
         Fixture fixture = nonContiguousInputFixture();
-        FakeBridge bridge = new FakeBridge(true);
+        FakeBridge bridge = new FakeBridge(true, false, false, true);
         PreparedMetalExecutable executable = executable(fixture, bridge);
         Tensor input = fixture.context().runtimeTensorForNodeId(fixture.inputNode().id());
         fixture.state().attachDeviceBufferBinding(
@@ -606,6 +617,7 @@ class PreparedMetalExecutableBufferBindingTest {
 
         assertEquals(1, bridge.bufferExecutions);
         assertEquals(0, bridge.tensorExecutions);
+        assertEquals(1, bridge.layoutMaterializations);
         assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, executable.lastExecutionStats().executionPath());
         assertEquals(AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE, executable.lastAcceleratorBufferDecision().reasonCode());
         assertEquals(AcceleratorBufferExecutionPath.BUFFER_BINDING, executable.lastAcceleratorBufferDecision().path());
@@ -615,10 +627,42 @@ class PreparedMetalExecutableBufferBindingTest {
         assertTrue(executable.lastAcceleratorBufferDecision().inputs().getFirst().reason()
                 .contains("layoutClass=PERMUTED_OR_STRIDED_VIEW"));
         assertEquals(
-                AcceleratorBufferLayoutClass.PERMUTED_OR_STRIDED_VIEW,
+                AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS,
                 bridge.lastBufferInputs.getFirst().layout().layoutClass()
         );
+        assertEquals(
+                AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS,
+                fixture.state().deviceBufferBindingForNodeId(fixture.inputNode().id()).layout().layoutClass()
+        );
         assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.outputNode().id()).residency());
+    }
+
+    @Test
+    void existingDeviceInputWithPermutedLayoutFallsBackWhenGpuLayoutRepairUnavailable() {
+        Fixture fixture = nonContiguousInputFixture();
+        FakeBridge bridge = new FakeBridge(true);
+        PreparedMetalExecutable executable = executable(fixture, bridge);
+        Tensor input = fixture.context().runtimeTensorForNodeId(fixture.inputNode().id());
+        fixture.state().attachDeviceBufferBinding(
+                fixture.inputNode().id(),
+                binding(
+                        fixture.inputNode().id(),
+                        MetalBufferAccess.READ,
+                        16,
+                        AcceleratorBufferLayout.fromTensor(input)
+                ),
+                StorageResidency.HOST_SHARED_DEVICE_BUFFER,
+                "input shared buffer"
+        );
+
+        executable.execute(fixture.context());
+
+        assertEquals(0, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(0, bridge.layoutMaterializations);
+        assertEquals(AcceleratorBufferExecutionPath.TENSOR_ARRAY, executable.lastAcceleratorBufferDecision().path());
+        assertEquals(AcceleratorBufferReasonCode.INPUT_LAYOUT_UNSUPPORTED, executable.lastAcceleratorBufferDecision().reasonCode());
+        assertTrue(executable.lastAcceleratorBufferDecision().reason().contains("must be materialized to DENSE_CONTIGUOUS"));
     }
 
     @Test
@@ -698,9 +742,9 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     @Test
-    void existingLogicalViewDeviceBindingFeedsAdjacentMetalExecutableWithoutCpuMaterialization() {
+    void existingLogicalViewDeviceBindingIsDenselyRepairedForAdjacentMetalExecutableWithoutCpuMaterialization() {
         Fixture firstFixture = nonContiguousOutputFixture();
-        FakeBridge bridge = new FakeBridge(true);
+        FakeBridge bridge = new FakeBridge(true, false, false, true);
         PreparedMetalExecutable first = executable(firstFixture, bridge);
 
         first.execute(firstFixture.context());
@@ -734,7 +778,10 @@ class PreparedMetalExecutableBufferBindingTest {
 
         assertEquals(2, bridge.bufferExecutions);
         assertEquals(0, bridge.tensorExecutions);
-        assertEquals(secondInputBinding, bridge.lastBufferInputs.getFirst());
+        assertEquals(1, bridge.layoutMaterializations);
+        assertEquals(AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS, bridge.lastBufferInputs.getFirst().layout().layoutClass());
+        assertEquals(AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS, secondFixture.state()
+                .deviceBufferBindingForNodeId(secondFixture.inputNode().id()).layout().layoutClass());
         assertTrue(firstFixture.state().cpuMaterializationTraces().isEmpty());
         assertTrue(secondFixture.state().cpuMaterializationTraces().isEmpty());
         assertEquals(StorageResidency.DEVICE_OWNED, secondFixture.state()
@@ -1148,7 +1195,7 @@ class PreparedMetalExecutableBufferBindingTest {
         Tensor input = new Tensor(new float[]{1f, -2f}, new int[]{2}, null, "input", DataType.FLOAT32);
         Tensor middle = input.relu();
         Tensor output = middle.relu();
-        CompiledGraph compiled = CompiledGraph.compile(output, OptimizerConfig.noOptimization());
+        CompiledGraph compiled = CompiledGraph.compile(output, CompileConfig.cpuOnlyBaseline());
         List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
         List<CompiledNode> reluNodes = nodes.stream()
                 .filter(node -> node.operation() != null && node.operation().opType() == Operation.OpType.RELU)
@@ -1164,7 +1211,7 @@ class PreparedMetalExecutableBufferBindingTest {
         for (PreparedNodeExecution step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
-        ExecutionState state = ExecutionState.create(nodes, metadata, compiled.compileArtifacts().forwardOutputNode().id());
+        ExecutionState state = ExecutionState.create(nodes, compiled.compileArtifacts().descriptorIndex(), metadata, compiled.compileArtifacts().forwardOutputNode().id());
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),
                 ExecutionMode.FORWARD,
@@ -1180,7 +1227,7 @@ class PreparedMetalExecutableBufferBindingTest {
         Tensor add = a.add(b);
         Tensor relu = add.relu();
         Tensor exp = relu.exp();
-        CompiledGraph compiled = CompiledGraph.compile(exp, OptimizerConfig.noOptimization());
+        CompiledGraph compiled = CompiledGraph.compile(exp, CompileConfig.noGraphOptimizationBaseline());
         List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
         CompiledNode addNode = operationNode(nodes, Operation.OpType.ADD);
         CompiledNode reluNode = operationNode(nodes, Operation.OpType.RELU);
@@ -1191,7 +1238,7 @@ class PreparedMetalExecutableBufferBindingTest {
         for (PreparedNodeExecution step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
-        ExecutionState state = ExecutionState.create(nodes, metadata, compiled.compileArtifacts().forwardOutputNode().id());
+        ExecutionState state = ExecutionState.create(nodes, compiled.compileArtifacts().descriptorIndex(), metadata, compiled.compileArtifacts().forwardOutputNode().id());
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),
                 ExecutionMode.FORWARD,
@@ -1251,7 +1298,7 @@ class PreparedMetalExecutableBufferBindingTest {
         CompiledNode inputNode = nodes.get(0);
         CompiledNode outputNode = nodes.get(1);
         Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
-        ExecutionState state = ExecutionState.create(nodes, metadata, outputNode.id());
+        ExecutionState state = ExecutionState.create(nodes, CompiledTensorDescriptorBuilder.build(nodes), metadata, outputNode.id());
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),
                 ExecutionMode.FORWARD,
@@ -1353,7 +1400,7 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     private static Fixture fixture(Tensor input, Tensor output) {
-        CompiledGraph compiled = CompiledGraph.compile(output, OptimizerConfig.noOptimization());
+        CompiledGraph compiled = CompiledGraph.compile(output, CompileConfig.noGraphOptimizationBaseline());
         List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
         CompiledNode outputNode = nodes.stream()
                 .filter(node -> node.semanticTensor() == output
@@ -1369,7 +1416,7 @@ class PreparedMetalExecutableBufferBindingTest {
         for (PreparedNodeExecution step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
-        ExecutionState state = ExecutionState.create(nodes, metadata, compiled.compileArtifacts().forwardOutputNode().id());
+        ExecutionState state = ExecutionState.create(nodes, compiled.compileArtifacts().descriptorIndex(), metadata, compiled.compileArtifacts().forwardOutputNode().id());
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),
                 ExecutionMode.FORWARD,
@@ -1734,20 +1781,32 @@ class PreparedMetalExecutableBufferBindingTest {
         private final boolean supportsBufferBindings;
         private final boolean failTensorExecution;
         private final boolean failBufferExecution;
+        private final boolean supportsLayoutMaterialization;
         private int tensorExecutions;
         private int bufferExecutions;
         private int bufferAllocations;
+        private int layoutMaterializations;
         private List<MetalBufferBinding> lastBufferInputs = List.of();
         private List<MetalBufferBinding> lastBufferOutputs = List.of();
 
         private FakeBridge(boolean supportsBufferBindings) {
-            this(supportsBufferBindings, false, false);
+            this(supportsBufferBindings, false, false, false);
         }
 
         private FakeBridge(boolean supportsBufferBindings, boolean failTensorExecution, boolean failBufferExecution) {
+            this(supportsBufferBindings, failTensorExecution, failBufferExecution, false);
+        }
+
+        private FakeBridge(
+                boolean supportsBufferBindings,
+                boolean failTensorExecution,
+                boolean failBufferExecution,
+                boolean supportsLayoutMaterialization
+        ) {
             this.supportsBufferBindings = supportsBufferBindings;
             this.failTensorExecution = failTensorExecution;
             this.failBufferExecution = failBufferExecution;
+            this.supportsLayoutMaterialization = supportsLayoutMaterialization;
         }
 
         @Override
@@ -1785,6 +1844,23 @@ class PreparedMetalExecutableBufferBindingTest {
         @Override
         public boolean supportsBufferBindings() {
             return supportsBufferBindings;
+        }
+
+        @Override
+        public boolean supportsLayoutMaterialization() {
+            return supportsLayoutMaterialization;
+        }
+
+        @Override
+        public void materializeLayout(
+                MetalMpsBridgeContext context,
+                MetalBufferBinding source,
+                MetalBufferBinding destination
+        ) {
+            if (!supportsLayoutMaterialization) {
+                throw new UnsupportedOperationException("fake layout materialization disabled");
+            }
+            layoutMaterializations++;
         }
 
         @Override

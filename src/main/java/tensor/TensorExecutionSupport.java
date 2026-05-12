@@ -2,7 +2,7 @@ package tensor;
 
 import backend.ComputeBackend;
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.ExecutionProfileIO;
 import config.profile.GraphExecutionPolicy;
@@ -48,7 +48,7 @@ final class TensorExecutionSupport {
         if (profile == null) {
             throw new IllegalArgumentException("profile cannot be null");
         }
-        return CompiledGraph.compile(tensor, profile.optimizer(), compileModeForProfile(profile)).prepare(profile.runtime());
+        return CompiledGraph.compile(tensor, profile.compile(), compileModeForProfile(profile)).prepare(profile.runtime());
     }
 
     static void compute(Tensor tensor, ExecutionProfile profile) {
@@ -61,7 +61,7 @@ final class TensorExecutionSupport {
     static CompiledGraph compile(Tensor tensor, CompileMode compileMode) {
         Objects.requireNonNull(tensor, "tensor cannot be null");
         CompileMode effectiveMode = compileMode == null ? CompileMode.INFERENCE_ONLY : compileMode;
-        return CompiledGraph.compile(tensor, defaultOptimizer(tensor, effectiveMode), effectiveMode);
+        return CompiledGraph.compile(tensor, defaultCompile(tensor, effectiveMode), effectiveMode);
     }
 
     static Tensor compute(Tensor tensor) {
@@ -199,7 +199,7 @@ final class TensorExecutionSupport {
 
     private static ExecutionProfile defaultProfile(Tensor tensor, ComputeOptions options) {
         CompileMode compileMode = options.compileMode() == null ? CompileMode.INFERENCE_ONLY : options.compileMode();
-        OptimizerConfig optimizer = options.optimizer() == null ? defaultOptimizer(tensor, compileMode) : options.optimizer();
+        CompileConfig compile = options.compile() != null ? options.compile() : defaultCompile(tensor, compileMode);
         RuntimeConfig runtime = options.runtime() == null ? defaultRuntime(tensor, compileMode) : options.runtime();
         ExecutionMode executionMode = defaultExecutionMode(tensor, compileMode);
         String name = "tensor-compute-" + dtypeId(tensor.getDataType()) + "-" + modeId(executionMode);
@@ -208,18 +208,17 @@ final class TensorExecutionSupport {
                 name,
                 tensor.getDataType(),
                 executionMode,
-                optimizer,
+                compile,
                 runtime,
                 WorkloadProfile.none()
         );
     }
 
-    private static OptimizerConfig defaultOptimizer(Tensor tensor, CompileMode compileMode) {
-        return switch (compileMode == null ? CompileMode.INFERENCE_ONLY : compileMode) {
-            case INFERENCE_ONLY -> OptimizerConfig.inferenceDefaults();
-            case TRAINING -> OptimizerConfig.trainingDefaults();
-            case AUTO -> hasTrainableLeafInputs(tensor) ? OptimizerConfig.trainingDefaults() : OptimizerConfig.inferenceDefaults();
-        };
+    private static CompileConfig defaultCompile(Tensor tensor, CompileMode compileMode) {
+        return CompileConfig.defaultsForCompileMode(
+                compileMode == null ? CompileMode.INFERENCE_ONLY : compileMode,
+                hasTrainableLeafInputs(tensor)
+        );
     }
 
     private static RuntimeConfig defaultRuntime(Tensor tensor, CompileMode compileMode) {

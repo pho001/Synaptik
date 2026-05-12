@@ -39,6 +39,7 @@ public final class PreparedExecutionBuilder {
                 runtimeConfig,
                 artifacts.supportsBackward(),
                 compiledNodes,
+                artifacts.descriptorIndex(),
                 consumers
         );
         BackendSelectionResult selection = new DefaultBackendSelectionPolicy().select(
@@ -54,7 +55,7 @@ public final class PreparedExecutionBuilder {
         List<PreparedNodeExecution> forwardSteps = new ArrayList<>();
         List<PreparedNodeExecution> backwardSteps = new ArrayList<>();
         for (CompiledNode node : compiledNodes) {
-            if (node.operation() == null || node.inputTensors().isEmpty()) {
+            if (node.operation() == null || node.inputIds().isEmpty()) {
                 continue;
             }
             CompiledNodeExecutionMetadata metadata = dispatcher.prepare(node, context);
@@ -78,6 +79,7 @@ public final class PreparedExecutionBuilder {
                 forwardSteps,
                 backwardSteps,
                 compiledNodes,
+                artifacts.descriptorIndex(),
                 artifacts.gradientBindings(),
                 artifacts.rootTensor(),
                 artifacts.forwardOutputNode(),
@@ -117,7 +119,12 @@ public final class PreparedExecutionBuilder {
         var lowered = pipeline.lower(
                 loweringInput,
                 new BackendCapabilities(supportedBackends),
-                new LoweringContext(runtimeConfig, compiledNodes, selectedPlansByPartitionId)
+                new LoweringContext(
+                        runtimeConfig,
+                        compiledNodes,
+                        artifacts.descriptorIndex(),
+                        selectedPlansByPartitionId
+                )
         );
         context.publishLoweredRegions(lowered.lowered().loweredRegions());
     }

@@ -11,6 +11,8 @@ import backend.memory.ExecutionResource;
 import backend.memory.StorageResidency;
 import backend.memory.TensorResidencyState;
 import graph.CompiledNode;
+import graph.compile.descriptor.CompiledTensorDescriptor;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.execution.trace.CpuMaterializationTrace;
 import tensor.DataType;
 import tensor.Tensor;
@@ -68,16 +70,19 @@ public final class ExecutionState {
      * Creates per-run runtime tensors, prepared input buffers, and CPU workspaces.
      *
      * @param compiledNodes compiled node snapshots in graph order
+     * @param descriptorIndex immutable tensor descriptor facts for {@code compiledNodes}
      * @param metadataIndex prepared execution metadata keyed by node id
      * @param forwardBoundaryNodeId last forward node id, used to decide leaf aliasing versus copying
      * @return mutable execution state for one run
      */
     public static ExecutionState create(
             List<CompiledNode> compiledNodes,
+            CompiledTensorDescriptorIndex descriptorIndex,
             Map<Integer, CompiledNodeExecutionMetadata> metadataIndex,
             int forwardBoundaryNodeId
     ) {
         Objects.requireNonNull(compiledNodes, "compiledNodes cannot be null");
+        Objects.requireNonNull(descriptorIndex, "descriptorIndex cannot be null");
         Objects.requireNonNull(metadataIndex, "metadataIndex cannot be null");
 
         Map<Integer, Tensor> runtimeTensors = new HashMap<>(compiledNodes.size());
@@ -93,7 +98,9 @@ public final class ExecutionState {
                     node.label(),
                     node.dataType()
             );
-            runtimeTensor.setRequiresGrad(node.semanticTensor().getRequiresGrad());
+            CompiledTensorDescriptor descriptor = descriptorIndex.byNodeId(node.id());
+            runtimeTensor.setRequiresGrad(descriptor.requiresGrad());
+            runtimeTensor.setTrainableParameter(descriptor.trainableParameter());
             if (node.leaf()) {
                 if (node.id() <= forwardBoundaryNodeId) {
                     TensorInternalAccess.aliasRuntimeFrom(runtimeTensor, node.sourceTensor());
@@ -122,7 +129,7 @@ public final class ExecutionState {
             TensorInternalAccess.setPrevTensors(runtimeTensors.get(node.id()), runtimeInputs);
         }
         for (CompiledNode node : compiledNodes) {
-            if (node.inputIds().isEmpty() || !isCpuAliasView(node, runtimeTensors)) {
+            if (node.inputIds().isEmpty() || !isCpuAliasView(node, descriptorIndex)) {
                 continue;
             }
             int sourceNodeId = node.inputIds().getFirst();
@@ -176,15 +183,18 @@ public final class ExecutionState {
         }
     }
 
-    private static boolean isCpuAliasView(CompiledNode node, Map<Integer, Tensor> runtimeTensors) {
+    private static boolean isCpuAliasView(
+            CompiledNode node,
+            CompiledTensorDescriptorIndex descriptorIndex
+    ) {
         if (node == null || node.operation() == null || node.inputIds().isEmpty()) {
             return false;
         }
         return switch (node.operation().opType()) {
             case NOOP, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE -> true;
             case RESHAPE -> {
-                Tensor source = runtimeTensors.get(node.inputIds().getFirst());
-                yield source != null && source.isContiguous();
+                CompiledTensorDescriptor source = descriptorIndex.byNodeId(node.inputIds().getFirst());
+                yield source.contiguous();
             }
             default -> false;
         };

@@ -1,3 +1,5 @@
+import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import backend.accelerator.buffer.AcceleratorBufferDecision;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
@@ -18,7 +20,7 @@ import backend.runtime.ExecutionMode;
 import backend.ComputeBackend;
 import backend.runtime.ExecutionContext;
 import config.runtime.AcceleratorBufferBindingMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import graph.CompiledNode;
@@ -31,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
+import tensor.TensorPrimitiveBuilder;
 
 import java.util.List;
 import java.util.Map;
@@ -44,11 +47,11 @@ public class CompiledGraphTraceTest {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "traceLogSoftmaxInput", DataType.FLOAT32);
         Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f}, new int[]{3, 3}, null, "traceLogSoftmaxWeight", DataType.FLOAT32);
         Tensor matmul = input.matmul(weight);
-        Tensor out = matmul.logSoftmax(1);
+        Tensor out = specialLogSoftmax(matmul, 1);
         TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
 
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
         int matmulNodeId = nodeId(compiled, operations.Operation.OpType.MATMUL);
         int logSoftmaxNodeId = nodeId(compiled, operations.Operation.OpType.LOG_SOFTMAX);
@@ -70,10 +73,10 @@ public class CompiledGraphTraceTest {
     @Test
     void gpuLoweredRegionManifestTraceContainsOriginalOpsAndPrimitives() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "manifestInput", DataType.FLOAT32);
-        Tensor out = input.logSoftmax(1);
+        Tensor out = specialLogSoftmax(input, 1);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
 
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
         int logSoftmaxNodeId = nodeId(compiled, operations.Operation.OpType.LOG_SOFTMAX);
 
@@ -101,7 +104,7 @@ public class CompiledGraphTraceTest {
         Tensor out = input.sum(1);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
 
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
         int sumNodeId = nodeId(compiled, operations.Operation.OpType.SUM);
         String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(compiledNode(compiled, sumNodeId), null);
@@ -121,7 +124,7 @@ public class CompiledGraphTraceTest {
         Tensor out = input.layerNorm(gamma, beta, 1.0e-5);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
 
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
         int layerNormNodeId = nodeId(compiled, operations.Operation.OpType.LAYER_NORM);
         String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
@@ -142,12 +145,14 @@ public class CompiledGraphTraceTest {
         Tensor b = new Tensor(new double[]{5, 6, 7, 8}, new int[]{4}, null, "b", DataType.FLOAT64);
         Tensor out = a.add(b).mul(a);
 
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference());
         var runTrace = compiled.executeTraced(config.runtime.RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertTrue(compiled.compileTrace().measured());
         assertTrue(compiled.compileTrace().totalNodeCount() > 0);
         assertTrue(compiled.compileTrace().partitionPlanning() != null);
+        assertTrue(compiled.compileTrace().optimizerTrace().costExplanations().stream()
+                .anyMatch(explanation -> "GraphCleanupCostModel".equals(explanation.modelName())));
         assertTrue(runTrace.durationNs() >= 0L);
         assertTrue(runTrace.steps().size() > 0);
         assertEquals("FORWARD", runTrace.mode().name());
@@ -169,7 +174,7 @@ public class CompiledGraphTraceTest {
         Tensor c = new Tensor(cv, new int[]{size}, null, "c", DataType.FLOAT32);
         Tensor out = a.add(b).mul(c).relu().exp();
 
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference());
         var prepared = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
         var runTrace = prepared.executeTraced(ExecutionMode.FORWARD);
 
@@ -195,7 +200,7 @@ public class CompiledGraphTraceTest {
                 "delegate",
                 DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                OptimizerConfig.noOptimization(),
+                CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -236,7 +241,7 @@ public class CompiledGraphTraceTest {
         TensorInternalAccess.setBackend(abs, ComputeBackend.GPU_METAL);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
 
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         var decisions = compiled.compileTrace().partitionPlanning().decisions();
 
         assertTrue(decisions.stream().anyMatch(decision ->
@@ -256,7 +261,7 @@ public class CompiledGraphTraceTest {
         Tensor b = new Tensor(new double[]{5, 6, 7, 8}, new int[]{4}, null, "b", DataType.FLOAT64);
         Tensor out = a.add(b).mul(a);
 
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference());
 
         assertEquals(PartitionTarget.CPU, compiled.compileTrace().partitionPlanning().target());
         assertTrue(compiled.compileTrace().partitionPlanning().decisions().size() > 0);
@@ -272,7 +277,7 @@ public class CompiledGraphTraceTest {
         TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
 
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference());
 
         assertEquals(PartitionTarget.GPU_METAL, compiled.compileTrace().partitionPlanning().target());
     }
@@ -282,7 +287,7 @@ public class CompiledGraphTraceTest {
         Tensor a = new Tensor(new float[]{1f, 2f}, new int[]{2}, null, "traceA", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{3f, 4f}, new int[]{2}, null, "traceB", DataType.FLOAT32);
         Tensor out = a.add(b);
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
                 .filter(node -> node.semanticTensor() == out || node.sourceTensor() == out)
                 .findFirst()
@@ -307,6 +312,7 @@ public class CompiledGraphTraceTest {
                 List.of(step),
                 List.of(),
                 compiled.compileArtifacts().compiledNodes(),
+                compiled.compileArtifacts().descriptorIndex(),
                 java.util.Map.of(),
                 out,
                 outputNode,
@@ -327,7 +333,7 @@ public class CompiledGraphTraceTest {
     @Test
     void gpuLoweredRegionRunTraceReferencesRegionIdOnly() {
         Tensor out = Tensor.scalar(1.0f).relu();
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
                 .filter(node -> node.semanticTensor() == out || node.sourceTensor() == out)
                 .findFirst()
@@ -353,6 +359,7 @@ public class CompiledGraphTraceTest {
                 List.of(step),
                 List.of(),
                 compiled.compileArtifacts().compiledNodes(),
+                compiled.compileArtifacts().descriptorIndex(),
                 java.util.Map.of(),
                 out,
                 outputNode,
@@ -370,7 +377,7 @@ public class CompiledGraphTraceTest {
     @Test
     void phaseNineteenPreparedTraceCarriesMultiOpRegionMetrics() {
         Tensor out = Tensor.scalar(1.0f).relu();
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
                 .filter(node -> node.semanticTensor() == out || node.sourceTensor() == out)
                 .findFirst()
@@ -399,7 +406,7 @@ public class CompiledGraphTraceTest {
     @Test
     void phaseNineteenTraceDistinguishesBufferBindingTensorArrayAndCpuFallback() {
         Tensor out = Tensor.scalar(1.0f).relu();
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
                 .filter(node -> node.semanticTensor() == out || node.sourceTensor() == out)
                 .findFirst()
@@ -452,7 +459,7 @@ public class CompiledGraphTraceTest {
         TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_CUDA);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
 
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
         int addNodeId = nodeId(compiled, operations.Operation.OpType.ADD);
         int reluNodeId = nodeId(compiled, operations.Operation.OpType.RELU);
@@ -489,7 +496,7 @@ public class CompiledGraphTraceTest {
         Tensor loss = logits.crossEntropyLoss(targets, 1);
         TensorInternalAccess.setBackend(loss, ComputeBackend.GPU_METAL);
 
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults());
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(loss, CompileConfig.training());
         PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.trainingDefaults());
         int lossNodeId = nodeId(compiled, operations.Operation.OpType.CROSS_ENTROPY_LOSS);
         var trace = prepared.executeTraced(ExecutionMode.FORWARD_BACKWARD);
@@ -506,7 +513,7 @@ public class CompiledGraphTraceTest {
     @Test
     void traceRendersGpuFusedSubpatternSpanAndPrimitiveCount() {
         Tensor out = Tensor.scalar(1.0f).relu();
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
                 .filter(node -> node.semanticTensor() == out || node.sourceTensor() == out)
                 .findFirst()
@@ -532,6 +539,7 @@ public class CompiledGraphTraceTest {
                 List.of(step),
                 List.of(),
                 compiled.compileArtifacts().compiledNodes(),
+                compiled.compileArtifacts().descriptorIndex(),
                 java.util.Map.of(),
                 out,
                 outputNode,
@@ -698,7 +706,7 @@ public class CompiledGraphTraceTest {
                                 "",
                                 "",
                                 GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
-                                "UNSUPPORTED_INDEX_SEMANTICS: operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering family=LOSS_ADJACENT status=unsupported note=index-target loss uses INT32 targets plus bounds, ignore-index, and reduction-denominator semantics outside the current accelerator DAG contract; target=transformer_block_hot_path"
+                                "UNSUPPORTED_INDEX_SEMANTICS: GPU_METAL index-target loss target out of range: 17 for classes=16 family=LOSS_ADJACENT target=transformer_block_hot_path"
                         )
                 ),
                 GpuLoweredRegionCandidateSpan.none(List.of(80, 81)),
@@ -761,6 +769,7 @@ public class CompiledGraphTraceTest {
                 List.of(step),
                 List.of(),
                 compiled.compileArtifacts().compiledNodes(),
+                compiled.compileArtifacts().descriptorIndex(),
                 java.util.Map.of(),
                 out,
                 outputNode,
@@ -997,6 +1006,16 @@ public class CompiledGraphTraceTest {
                 .orElseThrow();
     }
 
+    private static Tensor specialLogSoftmax(Tensor input, int dimension) {
+        return TensorPrimitiveBuilder.unary(
+                input,
+                input.getShapeUnsafe().clone(),
+                new operations.reduction.logSoftmax(dimension),
+                "legacyLogSoftmax",
+                input.getDataType()
+        );
+    }
+
     private static CompiledNode compiledNode(graph.CompiledGraph compiled, int nodeId) {
         return compiled.compileArtifacts().compiledNodes().stream()
                 .filter(node -> node.id() == nodeId)
@@ -1019,6 +1038,7 @@ public class CompiledGraphTraceTest {
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 false,
                 nodes,
+                CompiledTensorDescriptorBuilder.build(nodes),
                 consumers
         );
     }

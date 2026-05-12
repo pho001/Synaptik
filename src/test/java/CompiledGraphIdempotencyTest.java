@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import org.junit.jupiter.api.Test;
@@ -16,10 +16,10 @@ public class CompiledGraphIdempotencyTest {
         a.setRequiresGrad(true);
         Tensor loss = a.mul(a);
 
-        CompiledGraph first = CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults());
+        CompiledGraph first = CompiledGraph.compile(loss, CompileConfig.training());
         int firstNodeCount = first.getCompiledGraphAsList().size();
 
-        CompiledGraph second = CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults());
+        CompiledGraph second = CompiledGraph.compile(loss, CompileConfig.training());
         int secondNodeCount = second.getCompiledGraphAsList().size();
 
         assertEquals(firstNodeCount, secondNodeCount);
@@ -34,11 +34,11 @@ public class CompiledGraphIdempotencyTest {
         a.setRequiresGrad(true);
         Tensor loss = a.mul(a);
 
-        CompiledGraph first = CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults());
+        CompiledGraph first = CompiledGraph.compile(loss, CompileConfig.training());
         first.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
         assertEquals(4.0d, a.getGradient().scalarAsDouble(), 1e-9);
 
-        CompiledGraph second = CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults());
+        CompiledGraph second = CompiledGraph.compile(loss, CompileConfig.training());
         int firstNodeCount = first.getCompiledGraphAsList().size();
         int secondNodeCount = second.getCompiledGraphAsList().size();
 
@@ -60,7 +60,7 @@ public class CompiledGraphIdempotencyTest {
         assertEquals(operations.Operation.OpType.MUL, out.getOperation().opType());
         assertSame(add, out.getPrevTensors().getFirst());
 
-        CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        CompiledGraph.compile(out, CompileConfig.inference());
 
         assertEquals(operations.Operation.OpType.ADD, add.getOperation().opType());
         assertEquals(operations.Operation.OpType.MUL, out.getOperation().opType());

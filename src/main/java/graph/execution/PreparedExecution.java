@@ -11,6 +11,7 @@ import backend.runtime.ExecutionMode;
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
 import graph.CompiledGradientBinding;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.execution.trace.ComputeTraceMetadata;
 import graph.execution.trace.DispatchTraceMetadata;
 import graph.execution.trace.ExecutionStepTrace;
@@ -23,8 +24,12 @@ import graph.execution.trace.ReductionTraceMetadata;
 import graph.execution.trace.RunTrace;
 import graph.execution.trace.StepExecutionMetadata;
 import graph.optimizer.memory.MemoryPlan;
+import graph.optimizer.cost.CostComponent;
+import graph.optimizer.cost.CostExplanation;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
+import training.optimizer.OptimizerStepContext;
+import training.optimizer.TrainingOptimizer;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -32,6 +37,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Locale;
 
 /**
  * Runtime plan produced from {@link graph.compile.CompileArtifacts}.
@@ -40,9 +46,10 @@ import java.util.Objects;
  * binding policy, and ordered forward/backward step lists for one {@link RuntimeConfig}. The prepared object is an
  * immutable description of how to run; each execution creates a fresh {@link ExecutionState}.
  *
- * <p>Running a prepared execution has side effects on the graph's tensors: output storage is synchronized back to the
- * source root tensor, backward mode seeds the root gradient, and compiled gradient bindings publish computed gradients.
- * Concurrent calls against shared source tensors or shared backend workspaces are not supported.
+ * <p>Running a prepared execution has side effects controlled by {@link PublicationPolicy}. The default execution
+ * policy synchronizes output storage back to the source root tensor and publishes compiled gradients after backward
+ * execution; lower-publication policies can keep values in the run-scoped execution state for benchmark and device
+ * residency diagnostics. Concurrent calls against shared source tensors or shared backend workspaces are not supported.
  */
 public final class PreparedExecution {
     private final RuntimeConfig runtimeConfig;
@@ -51,6 +58,7 @@ public final class PreparedExecution {
     private final List<PreparedNodeExecution> forwardSteps;
     private final List<PreparedNodeExecution> backwardSteps;
     private final List<CompiledNode> allNodes;
+    private final CompiledTensorDescriptorIndex descriptorIndex;
     private final Map<Tensor, CompiledGradientBinding> compiledGradients;
     private final Tensor rootTensor;
     private final CompiledNode forwardOutputNode;
@@ -68,6 +76,7 @@ public final class PreparedExecution {
      * @param forwardSteps forward-only step list
      * @param backwardSteps backward-only step list
      * @param allNodes all compiled nodes in graph order
+     * @param descriptorIndex immutable tensor descriptor facts for {@code allNodes}
      * @param compiledGradients gradient publication bindings
      * @param rootTensor source root tensor to synchronize after execution
      * @param forwardOutputNode compiled node that holds the forward result
@@ -82,6 +91,7 @@ public final class PreparedExecution {
             List<PreparedNodeExecution> forwardSteps,
             List<PreparedNodeExecution> backwardSteps,
             List<CompiledNode> allNodes,
+            CompiledTensorDescriptorIndex descriptorIndex,
             Map<Tensor, CompiledGradientBinding> compiledGradients,
             Tensor rootTensor,
             CompiledNode forwardOutputNode,
@@ -95,6 +105,7 @@ public final class PreparedExecution {
         this.forwardSteps = List.copyOf(forwardSteps == null ? List.of() : forwardSteps);
         this.backwardSteps = List.copyOf(backwardSteps == null ? List.of() : backwardSteps);
         this.allNodes = List.copyOf(allNodes == null ? List.of() : allNodes);
+        this.descriptorIndex = Objects.requireNonNull(descriptorIndex, "descriptorIndex cannot be null");
         this.compiledGradients = Map.copyOf(compiledGradients == null ? Map.of() : compiledGradients);
         this.rootTensor = Objects.requireNonNull(rootTensor, "rootTensor cannot be null");
         this.forwardOutputNode = Objects.requireNonNull(forwardOutputNode, "forwardOutputNode cannot be null");
@@ -166,7 +177,19 @@ public final class PreparedExecution {
      * @throws IllegalStateException if backward execution is requested but this plan has no backward steps
      */
     public void execute(ExecutionMode mode) {
-        executeInternal(mode, false);
+        execute(mode, PublicationPolicy.defaultExecution());
+    }
+
+    /**
+     * Executes this prepared plan without collecting per-step trace metadata.
+     *
+     * @param mode execution mode to run
+     * @param publicationPolicy values to publish back to user-visible tensors after execution
+     * @throws NullPointerException if {@code mode} is {@code null}
+     * @throws IllegalStateException if backward execution is requested but this plan has no backward steps
+     */
+    public void execute(ExecutionMode mode, PublicationPolicy publicationPolicy) {
+        executeInternal(mode, false, null, publicationPolicy);
     }
 
     /**
@@ -178,32 +201,120 @@ public final class PreparedExecution {
      * @throws IllegalStateException if backward execution is requested but this plan has no backward steps
      */
     public RunTrace executeTraced(ExecutionMode mode) {
-        return executeInternal(mode, true);
+        return executeTraced(mode, PublicationPolicy.defaultExecution());
     }
 
-    private RunTrace executeInternal(ExecutionMode mode, boolean captureTrace) {
+    /**
+     * Executes this prepared plan and returns run-level diagnostics.
+     *
+     * @param mode execution mode to run
+     * @param publicationPolicy values to publish back to user-visible tensors after execution
+     * @return run trace containing duration and per-step metadata
+     * @throws NullPointerException if {@code mode} is {@code null}
+     * @throws IllegalStateException if backward execution is requested but this plan has no backward steps
+     */
+    public RunTrace executeTraced(ExecutionMode mode, PublicationPolicy publicationPolicy) {
+        return executeInternal(mode, true, null, publicationPolicy);
+    }
+
+    /**
+     * Executes forward/backward and applies an optimizer to trainable parameters without eager public gradient
+     * publication.
+     *
+     * @param optimizer optimizer to apply
+     */
+    public void executeOptimizerStep(TrainingOptimizer optimizer) {
+        executeOptimizerStep(optimizer, PublicationPolicy.defaultOptimizerStep());
+    }
+
+    /**
+     * Executes forward/backward and applies an optimizer to trainable parameters.
+     *
+     * @param optimizer optimizer to apply
+     * @param publicationPolicy values to publish back to user-visible tensors after execution
+     */
+    public void executeOptimizerStep(TrainingOptimizer optimizer, PublicationPolicy publicationPolicy) {
+        executeInternal(
+                ExecutionMode.FORWARD_BACKWARD,
+                false,
+                Objects.requireNonNull(optimizer, "optimizer cannot be null"),
+                publicationPolicy
+        );
+    }
+
+    /**
+     * Executes forward/backward, applies an optimizer to trainable parameters, and returns run diagnostics.
+     *
+     * @param optimizer optimizer to apply
+     * @return run trace
+     */
+    public RunTrace executeOptimizerStepTraced(TrainingOptimizer optimizer) {
+        return executeOptimizerStepTraced(optimizer, PublicationPolicy.defaultOptimizerStep());
+    }
+
+    /**
+     * Executes forward/backward, applies an optimizer to trainable parameters, and returns run diagnostics.
+     *
+     * @param optimizer optimizer to apply
+     * @param publicationPolicy values to publish back to user-visible tensors after execution
+     * @return run trace
+     */
+    public RunTrace executeOptimizerStepTraced(TrainingOptimizer optimizer, PublicationPolicy publicationPolicy) {
+        return executeInternal(
+                ExecutionMode.FORWARD_BACKWARD,
+                true,
+                Objects.requireNonNull(optimizer, "optimizer cannot be null"),
+                publicationPolicy
+        );
+    }
+
+    private RunTrace executeInternal(
+            ExecutionMode mode,
+            boolean captureTrace,
+            TrainingOptimizer optimizer,
+            PublicationPolicy publicationPolicy
+    ) {
         Objects.requireNonNull(mode, "mode cannot be null");
+        PublicationPolicy publication = publicationPolicy == null
+                ? (optimizer == null ? PublicationPolicy.defaultExecution() : PublicationPolicy.defaultOptimizerStep())
+                : publicationPolicy;
         if (mode == ExecutionMode.FORWARD_BACKWARD && !supportsBackward) {
             throw new IllegalStateException("Prepared execution does not support backward execution.");
+        }
+        if (optimizer != null && mode != ExecutionMode.FORWARD_BACKWARD) {
+            throw new IllegalArgumentException("Optimizer steps require FORWARD_BACKWARD execution.");
         }
 
         long runStart = System.nanoTime();
         java.util.ArrayList<ExecutionStepTrace> steps = captureTrace ? new java.util.ArrayList<>() : null;
-        ExecutionState executionState = ExecutionState.create(allNodes, metadataIndex, forwardOutputNode.id());
+        ExecutionState executionState = ExecutionState.create(allNodes, descriptorIndex, metadataIndex, forwardOutputNode.id());
         RuntimeException executionFailure = null;
         Error executionError = null;
         try {
-            RuntimeMemoryBinder.bind(memoryPlan, allNodes, executionState);
+            RuntimeMemoryBinder.bind(memoryPlan, allNodes, descriptorIndex, executionState);
             ExecutionContext context = ExecutionContext.fromRuntimeConfig(runtimeConfig, mode, metadataIndex, executionState);
+            OptimizerStepContext optimizerContext = optimizer == null
+                    ? null
+                    : new OptimizerStepContext(runtimeConfig, context, allNodes, compiledGradients);
+            if (optimizer != null) {
+                optimizer.beforeExecute(optimizerContext);
+            }
 
             if (mode == ExecutionMode.FORWARD_BACKWARD) {
                 seedRootGradient(executionState);
                 executeSteps(executionSteps, context, captureTrace, steps, 0);
-                syncRootData(mode, executionState);
-                publishCompiledGradients(executionState);
+                if (optimizer == null) {
+                    publishAfterExecution(mode, executionState, publication);
+                } else {
+                    if (publication.publishesOutputValue() && !publication.publishesAllForwardValues()) {
+                        syncRootData(mode, executionState);
+                    }
+                    optimizer.step(optimizerContext);
+                    publishAfterOptimizerStep(mode, executionState, publication);
+                }
             } else {
                 executeSteps(forwardSteps, context, captureTrace, steps, 0);
-                syncRootData(mode, executionState);
+                publishForwardOnly(mode, executionState, publication);
             }
             return new RunTrace(
                     mode,
@@ -498,6 +609,7 @@ public final class PreparedExecution {
         if (metadata.acceleratorExecutable() instanceof backend.metal.exec.PreparedMetalExecutable metal) {
             var metalStats = metal.lastExecutionStats();
             var route = metal.routeDecision();
+            CostExplanation routeCost = route.toCostScore().explain(route.reasonCode().name());
             attrs.put("metalBridgeAvailable", metal.bridge().isAvailable());
             attrs.put("metalBridgeContextAvailable", metal.bridgeContext().available());
             attrs.put("metalBridgeExecutableAvailable", metal.bridgeExecutable().available());
@@ -520,6 +632,16 @@ public final class PreparedExecution {
             attrs.put("metalRouteBufferAbiSupported", route.bufferAbiSupported());
             attrs.put("metalRouteCustomKernelAvailable", route.customKernelAvailable());
             attrs.put("metalRouteNativeCopyCostKnown", route.nativeCopyCostKnown());
+            attrs.put("metalRouteCostModel", routeCost.modelName());
+            attrs.put("metalRouteCostInputKind", routeCost.inputKind());
+            attrs.put("metalRouteCostReason", routeCost.reasonCode());
+            attrs.put("metalRouteCostComparison", routeCost.comparison().name());
+            attrs.put("metalRouteCostTopContributors", routeCost.topContributors().stream()
+                    .map(PreparedExecution::costComponentSummary)
+                    .toList());
+            attrs.put("metalRouteCostComponents", routeCost.rawComponents().stream()
+                    .map(PreparedExecution::costComponentSummary)
+                    .toList());
             attrs.put("metalBufferBindingDecision", metal.lastBufferBindingDecision());
             attrs.put("metalOutputBufferWriteProbeSupported", metal.bridge().supportsOutputBufferWriteProbe());
             attrs.put("metalSubgraphNodeCount", metal.plan().nodeIds().size());
@@ -585,6 +707,16 @@ public final class PreparedExecution {
         return new StepExecutionMetadata("node", attrs, compute, layout, dispatch, reduction, matMul, conv, fusedMeta);
     }
 
+    private static String costComponentSummary(CostComponent component) {
+        if (component == null) {
+            return "";
+        }
+        return component.name()
+                + "=" + String.format(Locale.US, "%.6f", component.value())
+                + " " + component.direction().name()
+                + " (" + component.reason() + ")";
+    }
+
     private static int deviceHandoffCount(backend.accelerator.buffer.AcceleratorBufferDecision decision) {
         if (decision == null
                 || decision.path() != backend.accelerator.buffer.AcceleratorBufferExecutionPath.BUFFER_BINDING) {
@@ -603,6 +735,75 @@ public final class PreparedExecution {
                 || decision.kind() == backend.accelerator.buffer.AcceleratorLayoutTransformKind.BROADCAST_GPU_MATERIALIZATION;
     }
 
+    private void publishAfterExecution(
+            ExecutionMode mode,
+            ExecutionState executionState,
+            PublicationPolicy publication
+    ) {
+        if (publication.publishesAllForwardValues()) {
+            publishAllForwardValues(mode, executionState);
+        } else if (publication.publishesOutputValue()) {
+            syncRootData(mode, executionState);
+        }
+        if (mode == ExecutionMode.FORWARD_BACKWARD) {
+            if (publication.publishesGradients()) {
+                publishCompiledGradients(executionState);
+            } else {
+                clearPublishedGradients();
+            }
+        }
+    }
+
+    private void publishAfterOptimizerStep(
+            ExecutionMode mode,
+            ExecutionState executionState,
+            PublicationPolicy publication
+    ) {
+        if (publication.publishesAllForwardValues()) {
+            publishAllForwardValues(mode, executionState);
+        }
+        if (publication.publishesGradients()) {
+            publishCompiledGradients(executionState);
+        } else {
+            clearPublishedGradients();
+        }
+    }
+
+    private void publishForwardOnly(
+            ExecutionMode mode,
+            ExecutionState executionState,
+            PublicationPolicy publication
+    ) {
+        if (publication.publishesAllForwardValues()) {
+            publishAllForwardValues(mode, executionState);
+        } else if (publication.publishesOutputValue()) {
+            syncRootData(mode, executionState);
+        }
+    }
+
+    private void publishAllForwardValues(ExecutionMode mode, ExecutionState executionState) {
+        syncRootData(mode, executionState);
+        Tensor rootPublishTarget = resolveSemanticPublishTarget(rootTensor);
+        for (CompiledNode node : allNodes) {
+            if (node.backwardNode()) {
+                continue;
+            }
+            Tensor target = node.sourceTensor();
+            if (target == null || target == rootTensor || target == rootPublishTarget) {
+                continue;
+            }
+            publishRuntimeTensor(
+                    mode,
+                    executionState,
+                    target,
+                    node.id(),
+                    CpuMaterializationReason.GRAPH_VALUE_PUBLICATION
+            );
+            repairSemanticAliasChain(target);
+        }
+        repairSemanticAliasChain(rootTensor);
+    }
+
     private void syncRootData(ExecutionMode mode, ExecutionState executionState) {
         Integer semanticRootNodeId = nodeIdForSemanticTensor(rootTensor);
         int actualRootNodeId = semanticRootNodeId == null ? resolveForwardRuntimeRootNodeId() : semanticRootNodeId;
@@ -611,7 +812,13 @@ public final class PreparedExecution {
         if (publishNodeId != null) {
             if (publishNodeId != actualRootNodeId
                     && shouldPublishActualRootForAlias(executionState, publishNodeId, actualRootNodeId)) {
-                publishRuntimeTensor(mode, executionState, rootTensor, actualRootNodeId);
+                publishRuntimeTensor(
+                        mode,
+                        executionState,
+                        rootTensor,
+                        actualRootNodeId,
+                        CpuMaterializationReason.GRAPH_OUTPUT
+                );
                 repairSemanticAliasChain(rootTensor);
                 return;
             }
@@ -649,7 +856,17 @@ public final class PreparedExecution {
             Tensor publishTarget,
             int nodeId
     ) {
-        executionState.requireCpuReadable(nodeId, CpuMaterializationReason.GRAPH_OUTPUT);
+        publishRuntimeTensor(mode, executionState, publishTarget, nodeId, CpuMaterializationReason.GRAPH_OUTPUT);
+    }
+
+    private static void publishRuntimeTensor(
+            ExecutionMode mode,
+            ExecutionState executionState,
+            Tensor publishTarget,
+            int nodeId,
+            CpuMaterializationReason reason
+    ) {
+        executionState.requireCpuReadable(nodeId, reason);
         Tensor runtimeTensor = executionState.runtimeTensorForNodeId(nodeId);
         if (mode == ExecutionMode.FORWARD_BACKWARD || runtimeTensor != publishTarget) {
             publishTarget.copyDataFrom(runtimeTensor);
@@ -737,6 +954,14 @@ public final class PreparedExecution {
                 throw new IllegalStateException("Unsupported gradient binding type: " + binding.getClass().getName());
             }
             TensorInternalAccess.setGradient(tensor, published);
+        }
+    }
+
+    private void clearPublishedGradients() {
+        for (CompiledNode node : allNodes) {
+            if (!node.backwardNode()) {
+                TensorInternalAccess.setGradient(node.sourceTensor(), null);
+            }
         }
     }
 

@@ -498,6 +498,42 @@ public class Tensor {
     }
 
     /**
+     * Reports whether this tensor is a trainable model parameter.
+     *
+     * <p>Trainable parameters are the only tensors updated by training optimizers.
+     * This is intentionally narrower than {@link #getRequiresGrad()}: intermediate
+     * tensors can require gradients without being optimizer-owned parameters.</p>
+     *
+     * @return true when optimizers may update this tensor
+     */
+    public boolean isTrainableParameter() {
+        return metadata.trainableParameter();
+    }
+
+    /**
+     * Marks this tensor as a trainable model parameter or clears that role.
+     *
+     * <p>Setting the flag to true also enables gradient tracking. Clearing the
+     * flag leaves {@code requiresGrad} unchanged so callers can keep gradients
+     * observable for non-parameter tensors.</p>
+     *
+     * @param trainableParameter true when optimizers may update this tensor
+     */
+    public void setTrainableParameter(boolean trainableParameter) {
+        metadata.setTrainableParameter(trainableParameter);
+    }
+
+    /**
+     * Fluent variant of {@link #setTrainableParameter(boolean)}.
+     *
+     * @return this tensor
+     */
+    public Tensor trainableParameter() {
+        setTrainableParameter(true);
+        return this;
+    }
+
+    /**
      * Returns this tensor's label.
      *
      * @return label string, possibly null

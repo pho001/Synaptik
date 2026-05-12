@@ -332,7 +332,7 @@ public class CrossBackendRouterEvidenceTest {
                 "router-evidence-candidate",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 config.profile.WorkloadProfile.transformerHotPathDefaults()
         );

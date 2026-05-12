@@ -14,13 +14,11 @@ import java.util.Objects;
 
 public final class BackendPrepareDispatcher {
     private final CpuNodePreparer cpuPreparer;
-    private final MetalNodePreparer metalPreparer;
-    private final CudaGpuNodePreparer cudaGpuPreparer;
+    private MetalNodePreparer metalPreparer;
+    private CudaGpuNodePreparer cudaGpuPreparer;
 
     private BackendPrepareDispatcher(RuntimeConfig runtimeConfig) {
         this.cpuPreparer = new CpuNodePreparer(runtimeConfig);
-        this.metalPreparer = new MetalNodePreparer(cpuPreparer);
-        this.cudaGpuPreparer = new CudaGpuNodePreparer(cpuPreparer);
     }
 
     public static BackendPrepareDispatcher from(RuntimeConfig runtimeConfig) {
@@ -32,11 +30,25 @@ public final class BackendPrepareDispatcher {
         Objects.requireNonNull(context, "context cannot be null");
         return switch (executionBackendFor(node, context)) {
             case CPU -> cpuPreparer.prepare(node, context);
-            case GPU_METAL -> metalPreparer.prepare(node, context);
-            case GPU_CUDA -> cudaGpuPreparer.prepare(node, context);
+            case GPU_METAL -> metalPreparer().prepare(node, context);
+            case GPU_CUDA -> cudaGpuPreparer().prepare(node, context);
             case GPU_OPENCL ->
                     new CompiledNodeExecutionMetadata(node.backend(), null, null, null, null, null, PartitionExecutionRole.NONE);
         };
+    }
+
+    private MetalNodePreparer metalPreparer() {
+        if (metalPreparer == null) {
+            metalPreparer = new MetalNodePreparer(cpuPreparer);
+        }
+        return metalPreparer;
+    }
+
+    private CudaGpuNodePreparer cudaGpuPreparer() {
+        if (cudaGpuPreparer == null) {
+            cudaGpuPreparer = new CudaGpuNodePreparer(cpuPreparer);
+        }
+        return cudaGpuPreparer;
     }
 
     private ComputeBackend executionBackendFor(CompiledNode node, BackendPrepareContext context) {

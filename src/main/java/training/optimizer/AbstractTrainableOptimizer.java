@@ -1,0 +1,191 @@
+package training.optimizer;
+
+import backend.ComputeBackend;
+import backend.accelerator.buffer.AcceleratorBufferLayout;
+import backend.memory.CpuMaterializationReason;
+import backend.memory.DeviceBufferBinding;
+import backend.memory.StorageResidency;
+import backend.metal.bridge.MetalMpsBridgeContext;
+import backend.metal.buffer.MetalBufferAccess;
+import backend.metal.buffer.MetalBufferAllocator;
+import backend.metal.buffer.MetalBufferBinding;
+import backend.metal.buffer.MetalDeviceToCpuMaterializer;
+import backend.runtime.ExecutionContext;
+import graph.CompiledGradientBinding;
+import graph.CompiledNode;
+import tensor.DataType;
+import tensor.Tensor;
+
+import java.util.Collection;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+abstract class AbstractTrainableOptimizer implements TrainingOptimizer {
+    private final IdentityHashMap<Tensor, Boolean> explicitParameters;
+    private final IdentityHashMap<Tensor, OwnedMetalBinding> metalParameters = new IdentityHashMap<>();
+
+    AbstractTrainableOptimizer(Collection<Tensor> parameters) {
+        this.explicitParameters = new IdentityHashMap<>();
+        if (parameters != null) {
+            for (Tensor parameter : parameters) {
+                if (parameter != null) {
+                    explicitParameters.put(parameter, Boolean.TRUE);
+                }
+            }
+        }
+    }
+
+    @Override
+    public void beforeExecute(OptimizerStepContext context) {
+        Objects.requireNonNull(context, "context cannot be null");
+        ExecutionContext execution = context.executionContext();
+        for (TrainableParameterRef ref : selectedParameters(context)) {
+            OwnedMetalBinding owned = metalParameters.get(ref.parameterNode().sourceTensor());
+            if (owned == null || !owned.binding().available()) {
+                continue;
+            }
+            execution.registerDeviceToCpuMaterializer(
+                    ComputeBackend.GPU_METAL.name(),
+                    new MetalDeviceToCpuMaterializer(owned.allocator())
+            );
+            execution.attachDeviceBufferBinding(
+                    ref.parameterNode().id(),
+                    bindingForNode(ref.parameterNode().id(), owned.binding(), MetalBufferAccess.READ_WRITE),
+                    StorageResidency.DEVICE_OWNED,
+                    "optimizer-owned Metal parameter"
+            );
+        }
+    }
+
+    @Override
+    public final void step(OptimizerStepContext context) {
+        Objects.requireNonNull(context, "context cannot be null");
+        beforeStep(context);
+        for (TrainableParameterRef ref : selectedParameters(context)) {
+            if (!(ref.gradientBinding() instanceof CompiledGradientBinding.NodeBinding nodeBinding)) {
+                continue;
+            }
+            if (tryMetalStep(context, ref, nodeBinding.nodeId())) {
+                continue;
+            }
+            cpuStep(context, ref, nodeBinding.nodeId());
+            clearMetalParameter(ref.parameterNode().sourceTensor());
+        }
+    }
+
+    protected void beforeStep(OptimizerStepContext context) {
+    }
+
+    @Override
+    public void syncParametersToCpu() {
+        for (Map.Entry<Tensor, OwnedMetalBinding> entry : List.copyOf(metalParameters.entrySet())) {
+            Tensor parameter = entry.getKey();
+            OwnedMetalBinding owned = entry.getValue();
+            owned.allocator().readToCpu(owned.binding(), parameter, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+            parameter.markStorageModified();
+        }
+    }
+
+    @Override
+    public void close() {
+        for (OwnedMetalBinding owned : List.copyOf(metalParameters.values())) {
+            owned.allocator().destroy(owned.binding().handle());
+        }
+        metalParameters.clear();
+    }
+
+    protected abstract boolean metalStep(
+            OptimizerStepContext context,
+            TrainableParameterRef ref,
+            MetalMpsBridgeContext bridgeContext,
+            MetalBufferAllocator allocator,
+            MetalBufferBinding parameter,
+            MetalBufferBinding gradient,
+            MetalBufferBinding output
+    );
+
+    protected abstract void cpuStep(OptimizerStepContext context, TrainableParameterRef ref, int gradientNodeId);
+
+    protected List<TrainableParameterRef> selectedParameters(OptimizerStepContext context) {
+        return context.trainableParameters().stream()
+                .filter(ref -> explicitParameters.isEmpty() || explicitParameters.containsKey(ref.parameterNode().sourceTensor()))
+                .toList();
+    }
+
+    protected void requireCpuReadable(OptimizerStepContext context, int nodeId) {
+        context.executionContext().requireCpuReadable(nodeId, CpuMaterializationReason.OPTIMIZER_STEP);
+    }
+
+    private boolean tryMetalStep(OptimizerStepContext context, TrainableParameterRef ref, int gradientNodeId) {
+        ExecutionContext execution = context.executionContext();
+        MetalBufferAllocator allocator = execution.runtimeService(MetalBufferAllocator.class);
+        MetalMpsBridgeContext bridgeContext = execution.runtimeService(MetalMpsBridgeContext.class);
+        if (allocator == null || !allocator.available() || bridgeContext == null || !bridgeContext.available()) {
+            return false;
+        }
+        DeviceBufferBinding parameterBinding = execution.deviceBufferBindingForNodeId(ref.parameterNode().id());
+        DeviceBufferBinding gradientBinding = execution.deviceBufferBindingForNodeId(gradientNodeId);
+        if (!(parameterBinding instanceof MetalBufferBinding metalParameter)
+                || !(gradientBinding instanceof MetalBufferBinding metalGradient)
+                || !sameShape(ref.parameterNode(), gradientNodeId, context)
+                || ref.parameterNode().dataType() != DataType.FLOAT32
+                || metalGradient.layout().dataType() != DataType.FLOAT32) {
+            return false;
+        }
+        MetalBufferBinding output;
+        try {
+            output = allocator.createOutputBinding(
+                    ref.parameterNode().id(),
+                    AcceleratorBufferLayout.fromTensor(execution.runtimeTensorForNodeId(ref.parameterNode().id()))
+            );
+            if (!metalStep(context, ref, bridgeContext, allocator, metalParameter, metalGradient, output)) {
+                allocator.destroy(output.handle());
+                return false;
+            }
+        } catch (RuntimeException ex) {
+            return false;
+        }
+        replaceMetalParameter(ref.parameterNode(), allocator, output, execution);
+        return true;
+    }
+
+    private static boolean sameShape(CompiledNode parameterNode, int gradientNodeId, OptimizerStepContext context) {
+        Tensor gradient = context.executionContext().runtimeTensorForNodeId(gradientNodeId);
+        return java.util.Arrays.equals(parameterNode.shape(), gradient.getShapeUnsafe());
+    }
+
+    private void replaceMetalParameter(
+            CompiledNode parameterNode,
+            MetalBufferAllocator allocator,
+            MetalBufferBinding output,
+            ExecutionContext execution
+    ) {
+        Tensor source = parameterNode.sourceTensor();
+        OwnedMetalBinding previous = metalParameters.put(source, new OwnedMetalBinding(allocator, output));
+        if (previous != null && previous.binding().handle().nativeHandle() != output.handle().nativeHandle()) {
+            previous.allocator().destroy(previous.binding().handle());
+        }
+        execution.attachDeviceBufferBinding(
+                parameterNode.id(),
+                bindingForNode(parameterNode.id(), output, MetalBufferAccess.READ_WRITE),
+                StorageResidency.DEVICE_OWNED,
+                "optimizer Metal parameter update"
+        );
+    }
+
+    private void clearMetalParameter(Tensor parameter) {
+        OwnedMetalBinding owned = metalParameters.remove(parameter);
+        if (owned != null) {
+            owned.allocator().destroy(owned.binding().handle());
+        }
+    }
+
+    protected static MetalBufferBinding bindingForNode(int nodeId, MetalBufferBinding source, MetalBufferAccess access) {
+        return new MetalBufferBinding(nodeId, source.layout(), source.handle(), access);
+    }
+
+    private record OwnedMetalBinding(MetalBufferAllocator allocator, MetalBufferBinding binding) {
+    }
+}

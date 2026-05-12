@@ -11,6 +11,7 @@ public final class TensorMetadata {
     private final boolean contiguous;
     private String label;
     private boolean requiresGrad;
+    private boolean trainableParameter;
     private DataType dataType;
 
     public TensorMetadata(int[] shape, String label, boolean requiresGrad) {
@@ -25,6 +26,7 @@ public final class TensorMetadata {
         this.contiguous = computeContiguous(this.shape, this.strides);
         this.label = label;
         this.requiresGrad = requiresGrad;
+        this.trainableParameter = false;
         this.dataType = dataType == null ? DEFAULT_DATA_TYPE : dataType;
     }
 
@@ -57,6 +59,7 @@ public final class TensorMetadata {
         this.contiguous = computeContiguous(this.shape, this.strides);
         this.label = label;
         this.requiresGrad = requiresGrad;
+        this.trainableParameter = false;
         this.dataType = dataType == null ? DEFAULT_DATA_TYPE : dataType;
     }
 
@@ -114,6 +117,20 @@ public final class TensorMetadata {
 
     public void setRequiresGrad(boolean requiresGrad) {
         this.requiresGrad = requiresGrad;
+        if (!requiresGrad) {
+            this.trainableParameter = false;
+        }
+    }
+
+    public boolean trainableParameter() {
+        return trainableParameter;
+    }
+
+    public void setTrainableParameter(boolean trainableParameter) {
+        this.trainableParameter = trainableParameter;
+        if (trainableParameter) {
+            this.requiresGrad = true;
+        }
     }
 
     public DataType getDataType() {
@@ -186,7 +203,9 @@ public final class TensorMetadata {
     }
 
     public TensorMetadata copy() {
-        return new TensorMetadata(shape, strides, storageOffset, label, requiresGrad, dataType);
+        TensorMetadata copy = new TensorMetadata(shape, strides, storageOffset, label, requiresGrad, dataType);
+        copy.setTrainableParameter(trainableParameter);
+        return copy;
     }
 
     public static int[] computeStrides(int[] shape) {

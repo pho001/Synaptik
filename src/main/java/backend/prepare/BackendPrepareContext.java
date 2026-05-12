@@ -5,6 +5,8 @@ import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweredRegion;
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
+import graph.compile.descriptor.CompiledTensorDescriptor;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.optimizer.partition.PartitionPlan;
 
@@ -22,10 +24,11 @@ public final class BackendPrepareContext {
             RuntimeConfig runtimeConfig,
             boolean supportsBackward,
             List<CompiledNode> compiledNodes,
+            CompiledTensorDescriptorIndex descriptorIndex,
             Map<Integer, List<CompiledNode>> consumers
     ) {
         this(
-                new PrepareInputs(runtimeConfig, supportsBackward, compiledNodes, consumers),
+                new PrepareInputs(runtimeConfig, supportsBackward, compiledNodes, descriptorIndex, consumers),
                 new PreparedMetadataIndex(),
                 new BackendPlanIndex(),
                 new PartitionRoleIndex(),
@@ -61,6 +64,10 @@ public final class BackendPrepareContext {
 
     public CompiledNode compiledNode(int nodeId) {
         return inputs.compiledNode(nodeId);
+    }
+
+    public CompiledTensorDescriptor descriptor(int nodeId) {
+        return inputs.descriptor(nodeId);
     }
 
     public List<CompiledNode> consumersFor(int nodeId) {

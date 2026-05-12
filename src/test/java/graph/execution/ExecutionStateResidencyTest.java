@@ -10,7 +10,7 @@ import backend.memory.ExecutionResource;
 import backend.memory.StorageResidency;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.CompiledNode;
@@ -257,7 +257,7 @@ class ExecutionStateResidencyTest {
         Tensor b = new Tensor(new float[]{3f, 4f}, new int[]{2}, null, "b", DataType.FLOAT32);
         Tensor out = a.add(b);
 
-        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution prepared = compiled.prepare(RuntimeConfig.inferenceDefaults());
         List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
         Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
@@ -266,6 +266,7 @@ class ExecutionStateResidencyTest {
         }
         ExecutionState state = ExecutionState.create(
                 nodes,
+                compiled.compileArtifacts().descriptorIndex(),
                 metadata,
                 compiled.compileArtifacts().forwardOutputNode().id()
         );

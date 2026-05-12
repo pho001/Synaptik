@@ -2,6 +2,8 @@ package backend.prepare;
 
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
+import graph.compile.descriptor.CompiledTensorDescriptor;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 
 import java.util.List;
 import java.util.Map;
@@ -13,17 +15,20 @@ import java.util.Objects;
  * @param runtimeConfig runtime policy used for prepare-time decisions
  * @param supportsBackward whether compiled artifacts include backward execution
  * @param compiledNodes compiled nodes indexed by id
+ * @param descriptorIndex immutable tensor descriptor facts for {@code compiledNodes}
  * @param consumers consumer map keyed by producer node id
  */
 public record PrepareInputs(
         RuntimeConfig runtimeConfig,
         boolean supportsBackward,
         List<CompiledNode> compiledNodes,
+        CompiledTensorDescriptorIndex descriptorIndex,
         Map<Integer, List<CompiledNode>> consumers
 ) {
     public PrepareInputs {
         runtimeConfig = Objects.requireNonNull(runtimeConfig, "runtimeConfig cannot be null");
         compiledNodes = List.copyOf(compiledNodes == null ? List.of() : compiledNodes);
+        descriptorIndex = Objects.requireNonNull(descriptorIndex, "descriptorIndex cannot be null");
         consumers = Map.copyOf(consumers == null ? Map.of() : consumers);
     }
 
@@ -38,6 +43,10 @@ public record PrepareInputs(
             return null;
         }
         return compiledNodes.get(nodeId);
+    }
+
+    public CompiledTensorDescriptor descriptor(int nodeId) {
+        return descriptorIndex.byNodeId(nodeId);
     }
 
     /**

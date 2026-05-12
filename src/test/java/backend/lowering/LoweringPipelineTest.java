@@ -1,5 +1,8 @@
 package backend.lowering;
 
+import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+
 import backend.ComputeBackend;
 import backend.runtime.ExecutionMode;
 import config.optimizer.FuseConfig;
@@ -39,7 +42,7 @@ class LoweringPipelineTest {
         LoweringPipeline pipeline = new LoweringPipeline(List.of(request -> null));
 
         assertThrows(IllegalStateException.class, () ->
-                pipeline.lower(state, BackendCapabilities.none(), new LoweringContext(null, List.of()))
+                pipeline.lower(state, BackendCapabilities.none(), new LoweringContext(null, List.of(), CompiledTensorDescriptorIndex.empty(), java.util.Map.of()))
         );
     }
 
@@ -90,7 +93,7 @@ class LoweringPipelineTest {
         LoweringState lowered = pipeline.lower(
                 optimized,
                 new BackendCapabilities(Set.of(ComputeBackend.CPU)),
-                new LoweringContext(null, compiledNodes)
+                new LoweringContext(null, compiledNodes, CompiledTensorDescriptorBuilder.build(compiledNodes), java.util.Map.of())
         );
 
         assertEquals(optimized, lowered.optimized());
@@ -171,7 +174,7 @@ class LoweringPipelineTest {
         LoweringState lowered = pipeline.lower(
                 optimized,
                 new BackendCapabilities(Set.of(ComputeBackend.GPU_METAL)),
-                new LoweringContext(null, compiledNodes, java.util.Map.of("metal-partition", selectedPlan))
+                new LoweringContext(null, compiledNodes, CompiledTensorDescriptorBuilder.build(compiledNodes), java.util.Map.of("metal-partition", selectedPlan))
         );
 
         assertEquals(1, lowered.lowered().loweredRegions().size());

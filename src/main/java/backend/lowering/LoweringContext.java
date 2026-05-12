@@ -2,26 +2,24 @@ package backend.lowering;
 
 import graph.CompiledNode;
 import config.runtime.RuntimeConfig;
+import graph.compile.descriptor.CompiledTensorDescriptor;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.optimizer.partition.PartitionPlan;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public record LoweringContext(
         RuntimeConfig runtimeConfig,
         List<CompiledNode> compiledNodes,
+        CompiledTensorDescriptorIndex descriptorIndex,
         Map<String, PartitionPlan> partitionPlansById
 ) {
     public LoweringContext {
         compiledNodes = List.copyOf(compiledNodes == null ? List.of() : compiledNodes);
+        descriptorIndex = Objects.requireNonNull(descriptorIndex, "descriptorIndex cannot be null");
         partitionPlansById = Map.copyOf(partitionPlansById == null ? Map.of() : partitionPlansById);
-    }
-
-    public LoweringContext(
-            RuntimeConfig runtimeConfig,
-            List<CompiledNode> compiledNodes
-    ) {
-        this(runtimeConfig, compiledNodes, Map.of());
     }
 
     public CompiledNode compiledNode(int nodeId) {
@@ -31,11 +29,15 @@ public record LoweringContext(
         return compiledNodes.get(nodeId);
     }
 
+    public CompiledTensorDescriptor descriptor(int nodeId) {
+        return descriptorIndex.byNodeId(nodeId);
+    }
+
     public PartitionPlan partitionPlanFor(String partitionId) {
         return partitionId == null ? null : partitionPlansById.get(partitionId);
     }
 
     public LoweringContext withPartitionPlans(Map<String, PartitionPlan> partitionPlansById) {
-        return new LoweringContext(runtimeConfig, compiledNodes, partitionPlansById);
+        return new LoweringContext(runtimeConfig, compiledNodes, descriptorIndex, partitionPlansById);
     }
 }

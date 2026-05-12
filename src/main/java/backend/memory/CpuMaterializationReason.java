@@ -21,9 +21,19 @@ public enum CpuMaterializationReason {
     GRAPH_OUTPUT,
 
     /**
+     * A non-root compiled forward value is being copied back to its user-visible tensor.
+     */
+    GRAPH_VALUE_PUBLICATION,
+
+    /**
      * A computed gradient is being published to a user-visible tensor.
      */
     GRADIENT_PUBLICATION,
+
+    /**
+     * A training optimizer needs CPU-readable parameter or gradient storage because no device update path is available.
+     */
+    OPTIMIZER_STEP,
 
     /**
      * User-facing tensor data access requested CPU-visible storage.

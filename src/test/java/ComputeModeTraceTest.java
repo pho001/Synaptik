@@ -1,6 +1,6 @@
 import backend.blas.OpenBlasFfmBridge;
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -16,7 +16,7 @@ public class ComputeModeTraceTest {
         Tensor b = new Tensor(new double[]{5, 6, 7, 8}, new int[]{4}, null, "b", DataType.BFLOAT16);
         Tensor out = a.add(b);
 
-        var trace = graph.CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        var trace = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .executeTraced(config.runtime.RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         var add = trace.steps().stream()
@@ -35,7 +35,7 @@ public class ComputeModeTraceTest {
         Tensor x = new Tensor(new double[]{1, 2, 3, 4}, new int[]{4}, null, "x", DataType.BFLOAT16);
         Tensor out = x.sum();
 
-        var trace = graph.CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        var trace = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .executeTraced(config.runtime.RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         var sum = trace.steps().stream()
@@ -57,7 +57,7 @@ public class ComputeModeTraceTest {
         Tensor b = new Tensor(random(64 * 64), new int[]{64, 64}, null, "b", DataType.BFLOAT16);
         Tensor out = a.matmul(b);
 
-        var trace = graph.CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+        var trace = graph.CompiledGraph.compile(out, CompileConfig.inference())
                 .executeTraced(bfloat16BlasRuntime(), ExecutionMode.FORWARD);
 
         var matmul = trace.steps().stream()

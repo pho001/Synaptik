@@ -1,5 +1,8 @@
 package backend.cuda.exec;
 
+import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+
 import backend.accelerator.buffer.AcceleratorBufferAccessMode;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
@@ -26,7 +29,7 @@ import backend.memory.DeviceBufferBinding;
 import backend.memory.StorageResidency;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.AcceleratorBackendConfig;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
@@ -360,6 +363,7 @@ class PreparedCudaExecutableBufferPolicyTest {
                 List.of(new PreparedNodeExecution(fixture.outputNode(), acceleratorMetadata)),
                 List.of(),
                 fixture.nodes(),
+                CompiledTensorDescriptorBuilder.build(fixture.nodes()),
                 Map.of(),
                 fixture.rootTensor(),
                 fixture.outputNode(),
@@ -528,7 +532,7 @@ class PreparedCudaExecutableBufferPolicyTest {
     private static Fixture fixture() {
         Tensor input = new Tensor(new float[]{-2f, 3f}, new int[]{2}, null, "input", DataType.FLOAT32);
         Tensor output = input.relu();
-        CompiledGraph compiled = CompiledGraph.compile(output, OptimizerConfig.noOptimization());
+        CompiledGraph compiled = CompiledGraph.compile(output, CompileConfig.noGraphOptimizationBaseline());
         List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
         CompiledNode outputNode = nodes.stream()
                 .filter(node -> node.operation() != null && node.operation().opType() == Operation.OpType.RELU)
@@ -542,7 +546,7 @@ class PreparedCudaExecutableBufferPolicyTest {
         for (PreparedNodeExecution step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
-        ExecutionState state = ExecutionState.create(nodes, metadata, compiled.compileArtifacts().forwardOutputNode().id());
+        ExecutionState state = ExecutionState.create(nodes, compiled.compileArtifacts().descriptorIndex(), metadata, compiled.compileArtifacts().forwardOutputNode().id());
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),
                 ExecutionMode.FORWARD,
@@ -556,7 +560,7 @@ class PreparedCudaExecutableBufferPolicyTest {
         Tensor input = new Tensor(new float[]{-2f, 3f}, new int[]{2}, null, "input", DataType.FLOAT32);
         Tensor middle = input.relu();
         Tensor output = middle.relu();
-        CompiledGraph compiled = CompiledGraph.compile(output, OptimizerConfig.noOptimization());
+        CompiledGraph compiled = CompiledGraph.compile(output, CompileConfig.noGraphOptimizationBaseline());
         List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
         List<CompiledNode> reluNodes = nodes.stream()
                 .filter(node -> node.operation() != null && node.operation().opType() == Operation.OpType.RELU)
@@ -572,7 +576,7 @@ class PreparedCudaExecutableBufferPolicyTest {
         for (PreparedNodeExecution step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
-        ExecutionState state = ExecutionState.create(nodes, metadata, compiled.compileArtifacts().forwardOutputNode().id());
+        ExecutionState state = ExecutionState.create(nodes, compiled.compileArtifacts().descriptorIndex(), metadata, compiled.compileArtifacts().forwardOutputNode().id());
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),
                 ExecutionMode.FORWARD,
@@ -588,7 +592,7 @@ class PreparedCudaExecutableBufferPolicyTest {
         Tensor add = a.add(b);
         Tensor relu = add.relu();
         Tensor exp = relu.exp();
-        CompiledGraph compiled = CompiledGraph.compile(exp, OptimizerConfig.noOptimization());
+        CompiledGraph compiled = CompiledGraph.compile(exp, CompileConfig.noGraphOptimizationBaseline());
         List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
         CompiledNode addNode = operationNode(nodes, Operation.OpType.ADD);
         CompiledNode reluNode = operationNode(nodes, Operation.OpType.RELU);
@@ -599,7 +603,7 @@ class PreparedCudaExecutableBufferPolicyTest {
         for (PreparedNodeExecution step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
-        ExecutionState state = ExecutionState.create(nodes, metadata, compiled.compileArtifacts().forwardOutputNode().id());
+        ExecutionState state = ExecutionState.create(nodes, compiled.compileArtifacts().descriptorIndex(), metadata, compiled.compileArtifacts().forwardOutputNode().id());
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),
                 ExecutionMode.FORWARD,

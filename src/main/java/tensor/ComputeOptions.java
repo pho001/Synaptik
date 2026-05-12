@@ -1,6 +1,6 @@
 package tensor;
 
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 
 /**
@@ -9,13 +9,13 @@ import config.runtime.RuntimeConfig;
  * <p>The fluent setters mutate and return this instance. Instances are intended
  * to be configured on one thread and then passed to a compute call; concurrent
  * mutation is not synchronized. Null compile/autotune values reset to the
- * documented defaults, while null optimizer/runtime values mean "use the
- * execution support defaults".</p>
+     * documented defaults, while a null runtime value means "use the execution
+     * support defaults".</p>
  */
 public final class ComputeOptions {
     private CompileMode compileMode = CompileMode.INFERENCE_ONLY;
     private AutotunePolicy autotunePolicy = AutotunePolicy.NEVER;
-    private OptimizerConfig optimizer;
+    private CompileConfig compile;
     private RuntimeConfig runtime;
 
     /**
@@ -70,27 +70,22 @@ public final class ComputeOptions {
     }
 
     /**
-     * Returns the optimizer configuration override.
+     * Returns the compile configuration override.
      *
-     * @return optimizer config, or null to use the default optimizer profile
+     * @return compile config, or null to use the default compile profile
      */
-    public OptimizerConfig optimizer() {
-        return optimizer;
+    public CompileConfig compile() {
+        return compile;
     }
 
     /**
-     * Provides an optimizer configuration override for this compute call.
+     * Provides a compile configuration override for this compute call.
      *
-     * <p>When null, the compute path selects the standard optimizer profile for
-     * the requested compile mode. Supplying a config lets callers enable, disable,
-     * or tune graph rewrite, CSE, partition, fusion, and memory-planning stages
-     * for this one invocation.</p>
-     *
-     * @param optimizer optimizer config, or null to use the default optimizer
+     * @param compile compile config, or null to use the default compile profile
      * @return this mutable options instance
      */
-    public ComputeOptions optimizer(OptimizerConfig optimizer) {
-        this.optimizer = optimizer;
+    public ComputeOptions compile(CompileConfig compile) {
+        this.compile = compile;
         return this;
     }
 
