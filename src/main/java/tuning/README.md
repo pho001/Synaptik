@@ -105,7 +105,7 @@ It contains:
 
 - dtype
 - execution mode
-- optimizer policy
+- compile policy
 - runtime config
 - workload metadata
 
@@ -128,15 +128,15 @@ It does not contain graph stage order.
 
 ### `GraphExecutionPolicy`
 
-This is the graph-side policy layer, effectively the optimizer configuration family.
+This is the graph-side policy layer, currently a wrapper around `CompileConfig`.
 
 It contains:
 
-- stage order
-- rewrite config
-- CSE config
-- fuse config
-- memory config
+- semantic canonicalization policy
+- graph optimization policy
+- backend planning policy
+- region optimization policy
+- memory planning policy
 
 ## Typical Flow
 

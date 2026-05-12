@@ -293,7 +293,7 @@ Current defaults:
 
 - `compute()`:
   - inference compile
-  - inference optimizer/runtime defaults
+  - inference compile/runtime defaults
   - `FORWARD`
 - `compute(CompileMode.TRAINING)`:
   - training defaults

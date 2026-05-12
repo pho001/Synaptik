@@ -3,7 +3,7 @@
 
 Navigation: [Index](index.md#recommended-reading-paths) | [Calibration & Autotune](calibration-autotune.md#runtime-and-graph-artifacts) | [Compute Flow](compute-flow.md#tensor-compute-api) | [Native Bridges & BLAS](native-bridges-and-blas.md#configuration-and-library-lookup) | [Metal Backend](metal-backend.md#supported-operations-and-dtypes) | [Development](development.md#local-setup) | [Testing](testing.md#exact-commands) | [Troubleshooting](troubleshooting.md#openblas-missing-or-unavailable)
 
-Chapters: [Build Requirements](#build-requirements) | [CompileConfig](#compileconfig) | [RuntimeConfig](#runtimeconfig) | [Execution Profiles](#execution-profiles) | [Platform Runtime Profiles](#platform-runtime-profiles) | [Tuning And Calibration Persistence](#tuning-and-calibration-persistence) | [System Properties And Environment Variables](#system-properties-and-environment-variables) | [CLI Configuration Behavior](#cli-configuration-behavior) | [Verification Notes](#verification-notes)
+Chapters: [Build Requirements](#build-requirements) | [CompileConfig](#compileconfig) | [PublicationPolicy](#publicationpolicy) | [RuntimeConfig](#runtimeconfig) | [Execution Profiles](#execution-profiles) | [Platform Runtime Profiles](#platform-runtime-profiles) | [Tuning And Calibration Persistence](#tuning-and-calibration-persistence) | [System Properties And Environment Variables](#system-properties-and-environment-variables) | [CLI Configuration Behavior](#cli-configuration-behavior) | [Verification Notes](#verification-notes)
 
 This document covers build/runtime requirements, compile and runtime configuration, backend knobs, profile persistence, tuning/calibration artifacts, system properties, and CLI configuration behavior.
 
@@ -11,6 +11,7 @@ This document covers build/runtime requirements, compile and runtime configurati
 
 - [Build Requirements](#build-requirements)
 - [CompileConfig](#compileconfig)
+- [PublicationPolicy](#publicationpolicy)
 - [RuntimeConfig](#runtimeconfig)
 - [Execution Profiles](#execution-profiles)
 - [Platform Runtime Profiles](#platform-runtime-profiles)
@@ -89,6 +90,18 @@ Preset methods:
 
 `BackendPlanningConfig.cpuOnly()` means no accelerator ownership regions. `BackendPlanningConfig.explicitOnly()` honors explicit GPU backend intent without auto-discovering GPU regions from a CPU-owned graph. `BackendPlanningConfig.autoAccelerator()` may discover GPU regions from CPU-owned graphs according to legality and cost policy.
 
+Terminology to keep clean:
+
+| Current term | Meaning | Not the same as |
+|---|---|---|
+| `GraphOptimizationConfig` | Backend-neutral graph cleanup and lowering. | Backend planning, region optimization, memory planning, runtime dispatch. |
+| `BackendPlanningConfig` | Compile-time backend ownership planning. | Execute-time "offload" or runtime availability. |
+| `PartitionSearchConfig` | Search limits and scoring weights. | Backend target selection. |
+| `RegionOptimizationConfig` | Fusion/execution-unit policy inside already owned regions. | Backend ownership discovery. |
+| `RuntimeConfig` | Runtime/hardware policy. | Compile-time graph or backend ownership policy. |
+
+Legacy public names such as an optimizer-wide stage-order config, offload config, and monolithic partition config are no longer the architecture model. The implementation still has lower-level helper configs under `config.optimizer` for rewrite, CSE, fuse, memory, CPU region, and Metal transfer cost models, but `CompileConfig` is the public compile-policy composition point.
+
 ### RewriteConfig
 
 **Source:** `src/main/java/config/optimizer/RewriteConfig.java`
@@ -161,6 +174,37 @@ Validation:
 ### Backend Planning Search
 
 `PartitionSearchConfig` now carries only search and scoring limits. Backend target, discovery mode, planner strategy, CPU region policy, and Metal transfer cost profile live under `BackendPlanningConfig`.
+
+For detailed examples of `CPU_ONLY`, `EXPLICIT`, `AUTO`, required accelerator planning, CPU natural regions, accelerator regions, region optimization, memory planning, and benchmark semantics, see [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions).
+
+## PublicationPolicy
+
+**Source:** `src/main/java/graph/execution/PublicationPolicy.java`
+
+`PublicationPolicy` controls which values are copied from run-scoped execution state back to public `Tensor` objects after execution.
+
+It is a runtime visibility policy, not compile policy and not backend planning.
+
+Policies:
+
+| Policy | Publishes back to public tensors | Typical use |
+|---|---|---|
+| `ALL` | Every forward value and gradients. | Debugging and full graph visibility. |
+| `OUTPUT_AND_GRADIENTS` | Root output and gradients. | Default ordinary execution. |
+| `OUTPUT_ONLY` | Root output only. | Default optimizer-step execution and benchmark paths that do not need gradients attached. |
+| `NONE` | Nothing. | Low-overhead benchmark runs that inspect traces or native-side effects instead of public tensor storage. |
+
+Example:
+
+```java
+PreparedExecution prepared = compiled.prepare(runtime);
+RunTrace trace = prepared.executeTraced(
+        ExecutionMode.FORWARD_BACKWARD,
+        PublicationPolicy.OUTPUT_ONLY
+);
+```
+
+This still executes the prepared forward/backward graph. It only changes which results are synchronized to user-visible `Tensor` objects after the run. For accelerator paths, lower-publication policies can avoid device-to-CPU copies that exist only to update public tensor storage.
 
 ## RuntimeConfig
 
@@ -315,7 +359,7 @@ new AcceleratorBackendConfig(
 `AcceleratorConfig.defaults()` enables CUDA, OpenCL, and Metal configs in policy. Runtime availability is not required by default. `AcceleratorConfig.disabled()` disables all three.
 
 Current capability note: CPU remains the broadest backend. Metal has a real MPSGraph FFM path for a tested `FLOAT32`
-subset, including native buffer binding when the shim exports the current buffer ABI. CUDA now has CUDA dense FLOAT32
+and `BFLOAT16` subset, including native buffer binding when the shim exports the current buffer ABI. CUDA now has CUDA dense FLOAT32
 buffer execution for the narrow native-buffer path: `CudaBufferAllocator`, `CudaDeviceToCpuMaterializer`,
 `StorageResidency.DEVICE_OWNED`, and adjacent CUDA handoff are supported when the CUDA graph shim exposes the required
 buffer symbols. Unsupported CUDA buffer layouts and dtypes fall back visibly, and CUDA trace and benchmark reports
@@ -323,6 +367,8 @@ publish `GPU_CUDA`, `cudaExecutionPath`, `cudaFallbackReason`, `acceleratorBuffe
 `acceleratorNativeDeviceCopyNs`, and `cpuMaterializationCount` evidence for that path. The detailed Metal capability
 boundary, supported dtypes, buffer ABI, and fallback rules are in
 [Metal Backend: Supported Operations And DTypes](metal-backend.md#supported-operations-and-dtypes).
+
+CPU BF16 is a separate topic from Metal BF16. On CPU, BF16 storage generally uses `short[]`, while many elementwise computations promote to F32 and reductions may accumulate wider. This can make CPU BF16 slower than F32 for elementwise-heavy workloads even though BF16 stores fewer bytes. See [CPU BF16 Runtime](cpu-bf16.md#cpu-bf16-runtime).
 
 ## Execution Profiles
 

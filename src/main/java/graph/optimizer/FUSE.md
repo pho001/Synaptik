@@ -1,6 +1,6 @@
-# FUSE Stage
+# Region Optimization / FUSE
 
-`FUSE` is the graph-level region optimization stage.
+`FUSE` is historical shorthand for region optimization. In the current architecture it is a compile-flow phase outside the backend-neutral `GraphOptimizer`.
 
 Its responsibility is:
 
@@ -36,7 +36,7 @@ The rule also refuses to fuse:
 
 ## High-Level Algorithm
 
-The current implementation consumes `Partition` artifacts from the `PART` stage and follows three steps:
+The current implementation consumes backend planning `Partition` artifacts and follows three steps:
 
 1. snapshot the current graph as immutable compiled nodes
 2. optimize each partition into one or more execution units

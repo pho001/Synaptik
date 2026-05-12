@@ -408,28 +408,24 @@ If the shape is valid before compile but wrong after execution, inspect:
 Symptoms:
 
 ```text
-optimized result differs from noOptimization
+optimized result differs from noGraphOptimizationBaseline
 missing node after compile
-stage order is invalid
+backend region is missing
 ```
 
-Stage mapping is in `src/main/java/graph/optimizer/OptimizerFactory.java`:
+Graph optimization mapping is in `src/main/java/graph/optimizer/OptimizerFactory.java`:
 
 ```text
-AR   -> graph.optimizer.rewrite.RewriteRule
-CSE  -> graph.optimizer.cse.CommonSubexpressionEliminationRule
-PART -> graph.optimizer.partition.PartitionIntentRule
-FUSE -> graph.optimizer.region.RegionOptimizationRule
-MEM  -> graph.optimizer.memory.MemoryOptimizerRule
+AR    -> graph.optimizer.rewrite.RewriteRule
+CF    -> graph.optimizer.cf.ConstantFoldingRule
+CSE   -> graph.optimizer.cse.CommonSubexpressionEliminationRule
+DCE   -> graph.optimizer.dce.DeadCodeEliminationRule
+LOWER -> graph.optimizer.rewrite.LoweringRule
 ```
 
-`OptimizerConfig` enforces:
+Backend planning, region optimization, and memory planning are separate compile phases. If the bug is about CPU natural regions, Metal/CUDA ownership, fused execution units, or memory handoff, start with [Backend Planning And Regions](backend-planning-and-regions.md#diagnostics-checklist) rather than graph optimizer stage order.
 
-```text
-FUSE requires PART
-PART before FUSE
-MEM requires FUSE
-```
+`CompileConfig.noGraphOptimizationBaseline()` is the baseline compile preset for graph-optimizer comparisons. It does not mean runtime vectorization, BLAS, backend planning, or publication are automatically disabled; use `RuntimeConfig.noOptNoVecNoPar()` and explicit `PublicationPolicy` when the benchmark question requires those controls.
 
 Fix path:
 

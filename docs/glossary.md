@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Glossary
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Framework Concepts](framework-concepts.md#tensors-as-graph-nodes) | [Architecture](architecture.md#core-artifact-boundaries) | [Compute Flow](compute-flow.md#primary-artifacts) | [Graph Optimizer](graph-optimizer.md#dag-and-graph-vocabulary) | [Native Bridges & BLAS](native-bridges-and-blas.md#term-map-at-a-glance) | [Metal Backend](metal-backend.md#native-buffer-abi) | [Calibration & Autotune](calibration-autotune.md#core-distinction)
+Navigation: [Index](index.md#recommended-reading-paths) | [Framework Concepts](framework-concepts.md#tensors-as-graph-nodes) | [Architecture](architecture.md#core-artifact-boundaries) | [Compute Flow](compute-flow.md#primary-artifacts) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Native Bridges & BLAS](native-bridges-and-blas.md#term-map-at-a-glance) | [Metal Backend](metal-backend.md#native-buffer-abi) | [Calibration & Autotune](calibration-autotune.md#core-distinction)
 
 Chapters: [A](#a) | [B](#b) | [C](#c) | [D](#d) | [E](#e) | [F](#f) | [G](#g) | [J](#j) | [L](#l) | [M](#m) | [N](#n) | [O](#o) | [P](#p) | [R](#r) | [S](#s) | [T](#t) | [W](#w)
 
@@ -42,6 +42,8 @@ Project-specific terms used in Synaptik, with source references.
 **Autotune**: Evaluation of candidate `ExecutionProfile` objects for a workload. Source: [`AutotuneSession.java`](../src/main/java/tuning/autotune/AutotuneSession.java), [`DefaultAutotuneSession.java`](../src/main/java/tuning/autotune/DefaultAutotuneSession.java).
 
 ## B
+
+**BF16 / BFLOAT16**: 16-bit floating-point storage format with an 8-bit exponent and 7 explicit mantissa bits. In the CPU path it is commonly stored as `short[]`, unpacked to F32 for elementwise compute, and packed back to BF16 storage. Source: [`BFloat16Storage.java`](../src/main/java/tensor/BFloat16Storage.java), [CPU BF16 Runtime](cpu-bf16.md#cpu-bf16-runtime).
 
 **Backward graph**: Gradient-producing graph nodes built from forward-node backward lambdas during training compile. Source: [`BackwardGraphBuilder.java`](../src/main/java/graph/compile/BackwardGraphBuilder.java).
 
@@ -85,7 +87,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **CPU kernel resolver**: Mapping from `Operation.OpType` to concrete CPU kernel instances. Source: [`CpuKernelResolver.java`](../src/main/java/backend/cpu/registry/CpuKernelResolver.java).
 
-**CSE**: Common subexpression elimination optimizer stage. Source: [`CommonSubexpressionEliminationRule.java`](../src/main/java/graph/optimizer/cse/CommonSubexpressionEliminationRule.java), [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java).
+**CSE**: Common subexpression elimination graph optimization stage. Source: [`CommonSubexpressionEliminationRule.java`](../src/main/java/graph/optimizer/cse/CommonSubexpressionEliminationRule.java), [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java).
 
 ## D
 
@@ -103,7 +105,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Execution mode**: Runtime mode such as `FORWARD` or `FORWARD_BACKWARD`. Source: [`ExecutionMode.java`](../src/main/java/backend/runtime/ExecutionMode.java).
 
-**Execution profile**: Runnable profile combining dtype, execution mode, optimizer config, runtime config, and workload metadata. Source: [`ExecutionProfile.java`](../src/main/java/config/profile/ExecutionProfile.java).
+**Execution profile**: Runnable profile combining dtype, execution mode, compile config, runtime config, and workload metadata. Source: [`ExecutionProfile.java`](../src/main/java/config/profile/ExecutionProfile.java).
 
 **Execution state**: Per-run runtime tensor storage and metadata state built for prepared execution. Source: [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java).
 
@@ -113,7 +115,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Forward output wrapper**: System `NOOP` tensor created by `Tensor.forwardOutput()` to normalize publication. Source: [`Tensor.java`](../src/main/java/tensor/Tensor.java), [`GraphCompiler.java`](../src/main/java/graph/compile/GraphCompiler.java).
 
-**FUSE**: Optimizer stage that creates optimized regions from partitions. Source: [`RegionOptimizationRule.java`](../src/main/java/graph/optimizer/region/RegionOptimizationRule.java), [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java).
+**Fused region optimization**: Compile phase that creates fused and unit execution units inside already owned regions. It is no longer modeled as a graph optimizer stage. Source: [`DefaultRegionOptimizer.java`](../src/main/java/graph/optimizer/region/DefaultRegionOptimizer.java), [`RegionOptimizationConfig.java`](../src/main/java/config/compile/RegionOptimizationConfig.java).
 
 **Fused operation**: Backend-owned `Operation` descriptor for a fused expression plan. Source: [`FusedOperation.java`](../src/main/java/backend/cpu/fused/plan/FusedOperation.java).
 
@@ -121,11 +123,11 @@ Project-specific terms used in Synaptik, with source references.
 
 ## G
 
-**Graph execution policy**: Profile component holding optimizer/graph policy. Source: [`GraphExecutionPolicy.java`](../src/main/java/config/profile/GraphExecutionPolicy.java).
+**Graph execution policy**: Profile component wrapping `CompileConfig` for graph/autotune candidate assembly. Source: [`GraphExecutionPolicy.java`](../src/main/java/config/profile/GraphExecutionPolicy.java).
 
 **GEMM**: General Matrix Multiply, usually written as `C = alpha * A @ B + beta * C`. Synaptik uses GEMM for direct matmul, linear-style matrix products, attention matmuls, and conv2d after im2col lowering. Source: [`MatMulBlasBackend.java`](../src/main/java/backend/cpu/kernels/linalg/matmul/blas/MatMulBlasBackend.java), [`Conv2dGemmBackend.java`](../src/main/java/backend/cpu/kernels/nn/Conv2dGemmBackend.java), [Native Bridges & BLAS: GEMM Mental Model](native-bridges-and-blas.md#gemm-mental-model).
 
-**Graph optimizer**: Ordered pipeline of optimization rules. Source: [`GraphOptimizer.java`](../src/main/java/graph/optimizer/GraphOptimizer.java), [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java).
+**Graph optimizer**: Backend-neutral graph cleanup and lowering pipeline: `AR`, `CF`, `CSE`, `DCE`, and optional `LOWER`. Source: [`GraphOptimizer.java`](../src/main/java/graph/optimizer/GraphOptimizer.java), [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java).
 
 **Gradient binding**: Mapping from semantic/source tensors to compiled gradient nodes or constant gradient templates. Source: [`CompiledGradientBinding.java`](../src/main/java/graph/CompiledGradientBinding.java), [`GradientBindingCollector.java`](../src/main/java/graph/compile/GradientBindingCollector.java).
 
@@ -143,7 +145,7 @@ Project-specific terms used in Synaptik, with source references.
 
 ## M
 
-**MEM**: Optimizer stage that builds `MemoryPlan` artifacts. Source: [`MemoryOptimizerRule.java`](../src/main/java/graph/optimizer/memory/MemoryOptimizerRule.java), [`MemoryPlanner.java`](../src/main/java/graph/optimizer/memory/MemoryPlanner.java).
+**Memory planning**: Compile phase that builds `MemoryPlan` artifacts, including lifetimes, reusable intervals, slots, region-value bindings, and runtime binding policy. Source: [`MemoryPlanner.java`](../src/main/java/graph/optimizer/memory/MemoryPlanner.java), [`MemoryPlanningConfig.java`](../src/main/java/config/compile/MemoryPlanningConfig.java).
 
 **Memory plan**: Compile-time lifetimes, reusable intervals, slots, region-value memory bindings, and runtime binding policies. Source: [`MemoryPlan.java`](../src/main/java/graph/optimizer/memory/MemoryPlan.java), [`MemoryPlanner.java`](../src/main/java/graph/optimizer/memory/MemoryPlanner.java).
 
@@ -161,7 +163,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **MTLBuffer**: Metal buffer object used by the native shim to pass tensor bytes to and from MPSGraph. Java sees it only as an opaque handle inside `MetalBufferHandle`; ownership and release are handled by the native shim and run-scoped execution resources. Source: [`MetalBufferHandle.java`](../src/main/java/backend/metal/buffer/MetalBufferHandle.java), [`synaptik_apple_mps_stub.m`](../src/main/native/apple/synaptik_apple_mps_stub.m), [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi).
 
-**Metal transfer model**: Graph-level scoring preset used by scored Metal partition planning to penalize input/output transfer bytes and credit avoided intermediate materialization. Source: [`MetalTransferModel.java`](../src/main/java/config/optimizer/MetalTransferModel.java), [`PartitionConfig.java`](../src/main/java/config/optimizer/PartitionConfig.java), [`ScoredCandidatePartitionPlanner.java`](../src/main/java/graph/optimizer/partition/ScoredCandidatePartitionPlanner.java).
+**Metal transfer model**: Compile planning cost preset used by scored Metal region planning to penalize input/output transfer bytes and credit avoided intermediate materialization. Source: [`MetalTransferModel.java`](../src/main/java/config/optimizer/MetalTransferModel.java), [`BackendPlanningCostConfig.java`](../src/main/java/config/compile/BackendPlanningCostConfig.java), [`ScoredCandidatePartitionPlanner.java`](../src/main/java/graph/optimizer/partition/ScoredCandidatePartitionPlanner.java).
 
 ## N
 
@@ -177,13 +179,13 @@ Project-specific terms used in Synaptik, with source references.
 
 **Optimizer state**: Mutable optimizer pipeline carrier for graph, forward output, execution metadata, partitions, optimized regions, and memory plan. Source: [`OptimizerState.java`](../src/main/java/graph/optimizer/state/OptimizerState.java).
 
-**Optimizer stage**: Public enum stage: `AR`, `CSE`, `PART`, `FUSE`, `MEM`. Source: [`OptimizerStage.java`](../src/main/java/config/optimizer/OptimizerStage.java).
+**Optimizer stage**: Current documentation uses this term only for backend-neutral graph optimization phases: `AR`, `CF`, `CSE`, `DCE`, and `LOWER`. Backend planning, region optimization, and memory planning are compile phases, not optimizer stages. Source: [`GraphOptimizationConfig.java`](../src/main/java/config/compile/GraphOptimizationConfig.java), [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java).
 
 ## P
 
-**PART**: Optimizer stage that propagates backend intent and creates partition plans. Source: [`PartitionIntentRule.java`](../src/main/java/graph/optimizer/partition/PartitionIntentRule.java).
+**Backend planning**: Compile-time phase that propagates backend intent and creates CPU or accelerator ownership regions. Source: [`BackendPlanningConfig.java`](../src/main/java/config/compile/BackendPlanningConfig.java), [`BackendPlanningService.java`](../src/main/java/graph/compile/BackendPlanningService.java), [`BackendPlanningJobResolver.java`](../src/main/java/graph/compile/BackendPlanningJobResolver.java).
 
-**Partition**: Backend-compatible node group discovered during partition planning. Source: [`Partition.java`](../src/main/java/graph/optimizer/partition/Partition.java), [`GreedyMaxRegionPartitionPlanner.java`](../src/main/java/graph/optimizer/partition/GreedyMaxRegionPartitionPlanner.java).
+**Partition**: Internal implementation object for a backend-compatible ownership region discovered during backend planning. Architecture docs prefer "ownership region" to avoid confusing this with a public graph optimizer stage. Source: [`Partition.java`](../src/main/java/graph/optimizer/partition/Partition.java), [`GreedyMaxRegionPartitionPlanner.java`](../src/main/java/graph/optimizer/partition/GreedyMaxRegionPartitionPlanner.java).
 
 **Partition anchor**: Executable node representing a lowered partition while interior nodes are skipped as standalone execution steps. Source: [`PartitionExecutionRole.java`](../src/main/java/backend/accelerator/exec/PartitionExecutionRole.java), [`CpuNodePreparer.java`](../src/main/java/backend/cpu/prepare/CpuNodePreparer.java).
 

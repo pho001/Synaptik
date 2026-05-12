@@ -27,20 +27,20 @@ Contains runtime families such as:
 
 Does not contain:
 
-- optimizer stage order
+- compile or graph optimization policy
 - workload-specific best graph policy
 
 ### 2. `GraphExecutionPolicy`
 
 Graph policy layer.
 
-Today this is effectively the optimizer configuration family:
+Today this wraps `CompileConfig`:
 
-- stage order
-- rewrite config
-- CSE config
-- fuse config
-- memory config
+- semantic canonicalization policy
+- graph optimization policy
+- backend planning policy
+- region optimization policy
+- memory planning policy
 
 ### 3. `ExecutionProfile`
 
@@ -48,7 +48,7 @@ Actual runnable artifact.
 
 Assembled from:
 
-- graph policy
+- compile/graph policy
 - runtime profile
 - dtype
 - execution mode
@@ -85,11 +85,12 @@ This boundary matters because:
 - winner loading for graph autotune extracts the persisted graph policy and
   rebases it on the latest platform runtime profile before benchmarking
 
-Current standard graph autotune exposes production graph-policy variants for CPU
-region policy, CPU fusion policy, and accelerator ownership policy while keeping
-runtime frozen. Graph-resident fields such as arbitrary stage order, conv2d
-lowering, fusion scoring, and partition scoring are not standard graph autotune
-axes.
+Current standard graph autotune exposes production graph-policy variants only when
+they are explicitly added to the graph candidate space. The current safe default
+candidate is `graphPolicy=current`; broader axes such as CPU region policy, CPU
+fusion policy, backend planning mode, conv2d lowering, fusion scoring, and
+partition scoring must be intentional candidate-space choices, not calibration
+side effects.
 
 ## Workflow Ownership
 
@@ -100,14 +101,13 @@ calibration do not search the same decision from different directions.
 
 | Owner | Meaning | Examples |
 |---|---|---|
-| Graph/workload-owned | Workload-specific optimizer or graph policy selected by graph autotune. | graph offload policy, accelerator region strategy, CPU region policy, CPU fusion policy, `ACCELERATOR_BUFFER_MODE`, `MetalTransferModel` |
+| Graph/workload-owned | Workload-specific compile or graph policy selected by graph autotune. | backend planning mode, region planner strategy, CPU region policy, CPU fusion policy, graph lowering policy, selected planning cost profile |
 | Platform/dtype-owned | Hardware, dtype, execution-mode, and runtime thresholds selected by platform calibration. | BLAS thresholds, vector/parallel thresholds, fused dispatch widths, scheduler thresholds, `METAL_SELECTION` |
 | Obsolete | Historical knobs that must not re-enter production candidate spaces. | duplicate graph/runtime aliases and legacy report-derived policy |
 
 `METAL_SELECTION` is explicit accelerator opt-in calibration, not default CPU
-calibration. Graph autotune may select graph policies that make accelerator
-regions possible, including `ACCELERATOR_BUFFER_MODE` and `MetalTransferModel`,
-but it must not rewrite platform calibration thresholds.
+calibration. Graph autotune may select compile policies that make accelerator
+regions possible, but it must not rewrite platform calibration thresholds.
 
 Profile-derived accelerator costs enter through RuntimeConfig, not profile file reads.
 
@@ -135,7 +135,7 @@ Owns:
 
 Usually mutates:
 
-- graph-side policy
+- compile/graph-side policy
 - or explicit runtime/profile variants supplied by the candidate space
 
 ### Calibration
@@ -176,9 +176,11 @@ This split replaces the older monolithic benchmark/autotune style where one huge
 The optimizer changes graph structure.
 Runtime knobs affect prepared execution policy.
 
-Examples of graph policy:
+Examples of compile/graph policy:
 
-- `AR -> CF -> CSE -> DCE -> LOWER -> PART -> FUSE -> MEM`
+- `CLEANUP_FIXPOINT(AR -> CF -> CSE -> DCE) -> LOWER`
+- backend planning mode: CPU-only, explicit accelerator, auto accelerator
+- region planner strategy: anchor or scored
 - piecewise lowering enabled/disabled
 - conv2d lowering mode
 
@@ -191,7 +193,7 @@ Examples of runtime policy:
 - scheduler chunk targets
 - approximation mode
 
-If runtime thresholds were pushed into optimizer stages, the architecture would blur compile-time semantics with hardware/runtime policy.
+If runtime thresholds were pushed into graph optimization or backend planning, the architecture would blur compile-time semantics with hardware/runtime policy.
 
 ## Current Family Surface
 

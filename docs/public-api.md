@@ -312,8 +312,8 @@ CompileMode compileMode()
 ComputeOptions compileMode(CompileMode compileMode)
 AutotunePolicy autotunePolicy()
 ComputeOptions autotune(AutotunePolicy autotunePolicy)
-OptimizerConfig optimizer()
-ComputeOptions optimizer(OptimizerConfig optimizer)
+CompileConfig compile()
+ComputeOptions compile(CompileConfig compile)
 RuntimeConfig runtime()
 ComputeOptions runtime(RuntimeConfig runtime)
 ```
@@ -326,27 +326,27 @@ Defaults:
 
 - `compileMode`: `INFERENCE_ONLY`
 - `autotunePolicy`: `NEVER`
-- `optimizer`: inferred from compile mode unless set
+- `compile`: inferred from compile mode unless set
 - `runtime`: inferred from compile mode unless set
 
 Option behavior:
 
 | Option | Values | Meaning |
 |---|---|---|
-| `compileMode(CompileMode.INFERENCE_ONLY)` | forward-only | Uses inference optimizer/runtime defaults and executes `ExecutionMode.FORWARD`. |
-| `compileMode(CompileMode.TRAINING)` | training intent | Uses training optimizer/runtime defaults; executes `FORWARD_BACKWARD` only if trainable leaf tensors exist. |
+| `compileMode(CompileMode.INFERENCE_ONLY)` | forward-only | Uses inference compile/runtime defaults and executes `ExecutionMode.FORWARD`. |
+| `compileMode(CompileMode.TRAINING)` | training intent | Uses training compile/runtime defaults; executes `FORWARD_BACKWARD` only if trainable leaf tensors exist. |
 | `compileMode(CompileMode.AUTO)` | graph-sensitive | Chooses training behavior when a trainable leaf exists, otherwise inference behavior. |
 | `autotune(AutotunePolicy.NEVER)` | default | Executes the resolved profile directly. |
 | `autotune(AutotunePolicy.IF_MISSING)` | cache first | Reuses a matching generic best profile from `build/tuning/tensor/...` or runs one standard graph-autotune pass and persists the winner. |
 | `autotune(AutotunePolicy.FORCE)` | always measure | Reruns generic graph autotune before execution and persists the new evidence. |
-| `optimizer(OptimizerConfig)` | explicit config | Overrides the optimizer config in the generated execution profile. |
+| `compile(CompileConfig)` | explicit config | Overrides semantic canonicalization, graph optimization, backend planning, region optimization, and memory planning in the generated execution profile. |
 | `runtime(RuntimeConfig)` | explicit config | Overrides the runtime config used during prepare. |
 
 Failure modes:
 
 - Null compile mode resets to `INFERENCE_ONLY`.
 - Null autotune policy resets to `NEVER`.
-- Invalid optimizer/runtime objects fail when they are constructed or when compilation/preparation uses them.
+- Invalid compile/runtime objects fail when they are constructed or when compilation/preparation uses them.
 
 Side effects:
 
@@ -391,8 +391,8 @@ Expected output:
 Signatures:
 
 ```java
-static CompiledGraph compile(Tensor rootTensor, OptimizerConfig optimizerConfig)
-static CompiledGraph compile(Tensor rootTensor, OptimizerConfig optimizerConfig, CompileMode compileMode)
+static CompiledGraph compile(Tensor rootTensor, CompileConfig compileConfig)
+static CompiledGraph compile(Tensor rootTensor, CompileConfig compileConfig, CompileMode compileMode)
 static CompiledGraph compile(Tensor rootTensor, GraphOptimizer optimizer)
 static CompiledGraph compile(Tensor rootTensor, GraphOptimizer optimizer, CompileMode compileMode)
 void compile()
@@ -416,9 +416,9 @@ CompileArtifacts compileArtifacts()
 Parameters:
 
 - `rootTensor`: graph root to compile.
-- `optimizerConfig`: stage order and optimizer settings.
+- `compileConfig`: semantic canonicalization, graph optimization, backend planning, region optimization, and memory planning settings.
 - `runtimeConfig`: kernel/backend runtime choices; `null` selects training or inference defaults based on backward support.
-- `profile`: combines optimizer, runtime, dtype, and execution mode.
+- `profile`: combines compile policy, runtime policy, dtype, and execution mode.
 
 Returns:
 
@@ -428,9 +428,9 @@ Returns:
 
 Failures:
 
-- Null root, optimizer config, optimizer, or profile throws `IllegalArgumentException`.
+- Null root, compile config, optimizer, or profile throws `IllegalArgumentException`.
 - `compileArtifacts()` throws `IllegalStateException` if artifacts are absent.
-- Invalid optimizer stage order throws from `OptimizerConfig`.
+- Invalid compile sub-configs throw when their records are constructed or used.
 
 Side effects:
 
@@ -447,7 +447,7 @@ Example:
 
 ```java
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import tensor.DataType;
@@ -456,7 +456,7 @@ import tensor.Tensor;
 Tensor x = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "x", DataType.FLOAT64);
 Tensor y = x.mul(4.0);
 
-CompiledGraph compiled = CompiledGraph.compile(y, OptimizerConfig.noOptimization());
+CompiledGraph compiled = CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline());
 compiled.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
 System.out.println(java.util.Arrays.toString(y.toDoubleArrayCopy()));
@@ -515,41 +515,45 @@ Performance and concurrency notes:
 
 ## Configuration APIs
 
-### OptimizerConfig
+### CompileConfig
 
-**Source:** `src/main/java/config/optimizer/OptimizerConfig.java`
+**Source:** `src/main/java/config/compile/CompileConfig.java`
 
-Purpose: configure compile-time graph stages and sub-configs.
+Purpose: configure compile-time semantic canonicalization, graph optimization, backend planning, region optimization, and memory planning.
 
 Signatures:
 
 ```java
-static OptimizerConfig noOptimization()
-static OptimizerConfig trainingDefaults()
-static OptimizerConfig inferenceDefaults()
-boolean isNoOptimization()
-boolean enables(OptimizerStage stage)
-OptimizerConfig withStageOrder(List<OptimizerStage> newStageOrder)
-OptimizerConfig withRewrite(RewriteConfig newRewrite)
-OptimizerConfig withCse(CseConfig newCse)
-OptimizerConfig withFuse(FuseConfig newFuse)
-OptimizerConfig withMemory(MemoryConfig newMemory)
-OptimizerConfig withPartition(PartitionConfig newPartition)
+static CompileConfig training()
+static CompileConfig inference()
+static CompileConfig trainingAutoAccelerator()
+static CompileConfig inferenceAutoAccelerator()
+static CompileConfig trainingExplicitAccelerator()
+static CompileConfig inferenceExplicitAccelerator()
+static CompileConfig requireExplicitAccelerator()
+static CompileConfig noGraphOptimization()
+static CompileConfig noGraphOptimizationBaseline()
+static CompileConfig cpuOnlyBaseline()
+CompileConfig withSemanticCanonicalization(SemanticCanonicalizationConfig newConfig)
+CompileConfig withGraphOptimization(GraphOptimizationConfig newConfig)
+CompileConfig withBackendPlanning(BackendPlanningConfig newConfig)
+CompileConfig withRegionOptimization(RegionOptimizationConfig newConfig)
+CompileConfig withMemoryPlanning(MemoryPlanningConfig newConfig)
 ```
 
 Failure modes:
 
-- `stageOrder` cannot be null, contain nulls, or contain duplicates.
-- `FUSE` requires `PART`, `PART` must run before `FUSE`, and `MEM` requires `FUSE`.
-- `FuseConfig` rejects non-finite or negative scoring values and non-positive `maxClusterNodes`.
-- `MemoryConfig` requires `minReusableBufferSize >= 1` and rejects `allowCrossPhaseReuse` when pools are separated.
+- Null sub-configs are normalized to defaults by the record constructor.
+- Backend planning rejects impossible combinations such as `CPU_ONLY` plus required accelerator regions.
+- Lower-level configs such as `FuseConfig` and `MemoryConfig` validate their own numeric constraints.
 
 Side effects: records and `with...` methods create new config objects.
 
 Performance notes:
 
-- `trainingDefaults()` and `inferenceDefaults()` both use `AR, CSE, PART, FUSE, MEM`.
-- Inference defaults use aggressive CSE and larger fusion clusters than training defaults.
+- `training()` and `inference()` both use backend-neutral graph optimization plus explicit backend intent planning.
+- `noGraphOptimization()` disables graph cleanup/lowering only; it does not disable backend planning or runtime backend selection.
+- `cpuOnlyBaseline()` disables graph optimization, accelerator planning, CPU natural regions, region optimization, and optional memory reuse for strict baseline comparisons.
 
 ### RuntimeConfig
 
@@ -590,13 +594,13 @@ Performance notes:
 - `src/main/java/config/profile/PlatformRuntimeProfile.java`
 - `src/main/java/config/profile/PlatformRuntimeProfileIO.java`
 
-Purpose: carry optimizer/runtime policy and persist calibrated platform runtime values.
+Purpose: carry compile/runtime policy and persist calibrated platform runtime values.
 
 Signatures:
 
 ```java
-new ExecutionProfile(String profileName, String candidateName, DataType dataType, ExecutionMode mode, OptimizerConfig optimizer, RuntimeConfig runtime)
-new ExecutionProfile(String profileName, String candidateName, DataType dataType, ExecutionMode mode, OptimizerConfig optimizer, RuntimeConfig runtime, WorkloadProfile workload)
+new ExecutionProfile(String profileName, String candidateName, DataType dataType, ExecutionMode mode, CompileConfig compile, RuntimeConfig runtime)
+new ExecutionProfile(String profileName, String candidateName, DataType dataType, ExecutionMode mode, CompileConfig compile, RuntimeConfig runtime, WorkloadProfile workload)
 static PlatformRuntimeProfile fromExecutionProfile(String platformProfileId, String hardwareKey, String calibrationPreset, ExecutionProfile profile)
 RuntimeConfig PlatformRuntimeProfile.toRuntimeConfig()
 DataType PlatformRuntimeProfile.dataType()
@@ -608,7 +612,7 @@ static PlatformRuntimeProfile PlatformRuntimeProfileIO.fromJsonOrDefault(String 
 
 Failure modes:
 
-- `ExecutionProfile` requires non-null dtype, mode, optimizer, and runtime.
+- `ExecutionProfile` requires non-null dtype, mode, compile, and runtime.
 - `PlatformRuntimeProfile` requires metadata, matmul, fused, elementwise, reduction, scheduler, materialization, and numerics records.
 - Profile save failures throw `IllegalStateException`.
 - Load/parse failures return the provided fallback.
@@ -667,7 +671,7 @@ ExecutionProfile baselineProfile = Synaptik.tuning()
         .candidate("baseline-no-opt")
         .dtype(DataType.FLOAT64)
         .mode().training()
-        .optimizer().noOptimization()
+        .compile().noGraphOptimization()
         .runtime().noOptNoVecNoPar()
         .build();
 
@@ -677,7 +681,7 @@ ExecutionProfile calibratedProfile = Synaptik.tuning()
         .candidate("calibrated-runtime")
         .dtype(DataType.FLOAT64)
         .mode().training()
-        .optimizer().trainingDefaults()
+        .compile().trainingDefaults()
         .runtime().fromPlatformProfile(calibratedRuntime)
         .build();
 
@@ -695,7 +699,9 @@ BenchmarkReport report = Synaptik.tuning()
         .candidate("calibrated-runtime", calibratedProfile)
         .run();
 
+// baselineProfile.compile() = CompileConfig.noGraphOptimizationBaseline()
 // baselineProfile.runtime() = RuntimeConfig.noOptNoVecNoPar()
+// calibratedProfile.compile() = CompileConfig.training()
 // calibratedProfile.runtime() = calibratedRuntime.toRuntimeConfig()
 ```
 
@@ -708,10 +714,12 @@ Execution-profile builder catalog:
 | `.dtype(DataType)` | Selects dtype for the runnable profile. | Yes | Parent builder |
 | `.mode().forward()` | Selects `ExecutionMode.FORWARD`. | No | Parent builder |
 | `.mode().training()` / `.mode().forwardBackward()` | Selects `ExecutionMode.FORWARD_BACKWARD`. | No | Parent builder |
-| `.optimizer().noOptimization()` | Uses `OptimizerConfig.noOptimization()` for baseline comparison. | Yes, unless explicit optimizer is supplied | Parent builder |
-| `.optimizer().inferenceDefaults()` | Uses inference optimizer defaults. | Yes, unless explicit optimizer is supplied | Parent builder |
-| `.optimizer().trainingDefaults()` | Uses training optimizer defaults. | Yes, unless explicit optimizer is supplied | Parent builder |
-| `.optimizer(OptimizerConfig)` / `.optimizer().config(...)` | Uses an explicit optimizer config. | Yes, unless selector is used | Parent builder |
+| `.compile().noGraphOptimization()` | Uses `CompileConfig.noGraphOptimizationBaseline()` for baseline comparison. | Yes, unless explicit compile policy is supplied | Parent builder |
+| `.compile().inferenceDefaults()` | Uses inference compile defaults. | Yes, unless explicit compile policy is supplied | Parent builder |
+| `.compile().trainingDefaults()` | Uses training compile defaults. | Yes, unless explicit compile policy is supplied | Parent builder |
+| `.compile().trainingAutoAccelerator()` | Uses training compile defaults with automatic accelerator discovery. | Yes, unless explicit compile policy is supplied | Parent builder |
+| `.compile().inferenceAutoAccelerator()` | Uses inference compile defaults with automatic accelerator discovery. | Yes, unless explicit compile policy is supplied | Parent builder |
+| `.compile(CompileConfig)` / `.compile().config(...)` | Uses an explicit compile config. | Yes, unless selector is used | Parent builder |
 | `.runtime().noOptNoVecNoPar()` | Uses the conservative runtime baseline with practical vector/parallel/BLAS paths disabled. | Yes, unless explicit runtime is supplied | Parent builder |
 | `.runtime().inferenceDefaults()` | Uses inference runtime defaults. | Yes, unless explicit runtime is supplied | Parent builder |
 | `.runtime().trainingDefaults()` | Uses training runtime defaults. | Yes, unless explicit runtime is supplied | Parent builder |
@@ -722,8 +730,8 @@ Execution-profile builder catalog:
 
 Failure modes:
 
-- `.build()` throws `IllegalStateException` if dtype, optimizer, or runtime has not been selected.
-- `.dtype(null)`, `.optimizer(null)`, `.runtime(null)`, and
+- `.build()` throws `IllegalStateException` if dtype, compile, or runtime has not been selected.
+- `.dtype(null)`, `.compile(null)`, `.runtime(null)`, and
   `.runtime().fromPlatformProfile(null)` throw `NullPointerException`.
 - The builder is mutable and intended for one thread while assembling one profile; the built
   `ExecutionProfile` is immutable.

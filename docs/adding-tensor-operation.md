@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Adding A Tensor Operation
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Development](development.md#adding-tensor-ops) | [Tensor API](tensor-api.md#operation-catalog) | [Modules](modules.md#operations-primitive-semantic-descriptors) | [Graph Optimizer](graph-optimizer.md#stage-cse-common-subexpression-elimination) | [Testing](testing.md#targeted-test-patterns)
+Navigation: [Index](index.md#recommended-reading-paths) | [Development](development.md#adding-tensor-ops) | [Tensor API](tensor-api.md#operation-catalog) | [Modules](modules.md#operations-primitive-semantic-descriptors) | [Graph Optimizer](graph-optimizer.md#cse) | [Testing](testing.md#targeted-test-patterns)
 
 Chapters: [Purpose](#purpose) | [Mental Model](#mental-model) | [Choose The Operation Kind](#choose-the-operation-kind) | [Source Map](#source-map) | [Implementation Checklist](#implementation-checklist) | [Worked Example: Unary Floating Operation](#worked-example-unary-floating-operation) | [Descriptor Layer](#descriptor-layer) | [Tensor Builder Layer](#tensor-builder-layer) | [Public API Layer](#public-api-layer) | [CPU Kernel Layer](#cpu-kernel-layer) | [Autograd](#autograd) | [Broadcasting Shape And DType Rules](#broadcasting-shape-and-dtype-rules) | [Optimizer Integration](#optimizer-integration) | [Fusion And Accelerator Integration](#fusion-and-accelerator-integration) | [Testing Matrix](#testing-matrix) | [Common Mistakes](#common-mistakes)
 

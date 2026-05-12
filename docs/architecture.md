@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Synaptik Architecture
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Tensor API](tensor-api.md#graph-lifecycle-and-execution) | [Compute Flow](compute-flow.md#lifecycle-map) | [Graph Optimizer](graph-optimizer.md#stage-ordering) | [Native Bridges & BLAS](native-bridges-and-blas.md#term-map-at-a-glance) | [Metal Backend](metal-backend.md#end-to-end-flow) | [Calibration & Autotune](calibration-autotune.md#runtime-and-graph-artifacts) | [Modules](modules.md#package-map)
+Navigation: [Index](index.md#recommended-reading-paths) | [Tensor API](tensor-api.md#graph-lifecycle-and-execution) | [Compute Flow](compute-flow.md#lifecycle-map) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-regions.md#backend-planning-and-regions) | [Native Bridges & BLAS](native-bridges-and-blas.md#term-map-at-a-glance) | [Metal Backend](metal-backend.md#end-to-end-flow) | [Calibration & Autotune](calibration-autotune.md#runtime-and-graph-artifacts) | [Modules](modules.md#package-map)
 
 Chapters: [System Overview](#system-overview) | [Core Artifact Boundaries](#core-artifact-boundaries) | [Graph Construction](#graph-construction) | [Compile Pipeline](#compile-pipeline) | [Optimizer And Partitioning](#optimizer-and-partitioning) | [Prepare Pipeline](#prepare-pipeline) | [Execution Pipeline](#execution-pipeline) | [CPU Backend](#cpu-backend) | [Accelerator Scaffolding](#accelerator-scaffolding) | [Configuration, Profiles, And Tuning](#configuration-profiles-and-tuning) | [Memory And Layout Model](#memory-and-layout-model) | [Tracing And Observability](#tracing-and-observability) | [Numerics Harness](#numerics-harness) | [Verification Anchors](#verification-anchors)
 
@@ -32,7 +32,7 @@ The primary input is a graph rooted at `tensor.Tensor`. Each graph node carries 
 2. `operations` describes primitive semantics.
 3. `graph` compiles, optimizes, partitions, and prepares executable artifacts.
 4. `backend` resolves concrete kernels and executes prepared node steps.
-5. `config` and `tuning` control optimizer/runtime policy and persist measured profiles.
+5. `config` and `tuning` control compile/runtime policy and persist measured profiles.
 
 ```mermaid
 flowchart TD
@@ -40,7 +40,7 @@ flowchart TD
     Tensor["tensor.Tensor and tensor.ops.*"]
     Operation["operations.Operation descriptors"]
     Compiler["graph.CompiledGraph / graph.compile.GraphCompiler"]
-    Optimizer["graph.optimizer stages"]
+    Optimizer["graph.optimizer cleanup/lowering"]
     Prepare["backend.prepare.PreparedExecutionBuilder"]
     Execution["graph.execution.PreparedExecution"]
     Engine["backend.ComputeEngine"]
@@ -65,7 +65,7 @@ The most important architectural rule is that each lifecycle artifact owns diffe
 | Artifact | Main files | Owns | Must not own |
 |---|---|---|---|
 | Semantic tensor graph | `src/main/java/tensor/Tensor.java`, `src/main/java/tensor/ops/*` | Shape, dtype, storage, operation descriptor, predecessor edges, public API, backward builders | CPU dispatch hints, compiled node ids, runtime workspaces |
-| Primitive descriptor | `src/main/java/operations/Operation.java`, `src/main/java/operations/**` | Immutable operation identity and semantic parameters | Kernel code, mutable runtime state, optimizer policy |
+| Primitive descriptor | `src/main/java/operations/Operation.java`, `src/main/java/operations/**` | Immutable operation identity and semantic parameters | Kernel code, mutable runtime state, compile/runtime policy |
 | Compile artifact | `src/main/java/graph/CompiledGraph.java`, `src/main/java/graph/compile/CompileArtifacts.java` | Compiled node snapshots, forward/backward boundary, optimizer state, memory plan, partition plans | Per-run execution state |
 | Prepared artifact | `src/main/java/graph/execution/PreparedExecution.java`, `src/main/java/graph/execution/CompiledNodeExecutionMetadata.java` | Ordered execution steps, prepared backend metadata, prepared fused/accelerator executables | Graph rewriting |
 | Runtime context | `src/main/java/backend/runtime/ExecutionContext.java`, `src/main/java/graph/execution/ExecutionState.java` | Per-run tensors, metadata index, workspaces, auxiliary runtime caches | Semantic graph ownership |
@@ -78,7 +78,7 @@ The public convenience execution methods are centralized in `src/main/java/tenso
 
 - `Tensor.compile()` and `Tensor.compile(CompileMode)` call `CompiledGraph.compile(...)`.
 - `Tensor.compute()` defaults to `CompileMode.INFERENCE_ONLY`.
-- `Tensor.compute(CompileMode.TRAINING)` selects training optimizer/runtime defaults and runs backward only when trainable leaf inputs exist.
+- `Tensor.compute(CompileMode.TRAINING)` selects training compile/runtime defaults and runs backward only when trainable leaf inputs exist.
 - `Tensor.compute(ComputeOptions)` may resolve a persisted or newly autotuned profile when `AutotunePolicy.IF_MISSING` is used.
 
 Example:
@@ -100,8 +100,8 @@ double[] gradient = x.getGradient().toDoubleArrayCopy();
 `src/main/java/graph/CompiledGraph.java` is the facade. It creates `graph.compile.GraphCompiler` with:
 
 - a semantic forward canonicalizer from `graph.optimizer.OptimizerFactory.createSemanticForwardCanonicalizer(...)`
-- a `GraphOptimizer` built from `config.optimizer.OptimizerConfig`
-- a `PartitionConfig`
+- a backend-neutral `GraphOptimizer` built from `config.compile.GraphOptimizationConfig`
+- a `CompileConfig` that also owns backend planning, region optimization, and memory planning
 - a `CompileMode`
 
 The actual compile session in `src/main/java/graph/compile/GraphCompiler.java` performs these steps:
@@ -112,11 +112,12 @@ The actual compile session in `src/main/java/graph/compile/GraphCompiler.java` p
 4. Decide whether backward should be compiled from `CompileMode`.
 5. Build the backward graph through `BackwardGraphBuilder` when needed.
 6. Capture an `OptimizerGraphSnapshot`.
-7. Run the ordered optimizer pipeline.
+7. Run backend-neutral graph optimization.
 8. Rebuild `CompiledNode` snapshots.
 9. Capture gradient bindings through `GradientBindingCollector`.
 10. Run backend planning through `BackendPlanningService`.
-11. Return immutable `CompileArtifacts`.
+11. Run region optimization and memory planning from the compile policy.
+12. Return immutable `CompileArtifacts`.
 
 ```mermaid
 sequenceDiagram
@@ -126,7 +127,7 @@ sequenceDiagram
     participant O as GraphOptimizer
     participant BP as BackendPlanningService
 
-    T->>CG: compile(mode, optimizerConfig)
+    T->>CG: compile(mode, compileConfig)
     CG->>GC: new GraphCompiler(...)
     GC->>GC: forwardOutput and topologicalSort
     GC->>GC: optional backward graph
@@ -138,33 +139,38 @@ sequenceDiagram
     GC-->>CG: CompileArtifacts + CompileTrace
 ```
 
-## Optimizer And Partitioning
+## Optimizer And Backend Planning
 
-Optimizer configuration lives under `src/main/java/config/optimizer`. The concrete stage enum in `OptimizerStage.java` is:
+The current architecture deliberately separates graph optimization from execution planning.
 
-```text
-AR, CSE, PART, FUSE, MEM
-```
-
-`OptimizerConfig.inferenceDefaults()` and `OptimizerConfig.trainingDefaults()` both currently use:
+Graph optimization is backend-neutral and lives behind `GraphOptimizationConfig` and `OptimizerFactory.create(...)`. The concrete graph optimizer pipeline is:
 
 ```text
-AR -> CSE -> PART -> FUSE -> MEM
+CLEANUP_FIXPOINT(AR -> CF -> CSE -> DCE) -> optional LOWER
 ```
 
-The stages map through `src/main/java/graph/optimizer/OptimizerFactory.java`:
+Meanings:
 
 | Stage | Implementation | Responsibility |
 |---|---|---|
-| `AR` | `graph.optimizer.rewrite.RewriteRule` | Algebraic simplification and semantic lowerings such as linear, loss, attention, reduction, and optional conv2d lowerings |
-| `CSE` | `graph.optimizer.cse.CommonSubexpressionEliminationRule` | Structural common-subexpression elimination |
-| `PART` | `graph.optimizer.partition.PartitionIntentRule` | Backend partition intent and region candidate planning |
-| `FUSE` | `graph.optimizer.region.RegionOptimizationRule` | Region optimization and elementwise/fused execution-unit decisions |
-| `MEM` | `graph.optimizer.memory.MemoryOptimizerRule` | Memory planning, alias handling, and reusable runtime slots |
+| `AR` | `graph.optimizer.rewrite.RewriteRule` | Algebraic simplification and light canonical rewrites. |
+| `CF` | `graph.optimizer.cf.ConstantFoldingRule` | Conservative constant-only graph folding. |
+| `CSE` | `graph.optimizer.cse.CommonSubexpressionEliminationRule` | Structural common-subexpression elimination. |
+| `DCE` | `graph.optimizer.dce.DeadCodeEliminationRule` | Remove nodes not reachable from observable roots. |
+| `LOWER` | `graph.optimizer.rewrite.LoweringRule` | Optional backend-neutral graph lowering. |
 
-`config.optimizer.OptimizerConfig` validates stage order: `FUSE` requires `PART`, `PART` must run before `FUSE`, and `MEM` requires `FUSE`. That validation means downstream docs or examples should not present `AR -> CSE -> FUSE -> MEM` as the full default stage order without `PART`.
+Execution planning is separate:
 
-Partition planning bridges graph optimization and backend preparation. `src/main/java/graph/compile/BackendPlanningService.java` creates backend candidate partitions from `BackendPlanningConfig`, and backend descriptors are registered in `src/main/java/backend/partition/BackendPartitionDescriptorRegistry.java`. The default registry includes CPU plus Metal and CUDA accelerator partition descriptors.
+| Phase | Owner | Responsibility |
+|---|---|---|
+| Backend planning | `BackendPlanningConfig`, `BackendPlanningService`, `BackendPlanningJobResolver` | CPU-only, explicit accelerator, or automatic accelerator ownership regions. |
+| Region optimization | `RegionOptimizationConfig`, `DefaultRegionOptimizer` | Fused/unit execution units inside owned regions. |
+| Memory planning | `MemoryPlanningConfig`, `MemoryPlanner` | Lifetimes, reusable slots, and region handoff bindings. |
+| Runtime selection | `RuntimeConfig`, backend preparers | Runtime availability, BLAS/vector/parallel thresholds, buffer binding, fallback. |
+
+This split is the reason `CompileConfig.noGraphOptimization()` disables graph cleanup only. It does not mean "skip backend planning", "ignore explicit accelerator intent", or "disable runtime backend selection." For detailed examples, see [Graph Optimizer](graph-optimizer.md#graph-optimizer) and [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions).
+
+Backend planning bridges graph optimization and backend preparation. `src/main/java/graph/compile/BackendPlanningService.java` creates backend candidate regions from `BackendPlanningConfig`, and backend descriptors are registered in `src/main/java/backend/partition/BackendPartitionDescriptorRegistry.java`. The default registry includes CPU plus Metal and CUDA accelerator partition descriptors.
 
 ### Materialization-aware region planning
 
@@ -473,7 +479,7 @@ The important ownership split is:
 |---|---|---|
 | Public `Tensor` | Semantic value, dtype, shape, Java storage arrays | Metal buffer lifetime, native ownership, graph node ids |
 | `ExecutionState` | Runtime node id, runtime tensor, residency, optional `DeviceBufferBinding` | Objective-C object model, MPSGraph encoding details |
-| `MetalBufferBinding` | Node id, dtype, shape, byte count, access intent, opaque handle | Public graph semantics, optimizer policy |
+| `MetalBufferBinding` | Node id, dtype, shape, byte count, access intent, opaque handle | Public graph semantics, compile policy |
 | Native Metal shim | Native handles, MPSGraphTensorData construction, command execution | Java `Tensor` object graph |
 
 Worked example:
@@ -550,16 +556,17 @@ buffers to current residency.
 
 Configuration is split by lifecycle ownership:
 
-- `src/main/java/config/optimizer` controls graph optimizer stage order and rewrite/fusion/memory/partition policy.
+- `src/main/java/config/compile` controls semantic canonicalization, graph optimization, backend planning, region optimization, and memory planning.
+- `src/main/java/config/optimizer` contains lower-level graph, CPU-region, fusion, memory, and cost helper configs consumed by compile policies.
 - `src/main/java/config/runtime` controls execution-time policy such as CPU kernel tuning, approximation, BLAS, conv2d, fused execution, and accelerators.
-- `src/main/java/config/profile` combines optimizer and runtime policy into executable/profile artifacts.
+- `src/main/java/config/profile` combines compile and runtime policy into executable/profile artifacts.
 
 `config.profile.ExecutionProfile` is the runnable unit for benchmark and autotune. It contains:
 
 - profile and candidate names
 - dtype
 - `backend.runtime.ExecutionMode`
-- `OptimizerConfig`
+- `CompileConfig`
 - `RuntimeConfig`
 - workload metadata
 
@@ -595,7 +602,7 @@ The no-argument CLI default is `full f64`.
 
 Layout is first-class in both semantic tensors and runtime execution. `TensorMetadata` stores shape, strides, storage offset, dtype, and label. Layout operations such as reshape, permute, expand, squeeze, select, and contiguous are explicit operation descriptors under `src/main/java/operations/layout` and public builders under `src/main/java/tensor/ops/layout`.
 
-The `MEM` optimizer stage produces a `MemoryPlan` under `src/main/java/graph/optimizer/memory`. `PreparedExecution` passes that plan to `RuntimeMemoryBinder` before running steps. This keeps allocation/reuse decisions tied to compile artifacts while per-run storage lives in `ExecutionState`.
+The memory planning compile phase produces a `MemoryPlan` under `src/main/java/graph/optimizer/memory`. `PreparedExecution` passes that plan to `RuntimeMemoryBinder` before running steps. This keeps allocation/reuse decisions tied to compile artifacts while per-run storage lives in `ExecutionState`.
 
 The architecture supports view-like behavior without treating every layout operation as a dense copy. The CPU layout kernels under `src/main/java/backend/cpu/kernels/layout` include alias/view, expand, permute, contiguous, reshape-like, and noop paths.
 
@@ -819,7 +826,7 @@ present.
 Tracing is diagnostic. It does not:
 
 - persist records to disk automatically
-- decide optimizer policy
+- decide compile or runtime policy
 - change backend selection
 - include every intermediate tensor value
 - replace benchmark measurement or the numerics harness
@@ -833,7 +840,7 @@ latency comparisons. Use the numerics harness when you need output and gradient 
 Tensor x = new Tensor(new double[]{1.0, 2.0, 3.0}, new int[]{3}, null, "x", DataType.FLOAT64);
 Tensor y = x.mul(2.0).sum();
 
-CompiledGraph compiled = CompiledGraph.compile(y, OptimizerConfig.inferenceDefaults());
+CompiledGraph compiled = CompiledGraph.compile(y, CompileConfig.inference());
 // compiled.compileTrace().totalNodeCount() describes the optimized compiled graph.
 // compiled.compileTrace().partitionPlanning() explains partition candidate decisions.
 
@@ -904,7 +911,7 @@ The run has two graph families:
 
 The candidate executions use separate tensor instances but the same generated `double[]` inputs.
 That keeps input data identical while allowing each profile to compile, prepare, and execute through
-its own optimizer/runtime policy.
+its own compile/runtime policy.
 
 ### Lifecycle
 
@@ -938,9 +945,9 @@ flowchart TD
 Step by step:
 
 1. `NumericsCli` reads `numerics.*` system properties and builds `NumericsHarness.Config`.
-2. It parses optimizer stage lists with `NumericsHarness.parseStages(...)`.
+2. It parses graph optimization stage lists with `NumericsHarness.parseStages(...)`.
 3. `NumericsHarness.profile(...)` creates two training `ExecutionProfile` values with the same dtype
-   and runtime defaults but different stage orders.
+   and runtime defaults but different graph optimization stage sets.
 4. `NumericsHarness.run(...)` creates one deterministic `InputSet`.
 5. Candidate A runs on a fresh graph built from that input.
 6. Candidate B runs on another fresh graph built from the same input.
@@ -1015,7 +1022,7 @@ The CLI properties are:
 ```text
 -Dnumerics.dtype=FLOAT32
 -Dnumerics.stageA=NONE
--Dnumerics.stageB=AR,CSE,PART,FUSE,MEM
+-Dnumerics.stageB=AR,CF,CSE,DCE,LOWER
 -Dnumerics.nameA=baseline
 -Dnumerics.nameB=optimized
 -Dnumerics.size=200000
@@ -1036,7 +1043,7 @@ cfg.graphBlocks = 6;
 
 NumericsHarness harness = new NumericsHarness(cfg);
 ExecutionProfile baseline = harness.profile("baseline", NumericsHarness.parseStages("NONE"));
-ExecutionProfile optimized = harness.profile("optimized", NumericsHarness.parseStages("AR,CSE,PART,FUSE,MEM"));
+ExecutionProfile optimized = harness.profile("optimized", NumericsHarness.parseStages("AR,CF,CSE,DCE,LOWER"));
 
 NumericsReport report = harness.run(
         baseline,
@@ -1084,7 +1091,7 @@ reports drift, not median/p95 runtime. Use `tuning.benchmark` for performance me
 The claims in this document were checked against source files and tests including:
 
 - lifecycle: `src/main/java/tensor/TensorExecutionSupport.java`, `src/main/java/graph/CompiledGraph.java`, `src/main/java/graph/compile/GraphCompiler.java`, `src/main/java/backend/prepare/PreparedExecutionBuilder.java`, `src/main/java/graph/execution/PreparedExecution.java`
-- optimizer stages: `src/main/java/config/optimizer/OptimizerStage.java`, `src/main/java/config/optimizer/OptimizerConfig.java`, `src/main/java/graph/optimizer/OptimizerFactory.java`
+- graph optimization and compile planning: `src/main/java/config/compile/CompileConfig.java`, `src/main/java/config/compile/GraphOptimizationConfig.java`, `src/main/java/config/compile/BackendPlanningConfig.java`, `src/main/java/graph/optimizer/OptimizerFactory.java`, `src/main/java/graph/compile/BackendPlanningService.java`
 - backend dispatch: `src/main/java/backend/ComputeEngine.java`, `src/main/java/backend/cpu/CpuBackend.java`, `src/main/java/backend/cpu/prepare/CpuNodePreparer.java`, `src/main/java/backend/cpu/registry/CpuKernelResolver.java`
 - tracing: `src/main/java/graph/execution/trace/*.java`, `src/main/java/backend/runtime/ExecutionContext.java`, `src/main/java/graph/execution/PreparedExecution.java`
 - numerics: `src/main/java/numerics/NumericsCli.java`, `src/main/java/numerics/NumericsHarness.java`, `src/main/java/numerics/NumericsGraphFactory.java`, `src/main/java/numerics/NumericsMetrics.java`, `src/main/java/numerics/NumericsPolicy.java`, `src/main/java/numerics/NumericsReport.java`

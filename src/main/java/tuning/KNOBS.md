@@ -8,7 +8,7 @@ You should always distinguish two groups:
   - stored in `PlatformRuntimeProfile`
   - primarily calibrated per machine
 - graph policy knobs
-  - stored in optimizer configuration / `GraphExecutionPolicy`
+  - stored in `CompileConfig` through `GraphExecutionPolicy`
   - primarily searched by graph autotune
 
 ## Runtime Families
@@ -131,11 +131,11 @@ The following graph-resident fields are research-only or excluded from standard 
   - persisted fields, but current production region optimization does not consume their scoring values
 - `compile.backendPlanning.search.*`
   - accelerator/backend partition scoring and target policy
-- `optimizer.cse.strictSafety`
+- `compile.graphOptimization.cse.strictSafety`
   - research-only safety/correctness policy
-- `optimizer.rewrite.piecewiseLowering.*`
+- `compile.graphOptimization.rewrite.piecewiseLowering.*`
   - research-only import/manual-graph canonicalization policy
-- `optimizer.memory.*`
+- `compile.memoryPlanning.*`
   - research-only at most; size/reuse fields are memory-system proxies
 
 ## Current Standard Calibration Ranges

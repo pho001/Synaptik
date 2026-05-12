@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Framework Concepts
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#system-overview) | [Compute Flow](compute-flow.md#lifecycle-map) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Graph Optimizer](graph-optimizer.md#stage-ordering) | [Metal Backend](metal-backend.md#mental-model) | [Glossary](glossary.md#a)
+Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#system-overview) | [Compute Flow](compute-flow.md#lifecycle-map) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Metal Backend](metal-backend.md#mental-model) | [Glossary](glossary.md#a)
 
 Chapters: [Tensors As Graph Nodes](#tensors-as-graph-nodes) | [Operation Descriptors](#operation-descriptors) | [Storage And Layout](#storage-and-layout) | [Broadcasting](#broadcasting) | [Compile, Prepare, Execute](#compile-prepare-execute) | [Autodiff](#autodiff) | [Semantic Canonicalization And Optimizer Stages](#semantic-canonicalization-and-optimizer-stages) | [Profiles](#profiles) | [Tuning, Calibration, And Persistence](#tuning-calibration-and-persistence) | [Common Mental Pitfalls](#common-mental-pitfalls)
 
@@ -133,33 +133,33 @@ loss.compute(CompileMode.TRAINING);
 
 The forward value is `1 + 4 + 9 = 14`. The gradient is `2x`, so `x.getGradient()` contains `[2.0, -4.0, 6.0]`. Regression tests compare optimized and unoptimized gradients for scalar and vector graphs. Source: [`GradientEngineRegressionTest.java`](../src/test/java/GradientEngineRegressionTest.java).
 
-## Semantic Canonicalization And Optimizer Stages
+## Semantic Canonicalization, Graph Optimization, And Planning
 
 Synaptik has two related but distinct compile-time rewrite layers.
 
 Semantic forward canonicalization happens before autograd construction. It rebuilds forward-safe canonical forms without mutating the original user graph, so backward lambdas are still valid. It can canonicalize patterns such as decomposed sigmoid, relu-like `where`, `matmul + bias` into `linear`, log-softmax plus indexed NLL into indexed cross-entropy, and attention-style score/softmax/value patterns into scaled-dot-product attention. Source: [`SemanticForwardCanonicalizer.java`](../src/main/java/graph/SemanticForwardCanonicalizer.java), [`SemanticForwardCanonicalizationCompileTest.java`](../src/test/java/graph/SemanticForwardCanonicalizationCompileTest.java).
 
-The public optimizer stage enum is:
+Graph optimization is backend-neutral. `OptimizerFactory.create(GraphOptimizationConfig)` builds:
 
 ```text
-AR -> CSE -> PART -> FUSE -> MEM
+CLEANUP_FIXPOINT(AR -> CF -> CSE -> DCE) -> optional LOWER
 ```
-
-Both `OptimizerConfig.trainingDefaults()` and `OptimizerConfig.inferenceDefaults()` currently use that full order. `FUSE` requires `PART`, `PART` must run before `FUSE`, and `MEM` requires `FUSE`. Source: [`OptimizerStage.java`](../src/main/java/config/optimizer/OptimizerStage.java), [`OptimizerConfig.java`](../src/main/java/config/optimizer/OptimizerConfig.java), [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java).
 
 Stage ownership:
 
 - `AR`: algebraic rewrites and semantic lowerings.
+- `CF`: conservative constant folding.
 - `CSE`: structural common subexpression elimination.
-- `PART`: backend partition intent and partition plan discovery.
-- `FUSE`: region optimization over partitions, including elementwise fusion.
-- `MEM`: memory lifetime, slot, region value, and runtime binding planning.
+- `DCE`: removes nodes that are not reachable from observable roots.
+- `LOWER`: optional backend-neutral operation lowering.
+
+Backend planning, region optimization, and memory planning are later compile phases, not graph optimizer stages. Source: [`GraphOptimizationConfig.java`](../src/main/java/config/compile/GraphOptimizationConfig.java), [`CompileConfig.java`](../src/main/java/config/compile/CompileConfig.java), [`BackendPlanningConfig.java`](../src/main/java/config/compile/BackendPlanningConfig.java), [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java).
 
 ## Profiles
 
-`ExecutionProfile` is the runnable profile object. It combines profile names, dtype, execution mode, optimizer config, runtime config, and workload metadata. Source: [`ExecutionProfile.java`](../src/main/java/config/profile/ExecutionProfile.java).
+`ExecutionProfile` is the runnable profile object. It combines profile names, dtype, execution mode, compile config, runtime config, and workload metadata. Source: [`ExecutionProfile.java`](../src/main/java/config/profile/ExecutionProfile.java).
 
-`GraphExecutionPolicy` is the graph-side policy, effectively optimizer configuration as a profile component. `PlatformRuntimeProfile` is the machine-oriented runtime-default artifact produced by calibration. `ExecutionProfileAssembler` combines graph policy and runtime profile into a concrete `ExecutionProfile`. Source: [`GraphExecutionPolicy.java`](../src/main/java/config/profile/GraphExecutionPolicy.java), [`PlatformRuntimeProfile.java`](../src/main/java/config/profile/PlatformRuntimeProfile.java), [`ExecutionProfileAssembler.java`](../src/main/java/config/profile/ExecutionProfileAssembler.java).
+`GraphExecutionPolicy` is the graph-side policy wrapper around `CompileConfig`. `PlatformRuntimeProfile` is the machine-oriented runtime-default artifact produced by calibration. `ExecutionProfileAssembler` combines graph policy and runtime profile into a concrete `ExecutionProfile`. Source: [`GraphExecutionPolicy.java`](../src/main/java/config/profile/GraphExecutionPolicy.java), [`PlatformRuntimeProfile.java`](../src/main/java/config/profile/PlatformRuntimeProfile.java), [`ExecutionProfileAssembler.java`](../src/main/java/config/profile/ExecutionProfileAssembler.java).
 
 `RuntimeConfig` owns runtime/backend policy such as CPU kernel thresholds, approximation policy, BLAS settings, conv2d routing, fused execution policy, and accelerator config. Source: [`RuntimeConfig.java`](../src/main/java/config/runtime/RuntimeConfig.java).
 

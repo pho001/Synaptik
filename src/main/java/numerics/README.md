@@ -102,12 +102,12 @@ The basic CLI primarily compares graph-policy variants.
 Typical CLI setup:
 
 - same dtype
-- different stage orders
+- different graph optimization stage sets
 - same runtime defaults
 
 So numerics CLI is best read as:
 
-- "did this optimizer policy change drift numerically?"
+- "did this graph optimization policy change drift numerically?"
 
 not:
 
@@ -119,7 +119,7 @@ not:
 java --add-modules jdk.incubator.vector \
   -Dnumerics.dtype=FLOAT32 \
   -Dnumerics.stageA=NONE \
-  -Dnumerics.stageB=AR,CSE,FUSE \
+  -Dnumerics.stageB=AR,CF,CSE,DCE,LOWER \
   -Dnumerics.nameA=baseline \
   -Dnumerics.nameB=optimized \
   -Dnumerics.size=200000 \

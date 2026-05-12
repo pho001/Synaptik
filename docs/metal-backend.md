@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Metal Backend
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#metal-mps-buffer-execution-and-copy-chain) | [Compute Flow](compute-flow.md#native-buffer-binding-metal-path) | [Graph Optimizer](graph-optimizer.md#scored-candidate-planner-deep-dive) | [Native Bridges & BLAS](native-bridges-and-blas.md#how-this-differs-from-metal-ffm) | [Modules](modules.md#accelerator-scaffolding-backendaccelerator-backendmetal-backendcuda-backendopencl) | [Troubleshooting](troubleshooting.md#metal-mps-shim-missing)
+Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#metal-mps-buffer-execution-and-copy-chain) | [Compute Flow](compute-flow.md#native-buffer-binding-metal-path) | [Backend Planning](backend-planning-and-regions.md#accelerator-regions) | [Native Bridges & BLAS](native-bridges-and-blas.md#how-this-differs-from-metal-ffm) | [Modules](modules.md#accelerator-scaffolding-backendaccelerator-backendmetal-backendcuda-backendopencl) | [Troubleshooting](troubleshooting.md#metal-mps-shim-missing)
 
 Chapters: [Purpose And Current Status](#purpose-and-current-status) | [Mental Model](#mental-model) | [Source Map](#source-map) | [End-To-End Flow](#end-to-end-flow) | [Partition Legality And Lowering](#partition-legality-and-lowering) | [Java FFM Bridge](#java-ffm-bridge) | [Objective-C Native Shim](#objective-c-native-shim) | [Native Buffer ABI](#native-buffer-abi) | [Buffer Residency And Materialization](#buffer-residency-and-materialization) | [Worked Example](#worked-example) | [Trace Reading](#trace-reading) | [Supported Operations And DTypes](#supported-operations-and-dtypes) | [Fallbacks And Failure Modes](#fallbacks-and-failure-modes) | [Performance Model](#performance-model) | [Tests](#tests) | [Implementation Checklist](#implementation-checklist)
 
@@ -77,7 +77,7 @@ The second path is the important architectural improvement. It does not yet make
 flowchart LR
     Tensor["User Tensor graph"]
     Compile["CompiledGraph.compile"]
-    Part["PART selects GPU_METAL region"]
+    Part["Backend planning selects GPU_METAL region"]
     Lower["MetalRegionLowerer"]
     Prepare["MetalNodePreparer"]
     Exec["PreparedMetalExecutable"]
@@ -123,7 +123,7 @@ Related higher-level docs:
 
 - [Architecture: Metal MPS Buffer Execution And Copy Chain](architecture.md#metal-mps-buffer-execution-and-copy-chain)
 - [Compute Flow: Native buffer-binding Metal path](compute-flow.md#native-buffer-binding-metal-path)
-- [Graph Optimizer: Scored Candidate Planner Deep Dive](graph-optimizer.md#scored-candidate-planner-deep-dive)
+- [Backend Planning And Regions: Accelerator Regions](backend-planning-and-regions.md#accelerator-regions)
 - [Troubleshooting: Metal MPS Shim Missing](troubleshooting.md#metal-mps-shim-missing)
 
 ## End-To-End Flow
@@ -141,9 +141,9 @@ would run as separate CPU operations unless the CPU fusion path could fuse the e
 ### Step-by-step walkthrough
 
 1. User code builds a semantic graph with `Tensor` operations.
-2. `CompiledGraph.compile(...)` snapshots the graph and runs optimizer stages.
-3. `PART` may select a `GPU_METAL` ownership region if the graph policy allows accelerator ownership and the Metal planner says the nodes are legal.
-4. `FUSE` may annotate fusable structure inside the region. For Metal this is trace/manifest metadata only; the default lowering family stays the MPSGraph region path.
+2. `CompiledGraph.compile(...)` snapshots the graph, runs backend-neutral graph optimization, and then runs backend planning.
+3. Backend planning may select a `GPU_METAL` ownership region if the compile policy allows accelerator ownership and the Metal planner says the nodes are legal.
+4. Region optimization may annotate fusable structure inside the region. For Metal this is trace/manifest metadata only; the default lowering family stays the MPSGraph region path.
 5. `MetalRegionLowerer` converts the selected region into a lowered Metal unit:
    - `METAL_GRAPH_REGION` for MPSGraph-first execution, including regions that contain fused elementwise subpatterns
    - CPU `Operation.OpType.FUSED` is never consumed by Metal lowering
@@ -163,7 +163,7 @@ would run as separate CPU operations unless the CPU fusion path could fuse the e
 sequenceDiagram
     participant U as User code
     participant CG as CompiledGraph
-    participant PART as PART planner
+    participant PART as Backend planner
     participant Lower as MetalRegionLowerer
     participant Prep as MetalNodePreparer
     participant PME as PreparedMetalExecutable
@@ -176,7 +176,7 @@ sequenceDiagram
 
     U->>CG: compile tensor graph
     CG->>PART: select backend ownership regions
-    PART-->>CG: GPU_METAL partition plan
+    PART-->>CG: GPU_METAL ownership region
     CG->>Lower: lower selected region
     Lower-->>CG: METAL_GRAPH_REGION
     CG->>Prep: prepare backend step

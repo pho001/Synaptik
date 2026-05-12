@@ -72,7 +72,7 @@ Some examples:
 - fused:
   - `FUSED`
 
-The `isFusable()` bit on `OpType` is what the graph `FUSE` stage uses as the primary fusable/non-fusable gate.
+The `isFusable()` bit on `OpType` is what region optimization uses as the primary fusable/non-fusable gate.
 
 ## Package Layout
 
@@ -275,7 +275,7 @@ Underlying descriptor:
 This lets:
 
 - `AR` reason about scalar identities
-- `FUSE` fuse it as a cheap or non-cheap op according to current policy
+- region optimization can fuse it as a cheap or non-cheap op according to current policy
 - backend resolve a direct scalar kernel path
 
 ### Example 2: lowered linear

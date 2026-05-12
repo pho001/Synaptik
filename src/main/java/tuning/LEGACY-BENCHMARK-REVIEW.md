@@ -70,7 +70,7 @@ These are still anti-patterns today:
 - a hidden execution model next to `ExecutionProfile`
 - synthetic benchmark-only knob universes
 - reports used as runtime source of truth
-- optimizer/runtime decisions stored only as ad hoc benchmark metadata
+- compile/runtime decisions stored only as ad hoc benchmark metadata
 
 ## What Replaced The Old Model
 

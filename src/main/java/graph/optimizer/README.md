@@ -52,28 +52,28 @@ The optimizer does not own:
 - BLAS provider thread behavior
 - approximation policy
 
-Those belong to the runtime profile, backend planners, and the tuning layer.
+Those belong to compile backend planning, region optimization, memory planning, runtime profiles, backend preparers, and the tuning layer.
 
 ## Current Execution Model
 
 `GraphOptimizer` is an ordered pipeline, but cleanup is a nested fixpoint stage.
 
-A stage order such as:
+The graph optimizer pipeline is:
 
 ```text
-CLEANUP_FIXPOINT(AR -> CF -> CSE -> DCE) -> LOWER -> PART -> FUSE -> MEM
+CLEANUP_FIXPOINT(AR -> CF -> CSE -> DCE) -> optional LOWER
 ```
 
 is executed as:
 
 1. repeat `AR`, `CF`, `CSE`, `DCE` until stable/improvement stops/max iterations
 2. run `LOWER`
-3. run `PART`
-4. run `FUSE`
-5. run `MEM`
 
 Heavy executable/decomposition lowering is not part of `AR`. Backend-neutral operation lowering runs in `LOWER`;
 backend-specific executable lowering still happens later, where the target backend and region contract are known.
+
+Backend planning, region optimization, and memory planning run later in the compile flow. They are not `GraphOptimizer`
+rules.
 
 ## Snapshot Boundary
 
@@ -172,26 +172,28 @@ Does not own:
 - region-internal backend fusion
 - device buffer/layout planning
 
-### `FUSE`
+### Region optimization
 
-Graph-level elementwise fusion.
+Compile phase outside `GraphOptimizer`.
 
 Owns:
 
-- choose safe and worthwhile elementwise clusters
-- replace them with one `FUSED` primitive
+- choose safe and worthwhile execution units inside already owned regions
+- group compatible elementwise chains
+- preserve unit-kernel boundaries for reductions, matmul, and other barriers
 
 See [FUSE.md](./FUSE.md).
 
-### `MEM`
+### Memory planning
 
-Memory planning and buffer reuse.
+Compile phase outside `GraphOptimizer`.
 
 Owns:
 
 - view aliasing at runtime
 - temporary slot reuse
 - reusable interval planning
+- region handoff planning
 
 See [MEM.md](./MEM.md).
 
@@ -214,11 +216,12 @@ After that, later stages can act on the already simplified graph:
 - `CSE` can collapse duplicates that remain after rewriting
 - `DCE` can remove nodes made unreachable by replacements
 - `LOWER` can create backend-neutral specialized operation surfaces
-- `FUSE` can group surviving elementwise chains
-- `MEM` can plan reuse on the final graph shape
+- backend planning can create CPU or accelerator ownership regions
+- region optimization can group surviving elementwise chains inside owned regions
+- memory planning can plan reuse on the final graph shape
 
-The cleanup stages are replayed by `CleanupFixpointRule` until stable or no longer improving. `LOWER`, `PART`, `FUSE`,
-and `MEM` still run after cleanup.
+The cleanup stages are replayed by `CleanupFixpointRule` until stable or no longer improving. `LOWER` runs after cleanup
+when enabled. Backend planning, region optimization, and memory planning are later compile phases.
 
 ## What To Change When
 
@@ -234,9 +237,11 @@ Use this rule of thumb:
   - `DCE`
 - backend-neutral op surface lowering:
   - `LOWER`
-- elementwise cluster profitability:
-  - `FUSE`
+- backend ownership policy:
+  - `BackendPlanningConfig` and `graph.compile.BackendPlanningService`
+- elementwise cluster profitability inside regions:
+  - `RegionOptimizationConfig` and `graph.optimizer.region`
 - allocation/reuse policy:
-  - `MEM`
+  - `MemoryPlanningConfig` and `graph.optimizer.memory`
 
 If a change depends on runtime sizes, thresholds, or hardware policy, it probably belongs outside the optimizer.

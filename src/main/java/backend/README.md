@@ -3,7 +3,7 @@
 The `backend` layer performs concrete computation over a prepared graph.
 
 It does not build semantic graphs.
-It does not run optimizer stages.
+It does not run graph optimization or backend planning.
 It does not own autotune or calibration.
 
 Its contract is:
@@ -285,7 +285,7 @@ Current fused execution ideas include:
 
 The backend documentation should be read together with [../graph/optimizer/FUSE.md](../graph/optimizer/FUSE.md):
 
-- `FUSE` decides optimized region shape
+- region optimization decides optimized region shape
 - backend lowering builds backend-owned execution artifacts
 - backend preparation decides how to execute those artifacts
 

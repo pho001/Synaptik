@@ -55,7 +55,7 @@ The main code is under `src/main/java`:
 | `src/main/java/tensor/ops` | Family-specific public operation builders and backward formulas |
 | `src/main/java/operations` | Immutable primitive descriptors implementing `operations.Operation` |
 | `src/main/java/graph` | Compilation, optimizer state, prepared graph artifacts, execution trace metadata |
-| `src/main/java/graph/optimizer` | Ordered optimizer stages: `AR`, `CSE`, `PART`, `FUSE`, `MEM` |
+| `src/main/java/graph/optimizer` | Backend-neutral graph optimization: `AR`, `CF`, `CSE`, `DCE`, optional `LOWER`, plus implementation packages used by later planning phases |
 | `src/main/java/backend` | Backend-neutral contracts and backend-specific CPU/Metal/CUDA/OpenCL roots |
 | `src/main/java/backend/cpu` | Complete CPU backend implementation, registry, prepare, lowering, kernels, fused execution |
 | `src/main/java/backend/metal` | Metal bridge/lowering/prepare scaffolding using the local MPS shim |
@@ -343,44 +343,39 @@ Use this focused Phase 16 gate after changing runtime typed slot binding, Metal/
 
 `dtype residency is not native dtype compute`: `BFLOAT16`, `INT32`, and `BOOL` may be represented in runtime storage residency or trace evidence while Metal/CUDA still reject unsupported native compute/output roles with `UNSUPPORTED_DTYPE`. Metal BF16 is now native only for scoped Phase 30 operation families; INT32, BOOL-producing compute, FLOAT64, and unsupported BF16 families remain explicit fallback/rejection cases.
 
-## Adding Optimizer Rules
+## Adding Graph Optimization Or Planning Rules
 
-Optimizer stages are defined in `src/main/java/config/optimizer/OptimizerStage.java`:
+Graph optimization is configured by `src/main/java/config/compile/GraphOptimizationConfig.java` and built by `src/main/java/graph/optimizer/OptimizerFactory.java`.
 
 ```text
-AR, CSE, PART, FUSE, MEM
+CLEANUP_FIXPOINT(AR -> CF -> CSE -> DCE) -> optional LOWER
 ```
 
-`src/main/java/config/optimizer/OptimizerConfig.java` validates the ordering:
+Current ownership:
 
-- `FUSE` requires `PART`
-- `PART` must run before `FUSE`
-- `MEM` requires `FUSE`
-- duplicate stages are rejected
+- `GraphOptimizationConfig.trainingDefaults()` enables `AR`, `CF`, `CSE`, `DCE`, and `LOWER` with strict CSE.
+- `GraphOptimizationConfig.inferenceDefaults()` enables the same graph stages with inference CSE defaults.
+- `GraphOptimizationConfig.noGraphOptimization()` disables graph optimization only.
+- Backend planning, region optimization, and memory planning are owned by `CompileConfig`, not the graph optimizer.
 
-Current source defaults:
-
-- `OptimizerConfig.noOptimization()` uses no stages.
-- `OptimizerConfig.trainingDefaults()` uses `AR, CSE, PART, FUSE, MEM`.
-- `OptimizerConfig.inferenceDefaults()` uses `AR, CSE, PART, FUSE, MEM`.
-
-Add changes by stage ownership:
+Add changes by ownership:
 
 | Change | Target path |
 |---|---|
 | Algebraic identity or lowering | `src/main/java/graph/optimizer/rewrite` |
+| Constant folding | `src/main/java/graph/optimizer/cf` |
 | Common subexpression behavior | `src/main/java/graph/optimizer/cse/CommonSubexpressionEliminationRule.java` |
-| Backend partition intent | `src/main/java/graph/optimizer/partition` |
+| Backend ownership planning | `src/main/java/graph/compile` and `src/main/java/graph/optimizer/partition` |
 | Region/fused execution units | `src/main/java/graph/optimizer/region` and CPU-specific fused policy under `src/main/java/backend/cpu/fused` |
 | Memory reuse or binding policy | `src/main/java/graph/optimizer/memory` |
 
-`OptimizerFactory.createRule(...)` maps public stages to concrete rules:
+`OptimizerFactory.create(...)` maps graph optimization config to concrete rules:
 
 - `AR` -> `new RewriteRule(config.rewrite())`
+- `CF` -> `new ConstantFoldingRule()`
 - `CSE` -> `new CommonSubexpressionEliminationRule(config.cse())`
-- `PART` -> `new PartitionIntentRule(config.partition())`
-- `FUSE` -> `new RegionOptimizationRule(config.fuse())`
-- `MEM` -> `new MemoryOptimizerRule(MemoryPlannerPolicy.fromConfig(config.memory()))`
+- `DCE` -> `new DeadCodeEliminationRule()`
+- `LOWER` -> `new LoweringRule(config.rewrite())`
 
 When a new operation has semantic parameters, update CSE signature handling in `CommonSubexpressionEliminationRule.parameterKey(...)`; otherwise structurally different instances may collapse incorrectly or identical instances may fail to collapse.
 

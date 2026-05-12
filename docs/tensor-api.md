@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Tensor API Guide
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Public API](public-api.md#tensor) | [Examples](examples.md#broadcast-add-and-relu) | [Compute Flow](compute-flow.md#tensor-compute-api) | [Graph Optimizer](graph-optimizer.md#stage-ar-rewrite-and-lowering) | [Adding Tensor Operation](adding-tensor-operation.md#implementation-checklist) | [Troubleshooting](troubleshooting.md#shape-and-broadcast-errors)
+Navigation: [Index](index.md#recommended-reading-paths) | [Public API](public-api.md#tensor) | [Examples](examples.md#broadcast-add-and-relu) | [Compute Flow](compute-flow.md#tensor-compute-api) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Adding Tensor Operation](adding-tensor-operation.md#implementation-checklist) | [Troubleshooting](troubleshooting.md#shape-and-broadcast-errors)
 
 Chapters: [API Surface And Conventions](#api-surface-and-conventions) | [Constructors, Storage, And Dtype](#constructors-storage-and-dtype) | [Metadata, Data Access, And Mutation](#metadata-data-access-and-mutation) | [Graph Lifecycle And Execution](#graph-lifecycle-and-execution) | [Compute Convenience API](#compute-convenience-api) | [Operation Catalog](#operation-catalog) | [Layout And View Operations](#layout-and-view-operations) | [Binary Broadcasting And Scalar Arithmetic](#binary-broadcasting-and-scalar-arithmetic) | [Comparisons, Boolean Logic, And Selection](#comparisons-boolean-logic-and-selection) | [Indexing, Gather, Scatter, And Take Along Axis](#indexing-gather-scatter-and-take-along-axis) | [Unary Math](#unary-math) | [Reductions, Softmax, And LogSoftmax](#reductions-softmax-and-logsoftmax) | [Matrix, Linear, And Attention Operations](#matrix-linear-and-attention-operations) | [Convolution And Pooling](#convolution-and-pooling) | [Normalization](#normalization) | [Loss Functions](#loss-functions) | [Dtype, Shape, And Edge-Case Rules](#dtype-shape-and-edge-case-rules) | [Implementation Source Map](#implementation-source-map)
 
@@ -287,10 +287,10 @@ void compute(PreparedExecution execution, ExecutionMode mode)
 
 | Method | Use when | Returns | Main side effects |
 |---|---|---|---|
-| `compute()` | You want forward inference with default optimizer/runtime policy. | The same root tensor. | Executes the graph and publishes root data. |
+| `compute()` | You want forward inference with default compile/runtime policy. | The same root tensor. | Executes the graph and publishes root data. |
 | `compute(CompileMode)` | You want to choose inference, training, or auto mode without constructing options. | The same root tensor. | Executes forward and, when applicable, backward. |
-| `compute(ComputeOptions)` | You need compile mode, generic graph autotune, optimizer override, or runtime override. | The same root tensor. | May run generic graph autotune; executes graph; may publish gradients. |
-| `compute(ExecutionProfile)` | You already have a complete profile. | `void` | Compiles/prepares/runs using the profile's optimizer, runtime, dtype, and mode. |
+| `compute(ComputeOptions)` | You need compile mode, generic graph autotune, compile override, or runtime override. | The same root tensor. | May run generic graph autotune; executes graph; may publish gradients. |
+| `compute(ExecutionProfile)` | You already have a complete profile. | `void` | Compiles/prepares/runs using the profile's compile policy, runtime, dtype, and mode. |
 | `compute(PreparedExecution, ExecutionMode)` | You already compiled and prepared the graph. | `void` | Executes the provided prepared artifact directly. |
 
 The return value of the first three overloads is not a new tensor. It is the receiver tensor after execution. That lets users write `Tensor y = expression.compute();` while preserving object identity.
@@ -317,7 +317,7 @@ Resolved defaults:
 |---|---|
 | `CompileMode` | `INFERENCE_ONLY` |
 | `ExecutionMode` | `FORWARD` |
-| `OptimizerConfig` | `OptimizerConfig.inferenceDefaults()` |
+| `CompileConfig` | `CompileConfig.inference()` |
 | `RuntimeConfig` | `RuntimeConfig.inferenceDefaults()` |
 | `AutotunePolicy` | `NEVER` |
 
@@ -381,7 +381,7 @@ Tensor compute(CompileMode compileMode)
 
 Valid values:
 
-| `CompileMode` | What it means | Default optimizer/runtime | Execution mode |
+| `CompileMode` | What it means | Default compile/runtime | Execution mode |
 |---|---|---|---|
 | `INFERENCE_ONLY` | Compile only the forward graph. | inference defaults | `FORWARD` |
 | `TRAINING` | Use training defaults and compile backward only when trainable leaf inputs exist. | training defaults | `FORWARD_BACKWARD` if trainable leaf exists, otherwise `FORWARD` |
@@ -460,9 +460,9 @@ Available parameters:
 
 | Option | Type | Default | Meaning |
 |---|---|---|---|
-| `.compileMode(CompileMode)` | `AUTO`, `INFERENCE_ONLY`, `TRAINING` | `INFERENCE_ONLY` | Selects compile intent and default optimizer/runtime family. |
+| `.compileMode(CompileMode)` | `AUTO`, `INFERENCE_ONLY`, `TRAINING` | `INFERENCE_ONLY` | Selects compile intent and default compile/runtime family. |
 | `.autotune(AutotunePolicy)` | `NEVER`, `IF_MISSING`, `FORCE` | `NEVER` | Controls generic graph autotune for this tensor graph. |
-| `.optimizer(OptimizerConfig)` | optimizer config | inferred from compile mode | Overrides optimizer policy in the generated execution profile. |
+| `.compile(CompileConfig)` | compile config | inferred from compile mode | Overrides semantic canonicalization, graph optimization, backend planning, region optimization, and memory planning in the generated execution profile. |
 | `.runtime(RuntimeConfig)` | runtime config | inferred from compile mode | Overrides backend/runtime policy in the generated execution profile. |
 
 Example with explicit defaults:
@@ -488,12 +488,12 @@ y.compute(new ComputeOptions()
 // Explicitly says:
 // - compile only forward
 // - do not use generic graph autotune
-// - infer OptimizerConfig.inferenceDefaults()
+// - infer CompileConfig.inference()
 // - infer RuntimeConfig.inferenceDefaults()
 // y = [3, 0, 9]
 ```
 
-Example with custom optimizer/runtime:
+Example with custom compile/runtime policy:
 
 ```java
 Tensor a = new Tensor(
@@ -510,9 +510,9 @@ Tensor b = a.add(1.0);
 
 b.compute(new ComputeOptions()
         .compileMode(CompileMode.INFERENCE_ONLY)
-        .optimizer(OptimizerConfig.noOptimization())
+        .compile(CompileConfig.noGraphOptimizationBaseline())
         .runtime(RuntimeConfig.noOptNoVecNoPar()));
-// OptimizerConfig.noOptimization() disables optimizer stages.
+// CompileConfig.noGraphOptimizationBaseline() disables graph optimization only.
 // RuntimeConfig.noOptNoVecNoPar() disables practical vector/parallel/BLAS dispatch.
 // The value is unchanged by this policy choice:
 // b = [2, 3]
@@ -584,7 +584,7 @@ The profile supplies:
 |---|---|
 | `dataType` | Profile identity and dtype contract. |
 | `mode` | Runtime execution mode: `FORWARD` or `FORWARD_BACKWARD`. |
-| `optimizer` | Compile-time optimizer config. |
+| `compile` | Compile-time semantic, graph optimization, backend planning, region optimization, and memory planning policy. |
 | `runtime` | Prepare-time runtime/backend config. |
 | `workload` | Profile metadata; not a separate execution graph. |
 
@@ -603,7 +603,7 @@ ExecutionProfile profile = new ExecutionProfile(
         "manual-f64-forward",
         DataType.FLOAT64,
         ExecutionMode.FORWARD,
-        OptimizerConfig.inferenceDefaults(),
+        CompileConfig.inference(),
         RuntimeConfig.inferenceDefaults(),
         WorkloadProfile.none()
 );
@@ -613,7 +613,7 @@ Tensor y = x.add(5.0);
 // y = 12
 
 y.compute(profile);
-// Compiles using profile.optimizer().
+// Compiles using profile.compile().
 // Prepares using profile.runtime().
 // Executes using profile.mode() == FORWARD.
 // y = 12

@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Testing
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Development](development.md#local-setup) | [Tensor API](tensor-api.md#operation-catalog) | [Graph Optimizer](graph-optimizer.md#adding-or-changing-optimizer-behavior) | [Native Bridges & BLAS](native-bridges-and-blas.md#openblas-bridge-lifecycle) | [Metal Backend](metal-backend.md#tests) | [Compute Flow](compute-flow.md#traces) | [Troubleshooting](troubleshooting.md#openblas-missing-or-unavailable)
+Navigation: [Index](index.md#recommended-reading-paths) | [Development](development.md#local-setup) | [Tensor API](tensor-api.md#operation-catalog) | [Graph Optimizer](graph-optimizer.md#adding-a-graph-optimization-change) | [Native Bridges & BLAS](native-bridges-and-blas.md#openblas-bridge-lifecycle) | [Metal Backend](metal-backend.md#tests) | [Compute Flow](compute-flow.md#traces) | [Troubleshooting](troubleshooting.md#openblas-missing-or-unavailable)
 
 Chapters: [Test Framework And Setup](#test-framework-and-setup) | [Test Organization](#test-organization) | [Exact Commands](#exact-commands) | [Full Suite Duration And Heap Behavior](#full-suite-duration-and-heap-behavior) | [Targeted Test Patterns](#targeted-test-patterns) | [Debug And Benchmark Tests](#debug-and-benchmark-tests) | [Native And Optional Backend Tests](#native-and-optional-backend-tests) | [Source Hygiene Tests](#source-hygiene-tests) | [How To Interpret Failures](#how-to-interpret-failures)
 

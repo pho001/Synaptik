@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Documentation Index
 
-Navigation: [README](../README.md#reading-guide) | [Architecture](architecture.md#system-overview) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Adding Tensor Operation](adding-tensor-operation.md#implementation-checklist) | [Compute Flow](compute-flow.md#lifecycle-map) | [Graph Optimizer](graph-optimizer.md#stage-ordering) | [Native Bridges & BLAS](native-bridges-and-blas.md#term-map-at-a-glance) | [Metal Backend](metal-backend.md#end-to-end-flow) | [Calibration & Autotune](calibration-autotune.md#core-distinction) | [Public API](public-api.md#stability-map) | [Examples](examples.md#running-examples)
+Navigation: [README](../README.md#reading-guide) | [Architecture](architecture.md#system-overview) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Adding Tensor Operation](adding-tensor-operation.md#implementation-checklist) | [Compute Flow](compute-flow.md#lifecycle-map) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-regions.md#backend-planning-and-regions) | [CPU BF16](cpu-bf16.md#cpu-bf16-runtime) | [Native Bridges & BLAS](native-bridges-and-blas.md#term-map-at-a-glance) | [Metal Backend](metal-backend.md#end-to-end-flow) | [Calibration & Autotune](calibration-autotune.md#core-distinction) | [Public API](public-api.md#stability-map) | [Examples](examples.md#running-examples)
 
 Chapters: [Recommended Reading Paths](#recommended-reading-paths) | [Document Map](#document-map) | [Source Documentation](#source-documentation) | [Verification Notes](#verification-notes)
 
@@ -21,9 +21,10 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 1. [Architecture: System Overview](architecture.md#system-overview) - the layered system model, package boundaries, and lifecycle artifacts.
 2. [Framework Concepts: Tensors As Graph Nodes](framework-concepts.md#tensors-as-graph-nodes) - core vocabulary and the mental model behind compiled tensor execution.
 3. [Compute Flow: Lifecycle Map](compute-flow.md#lifecycle-map) - the detailed journey from `Tensor` graph construction through compile, prepare, execution, memory binding, and traces.
-4. [Graph Optimizer: Stage Ordering](graph-optimizer.md#stage-ordering) - detailed explanations of `AR`, `CSE`, `PART`, `FUSE`, and `MEM`.
-5. [Native Bridges & BLAS: Term Map At A Glance](native-bridges-and-blas.md#term-map-at-a-glance) - what BLAS/GEMM are, how Java FFM calls native libraries, and how OpenBLAS is selected.
-6. [Modules: Package Map](modules.md#package-map) - package-by-package responsibilities, dependencies, invariants, and failure modes.
+4. [Graph Optimizer](graph-optimizer.md#graph-optimizer) - backend-neutral graph cleanup and lowering: `AR`, `CF`, `CSE`, `DCE`, and optional `LOWER`.
+5. [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions) - backend ownership planning, CPU natural regions, accelerator regions, region optimization, memory planning, and publication.
+6. [Native Bridges & BLAS: Term Map At A Glance](native-bridges-and-blas.md#term-map-at-a-glance) - what BLAS/GEMM are, how Java FFM calls native libraries, and how OpenBLAS is selected.
+7. [Modules: Package Map](modules.md#package-map) - package-by-package responsibilities, dependencies, invariants, and failure modes.
 
 ### Tensor API user path
 
@@ -39,15 +40,15 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 1. [Adding A Tensor Operation: Implementation Checklist](adding-tensor-operation.md#implementation-checklist) - end-to-end implementation guide for new operations.
 2. [Development: Adding Tensor Ops](development.md#adding-tensor-ops) - compact checklist and current package conventions.
 3. [Modules: `tensor`](modules.md#tensor-public-graph-building-surface) and [Modules: `operations`](modules.md#operations-primitive-semantic-descriptors) - where public graph builders and descriptors live.
-4. [Graph Optimizer: CSE](graph-optimizer.md#stage-cse-common-subexpression-elimination) and [Graph Optimizer: FUSE](graph-optimizer.md#stage-fuse-region-optimization-and-fusion) - what must be updated when an op has parameters or participates in fusion.
+4. [Graph Optimizer: CSE](graph-optimizer.md#cse) and [Backend Planning: Region Optimization](backend-planning-and-regions.md#region-optimization) - what must be updated when an op has parameters or participates in fusion/region planning.
 5. [Testing: Targeted Test Patterns](testing.md#targeted-test-patterns) - focused Gradle commands and test organization.
 
 ### Optimizer and runtime path
 
 1. [Compute Flow: Compile](compute-flow.md#compile) - the lifecycle from semantic graph to prepared runtime execution.
-2. [Graph Optimizer: Stage PART](graph-optimizer.md#stage-part-partition-planning) - stage-by-stage optimizer mechanics, including CPU natural regions, accelerator ownership regions, and Metal transfer-aware region scoring.
+2. [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions) - CPU natural regions, accelerator ownership regions, region optimization, memory planning, and publication policy.
 3. [Mechanisms: Prepared Execution](mechanisms.md#prepared-execution) - cross-cutting mechanisms such as graph construction, compilation, preparation, memory planning, and dispatch.
-4. [Configuration: RuntimeConfig](configuration.md#runtimeconfig) - optimizer/runtime knobs, system properties, native lookup, and profile layout.
+4. [Configuration: RuntimeConfig](configuration.md#runtimeconfig) - compile/runtime knobs, system properties, native lookup, and profile layout.
 
 ### Metal and accelerator debugging path
 
@@ -56,8 +57,15 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 3. [Architecture: Metal MPS Buffer Execution And Copy Chain](architecture.md#metal-mps-buffer-execution-and-copy-chain) - how tensor-array and buffer-binding transport differ.
 4. [Compute Flow: Native buffer-binding Metal path](compute-flow.md#native-buffer-binding-metal-path) - how execution state keeps Metal outputs device-owned until materialization.
 5. [Native Bridges & BLAS: How This Differs From Metal FFM](native-bridges-and-blas.md#how-this-differs-from-metal-ffm) - the shared Java FFM idea and the different execution models for BLAS and Metal.
-6. [Graph Optimizer: Scored Candidate Planner Deep Dive](graph-optimizer.md#scored-candidate-planner-deep-dive) - how Metal partition scoring accounts for input bytes, output bytes, and avoided intermediate bytes.
+6. [Backend Planning And Regions: Accelerator Regions](backend-planning-and-regions.md#accelerator-regions) - how accelerator ownership, legality, planning cost, runtime selection, and fallback evidence fit together.
 7. [Calibration & Graph Autotune: Built-in workload catalogs](calibration-autotune.md#built-in-workload-catalogs) - transformer shape presets for stressing larger attention and FFN workloads.
+
+### BF16 performance path
+
+1. [CPU BF16 Runtime](cpu-bf16.md#cpu-bf16-runtime) - BF16 storage, F32/F64 compute and accumulation, conversion costs, fusion impact, and why BF16 can be slower than F32 on CPU.
+2. [Native Bridges & BLAS](native-bridges-and-blas.md#term-map-at-a-glance) - where OpenBLAS and native GEMM can help BF16 matmul-heavy workloads.
+3. [Backend Planning And Regions: CPU Natural Regions](backend-planning-and-regions.md#cpu-natural-regions) - why a large CPU region is not the same as one monolithic fused BF16 kernel.
+4. [Troubleshooting: Performance Regressions](troubleshooting.md#performance-regressions) - how to separate compile policy, runtime calibration, materialization, publication, and dtype conversion costs.
 
 ### Calibration and autotune path
 
@@ -73,7 +81,9 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 | [architecture.md](architecture.md#system-overview) | High-level architecture, lifecycle boundaries, package responsibilities, backend dispatch, and extension points. |
 | [framework-concepts.md](framework-concepts.md#tensors-as-graph-nodes) | First-principles mental models for tensors, semantic graphs, compiled graphs, prepared execution, backend policy, and tuning. |
 | [compute-flow.md](compute-flow.md#lifecycle-map) | Deep end-to-end walkthrough from graph building to `Tensor.compute(...)`, compile, prepare, execution, traces, and reuse rules. |
-| [graph-optimizer.md](graph-optimizer.md#stage-ordering) | Deep explanation of optimizer configuration, state, trace, and every optimizer stage. |
+| [graph-optimizer.md](graph-optimizer.md#graph-optimizer) | Backend-neutral graph optimization, cleanup fixpoint behavior, lowering, snapshot safety, and optimizer diagnostics. |
+| [backend-planning-and-regions.md](backend-planning-and-regions.md#backend-planning-and-regions) | Backend ownership planning, CPU natural regions, accelerator regions, region optimization, memory planning, publication policy, and benchmark semantics. |
+| [cpu-bf16.md](cpu-bf16.md#cpu-bf16-runtime) | CPU BF16 storage/compute/accumulation contract, conversion costs, fusion limits, BLAS implications, and trace-reading guidance. |
 | [native-bridges-and-blas.md](native-bridges-and-blas.md#term-map-at-a-glance) | Explanation of BLAS/GEMM, OpenBLAS dispatch, Java FFM bridges, native lookup, fallbacks, and performance tradeoffs. |
 | [metal-backend.md](metal-backend.md#end-to-end-flow) | Detailed Metal backend guide covering planner legality, Java FFM, Objective-C MPS shim, native buffer ABI, residency, traces, and fallbacks. |
 | [adding-tensor-operation.md](adding-tensor-operation.md#implementation-checklist) | Contributor guide for adding a new tensor operation through descriptors, builders, public API, CPU kernels, autograd, optimizer/fusion integration, docs, and tests. |
@@ -82,7 +92,7 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 | [mechanisms.md](mechanisms.md#graph-construction) | Mechanism-oriented guide using a repeated problem/mental-model/walkthrough/example format. |
 | [modules.md](modules.md#package-map) | Source module map with responsibilities, inputs, outputs, dependencies, invariants, and failure modes. |
 | [public-api.md](public-api.md#stability-map) | Public and probably-internal Java APIs, signatures, examples, side effects, and risks. |
-| [configuration.md](configuration.md#build-requirements) | Build/runtime requirements, optimizer/runtime/profile configuration, CLI options, and native library lookup. |
+| [configuration.md](configuration.md#build-requirements) | Build/runtime requirements, compile/runtime/profile configuration, CLI options, and native library lookup. |
 | [examples.md](examples.md#running-examples) | Small examples for tensors, execution profiles, prepared execution, and tuning flows. |
 | [development.md](development.md#local-setup) | Local development setup, build/test commands, package conventions, and maintenance workflow. |
 | [testing.md](testing.md#test-framework-and-setup) | Test structure, focused test commands, expensive tests, and test failure interpretation. |

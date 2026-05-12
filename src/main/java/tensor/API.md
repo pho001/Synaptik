@@ -585,7 +585,7 @@ Tensor y = logits.softmax(-1).compute();
 Convenience one-shot execution with explicit compile intent.
 
 Semantics:
-- resolves default optimizer/runtime presets from the compile mode
+- resolves default compile/runtime presets from the compile mode
 - executes `FORWARD` for `INFERENCE_ONLY`
 - executes `FORWARD_BACKWARD` for `TRAINING` when the graph has trainable leaves
 - `AUTO` chooses between those two behaviors from the graph
@@ -606,12 +606,12 @@ Configurable convenience execution.
 Supported options today:
 - `compileMode(...)`
 - `autotune(...)`
-- `optimizer(...)`
+- `compile(...)`
 - `runtime(...)`
 
 `AutotunePolicy` semantics:
 - `NEVER`
-  - use the resolved optimizer/runtime profile directly
+  - use the resolved compile/runtime profile directly
 - `IF_MISSING`
   - for this tensor graph, dtype, mode, and hardware fingerprint:
     - reuse a cached generic best-profile from `build/tuning/tensor/<platform-id>/<graph-signature>/<seed-signature>/...` if present

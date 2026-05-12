@@ -1,9 +1,9 @@
 <!-- generated-by: gsd-doc-writer -->
 # Mechanisms
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Compute Flow](compute-flow.md#lifecycle-map) | [Graph Optimizer](graph-optimizer.md#how-the-stages-work-together) | [Metal Backend](metal-backend.md#buffer-residency-and-materialization) | [Tensor API](tensor-api.md#graph-lifecycle-and-execution) | [Architecture](architecture.md#core-artifact-boundaries) | [Modules](modules.md#package-map)
+Navigation: [Index](index.md#recommended-reading-paths) | [Compute Flow](compute-flow.md#lifecycle-map) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-regions.md#backend-planning-and-regions) | [Metal Backend](metal-backend.md#buffer-residency-and-materialization) | [Tensor API](tensor-api.md#graph-lifecycle-and-execution) | [Architecture](architecture.md#core-artifact-boundaries) | [Modules](modules.md#package-map)
 
-Chapters: [Graph Construction](#graph-construction) | [Broadcasting](#broadcasting) | [Autodiff / Backward Graph](#autodiff-backward-graph) | [Compile Pipeline](#compile-pipeline) | [Semantic Canonicalization](#semantic-canonicalization) | [Optimizer Stages: AR / CSE / PART / FUSE / MEM](#optimizer-stages-ar-cse-part-fuse-mem) | [Prepared Execution](#prepared-execution) | [Memory Planning / Runtime Binding](#memory-planning-runtime-binding) | [CPU Dispatch](#cpu-dispatch) | [Fused ASM Execution](#fused-asm-execution) | [Tuning / Calibration / Persistence](#tuning-calibration-persistence)
+Chapters: [Graph Construction](#graph-construction) | [Broadcasting](#broadcasting) | [Autodiff / Backward Graph](#autodiff-backward-graph) | [Compile Pipeline](#compile-pipeline) | [Semantic Canonicalization](#semantic-canonicalization) | [Graph Optimization And Compile Planning](#graph-optimization-and-compile-planning) | [Prepared Execution](#prepared-execution) | [Memory Planning / Runtime Binding](#memory-planning-runtime-binding) | [CPU Dispatch](#cpu-dispatch) | [Fused ASM Execution](#fused-asm-execution) | [Tuning / Calibration / Persistence](#tuning-calibration-persistence)
 
 This document explains the major mechanisms in Synaptik using the same structure for each one: problem, mental model, key concepts, where it lives, step-by-step, worked example, internals, edge cases, misconceptions, and related mechanisms.
 
@@ -14,7 +14,7 @@ This document explains the major mechanisms in Synaptik using the same structure
 - [Autodiff / Backward Graph](#autodiff-backward-graph)
 - [Compile Pipeline](#compile-pipeline)
 - [Semantic Canonicalization](#semantic-canonicalization)
-- [Optimizer Stages: AR / CSE / PART / FUSE / MEM](#optimizer-stages-ar-cse-part-fuse-mem)
+- [Graph Optimization And Compile Planning](#graph-optimization-and-compile-planning)
 - [Prepared Execution](#prepared-execution)
 - [Memory Planning / Runtime Binding](#memory-planning-runtime-binding)
 - [CPU Dispatch](#cpu-dispatch)
@@ -269,7 +269,7 @@ Compile creates a snapshot, optionally expands it with backward nodes, optimizes
 4. Decide backward support.
 5. Build only forward graph for inference, or joint forward/backward graph for training.
 6. Capture an optimizer snapshot.
-7. Run the configured optimizer stages.
+7. Run configured backend-neutral graph optimization.
 8. Rebuild `CompiledNode` snapshots and source mappings.
 9. Collect gradient bindings and forward seed binding.
 10. Build partition planning and lowering-ready memory state.
@@ -281,7 +281,7 @@ For:
 
 ```java
 Tensor y = a.add(b).relu();
-CompiledGraph compiled = CompiledGraph.compile(y, OptimizerConfig.inferenceDefaults(), CompileMode.INFERENCE_ONLY);
+CompiledGraph compiled = CompiledGraph.compile(y, CompileConfig.inference(), CompileMode.INFERENCE_ONLY);
 ```
 
 Compile sees a forward DAG with leaf `a`, leaf `b`, `ADD`, `RELU`, and a system forward-output `NOOP`. The compile artifact supports forward execution and has no backward steps.
@@ -370,41 +370,46 @@ Lowerings include piecewise patterns like sigmoid/relu/clamp, linear lowering, i
 - Optimizer Stages
 - Autodiff / Backward Graph
 
-## Optimizer Stages: AR / CSE / PART / FUSE / MEM
+## Graph Optimization And Compile Planning
 
 **Problem**
 
-The compiled graph should be simpler, deduplicated, partition-aware, fuse-ready, and memory-planned before backend preparation.
+The compiled graph should be simpler and deduplicated before backend ownership, region optimization, and memory planning prepare it for runtime.
 
 **Mental Model**
 
-`GraphOptimizer` runs a configured single-pass ordered list of stage rules over an `OptimizerState`.
+`GraphOptimizer` owns backend-neutral graph cleanup. Backend planning, region optimization, and memory planning are later compile phases.
 
 **Key Concepts**
 
-- `OptimizerStage`
-- `OptimizerConfig`
+- `GraphOptimizationConfig`
+- `CompileConfig`
+- `BackendPlanningConfig`
 - `OptimizerFactory`
 - `OptimizerState`
-- ordered single pass
-- stage-order validation
+- cleanup fixpoint
+- backend ownership planning
+- region optimization
+- memory planning
 
 **Where It Lives**
 
-- [`OptimizerStage.java`](../src/main/java/config/optimizer/OptimizerStage.java)
-- [`OptimizerConfig.java`](../src/main/java/config/optimizer/OptimizerConfig.java)
+- [`CompileConfig.java`](../src/main/java/config/compile/CompileConfig.java)
+- [`GraphOptimizationConfig.java`](../src/main/java/config/compile/GraphOptimizationConfig.java)
+- [`BackendPlanningConfig.java`](../src/main/java/config/compile/BackendPlanningConfig.java)
 - [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java)
+- [`BackendPlanningService.java`](../src/main/java/graph/compile/BackendPlanningService.java)
 - [`graph/optimizer`](../src/main/java/graph/optimizer)
 
 **Step-By-Step**
 
-1. `OptimizerFactory.create(config)` converts each configured stage to an `OptimizationRule`.
-2. `AR` applies rewrite/lowering rules.
-3. `CSE` merges structurally equivalent nodes.
-4. `PART` discovers backend partitions and plans.
-5. `FUSE` optimizes regions from partitions.
-6. `MEM` builds memory plans from the final optimizer state.
-7. The final `OptimizerState` is stored in compile artifacts.
+1. `OptimizerFactory.create(config.graphOptimization())` builds graph cleanup and optional lowering rules.
+2. `AR`, `CF`, `CSE`, and `DCE` run inside a cleanup fixpoint.
+3. `LOWER` optionally creates backend-neutral specialized operation surfaces.
+4. `BackendPlanningService` discovers CPU and accelerator ownership regions from `BackendPlanningConfig`.
+5. Region optimization creates execution units inside owned regions.
+6. Memory planning builds lifetime and handoff plans.
+7. The final `OptimizerState` and compile artifacts are stored for prepare.
 
 **Worked Example**
 
@@ -414,28 +419,28 @@ For:
 z = exp(log(x)).add(0)
 ```
 
-`AR` can simplify redundant algebraic structure. If another identical expression remains, `CSE` can point both uses at one representative. `PART` then groups backend-compatible structure, `FUSE` may convert an elementwise chain into a `FUSED` operation, and `MEM` assigns reusable slots for temporaries.
+`AR` can simplify redundant algebraic structure. If another identical expression remains, `CSE` can point both uses at one representative. Backend planning then groups backend-compatible structure, region optimization may convert an elementwise chain into a fused execution unit, and memory planning assigns reusable slots for temporaries.
 
 **Internals**
 
-`OptimizerConfig` currently defines both training and inference defaults as:
+`GraphOptimizationConfig` currently defines training and inference graph optimization as:
 
 ```text
-AR, CSE, PART, FUSE, MEM
+CLEANUP_FIXPOINT(AR -> CF -> CSE -> DCE) -> LOWER
 ```
 
-Validation rejects duplicates, `FUSE` without `PART`, `PART` after `FUSE`, and `MEM` without `FUSE`.
+`CompileConfig.training()` and `CompileConfig.inference()` then add explicit backend planning, region optimization, and memory planning.
 
 **Edge Cases**
 
-- `OptimizerConfig.noOptimization()` has an empty stage list.
-- `PART` can run alone; compile has a fallback path that completes lowering-ready optimized regions and memory plan when backend candidates exist.
-- There is no outer fixpoint loop around the full stage sequence.
+- `CompileConfig.noGraphOptimization()` disables graph optimization only.
+- Explicit backend planning still has to work when graph optimization is disabled.
+- There is no outer fixpoint loop around backend planning, region optimization, and memory planning.
 
 **Misconceptions**
 
 - Runtime thresholds such as vector width or BLAS work cutoffs are not optimizer responsibilities.
-- `FUSE` does not directly execute fused code; it shapes optimized regions and descriptors for later prepare/runtime work.
+- Region optimization does not directly execute fused code; it shapes optimized regions and descriptors for later prepare/runtime work.
 
 **Related Mechanisms**
 
@@ -499,7 +504,7 @@ For `a.add(b).mul(a).sigmoid()` with inference defaults, prepare creates forward
 
 **Misconceptions**
 
-- Prepare does not rerun optimizer stages.
+- Prepare does not rerun graph optimization or backend planning.
 - Prepare does not change tensor formulas.
 
 **Related Mechanisms**
@@ -685,7 +690,7 @@ Graph optimization identifies regions. CPU lowering turns a fused region into a 
 
 **Step-By-Step**
 
-1. `FUSE` creates optimized regions from partition information.
+1. Region optimization creates optimized regions from backend planning information.
 2. CPU lowering produces a lowered fused anchor and `FusedOperationPreparation`.
 3. `CpuNodePreparer` resolves `CpuFusedKernel`, compute contract, fused dispatch hints, and CPU plan.
 4. It creates a `FusedExecutionPlan`.

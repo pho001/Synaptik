@@ -231,7 +231,7 @@ Expected output:
 
 ```java
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import tensor.DataType;
@@ -250,7 +250,7 @@ public class ExplicitCompileExample {
         );
         Tensor y = x.mul(4.0);
 
-        CompiledGraph graph = CompiledGraph.compile(y, OptimizerConfig.noOptimization());
+        CompiledGraph graph = CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline());
         graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         System.out.println(Arrays.toString(y.toDoubleArrayCopy()));
@@ -270,7 +270,7 @@ Use `PreparedExecution` when graph structure and runtime config are stable and o
 
 ```java
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
@@ -284,7 +284,7 @@ public class PreparedExecutionExample {
         Tensor x = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "x", DataType.FLOAT64);
         Tensor y = x.mul(10.0);
 
-        CompiledGraph graph = CompiledGraph.compile(y, OptimizerConfig.inferenceDefaults());
+        CompiledGraph graph = CompiledGraph.compile(y, CompileConfig.inference());
         PreparedExecution prepared = graph.prepare(RuntimeConfig.inferenceDefaults());
 
         prepared.execute(ExecutionMode.FORWARD);
@@ -361,7 +361,7 @@ ExecutionProfile baseline = Synaptik.tuning()
         .candidate("baseline-no-opt")
         .dtype(DataType.FLOAT64)
         .mode().training()
-        .optimizer().noOptimization()
+        .compile().noGraphOptimization()
         .runtime().noOptNoVecNoPar()
         .build();
 
@@ -371,7 +371,7 @@ ExecutionProfile calibrated = Synaptik.tuning()
         .candidate("calibrated-runtime")
         .dtype(DataType.FLOAT64)
         .mode().training()
-        .optimizer().trainingDefaults()
+        .compile().trainingDefaults()
         .runtime().fromPlatformProfile(calibratedRuntime)
         .build();
 
@@ -395,9 +395,9 @@ BenchmarkReport report = Synaptik.tuning()
 
 System.out.println(TextBenchmarkReportRenderer.render(report));
 
-// baseline.optimizer() = OptimizerConfig.noOptimization()
+// baseline.compile() = CompileConfig.noGraphOptimizationBaseline()
 // baseline.runtime() = RuntimeConfig.noOptNoVecNoPar()
-// calibrated.optimizer() = OptimizerConfig.trainingDefaults()
+// calibrated.compile() = CompileConfig.training()
 // calibrated.runtime() = calibratedRuntime.toRuntimeConfig()
 ```
 

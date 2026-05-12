@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Compute Flow
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#execution-pipeline) | [Tensor API](tensor-api.md#compute-convenience-api) | [Graph Optimizer](graph-optimizer.md#how-the-stages-work-together) | [Native Bridges & BLAS](native-bridges-and-blas.md#matmul-dispatch-flow) | [Metal Backend](metal-backend.md#buffer-residency-and-materialization) | [Mechanisms](mechanisms.md#prepared-execution) | [Troubleshooting](troubleshooting.md#performance-regressions)
+Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#execution-pipeline) | [Tensor API](tensor-api.md#compute-convenience-api) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-regions.md#backend-planning-and-regions) | [Native Bridges & BLAS](native-bridges-and-blas.md#matmul-dispatch-flow) | [Metal Backend](metal-backend.md#buffer-residency-and-materialization) | [Mechanisms](mechanisms.md#prepared-execution) | [Troubleshooting](troubleshooting.md#performance-regressions)
 
 Chapters: [Lifecycle Map](#lifecycle-map) | [Primary Artifacts](#primary-artifacts) | [Artifact Lifetimes And Storage](#artifact-lifetimes-and-storage) | [Graph Building](#graph-building) | [Tensor Compute API](#tensor-compute-api) | [Compile](#compile) | [Prepare](#prepare) | [Execution](#execution) | [Runtime State And Tracking](#runtime-state-and-tracking) | [Worked Example](#worked-example) | [Reuse Rules](#reuse-rules) | [Traces](#traces) | [Failure Modes](#failure-modes) | [Source Map](#source-map)
 
@@ -267,7 +267,7 @@ Most user code wants to build a graph and immediately execute it:
 Tensor y = x.mul(2.0).add(1.0).compute();
 ```
 
-Without `compute(...)`, every caller would need to manually choose an optimizer config, runtime config, execution mode, compile mode, and prepared execution object. The convenience API centralizes those defaults while still exposing escape hatches for advanced callers.
+Without `compute(...)`, every caller would need to manually choose a compile config, runtime config, execution mode, compile mode, and prepared execution object. The convenience API centralizes those defaults while still exposing escape hatches for advanced callers.
 
 ### Where it lives in the code
 
@@ -285,8 +285,8 @@ Without `compute(...)`, every caller would need to manually choose an optimizer 
 |---|---|---|
 | `Tensor compute()` | same root tensor | Execute with default inference-only profile. |
 | `Tensor compute(CompileMode compileMode)` | same root tensor | Execute with inference/training/auto compile intent. |
-| `Tensor compute(ComputeOptions options)` | same root tensor | Execute with compile mode, autotune policy, optimizer override, and runtime override. |
-| `void compute(ExecutionProfile profile)` | nothing | Execute with a fully explicit optimizer/runtime/mode profile. |
+| `Tensor compute(ComputeOptions options)` | same root tensor | Execute with compile mode, autotune policy, compile override, and runtime override. |
+| `void compute(ExecutionProfile profile)` | nothing | Execute with a fully explicit compile/runtime/mode profile. |
 | `void compute(PreparedExecution execution, ExecutionMode mode)` | nothing | Execute a precompiled/prepared artifact directly. The receiver tensor is only a method host; the passed `PreparedExecution` owns the graph. |
 
 The three overloads returning `Tensor` return the same root object after execution. They mutate tensor data in the graph and, when backward execution is enabled, attach gradients to trainable leaf tensors.
@@ -300,7 +300,7 @@ flowchart TD
     Profile["Resolve ExecutionProfile"]
     Autotune{"AutotunePolicy?"}
     TunedProfile["Resolved or newly persisted best profile"]
-    Compile["CompiledGraph.compile(root, profile.optimizer, compileModeForProfile)"]
+    Compile["CompiledGraph.compile(root, profile.compile, compileModeForProfile)"]
     Prepare["compiled.prepare(profile.runtime)"]
     Execute["prepared.execute(profile.mode)"]
     Publish["Publish root values and gradients"]
@@ -333,7 +333,7 @@ Default profile resolution:
 |---|---|
 | `CompileMode` | `INFERENCE_ONLY` |
 | `ExecutionMode` | `FORWARD` |
-| `OptimizerConfig` | `OptimizerConfig.inferenceDefaults()` |
+| `CompileConfig` | `CompileConfig.inference()` |
 | `RuntimeConfig` | `RuntimeConfig.inferenceDefaults()` |
 | `AutotunePolicy` | `NEVER` |
 | Profile name | `tensor-compute-<dtype>-forward` |
@@ -360,7 +360,7 @@ Tensor y = x.mul(2.0).add(1.0);
 
 Tensor returned = y.compute();
 // compileMode = INFERENCE_ONLY
-// optimizer   = OptimizerConfig.inferenceDefaults()
+// compile     = CompileConfig.inference()
 // runtime     = RuntimeConfig.inferenceDefaults()
 // mode        = ExecutionMode.FORWARD
 // returned == y
@@ -404,7 +404,7 @@ Tensor loss = x.mul(x);
 loss.compute(CompileMode.TRAINING);
 // compileMode = TRAINING
 // graph has trainable leaf x
-// optimizer   = OptimizerConfig.trainingDefaults()
+// compile     = CompileConfig.training()
 // runtime     = RuntimeConfig.trainingDefaults()
 // mode        = ExecutionMode.FORWARD_BACKWARD
 // loss = [9]
@@ -447,7 +447,7 @@ loss.compute(CompileMode.AUTO);
 Tensor y = root.compute(new ComputeOptions()
         .compileMode(CompileMode.AUTO)
         .autotune(AutotunePolicy.NEVER)
-        .optimizer(OptimizerConfig.trainingDefaults())
+        .compile(CompileConfig.training())
         .runtime(RuntimeConfig.trainingDefaults()));
 ```
 
@@ -457,14 +457,14 @@ Available options:
 |---|---|---|---|
 | `.compileMode(...)` | `CompileMode` | `INFERENCE_ONLY` | Selects inference/training/auto compile intent. Passing `null` resets to `INFERENCE_ONLY`. |
 | `.autotune(...)` | `AutotunePolicy` | `NEVER` | Decides whether the convenience path should use generic graph autotune before execution. Passing `null` resets to `NEVER`. |
-| `.optimizer(...)` | `OptimizerConfig` | inferred from compile mode | Overrides optimizer config in the generated `ExecutionProfile`. |
+| `.compile(...)` | `CompileConfig` | inferred from compile mode | Overrides semantic canonicalization, graph optimization, backend planning, region optimization, and memory planning in the generated `ExecutionProfile`. |
 | `.runtime(...)` | `RuntimeConfig` | inferred from compile mode | Overrides runtime config in the generated `ExecutionProfile`. |
 
 If `optimizer` or `runtime` is null, defaults are chosen from the effective compile mode:
 
 ```text
-INFERENCE_ONLY -> OptimizerConfig.inferenceDefaults(), RuntimeConfig.inferenceDefaults()
-TRAINING       -> OptimizerConfig.trainingDefaults(),  RuntimeConfig.trainingDefaults()
+INFERENCE_ONLY -> CompileConfig.inference(), RuntimeConfig.inferenceDefaults()
+TRAINING       -> CompileConfig.training(),  RuntimeConfig.trainingDefaults()
 AUTO           -> training defaults if trainable leaves exist, otherwise inference defaults
 ```
 
@@ -487,9 +487,9 @@ Tensor y = x.add(10.0).relu();
 y.compute(new ComputeOptions()
         .compileMode(CompileMode.INFERENCE_ONLY)
         .autotune(AutotunePolicy.NEVER)
-        .optimizer(OptimizerConfig.noOptimization())
+        .compile(CompileConfig.noGraphOptimizationBaseline())
         .runtime(RuntimeConfig.noOptNoVecNoPar()));
-// compile stages are disabled by OptimizerConfig.noOptimization()
+// graph optimization is disabled by CompileConfig.noGraphOptimizationBaseline()
 // vectorization, BLAS, approximation, and parallel thresholds are effectively disabled by RuntimeConfig.noOptNoVecNoPar()
 // y still computes the same values: [11, 12, 13]
 ```
@@ -568,7 +568,7 @@ ExecutionProfile profile = new ExecutionProfile(
         "manual-f64-training",
         DataType.FLOAT64,
         ExecutionMode.FORWARD_BACKWARD,
-        OptimizerConfig.trainingDefaults(),
+        CompileConfig.training(),
         RuntimeConfig.trainingDefaults(),
         WorkloadProfile.none()
 );
@@ -624,7 +624,7 @@ Compile does the structural work:
 1. Resolve the semantic forward root with `rootTensor.forwardOutput()`.
 2. Optionally canonicalize the forward graph with `SemanticForwardCanonicalizer`.
 3. Decide whether backward should be compiled. `CompileMode.INFERENCE_ONLY` never compiles backward; `CompileMode.TRAINING` and `CompileMode.AUTO` compile backward only when a trainable leaf input exists.
-4. Run the configured optimizer stages through `GraphOptimizer`.
+4. Run configured backend-neutral graph optimization through `GraphOptimizer`.
 5. Snapshot the final graph as `CompiledNode` objects.
 6. Collect gradient bindings when backward is supported.
 7. Build partition planning metadata and compile-time backend plans.
@@ -1669,7 +1669,7 @@ Value flow:
 
 ### No-Optimization Compile Artifact
 
-Using `CompiledGraph.compile(out, OptimizerConfig.noOptimization())` produced this verified artifact:
+Using `CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())` produced this verified artifact:
 
 | Node id | Label | Op | Inputs | Shape | Dtype | Backend |
 |---:|---|---|---|---|---|---|
@@ -1707,9 +1707,9 @@ out.scalarAsDouble() = 3.5
 runTrace.steps().size() = 4
 ```
 
-### Default Inference Optimizer Effect
+### Default Inference Compile Effect
 
-Using `CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())` kept the same six compiled nodes but added optimizer products:
+Using `CompiledGraph.compile(out, CompileConfig.inference())` kept the same six compiled nodes but added compile planning products:
 
 | Field | Value |
 |---|---:|
@@ -1739,7 +1739,7 @@ Compile and prepare are separate because they depend on different inputs.
 | Stage | Depends on | Produces | Reuse boundary |
 |---|---|---|---|
 | Graph construction | User tensor calls and current tensor metadata | Semantic DAG | Rebuild when graph structure changes |
-| Compile | Semantic graph, compile mode, optimizer config, partition config | `CompileArtifacts` and `CompileTrace` | Reuse to prepare multiple runtime configs when the graph contract is unchanged |
+| Compile | Semantic graph, compile mode, compile config | `CompileArtifacts` and `CompileTrace` | Reuse to prepare multiple runtime configs when the graph contract is unchanged |
 | Prepare | Compile artifacts and runtime config | `PreparedExecution`, backend metadata, prepared kernels/executables | Reuse for repeated runs with same compiled graph assumptions |
 | Execute | Prepared execution and current leaf storage | Per-run runtime tensors, outputs, gradients, run trace | Every execute call creates fresh `ExecutionState` |
 

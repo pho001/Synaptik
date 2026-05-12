@@ -36,13 +36,13 @@ Does not contain:
 
 ### 2. Compile artifact: `CompiledGraph`
 
-Built from a semantic graph and an optimizer config.
+Built from a semantic graph and a `CompileConfig`.
 
 Contains:
 
 - compile-time node ordering
 - forward/backward boundary
-- optimizer output
+- graph optimization and planning output
 - compiled-node snapshots
 - gradient binding metadata
 - compile trace
@@ -222,7 +222,7 @@ What prepare resolves today:
 What prepare does not do:
 
 - change graph semantics
-- rerun optimizer stages
+- rerun graph optimization or backend planning
 - mutate tensor formulas
 
 `backend.prepare.PreparedExecutionBuilder` performs prepare orchestration from compile artifacts and delegates backend-specific node preparation through the backend prepare layer.
@@ -284,7 +284,7 @@ That preparation currently involves:
 
 The important boundary is:
 
-- `FUSE` stage decides optimized region shape
+- region optimization decides optimized region shape
 - CPU lowering builds backend-owned fused plan artifacts for fused elementwise units
 - `prepare(...)` decides how that fused artifact is executed on the current backend
 - `execute(...)` runs that already prepared fused executable

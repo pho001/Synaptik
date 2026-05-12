@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Calibration And Graph Autotune
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Configuration](configuration.md#tuning-and-calibration-persistence) | [Testing](testing.md#targeted-test-patterns) | [Examples](examples.md#programmatic-tuning-api) | [Graph Optimizer](graph-optimizer.md#graph-autotune-policy-candidates) | [Metal Backend](metal-backend.md#performance-model) | [Compute Flow](compute-flow.md#explicit-executionprofile)
+Navigation: [Index](index.md#recommended-reading-paths) | [Configuration](configuration.md#tuning-and-calibration-persistence) | [Testing](testing.md#targeted-test-patterns) | [Examples](examples.md#programmatic-tuning-api) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-regions.md#autotune-ownership) | [Metal Backend](metal-backend.md#performance-model) | [Compute Flow](compute-flow.md#explicit-executionprofile)
 
 Chapters: [Core Distinction](#core-distinction) | [Runtime And Graph Artifacts](#runtime-and-graph-artifacts) | [End-To-End Flow](#end-to-end-flow) | [Detailed Calibration Lifecycle](#detailed-calibration-lifecycle) | [Detailed Graph Autotune Lifecycle](#detailed-graph-autotune-lifecycle) | [CLI Entry Points](#cli-entry-points) | [Scenario Catalog And Configuration](#scenario-catalog-and-configuration) | [Ergonomic Fluent API](#ergonomic-fluent-api) | [Presets](#presets) | [Measurement Policy](#measurement-policy) | [Validation Policy](#validation-policy) | [Calibration Families](#calibration-families) | [Graph Autotune Parameters](#graph-autotune-parameters) | [Search Strategy](#search-strategy) | [Persistence And History Layout](#persistence-and-history-layout) | [Progress Rendering](#progress-rendering) | [Reports](#reports) | [Worked Example: Matmul Calibration](#worked-example-matmul-calibration) | [Worked Example: Graph Autotune Research Run](#worked-example-graph-autotune-research-run) | [Failure Modes](#failure-modes) | [Source Map](#source-map)
 
@@ -73,15 +73,15 @@ The important boundary is that the runtime executes only real `ExecutionProfile`
 
 `PlatformRuntimeProfile` is the machine-oriented artifact. It contains runtime families such as matmul, conv2d dispatch, fused dispatch, elementwise dispatch, reduction, scheduler, materialization, numerics, and accelerator selection.
 
-`GraphExecutionPolicy` is the graph-side layer. In the current code it wraps `OptimizerConfig` and carries optimizer rewrite, CSE, memory, fuse, and related graph settings.
+`GraphExecutionPolicy` is the graph-side layer. In the current code it wraps `CompileConfig` and carries semantic canonicalization, graph optimization, backend planning, region optimization, and memory planning policy.
 
 `ExecutionProfile` is the runnable artifact passed to compile, prepare, and execute. Calibration and autotune both end up measuring candidates by compiling a fresh workload root, preparing it with the candidate runtime config, and executing it through the normal backend path.
 
 | Artifact | Source class | Contains | Does not contain | Why it matters |
 |---|---|---|---|---|
-| `PlatformRuntimeProfile` | `src/main/java/config/profile/PlatformRuntimeProfile.java` | Runtime defaults: CPU kernel thresholds, matmul tiles, BLAS provider/min-work, fused widths, materialization thresholds, accelerator selection. | Optimizer stage order, CSE strictness, workload-specific best profile. | Can be reused across workloads on the same platform/dtype/mode. |
-| `GraphExecutionPolicy` | `src/main/java/config/profile/GraphExecutionPolicy.java` | `OptimizerConfig`-backed graph policy: rewrite, CSE, fuse, memory, partition-related optimizer settings. | Hardware runtime thresholds and calibrated runtime family winners. | Lets graph policy be varied without contaminating calibrated runtime defaults. |
-| `ExecutionProfile` | `src/main/java/config/profile/ExecutionProfile.java` | Dtype, execution mode, optimizer config, runtime config, workload profile, profile/candidate names. | Search history and report-only diagnostic data. | This is the only thing measured by compile/prepare/execute. |
+| `PlatformRuntimeProfile` | `src/main/java/config/profile/PlatformRuntimeProfile.java` | Runtime defaults: CPU kernel thresholds, matmul tiles, BLAS provider/min-work, fused widths, materialization thresholds, accelerator selection. | Compile policy, CSE strictness, workload-specific best profile. | Can be reused across workloads on the same platform/dtype/mode. |
+| `GraphExecutionPolicy` | `src/main/java/config/profile/GraphExecutionPolicy.java` | `CompileConfig`-backed graph policy: semantic canonicalization, graph optimization, backend planning, region optimization, memory planning. | Hardware runtime thresholds and calibrated runtime family winners. | Lets graph policy be varied without contaminating calibrated runtime defaults. |
+| `ExecutionProfile` | `src/main/java/config/profile/ExecutionProfile.java` | Dtype, execution mode, compile config, runtime config, workload profile, profile/candidate names. | Search history and report-only diagnostic data. | This is the only thing measured by compile/prepare/execute. |
 | `BestProfileRecord` | `src/main/java/tuning/store/BestProfileRecord.java` | A persisted winning graph policy embedded in a measured `ExecutionProfile`, score, hardware/workload fingerprint, candidate metadata, and the runtime profile id used during measurement. | It is not a global platform default and its embedded runtime snapshot is not authoritative for future runs. | Used by workload-specific winner loading and history-aware ordering; graph winners are reassembled with current calibration before execution. |
 
 Concrete assembly example:
@@ -95,12 +95,13 @@ PlatformRuntimeProfile:
   runtime.blas.provider=OPENBLAS_FFM
 
 GraphExecutionPolicy:
-  optimizer.cse.strictSafety=true
-  optimizer.memory.separateForwardBackwardPools=true
+  compile.graphOptimization.cse.strictSafety=true
+  compile.backendPlanning.discoveryMode=EXPLICIT
+  compile.memoryPlanning.enabled=true
 
 ExecutionProfileAssembler.assemble(...)
   -> ExecutionProfile(candidateName="graphPolicy=current")
-     optimizer = graph policy optimizer config
+     compile = graph policy compile config
      runtime = platform runtime profile converted to RuntimeConfig
      dtype = FLOAT64
      mode = FORWARD_BACKWARD
@@ -253,7 +254,7 @@ The candidate space creates `Candidate` objects. The strategy decides which cand
 
 1. `GraphAutotuneRequest` receives workload, dtype, mode, base `GraphExecutionPolicy`, frozen `PlatformRuntimeProfile`, graph autotune mode, measurement policy, validation policy, search policy, persistence policy, and progress listener.
 2. `GraphAutotuneCandidateSpace.generate(...)` asks `GraphPolicyMutators` for variants.
-3. In `STANDARD` mode, the candidate space returns production-eligible graph-policy candidates such as the current policy, CPU region policy variants, CPU fusion variants, and accelerator ownership policy variants. These candidates still keep the supplied runtime profile frozen.
+3. In `STANDARD` mode, the candidate space returns production-eligible graph-policy candidates. The current safe default candidate is `graphPolicy=current`; additional CPU region, CPU fusion, backend planning, or accelerator ownership variants must be explicit candidate-space choices. These candidates still keep the supplied runtime profile frozen.
 4. In `RESEARCH` mode, the candidate space returns CSE, piecewise-lowering, and memory-lifetime variants. They are marked `CandidateKind.GRAPH_RESEARCH` and `productionEligible=false`.
 5. `AutotuneDefaultStrategySelector` chooses a search strategy from candidate count, whether the candidate space is refinable, and the search policy.
 6. `DefaultAutotuneSession.run()` asks the strategy for an initial search batch and evaluates each candidate fingerprint only once.
@@ -272,11 +273,11 @@ mode=STANDARD
 search=SearchPolicy(maxCandidates=16, beamWidth=4, maxRounds=1, allowPruning=false)
 generated candidates:
   graphPolicy=current
-  offload=cpu-only+cpuRegion=natural+cpuFusion=balanced
-  offload=cpu-only+cpuRegion=elementwise-islands+cpuFusion=balanced
-  offload=cpu-only+cpuRegion=natural+cpuFusion=aggressive
-  offload=accelerator-profitable+accelRegion=greedy+cpuRegion=natural+cpuFusion=balanced
-  offload=accelerator-profitable+accelRegion=scored+cpuRegion=natural+cpuFusion=balanced
+  backendPlanning=cpu-only+cpuRegion=natural+cpuFusion=balanced
+  backendPlanning=cpu-only+cpuRegion=elementwise-islands+cpuFusion=balanced
+  backendPlanning=cpu-only+cpuRegion=natural+cpuFusion=aggressive
+  backendPlanning=auto-accelerator+regionPlanner=anchor+cpuRegion=natural+cpuFusion=balanced
+  backendPlanning=auto-accelerator+regionPlanner=scored+cpuRegion=natural+cpuFusion=balanced
 ```
 
 The session validates and measures the generated production graph candidates with the same calibrated runtime profile. The useful persisted payload is the graph policy winner for this workload. The runtime profile id and embedded runtime config explain what was measured, but they do not become a graph-specific runtime override.
@@ -519,7 +520,7 @@ and compares it with an explicit no-optimization baseline profile:
 
 ```text
 profileName=abc-baseline-no-opt-f64
-optimizer=OptimizerConfig.noOptimization()
+compile=CompileConfig.noGraphOptimizationBaseline()
 runtime=RuntimeConfig.noOptNoVecNoPar()
 mode=FORWARD_BACKWARD
 ```
@@ -728,13 +729,13 @@ The actual `TuningCli.runAutotune(...)` relies on the default strategy selector.
 
 ```text
 candidate.name=graphPolicy=current
-candidate.name=offload=cpu-only+cpuRegion=natural+cpuFusion=balanced
-candidate.name=offload=cpu-only+cpuRegion=elementwise-islands+cpuFusion=balanced
-candidate.name=offload=cpu-only+cpuRegion=natural+cpuFusion=aggressive
+candidate.name=backendPlanning=cpu-only+cpuRegion=natural+cpuFusion=balanced
+candidate.name=backendPlanning=cpu-only+cpuRegion=elementwise-islands+cpuFusion=balanced
+candidate.name=backendPlanning=cpu-only+cpuRegion=natural+cpuFusion=aggressive
 candidate.kind=GRAPH_STANDARD
-candidate.metadata.graphParameter=CURRENT_GRAPH_POLICY | CPU_REGION_POLICY | CPU_FUSION_POLICY | OFFLOAD_POLICY | ACCELERATOR_REGION_POLICY
+candidate.metadata.graphParameter=CURRENT_GRAPH_POLICY | CPU_REGION_POLICY | CPU_FUSION_POLICY | BACKEND_PLANNING_POLICY | REGION_PLANNER_POLICY
 candidate.profile.runtime=<calibrated runtime profile>
-candidate.profile.optimizer=<candidate graph policy optimizer config>
+candidate.profile.compile=<candidate graph policy compile config>
 ```
 
 Expected output artifacts when persistence is enabled:
@@ -792,7 +793,7 @@ ExecutionProfile baseline = new ExecutionProfile(
         "abc-baseline-no-opt-f64",
         DataType.FLOAT64,
         ExecutionMode.FORWARD_BACKWARD,
-        OptimizerConfig.noOptimization(),
+        CompileConfig.noGraphOptimizationBaseline(),
         RuntimeConfig.noOptNoVecNoPar(),
         WorkloadProfile.none()
 );
@@ -1181,7 +1182,7 @@ flowchart LR
     Name["name/candidate"]
     DType["dtype"]
     Mode["mode"]
-    Opt["optimizer policy"]
+    Opt["compile policy"]
     Runtime["runtime policy"]
     Builder["ExecutionProfileDsl"]
     Profile["ExecutionProfile"]
@@ -1203,7 +1204,7 @@ ExecutionProfile baseline = Synaptik.tuning()
         .candidate("baseline-no-opt")
         .dtype(DataType.FLOAT64)
         .mode().training()
-        .optimizer().noOptimization()
+        .compile().noGraphOptimization()
         .runtime().noOptNoVecNoPar()
         .build();
 
@@ -1211,11 +1212,11 @@ ExecutionProfile baseline = Synaptik.tuning()
 // baseline.candidateName() = "baseline-no-opt"
 // baseline.dataType() = FLOAT64
 // baseline.mode() = FORWARD_BACKWARD
-// baseline.optimizer() = OptimizerConfig.noOptimization()
+// baseline.compile() = CompileConfig.noGraphOptimizationBaseline()
 // baseline.runtime() = RuntimeConfig.noOptNoVecNoPar()
 ```
 
-Calibrated runtime profile using graph optimizer training defaults:
+Calibrated runtime profile using training compile defaults:
 
 ```java
 PlatformRuntimeProfile calibratedRuntime = results.getLast().finalRuntimeProfile();
@@ -1226,11 +1227,11 @@ ExecutionProfile calibrated = Synaptik.tuning()
         .candidate("calibrated-runtime")
         .dtype(DataType.FLOAT64)
         .mode().training()
-        .optimizer().trainingDefaults()
+        .compile().trainingDefaults()
         .runtime().fromPlatformProfile(calibratedRuntime)
         .build();
 
-// calibrated.optimizer() = OptimizerConfig.trainingDefaults()
+// calibrated.compile() = CompileConfig.training()
 // calibrated.runtime() = calibratedRuntime.toRuntimeConfig()
 ```
 
@@ -1245,17 +1246,19 @@ Configuration catalog:
 | `.mode().forwardBackward()` | no args | `FORWARD_BACKWARD` | `ExecutionMode.FORWARD_BACKWARD` | Explicit training-capable mode. |
 | `.mode().training()` | no args | `FORWARD_BACKWARD` | `ExecutionMode.FORWARD_BACKWARD` | Readable alias for forward/backward. |
 | `.mode(ExecutionMode)` | explicit mode, null allowed | `FORWARD_BACKWARD` | `ExecutionProfile.mode` | Null falls back to forward/backward. |
-| `.optimizer().noOptimization()` | no args | none | `OptimizerConfig.noOptimization()` | Use for baseline comparisons. Required unless `.optimizer(...)` is used. |
-| `.optimizer().inferenceDefaults()` | no args | none | `OptimizerConfig.inferenceDefaults()` | Uses inference optimizer defaults. |
-| `.optimizer().trainingDefaults()` | no args | none | `OptimizerConfig.trainingDefaults()` | Uses training optimizer defaults. |
-| `.optimizer(OptimizerConfig)` / `.optimizer().config(...)` | non-null config | none | `ExecutionProfile.optimizer` | Advanced escape hatch. |
+| `.compile().noGraphOptimization()` | no args | none | `CompileConfig.noGraphOptimizationBaseline()` | Use for baseline comparisons. Required unless `.compile(...)` is used. |
+| `.compile().inferenceDefaults()` | no args | none | `CompileConfig.inference()` | Uses inference compile defaults. |
+| `.compile().trainingDefaults()` | no args | none | `CompileConfig.training()` | Uses training compile defaults. |
+| `.compile().trainingAutoAccelerator()` | no args | none | `CompileConfig.trainingAutoAccelerator()` | Allows automatic accelerator region discovery for training profiles. |
+| `.compile().inferenceAutoAccelerator()` | no args | none | `CompileConfig.inferenceAutoAccelerator()` | Allows automatic accelerator region discovery for inference profiles. |
+| `.compile(CompileConfig)` / `.compile().config(...)` | non-null config | none | `ExecutionProfile.compile` | Advanced escape hatch. |
 | `.runtime().noOptNoVecNoPar()` | no args | none | `RuntimeConfig.noOptNoVecNoPar()` | Conservative scalar-ish baseline for comparison. |
 | `.runtime().inferenceDefaults()` | no args | none | `RuntimeConfig.inferenceDefaults()` | Built-in inference runtime defaults. |
 | `.runtime().trainingDefaults()` | no args | none | `RuntimeConfig.trainingDefaults()` | Built-in training runtime defaults. |
 | `.runtime().fromPlatformProfile(PlatformRuntimeProfile)` | non-null profile | none | `profile.toRuntimeConfig()` | Main path after calibration. |
 | `.runtime(RuntimeConfig)` / `.runtime().config(...)` | non-null config | none | `ExecutionProfile.runtime` | Advanced escape hatch. |
 | `.workload(WorkloadProfile)` | profile descriptor or null | `WorkloadProfile.none()` | `ExecutionProfile.workload` | Optional metadata for specialized tuning decisions. |
-| `.build()` / `.toExecutionProfile()` | no args | n/a | `new ExecutionProfile(...)` | Throws if dtype, optimizer, or runtime was not selected. |
+| `.build()` / `.toExecutionProfile()` | no args | n/a | `new ExecutionProfile(...)` | Throws if dtype, compile, or runtime was not selected. |
 
 The builder itself is mutable and not thread-safe. That is deliberate: it is a short-lived assembly
 object for one profile. The output record is immutable and is the only value passed into execution.
@@ -1990,7 +1993,7 @@ Calibration uses the preset's benchmark measurement and validation policies. Gra
 
 `DefaultMeasurementEngine` measures a candidate by:
 
-1. Compiling the workload root with `candidate.profile().optimizer()`.
+1. Compiling the workload root with `candidate.profile().compile()`.
 2. Preparing the compiled graph with `candidate.profile().runtime()`.
 3. Optionally running a cold traced execution.
 4. Running warmup iterations.
@@ -2003,7 +2006,7 @@ The measurement loop deliberately separates one-time costs from steady-state cos
 
 | Phase | Code path | Meaning | Why it is separated |
 |---|---|---|---|
-| Compile | `CompiledGraph.compile(workload.root(), candidate.profile().optimizer())` | Converts tensor graph into a compiled graph using candidate graph policy. | Graph policy variants may change compile-time structure. |
+| Compile | `CompiledGraph.compile(workload.root(), candidate.profile().compile())` | Converts tensor graph into a compiled graph using candidate graph policy. | Graph policy variants may change compile-time structure. |
 | Prepare | `compiled.prepare(candidate.profile().runtime())` | Builds backend execution plan from compiled graph and runtime config. | Runtime knobs such as fused width, materialization threshold, scheduler thresholds, or BLAS dispatch affect prepared execution. |
 | Cold traced run | `prepared.executeTraced(mode)` | Optional first traced execution. | Useful for diagnosing execution path without folding it into steady-state by accident. |
 | Warmup | `prepared.execute(mode)` repeated `warmupIters` times | Gives JIT/runtime caches a chance to settle. | Reduces noise from first-use behavior. |
@@ -2524,13 +2527,13 @@ This candidate means "use Metal only when the runtime is available and the estim
 
 | Parameter | Mode | Candidate names | What changes |
 |---|---|---|---|
-| `CURRENT_GRAPH_POLICY` | Standard | `graphPolicy=current` | Reuses the supplied `GraphExecutionPolicy` without mutating optimizer config. Runtime is frozen from the supplied `PlatformRuntimeProfile`. |
-| `CPU_REGION_POLICY` | Standard | `offload=cpu-only+cpuRegion=natural+cpuFusion=balanced`, `offload=cpu-only+cpuRegion=elementwise-islands+cpuFusion=balanced` | Compares the default natural CPU region policy with an elementwise-islands policy while keeping runtime fixed. |
-| `CPU_FUSION_POLICY` | Standard | `offload=cpu-only+cpuRegion=natural+cpuFusion=aggressive` | Compares a more aggressive CPU fusion policy against the balanced default while keeping runtime fixed. |
-| `OFFLOAD_POLICY` | Standard | `offload=accelerator-profitable+accelRegion=greedy+cpuRegion=natural+cpuFusion=balanced` | Enables accelerator ownership only when the graph policy says it should be profitable. |
-| `ACCELERATOR_REGION_POLICY` | Standard | `offload=accelerator-profitable+accelRegion=scored+cpuRegion=natural+cpuFusion=balanced` | Uses a scored accelerator region policy instead of the greedy accelerator region policy. |
+| `CURRENT_GRAPH_POLICY` | Standard | `graphPolicy=current` | Reuses the supplied `GraphExecutionPolicy` without mutating compile config. Runtime is frozen from the supplied `PlatformRuntimeProfile`. |
+| `CPU_REGION_POLICY` | Standard | `backendPlanning=cpu-only+cpuRegion=natural+cpuFusion=balanced`, `backendPlanning=cpu-only+cpuRegion=elementwise-islands+cpuFusion=balanced` | Compares the default natural CPU region policy with an elementwise-islands policy while keeping runtime fixed. |
+| `CPU_FUSION_POLICY` | Standard | `backendPlanning=cpu-only+cpuRegion=natural+cpuFusion=aggressive` | Compares a more aggressive CPU fusion policy against the balanced default while keeping runtime fixed. |
+| `BACKEND_PLANNING_POLICY` | Standard | `backendPlanning=auto-accelerator+regionPlanner=anchor+cpuRegion=natural+cpuFusion=balanced` | Enables automatic accelerator ownership discovery through compile policy. |
+| `REGION_PLANNER_POLICY` | Standard | `backendPlanning=auto-accelerator+regionPlanner=scored+cpuRegion=natural+cpuFusion=balanced` | Uses a scored accelerator region planner instead of the anchor planner. |
 | `ACCELERATOR_BUFFER_MODE` | Standard | `acceleratorBuffer=off`, `acceleratorBuffer=auto` | Changes `RuntimeConfig.accelerator().*.buffer().bindingMode()` for this graph candidate while preserving calibrated CPU/BLAS/fused thresholds. |
-| `RESEARCH_METAL_TRANSFER_MODEL` | Research | `metalTransfer=measured+accelRegion=scored`, `metalTransfer=aggressive+accelRegion=scored` | Changes `PartitionConfig.metalTransferModel()` for scored Metal region profitability. It does not change Metal legality or runtime capability. |
+| `RESEARCH_METAL_TRANSFER_MODEL` | Research | `metalTransfer=measured+regionPlanner=scored`, `metalTransfer=aggressive+regionPlanner=scored` | Changes backend planning cost profile for scored Metal region profitability. It does not change Metal legality or runtime capability. |
 | `CSE_STRICT_SAFETY` | Research | `cse=strict`, `cse=aggressive` | Replaces CSE config with `CseConfig.strictDefaults()` (`strictSafety=true`) or `CseConfig.aggressiveDefaults()` (`strictSafety=false`). |
 | `PIECEWISE_LOWERING` | Research | `piecewise=current`, `piecewise=off`, `piecewise=canonical` | Keeps current policy, disables piecewise lowering with `PiecewiseLoweringConfig.defaults()` (`canonicalSigmoid=false`, `reluLikeWhere=false`, `clampLikeWhere=false`), or enables aggressive piecewise lowering with all three booleans true. |
 | `MEMORY_LIFETIME` | Research | `memory=current`, `memory=phase-isolated`, `memory=cross-phase-lifetime` | Keeps current memory policy, uses separated forward/backward pools with no cross-phase reuse, or allows cross-phase lifetime reuse by setting `separateForwardBackwardPools=false` and `allowCrossPhaseReuse=true`. |
@@ -2540,7 +2543,7 @@ Standard mode generates production-eligible `CandidateKind.GRAPH_STANDARD` candi
 ### Why these graph parameters and not every optimizer field
 
 Current graph autotune is deliberately small. It does not tune hardware proxy fields such as conv2d BLAS dispatch,
-fused scoring knobs, arbitrary partition structural weights, or arbitrary optimizer stage order. Those are either
+fused scoring knobs, arbitrary partition structural weights, or arbitrary graph optimization stage sets. Those are either
 runtime-facing, architectural pipeline contracts, or too broad to promote safely. `MetalTransferModel` is different:
 it is a graph-level profitability assumption for scored Metal ownership regions. It is still research-only today
 because the current Metal bridge has real buffer binding but still pays first-input, CPU-boundary, and native
@@ -2734,7 +2737,7 @@ standard candidate:
   productionEligible=true
   runtimeFrozen=true
   graphPolicyMutated=false for graphPolicy=current, true for changed policy variants
-  graphParameter=CURRENT_GRAPH_POLICY | CPU_REGION_POLICY | CPU_FUSION_POLICY | OFFLOAD_POLICY | ACCELERATOR_REGION_POLICY
+  graphParameter=CURRENT_GRAPH_POLICY | CPU_REGION_POLICY | CPU_FUSION_POLICY | BACKEND_PLANNING_POLICY | REGION_PLANNER_POLICY
 
 research candidate:
   kind=GRAPH_RESEARCH

@@ -11,10 +11,9 @@ Synaptik is a Java tensor framework built around an explicit graph lifecycle:
 4. the selected backend executes prepared node steps
 
 The project is not designed as an eager-only numerical notebook library.
-Its center of gravity is compiled graph execution, reverse-mode autodiff, explicit optimizer stages, and platform/profile-driven CPU execution.
+Its center of gravity is compiled graph execution, reverse-mode autodiff, separated compile/runtime policy, and platform/profile-driven execution.
 
-Today the CPU backend is the only fully implemented execution backend.
-Metal, CUDA, and OpenCL packages exist as scaffolding, not as production-ready runtimes.
+Today the CPU backend is the broadest and most complete backend. Metal and CUDA also have real scoped accelerator paths with native buffer/residency plumbing and explicit fallback evidence in traces. OpenCL remains much thinner. Unsupported operations, dtypes, layouts, or unavailable native runtimes must fall back visibly rather than pretending that an accelerator path ran.
 
 ## What This Repository Contains
 
@@ -24,7 +23,7 @@ The repository is organized around five main layers.
 |---|---|---|
 | Public modeling surface | `src/main/java/tensor` | Build tensor graphs, expose ergonomic API |
 | Primitive descriptors | `src/main/java/operations` | Describe what each graph node means |
-| Graph compile/prepare pipeline | `src/main/java/graph` | Canonicalize, optimize, prepare runtime artifacts |
+| Graph compile/prepare pipeline | `src/main/java/graph` | Canonicalize, optimize graph structure, plan backend ownership, prepare runtime artifacts |
 | Runtime/backend execution | `src/main/java/backend` | Resolve kernels and execute prepared steps |
 | Benchmark/autotune/calibration | `src/main/java/tuning` | Measure, compare, search, and persist execution profiles |
 
@@ -32,8 +31,8 @@ That split is intentional:
 
 - `tensor` decides what graph to build
 - `operations` decides what primitive a node represents
-- `graph` decides how that graph can be rewritten or fused
-- `backend` decides how to execute the prepared node
+- `graph` decides how that graph can be rewritten, planned into backend regions, optimized inside those regions, and prepared
+- `backend` decides how to execute the prepared region or node
 - `tuning` decides which executable profile is faster on a real workload
 
 ## Reading Guide
@@ -43,10 +42,12 @@ Top-level docs:
 1. [docs/index.md](docs/index.md) - the main documentation index and recommended reading paths.
 2. [docs/tensor-api.md](docs/tensor-api.md) - detailed operation-level Tensor API guide with signatures, edge cases, examples, and concrete calculations.
 3. [docs/compute-flow.md](docs/compute-flow.md) - deep walkthrough from graph construction through compile, prepare, execution, memory binding, and traces.
-4. [docs/graph-optimizer.md](docs/graph-optimizer.md) - detailed explanation of optimizer stages `AR`, `CSE`, `PART`, `FUSE`, and `MEM`.
-5. [docs/calibration-autotune.md](docs/calibration-autotune.md) - calibration families, owned knobs, candidate values, graph autotune parameters, persistence, and progress.
-6. [docs/architecture.md](docs/architecture.md) - implementation-grounded lifecycle, backend dispatch, module boundaries, tuning, and diagrams.
-7. [docs/modules.md](docs/modules.md) - package-by-package map for tensor, operations, graph, optimizer, backend, CPU kernels, accelerators, config, tuning, CLI, numerics, and utilities.
+4. [docs/graph-optimizer.md](docs/graph-optimizer.md) - backend-neutral graph optimization: `AR`, `CF`, `CSE`, `DCE`, and optional `LOWER`.
+5. [docs/backend-planning-and-regions.md](docs/backend-planning-and-regions.md) - backend ownership planning, CPU natural regions, accelerator regions, region optimization, memory planning, and publication policy.
+6. [docs/cpu-bf16.md](docs/cpu-bf16.md) - current CPU BF16 storage/compute contract and why BF16 is not automatically faster than F32 on CPU.
+7. [docs/calibration-autotune.md](docs/calibration-autotune.md) - calibration families, owned knobs, candidate values, graph autotune parameters, persistence, and progress.
+8. [docs/architecture.md](docs/architecture.md) - implementation-grounded lifecycle, backend dispatch, module boundaries, tuning, and diagrams.
+9. [docs/modules.md](docs/modules.md) - package-by-package map for tensor, operations, graph, optimizer, backend, CPU kernels, accelerators, config, tuning, CLI, numerics, and utilities.
 
 If you want the shortest reliable path through the codebase:
 
@@ -60,9 +61,11 @@ If you are solving a specific problem:
 
 - public tensor API: [docs/tensor-api.md](docs/tensor-api.md), then [src/main/java/tensor/API.md](src/main/java/tensor/API.md)
 - compile/prepare/execute behavior: [docs/compute-flow.md](docs/compute-flow.md)
-- optimizer internals and stage behavior: [docs/graph-optimizer.md](docs/graph-optimizer.md)
+- graph optimizer internals: [docs/graph-optimizer.md](docs/graph-optimizer.md)
+- backend planning, regions, memory planning, and publication: [docs/backend-planning-and-regions.md](docs/backend-planning-and-regions.md)
+- CPU BF16 behavior and performance interpretation: [docs/cpu-bf16.md](docs/cpu-bf16.md)
 - calibration and graph autotune: [docs/calibration-autotune.md](docs/calibration-autotune.md)
-- optimizer stages and concrete rewrite/fusion behavior:
+- graph optimization and concrete rewrite behavior:
   - [src/main/java/graph/optimizer/README.md](src/main/java/graph/optimizer/README.md)
   - [src/main/java/graph/optimizer/AR.md](src/main/java/graph/optimizer/AR.md)
   - [src/main/java/graph/optimizer/CSE.md](src/main/java/graph/optimizer/CSE.md)
@@ -82,12 +85,18 @@ The current codebase includes:
 - dense tensors with explicit shape, strides, dtype, and storage offset
 - public tensor graph construction with autodiff support
 - compile-time semantic canonicalization
-- graph-level optimization stages:
-  - `AR`
-  - `CSE`
-  - `PART`
-  - `FUSE`
-  - `MEM`
+- graph-level optimization:
+  - `AR` algebraic rewrite
+  - `CF` constant folding
+  - `CSE` common subexpression elimination
+  - `DCE` dead-code elimination
+  - optional `LOWER` backend-neutral graph lowering
+- compile-time backend planning:
+  - CPU-only planning
+  - explicit accelerator intent planning
+  - automatic accelerator region discovery
+  - CPU natural regions
+- region optimization and memory planning as separate compile phases
 - CPU kernel families for:
   - elementwise
   - broadcast/where
@@ -159,7 +168,9 @@ It:
 - snapshots the graph
 - canonicalizes forward structure
 - optionally builds backward structure
-- runs optimizer stages
+- runs graph optimization
+- plans backend ownership and regions
+- plans region optimization and memory reuse
 - produces a stable compile artifact
 
 ### Stage 3: prepare runtime execution
@@ -171,7 +182,7 @@ PreparedExecution prepared = y.prepare(
                 "demo",
                 DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                OptimizerConfig.inferenceDefaults(),
+                CompileConfig.inference(),
                 RuntimeConfig.inferenceDefaults()
         )
 );
@@ -213,7 +224,7 @@ Tensor probs = logits.softmax(-1).compute();
 `compute()` means:
 
 - compile with `CompileMode.INFERENCE_ONLY`
-- use inference optimizer defaults
+- use inference compile defaults
 - use inference runtime defaults
 - run `FORWARD`
 
@@ -226,7 +237,7 @@ loss.compute(CompileMode.TRAINING);
 If the graph contains trainable leaf tensors, Synaptik will:
 
 - compile a joint forward/backward artifact
-- use training defaults
+- use training compile/runtime defaults
 - run `FORWARD_BACKWARD`
 
 If the graph has no trainable leaves, the runtime still falls back to a forward-only execution path.
@@ -289,7 +300,7 @@ If there are no trainable leaf tensors, execution still remains forward-only.
 
 ## Main CLI
 
-The main CLI entry point is [src/main/java/synaptik/app/Main.java](src/main/java/synaptik/app/Main.java).
+The main CLI entry point is [src/main/java/synaptik/app/TuningCli.java](src/main/java/synaptik/app/TuningCli.java).
 
 Supported commands:
 
@@ -386,7 +397,7 @@ Example:
 java --add-modules jdk.incubator.vector \
   -Dnumerics.dtype=FLOAT32 \
   -Dnumerics.stageA=NONE \
-  -Dnumerics.stageB=AR,CSE,PART,FUSE,MEM \
+  -Dnumerics.stageB=AR,CF,CSE,DCE,LOWER \
   -Dnumerics.size=200000 \
   -cp build/classes/java/main \
   numerics.NumericsCli
@@ -398,8 +409,10 @@ That harness is for numerical comparison, not for performance measurement.
 
 Use this rule of thumb:
 
-- optimizer graph shape or pattern lowering:
+- graph optimizer shape or backend-neutral pattern lowering:
   - start in `graph/optimizer`
+- backend ownership, CPU natural regions, accelerator regions, or region optimization:
+  - start in `graph/compile`, `graph/optimizer/partition`, `graph/optimizer/region`, and [docs/backend-planning-and-regions.md](docs/backend-planning-and-regions.md)
 - CPU dispatch thresholds, tiles, microkernels, fused widths:
   - start in `config`, `backend/kernels/cpu`, and `tuning`
 - new public API surface:
@@ -414,7 +427,8 @@ These constraints are deliberate and repeatedly enforced in the current architec
 - executors do not re-run compile-time optimizer logic
 - runtime auxiliary caches do not belong on semantic `Tensor` nodes
 - tuning does not invent a second execution model outside `ExecutionProfile`
-- optimizer stages transform graph structure, not runtime dispatch knobs
+- graph optimization transforms graph structure, not runtime dispatch knobs
+- backend planning is compile-time execution planning, not execute-time offload
 - backend `prepare(...)` resolves runtime policy; execution consumes the prepared recipe
 
 If a proposed change violates one of those boundaries, it is probably pushing logic into the wrong layer.

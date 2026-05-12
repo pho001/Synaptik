@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Synaptik Module Guide
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#core-artifact-boundaries) | [Compute Flow](compute-flow.md#primary-artifacts) | [Graph Optimizer](graph-optimizer.md#stage-ordering) | [Native Bridges & BLAS](native-bridges-and-blas.md#openblas-in-synaptik) | [Metal Backend](metal-backend.md#source-map) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Adding Tensor Operation](adding-tensor-operation.md#source-map) | [Development](development.md#repository-structure)
+Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#core-artifact-boundaries) | [Compute Flow](compute-flow.md#primary-artifacts) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-regions.md#backend-planning-and-regions) | [Native Bridges & BLAS](native-bridges-and-blas.md#openblas-in-synaptik) | [Metal Backend](metal-backend.md#source-map) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Adding Tensor Operation](adding-tensor-operation.md#source-map) | [Development](development.md#repository-structure)
 
 Chapters: [Package Map](#package-map) | [`tensor`: Public Graph-Building Surface](#tensor-public-graph-building-surface) | [`operations`: Primitive Semantic Descriptors](#operations-primitive-semantic-descriptors) | [`graph`: Compile Artifacts, Preparation Facade, And Execution Types](#graph-compile-artifacts-preparation-facade-and-execution-types) | [`graph.optimizer`: Rewrite, Partition, Fusion, And Memory Planning](#graphoptimizer-rewrite-partition-fusion-and-memory-planning) | [`backend`: Backend Contracts, Selection, Lowering, And Runtime Context](#backend-backend-contracts-selection-lowering-and-runtime-context) | [`backend.cpu`: CPU Backend Implementation](#backendcpu-cpu-backend-implementation) | [`backend.cpu.kernels`: CPU Kernel Families](#backendcpukernels-cpu-kernel-families) | [`backend.cpu.fused`: Fused Planning And Generated Execution Support](#backendcpufused-fused-planning-and-generated-execution-support) | [Accelerator Scaffolding: `backend.accelerator`, `backend.metal`, `backend.cuda`, `backend.opencl`](#accelerator-scaffolding-backendaccelerator-backendmetal-backendcuda-backendopencl) | [`config`: Optimizer, Runtime, And Profile Records](#config-optimizer-runtime-and-profile-records) | [`tuning`: Measurement, Search, Validation, Reporting, Persistence](#tuning-measurement-search-validation-reporting-persistence) | [`synaptik.app`: CLI Entry Point](#synaptikapp-cli-entry-point) | [`numerics`: Numerical Drift Harness](#numerics-numerical-drift-harness) | [`utils`: Support Classes](#utils-support-classes) | [Test Coverage Landmarks](#test-coverage-landmarks)
 
@@ -34,7 +34,7 @@ src/main/java/
   operations/    immutable primitive descriptors
   graph/         compile artifacts, graph compiler, execution facade, optimizer
   backend/       backend contracts, prepare/lowering/select/runtime, CPU and accelerator implementations
-  config/        optimizer/runtime/profile configuration records
+  config/        compile/runtime/profile configuration records
   tuning/        benchmark, autotune, calibration, validation, reports, persistence
   synaptik/app/  CLI entry point
   numerics/      numerical drift harness
@@ -106,7 +106,7 @@ Tensor y = a.add(b).relu();
 y.compute();
 ```
 
-`TensorExecutionSupport` is the bridge from public convenience calls to compile/prepare/execute. It chooses default optimizer and runtime configs from `CompileMode`, and it can run generic tensor autotune when `ComputeOptions.autotune(AutotunePolicy.IF_MISSING)` is used.
+`TensorExecutionSupport` is the bridge from public convenience calls to compile/prepare/execute. It chooses default compile and runtime configs from `CompileMode`, and it can run generic tensor autotune when `ComputeOptions.autotune(AutotunePolicy.IF_MISSING)` is used.
 
 When adding a new public operation, follow [Adding A Tensor Operation: Implementation Checklist](adding-tensor-operation.md#implementation-checklist). A complete operation
 normally crosses `operations.*`, `tensor.ops.*`, public facades, CPU kernels, optimizer signatures, documentation, and
@@ -182,30 +182,32 @@ Key execution classes:
 
 The package also owns trace records under `graph/execution/trace`, including `CompileTrace`, `PrepareTrace`, and `RunTrace`.
 
-## `graph.optimizer`: Rewrite, Partition, Fusion, And Memory Planning
+## `graph.optimizer`: Backend-Neutral Graph Optimization
 
 Main paths:
 
 - `src/main/java/graph/optimizer/GraphOptimizer.java`
 - `src/main/java/graph/optimizer/OptimizerFactory.java`
 - `src/main/java/graph/optimizer/rewrite/**`
+- `src/main/java/graph/optimizer/cf/ConstantFoldingRule.java`
 - `src/main/java/graph/optimizer/cse/CommonSubexpressionEliminationRule.java`
+- `src/main/java/graph/optimizer/dce/DeadCodeEliminationRule.java`
 - `src/main/java/graph/optimizer/partition/**`
 - `src/main/java/graph/optimizer/region/**`
 - `src/main/java/graph/optimizer/memory/**`
 - `src/main/java/graph/optimizer/README.md`
 
-The optimizer runs an ordered list of rules. `OptimizerStage.java` defines the stage names in `config.optimizer`, and `OptimizerFactory` maps them to rules:
+`GraphOptimizer` runs backend-neutral graph cleanup and lowering. `OptimizerFactory` maps `GraphOptimizationConfig` to:
 
 | Stage | Package | Role |
 |---|---|---|
 | `AR` | `graph.optimizer.rewrite` | Algebraic simplification and semantic lowerings |
+| `CF` | `graph.optimizer.cf` | Constant folding |
 | `CSE` | `graph.optimizer.cse` | Structural duplicate elimination |
-| `PART` | `graph.optimizer.partition` | Backend partition intent/candidate planning |
-| `FUSE` | `graph.optimizer.region` | Region optimization and fused execution-unit selection |
-| `MEM` | `graph.optimizer.memory` | Runtime memory/alias/reuse planning |
+| `DCE` | `graph.optimizer.dce` | Dead-code elimination |
+| `LOWER` | `graph.optimizer.rewrite` | Optional backend-neutral operation lowering |
 
-Implementation detail to watch: `OptimizerConfig.trainingDefaults()` and `OptimizerConfig.inferenceDefaults()` currently include `PART` before `FUSE`. The config validator rejects `FUSE` without `PART` and rejects `MEM` without `FUSE`.
+Backend planning, region optimization, and memory planning still use implementation packages under `graph.optimizer.partition`, `graph.optimizer.region`, and `graph.optimizer.memory`, but they are compile-flow phases controlled by `CompileConfig`, not public graph optimizer stages. See [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions).
 
 The optimizer receives an `OptimizerState`, not a live semantic graph. That state can carry graph nodes, forward output, execution metadata, memory plan, optimized regions, and traces. This is the boundary that keeps optimizer rewrites from accumulating directly on user-owned `Tensor` nodes.
 
@@ -379,10 +381,11 @@ same `AcceleratorBackendConfig.buffer()` policy today, but `CudaGraphBridge.supp
 to false until a concrete CUDA buffer lifetime/ABI exists.
 For the native Objective-C implementation and buffer ABI details, see [Metal Backend: Objective-C Native Shim](metal-backend.md#objective-c-native-shim) and [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi).
 
-## `config`: Optimizer, Runtime, And Profile Records
+## `config`: Compile, Runtime, And Profile Records
 
 Main paths:
 
+- `src/main/java/config/compile/**`
 - `src/main/java/config/optimizer/**`
 - `src/main/java/config/runtime/**`
 - `src/main/java/config/backend/**`
@@ -390,11 +393,21 @@ Main paths:
 
 `config` is where policy becomes explicit data.
 
-`config.optimizer` contains:
+`config.compile` contains the public compile-policy composition records:
 
-- `OptimizerConfig`
-- `OptimizerStage`
-- rewrite, CSE, fuse, memory, partition, linear, piecewise, and conv2d lowering configs
+- `CompileConfig`
+- `GraphOptimizationConfig`
+- `BackendPlanningConfig`
+- `RegionOptimizationConfig`
+- `MemoryPlanningConfig`
+- backend target, discovery, requirement, search, and cost records
+
+`config.optimizer` contains lower-level helper configs consumed by compile policies:
+
+- rewrite and CSE configs
+- CPU region and CPU fusion configs
+- fuse and memory helper configs
+- linear, piecewise, conv2d, and Metal transfer cost configs
 
 `config.runtime` contains:
 
@@ -491,7 +504,7 @@ ExecutionProfile calibratedProfile = Synaptik.tuning()
         .candidate("calibrated-runtime")
         .dtype(DataType.FLOAT64)
         .mode().training()
-        .optimizer().trainingDefaults()
+        .compile().trainingDefaults()
         .runtime().fromPlatformProfile(calibratedRuntime)
         .build();
 ```
@@ -524,7 +537,7 @@ Example from the package README:
 java --add-modules jdk.incubator.vector \
   -Dnumerics.dtype=FLOAT32 \
   -Dnumerics.stageA=NONE \
-  -Dnumerics.stageB=AR,CSE,PART,FUSE,MEM \
+  -Dnumerics.stageB=AR,CF,CSE,DCE,LOWER \
   -cp build/classes/java/main \
   numerics.NumericsCli
 ```

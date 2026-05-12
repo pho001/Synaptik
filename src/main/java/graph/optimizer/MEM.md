@@ -1,6 +1,6 @@
-# MEM Stage
+# Memory Planning / MEM
 
-`MEM` is the graph-level memory planning and reuse stage.
+`MEM` is historical shorthand for the compile-time memory planning and reuse phase. It is outside the backend-neutral `GraphOptimizer`.
 
 It runs after structural graph shape is already finalized.
 Its job is to reduce allocation pressure by:
@@ -252,7 +252,7 @@ That reduces allocation count without changing graph semantics.
 `MEM` does not:
 
 - change graph formulas
-- decide optimizer stage order
+- decide graph optimization ordering
 - decide prepared-execution vector widths
 - choose BLAS thresholds
 
