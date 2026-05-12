@@ -37,6 +37,10 @@ tasks.withType(JavaCompile).configureEach {
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
     jvmArgs runtimeJvmArgs
+    def metalMpsLib = System.getProperty('synaptik.metal.mps.lib')
+    if (metalMpsLib != null && !metalMpsLib.isBlank()) {
+        systemProperty 'synaptik.metal.mps.lib', metalMpsLib
+    }
     def configuredTestHeap = System.getProperty('synaptik.testMaxHeap')
     if (configuredTestHeap != null && !configuredTestHeap.isBlank()) {
         maxHeapSize = configuredTestHeap

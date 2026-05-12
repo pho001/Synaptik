@@ -1,19 +1,10 @@
 package tensor.ops.linalg;
 
-import graph.optimizer.intent.BackendIntentPropagator;
-import operations.Operation;
-import operations.linalg.scaledDotProductAttention;
-import operations.linalg.scaledDotProductAttentionBackward;
-import operations.linalg.scaledDotProductAttentionWeights;
-import operations.reduction.softmaxGrad;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tensor.TensorMetadata;
-import tensor.TensorPrimitiveBuilder;
 import tensor.options.AttentionOptions;
-
-import java.util.List;
 
 /**
  * Scaled dot-product attention operations.
@@ -78,13 +69,23 @@ public final class TensorAttentionOps {
             effectiveMask = effectiveMask.expand(spec.scoresShape());
         }
 
-        List<Tensor> inputs = effectiveMask == null
-                ? List.of(query, key, value)
-                : List.of(query, key, value, effectiveMask);
-        Operation op = new scaledDotProductAttention(spec.scale(), effectiveMask != null);
-        Tensor out = TensorPrimitiveBuilder.nary(spec.outShape(), inputs, op, "scaledDotProductAttention", spec.outputType());
+        Tensor keyTransposed = LinalgSupport.transposeLastTwoAxes(key);
+        Tensor scores = query.matmul(keyTransposed);
+        Tensor scaled = Math.abs(spec.scale() - 1.0d) > 1e-12d
+                ? scores.mul(spec.scale())
+                : scores;
+        Tensor logits = effectiveMask == null
+                ? scaled
+                : Tensor.where(
+                        effectiveMask,
+                        scaled,
+                        Tensor.scalar(maskFillValue(spec.outputType()), spec.outputType())
+                );
+        Tensor weights = logits.softmax(logits.getShapeUnsafe().length - 1);
+        Tensor out = weights.matmul(value);
+        out.setLabel("scaledDotProductAttention");
         Tensor backwardMask = effectiveMask;
-        TensorInternalAccess.setBackwardFunction(out, () -> backwardScaledDotProductAttention(out, query, key, value, backwardMask, spec));
+        TensorInternalAccess.setBackwardFunction(out, () -> backwardScaledDotProductAttention(out, query, key, value, backwardMask, weights, spec));
         return out;
     }
 
@@ -94,6 +95,7 @@ public final class TensorAttentionOps {
             Tensor key,
             Tensor value,
             Tensor effectiveMask,
+            Tensor weights,
             AttentionSpec spec
     ) {
         Tensor outGrad = out.getGradient();
@@ -101,28 +103,7 @@ public final class TensorAttentionOps {
             return;
         }
 
-        int[] qShape = query.getShapeUnsafe();
-        int[] kShape = key.getShapeUnsafe();
-        int[] outShape = out.getShapeUnsafe();
-
-        if (supportsLoweredBackward(out.getDataType())) {
-            if (query.getRequiresGrad()) {
-                Tensor gradRaw = attentionBackward(out, outGrad, rawQueryGradShape(outShape, qShape), scaledDotProductAttentionBackward.OutputKind.QUERY);
-                LinalgSupport.accumulateGradient(query, LinalgSupport.sumToShape(gradRaw, query.getShapeUnsafe()));
-            }
-            if (key.getRequiresGrad()) {
-                Tensor gradRaw = attentionBackward(out, outGrad, rawKeyGradShape(outShape, key.getShapeUnsafe()), scaledDotProductAttentionBackward.OutputKind.KEY);
-                LinalgSupport.accumulateGradient(key, LinalgSupport.sumToShape(gradRaw, key.getShapeUnsafe()));
-            }
-            if (value.getRequiresGrad()) {
-                Tensor gradRaw = attentionBackward(out, outGrad, rawValueGradShape(outShape, value.getShapeUnsafe()), scaledDotProductAttentionBackward.OutputKind.VALUE);
-                LinalgSupport.accumulateGradient(value, LinalgSupport.sumToShape(gradRaw, value.getShapeUnsafe()));
-            }
-            return;
-        }
-
         int axis = spec.scoresShape().length - 1;
-        Tensor weights = attentionWeights(out, spec.scoresShape());
 
         if (value.getRequiresGrad()) {
             Tensor gradRaw = LinalgSupport.transposeLastTwoAxes(weights).matmul(outGrad);
@@ -134,7 +115,8 @@ public final class TensorAttentionOps {
         }
 
         Tensor dWeights = outGrad.matmul(LinalgSupport.transposeLastTwoAxes(value));
-        Tensor dScores = softmaxGrad(weights, dWeights, axis);
+        Tensor dot = dWeights.mul(weights).sum(axis, true);
+        Tensor dScores = weights.mul(dWeights.sub(dot));
         if (effectiveMask != null) {
             dScores = Tensor.where(effectiveMask, dScores, Tensor.zerosLike(dScores));
         }
@@ -175,69 +157,12 @@ public final class TensorAttentionOps {
         return new Tensor(mask, scoresShape.clone(), denseStrides, null, "causal_mask", DataType.BOOL);
     }
 
-    private static Tensor attentionWeights(Tensor attentionOut, int[] scoresShape) {
-        Tensor weights = TensorPrimitiveBuilder.unaryNoGrad(
-                attentionOut,
-                scoresShape.clone(),
-                new scaledDotProductAttentionWeights(),
-                "attentionWeights",
-                attentionOut.getDataType()
-        );
-        return weights;
-    }
-
-    private static Tensor attentionBackward(
-            Tensor attentionOut,
-            Tensor outGrad,
-            int[] rawShape,
-            scaledDotProductAttentionBackward.OutputKind outputKind
-    ) {
-        Tensor grad = TensorPrimitiveBuilder.binaryNoGrad(
-                attentionOut,
-                outGrad,
-                rawShape.clone(),
-                new scaledDotProductAttentionBackward(outputKind),
-                "scaledDotProductAttentionBackward",
-                attentionOut.getDataType()
-        );
-        BackendIntentPropagator.preserve(grad, attentionOut);
-        return grad;
-    }
-
-    private static Tensor softmaxGrad(Tensor softmaxOut, Tensor outGrad, int dimension) {
-        Tensor grad = TensorPrimitiveBuilder.binary(
-                softmaxOut,
-                outGrad,
-                softmaxOut.getShapeUnsafe().clone(),
-                new softmaxGrad(dimension),
-                "softmaxGrad",
-                outGrad.getDataType()
-        );
-        return grad;
-    }
-
-    private static boolean supportsLoweredBackward(DataType dataType) {
-        return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64 || dataType == DataType.BFLOAT16;
-    }
-
-    private static int[] rawQueryGradShape(int[] outShape, int[] queryShape) {
-        int[] raw = outShape.clone();
-        raw[raw.length - 2] = queryShape[queryShape.length - 2];
-        raw[raw.length - 1] = queryShape[queryShape.length - 1];
-        return raw;
-    }
-
-    private static int[] rawKeyGradShape(int[] outShape, int[] keyShape) {
-        int[] raw = outShape.clone();
-        raw[raw.length - 2] = keyShape[keyShape.length - 2];
-        raw[raw.length - 1] = keyShape[keyShape.length - 1];
-        return raw;
-    }
-
-    private static int[] rawValueGradShape(int[] outShape, int[] valueShape) {
-        int[] raw = outShape.clone();
-        raw[raw.length - 2] = valueShape[valueShape.length - 2];
-        raw[raw.length - 1] = valueShape[valueShape.length - 1];
-        return raw;
+    private static double maskFillValue(DataType dataType) {
+        return switch (dataType) {
+            case FLOAT64 -> -1.0e30d;
+            case FLOAT32 -> -1.0e9d;
+            case BFLOAT16 -> -1.0e30d;
+            case INT32, BOOL -> throw new IllegalArgumentException("attention mask fill requires floating dtype.");
+        };
     }
 }

@@ -4,6 +4,7 @@ import backend.ComputeBackend;
 import backend.accelerator.lowering.GpuCompoundLoweringArtifact;
 import backend.accelerator.lowering.GpuCompoundPatternType;
 import backend.accelerator.lowering.GpuCompoundRegionSummary;
+import backend.accelerator.lowering.GpuRegionLoweredUnitSummary;
 import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweredRegion;
 import backend.lowering.LoweringFamily;
@@ -13,7 +14,6 @@ import backend.lowering.RegionLowerer;
 import graph.optimizer.partition.PartitionPlan;
 import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.region.ExecutionUnit;
-import graph.optimizer.region.ExecutionUnitKind;
 
 import java.util.List;
 
@@ -36,14 +36,13 @@ public final class MetalRegionLowerer implements RegionLowerer {
         if (!(attachedPlan instanceof MetalPartitionPlan metalPlan) || metalPlan.backend() != ComputeBackend.GPU_METAL) {
             return null;
         }
-        LoweringFamily loweringFamily = resolveLoweringFamily(request.region().executionUnits());
         GpuCompoundRegionSummary summary = metalPlan.lowering().compoundSummary();
         LoweredExecutionUnit unit = new LoweredExecutionUnit(
                 request.region().regionId() + "-metal-graph",
-                loweringFamily,
+                LoweringFamily.METAL_GRAPH_REGION,
                 request.region().sourcePartition().orderedNodeIds(),
                 metalPlan.externalInputNodeIds(),
-                compoundArtifact(summary)
+                regionArtifact(summary, request.region().executionUnits())
         );
         return new LoweringResult(
                 new LoweredRegion(
@@ -55,20 +54,22 @@ public final class MetalRegionLowerer implements RegionLowerer {
         );
     }
 
-    private LoweringFamily resolveLoweringFamily(List<ExecutionUnit> units) {
-        if (units == null || units.isEmpty()) {
-            return LoweringFamily.METAL_GRAPH_REGION;
-        }
-        if (units.size() == 1 && units.getFirst().kind() == ExecutionUnitKind.FUSED_ELEMENTWISE) {
-            return LoweringFamily.METAL_FUSED_ELEMENTWISE_GRAPH;
-        }
-        return LoweringFamily.METAL_GRAPH_REGION;
-    }
-
-    private static GpuCompoundLoweringArtifact compoundArtifact(GpuCompoundRegionSummary summary) {
-        if (summary == null || summary.patternType() == GpuCompoundPatternType.NONE) {
+    private static GpuCompoundLoweringArtifact regionArtifact(
+            GpuCompoundRegionSummary summary,
+            List<ExecutionUnit> executionUnits
+    ) {
+        List<GpuRegionLoweredUnitSummary> units = executionUnits == null
+                ? List.of()
+                : executionUnits.stream().map(GpuRegionLoweredUnitSummary::fromExecutionUnit).toList();
+        if ((summary == null || summary.patternType() == GpuCompoundPatternType.NONE) && units.isEmpty()) {
             return null;
         }
-        return new GpuCompoundLoweringArtifact(summary);
+        GpuCompoundRegionSummary resolvedSummary = summary == null
+                ? GpuCompoundRegionSummary.none(ComputeBackend.GPU_METAL, units.stream()
+                        .flatMap(unit -> unit.orderedNodeIds().stream())
+                        .distinct()
+                        .toList())
+                : summary;
+        return new GpuCompoundLoweringArtifact(resolvedSummary, units);
     }
 }

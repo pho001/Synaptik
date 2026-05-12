@@ -1,5 +1,8 @@
 package backend.metal.bridge;
 
+import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;
 import backend.accelerator.dag.AcceleratorDagNodeType;
@@ -27,7 +30,10 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorMetadata;
+import tensor.TensorPrimitiveBuilder;
 import tensor.options.AttentionOptions;
+import tensor.options.Conv2dOptions;
+import tensor.options.Pool2dOptions;
 
 import java.util.Arrays;
 import java.util.List;
@@ -150,9 +156,15 @@ class MetalMpsFfmBridgeTest {
             allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
 
             assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
-            assertEquals(MetalNativeCopyStrategy.MPSGRAPH_RESULT_COPY, stats.nativeCopyStrategy());
-            assertFalse(stats.outputBufferWriteProven());
-            assertTrue(stats.nativeDeviceCopyNs() >= 0L);
+            if (stats.nativeCopyStrategy() == MetalNativeCopyStrategy.TRUE_OUTPUT_BUFFER_WRITE) {
+                assertEquals(MetalNativeCopyStrategy.TRUE_OUTPUT_BUFFER_WRITE, stats.nativeCopyStrategy());
+                assertTrue(stats.outputBufferWriteProven());
+                assertEquals(0L, stats.nativeDeviceCopyNs());
+            } else {
+                assertEquals(MetalNativeCopyStrategy.MPSGRAPH_RESULT_COPY, stats.nativeCopyStrategy());
+                assertFalse(stats.outputBufferWriteProven());
+                assertTrue(stats.nativeDeviceCopyNs() >= 0L);
+            }
             assertArrayEquals(new float[]{1.0f, 0.0f}, destination.getFloat32Data(), 0.0f);
         } finally {
             if (input != null) {
@@ -208,6 +220,30 @@ class MetalMpsFfmBridgeTest {
                     wroteExpected || keptSentinel,
                     "MPSGraph output-buffer probe produced neither expected direct-write values nor the original sentinel."
             );
+
+            Tensor proofSentinel = new Tensor(sentinelValues.clone(), new int[]{2}, null, "proofSentinel", DataType.FLOAT32);
+            MetalBufferBinding proofSentinelBinding = allocator.createInputBinding(9, proofSentinel);
+            MetalBufferBinding proofOutput = new MetalBufferBinding(
+                    9,
+                    AcceleratorBufferLayout.fromTensor(proofSentinel),
+                    proofSentinelBinding.handle(),
+                    MetalBufferAccess.READ_WRITE
+            );
+            MetalOutputBufferWriteProbeResult proof = bridge.probeOutputBufferWriteContract(
+                    context,
+                    executable,
+                    List.of(input),
+                    List.of(proofOutput)
+            );
+            System.out.println("METAL_OUTPUT_BUFFER_WRITE_PROBE status=" + proof.status()
+                    + " detail=" + proof.detail());
+            assertTrue(
+                    proof.status() == MetalOutputBufferWriteProbeStatus.MATCHES_COPIED_RESULT
+                            || proof.status() == MetalOutputBufferWriteProbeStatus.UNCHANGED_SENTINEL
+                            || proof.status() == MetalOutputBufferWriteProbeStatus.MISMATCHED_RESULT,
+                    "Unexpected proof status: " + proof
+            );
+            allocator.destroy(proofOutput.handle());
         } finally {
             if (input != null) {
                 allocator.destroy(input.handle());
@@ -257,6 +293,42 @@ class MetalMpsFfmBridgeTest {
                 allocator.destroy(output.handle());
             }
         }
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsMinMaxAndScalarPowMpsGraphMappings() {
+        Tensor minLeft = new Tensor(new float[]{1f, 4f, 9f, 16f}, new int[]{4}, null, "nativeMinLeft", DataType.FLOAT32);
+        Tensor minRight = new Tensor(new float[]{2f, 3f, 10f, 8f}, new int[]{4}, null, "nativeMinRight", DataType.FLOAT32);
+        Tensor minOut = minLeft.min(minRight);
+        Tensor minDestination = executeF32LoweredNode(
+                minOut,
+                Operation.OpType.MIN,
+                List.of(minLeft, minRight),
+                new int[]{4}
+        );
+
+        Tensor maxLeft = new Tensor(new float[]{1f, 4f, 9f, 16f}, new int[]{4}, null, "nativeMaxLeft", DataType.FLOAT32);
+        Tensor maxRight = new Tensor(new float[]{2f, 3f, 10f, 8f}, new int[]{4}, null, "nativeMaxRight", DataType.FLOAT32);
+        Tensor maxOut = maxLeft.max(maxRight);
+        Tensor maxDestination = executeF32LoweredNode(
+                maxOut,
+                Operation.OpType.MAX,
+                List.of(maxLeft, maxRight),
+                new int[]{4}
+        );
+
+        Tensor powInput = new Tensor(new float[]{1f, 4f, 9f, 16f}, new int[]{4}, null, "nativePowInput", DataType.FLOAT32);
+        Tensor powOut = powInput.pow(1.5);
+        Tensor powDestination = executeF32LoweredNode(
+                powOut,
+                Operation.OpType.POW,
+                List.of(powInput),
+                new int[]{4}
+        );
+
+        assertArrayEquals(new float[]{1f, 3f, 9f, 8f}, minDestination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{2f, 4f, 10f, 16f}, maxDestination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{1f, 8f, 27f, 64f}, powDestination.getFloat32Data(), 1.0e-4f);
     }
 
     @Test
@@ -464,6 +536,264 @@ class MetalMpsFfmBridgeTest {
     }
 
     @Test
+    void explicitShimExecuteBuffersSupportsExpandAndSelectShapeOps() {
+        Tensor expectedExpand = new Tensor(new float[]{2f, 4f, 6f}, new int[]{1, 3}, null, "expectedExpandInput", DataType.FLOAT32)
+                .expand(2, 3);
+        expectedExpand.compute();
+        Tensor expandInput = new Tensor(new float[]{2f, 4f, 6f}, new int[]{1, 3}, null, "expandInput", DataType.FLOAT32);
+        Tensor expanded = expandInput.expand(2, 3);
+
+        Tensor expandDestination = executeF32LoweredNode(
+                expanded,
+                Operation.OpType.EXPAND,
+                List.of(expandInput),
+                new int[]{2, 3}
+        );
+
+        Tensor expectedSelect = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f
+        }, new int[]{2, 3}, null, "expectedSelectInput", DataType.FLOAT32).select(0, 1);
+        expectedSelect.compute();
+        Tensor selectInput = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f
+        }, new int[]{2, 3}, null, "selectInput", DataType.FLOAT32);
+        Tensor selected = selectInput.select(0, 1);
+
+        Tensor selectDestination = executeF32LoweredNode(
+                selected,
+                Operation.OpType.SELECT,
+                List.of(selectInput),
+                new int[]{3}
+        );
+
+        assertArrayEquals(new float[]{2f, 4f, 6f, 2f, 4f, 6f}, expandDestination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{4f, 5f, 6f}, selectDestination.getFloat32Data(), 0.0f);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsBoolLayoutShapeOps() {
+        Tensor reshapeInput = new Tensor(new byte[]{1, 0, 1, 0}, new int[]{2, 2}, null, "boolReshapeInput", DataType.BOOL);
+        Tensor reshaped = reshapeInput.reshape(4);
+        Tensor reshapeDestination = executeBoolLoweredNode(
+                reshaped,
+                Operation.OpType.RESHAPE,
+                List.of(reshapeInput),
+                new int[]{4}
+        );
+
+        Tensor permuteInput = new Tensor(new byte[]{1, 0, 1, 0, 1, 0}, new int[]{2, 3}, null, "boolPermuteInput", DataType.BOOL);
+        Tensor permuted = permuteInput.permute(1, 0);
+        Tensor permuteDestination = executeBoolLoweredNode(
+                permuted,
+                Operation.OpType.PERMUTE,
+                List.of(permuteInput),
+                new int[]{3, 2}
+        );
+
+        Tensor expandInput = new Tensor(new byte[]{1, 0, 1}, new int[]{1, 3}, null, "boolExpandInput", DataType.BOOL);
+        Tensor expanded = expandInput.expand(2, 3);
+        Tensor expandDestination = executeBoolLoweredNode(
+                expanded,
+                Operation.OpType.EXPAND,
+                List.of(expandInput),
+                new int[]{2, 3}
+        );
+
+        Tensor expandDimsInput = new Tensor(new byte[]{1, 0, 0, 1}, new int[]{2, 2}, null, "boolExpandDimsInput", DataType.BOOL);
+        Tensor expandDims = expandDimsInput.expandDims(0);
+        Tensor expandDimsDestination = executeBoolLoweredNode(
+                expandDims,
+                Operation.OpType.EXPAND_DIMS,
+                List.of(expandDimsInput),
+                new int[]{1, 2, 2}
+        );
+
+        Tensor squeezeInput = new Tensor(new byte[]{1, 0, 0, 1}, new int[]{1, 2, 2}, null, "boolSqueezeInput", DataType.BOOL);
+        Tensor squeezed = squeezeInput.squeeze(0);
+        Tensor squeezeDestination = executeBoolLoweredNode(
+                squeezed,
+                Operation.OpType.SQUEEZE,
+                List.of(squeezeInput),
+                new int[]{2, 2}
+        );
+
+        Tensor selectInput = new Tensor(new byte[]{1, 1, 0, 0, 1, 0}, new int[]{2, 3}, null, "boolSelectInput", DataType.BOOL);
+        Tensor selected = selectInput.select(0, 1);
+        Tensor selectDestination = executeBoolLoweredNode(
+                selected,
+                Operation.OpType.SELECT,
+                List.of(selectInput),
+                new int[]{3}
+        );
+
+        Tensor contiguousInput = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{2, 2}, null, "boolContiguousInput", DataType.BOOL);
+        Tensor contiguous = contiguousInput.contiguous();
+        Tensor contiguousDestination = executeBoolLoweredNode(
+                contiguous,
+                Operation.OpType.CONTIGUOUS,
+                List.of(contiguousInput),
+                new int[]{2, 2}
+        );
+
+        Tensor noopInput = new Tensor(new byte[]{0, 1, 1, 0}, new int[]{2, 2}, null, "boolNoopInput", DataType.BOOL);
+        Tensor noop = TensorPrimitiveBuilder.unary(
+                noopInput,
+                noopInput.getShape(),
+                new operations.layout.noop(),
+                "boolNoop",
+                DataType.BOOL
+        );
+        Tensor noopDestination = executeBoolLoweredNode(
+                noop,
+                Operation.OpType.NOOP,
+                List.of(noopInput),
+                new int[]{2, 2}
+        );
+
+        assertArrayEquals(new byte[]{1, 0, 1, 0}, reshapeDestination.getBoolData());
+        assertArrayEquals(new byte[]{1, 0, 0, 1, 1, 0}, permuteDestination.getBoolData());
+        assertArrayEquals(new byte[]{1, 0, 1, 1, 0, 1}, expandDestination.getBoolData());
+        assertArrayEquals(new byte[]{1, 0, 0, 1}, expandDimsDestination.getBoolData());
+        assertArrayEquals(new byte[]{1, 0, 0, 1}, squeezeDestination.getBoolData());
+        assertArrayEquals(new byte[]{0, 1, 0}, selectDestination.getBoolData());
+        assertArrayEquals(new byte[]{1, 0, 1, 1}, contiguousDestination.getBoolData());
+        assertArrayEquals(new byte[]{0, 1, 1, 0}, noopDestination.getBoolData());
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsScatterAddWithInt32Indices() {
+        Tensor expectedBase = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f
+        }, new int[]{2, 3}, null, "expectedScatterBase", DataType.FLOAT32);
+        Tensor expectedIndices = new Tensor(new int[]{1, 0}, new int[]{2}, null, "expectedScatterIndices", DataType.INT32);
+        Tensor expectedSrc = new Tensor(new float[]{10f, 20f}, new int[]{2}, null, "expectedScatterSrc", DataType.FLOAT32);
+        Tensor expected = expectedBase.scatterAdd(expectedIndices, expectedSrc, 1);
+        expected.compute();
+
+        Tensor base = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f
+        }, new int[]{2, 3}, null, "scatterBase", DataType.FLOAT32);
+        Tensor indices = new Tensor(new int[]{1, 0}, new int[]{2}, null, "scatterIndices", DataType.INT32);
+        Tensor src = new Tensor(new float[]{10f, 20f}, new int[]{2}, null, "scatterSrc", DataType.FLOAT32);
+        Tensor out = base.scatterAdd(indices, src, 1);
+
+        Tensor destination = executeF32LoweredNode(
+                out,
+                Operation.OpType.SCATTER_ADD,
+                List.of(base, indices, src),
+                new int[]{2, 3}
+        );
+
+        assertArrayEquals(expected.getFloat32Data(), destination.getFloat32Data(), 0.0f);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsBfloat16ScatterAddWithInt32Indices() {
+        Tensor base = bf16Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f
+        }, new int[]{2, 3}, "bf16ScatterBase");
+        Tensor indices = new Tensor(new int[]{1, 0}, new int[]{2}, null, "bf16ScatterIndices", DataType.INT32);
+        Tensor src = bf16Tensor(new float[]{10f, 20f}, new int[]{2}, "bf16ScatterSrc");
+        Tensor expected = base.scatterAdd(indices, src, 1);
+        expected.compute();
+        Tensor out = base.scatterAdd(indices, src, 1);
+
+        Tensor destination = executeBf16LoweredNode(
+                out,
+                Operation.OpType.SCATTER_ADD,
+                List.of(base, indices, src),
+                new int[]{2, 3}
+        );
+
+        assertBf16Close(bf16Floats(expected), destination, BF16_MATMUL_REDUCTION_TOLERANCE);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsIndexGradientScatterAdd() {
+        Tensor gatherIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "gatherGradIndices", DataType.INT32);
+        Tensor gatherOutGrad = new Tensor(new float[]{3f, 5f}, new int[]{2}, null, "gatherGradOutGrad", DataType.FLOAT32);
+        Tensor gatherGrad = TensorPrimitiveBuilder.binaryNoGrad(
+                gatherIndices,
+                gatherOutGrad,
+                new int[]{2, 3},
+                new operations.index.gatherGrad(1),
+                "gatherGrad",
+                DataType.FLOAT32
+        );
+
+        Tensor gatherDestination = executeF32LoweredNode(
+                gatherGrad,
+                Operation.OpType.GATHER_GRAD,
+                List.of(gatherIndices, gatherOutGrad),
+                new int[]{2, 3}
+        );
+
+        Tensor takeIndices = new Tensor(new int[]{
+                1, 1, 0,
+                2, 0, 2
+        }, new int[]{2, 3}, null, "takeGradIndices", DataType.INT32);
+        Tensor takeOutGrad = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f
+        }, new int[]{2, 3}, null, "takeGradOutGrad", DataType.FLOAT32);
+        Tensor takeGrad = TensorPrimitiveBuilder.binaryNoGrad(
+                takeIndices,
+                takeOutGrad,
+                new int[]{2, 3},
+                new operations.index.takeAlongAxisGrad(1),
+                "takeAlongAxisGrad",
+                DataType.FLOAT32
+        );
+
+        Tensor takeDestination = executeF32LoweredNode(
+                takeGrad,
+                Operation.OpType.TAKE_ALONG_AXIS_GRAD,
+                List.of(takeIndices, takeOutGrad),
+                new int[]{2, 3}
+        );
+
+        assertArrayEquals(new float[]{
+                0f, 0f, 3f,
+                5f, 0f, 0f
+        }, gatherDestination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{
+                3f, 3f, 0f,
+                5f, 0f, 10f
+        }, takeDestination.getFloat32Data(), 0.0f);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsBfloat16GatherGrad() {
+        Tensor indices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "bf16GatherGradIndices", DataType.INT32);
+        Tensor outGrad = bf16Tensor(new float[]{3f, 5f}, new int[]{2}, "bf16GatherGradOutGrad");
+        Tensor gatherGrad = TensorPrimitiveBuilder.binaryNoGrad(
+                indices,
+                outGrad,
+                new int[]{2, 3},
+                new operations.index.gatherGrad(1),
+                "bf16GatherGrad",
+                DataType.BFLOAT16
+        );
+
+        Tensor destination = executeBf16LoweredNode(
+                gatherGrad,
+                Operation.OpType.GATHER_GRAD,
+                List.of(indices, outGrad),
+                new int[]{2, 3}
+        );
+
+        assertBf16Close(new float[]{
+                0f, 0f, 3f,
+                5f, 0f, 0f
+        }, destination, BF16_EXACT_STORAGE_TOLERANCE);
+    }
+
+    @Test
     void explicitShimExecuteBuffersSupportsFloat32Conv2dNoBias() {
         Tensor destination = executeConv2dLoweredPlan(
                 conv2dPlan(
@@ -536,6 +866,307 @@ class MetalMpsFfmBridgeTest {
     }
 
     @Test
+    void explicitShimExecuteBuffersSupportsFloat32Conv2dBackwardInputAndWeight() {
+        Conv2dOptions options = Conv2dOptions.defaults();
+
+        Tensor expectedWeight = new Tensor(new float[]{
+                1f, 0f,
+                0f, 1f
+        }, new int[]{1, 1, 2, 2}, null, "expectedConvBackwardWeightInput", DataType.FLOAT32);
+        Tensor expectedOutGrad = new Tensor(new float[]{
+                1f, 2f,
+                3f, 4f
+        }, new int[]{1, 1, 2, 2}, null, "expectedConvBackwardOutGrad", DataType.FLOAT32);
+        Tensor expectedInputGrad = TensorPrimitiveBuilder.binaryNoGrad(
+                expectedWeight,
+                expectedOutGrad,
+                new int[]{1, 1, 3, 3},
+                new operations.nn.conv.conv2dBackwardInput(options, new int[]{1, 1, 3, 3}),
+                "expectedConv2dBackwardInput",
+                DataType.FLOAT32
+        );
+        expectedInputGrad.compute();
+
+        Tensor weight = new Tensor(new float[]{
+                1f, 0f,
+                0f, 1f
+        }, new int[]{1, 1, 2, 2}, null, "convBackwardWeightInput", DataType.FLOAT32);
+        Tensor outGradForInput = new Tensor(new float[]{
+                1f, 2f,
+                3f, 4f
+        }, new int[]{1, 1, 2, 2}, null, "convBackwardOutGradInput", DataType.FLOAT32);
+        Tensor inputGrad = TensorPrimitiveBuilder.binaryNoGrad(
+                weight,
+                outGradForInput,
+                new int[]{1, 1, 3, 3},
+                new operations.nn.conv.conv2dBackwardInput(options, new int[]{1, 1, 3, 3}),
+                "conv2dBackwardInput",
+                DataType.FLOAT32
+        );
+
+        Tensor inputGradDestination = executeF32LoweredNode(
+                inputGrad,
+                Operation.OpType.CONV2D_BACKWARD_INPUT,
+                List.of(weight, outGradForInput),
+                new int[]{1, 1, 3, 3}
+        );
+
+        Tensor expectedInput = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f,
+                7f, 8f, 9f
+        }, new int[]{1, 1, 3, 3}, null, "expectedConvBackwardInputSource", DataType.FLOAT32);
+        Tensor expectedWeightGrad = TensorPrimitiveBuilder.binaryNoGrad(
+                expectedInput,
+                expectedOutGrad,
+                new int[]{1, 1, 2, 2},
+                new operations.nn.conv.conv2dBackwardWeight(options, new int[]{1, 1, 2, 2}),
+                "expectedConv2dBackwardWeight",
+                DataType.FLOAT32
+        );
+        expectedWeightGrad.compute();
+
+        Tensor input = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f,
+                7f, 8f, 9f
+        }, new int[]{1, 1, 3, 3}, null, "convBackwardInputSource", DataType.FLOAT32);
+        Tensor outGradForWeight = new Tensor(new float[]{
+                1f, 2f,
+                3f, 4f
+        }, new int[]{1, 1, 2, 2}, null, "convBackwardOutGradWeight", DataType.FLOAT32);
+        Tensor weightGrad = TensorPrimitiveBuilder.binaryNoGrad(
+                input,
+                outGradForWeight,
+                new int[]{1, 1, 2, 2},
+                new operations.nn.conv.conv2dBackwardWeight(options, new int[]{1, 1, 2, 2}),
+                "conv2dBackwardWeight",
+                DataType.FLOAT32
+        );
+
+        Tensor weightGradDestination = executeF32LoweredNode(
+                weightGrad,
+                Operation.OpType.CONV2D_BACKWARD_WEIGHT,
+                List.of(input, outGradForWeight),
+                new int[]{1, 1, 2, 2}
+        );
+
+        assertArrayEquals(expectedInputGrad.getFloat32Data(), inputGradDestination.getFloat32Data(), 1.0e-5f);
+        assertArrayEquals(expectedWeightGrad.getFloat32Data(), weightGradDestination.getFloat32Data(), 1.0e-5f);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsFloat32AvgPool2dBackwardInput() {
+        Pool2dOptions options = new Pool2dOptions(2, 2, 1, 1, 0, 0, false);
+        Tensor expectedOutGrad = new Tensor(new float[]{
+                1f, 2f,
+                3f, 4f
+        }, new int[]{1, 1, 2, 2}, null, "expectedAvgPoolBackwardOutGrad", DataType.FLOAT32);
+        Tensor expected = TensorPrimitiveBuilder.unaryNoGrad(
+                expectedOutGrad,
+                new int[]{1, 1, 3, 3},
+                new operations.nn.pool.avgPool2dBackwardInput(options, new int[]{1, 1, 3, 3}),
+                "expectedAvgPool2dBackwardInput",
+                DataType.FLOAT32
+        );
+        expected.compute();
+
+        Tensor outGrad = new Tensor(new float[]{
+                1f, 2f,
+                3f, 4f
+        }, new int[]{1, 1, 2, 2}, null, "avgPoolBackwardOutGrad", DataType.FLOAT32);
+        Tensor grad = TensorPrimitiveBuilder.unaryNoGrad(
+                outGrad,
+                new int[]{1, 1, 3, 3},
+                new operations.nn.pool.avgPool2dBackwardInput(options, new int[]{1, 1, 3, 3}),
+                "avgPool2dBackwardInput",
+                DataType.FLOAT32
+        );
+
+        Tensor destination = executeF32LoweredNode(
+                grad,
+                Operation.OpType.AVG_POOL2D_BACKWARD_INPUT,
+                List.of(outGrad),
+                new int[]{1, 1, 3, 3}
+        );
+
+        assertArrayEquals(expected.getFloat32Data(), destination.getFloat32Data(), 1.0e-5f);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsFloat32MaxPool2dBackwardInput() {
+        Pool2dOptions options = new Pool2dOptions(2, 2, 1, 1, 0, 0, false);
+        Tensor source = new Tensor(new float[]{
+                1f, 5f, 2f,
+                4f, 5f, 3f,
+                7f, 6f, 8f
+        }, new int[]{1, 1, 3, 3}, null, "maxPoolBackwardSource", DataType.FLOAT32);
+        Tensor outGrad = new Tensor(new float[]{
+                1f, 2f,
+                3f, 4f
+        }, new int[]{1, 1, 2, 2}, null, "maxPoolBackwardOutGrad", DataType.FLOAT32);
+        Tensor expected = TensorPrimitiveBuilder.binaryNoGrad(
+                outGrad,
+                source,
+                new int[]{1, 1, 3, 3},
+                new operations.nn.pool.maxPool2dBackwardInput(options, new int[]{1, 1, 3, 3}),
+                "expectedMaxPool2dBackwardInput",
+                DataType.FLOAT32
+        );
+        expected.compute();
+
+        Tensor grad = TensorPrimitiveBuilder.binaryNoGrad(
+                outGrad,
+                source,
+                new int[]{1, 1, 3, 3},
+                new operations.nn.pool.maxPool2dBackwardInput(options, new int[]{1, 1, 3, 3}),
+                "maxPool2dBackwardInput",
+                DataType.FLOAT32
+        );
+
+        Tensor destination = executeF32LoweredNode(
+                grad,
+                Operation.OpType.MAX_POOL2D_BACKWARD_INPUT,
+                List.of(outGrad, source),
+                new int[]{1, 1, 3, 3}
+        );
+
+        assertArrayEquals(expected.getFloat32Data(), destination.getFloat32Data(), 1.0e-5f);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsFloat32CrossEntropyLossFromIndices() {
+        Tensor logits = new Tensor(new float[]{
+                1f, 2f, 3f,
+                1f, 0f, -1f
+        }, new int[]{2, 3}, null, "ceIndexLogits", DataType.FLOAT32);
+        Tensor targets = new Tensor(new int[]{2, 0}, new int[]{2}, null, "ceIndexTargets", DataType.INT32);
+        Tensor expected = logits.crossEntropyLossFromIndices(targets, 1);
+        expected.compute();
+
+        Tensor nativeLoss = TensorPrimitiveBuilder.naryNoGrad(
+                new int[]{1},
+                List.of(logits, targets),
+                new operations.loss.crossEntropyLossIndices(1, tensor.loss.LossReduction.MEAN, null),
+                "ceIndexNative",
+                DataType.FLOAT32
+        );
+
+        Tensor destination = executeF32LoweredNode(
+                nativeLoss,
+                Operation.OpType.CROSS_ENTROPY_LOSS_INDICES,
+                List.of(logits, targets),
+                new int[]{1}
+        );
+
+        assertArrayEquals(expected.getFloat32Data(), destination.getFloat32Data(), 1.0e-5f);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsBfloat16CrossEntropyLossFromIndices() {
+        Tensor logits = bf16Tensor(new float[]{
+                1f, 2f, 3f,
+                1f, 0f, -1f
+        }, new int[]{2, 3}, "bf16CeIndexLogits");
+        Tensor targets = new Tensor(new int[]{2, 0}, new int[]{2}, null, "bf16CeIndexTargets", DataType.INT32);
+        Tensor expected = logits.crossEntropyLossFromIndices(targets, 1);
+        expected.compute();
+
+        Tensor nativeLoss = TensorPrimitiveBuilder.naryNoGrad(
+                new int[]{1},
+                List.of(logits, targets),
+                new operations.loss.crossEntropyLossIndices(1, tensor.loss.LossReduction.MEAN, null),
+                "bf16CeIndexNative",
+                DataType.BFLOAT16
+        );
+
+        Tensor destination = executeBf16LoweredNode(
+                nativeLoss,
+                Operation.OpType.CROSS_ENTROPY_LOSS_INDICES,
+                List.of(logits, targets),
+                new int[]{1}
+        );
+
+        assertBf16Close(bf16Floats(expected), destination, BF16_NORM_SOFTMAX_TOLERANCE);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsFloat32CrossEntropyLossFromIndicesGrad() {
+        Tensor logits = new Tensor(new float[]{
+                1f, 2f, 3f,
+                1f, 0f, -1f
+        }, new int[]{2, 3}, null, "ceIndexGradLogits", DataType.FLOAT32);
+        Tensor targets = new Tensor(new int[]{2, 0}, new int[]{2}, null, "ceIndexGradTargets", DataType.INT32);
+        Tensor sampleScale = new Tensor(new float[]{0.5f, 0.5f}, new int[]{2}, null, "ceIndexGradScale", DataType.FLOAT32);
+        Tensor expected = TensorPrimitiveBuilder.ternaryNoGrad(
+                logits,
+                targets,
+                sampleScale,
+                new int[]{2, 3},
+                new operations.loss.crossEntropyLossIndicesGrad(1),
+                "expectedCeIndexGrad",
+                DataType.FLOAT32
+        );
+        expected.compute();
+        Tensor grad = TensorPrimitiveBuilder.ternaryNoGrad(
+                logits,
+                targets,
+                sampleScale,
+                new int[]{2, 3},
+                new operations.loss.crossEntropyLossIndicesGrad(1),
+                "ceIndexGrad",
+                DataType.FLOAT32
+        );
+
+        Tensor destination = executeF32LoweredNode(
+                grad,
+                Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD,
+                List.of(logits, targets, sampleScale),
+                new int[]{2, 3}
+        );
+
+        assertArrayEquals(expected.getFloat32Data(), destination.getFloat32Data(), 1.0e-5f);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsBfloat16CrossEntropyLossFromIndicesGrad() {
+        Tensor logits = bf16Tensor(new float[]{
+                1f, 2f, 3f,
+                1f, 0f, -1f
+        }, new int[]{2, 3}, "bf16CeIndexGradLogits");
+        Tensor targets = new Tensor(new int[]{2, 0}, new int[]{2}, null, "bf16CeIndexGradTargets", DataType.INT32);
+        Tensor sampleScale = bf16Tensor(new float[]{0.5f, 0.5f}, new int[]{2}, "bf16CeIndexGradScale");
+        Tensor expected = TensorPrimitiveBuilder.ternaryNoGrad(
+                logits,
+                targets,
+                sampleScale,
+                new int[]{2, 3},
+                new operations.loss.crossEntropyLossIndicesGrad(1),
+                "expectedBf16CeIndexGrad",
+                DataType.BFLOAT16
+        );
+        expected.compute();
+        Tensor grad = TensorPrimitiveBuilder.ternaryNoGrad(
+                logits,
+                targets,
+                sampleScale,
+                new int[]{2, 3},
+                new operations.loss.crossEntropyLossIndicesGrad(1),
+                "bf16CeIndexGrad",
+                DataType.BFLOAT16
+        );
+
+        Tensor destination = executeBf16LoweredNode(
+                grad,
+                Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD,
+                List.of(logits, targets, sampleScale),
+                new int[]{2, 3}
+        );
+
+        assertBf16Close(bf16Floats(expected), destination, BF16_NORM_SOFTMAX_TOLERANCE);
+    }
+
+    @Test
     void explicitShimExecuteBuffersSupportsFloat32MaxPool2d() {
         Tensor destination = executeConv2dLoweredPlan(
                 pool2dPlan(
@@ -563,6 +1194,49 @@ class MetalMpsFfmBridgeTest {
         );
 
         assertArrayEquals(new float[]{6f, 8f, 14f, 16f}, destination.getFloat32Data(), 1.0e-5f);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsBfloat16Conv2dAndMaxPool2d() {
+        Tensor input = bf16Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f,
+                7f, 8f, 9f
+        }, new int[]{1, 1, 3, 3}, "bf16ConvInput");
+        Tensor weight = bf16Tensor(new float[]{
+                1f, 0f,
+                0f, 1f
+        }, new int[]{1, 1, 2, 2}, "bf16ConvWeight");
+        Tensor expectedConv = input.conv2d(weight, Conv2dOptions.defaults());
+        expectedConv.compute();
+        Tensor conv = input.conv2d(weight, Conv2dOptions.defaults());
+
+        Tensor convDestination = executeBf16LoweredNode(
+                conv,
+                Operation.OpType.CONV2D,
+                List.of(input, weight),
+                new int[]{1, 1, 2, 2}
+        );
+
+        Tensor poolInput = bf16Tensor(new float[]{
+                1f, 2f, 3f, 4f,
+                5f, 6f, 7f, 8f,
+                9f, 10f, 11f, 12f,
+                13f, 14f, 15f, 16f
+        }, new int[]{1, 1, 4, 4}, "bf16PoolInput");
+        Tensor expectedPool = poolInput.maxPool2d(Pool2dOptions.square(2));
+        expectedPool.compute();
+        Tensor pool = poolInput.maxPool2d(Pool2dOptions.square(2));
+
+        Tensor poolDestination = executeBf16LoweredNode(
+                pool,
+                Operation.OpType.MAX_POOL2D,
+                List.of(poolInput),
+                new int[]{1, 1, 2, 2}
+        );
+
+        assertBf16Close(bf16Floats(expectedConv), convDestination, BF16_MATMUL_REDUCTION_TOLERANCE);
+        assertBf16Close(bf16Floats(expectedPool), poolDestination, BF16_EXACT_STORAGE_TOLERANCE);
     }
 
     @Test
@@ -887,7 +1561,7 @@ class MetalMpsFfmBridgeTest {
         expected.compute();
 
         Tensor source = bf16Tensor(new float[]{-1f, 0f, 1f, 2f, 1f, -2f}, new int[]{2, 3}, "bf16SoftmaxSource");
-        Tensor out = source.softmax(1);
+        Tensor out = specialSoftmax(source, 1);
 
         Tensor destination = executeBf16LoweredNode(
                 out,
@@ -922,13 +1596,94 @@ class MetalMpsFfmBridgeTest {
     }
 
     @Test
+    void explicitShimExecuteBuffersSupportsBfloat16SdpaParity() {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        int[] shape = new int[]{1, 2, 2};
+        Tensor expectedQ = bf16Tensor(new float[]{1f, 0f, 0f, 1f}, shape, "expectedBf16SdpaQ");
+        Tensor expectedK = bf16Tensor(new float[]{1f, 0f, 0f, 1f}, shape, "expectedBf16SdpaK");
+        Tensor expectedV = bf16Tensor(new float[]{10f, 1f, 1f, 10f}, shape, "expectedBf16SdpaV");
+        Tensor expected = expectedQ.scaledDotProductAttention(
+                expectedK,
+                expectedV,
+                AttentionOptions.defaults().withScale(0.5)
+        );
+        expected.compute();
+
+        Tensor q = bf16Tensor(new float[]{1f, 0f, 0f, 1f}, shape, "bf16SdpaQ");
+        Tensor k = bf16Tensor(new float[]{1f, 0f, 0f, 1f}, shape, "bf16SdpaK");
+        Tensor v = bf16Tensor(new float[]{10f, 1f, 1f, 10f}, shape, "bf16SdpaV");
+        Tensor out = specialSdpa(q, k, v, null, AttentionOptions.defaults().withScale(0.5));
+        PartitionPlanningContext planningContext = planningContext(out);
+        CompiledNode sdpaNode = planningContext.compiledNode(nodeId(planningContext, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
+        AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
+                sdpaNode.id(),
+                List.of(sdpaNode.id()),
+                List.of(new AcceleratorSubgraphOp(sdpaNode.id(), Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION)),
+                sdpaNode.inputIds(),
+                List.of(sdpaNode.id())
+        );
+        AcceleratorSubgraphLoweringResult lowering = new AcceleratorSubgraphLowerer().tryLower(subgraph, planningContext);
+        assertNotNull(lowering);
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalMpsBridgeExecutable executable = bridge.compile(
+                context,
+                new MetalPartitionPlan(sdpaNode.id(), subgraph, lowering)
+        );
+        assumeTrue(executable.available(), executable.reason());
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        MetalBufferBinding query = null;
+        MetalBufferBinding key = null;
+        MetalBufferBinding value = null;
+        MetalBufferBinding output = null;
+        try {
+            query = allocator.createInputBinding(sdpaNode.inputIds().get(0), q);
+            key = allocator.createInputBinding(sdpaNode.inputIds().get(1), k);
+            value = allocator.createInputBinding(sdpaNode.inputIds().get(2), v);
+            output = allocator.createOutputBinding(sdpaNode.id(), denseLayout(DataType.BFLOAT16, shape));
+
+            MetalMpsBridgeExecutionStats stats = bridge.executeBuffers(
+                    context,
+                    executable,
+                    List.of(query, key, value),
+                    List.of(output)
+            );
+            Tensor destination = bf16Tensor(new float[expected.getFlatDataSize()], shape, "bf16SdpaDestination");
+            allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+
+            assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
+            assertBf16Close(bf16Floats(expected), destination, BF16_NORM_SOFTMAX_TOLERANCE);
+        } finally {
+            if (query != null) {
+                allocator.destroy(query.handle());
+            }
+            if (key != null) {
+                allocator.destroy(key.handle());
+            }
+            if (value != null) {
+                allocator.destroy(value.handle());
+            }
+            if (output != null) {
+                allocator.destroy(output.handle());
+            }
+        }
+    }
+
+    @Test
     void executableSignatureIncludesSdpaScaleBits() {
         Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "sdpaSigQ", DataType.FLOAT32);
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "sdpaSigK", DataType.FLOAT32);
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "sdpaSigV", DataType.FLOAT32);
 
-        AcceleratorSubgraphSignature halfScale = sdpaSignature(q.scaledDotProductAttention(k, v, AttentionOptions.defaults().withScale(0.5)));
-        AcceleratorSubgraphSignature unitScale = sdpaSignature(q.scaledDotProductAttention(k, v, AttentionOptions.defaults().withScale(1.0)));
+        AcceleratorSubgraphSignature halfScale = sdpaSignature(specialSdpa(q, k, v, null, AttentionOptions.defaults().withScale(0.5)));
+        AcceleratorSubgraphSignature unitScale = sdpaSignature(specialSdpa(q, k, v, null, AttentionOptions.defaults().withScale(1.0)));
 
         assertFalse(halfScale.equals(unitScale));
     }
@@ -940,8 +1695,8 @@ class MetalMpsFfmBridgeTest {
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "sdpaSigV", DataType.FLOAT32);
         Tensor mask = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{1, 2, 2}, null, "sdpaSigMask", DataType.BOOL);
 
-        AcceleratorSubgraphSignature unmasked = sdpaSignature(q.scaledDotProductAttention(k, v, AttentionOptions.defaults().withScale(0.5)));
-        AcceleratorSubgraphSignature masked = sdpaSignature(q.scaledDotProductAttention(k, v, mask, AttentionOptions.defaults().withScale(0.5)));
+        AcceleratorSubgraphSignature unmasked = sdpaSignature(specialSdpa(q, k, v, null, AttentionOptions.defaults().withScale(0.5)));
+        AcceleratorSubgraphSignature masked = sdpaSignature(specialSdpa(q, k, v, mask, AttentionOptions.defaults().withScale(0.5)));
 
         assertFalse(unmasked.equals(masked));
     }
@@ -967,6 +1722,18 @@ class MetalMpsFfmBridgeTest {
                 null,
                 new int[]{1, 2, 2},
                 AttentionOptions.causalDefaults().withScale(1.0)
+        );
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsSdpaWeightsPublicationParity() {
+        assertNativeSdpaWeightsParity(
+                new float[]{1f, 0f, 0f, 1f},
+                new float[]{1f, 0f, 0f, 1f},
+                new float[]{10f, 1f, 1f, 10f},
+                new byte[]{1, 0, 1, 1},
+                new int[]{1, 2, 2},
+                AttentionOptions.defaults().withScale(1.0)
         );
     }
 
@@ -1003,9 +1770,7 @@ class MetalMpsFfmBridgeTest {
         Tensor k = new Tensor(keyValues.clone(), shape, null, "sdpaK", DataType.FLOAT32);
         Tensor v = new Tensor(valueValues.clone(), shape, null, "sdpaV", DataType.FLOAT32);
         Tensor mask = maskValues == null ? null : new Tensor(maskValues.clone(), scoreShape(shape), null, "sdpaMask", DataType.BOOL);
-        Tensor out = mask == null
-                ? q.scaledDotProductAttention(k, v, options)
-                : q.scaledDotProductAttention(k, v, mask, options);
+        Tensor out = specialSdpa(q, k, v, mask, options);
         PartitionPlanningContext planningContext = planningContext(out);
         CompiledNode sdpaNode = planningContext.compiledNode(nodeId(planningContext, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
         Tensor runtimeMask = sdpaNode.inputIds().size() > 3
@@ -1083,10 +1848,171 @@ class MetalMpsFfmBridgeTest {
         }
     }
 
+    private static void assertNativeSdpaWeightsParity(
+            float[] queryValues,
+            float[] keyValues,
+            float[] valueValues,
+            byte[] maskValues,
+            int[] shape,
+            AttentionOptions options
+    ) {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        float e = (float) Math.exp(1.0);
+        float[] expectedWeightValues = new float[]{
+                1.0f, 0.0f,
+                1.0f / (1.0f + e), e / (1.0f + e)
+        };
+
+        Tensor q = new Tensor(queryValues.clone(), shape, null, "sdpaWeightsQ", DataType.FLOAT32);
+        Tensor k = new Tensor(keyValues.clone(), shape, null, "sdpaWeightsK", DataType.FLOAT32);
+        Tensor v = new Tensor(valueValues.clone(), shape, null, "sdpaWeightsV", DataType.FLOAT32);
+        Tensor mask = maskValues == null ? null : new Tensor(maskValues.clone(), scoreShape(shape), null, "sdpaWeightsMask", DataType.BOOL);
+        Tensor attention = specialSdpa(q, k, v, mask, options);
+        Tensor weights = TensorPrimitiveBuilder.unaryNoGrad(
+                attention,
+                scoreShape(shape),
+                new operations.linalg.scaledDotProductAttentionWeights(),
+                "attentionWeights",
+                DataType.FLOAT32
+        );
+        PartitionPlanningContext planningContext = planningContext(weights);
+        CompiledNode weightsNode = planningContext.compiledNode(nodeId(planningContext, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS));
+        CompiledNode attentionNode = planningContext.compiledNode(weightsNode.inputIds().getFirst());
+        Tensor runtimeMask = attentionNode.inputIds().size() > 3
+                ? planningContext.compiledNode(attentionNode.inputIds().get(3)).semanticTensor()
+                : null;
+        if (runtimeMask != null) {
+            runtimeMask.compute();
+        }
+        AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
+                weightsNode.id(),
+                List.of(weightsNode.id()),
+                List.of(new AcceleratorSubgraphOp(weightsNode.id(), Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS)),
+                weightsNode.inputIds(),
+                List.of(weightsNode.id())
+        );
+        AcceleratorSubgraphLoweringResult lowering = new AcceleratorSubgraphLowerer().tryLower(subgraph, planningContext);
+        assertNotNull(lowering);
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalMpsBridgeExecutable executable = bridge.compile(
+                context,
+                new MetalPartitionPlan(weightsNode.id(), subgraph, lowering)
+        );
+        assumeTrue(executable.available(), executable.reason());
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        MetalBufferBinding query = null;
+        MetalBufferBinding key = null;
+        MetalBufferBinding maskBinding = null;
+        MetalBufferBinding output = null;
+        try {
+            query = allocator.createInputBinding(attentionNode.inputIds().get(0), q);
+            key = allocator.createInputBinding(attentionNode.inputIds().get(1), k);
+            if (runtimeMask != null) {
+                maskBinding = allocator.createPredicateInputBinding(attentionNode.inputIds().get(3), runtimeMask);
+            }
+            output = allocator.createOutputBinding(weightsNode.id(), denseF32Layout(scoreShape(shape)));
+
+            List<MetalBufferBinding> inputs = maskBinding == null
+                    ? List.of(query, key)
+                    : List.of(query, key, maskBinding);
+            MetalMpsBridgeExecutionStats stats = bridge.executeBuffers(
+                    context,
+                    executable,
+                    inputs,
+                    List.of(output)
+            );
+            Tensor destination = new Tensor(new float[expectedWeightValues.length], scoreShape(shape), null, "sdpaWeightsDestination", DataType.FLOAT32);
+            allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+
+            assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
+            assertArrayEquals(expectedWeightValues, destination.getFloat32Data(), 1.0e-4f);
+        } finally {
+            if (query != null) {
+                allocator.destroy(query.handle());
+            }
+            if (key != null) {
+                allocator.destroy(key.handle());
+            }
+            if (maskBinding != null) {
+                allocator.destroy(maskBinding.handle());
+            }
+            if (output != null) {
+                allocator.destroy(output.handle());
+            }
+        }
+    }
+
     private static int[] scoreShape(int[] qkvShape) {
         int[] out = qkvShape.clone();
         out[out.length - 1] = qkvShape[qkvShape.length - 2];
         return out;
+    }
+
+    private static Tensor specialSoftmax(Tensor input, int dimension) {
+        return TensorPrimitiveBuilder.unary(
+                input,
+                input.getShapeUnsafe().clone(),
+                new operations.reduction.softmax(dimension),
+                "legacySoftmax",
+                input.getDataType()
+        );
+    }
+
+    private static Tensor specialSdpa(Tensor query, Tensor key, Tensor value, Tensor mask, AttentionOptions options) {
+        int[] queryShape = query.getShapeUnsafe();
+        int[] valueShape = value.getShapeUnsafe();
+        int[] outShape = queryShape.clone();
+        outShape[outShape.length - 1] = valueShape[valueShape.length - 1];
+        int[] scoresShape = scoreShape(queryShape);
+
+        Tensor effectiveMask = mask;
+        if (options.causal()) {
+            Tensor causalMask = causalMask(scoresShape);
+            effectiveMask = effectiveMask == null ? causalMask : effectiveMask.logicalAnd(causalMask);
+        }
+        if (effectiveMask != null) {
+            effectiveMask = effectiveMask.expand(scoresShape);
+        }
+
+        java.util.ArrayList<Tensor> inputs = new java.util.ArrayList<>();
+        inputs.add(query);
+        inputs.add(key);
+        inputs.add(value);
+        if (effectiveMask != null) {
+            inputs.add(effectiveMask);
+        }
+        double scale = options.resolveScale(queryShape[queryShape.length - 1]);
+        return TensorPrimitiveBuilder.nary(
+                outShape,
+                inputs,
+                new operations.linalg.scaledDotProductAttention(scale, effectiveMask != null),
+                "legacyScaledDotProductAttention",
+                query.getDataType()
+        );
+    }
+
+    private static Tensor causalMask(int[] scoresShape) {
+        int queryLength = scoresShape[scoresShape.length - 2];
+        int keyLength = scoresShape[scoresShape.length - 1];
+        int size = 1;
+        for (int dimension : scoresShape) {
+            size *= dimension;
+        }
+        byte[] data = new byte[size];
+        for (int linear = 0; linear < size; linear++) {
+            int keyIndex = linear % keyLength;
+            int queryIndex = (linear / keyLength) % queryLength;
+            data[linear] = (byte) (keyIndex <= queryIndex ? 1 : 0);
+        }
+        return new Tensor(data, scoresShape.clone(), null, "legacyCausalMask", DataType.BOOL);
     }
 
     private static AcceleratorSubgraphSignature sdpaSignature(Tensor out) {
@@ -1334,6 +2260,92 @@ class MetalMpsFfmBridgeTest {
     }
 
     @Test
+    void explicitShimMaterializesBFloat16PermutedLayoutToDenseBuffer() {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        assumeTrue(bridge.supportsLayoutMaterialization());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        MetalBufferBinding input = null;
+        MetalBufferBinding destination = null;
+        try {
+            Tensor base = bf16Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, "layoutBf16Base");
+            input = allocator.createInputBinding(1, base);
+            AcceleratorBufferLayout permutedLayout = AcceleratorBufferLayout.of(
+                    DataType.BFLOAT16,
+                    new int[]{3, 2},
+                    new int[]{1, 3},
+                    0,
+                    6
+            );
+            MetalBufferBinding sourceView = MetalBufferBinding.viewOf(1, permutedLayout, input, MetalBufferAccess.READ);
+            destination = allocator.createOutputBinding(2, denseLayout(DataType.BFLOAT16, new int[]{3, 2}));
+
+            bridge.materializeLayout(context, sourceView, destination);
+
+            Tensor actual = bf16Tensor(new float[6], new int[]{3, 2}, "layoutBf16Dense");
+            allocator.readToCpu(destination, actual, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+            assertBf16RawBitsEqual(new float[]{1f, 4f, 2f, 5f, 3f, 6f}, actual);
+        } finally {
+            if (input != null) {
+                allocator.destroy(input.handle());
+            }
+            if (destination != null) {
+                allocator.destroy(destination.handle());
+            }
+        }
+    }
+
+    @Test
+    void explicitShimMaterializesBoolPermutedLayoutToDenseBuffer() {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        assumeTrue(bridge.supportsLayoutMaterialization());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        MetalBufferBinding input = null;
+        MetalBufferBinding destination = null;
+        try {
+            Tensor base = new Tensor(new byte[]{1, 0, 1, 0, 1, 0}, new int[]{2, 3}, null, "layoutBoolBase", DataType.BOOL);
+            input = allocator.createPredicateInputBinding(1, base);
+            AcceleratorBufferLayout permutedLayout = AcceleratorBufferLayout.of(
+                    DataType.BOOL,
+                    new int[]{3, 2},
+                    new int[]{1, 3},
+                    0,
+                    6
+            );
+            MetalBufferBinding sourceView = MetalBufferBinding.viewOf(1, permutedLayout, input, MetalBufferAccess.READ);
+            destination = allocator.createOutputBinding(2, denseLayout(DataType.BOOL, new int[]{3, 2}));
+
+            bridge.materializeLayout(context, sourceView, destination);
+
+            Tensor actual = new Tensor(new byte[6], new int[]{3, 2}, null, "layoutBoolDense", DataType.BOOL);
+            allocator.readToCpu(destination, actual, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+            assertArrayEquals(new byte[]{1, 0, 0, 1, 1, 0}, actual.getBoolData());
+        } finally {
+            if (input != null) {
+                allocator.destroy(input.handle());
+            }
+            if (destination != null) {
+                allocator.destroy(destination.handle());
+            }
+        }
+    }
+
+    @Test
     void bufferBindingValidationRejectsMismatchedInputNodeId() {
         MetalMpsBridgeExecutable executable = executableDescriptor(1, 2);
         MetalBufferBinding wrongInput = binding(99, MetalBufferAccess.READ);
@@ -1516,6 +2528,63 @@ class MetalMpsFfmBridgeTest {
         }
     }
 
+    private static Tensor executeF32LoweredNode(
+            Tensor out,
+            Operation.OpType opType,
+            List<Tensor> inputs,
+            int[] outputShape
+    ) {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        PartitionPlanningContext planningContext = planningContext(out);
+        CompiledNode node = planningContext.compiledNode(nodeId(planningContext, opType));
+        AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
+                node.id(),
+                List.of(node.id()),
+                List.of(new AcceleratorSubgraphOp(node.id(), opType)),
+                node.inputIds(),
+                List.of(node.id())
+        );
+        AcceleratorSubgraphLoweringResult lowering = new AcceleratorSubgraphLowerer().tryLower(subgraph, planningContext);
+        assertNotNull(lowering);
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalMpsBridgeExecutable executable = bridge.compile(
+                context,
+                new MetalPartitionPlan(node.id(), subgraph, lowering)
+        );
+        assumeTrue(executable.available(), executable.reason());
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        java.util.ArrayList<MetalBufferBinding> inputBindings = new java.util.ArrayList<>();
+        MetalBufferBinding output = null;
+        try {
+            for (int i = 0; i < inputs.size(); i++) {
+                inputBindings.add(allocator.createInputBinding(node.inputIds().get(i), inputs.get(i)));
+            }
+            output = allocator.createOutputBinding(node.id(), denseF32Layout(outputShape));
+
+            MetalMpsBridgeExecutionStats stats = bridge.executeBuffers(context, executable, inputBindings, List.of(output));
+            Tensor destination = new Tensor(new float[(int) output.layout().logicalElementCount()], outputShape, null, "f32Destination", DataType.FLOAT32);
+            allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+
+            assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
+            return destination;
+        } finally {
+            for (MetalBufferBinding input : inputBindings) {
+                allocator.destroy(input.handle());
+            }
+            if (output != null) {
+                allocator.destroy(output.handle());
+            }
+        }
+    }
+
     private static Tensor executeBoolLoweredPlan(
             MetalPartitionPlan plan,
             List<Tensor> inputs,
@@ -1560,6 +2629,30 @@ class MetalMpsFfmBridgeTest {
                 allocator.destroy(output.handle());
             }
         }
+    }
+
+    private static Tensor executeBoolLoweredNode(
+            Tensor out,
+            Operation.OpType opType,
+            List<Tensor> inputs,
+            int[] outputShape
+    ) {
+        PartitionPlanningContext planningContext = planningContext(out);
+        CompiledNode node = planningContext.compiledNode(nodeId(planningContext, opType));
+        AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
+                node.id(),
+                List.of(node.id()),
+                List.of(new AcceleratorSubgraphOp(node.id(), opType)),
+                node.inputIds(),
+                List.of(node.id())
+        );
+        AcceleratorSubgraphLoweringResult lowering = new AcceleratorSubgraphLowerer().tryLower(subgraph, planningContext);
+        assertNotNull(lowering);
+        return executeBoolLoweredPlan(
+                new MetalPartitionPlan(node.id(), subgraph, lowering),
+                inputs,
+                outputShape
+        );
     }
 
     private static Tensor executeIndexLoweredPlan(
@@ -2041,6 +3134,7 @@ class MetalMpsFfmBridgeTest {
                 RuntimeConfig.inferenceDefaults(),
                 false,
                 compiledNodes,
+                CompiledTensorDescriptorBuilder.build(compiledNodes),
                 consumers(compiledNodes)
         );
     }

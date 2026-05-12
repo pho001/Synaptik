@@ -165,14 +165,6 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
     public void execute(ExecutionContext context) {
         bufferBinder.registerRuntimeServices(context);
         AcceleratorBufferDecision staticDecision = preparedTransportPlan.toDecision();
-        if (preparedTransportPlan.containsForwardAttentionDag() && context != null && context.runsBackwardPass()) {
-            AcceleratorBufferDecision decision = preparedTransportPlan.backwardSdpaDecision();
-            publishDecision(decision);
-            requireBufferOrThrow(decision);
-            runCpuFallback(context, toLegacyBufferDecision(decision), decision.reason());
-            return;
-        }
-
         if (preparedTransportPlan.preferredPath() == MetalPreparedTransportPath.STATIC_CPU_FALLBACK
                 || preparedTransportPlan.preferredPath() == MetalPreparedTransportPath.UNAVAILABLE_REQUIRED) {
             publishDecision(staticDecision);
@@ -196,6 +188,16 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
                     backendConfig.buffer(),
                     context
             );
+            if (decision.path() != AcceleratorBufferExecutionPath.BUFFER_BINDING
+                    && decision.reasonCode() == AcceleratorBufferReasonCode.INPUT_LAYOUT_UNSUPPORTED
+                    && bufferBinder.repairRuntimeInputLayouts(request, nativeBufferInputs, backendConfig.buffer(), context)) {
+                decision = bufferBinder.validateRuntime(
+                        request,
+                        nativeBufferInputs,
+                        backendConfig.buffer(),
+                        context
+                );
+            }
             publishDecision(decision);
             requireBufferOrThrow(decision);
         } else {
@@ -495,6 +497,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
         }
         return switch (tensor.getDataType()) {
             case FLOAT32 -> tensor.getFloat32Data() == null ? "missing direct float[] storage" : "";
+            case BFLOAT16 -> tensor.getBFloat16Data() == null ? "missing direct bfloat16 short[] storage" : "";
             case BOOL -> tensor.getBoolData() == null ? "missing direct bool[] storage" : "";
             default -> MetalMpsCapabilities.unsupportedDTypeMessage(tensor.getDataType());
         };
@@ -513,7 +516,12 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
         if (!MetalMpsCapabilities.supportsOutputDType(tensor.getDataType())) {
             return MetalMpsCapabilities.unsupportedDTypeMessage(tensor.getDataType());
         }
-        return tensor.getFloat32Data() == null ? "missing direct float[] storage" : "";
+        return switch (tensor.getDataType()) {
+            case FLOAT32 -> tensor.getFloat32Data() == null ? "missing direct float[] storage" : "";
+            case BFLOAT16 -> tensor.getBFloat16Data() == null ? "missing direct bfloat16 short[] storage" : "";
+            case BOOL -> tensor.getBoolData() == null ? "missing direct bool[] storage" : "";
+            default -> MetalMpsCapabilities.unsupportedDTypeMessage(tensor.getDataType());
+        };
     }
 
     private static long byteSize(List<Tensor> tensors) {
@@ -847,23 +855,6 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
                     mode == AcceleratorBufferBindingMode.REQUIRE,
                     reasonCode,
                     reason,
-                    List.of(),
-                    List.of()
-            );
-        }
-
-        private AcceleratorBufferDecision backwardSdpaDecision() {
-            AcceleratorBufferExecutionPath path = mode == AcceleratorBufferBindingMode.REQUIRE
-                    ? AcceleratorBufferExecutionPath.UNAVAILABLE
-                    : AcceleratorBufferExecutionPath.CPU_FALLBACK;
-            return new AcceleratorBufferDecision(
-                    ComputeBackend.GPU_METAL,
-                    mode,
-                    path,
-                    false,
-                    mode == AcceleratorBufferBindingMode.REQUIRE,
-                    AcceleratorBufferReasonCode.BRIDGE_UNAVAILABLE,
-                    "backward pass contains forward SDPA DAG unsupported by current Metal bridge",
                     List.of(),
                     List.of()
             );

@@ -36,5 +36,19 @@ public class BroadcastPlannerTest {
         );
         assertTrue(ex.getMessage().contains("Broadcast mismatch"));
     }
-}
 
+    @Test
+    public void sameShapeZeroStrideViewIsStillBroadcast() {
+        BroadcastPlan plan = BroadcastPlanner.plan(
+                new int[]{2, 4},
+                new int[]{4, 1},
+                new int[]{2, 4},
+                new int[]{0, 0}
+        );
+
+        assertArrayEquals(new int[]{2, 4}, plan.outShape());
+        assertArrayEquals(new int[]{4, 1}, plan.aEffStrides());
+        assertArrayEquals(new int[]{0, 0}, plan.bEffStrides());
+        assertFalse(plan.isNoBroadcast());
+    }
+}

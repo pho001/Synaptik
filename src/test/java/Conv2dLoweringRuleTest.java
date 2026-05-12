@@ -1,5 +1,5 @@
-import config.optimizer.OptimizerConfig;
-import config.optimizer.OptimizerStage;
+import config.compile.CompileConfig;
+import config.compile.GraphOptimizationConfig;
 import config.optimizer.Conv2dLoweringConfig;
 import config.optimizer.Conv2dLoweringMode;
 import config.optimizer.RewriteConfig;
@@ -7,6 +7,7 @@ import graph.CompiledGraph;
 import graph.optimizer.GraphOptimizer;
 import graph.optimizer.rewrite.Conv2dLoweringRewrite;
 import org.junit.jupiter.api.Test;
+import tensor.CompileMode;
 import tensor.options.Conv2dOptions;
 import tensor.DataType;
 import tensor.Tensor;
@@ -16,6 +17,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class Conv2dLoweringRuleTest {
@@ -44,7 +46,7 @@ public class Conv2dLoweringRuleTest {
     }
 
     @Test
-    void arStageConv2dLoweringPreservesForwardResult() {
+    void arStageNoLongerLowersConv2dButPreservesForwardResult() {
         Tensor input = new Tensor(new double[]{
                 1, 2, 3,
                 4, 5, 6,
@@ -58,13 +60,10 @@ public class Conv2dLoweringRuleTest {
         Tensor out = input.conv2d(weight, Conv2dOptions.defaults());
         CompiledGraph.compile(
                 out,
-                new OptimizerConfig(
-                        List.of(OptimizerStage.AR),
-                        new RewriteConfig(Conv2dLoweringConfig.always()),
-                        config.optimizer.CseConfig.strictDefaults(),
-                        config.optimizer.FuseConfig.trainingDefaults(),
-                        config.optimizer.MemoryConfig.defaults()
-                )
+                CompileConfig.inference()
+                        .withGraphOptimization(GraphOptimizationConfig
+                                .stages(true, false, false, false, false)
+                                .withRewrite(new RewriteConfig(Conv2dLoweringConfig.always())))
         ).execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
@@ -141,7 +140,8 @@ public class Conv2dLoweringRuleTest {
         Tensor loss = input.conv2d(weight, Conv2dOptions.defaults().withPadding(1, 1)).sum();
         CompiledGraph compiled = CompiledGraph.compile(
                 loss,
-                OptimizerConfig.trainingDefaults().withStageOrder(List.of(OptimizerStage.AR))
+                new GraphOptimizer().addRule(new Conv2dLoweringRewrite(Conv2dLoweringConfig.always())),
+                CompileMode.AUTO
         );
 
         boolean hasBackwardInputGemm = compiled.getCompiledGraphAsList().stream()
@@ -151,5 +151,27 @@ public class Conv2dLoweringRuleTest {
 
         assertTrue(hasBackwardInputGemm);
         assertTrue(hasBackwardWeightGemm);
+    }
+
+    @Test
+    void arStageNoLongerLowersBackwardConv2dToGemmVariants() {
+        Tensor input = new Tensor(new double[2 * 8 * 4 * 4], new int[]{2, 8, 4, 4}, null, "input", DataType.FLOAT64);
+        Tensor weight = new Tensor(new double[8 * 8 * 3 * 3], new int[]{8, 8, 3, 3}, null, "weight", DataType.FLOAT64);
+        input.setRequiresGrad(true);
+        weight.setRequiresGrad(true);
+
+        Tensor loss = input.conv2d(weight, Conv2dOptions.defaults().withPadding(1, 1)).sum();
+        CompiledGraph compiled = CompiledGraph.compile(
+                loss,
+                CompileConfig.training().withGraphOptimization(GraphOptimizationConfig.stages(true, false, false, false, false))
+        );
+
+        boolean hasBackwardInputGemm = compiled.getCompiledGraphAsList().stream()
+                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM);
+        boolean hasBackwardWeightGemm = compiled.getCompiledGraphAsList().stream()
+                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM);
+
+        assertFalse(hasBackwardInputGemm);
+        assertFalse(hasBackwardWeightGemm);
     }
 }

@@ -17,6 +17,7 @@ import backend.accelerator.dag.AcceleratorSubgraphSpec;
 import operations.Operation;
 import operations.normalization.layerNorm;
 import operations.normalization.rmsNorm;
+import graph.compile.descriptor.CompiledTensorDescriptor;
 import tensor.DataType;
 
 import java.util.ArrayList;
@@ -319,25 +320,23 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
         if (input == null || gamma == null || (opType == Operation.OpType.LAYER_NORM && beta == null)) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA normalization inputs are unavailable";
         }
-        if (input.dataType() != DataType.FLOAT32
-                || gamma.dataType() != DataType.FLOAT32
-                || (beta != null && beta.dataType() != DataType.FLOAT32)
-                || node.dataType() != DataType.FLOAT32) {
+        if (dataType(context, input) != DataType.FLOAT32
+                || dataType(context, gamma) != DataType.FLOAT32
+                || (beta != null && dataType(context, beta) != DataType.FLOAT32)
+                || dataType(context, node) != DataType.FLOAT32) {
             return "UNSUPPORTED_DTYPE: GPU_CUDA normalization supports only FLOAT32";
         }
-        if (!input.contiguous() || input.hasStorageOffset()
-                || !gamma.contiguous() || gamma.hasStorageOffset()
-                || (beta != null && (!beta.contiguous() || beta.hasStorageOffset()))) {
+        if (!dense(context, input) || !dense(context, gamma) || (beta != null && !dense(context, beta))) {
             return "UNSUPPORTED_LAYOUT: GPU_CUDA normalization inputs require dense layout";
         }
-        int[] inputShape = input.shape();
-        int[] gammaShape = gamma.shape();
-        int[] betaShape = beta == null ? null : beta.shape();
+        int[] inputShape = shape(context, input);
+        int[] gammaShape = shape(context, gamma);
+        int[] betaShape = beta == null ? null : shape(context, beta);
         if (inputShape.length < 1 || inputShape.length > 4
                 || normalizedRank < 1
                 || normalizedRank > inputShape.length
                 || gammaShape.length != normalizedRank
-                || !Arrays.equals(inputShape, node.shape())
+                || !Arrays.equals(inputShape, shape(context, node))
                 || (betaShape != null && !Arrays.equals(gammaShape, betaShape))) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA normalization rank/shape contract is unsupported";
         }
@@ -356,11 +355,33 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
         }
         for (int inputId : node.inputIds()) {
             CompiledNode input = context.compiledNode(inputId);
-            if (input != null && (!input.contiguous() || input.hasStorageOffset())) {
+            if (input != null && !dense(context, input)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static DataType dataType(PartitionPlanningContext context, CompiledNode node) {
+        return descriptor(context, node).dataType();
+    }
+
+    private static int[] shape(PartitionPlanningContext context, CompiledNode node) {
+        return descriptor(context, node).shape();
+    }
+
+    private static boolean dense(PartitionPlanningContext context, CompiledNode node) {
+        return descriptor(context, node).denseContiguousWithoutOffset();
+    }
+
+    private static CompiledTensorDescriptor descriptor(PartitionPlanningContext context, CompiledNode node) {
+        if (context == null) {
+            throw new IllegalArgumentException("descriptor lookup requires planning context");
+        }
+        if (node == null) {
+            throw new IllegalArgumentException("descriptor lookup requires compiled node");
+        }
+        return context.descriptor(node.id());
     }
 
     private static boolean isEpilogueAdd(CompiledNode node, PartitionPlanningContext context) {

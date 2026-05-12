@@ -19,17 +19,25 @@ import operations.Operation;
 import operations.elementwise.unary.clampMax;
 import operations.elementwise.unary.clampMin;
 import operations.elementwise.unary.mulScalar;
+import operations.elementwise.unary.pow;
 import operations.elementwise.binary.maxGrad;
 import operations.elementwise.binary.minGrad;
 import operations.index.gather;
 import operations.index.takeAlongAxis;
 import operations.layout.expandDims;
 import operations.layout.permute;
+import operations.layout.select;
 import operations.layout.squeeze;
 import operations.nn.conv.conv2d;
+import operations.nn.conv.conv2dBackwardInput;
+import operations.nn.conv.conv2dBackwardInputGemm;
+import operations.nn.conv.conv2dBackwardWeight;
+import operations.nn.conv.conv2dBackwardWeightGemm;
 import operations.nn.conv.conv2dGemm;
 import operations.nn.pool.avgPool2d;
+import operations.nn.pool.avgPool2dBackwardInput;
 import operations.nn.pool.maxPool2d;
+import operations.nn.pool.maxPool2dBackwardInput;
 import operations.normalization.layerNorm;
 import operations.normalization.rmsNorm;
 import operations.reduction.reduceMaxGrad;
@@ -46,9 +54,13 @@ import operations.reduction.softmaxGrad;
 import operations.reduction.sum;
 import operations.linalg.scaledDotProductAttention;
 import operations.linalg.scaledDotProductAttentionBackward;
+import operations.linalg.scaledDotProductAttentionWeights;
 import operations.loss.crossEntropyLoss;
+import operations.loss.crossEntropyLossIndices;
+import operations.loss.crossEntropyLossIndicesGrad;
 import operations.loss.nllLoss;
 import tensor.DataType;
+import tensor.loss.LossReduction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -471,7 +483,7 @@ public final class AcceleratorSubgraphLowerer {
                     List.of(node.nodeId()),
                     inputRefs(node),
                     "node:" + i,
-                    DataType.FLOAT32,
+                    node.outputDataType(),
                     outputShape(node),
                     List.of()
             ));
@@ -536,11 +548,12 @@ public final class AcceleratorSubgraphLowerer {
     }
 
     private List<String> inputRefs(AcceleratorDagNode node) {
-        List<String> refs = new ArrayList<>(4);
+        List<String> refs = new ArrayList<>(5);
         addRef(refs, node.input0());
         addRef(refs, node.input1());
         addRef(refs, node.input2());
         addRef(refs, node.input3());
+        addRef(refs, node.input4());
         return List.copyOf(refs);
     }
 
@@ -562,6 +575,10 @@ public final class AcceleratorSubgraphLowerer {
 
     private List<Integer> shapeList(int[] shape) {
         return Arrays.stream(shape == null ? new int[0] : shape).boxed().toList();
+    }
+
+    private boolean isMetalFloatingDType(DataType dataType) {
+        return dataType == DataType.FLOAT32 || dataType == DataType.BFLOAT16;
     }
 
     private AcceleratorMatMulSpec tryBuildLegacyMatMulSpec(
@@ -712,6 +729,14 @@ public final class AcceleratorSubgraphLowerer {
         if (specializedSdpaBackward != null) {
             return specializedSdpaBackward;
         }
+        AcceleratorDagSpec specializedSdpaWeights = tryBuildSpecializedSdpaWeightsDagSpec(subgraph, context);
+        if (specializedSdpaWeights != null) {
+            return specializedSdpaWeights;
+        }
+        AcceleratorDagSpec canonicalSdpaPrimitive = tryBuildCanonicalBfloat16SdpaPrimitiveDagSpec(subgraph, context);
+        if (canonicalSdpaPrimitive != null) {
+            return canonicalSdpaPrimitive;
+        }
         AcceleratorDagSpec specializedSdpa = tryBuildSpecializedSdpaDagSpec(subgraph, context);
         if (specializedSdpa != null) {
             return specializedSdpa;
@@ -743,10 +768,12 @@ public final class AcceleratorSubgraphLowerer {
             AcceleratorDagValueRef input1 = resolveDagValueRef(node.inputIds(), 1, externalInputIndex, loweredNodeIndex);
             AcceleratorDagValueRef input2 = resolveDagValueRef(node.inputIds(), 2, externalInputIndex, loweredNodeIndex);
             AcceleratorDagValueRef input3 = resolveDagValueRef(node.inputIds(), 3, externalInputIndex, loweredNodeIndex);
+            AcceleratorDagValueRef input4 = resolveDagValueRef(node.inputIds(), 4, externalInputIndex, loweredNodeIndex);
             if ((node.inputIds().size() >= 1 && input0.kind() == AcceleratorDagValueRefKind.NONE)
                     || (node.inputIds().size() >= 2 && input1.kind() == AcceleratorDagValueRefKind.NONE)
                     || (node.inputIds().size() >= 3 && input2.kind() == AcceleratorDagValueRefKind.NONE)
-                    || (node.inputIds().size() >= 4 && input3.kind() == AcceleratorDagValueRefKind.NONE)) {
+                    || (node.inputIds().size() >= 4 && input3.kind() == AcceleratorDagValueRefKind.NONE)
+                    || (node.inputIds().size() >= 5 && input4.kind() == AcceleratorDagValueRefKind.NONE)) {
                 return null;
             }
             int[] shape = node.shape();
@@ -790,12 +817,52 @@ public final class AcceleratorSubgraphLowerer {
                 loweredNodeIndex.put(nodeId, nodes.size() - 1);
                 continue;
             }
+            if (node.operation().opType() == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD) {
+                if (!(node.operation() instanceof scaledDotProductAttentionBackward backwardOp)) {
+                    return null;
+                }
+                AcceleratorDagNode backwardDagNode = buildGenericSdpaBackwardNode(
+                        node,
+                        backwardOp,
+                        context,
+                        externalInputIndex,
+                        externalInputs,
+                        loweredNodeIndex
+                );
+                if (backwardDagNode == null) {
+                    return null;
+                }
+                nodes.add(backwardDagNode);
+                loweredNodeIndex.put(nodeId, nodes.size() - 1);
+                continue;
+            }
+            if (node.operation().opType() == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS) {
+                if (!(node.operation() instanceof scaledDotProductAttentionWeights)) {
+                    return null;
+                }
+                AcceleratorDagNode weightsDagNode = buildGenericSdpaWeightsNode(
+                        node,
+                        context,
+                        externalInputIndex,
+                        externalInputs,
+                        loweredNodeIndex
+                );
+                if (weightsDagNode == null) {
+                    return null;
+                }
+                nodes.add(weightsDagNode);
+                loweredNodeIndex.put(nodeId, nodes.size() - 1);
+                continue;
+            }
             AcceleratorDagNodeType type = resolveDagNodeType(node.operation().opType());
             if (type == null) {
                 return null;
             }
-            int scalarValueBits = resolveScalarValueBits(node);
+            int scalarValueBits = resolveScalarValueBits(node, context);
             if (type == AcceleratorDagNodeType.PERMUTE && scalarValueBits == Integer.MIN_VALUE) {
+                return null;
+            }
+            if (type == AcceleratorDagNodeType.SELECT && scalarValueBits == Integer.MIN_VALUE) {
                 return null;
             }
             if (isReduction(type) && scalarValueBits == Integer.MIN_VALUE) {
@@ -804,10 +871,19 @@ public final class AcceleratorSubgraphLowerer {
             if (isIndexGather(type) && scalarValueBits == Integer.MIN_VALUE) {
                 return null;
             }
-            if (type == AcceleratorDagNodeType.CONV2D && scalarValueBits == Integer.MIN_VALUE) {
+            if (isIndexWriteOrGradient(type) && scalarValueBits == Integer.MIN_VALUE) {
                 return null;
             }
-            if ((type == AcceleratorDagNodeType.MAX_POOL2D || type == AcceleratorDagNodeType.AVG_POOL2D)
+            if ((type == AcceleratorDagNodeType.CONV2D
+                    || type == AcceleratorDagNodeType.CONV2D_BACKWARD_INPUT
+                    || type == AcceleratorDagNodeType.CONV2D_BACKWARD_WEIGHT)
+                    && scalarValueBits == Integer.MIN_VALUE) {
+                return null;
+            }
+            if ((type == AcceleratorDagNodeType.MAX_POOL2D
+                    || type == AcceleratorDagNodeType.AVG_POOL2D
+                    || type == AcceleratorDagNodeType.AVG_POOL2D_BACKWARD_INPUT
+                    || type == AcceleratorDagNodeType.MAX_POOL2D_BACKWARD_INPUT)
                     && scalarValueBits == Integer.MIN_VALUE) {
                 return null;
             }
@@ -818,6 +894,7 @@ public final class AcceleratorSubgraphLowerer {
                     input1,
                     input2,
                     input3,
+                    input4,
                     scalarValueBits,
                     shape.length,
                     shape[0],
@@ -840,6 +917,183 @@ public final class AcceleratorSubgraphLowerer {
             outputNodeIndexes.add(outputNodeIndex);
         }
         return new AcceleratorDagSpec(externalInputs, nodes, outputNodeIndexes, outputNodeIds);
+    }
+
+    private AcceleratorDagNode buildGenericSdpaBackwardNode(
+            CompiledNode outputNode,
+            scaledDotProductAttentionBackward backwardOp,
+            PartitionPlanningContext context,
+            Map<Integer, Integer> externalInputIndex,
+            List<AcceleratorDagInput> externalInputs,
+            Map<Integer, Integer> loweredNodeIndex
+    ) {
+        if (outputNode == null || outputNode.inputIds().size() != 2) {
+            return null;
+        }
+        CompiledNode attentionOutNode = context.compiledNode(outputNode.inputIds().getFirst());
+        CompiledNode outGradNode = context.compiledNode(outputNode.inputIds().get(1));
+        if (attentionOutNode == null
+                || attentionOutNode.operation() == null
+                || attentionOutNode.operation().opType() != Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION
+                || !(attentionOutNode.operation() instanceof scaledDotProductAttention attentionOp)
+                || outGradNode == null) {
+            return null;
+        }
+        if (attentionOutNode.inputIds().size() != 3 && attentionOutNode.inputIds().size() != 4) {
+            return null;
+        }
+        CompiledNode queryNode = context.compiledNode(attentionOutNode.inputIds().get(0));
+        CompiledNode keyNode = context.compiledNode(attentionOutNode.inputIds().get(1));
+        CompiledNode valueNode = context.compiledNode(attentionOutNode.inputIds().get(2));
+        CompiledNode maskNode = attentionOutNode.inputIds().size() == 4
+                ? context.compiledNode(attentionOutNode.inputIds().get(3))
+                : null;
+        if (queryNode == null || keyNode == null || valueNode == null) {
+            return null;
+        }
+        DataType dtype = outputNode.dataType();
+        if (!isMetalFloatingDType(dtype)
+                || queryNode.dataType() != dtype
+                || keyNode.dataType() != dtype
+                || valueNode.dataType() != dtype
+                || outGradNode.dataType() != dtype) {
+            return null;
+        }
+        if (maskNode != null && maskNode.dataType() != DataType.BOOL) {
+            return null;
+        }
+        AcceleratorDagValueRef queryRef = resolveOrAppendDagInput(queryNode, externalInputIndex, externalInputs, loweredNodeIndex);
+        AcceleratorDagValueRef keyRef = resolveOrAppendDagInput(keyNode, externalInputIndex, externalInputs, loweredNodeIndex);
+        AcceleratorDagValueRef valueRef = resolveOrAppendDagInput(valueNode, externalInputIndex, externalInputs, loweredNodeIndex);
+        AcceleratorDagValueRef outGradRef = resolveOrAppendDagInput(outGradNode, externalInputIndex, externalInputs, loweredNodeIndex);
+        AcceleratorDagValueRef maskRef = maskNode == null
+                ? AcceleratorDagValueRef.none()
+                : resolveOrAppendDagInput(maskNode, externalInputIndex, externalInputs, loweredNodeIndex);
+        if (queryRef.kind() == AcceleratorDagValueRefKind.NONE
+                || keyRef.kind() == AcceleratorDagValueRefKind.NONE
+                || valueRef.kind() == AcceleratorDagValueRefKind.NONE
+                || outGradRef.kind() == AcceleratorDagValueRefKind.NONE
+                || (maskNode != null && maskRef.kind() == AcceleratorDagValueRefKind.NONE)) {
+            return null;
+        }
+        AcceleratorDagNodeType nodeType = switch (backwardOp.getOutputKind()) {
+            case QUERY -> AcceleratorDagNodeType.SDPA_BACKWARD_QUERY;
+            case KEY -> AcceleratorDagNodeType.SDPA_BACKWARD_KEY;
+            case VALUE -> AcceleratorDagNodeType.SDPA_BACKWARD_VALUE;
+        };
+        int[] outputShape = outputNode.shape();
+        if (outputShape.length < 1 || outputShape.length > 4) {
+            return null;
+        }
+        return new AcceleratorDagNode(
+                outputNode.id(),
+                nodeType,
+                queryRef,
+                keyRef,
+                valueRef,
+                outGradRef,
+                maskRef,
+                Float.floatToIntBits((float) attentionOp.getScale()),
+                outputShape.length,
+                outputShape[0],
+                outputShape.length >= 2 ? outputShape[1] : 1,
+                outputShape.length >= 3 ? outputShape[2] : 1,
+                outputShape.length >= 4 ? outputShape[3] : 1,
+                outputNode.dataType()
+        );
+    }
+
+    private AcceleratorDagNode buildGenericSdpaWeightsNode(
+            CompiledNode weightsNode,
+            PartitionPlanningContext context,
+            Map<Integer, Integer> externalInputIndex,
+            List<AcceleratorDagInput> externalInputs,
+            Map<Integer, Integer> loweredNodeIndex
+    ) {
+        if (weightsNode == null || weightsNode.inputIds().size() != 1) {
+            return null;
+        }
+        CompiledNode attentionOutNode = context.compiledNode(weightsNode.inputIds().getFirst());
+        if (attentionOutNode == null
+                || attentionOutNode.operation() == null
+                || attentionOutNode.operation().opType() != Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION
+                || !(attentionOutNode.operation() instanceof scaledDotProductAttention attentionOp)
+                || (attentionOutNode.inputIds().size() != 3 && attentionOutNode.inputIds().size() != 4)) {
+            return null;
+        }
+        CompiledNode queryNode = context.compiledNode(attentionOutNode.inputIds().get(0));
+        CompiledNode keyNode = context.compiledNode(attentionOutNode.inputIds().get(1));
+        CompiledNode maskNode = attentionOutNode.inputIds().size() == 4
+                ? context.compiledNode(attentionOutNode.inputIds().get(3))
+                : null;
+        if (queryNode == null || keyNode == null) {
+            return null;
+        }
+        DataType dtype = weightsNode.dataType();
+        if (!isMetalFloatingDType(dtype)
+                || queryNode.dataType() != dtype
+                || keyNode.dataType() != dtype) {
+            return null;
+        }
+        if (maskNode != null && maskNode.dataType() != DataType.BOOL) {
+            return null;
+        }
+        AcceleratorDagValueRef queryRef = resolveOrAppendDagInput(queryNode, externalInputIndex, externalInputs, loweredNodeIndex);
+        AcceleratorDagValueRef keyRef = resolveOrAppendDagInput(keyNode, externalInputIndex, externalInputs, loweredNodeIndex);
+        AcceleratorDagValueRef maskRef = maskNode == null
+                ? AcceleratorDagValueRef.none()
+                : resolveOrAppendDagInput(maskNode, externalInputIndex, externalInputs, loweredNodeIndex);
+        if (queryRef.kind() == AcceleratorDagValueRefKind.NONE
+                || keyRef.kind() == AcceleratorDagValueRefKind.NONE
+                || (maskNode != null && maskRef.kind() == AcceleratorDagValueRefKind.NONE)) {
+            return null;
+        }
+        int[] outputShape = weightsNode.shape();
+        if (outputShape.length < 1 || outputShape.length > 4) {
+            return null;
+        }
+        return new AcceleratorDagNode(
+                weightsNode.id(),
+                AcceleratorDagNodeType.SDPA_WEIGHTS,
+                queryRef,
+                keyRef,
+                maskRef,
+                AcceleratorDagValueRef.none(),
+                Float.floatToIntBits((float) attentionOp.getScale()),
+                outputShape.length,
+                outputShape[0],
+                outputShape.length >= 2 ? outputShape[1] : 1,
+                outputShape.length >= 3 ? outputShape[2] : 1,
+                outputShape.length >= 4 ? outputShape[3] : 1,
+                weightsNode.dataType()
+        );
+    }
+
+    private AcceleratorDagValueRef resolveOrAppendDagInput(
+            CompiledNode node,
+            Map<Integer, Integer> externalInputIndex,
+            List<AcceleratorDagInput> externalInputs,
+            Map<Integer, Integer> loweredNodeIndex
+    ) {
+        if (node == null) {
+            return AcceleratorDagValueRef.none();
+        }
+        Integer loweredIndex = loweredNodeIndex.get(node.id());
+        if (loweredIndex != null) {
+            return AcceleratorDagValueRef.nodeOutput(loweredIndex);
+        }
+        Integer externalIndex = externalInputIndex.get(node.id());
+        if (externalIndex != null) {
+            return AcceleratorDagValueRef.externalInput(externalIndex);
+        }
+        int[] shape = node.shape();
+        if (shape.length < 1 || shape.length > 4) {
+            return AcceleratorDagValueRef.none();
+        }
+        int index = externalInputs.size();
+        externalInputIndex.put(node.id(), index);
+        externalInputs.add(new AcceleratorDagInput(node.id(), Arrays.stream(shape).boxed().toList(), node.dataType()));
+        return AcceleratorDagValueRef.externalInput(index);
     }
 
     private AcceleratorDagSpec tryBuildDenseLossDagSpec(AcceleratorSubgraphSpec subgraph, PartitionPlanningContext context) {
@@ -865,7 +1119,12 @@ public final class AcceleratorSubgraphLowerer {
         }
         CompiledNode scoreInput = context.compiledNode(lossNode.inputIds().getFirst());
         CompiledNode targets = context.compiledNode(lossNode.inputIds().get(1));
-        if (!isSupportedDenseLossValue(scoreInput) || !isSupportedDenseLossValue(targets)) {
+        DataType lossDType = lossNode.dataType();
+        if (!isMetalFloatingDType(lossDType)
+                || !isSupportedDenseLossValue(scoreInput)
+                || !isSupportedDenseLossValue(targets)
+                || scoreInput.dataType() != lossDType
+                || targets.dataType() != lossDType) {
             return null;
         }
 
@@ -882,7 +1141,7 @@ public final class AcceleratorSubgraphLowerer {
             externalScores = context.compiledNode(scoreInput.inputIds().getFirst());
             logSoftmaxInputIsInternal = true;
         }
-        if (!isSupportedDenseLossValue(externalScores)) {
+        if (!isSupportedDenseLossValue(externalScores) || externalScores.dataType() != lossDType) {
             return null;
         }
         int[] scoreShape = scoreInput.shape();
@@ -908,8 +1167,8 @@ public final class AcceleratorSubgraphLowerer {
         AcceleratorDagValueRef scoresRef = AcceleratorDagValueRef.externalInput(0);
         if (ce || logSoftmaxInputIsInternal) {
             int softmaxSourceNodeId = logSoftmaxInputIsInternal ? logSoftmaxNodeId : lossNode.id();
-            scoresRef = addNode(nodes, softmaxSourceNodeId, AcceleratorDagNodeType.SOFTMAX, scoresRef, AcceleratorDagValueRef.none(), classAxis, scoreShape, DataType.FLOAT32);
-            scoresRef = addNode(nodes, softmaxSourceNodeId, AcceleratorDagNodeType.LOG, scoresRef, AcceleratorDagValueRef.none(), 0, scoreShape, DataType.FLOAT32);
+            scoresRef = addNode(nodes, softmaxSourceNodeId, AcceleratorDagNodeType.SOFTMAX, scoresRef, AcceleratorDagValueRef.none(), classAxis, scoreShape, lossDType);
+            scoresRef = addNode(nodes, softmaxSourceNodeId, AcceleratorDagNodeType.LOG, scoresRef, AcceleratorDagValueRef.none(), 0, scoreShape, lossDType);
         }
         AcceleratorDagValueRef weighted = addNode(
                 nodes,
@@ -919,9 +1178,9 @@ public final class AcceleratorSubgraphLowerer {
                 AcceleratorDagValueRef.externalInput(1),
                 0,
                 scoreShape,
-                DataType.FLOAT32
+                lossDType
         );
-        AcceleratorDagValueRef reduced = addAllAxesSumNodes(nodes, lossNode.id(), weighted, scoreShape, DataType.FLOAT32);
+        AcceleratorDagValueRef reduced = addAllAxesSumNodes(nodes, lossNode.id(), weighted, scoreShape, lossDType);
         float scale = -1.0f / denseLossSampleCount(scoreShape, classAxis);
         addNode(
                 nodes,
@@ -931,7 +1190,7 @@ public final class AcceleratorSubgraphLowerer {
                 AcceleratorDagValueRef.none(),
                 Float.floatToIntBits(scale),
                 new int[]{1},
-                DataType.FLOAT32
+                lossDType
         );
         return new AcceleratorDagSpec(externalInputs, nodes, List.of(nodes.size() - 1), List.of(lossNode.id()));
     }
@@ -947,7 +1206,7 @@ public final class AcceleratorSubgraphLowerer {
 
     private boolean isSupportedDenseLossValue(CompiledNode node) {
         return node != null
-                && node.dataType() == DataType.FLOAT32
+                && isMetalFloatingDType(node.dataType())
                 && node.shape().length >= 1
                 && node.shape().length <= 4
                 && node.contiguous()
@@ -1283,6 +1542,12 @@ public final class AcceleratorSubgraphLowerer {
                 || type == AcceleratorDagNodeType.TAKE_ALONG_AXIS;
     }
 
+    private boolean isIndexWriteOrGradient(AcceleratorDagNodeType type) {
+        return type == AcceleratorDagNodeType.SCATTER_ADD
+                || type == AcceleratorDagNodeType.GATHER_GRAD
+                || type == AcceleratorDagNodeType.TAKE_ALONG_AXIS_GRAD;
+    }
+
     private AcceleratorDagSpec tryBuildLogSoftmaxDagSpec(AcceleratorSubgraphSpec subgraph, PartitionPlanningContext context) {
         if (subgraph == null || context == null || subgraph.orderedNodeIds().size() != 1) {
             return null;
@@ -1347,6 +1612,9 @@ public final class AcceleratorSubgraphLowerer {
         if (subgraph == null || context == null || subgraph.orderedNodeIds().isEmpty()) {
             return null;
         }
+        if (!hasSingleRegionOutput(subgraph)) {
+            return null;
+        }
         List<Integer> nodeIds = subgraph.orderedNodeIds();
         int outputNodeId = subgraph.outputNodeIds().isEmpty() ? nodeIds.getLast() : subgraph.outputNodeIds().getFirst();
         CompiledNode outputNode = context.compiledNode(outputNodeId);
@@ -1394,17 +1662,22 @@ public final class AcceleratorSubgraphLowerer {
         if (queryNode == null || permutedKeyNode == null || permutedKeyNode.operation() == null || permutedKeyNode.operation().opType() != Operation.OpType.PERMUTE) {
             return null;
         }
-        int permuteBits = resolveScalarValueBits(permutedKeyNode);
+        int permuteBits = resolveScalarValueBits(permutedKeyNode, context);
         if (permuteBits == Integer.MIN_VALUE) {
             return null;
         }
         CompiledNode keyNode = context.compiledNode(permutedKeyNode.inputIds().getFirst());
+        DataType dtype = outputNode.dataType();
         if (keyNode == null
-                || queryNode.dataType() != DataType.FLOAT32
-                || keyNode.dataType() != DataType.FLOAT32
-                || valueNode.dataType() != DataType.FLOAT32
+                || !isMetalFloatingDType(dtype)
+                || queryNode.dataType() != dtype
+                || keyNode.dataType() != dtype
+                || valueNode.dataType() != dtype
                 || valueNode.shape().length < 3
                 || valueNode.shape().length > 4) {
+            return null;
+        }
+        if (!allSpecializedInputsAreExternal(subgraph, queryNode, keyNode, valueNode)) {
             return null;
         }
 
@@ -1431,8 +1704,319 @@ public final class AcceleratorSubgraphLowerer {
         return new AcceleratorDagSpec(externalInputs, List.of(sdpaNode), List.of(0), List.of(outputNode.id()));
     }
 
+    private AcceleratorDagSpec tryBuildCanonicalBfloat16SdpaPrimitiveDagSpec(
+            AcceleratorSubgraphSpec subgraph,
+            PartitionPlanningContext context
+    ) {
+        if (subgraph == null || context == null || subgraph.orderedNodeIds().size() != 1 || !hasSingleRegionOutput(subgraph)) {
+            return null;
+        }
+        int outputNodeId = subgraph.outputNodeIds().isEmpty()
+                ? subgraph.orderedNodeIds().getFirst()
+                : subgraph.outputNodeIds().getFirst();
+        CompiledNode outputNode = context.compiledNode(outputNodeId);
+        if (outputNode == null
+                || outputNode.dataType() != DataType.BFLOAT16
+                || outputNode.operation() == null
+                || outputNode.operation().opType() != Operation.OpType.MATMUL
+                || outputNode.inputIds().size() != 2) {
+            return null;
+        }
+        CompiledNode attentionInputNode = context.compiledNode(outputNode.inputIds().getFirst());
+        CompiledNode valueNode = context.compiledNode(outputNode.inputIds().get(1));
+        if (attentionInputNode == null
+                || attentionInputNode.operation() == null
+                || valueNode == null
+                || valueNode.dataType() != DataType.BFLOAT16) {
+            return null;
+        }
+        boolean decomposedSoftmax = attentionInputNode.operation().opType() == Operation.OpType.DIV;
+        CompiledNode reduceMaxNode = null;
+        CompiledNode subNode = null;
+        CompiledNode expNode = null;
+        CompiledNode sumNode = null;
+        CompiledNode softmaxNode = null;
+        CompiledNode scoreNode;
+        if (decomposedSoftmax) {
+            if (attentionInputNode.inputIds().size() != 2) {
+                return null;
+            }
+            expNode = context.compiledNode(attentionInputNode.inputIds().getFirst());
+            sumNode = context.compiledNode(attentionInputNode.inputIds().get(1));
+            if (expNode == null
+                    || expNode.operation() == null
+                    || expNode.operation().opType() != Operation.OpType.EXP
+                    || expNode.inputIds().size() != 1
+                    || sumNode == null
+                    || sumNode.operation() == null
+                    || sumNode.operation().opType() != Operation.OpType.SUM
+                    || sumNode.inputIds().size() != 1
+                    || sumNode.inputIds().getFirst() != expNode.id()) {
+                return null;
+            }
+            subNode = context.compiledNode(expNode.inputIds().getFirst());
+            if (subNode == null
+                    || subNode.operation() == null
+                    || subNode.operation().opType() != Operation.OpType.SUB
+                    || subNode.inputIds().size() != 2) {
+                return null;
+            }
+            scoreNode = context.compiledNode(subNode.inputIds().getFirst());
+            reduceMaxNode = context.compiledNode(subNode.inputIds().get(1));
+            if (reduceMaxNode == null
+                    || reduceMaxNode.operation() == null
+                    || reduceMaxNode.operation().opType() != Operation.OpType.REDUCE_MAX
+                    || reduceMaxNode.inputIds().size() != 1
+                    || scoreNode == null
+                    || reduceMaxNode.inputIds().getFirst() != scoreNode.id()) {
+                return null;
+            }
+        } else if (attentionInputNode.operation().opType() == Operation.OpType.SOFTMAX) {
+            softmaxNode = attentionInputNode;
+            scoreNode = context.compiledNode(softmaxNode.inputIds().isEmpty() ? -1 : softmaxNode.inputIds().getFirst());
+        } else {
+            return null;
+        }
+        if (scoreNode == null
+                || scoreNode.operation() == null
+                || scoreNode.operation().opType() != Operation.OpType.MUL_SCALAR
+                || scoreNode.inputIds().size() != 1) {
+            return null;
+        }
+        CompiledNode qkNode = context.compiledNode(scoreNode.inputIds().getFirst());
+        if (qkNode == null
+                || qkNode.operation() == null
+                || qkNode.operation().opType() != Operation.OpType.MATMUL
+                || qkNode.inputIds().size() != 2) {
+            return null;
+        }
+        CompiledNode queryNode = context.compiledNode(qkNode.inputIds().getFirst());
+        CompiledNode permutedKeyNode = context.compiledNode(qkNode.inputIds().get(1));
+        if (queryNode == null
+                || queryNode.dataType() != DataType.BFLOAT16
+                || permutedKeyNode == null
+                || permutedKeyNode.operation() == null
+                || permutedKeyNode.operation().opType() != Operation.OpType.PERMUTE
+                || permutedKeyNode.inputIds().size() != 1) {
+            return null;
+        }
+        CompiledNode keyNode = context.compiledNode(permutedKeyNode.inputIds().getFirst());
+        if (keyNode == null || keyNode.dataType() != DataType.BFLOAT16) {
+            return null;
+        }
+        int permuteBits = resolveScalarValueBits(permutedKeyNode, context);
+        int scaleBits = resolveScalarValueBits(scoreNode, context);
+        int attentionBits = decomposedSoftmax ? 0 : resolveScalarValueBits(softmaxNode, context);
+        int reduceMaxBits = reduceMaxNode == null ? 0 : resolveScalarValueBits(reduceMaxNode, context);
+        int sumBits = sumNode == null ? 0 : resolveScalarValueBits(sumNode, context);
+        if (permuteBits == Integer.MIN_VALUE
+                || scaleBits == Integer.MIN_VALUE
+                || attentionBits == Integer.MIN_VALUE
+                || reduceMaxBits == Integer.MIN_VALUE
+                || sumBits == Integer.MIN_VALUE) {
+            return null;
+        }
+        if (!validDagShape(queryNode)
+                || !validDagShape(keyNode)
+                || !validDagShape(valueNode)
+                || !validDagShape(permutedKeyNode)
+                || !validDagShape(qkNode)
+                || !validDagShape(scoreNode)
+                || (!decomposedSoftmax && !validDagShape(softmaxNode))
+                || (decomposedSoftmax && (!validDagShape(reduceMaxNode)
+                || !validDagShape(subNode)
+                || !validDagShape(expNode)
+                || !validDagShape(sumNode)
+                || !validDagShape(attentionInputNode)))
+                || !validDagShape(outputNode)) {
+            return null;
+        }
+        List<AcceleratorDagInput> externalInputs = List.of(
+                new AcceleratorDagInput(queryNode.id(), shapeList(queryNode.shape()), queryNode.dataType()),
+                new AcceleratorDagInput(keyNode.id(), shapeList(keyNode.shape()), keyNode.dataType()),
+                new AcceleratorDagInput(valueNode.id(), shapeList(valueNode.shape()), valueNode.dataType())
+        );
+        List<AcceleratorDagNode> nodes = new ArrayList<>(decomposedSoftmax ? 9 : 5);
+        nodes.add(dagNode(
+                permutedKeyNode,
+                AcceleratorDagNodeType.PERMUTE,
+                AcceleratorDagValueRef.externalInput(1),
+                AcceleratorDagValueRef.none(),
+                AcceleratorDagValueRef.none(),
+                AcceleratorDagValueRef.none(),
+                permuteBits
+        ));
+        nodes.add(dagNode(
+                qkNode,
+                AcceleratorDagNodeType.MATMUL,
+                AcceleratorDagValueRef.externalInput(0),
+                AcceleratorDagValueRef.nodeOutput(0),
+                AcceleratorDagValueRef.none(),
+                AcceleratorDagValueRef.none(),
+                0
+        ));
+        nodes.add(dagNode(
+                scoreNode,
+                AcceleratorDagNodeType.MUL_SCALAR,
+                AcceleratorDagValueRef.nodeOutput(1),
+                AcceleratorDagValueRef.none(),
+                AcceleratorDagValueRef.none(),
+                AcceleratorDagValueRef.none(),
+                scaleBits
+        ));
+        int attentionOutputIndex;
+        if (decomposedSoftmax) {
+            nodes.add(dagNode(
+                    reduceMaxNode,
+                    AcceleratorDagNodeType.REDUCE_MAX,
+                    AcceleratorDagValueRef.nodeOutput(2),
+                    AcceleratorDagValueRef.none(),
+                    AcceleratorDagValueRef.none(),
+                    AcceleratorDagValueRef.none(),
+                    reduceMaxBits
+            ));
+            nodes.add(dagNode(
+                    subNode,
+                    AcceleratorDagNodeType.SUB,
+                    AcceleratorDagValueRef.nodeOutput(2),
+                    AcceleratorDagValueRef.nodeOutput(3),
+                    AcceleratorDagValueRef.none(),
+                    AcceleratorDagValueRef.none(),
+                    0
+            ));
+            nodes.add(dagNode(
+                    expNode,
+                    AcceleratorDagNodeType.EXP,
+                    AcceleratorDagValueRef.nodeOutput(4),
+                    AcceleratorDagValueRef.none(),
+                    AcceleratorDagValueRef.none(),
+                    AcceleratorDagValueRef.none(),
+                    0
+            ));
+            nodes.add(dagNode(
+                    sumNode,
+                    AcceleratorDagNodeType.SUM,
+                    AcceleratorDagValueRef.nodeOutput(5),
+                    AcceleratorDagValueRef.none(),
+                    AcceleratorDagValueRef.none(),
+                    AcceleratorDagValueRef.none(),
+                    sumBits
+            ));
+            nodes.add(dagNode(
+                    attentionInputNode,
+                    AcceleratorDagNodeType.DIV,
+                    AcceleratorDagValueRef.nodeOutput(5),
+                    AcceleratorDagValueRef.nodeOutput(6),
+                    AcceleratorDagValueRef.none(),
+                    AcceleratorDagValueRef.none(),
+                    0
+            ));
+            attentionOutputIndex = 7;
+        } else {
+            nodes.add(dagNode(
+                    softmaxNode,
+                    AcceleratorDagNodeType.SOFTMAX,
+                    AcceleratorDagValueRef.nodeOutput(2),
+                    AcceleratorDagValueRef.none(),
+                    AcceleratorDagValueRef.none(),
+                    AcceleratorDagValueRef.none(),
+                    attentionBits
+            ));
+            attentionOutputIndex = 3;
+        }
+        nodes.add(dagNode(
+                outputNode,
+                AcceleratorDagNodeType.MATMUL,
+                AcceleratorDagValueRef.nodeOutput(attentionOutputIndex),
+                AcceleratorDagValueRef.externalInput(2),
+                AcceleratorDagValueRef.none(),
+                AcceleratorDagValueRef.none(),
+                0
+        ));
+        return new AcceleratorDagSpec(externalInputs, nodes, List.of(nodes.size() - 1), List.of(outputNode.id()));
+    }
+
+    private AcceleratorDagSpec tryBuildSpecializedSdpaWeightsDagSpec(AcceleratorSubgraphSpec subgraph, PartitionPlanningContext context) {
+        if (subgraph == null || context == null || subgraph.orderedNodeIds().isEmpty()) {
+            return null;
+        }
+        if (!hasSingleRegionOutput(subgraph)) {
+            return null;
+        }
+        int outputNodeId = subgraph.outputNodeIds().isEmpty()
+                ? subgraph.orderedNodeIds().getLast()
+                : subgraph.outputNodeIds().getFirst();
+        CompiledNode weightsNode = context.compiledNode(outputNodeId);
+        if (weightsNode == null
+                || weightsNode.operation() == null
+                || weightsNode.operation().opType() != Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS
+                || weightsNode.inputIds().size() != 1) {
+            return null;
+        }
+        CompiledNode attentionNode = context.compiledNode(weightsNode.inputIds().getFirst());
+        if (attentionNode == null
+                || attentionNode.operation() == null
+                || attentionNode.operation().opType() != Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION
+                || !(attentionNode.operation() instanceof scaledDotProductAttention attentionOp)
+                || (attentionNode.inputIds().size() != 3 && attentionNode.inputIds().size() != 4)) {
+            return null;
+        }
+        CompiledNode queryNode = context.compiledNode(attentionNode.inputIds().get(0));
+        CompiledNode keyNode = context.compiledNode(attentionNode.inputIds().get(1));
+        CompiledNode maskNode = attentionNode.inputIds().size() == 4
+                ? context.compiledNode(attentionNode.inputIds().get(3))
+                : null;
+        if (queryNode == null || keyNode == null) {
+            return null;
+        }
+        DataType dtype = weightsNode.dataType();
+        if (!isMetalFloatingDType(dtype)
+                || queryNode.dataType() != dtype
+                || keyNode.dataType() != dtype
+                || weightsNode.shape().length < 3
+                || weightsNode.shape().length > 4) {
+            return null;
+        }
+        if (maskNode != null && maskNode.dataType() != DataType.BOOL) {
+            return null;
+        }
+        if (!allSpecializedInputsAreExternal(subgraph, queryNode, keyNode, maskNode)) {
+            return null;
+        }
+
+        List<AcceleratorDagInput> externalInputs = new ArrayList<>();
+        externalInputs.add(new AcceleratorDagInput(queryNode.id(), shapeList(queryNode.shape()), queryNode.dataType()));
+        externalInputs.add(new AcceleratorDagInput(keyNode.id(), shapeList(keyNode.shape()), keyNode.dataType()));
+        AcceleratorDagValueRef maskRef = AcceleratorDagValueRef.none();
+        if (maskNode != null) {
+            externalInputs.add(new AcceleratorDagInput(maskNode.id(), shapeList(maskNode.shape()), maskNode.dataType()));
+            maskRef = AcceleratorDagValueRef.externalInput(2);
+        }
+
+        int[] outputShape = weightsNode.shape();
+        AcceleratorDagNode weightsDagNode = new AcceleratorDagNode(
+                weightsNode.id(),
+                AcceleratorDagNodeType.SDPA_WEIGHTS,
+                AcceleratorDagValueRef.externalInput(0),
+                AcceleratorDagValueRef.externalInput(1),
+                maskRef,
+                AcceleratorDagValueRef.none(),
+                Float.floatToIntBits((float) attentionOp.getScale()),
+                outputShape.length,
+                outputShape[0],
+                outputShape.length >= 2 ? outputShape[1] : 1,
+                outputShape.length >= 3 ? outputShape[2] : 1,
+                outputShape.length >= 4 ? outputShape[3] : 1,
+                weightsNode.dataType()
+        );
+        return new AcceleratorDagSpec(externalInputs, List.of(weightsDagNode), List.of(0), List.of(weightsNode.id()));
+    }
+
     private AcceleratorDagSpec tryBuildSpecializedSdpaBackwardDagSpec(AcceleratorSubgraphSpec subgraph, PartitionPlanningContext context) {
         if (subgraph == null || context == null || subgraph.orderedNodeIds().size() != 1) {
+            return null;
+        }
+        if (!hasSingleRegionOutput(subgraph)) {
             return null;
         }
         int outputNodeId = subgraph.outputNodeIds().isEmpty() ? subgraph.orderedNodeIds().getFirst() : subgraph.outputNodeIds().getFirst();
@@ -1453,33 +2037,118 @@ public final class AcceleratorSubgraphLowerer {
                 || outGradNode == null) {
             return null;
         }
-        if (attentionOutNode.inputIds().size() != 3) {
+        if (attentionOutNode.inputIds().size() != 3 && attentionOutNode.inputIds().size() != 4) {
             return null;
         }
         CompiledNode queryNode = context.compiledNode(attentionOutNode.inputIds().get(0));
         CompiledNode keyNode = context.compiledNode(attentionOutNode.inputIds().get(1));
         CompiledNode valueNode = context.compiledNode(attentionOutNode.inputIds().get(2));
+        CompiledNode maskNode = attentionOutNode.inputIds().size() == 4
+                ? context.compiledNode(attentionOutNode.inputIds().get(3))
+                : null;
         if (queryNode == null || keyNode == null || valueNode == null) {
             return null;
         }
-        if (queryNode.dataType() != DataType.FLOAT32
-                || keyNode.dataType() != DataType.FLOAT32
-                || valueNode.dataType() != DataType.FLOAT32
-                || outGradNode.dataType() != DataType.FLOAT32) {
+        if (maskNode != null && maskNode.dataType() != DataType.BOOL) {
             return null;
         }
-        List<AcceleratorDagInput> externalInputs = List.of(
-                new AcceleratorDagInput(queryNode.id(), java.util.Arrays.stream(queryNode.shape()).boxed().toList(), queryNode.dataType()),
-                new AcceleratorDagInput(keyNode.id(), java.util.Arrays.stream(keyNode.shape()).boxed().toList(), keyNode.dataType()),
-                new AcceleratorDagInput(valueNode.id(), java.util.Arrays.stream(valueNode.shape()).boxed().toList(), valueNode.dataType()),
-                new AcceleratorDagInput(outGradNode.id(), java.util.Arrays.stream(outGradNode.shape()).boxed().toList(), outGradNode.dataType())
-        );
+        DataType dtype = outputNode.dataType();
+        if (!isMetalFloatingDType(dtype)
+                || queryNode.dataType() != dtype
+                || keyNode.dataType() != dtype
+                || valueNode.dataType() != dtype
+                || outGradNode.dataType() != dtype) {
+            return null;
+        }
+        if (backwardOp.getOutputKind() == scaledDotProductAttentionBackward.OutputKind.VALUE) {
+            if (!allSpecializedInputsAreExternal(subgraph, queryNode, keyNode, outGradNode, maskNode)) {
+                return null;
+            }
+            List<AcceleratorDagInput> externalInputs = new ArrayList<>(maskNode == null ? 3 : 4);
+            externalInputs.add(new AcceleratorDagInput(queryNode.id(), Arrays.stream(queryNode.shape()).boxed().toList(), queryNode.dataType()));
+            externalInputs.add(new AcceleratorDagInput(keyNode.id(), Arrays.stream(keyNode.shape()).boxed().toList(), keyNode.dataType()));
+            externalInputs.add(new AcceleratorDagInput(outGradNode.id(), Arrays.stream(outGradNode.shape()).boxed().toList(), outGradNode.dataType()));
+            AcceleratorDagValueRef maskRef = AcceleratorDagValueRef.none();
+            if (maskNode != null) {
+                externalInputs.add(new AcceleratorDagInput(maskNode.id(), Arrays.stream(maskNode.shape()).boxed().toList(), maskNode.dataType()));
+                maskRef = AcceleratorDagValueRef.externalInput(3);
+            }
+            int[] weightsShape = expectedScoresShape(queryNode.shape(), keyNode.shape());
+            if (weightsShape.length < 1 || weightsShape.length > 4) {
+                return null;
+            }
+            int[] weightsTransposedShape = transposeLastTwoShape(weightsShape);
+            int[] outputShape = outputNode.shape();
+            int permuteMode = encodePermuteAxes(lastTwoAxesSwap(weightsShape.length));
+            if (permuteMode == Integer.MIN_VALUE) {
+                return null;
+            }
+            List<AcceleratorDagNode> nodes = new ArrayList<>(3);
+            nodes.add(new AcceleratorDagNode(
+                    outputNode.id(),
+                    AcceleratorDagNodeType.SDPA_WEIGHTS,
+                    AcceleratorDagValueRef.externalInput(0),
+                    AcceleratorDagValueRef.externalInput(1),
+                    maskRef,
+                    AcceleratorDagValueRef.none(),
+                    Float.floatToIntBits((float) attentionOp.getScale()),
+                    weightsShape.length,
+                    weightsShape[0],
+                    weightsShape.length >= 2 ? weightsShape[1] : 1,
+                    weightsShape.length >= 3 ? weightsShape[2] : 1,
+                    weightsShape.length >= 4 ? weightsShape[3] : 1,
+                    outputNode.dataType()
+            ));
+            nodes.add(new AcceleratorDagNode(
+                    outputNode.id(),
+                    AcceleratorDagNodeType.PERMUTE,
+                    AcceleratorDagValueRef.nodeOutput(0),
+                    AcceleratorDagValueRef.none(),
+                    AcceleratorDagValueRef.none(),
+                    AcceleratorDagValueRef.none(),
+                    permuteMode,
+                    weightsTransposedShape.length,
+                    weightsTransposedShape[0],
+                    weightsTransposedShape.length >= 2 ? weightsTransposedShape[1] : 1,
+                    weightsTransposedShape.length >= 3 ? weightsTransposedShape[2] : 1,
+                    weightsTransposedShape.length >= 4 ? weightsTransposedShape[3] : 1,
+                    outputNode.dataType()
+            ));
+            nodes.add(new AcceleratorDagNode(
+                    outputNode.id(),
+                    AcceleratorDagNodeType.MATMUL,
+                    AcceleratorDagValueRef.nodeOutput(1),
+                    AcceleratorDagValueRef.externalInput(2),
+                    AcceleratorDagValueRef.none(),
+                    AcceleratorDagValueRef.none(),
+                    0,
+                    outputShape.length,
+                    outputShape[0],
+                    outputShape.length >= 2 ? outputShape[1] : 1,
+                    outputShape.length >= 3 ? outputShape[2] : 1,
+                    outputShape.length >= 4 ? outputShape[3] : 1,
+                    outputNode.dataType()
+            ));
+            return new AcceleratorDagSpec(externalInputs, nodes, List.of(2), List.of(outputNode.id()));
+        }
+        if (!allSpecializedInputsAreExternal(subgraph, queryNode, keyNode, valueNode, outGradNode, maskNode)) {
+            return null;
+        }
+        List<AcceleratorDagInput> externalInputs = new ArrayList<>(maskNode == null ? 4 : 5);
+        externalInputs.add(new AcceleratorDagInput(queryNode.id(), Arrays.stream(queryNode.shape()).boxed().toList(), queryNode.dataType()));
+        externalInputs.add(new AcceleratorDagInput(keyNode.id(), Arrays.stream(keyNode.shape()).boxed().toList(), keyNode.dataType()));
+        externalInputs.add(new AcceleratorDagInput(valueNode.id(), Arrays.stream(valueNode.shape()).boxed().toList(), valueNode.dataType()));
+        externalInputs.add(new AcceleratorDagInput(outGradNode.id(), Arrays.stream(outGradNode.shape()).boxed().toList(), outGradNode.dataType()));
+        if (maskNode != null) {
+            externalInputs.add(new AcceleratorDagInput(maskNode.id(), Arrays.stream(maskNode.shape()).boxed().toList(), maskNode.dataType()));
+        }
         AcceleratorDagNodeType nodeType = switch (backwardOp.getOutputKind()) {
             case QUERY -> AcceleratorDagNodeType.SDPA_BACKWARD_QUERY;
             case KEY -> AcceleratorDagNodeType.SDPA_BACKWARD_KEY;
             case VALUE -> AcceleratorDagNodeType.SDPA_BACKWARD_VALUE;
         };
         int[] outputShape = outputNode.shape();
+        AcceleratorDagValueRef maskRef = maskNode == null ? AcceleratorDagValueRef.none() : AcceleratorDagValueRef.externalInput(4);
         AcceleratorDagNode backwardNode = new AcceleratorDagNode(
                 outputNode.id(),
                 nodeType,
@@ -1487,6 +2156,7 @@ public final class AcceleratorSubgraphLowerer {
                 AcceleratorDagValueRef.externalInput(1),
                 AcceleratorDagValueRef.externalInput(2),
                 AcceleratorDagValueRef.externalInput(3),
+                maskRef,
                 Float.floatToIntBits((float) attentionOp.getScale()),
                 outputShape.length,
                 outputShape[0],
@@ -1496,6 +2166,130 @@ public final class AcceleratorSubgraphLowerer {
                 outputNode.dataType()
         );
         return new AcceleratorDagSpec(externalInputs, List.of(backwardNode), List.of(0), List.of(outputNode.id()));
+    }
+
+    private boolean hasSingleRegionOutput(AcceleratorSubgraphSpec subgraph) {
+        return subgraph.outputNodeIds().isEmpty() || subgraph.outputNodeIds().size() == 1;
+    }
+
+    private boolean validDagShape(CompiledNode node) {
+        if (node == null || node.shape() == null) {
+            return false;
+        }
+        int rank = node.shape().length;
+        return rank >= 1 && rank <= 4;
+    }
+
+    private AcceleratorDagNode dagNode(
+            CompiledNode node,
+            AcceleratorDagNodeType type,
+            AcceleratorDagValueRef input0,
+            AcceleratorDagValueRef input1,
+            AcceleratorDagValueRef input2,
+            AcceleratorDagValueRef input3,
+            int scalarValueBits
+    ) {
+        int[] shape = node.shape();
+        return new AcceleratorDagNode(
+                node.id(),
+                type,
+                input0,
+                input1,
+                input2,
+                input3,
+                scalarValueBits,
+                shape.length,
+                shape[0],
+                shape.length >= 2 ? shape[1] : 1,
+                shape.length >= 3 ? shape[2] : 1,
+                shape.length >= 4 ? shape[3] : 1,
+                node.dataType()
+        );
+    }
+
+    private int[] expectedScoresShape(int[] queryShape, int[] keyShape) {
+        if (queryShape == null || keyShape == null || queryShape.length < 2 || keyShape.length < 2) {
+            return new int[0];
+        }
+        int[] qBatch = Arrays.copyOf(queryShape, queryShape.length - 2);
+        int[] kBatch = Arrays.copyOf(keyShape, keyShape.length - 2);
+        int[] batch = broadcastBatchShape(qBatch, kBatch);
+        if (batch == null) {
+            return new int[0];
+        }
+        int[] out = Arrays.copyOf(batch, batch.length + 2);
+        out[out.length - 2] = queryShape[queryShape.length - 2];
+        out[out.length - 1] = keyShape[keyShape.length - 2];
+        return out;
+    }
+
+    private int[] broadcastBatchShape(int[] left, int[] right) {
+        int rank = Math.max(left.length, right.length);
+        int[] out = new int[rank];
+        for (int i = 0; i < rank; i++) {
+            int leftIndex = left.length - 1 - i;
+            int rightIndex = right.length - 1 - i;
+            int l = leftIndex >= 0 ? left[leftIndex] : 1;
+            int r = rightIndex >= 0 ? right[rightIndex] : 1;
+            if (l != r && l != 1 && r != 1) {
+                return null;
+            }
+            out[rank - 1 - i] = Math.max(l, r);
+        }
+        return out;
+    }
+
+    private int[] transposeLastTwoShape(int[] shape) {
+        int[] out = shape.clone();
+        if (out.length >= 2) {
+            int last = out.length - 1;
+            int tmp = out[last];
+            out[last] = out[last - 1];
+            out[last - 1] = tmp;
+        }
+        return out;
+    }
+
+    private int[] lastTwoAxesSwap(int rank) {
+        int[] axes = new int[rank];
+        for (int i = 0; i < rank; i++) {
+            axes[i] = i;
+        }
+        if (rank >= 2) {
+            axes[rank - 2] = rank - 1;
+            axes[rank - 1] = rank - 2;
+        }
+        return axes;
+    }
+
+    private int encodePermuteAxes(int[] axes) {
+        if (axes == null || axes.length < 1 || axes.length > 4) {
+            return Integer.MIN_VALUE;
+        }
+        int encoded = axes.length & 0xFF;
+        boolean[] seen = new boolean[axes.length];
+        for (int i = 0; i < axes.length; i++) {
+            int axis = axes[i];
+            if (axis < 0 || axis >= axes.length || seen[axis]) {
+                return Integer.MIN_VALUE;
+            }
+            seen[axis] = true;
+            encoded |= (axis & 0xF) << (8 + i * 4);
+        }
+        return encoded;
+    }
+
+    private boolean allSpecializedInputsAreExternal(AcceleratorSubgraphSpec subgraph, CompiledNode... inputs) {
+        if (subgraph == null || inputs == null) {
+            return false;
+        }
+        java.util.Set<Integer> selected = java.util.Set.copyOf(subgraph.orderedNodeIds());
+        for (CompiledNode input : inputs) {
+            if (input != null && selected.contains(input.id())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private AcceleratorDagValueRef resolveDagValueRef(
@@ -1527,6 +2321,8 @@ public final class AcceleratorSubgraphLowerer {
             case SUB -> AcceleratorDagNodeType.SUB;
             case MUL -> AcceleratorDagNodeType.MUL;
             case DIV -> AcceleratorDagNodeType.DIV;
+            case MIN -> AcceleratorDagNodeType.MIN;
+            case MAX -> AcceleratorDagNodeType.MAX;
             case RELU -> AcceleratorDagNodeType.RELU;
             case TANH, FAST_TANH -> AcceleratorDagNodeType.TANH;
             case SIGMOID -> AcceleratorDagNodeType.SIGMOID;
@@ -1541,9 +2337,12 @@ public final class AcceleratorSubgraphLowerer {
             case RESHAPE -> AcceleratorDagNodeType.RESHAPE;
             case CONTIGUOUS, NOOP -> AcceleratorDagNodeType.CONTIGUOUS;
             case PERMUTE -> AcceleratorDagNodeType.PERMUTE;
+            case EXPAND -> AcceleratorDagNodeType.EXPAND;
+            case SELECT -> AcceleratorDagNodeType.SELECT;
             case EXPAND_DIMS -> AcceleratorDagNodeType.EXPAND_DIMS;
             case SQUEEZE -> AcceleratorDagNodeType.SQUEEZE;
             case MUL_SCALAR -> AcceleratorDagNodeType.MUL_SCALAR;
+            case POW -> AcceleratorDagNodeType.POW_SCALAR;
             case WHERE -> AcceleratorDagNodeType.WHERE;
             case SOFTMAX -> AcceleratorDagNodeType.SOFTMAX;
             case SUM -> AcceleratorDagNodeType.SUM;
@@ -1563,9 +2362,18 @@ public final class AcceleratorSubgraphLowerer {
             case REDUCE_ANY -> AcceleratorDagNodeType.REDUCE_ANY;
             case GATHER -> AcceleratorDagNodeType.GATHER;
             case TAKE_ALONG_AXIS -> AcceleratorDagNodeType.TAKE_ALONG_AXIS;
+            case SCATTER_ADD -> AcceleratorDagNodeType.SCATTER_ADD;
+            case GATHER_GRAD -> AcceleratorDagNodeType.GATHER_GRAD;
+            case TAKE_ALONG_AXIS_GRAD -> AcceleratorDagNodeType.TAKE_ALONG_AXIS_GRAD;
             case CONV2D, CONV2D_GEMM -> AcceleratorDagNodeType.CONV2D;
+            case CONV2D_BACKWARD_INPUT, CONV2D_BACKWARD_INPUT_GEMM -> AcceleratorDagNodeType.CONV2D_BACKWARD_INPUT;
+            case CONV2D_BACKWARD_WEIGHT, CONV2D_BACKWARD_WEIGHT_GEMM -> AcceleratorDagNodeType.CONV2D_BACKWARD_WEIGHT;
             case MAX_POOL2D -> AcceleratorDagNodeType.MAX_POOL2D;
             case AVG_POOL2D -> AcceleratorDagNodeType.AVG_POOL2D;
+            case AVG_POOL2D_BACKWARD_INPUT -> AcceleratorDagNodeType.AVG_POOL2D_BACKWARD_INPUT;
+            case MAX_POOL2D_BACKWARD_INPUT -> AcceleratorDagNodeType.MAX_POOL2D_BACKWARD_INPUT;
+            case CROSS_ENTROPY_LOSS_INDICES -> AcceleratorDagNodeType.CROSS_ENTROPY_LOSS_INDICES;
+            case CROSS_ENTROPY_LOSS_INDICES_GRAD -> AcceleratorDagNodeType.CROSS_ENTROPY_LOSS_INDICES_GRAD;
             case SOFTMAX_GRAD -> AcceleratorDagNodeType.SOFTMAX_GRAD;
             case LOG_SOFTMAX_GRAD -> AcceleratorDagNodeType.LOG_SOFTMAX_GRAD;
             case REDUCE_MIN_GRAD -> AcceleratorDagNodeType.REDUCE_MIN_GRAD;
@@ -1578,6 +2386,10 @@ public final class AcceleratorSubgraphLowerer {
     }
 
     private int resolveScalarValueBits(CompiledNode node) {
+        return resolveScalarValueBits(node, null);
+    }
+
+    private int resolveScalarValueBits(CompiledNode node, PartitionPlanningContext context) {
         if (node == null || node.operation() == null) {
             return 0;
         }
@@ -1585,6 +2397,7 @@ public final class AcceleratorSubgraphLowerer {
             case CLAMP_MIN -> node.operation() instanceof clampMin clamp ? Float.floatToIntBits(clamp.getMinValueF32()) : 0;
             case CLAMP_MAX -> node.operation() instanceof clampMax clamp ? Float.floatToIntBits(clamp.getMaxValueF32()) : 0;
             case MUL_SCALAR -> node.operation() instanceof mulScalar op ? Float.floatToIntBits(op.getScalarF32()) : Integer.MIN_VALUE;
+            case POW -> node.operation() instanceof pow op ? Float.floatToIntBits(op.getExponentF32()) : Integer.MIN_VALUE;
             case SOFTMAX -> node.operation() instanceof softmax op ? op.getDimension() : Integer.MIN_VALUE;
             case SUM -> node.operation() instanceof sum op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
             case MEAN -> node.operation() instanceof mean op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
@@ -1594,10 +2407,21 @@ public final class AcceleratorSubgraphLowerer {
             case REDUCE_ANY -> node.operation() instanceof reduceAny op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
             case GATHER -> node.operation() instanceof gather op ? op.getDimension() : Integer.MIN_VALUE;
             case TAKE_ALONG_AXIS -> node.operation() instanceof takeAlongAxis op ? op.getDimension() : Integer.MIN_VALUE;
+            case SCATTER_ADD -> node.operation() instanceof operations.index.scatterAdd op ? op.getDimension() : Integer.MIN_VALUE;
+            case GATHER_GRAD -> node.operation() instanceof operations.index.gatherGrad op ? op.getDimension() : Integer.MIN_VALUE;
+            case TAKE_ALONG_AXIS_GRAD -> node.operation() instanceof operations.index.takeAlongAxisGrad op ? op.getDimension() : Integer.MIN_VALUE;
             case CONV2D -> node.operation() instanceof conv2d op ? encodeConv2dMode(op) : Integer.MIN_VALUE;
             case CONV2D_GEMM -> node.operation() instanceof conv2dGemm op ? encodeConv2dMode(op) : Integer.MIN_VALUE;
+            case CONV2D_BACKWARD_INPUT -> node.operation() instanceof conv2dBackwardInput op ? encodeConv2dMode(op.getOptions()) : Integer.MIN_VALUE;
+            case CONV2D_BACKWARD_INPUT_GEMM -> node.operation() instanceof conv2dBackwardInputGemm op ? encodeConv2dMode(op.getOptions()) : Integer.MIN_VALUE;
+            case CONV2D_BACKWARD_WEIGHT -> node.operation() instanceof conv2dBackwardWeight op ? encodeConv2dMode(op.getOptions()) : Integer.MIN_VALUE;
+            case CONV2D_BACKWARD_WEIGHT_GEMM -> node.operation() instanceof conv2dBackwardWeightGemm op ? encodeConv2dMode(op.getOptions()) : Integer.MIN_VALUE;
             case MAX_POOL2D -> node.operation() instanceof maxPool2d op ? encodePool2dMode(op.getOptions()) : Integer.MIN_VALUE;
             case AVG_POOL2D -> node.operation() instanceof avgPool2d op ? encodePool2dMode(op.getOptions()) : Integer.MIN_VALUE;
+            case AVG_POOL2D_BACKWARD_INPUT -> node.operation() instanceof avgPool2dBackwardInput op ? encodePool2dMode(op.getOptions()) : Integer.MIN_VALUE;
+            case MAX_POOL2D_BACKWARD_INPUT -> node.operation() instanceof maxPool2dBackwardInput op ? encodePool2dMode(op.getOptions()) : Integer.MIN_VALUE;
+            case CROSS_ENTROPY_LOSS_INDICES -> node.operation() instanceof crossEntropyLossIndices op ? encodeCrossEntropyLossIndicesMode(op) : Integer.MIN_VALUE;
+            case CROSS_ENTROPY_LOSS_INDICES_GRAD -> node.operation() instanceof crossEntropyLossIndicesGrad op ? encodeAxisMode(op.getClassDimension()) : Integer.MIN_VALUE;
             case SOFTMAX_GRAD -> node.operation() instanceof softmaxGrad op ? op.getDimension() : Integer.MIN_VALUE;
             case LOG_SOFTMAX_GRAD -> node.operation() instanceof logSoftmaxGrad op ? op.getDimension() : Integer.MIN_VALUE;
             case REDUCE_MIN_GRAD -> node.operation() instanceof reduceMinGrad op ? op.getDimension() : Integer.MIN_VALUE;
@@ -1606,10 +2430,38 @@ public final class AcceleratorSubgraphLowerer {
             case MAX_GRAD -> node.operation() instanceof maxGrad op ? (op.isForFirstInput() ? 1 : 0) : Integer.MIN_VALUE;
             case SCALED_DOT_PRODUCT_ATTENTION -> node.operation() instanceof scaledDotProductAttention op ? Float.floatToIntBits((float) op.getScale()) : Integer.MIN_VALUE;
             case PERMUTE -> encodePermuteMode(node);
+            case SELECT -> encodeSelectMode(node, context);
             case EXPAND_DIMS -> node.operation() instanceof expandDims op ? op.getAxis() : Integer.MIN_VALUE;
             case SQUEEZE -> node.operation() instanceof squeeze op ? op.getAxis() : Integer.MIN_VALUE;
             default -> 0;
         };
+    }
+
+    private int encodeSelectMode(CompiledNode node, PartitionPlanningContext context) {
+        if (!(node.operation() instanceof select selectOp)) {
+            return Integer.MIN_VALUE;
+        }
+        CompiledNode input = context == null || node.inputIds().isEmpty()
+                ? null
+                : context.compiledNode(node.inputIds().getFirst());
+        int[] inputShape = input == null ? null : input.shape();
+        int axis = selectOp.getDimension();
+        int index = selectOp.getIndex();
+        if (axis < 0 || axis > 0xFFFF || index < 0 || index > 0xFFFF) {
+            return Integer.MIN_VALUE;
+        }
+        if (inputShape == null || inputShape.length < 1 || inputShape.length > 4) {
+            return Integer.MIN_VALUE;
+        }
+        if (axis >= inputShape.length || index >= inputShape[axis]) {
+            return Integer.MIN_VALUE;
+        }
+        int[] outputShape = node.shape();
+        int expectedOutputRank = inputShape.length == 1 ? 1 : inputShape.length - 1;
+        if (outputShape.length != expectedOutputRank) {
+            return Integer.MIN_VALUE;
+        }
+        return (axis & 0xFFFF) | ((index & 0xFFFF) << 16);
     }
 
     private int encodeReductionMode(int axis, boolean keepDims) {
@@ -1620,10 +2472,14 @@ public final class AcceleratorSubgraphLowerer {
     }
 
     private int encodeConv2dMode(conv2d op) {
-        int strideH = op.getOptions().strideH();
-        int strideW = op.getOptions().strideW();
-        int padH = op.getOptions().padH();
-        int padW = op.getOptions().padW();
+        return encodeConv2dMode(op.getOptions());
+    }
+
+    private int encodeConv2dMode(tensor.options.Conv2dOptions options) {
+        int strideH = options.strideH();
+        int strideW = options.strideW();
+        int padH = options.padH();
+        int padW = options.padW();
         if (strideH < 1 || strideH > 255 || strideW < 1 || strideW > 255 || padH < 0 || padH > 255 || padW < 0 || padW > 255) {
             return Integer.MIN_VALUE;
         }
@@ -1634,17 +2490,7 @@ public final class AcceleratorSubgraphLowerer {
     }
 
     private int encodeConv2dMode(conv2dGemm op) {
-        int strideH = op.getOptions().strideH();
-        int strideW = op.getOptions().strideW();
-        int padH = op.getOptions().padH();
-        int padW = op.getOptions().padW();
-        if (strideH < 1 || strideH > 255 || strideW < 1 || strideW > 255 || padH < 0 || padH > 255 || padW < 0 || padW > 255) {
-            return Integer.MIN_VALUE;
-        }
-        return (strideH & 0xFF)
-                | ((strideW & 0xFF) << 8)
-                | ((padH & 0xFF) << 16)
-                | ((padW & 0xFF) << 24);
+        return encodeConv2dMode(op.getOptions());
     }
 
     private int encodePool2dMode(tensor.options.Pool2dOptions options) {
@@ -1669,6 +2515,32 @@ public final class AcceleratorSubgraphLowerer {
                 | ((padH & 0xF) << 16)
                 | ((padW & 0xF) << 20)
                 | (options.countIncludePad() ? 1 << 24 : 0);
+    }
+
+    private int encodeCrossEntropyLossIndicesMode(crossEntropyLossIndices op) {
+        int axis = op.getClassDimension();
+        if (axis < 0 || axis > 0xFF) {
+            return Integer.MIN_VALUE;
+        }
+        int reductionCode = switch (op.getReduction()) {
+            case NONE -> 0;
+            case SUM -> 1;
+            case MEAN -> 2;
+        };
+        int encoded = axis | (reductionCode << 8);
+        if (op.hasIgnoreIndex()) {
+            int ignoreIndex = op.getIgnoreIndex();
+            if (ignoreIndex < Short.MIN_VALUE || ignoreIndex > Short.MAX_VALUE) {
+                return Integer.MIN_VALUE;
+            }
+            encoded |= 1 << 10;
+            encoded |= (ignoreIndex & 0xFFFF) << 16;
+        }
+        return encoded;
+    }
+
+    private int encodeAxisMode(int axis) {
+        return axis < 0 || axis > 0xFF ? Integer.MIN_VALUE : axis;
     }
 
     private int encodePermuteMode(CompiledNode node) {

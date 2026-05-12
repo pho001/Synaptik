@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
@@ -8,6 +8,7 @@ import tensor.DataType;
 import tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class SoftmaxExecutionTest {
@@ -19,13 +20,16 @@ public class SoftmaxExecutionTest {
         }, new int[]{2, 3}, null, "logits", DataType.FLOAT64);
 
         Tensor probs = logits.softmax(1);
-        CompiledGraph compiledGraph = CompiledGraph.compile(probs, OptimizerConfig.noOptimization());
+        CompiledGraph compiledGraph = CompiledGraph.compile(probs, CompileConfig.noGraphOptimizationBaseline());
         compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         double[] actual = probs.toDoubleArrayCopy();
         assertArrayEquals(softmaxRow(new double[]{1.0, 2.0, 3.0}), new double[]{actual[0], actual[1], actual[2]}, 1e-9);
         assertArrayEquals(new double[]{1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0}, new double[]{actual[3], actual[4], actual[5]}, 1e-9);
-        assertTrue(containsOp(compiledGraph, Operation.OpType.SOFTMAX));
+        assertFalse(containsOp(compiledGraph, Operation.OpType.SOFTMAX));
+        assertTrue(containsOp(compiledGraph, Operation.OpType.REDUCE_MAX));
+        assertTrue(containsOp(compiledGraph, Operation.OpType.EXP));
+        assertTrue(containsOp(compiledGraph, Operation.OpType.SUM));
     }
 
     @Test
@@ -33,7 +37,7 @@ public class SoftmaxExecutionTest {
         Tensor logits = new Tensor(new double[]{1000.0, 1001.0, 1002.0}, new int[]{1, 3}, null, "logits", DataType.FLOAT64);
 
         Tensor probs = logits.softmax(1);
-        CompiledGraph.compile(probs, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(probs, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(softmaxRow(new double[]{1000.0, 1001.0, 1002.0}), probs.toDoubleArrayCopy(), 1e-9);
@@ -45,7 +49,7 @@ public class SoftmaxExecutionTest {
         logits.setRequiresGrad(true);
         Tensor probs = logits.softmax(1);
 
-        CompiledGraph compiledGraph = CompiledGraph.compile(probs, OptimizerConfig.trainingDefaults());
+        CompiledGraph compiledGraph = CompiledGraph.compile(probs, CompileConfig.training());
         assertTrue(containsOp(compiledGraph, Operation.OpType.SOFTMAX_GRAD));
         compiledGraph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
@@ -60,7 +64,7 @@ public class SoftmaxExecutionTest {
         Tensor logits = new Tensor(new float[]{1.0f, 2.0f, 3.0f}, new int[]{1, 3}, null, "logits", DataType.FLOAT32);
         Tensor probs = logits.softmax(1);
 
-        CompiledGraph.compile(probs, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(probs, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(softmaxRow(new double[]{1.0, 2.0, 3.0}), probs.toDoubleArrayCopy(), 1e-6);

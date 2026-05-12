@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import org.junit.jupiter.api.Test;
@@ -26,11 +26,11 @@ public class BoolTensorInfrastructureTest {
         Tensor mask = new Tensor(new byte[]{1, 0, 0, 1, 1, 0}, new int[]{2, 3}, null, "mask", DataType.BOOL);
 
         Tensor permuted = mask.permute(1, 0);
-        CompiledGraph.compile(permuted, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(permuted, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         assertArrayEquals(new boolean[]{true, true, false, true, false, false}, permuted.toBooleanArrayCopy());
 
         Tensor materialized = permuted.contiguous();
-        CompiledGraph.compile(materialized, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(materialized, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         assertArrayEquals(new int[]{3, 2}, materialized.getShape());
         assertArrayEquals(new boolean[]{true, true, false, true, false, false}, materialized.toBooleanArrayCopy());
     }
@@ -40,13 +40,13 @@ public class BoolTensorInfrastructureTest {
         Tensor mask = new Tensor(new byte[]{1, 0, 1}, new int[]{1, 3}, null, "mask", DataType.BOOL);
 
         Tensor expanded = mask.expand(2, 3);
-        CompiledGraph.compile(expanded, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(expanded, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{0, 1}, expanded.getStrides());
         assertArrayEquals(new boolean[]{true, false, true, true, false, true}, expanded.toBooleanArrayCopy());
 
         Tensor contiguous = expanded.contiguous();
-        CompiledGraph.compile(contiguous, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(contiguous, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         assertArrayEquals(new boolean[]{true, false, true, true, false, true}, contiguous.toBooleanArrayCopy());
     }
 
@@ -55,7 +55,7 @@ public class BoolTensorInfrastructureTest {
         Tensor mask = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{2, 2}, null, "mask", DataType.BOOL);
         Tensor out = mask.forwardOutput();
 
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertEquals(DataType.BOOL, out.getDataType());
         assertArrayEquals(new boolean[]{true, false, true, true}, out.toBooleanArrayCopy());
@@ -76,9 +76,9 @@ public class BoolTensorInfrastructureTest {
         Tensor or = a.logicalOr(b);
         Tensor not = a.logicalNot();
 
-        CompiledGraph.compile(and, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(or, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(not, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(and, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(or, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(not, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new boolean[]{true, false, false, false}, and.toBooleanArrayCopy());
         assertArrayEquals(new boolean[]{true, true, true, false}, or.toBooleanArrayCopy());
@@ -91,7 +91,7 @@ public class BoolTensorInfrastructureTest {
         Tensor b = new Tensor(new byte[]{1, 0, 1}, new int[]{3}, null, "b", DataType.BOOL);
 
         Tensor out = a.logicalAnd(b);
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new boolean[]{true, false, true, false, false, true}, out.toBooleanArrayCopy());
     }
@@ -110,12 +110,12 @@ public class BoolTensorInfrastructureTest {
         Tensor allAll = mask.all();
         Tensor anyAll = mask.any();
 
-        CompiledGraph.compile(allAxis, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(allKeep, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(anyAxis, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(anyKeep, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(allAll, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(anyAll, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(allAxis, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(allKeep, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(anyAxis, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(anyKeep, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(allAll, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(anyAll, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2}, allAxis.getShape());
         assertArrayEquals(new boolean[]{false, true}, allAxis.toBooleanArrayCopy());

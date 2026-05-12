@@ -94,14 +94,14 @@ public record GpuTargetSemanticsContract(
         out.add(new GpuTargetSemanticsContract(
                 Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION,
                 GpuLoweringOperationFamily.ATTENTION,
-                "GPU admission is FLOAT32 query/key/value; dense effective BOOL masks are legal only where backend mask semantics are verified",
+                "GPU admission is dtype-matched FLOAT32/BFLOAT16 query/key/value; dense effective BOOL masks are legal only where backend mask semantics are verified",
                 "Phase 25 GPU admission is rank 3 or 4 attention tensors with softmax over the key axis",
                 "supported dense/view layouts only; unsupported layout families reject before native admission",
                 "query/key head dimensions must match, key/value sequence dimensions must match, output follows broadcast batch/head, query length, and value channel dimensions",
                 "scale must match AttentionOptions resolved scale; unmasked, causal, and external BOOL mask paths are separate verified cases",
                 "CPU parity tolerance must cover softmax stability, scale application order, mask fill behavior, and backend SDPA math differences",
                 false,
-                "Metal admits scale-verified unmasked, dense external BOOL masked, causal, and external+causal FLOAT32 rank-3/4 forward SDPA after parity evidence; unsupported backend variants remain capability-gated"
+                "Metal admits scale-verified unmasked, dense external BOOL masked, causal, and external+causal FLOAT32/BFLOAT16 rank-3/4 forward SDPA after parity evidence; unsupported backend variants remain capability-gated"
         ));
         addDenseLoss(out, Operation.OpType.NLL_LOSS, "dense target tensor multiplies log-probabilities along the class axis; public dense loss is mean-reduced by non-class sample count");
         addDenseLoss(out, Operation.OpType.CROSS_ENTROPY_LOSS, "dense target tensor multiplies log-softmax logits along the class axis; public dense loss is mean-reduced by non-class sample count");
@@ -155,14 +155,14 @@ public record GpuTargetSemanticsContract(
         out.add(new GpuTargetSemanticsContract(
                 opType,
                 GpuLoweringOperationFamily.LOSS_ADJACENT,
-                "dense FLOAT32 scores/log-probabilities and dense FLOAT32 targets for the Phase 37 Metal candidate scope; other dtypes reject explicitly until admitted",
+                "dense dtype-matched FLOAT32/BFLOAT16 scores/log-probabilities and dense targets for the Metal candidate scope; other dtypes reject explicitly",
                 "rank 1-4 with a descriptor class axis inside input rank",
                 "dense zero-offset input and target layouts only until GPU-side loss layout repair is proven",
                 "dense target shape equals input shape; output shape is [1] for the current public mean-reduced dense loss contract",
                 parameter,
                 "CPU parity must cover class-axis reduction, sample-count denominator, distribution targets, and numerically stable log-softmax behavior for cross entropy",
                 false,
-                "Metal admits the scoped dense FLOAT32 loss subset after Phase 37-02 lowering/parity evidence; other backends and unsupported variants remain capability-gated"
+                "Metal admits the scoped dense FLOAT32/BFLOAT16 loss subset after lowering/parity evidence; other backends and unsupported variants remain capability-gated"
         ));
     }
 
@@ -170,7 +170,7 @@ public record GpuTargetSemanticsContract(
         out.add(new GpuTargetSemanticsContract(
                 opType,
                 GpuLoweringOperationFamily.LOSS_ADJACENT,
-                "floating logits/probabilities; INT32 index targets are resident-representable but not native GPU loss compute until a backend primitive is admitted",
+                "dtype-matched FLOAT32/BFLOAT16 logits/probabilities plus INT32 index targets for admitted Metal loss candidates",
                 "rank follows the CPU loss descriptor contract",
                 "supported dense/view layouts only",
                 "scalar or reduced output shape follows loss reduction mode",
@@ -203,7 +203,7 @@ public record GpuTargetSemanticsContract(
         out.add(new GpuTargetSemanticsContract(
                 opType,
                 GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
-                "INT32 index tensors plus floating or dtype-preserving value tensors; native compute support is operation-specific; Phase 36 write/gradient support starts with dense FLOAT32 values",
+                "INT32 index tensors plus dtype-matched FLOAT32/BFLOAT16 value tensors; native compute support is operation-specific",
                 "rank follows operation descriptor and selected axis",
                 "supported dense/view layouts only; Phase 36 native write/gradient candidates require dense zero-offset inputs and outputs",
                 "output shape must match CPU indexing shape inference; gather-grad and take-along-axis-grad output the original input shape, scatter-add outputs the base shape",

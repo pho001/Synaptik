@@ -1,7 +1,7 @@
 import graph.CompiledGraph;
 import config.optimizer.PiecewiseLoweringConfig;
-import config.optimizer.OptimizerConfig;
-import config.optimizer.OptimizerStage;
+import config.compile.CompileConfig;
+import config.compile.GraphOptimizationConfig;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -18,7 +18,7 @@ public class AlgebraicRewritingSigmoidTest {
     void doesNotRewriteCanonicalSigmoidNegFormInCurrentArRule() {
         Tensor baselineInput = new Tensor(new double[]{0.7}, new int[]{1}, null, "x_base", DataType.FLOAT64);
         Tensor baselineOutput = baselineInput.neg().exp().add(Tensor.scalar(1.0)).inv();
-        CompiledGraph.compile(baselineOutput, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(baselineOutput, CompileConfig.noGraphOptimizationBaseline())
                 .execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
 
         Tensor optimizedInput = new Tensor(new double[]{0.7}, new int[]{1}, null, "x_opt", DataType.FLOAT64);
@@ -35,7 +35,7 @@ public class AlgebraicRewritingSigmoidTest {
     void doesNotRewriteCanonicalSigmoidMulScalarFormInCurrentArRule() {
         Tensor baselineInput = new Tensor(new double[]{1.3}, new int[]{1}, null, "x_base", DataType.FLOAT64);
         Tensor baselineOutput = baselineInput.mul(-1.0).exp().add(Tensor.scalar(1.0)).inv();
-        CompiledGraph.compile(baselineOutput, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(baselineOutput, CompileConfig.noGraphOptimizationBaseline())
                 .execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
 
         Tensor optimizedInput = new Tensor(new double[]{1.3}, new int[]{1}, null, "x_opt", DataType.FLOAT64);
@@ -66,7 +66,7 @@ public class AlgebraicRewritingSigmoidTest {
         Tensor baselineInput = new Tensor(new double[]{0.7}, new int[]{1}, null, "x_base", DataType.FLOAT64);
         baselineInput.setRequiresGrad(true);
         Tensor baselineOutput = baselineInput.neg().exp().add(Tensor.scalar(1.0)).inv();
-        CompiledGraph.compile(baselineOutput, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(baselineOutput, CompileConfig.noGraphOptimizationBaseline())
                 .execute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
 
         Tensor optimizedInput = new Tensor(new double[]{0.7}, new int[]{1}, null, "x_opt", DataType.FLOAT64);
@@ -105,17 +105,17 @@ public class AlgebraicRewritingSigmoidTest {
                 .anyMatch(opType -> opType == Operation.OpType.SIGMOID);
     }
 
-    private static OptimizerConfig arOnlyInferenceConfig() {
-        return OptimizerConfig.inferenceDefaults().withStageOrder(java.util.List.of(OptimizerStage.AR));
+    private static CompileConfig arOnlyInferenceConfig() {
+        return CompileConfig.inference().withGraphOptimization(GraphOptimizationConfig.stages(true, false, false, false, false));
     }
 
-    private static OptimizerConfig arWithPiecewiseConfig(PiecewiseLoweringConfig piecewiseLowering) {
-        return OptimizerConfig.inferenceDefaults()
-                .withStageOrder(java.util.List.of(OptimizerStage.AR))
-                .withRewrite(
-                        OptimizerConfig.inferenceDefaults()
+    private static CompileConfig arWithPiecewiseConfig(PiecewiseLoweringConfig piecewiseLowering) {
+        return CompileConfig.inference()
+                .withGraphOptimization(GraphOptimizationConfig
+                        .stages(true, false, false, false, false)
+                        .withRewrite(CompileConfig.inference()
+                                .graphOptimization()
                                 .rewrite()
-                                .withPiecewiseLowering(piecewiseLowering)
-                );
+                                .withPiecewiseLowering(piecewiseLowering)));
     }
 }

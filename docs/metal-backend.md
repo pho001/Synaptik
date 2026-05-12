@@ -143,10 +143,10 @@ would run as separate CPU operations unless the CPU fusion path could fuse the e
 1. User code builds a semantic graph with `Tensor` operations.
 2. `CompiledGraph.compile(...)` snapshots the graph and runs optimizer stages.
 3. `PART` may select a `GPU_METAL` ownership region if the graph policy allows accelerator ownership and the Metal planner says the nodes are legal.
-4. `FUSE` may annotate fusable structure inside the region. For Metal this affects the lowering family name, but execution still goes through an accelerator DAG.
+4. `FUSE` may annotate fusable structure inside the region. For Metal this is trace/manifest metadata only; the default lowering family stays the MPSGraph region path.
 5. `MetalRegionLowerer` converts the selected region into a lowered Metal unit:
-   - `METAL_FUSED_ELEMENTWISE_GRAPH` when the region is a single fused elementwise unit
-   - `METAL_GRAPH_REGION` otherwise
+   - `METAL_GRAPH_REGION` for MPSGraph-first execution, including regions that contain fused elementwise subpatterns
+   - CPU `Operation.OpType.FUSED` is never consumed by Metal lowering
 6. `MetalNodePreparer` creates a `PreparedMetalExecutable`.
 7. The executable compiles the lowered DAG through `MetalMpsFfmBridge.compile(...)`.
 8. At execution time, `PreparedMetalExecutable.execute(...)` checks bridge availability and resolves external inputs
@@ -214,17 +214,16 @@ Metal partition legality is intentionally separate from runtime availability. A 
 | Category | Current behavior |
 |---|---|
 | Leaves | Rejected as compute nodes. Leaves become external inputs to a Metal region. |
-| DType | Compute and output nodes must be `FLOAT32`, `BFLOAT16` for the scoped operation families listed in [Supported Operations And DTypes](#supported-operations-and-dtypes), or `BOOL` for the scoped compare/logical/reduction mask families. |
-| Forward ops | Allows `MATMUL`, `LINEAR`, arithmetic elementwise ops, common activations, `WHERE`, `SOFTMAX`, shape/layout ops such as `RESHAPE`, `CONTIGUOUS`, `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE`. |
-| Backward ops | Allows `MATMUL`, `LINEAR`, softmax/log-softmax gradients, min/max reduction gradients, min/max gradients, and planner-level `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD`; this allowlist is independent from forward-family support, and SDPA backward is not native-buffer executable until the bridge supports the backward SDPA DAG. |
-| Direct forward SDPA | Supported for legal dense FLOAT32 rank-3/4 inputs after native MPSGraph primitive DAG scale parity verification. |
+| DType | Floating compute and output nodes must be dtype-matched `FLOAT32` or `BFLOAT16` for Metal-supported floating operation families, or `BOOL` for scoped compare/logical/reduction mask families. |
+| Forward ops | Allows `MATMUL`, `LINEAR`, arithmetic elementwise ops, common activations, `WHERE`, `SOFTMAX`, shape/layout ops such as `RESHAPE`, `CONTIGUOUS`, `PERMUTE`, `EXPAND`, `EXPAND_DIMS`, and `SQUEEZE`. |
+| Backward ops | Allows `MATMUL`, `LINEAR`, softmax/log-softmax gradients, min/max reduction gradients, min/max gradients, and `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD` for unmasked, dense external BOOL masked, causal, and external+causal SDPA producers. |
+| Direct forward SDPA | Supported for legal dtype-matched `FLOAT32/BFLOAT16` rank-3/4 dense inputs or Q/K/V inputs produced by GPU-side layout legalization nodes after native MPSGraph primitive DAG scale parity verification. |
 | Direct masked/causal forward SDPA | Supported when the effective mask is a dense BOOL tensor: external mask, causal-only mask, and external+causal logical-AND mask all feed SDPA input 3. Unsupported mask dtype/layout/rank cases reject explicitly. |
-| Conv/pool | Not in the current tested Metal planner allowlist. |
+| Conv/pool | Supported for the current dense NCHW/OIHW `FLOAT32/BFLOAT16` contract; grouped/dilated conv and unsupported pooling variants still reject explicitly. |
 
 External input legality is role-sensitive. `MetalMpsCapabilities.supportsExternalInputRole(...)` allows:
 
-- `FLOAT32` for normal data inputs
-- `BFLOAT16` for scoped BF16 operation-family data inputs
+- `FLOAT32` or `BFLOAT16` for dtype-matched floating data inputs
 - `BOOL` for `WHERE` input 0 and direct SDPA input 3
 - internal `BOOL` mask values produced by supported Metal compare/logical/reduction ops feeding legal GPU consumers
 
@@ -342,7 +341,7 @@ and stores the resulting `MPSGraphExecutable` in `SynaptikAppleMpsExecutableBox`
 
 ### Operation lowering in the shim
 
-The Objective-C switch over node type codes maps the accelerator DAG to MPSGraph operations. The supported set includes matrix multiply, linear-style graph fragments, arithmetic elementwise ops, activations, `where`, softmax-related ops, shape ops, scoped BOOL compare/logical/reduction ops, and selected attention nodes present in the native code. Planner legality is stricter than the native switch: direct FLOAT32 rank-3/4 SDPA is admitted only after parity evidence, and the native shim expands it to `Q * K^T`, scale, optional BOOL mask select with CPU-compatible polarity, softmax, and `* V` MPSGraph primitives.
+The Objective-C switch over node type codes maps the accelerator DAG to MPSGraph operations. The supported set includes matrix multiply, linear-style graph fragments, arithmetic elementwise ops, activations, `where`, softmax-related ops, shape ops, scoped BOOL compare/logical/reduction ops, and selected attention nodes present in the native code. Planner legality is stricter than the native switch: direct FLOAT32/BFLOAT16 rank-3/4 SDPA is admitted only after parity evidence, and the native shim expands it to `Q * K^T`, scale, optional BOOL mask select with CPU-compatible polarity, softmax, and `* V` MPSGraph primitives.
 
 This split is intentional. Native source coverage is not enough to make an op legal. The planner allowlist documents what has been tested against Synaptik semantics.
 
@@ -513,14 +512,15 @@ materialization boundary is reached. `PERMUTE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZ
 contiguous-source `RESHAPE` can reuse the same `MetalBufferBinding` handle with updated shape, stride, storage-offset,
 and rank metadata. These metadata-only views do not allocate a Java array and do not copy bytes back to CPU storage.
 
-Dense GPU materialization covers `contiguous()` and non-contiguous-source `reshape` only when the Metal bridge exposes
-the optional layout materialization capability and the prepared run registers the backend-owned materializer service.
+Dense GPU materialization covers `contiguous()` and non-contiguous-source `reshape` for `FLOAT32`, `BFLOAT16`, and
+`BOOL` storage when the Metal bridge exposes the optional layout materialization capability and the prepared run registers
+the backend-owned materializer service.
 Without that service, AUTO mode falls back visibly and REQUIRE mode fails with `GPU_LAYOUT_TRANSFORM_UNSUPPORTED`.
 
 Phase 33 splits layout repair into explicit router routes. `METADATA_ONLY_VIEW` keeps borrowed device handles for view
 metadata. `DENSE_GPU_MATERIALIZATION` and `BROADCAST_GPU_MATERIALIZATION` allocate dense Metal destination buffers and
-run the native layout materializer. Broadcast repair is scoped to zero-stride `FLOAT32` views that can be proven safe by
-physical-span validation. `STRIDED_NATIVE_COMPUTE` is a named route class, but remains unsupported until a consumer
+run the native dtype-generic layout materializer for supported `FLOAT32`/`BFLOAT16`/`BOOL` storage. Broadcast repair is
+scoped to zero-stride views that can be proven safe by physical-span validation. `STRIDED_NATIVE_COMPUTE` is a named route class, but remains unsupported until a consumer
 operation explicitly proves direct strided execution.
 
 For Phase 10, the accepted CPU materialization boundaries are graph output publication, a real CPU consumer, and
@@ -670,21 +670,21 @@ Do not infer execution path from `backend=GPU_METAL` alone. A prepared step can 
 | Role | Supported today |
 |---|---|
 | Storage metadata/residency | `FLOAT32`, `BFLOAT16`, `INT32`, `BOOL`, `FLOAT64` are representable as dtype metadata; this is not native compute support. |
-| Compute node dtype | `FLOAT32`; `BFLOAT16` for scoped operation families only; `BOOL` for scoped compare/logical/reduction mask families |
-| Output dtype | `FLOAT32`; `BFLOAT16` for scoped operation families only; `BOOL` for scoped compare/logical/reduction mask families |
-| Normal external data input | `FLOAT32`; `BFLOAT16` only when the consuming operation family is BF16-supported |
+| Compute node dtype | `FLOAT32/BFLOAT16` for Metal-supported floating operation families; `BOOL` for scoped compare/logical/reduction mask families |
+| Output dtype | `FLOAT32/BFLOAT16` for Metal-supported floating operation families; `BOOL` for scoped compare/logical/reduction mask families |
+| Normal external data input | Dtype-matched `FLOAT32/BFLOAT16` for floating value roles |
 | Index external input | `INT32` only for supported forward `GATHER` / `TAKE_ALONG_AXIS` input 1 |
 | Predicate external input | `BOOL` only for `WHERE` input 0 |
 | Descriptor ABI coverage | dtype ABI v3 can describe `FLOAT32`, `BFLOAT16`, `INT32`, `BOOL`, and `FLOAT64` roles. |
-| Unsupported compute/output dtypes | `FLOAT64`, `INT32`; `BFLOAT16` and `BOOL` outside their scoped operation families |
+| Unsupported compute/output dtypes | `FLOAT64`, `INT32`; `BOOL` outside scoped BOOL operation families |
 
-BF16 support is real but deliberately narrow. It requires the dtype ABI v3 compile path and currently covers `MATMUL`, `LINEAR`, arithmetic elementwise and activation ops, scalar multiply/clamp, `SOFTMAX`, `LOG_SOFTMAX`, `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`, `LAYER_NORM`, and `RMS_NORM`. It does not make every Metal row BF16-capable.
+BF16 support requires the dtype ABI v3 compile path and follows the same operation-family coverage as Metal `FLOAT32` for floating tensors. It does not expand shape/layout semantics beyond the current Metal contract.
 
 BOOL support is also real but deliberately narrow. Metal can produce and consume device-resident BOOL outputs for dense scoped compare ops (`GT`, `GE`, `LT`, `LE`, `EQ`, `NE`), logical ops (`LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`), and BOOL reductions (`REDUCE_ALL`, `REDUCE_ANY`). A supported `compare -> WHERE -> elementwise` chain should remain a single Metal-owned lowered region with `dtypeResidency` evidence for `dtype=BOOL` and no CPU materialization between the mask producer and `WHERE`.
 
-Forward `GATHER` and `TAKE_ALONG_AXIS` support is deliberately scoped: dense `FLOAT32` value/output tensors, dense static leaf `INT32` indices, proven in-bounds index values, and native buffer execution through MPSGraph `gatherAlongAxis`. This is not generic INT32 arithmetic or INT32 output support. `gather_take_small` is the native forward-index hot-path target; `scatter_index_gradient_small` is a separate visible-blocker target for `SCATTER_ADD`, `GATHER_GRAD`, and `TAKE_ALONG_AXIS_GRAD`.
+Forward `GATHER` and `TAKE_ALONG_AXIS` support is deliberately scoped: dense `FLOAT32/BFLOAT16` value/output tensors, dense static leaf `INT32` indices, proven in-bounds index values, and native buffer execution through MPSGraph `gatherAlongAxis`. Index-target cross entropy uses the same INT32 role discipline: dense static in-bounds targets are accepted for `CROSS_ENTROPY_LOSS_INDICES` and `CROSS_ENTROPY_LOSS_INDICES_GRAD`; generic INT32 arithmetic/output remains unsupported.
 
-Unsupported BF16 and BOOL families still reject with stable dtype or operation-family diagnostics. Dense loss-adjacent ops now support a scoped Phase 37 path: `NLL_LOSS` and dense `CROSS_ENTROPY_LOSS` are limited to `FLOAT32` dense rank 1..4 inputs, dense same-shape targets, a valid class axis, and public mean-reduced output shape `[1]`. `dense_loss_small` is the positive coverage target for this path; it requires native buffer-binding evidence and no CPU or tensor-array fallback. `cross_entropy_small` is intentionally separate and remains the index-target visible-blocker target with `UNSUPPORTED_INDEX_SEMANTICS`. Conv/pool variants outside the scoped forward `FLOAT32` dense subset, gather/take gradients, scatter, index-target loss ops, generic INT32 compute/output, arbitrary BOOL consumers, and non-dense/unsupported SDPA mask layouts remain separate future phases.
+Unsupported BOOL families still reject with stable dtype or operation-family diagnostics. Dense loss-adjacent ops support dtype-matched `FLOAT32/BFLOAT16` paths for `NLL_LOSS` and dense `CROSS_ENTROPY_LOSS`. Index-target `CROSS_ENTROPY_LOSS_INDICES` and `CROSS_ENTROPY_LOSS_INDICES_GRAD` now stay device-owned for dense `FLOAT32/BFLOAT16` logits/sampleScale and dense static in-bounds `INT32` targets, including ignore-index masking and `NONE`/`SUM`/`MEAN` reductions. Remaining rejections are scoped capability decisions such as grouped/dilated conv variants, generic INT32 compute/output, arbitrary BOOL consumers, and non-dense/unsupported SDPA mask layouts.
 
 ### Planner allowlist
 
@@ -705,6 +705,7 @@ LAYER_NORM, RMS_NORM,
 SCALED_DOT_PRODUCT_ATTENTION,
 NLL_LOSS, CROSS_ENTROPY_LOSS,
 GATHER, TAKE_ALONG_AXIS,
+CROSS_ENTROPY_LOSS_INDICES,
 CONV2D, CONV2D_GEMM,
 MAX_POOL2D, AVG_POOL2D,
 RESHAPE, CONTIGUOUS, NOOP, PERMUTE, EXPAND_DIMS, SQUEEZE
@@ -717,15 +718,19 @@ MATMUL, LINEAR,
 SOFTMAX_GRAD, LOG_SOFTMAX_GRAD,
 REDUCE_MIN_GRAD, REDUCE_MAX_GRAD,
 MIN_GRAD, MAX_GRAD,
-SCALED_DOT_PRODUCT_ATTENTION_BACKWARD
+SCALED_DOT_PRODUCT_ATTENTION_BACKWARD,
+CROSS_ENTROPY_LOSS_INDICES_GRAD,
+GATHER_GRAD, TAKE_ALONG_AXIS_GRAD, SCATTER_ADD,
+CONV2D_BACKWARD_INPUT, CONV2D_BACKWARD_WEIGHT,
+CONV2D_BACKWARD_INPUT_GEMM, CONV2D_BACKWARD_WEIGHT_GEMM,
+MAX_POOL2D_BACKWARD_INPUT, AVG_POOL2D_BACKWARD_INPUT
 ```
 
 Notable current exclusions:
 
-- grouped/dilated/unsupported-dtype Conv2D variants and conv backward ops
-- pooling backward ops and unsupported pooling variants such as `AVG_POOL2D countIncludePad=true`
-- `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, `SCATTER_ADD`, and index-target loss ops
-- `FLOAT64`, `INT32`, unsupported `BFLOAT16`, and unsupported `BOOL` compute/output graphs
+- grouped/dilated Conv2D variants and dtype-mismatched Conv2D inputs
+- unsupported pooling variants such as `AVG_POOL2D countIncludePad=true`
+- `FLOAT64`, `INT32`, and unsupported `BOOL` compute/output graphs
 - forward support does not imply backward support; backward target truth is tracked per op in `GpuTargetCoverageTruth`
 
 ## Fallbacks And Failure Modes
@@ -734,16 +739,16 @@ Notable current exclusions:
 |---|---|---|
 | Native library missing | `MetalMpsFfmBridge.init()` | Bridge unavailable; selected Metal region falls back to CPU. |
 | Older `.dylib` without buffer symbols | `supportsBufferBindings()` | Legacy tensor-array path may still run; no `BUFFER_BINDING` claim. |
-| Illegal dtype | `MetalPartitionSupport`, `MetalMpsCapabilities`, runtime checks | Planner rejects or runtime falls back with unsupported dtype reason. BF16 and BOOL outside the scoped operation families remain illegal. |
+| Illegal dtype | `MetalPartitionSupport`, `MetalMpsCapabilities`, runtime checks | Planner rejects or runtime falls back with unsupported dtype reason. FLOAT64, generic INT32 compute/output, dtype-mismatched floating inputs, and BOOL outside scoped operation families remain illegal. |
 | Illegal external `BOOL` role | `MetalMpsCapabilities.supportsExternalInputRole(...)` | Planner rejects candidate. |
 | Missing BOOL residency evidence | Coverage regression gate | Supported `bool_compare_where_small` fails if traces do not show native buffer execution and non-rejected `dtype=BOOL` residency evidence. |
 | Illegal or unproven index input | `MetalPartitionSupport`, `MetalMpsCapabilities.supportsExternalInputRole(...)` | Forward gather/take rejects non-`INT32`, non-dense, non-static, or out-of-bounds indices with stable `UNSUPPORTED_DTYPE`, `UNSUPPORTED_LAYOUT`, or `UNSUPPORTED_BOUNDS_CHECK` details. |
-| Index write/gradient duplicate accumulation unproven | `GpuLoweringCoverageMatrix`, `MetalPartitionSupport`, `MetalIndexWriteSemantics` | `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, and `SCATTER_ADD` first validate dtype, dense layout, rank/shape, axis, static `INT32` bounds, then reject with `UNSUPPORTED_DUPLICATE_INDEX` until native execution proves CPU-compatible accumulation semantics. |
+| Illegal index write/gradient input | `MetalPartitionSupport`, `MetalIndexWriteSemantics` | `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, and `SCATTER_ADD` are native Metal rows for dense `FLOAT32` values/output with static in-bounds `INT32` indices. Invalid dtype, layout, rank/shape, axis, dynamic-index, or out-of-bounds cases reject before native execution. |
 | Dense loss unsupported variant | `GpuLoweringCoverageMatrix`, `MetalPartitionSupport`, `MetalLossSemantics` | `NLL_LOSS` and dense `CROSS_ENTROPY_LOSS` reject non-`FLOAT32`, non-dense, rank > 4, mismatched dense-target shape, invalid class-axis, or non-`[1]` output cases before native admission. |
 | Missing dense loss native evidence | Coverage regression gate | `dense_loss_small` fails if traces do not show native buffer execution, lowered dense-loss primitives, and no CPU/tensor-array fallback. |
-| Index-target loss counted as dense loss support | Coverage regression gate | `cross_entropy_small` is separate from `dense_loss_small` and must expose `UNSUPPORTED_INDEX_SEMANTICS`, `INT32`, or `CROSS_ENTROPY_LOSS_INDICES` as visible blocker evidence. |
+| Index-target loss counted as dense loss support | Coverage regression gate | `cross_entropy_small` is separate from `dense_loss_small` and now requires native Metal buffer evidence for `CROSS_ENTROPY_LOSS_INDICES`; CUDA still requires visible blocker evidence. |
 | Missing INT32 index residency evidence | Coverage regression gate | Supported `gather_take_small` fails if traces do not show native buffer execution and non-rejected `dtype=INT32` residency evidence. |
-| Forward index coverage counted as scatter/index-gradient support | Coverage regression gate | `scatter_index_gradient_small` is separate from `gather_take_small` and must expose `UNSUPPORTED_DUPLICATE_INDEX`, `SCATTER_ADD`, `GATHER_GRAD`, or `TAKE_ALONG_AXIS_GRAD` as a visible blocker. |
+| Forward index coverage counted as scatter/index-gradient support | Coverage regression gate | `scatter_index_gradient_small` is separate from `gather_take_small` and now requires native Metal buffer evidence for `SCATTER_ADD`, `GATHER_GRAD`, and `TAKE_ALONG_AXIS_GRAD`; CUDA still requires visible blocker evidence. |
 | Gradient publication counted as hidden CPU exit | Coverage regression gate | `training_*` supported targets allow bounded `GRADIENT_PUBLICATION` materialization while failing non-zero `internalCpuMaterializationCount`, tensor-array replay, or CPU fallback. |
 | Missing layout materialization evidence | Coverage regression gate | Supported `layout_broadcast_repair_small` fails if traces do not show `BROADCAST_GPU_MATERIALIZATION`, native buffer execution, and no `CPU_CONSUMER` materialization. |
 | Broadcast zero-stride output layout | `MetalLayoutPolicy.output(...)` | Direct broadcast output buffers remain unsupported with `OUTPUT_LAYOUT_UNSUPPORTED`; explicit `expand -> contiguous` repair can use `BROADCAST_GPU_MATERIALIZATION`. |

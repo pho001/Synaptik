@@ -84,11 +84,29 @@ public interface MetalMpsGraphBridge {
     /**
      * Returns whether this bridge exposes the internal MPSGraph output-buffer write proof probe.
      *
-     * <p>This is diagnostic evidence only. It does not imply normal MPSGraph execution can skip its
-     * explicit result-copy path or report {@code TRUE_OUTPUT_BUFFER_WRITE}.</p>
+     * <p>This is diagnostic evidence until a route-specific proof succeeds. Bridges may use a successful
+     * proof to replace the conservative result-copy path with {@code TRUE_OUTPUT_BUFFER_WRITE} for the
+     * matching executable.</p>
      */
     default boolean supportsOutputBufferWriteProbe() {
         return false;
+    }
+
+    /**
+     * Diagnostically proves whether a no-copy MPSGraph buffer execution writes the same bytes into
+     * caller-supplied output buffers as the conservative copied result path.
+     *
+     * <p>This proof is intentionally not the normal execution path: implementations may run the graph more
+     * than once and allocate temporary output buffers. Callers should use it for capability classification,
+     * benchmark triage, or route gating, not for steady-state execution.</p>
+     */
+    default MetalOutputBufferWriteProbeResult probeOutputBufferWriteContract(
+            MetalMpsBridgeContext bridgeContext,
+            MetalMpsBridgeExecutable executable,
+            List<MetalBufferBinding> externalInputs,
+            List<MetalBufferBinding> outputs
+    ) {
+        return MetalOutputBufferWriteProbeResult.unsupported("bridge does not expose output-buffer write proof");
     }
 
     /**

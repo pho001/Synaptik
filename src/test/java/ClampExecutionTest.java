@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import org.junit.jupiter.api.Test;
@@ -16,7 +16,7 @@ public class ClampExecutionTest {
         Tensor x = new Tensor(new double[]{-2.0, -0.5, 0.5, 3.0}, new int[]{4}, null, "x", DataType.FLOAT64);
 
         Tensor y = x.clamp(0.0, 1.0);
-        CompiledGraph.compile(y, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{0.0, 0.0, 0.5, 1.0}, y.toDoubleArrayCopy(), 1e-9);
     }
@@ -27,7 +27,7 @@ public class ClampExecutionTest {
         x.setRequiresGrad(true);
 
         Tensor y = x.clamp(0.0, 1.0);
-        CompiledGraph.compile(y, OptimizerConfig.trainingDefaults()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph.compile(y, CompileConfig.training()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{0.0, 1.0, 1.0, 1.0, 0.0}, x.getGradient().toDoubleArrayCopy(), 1e-9);
     }
@@ -43,7 +43,7 @@ public class ClampExecutionTest {
         Tensor x = new Tensor(new double[]{-2.0, -0.5, 0.5, 3.0}, new int[]{4}, null, "x", DataType.FLOAT64);
 
         Tensor y = x.clampMin(0.0);
-        CompiledGraph.compile(y, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{0.0, 0.0, 0.5, 3.0}, y.toDoubleArrayCopy(), 1e-9);
     }
@@ -53,7 +53,7 @@ public class ClampExecutionTest {
         Tensor x = new Tensor(new double[]{-2.0, -0.5, 0.5, 3.0}, new int[]{4}, null, "x", DataType.FLOAT64);
 
         Tensor y = x.clampMax(1.0);
-        CompiledGraph.compile(y, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{-2.0, -0.5, 0.5, 1.0}, y.toDoubleArrayCopy(), 1e-9);
     }
@@ -63,13 +63,13 @@ public class ClampExecutionTest {
         Tensor xMin = new Tensor(new double[]{-2.0, 0.0, 0.5, 3.0}, new int[]{4}, null, "xMin", DataType.FLOAT64);
         xMin.setRequiresGrad(true);
         Tensor yMin = xMin.clampMin(0.0);
-        CompiledGraph.compile(yMin, OptimizerConfig.trainingDefaults()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph.compile(yMin, CompileConfig.training()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
         assertArrayEquals(new double[]{0.0, 1.0, 1.0, 1.0}, xMin.getGradient().toDoubleArrayCopy(), 1e-9);
 
         Tensor xMax = new Tensor(new double[]{-2.0, 0.0, 0.5, 3.0}, new int[]{4}, null, "xMax", DataType.FLOAT64);
         xMax.setRequiresGrad(true);
         Tensor yMax = xMax.clampMax(1.0);
-        CompiledGraph.compile(yMax, OptimizerConfig.trainingDefaults()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph.compile(yMax, CompileConfig.training()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
         assertArrayEquals(new double[]{1.0, 1.0, 1.0, 0.0}, xMax.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 }

@@ -6,6 +6,7 @@ import backend.accelerator.lowering.GpuLoweringCoverageMatrix;
 import backend.accelerator.lowering.GpuLoweringCoverageStatus;
 import backend.metal.MetalMpsCapabilities;
 import graph.CompiledNode;
+import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.optimizer.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.index.gather;
@@ -92,6 +93,18 @@ public final class MetalPartitionSupport {
                 return sdpaReason;
             }
         }
+        if (opType == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD) {
+            String sdpaBackwardReason = sdpaBackwardUnsupportedReason(node, context);
+            if (!sdpaBackwardReason.isBlank()) {
+                return sdpaBackwardReason;
+            }
+        }
+        if (opType == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS) {
+            String weightsReason = sdpaWeightsUnsupportedReason(node, context);
+            if (!weightsReason.isBlank()) {
+                return weightsReason;
+            }
+        }
         if (MetalConvPoolSemantics.isForwardConvPool(opType)) {
             String convPoolReason = MetalConvPoolSemantics.unsupportedReason(node, context);
             if (!convPoolReason.isBlank()) {
@@ -129,6 +142,38 @@ public final class MetalPartitionSupport {
         return "";
     }
 
+    private static String sdpaWeightsUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
+        if (context == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA weights publication requires planning context";
+        }
+        if (node.inputIds().size() != 1) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA weights publication requires one SDPA output input";
+        }
+        CompiledNode attention = context.compiledNode(node.inputIds().getFirst());
+        if (attention == null
+                || attention.operation() == null
+                || attention.operation().opType() != Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA weights publication requires a direct SDPA producer";
+        }
+        String attentionReason = sdpaUnsupportedReason(attention, context);
+        if (!attentionReason.isBlank()) {
+            return attentionReason;
+        }
+        tensor.DataType attentionDType = dataType(context, attention);
+        if (!isMetalFloatingDType(attentionDType)
+                || dataType(context, node) != attentionDType) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL SDPA weights publication requires dtype-matched FLOAT32/BFLOAT16 attention and output";
+        }
+        int[] outputShape = shape(context, node);
+        int[] queryShape = shape(context, context.compiledNode(attention.inputIds().get(0)));
+        int[] keyShape = shape(context, context.compiledNode(attention.inputIds().get(1)));
+        int[] expected = expectedScoresShape(queryShape, keyShape);
+        if (expected.length == 0 || !Arrays.equals(outputShape, expected)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA weights output shape must equal broadcasted score shape";
+        }
+        return "";
+    }
+
     private static String sdpaUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
         if (node.backwardNode()) {
             return "BACKWARD_CONTEXT_UNSUPPORTED: forward SDPA nodes are not legal inside Metal backward regions";
@@ -151,21 +196,22 @@ public final class MetalPartitionSupport {
         if (query == null || key == null || value == null) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA inputs are unavailable";
         }
-        if (query.dataType() != tensor.DataType.FLOAT32
-                || key.dataType() != tensor.DataType.FLOAT32
-                || value.dataType() != tensor.DataType.FLOAT32
-                || node.dataType() != tensor.DataType.FLOAT32) {
-            return "UNSUPPORTED_DTYPE: GPU_METAL SDPA supports only FLOAT32 query/key/value/output";
+        tensor.DataType dtype = dataType(context, node);
+        if (!isMetalFloatingDType(dtype)
+                || dataType(context, query) != dtype
+                || dataType(context, key) != dtype
+                || dataType(context, value) != dtype) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL SDPA supports dtype-matched FLOAT32/BFLOAT16 query/key/value/output";
         }
-        if (!query.contiguous() || query.hasStorageOffset()
-                || !key.contiguous() || key.hasStorageOffset()
-                || !value.contiguous() || value.hasStorageOffset()) {
-            return "UNSUPPORTED_LAYOUT: GPU_METAL SDPA inputs require dense layout";
+        if (!sdpaInputLayoutSupported(context, query)
+                || !sdpaInputLayoutSupported(context, key)
+                || !sdpaInputLayoutSupported(context, value)) {
+            return "UNSUPPORTED_LAYOUT: GPU_METAL SDPA inputs require dense layout or GPU-side layout legalization";
         }
-        int[] qShape = query.shape();
-        int[] kShape = key.shape();
-        int[] vShape = value.shape();
-        int[] outShape = node.shape();
+        int[] qShape = shape(context, query);
+        int[] kShape = shape(context, key);
+        int[] vShape = shape(context, value);
+        int[] outShape = shape(context, node);
         if (!sdpaRankSupported(qShape) || !sdpaRankSupported(kShape) || !sdpaRankSupported(vShape) || !sdpaRankSupported(outShape)) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA supports rank 3 or 4 tensors";
         }
@@ -195,6 +241,102 @@ public final class MetalPartitionSupport {
         return "";
     }
 
+    private static String sdpaBackwardUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
+        if (!node.backwardNode()) {
+            return "BACKWARD_CONTEXT_UNSUPPORTED: GPU_METAL SDPA backward nodes must live in a backward region";
+        }
+        if (context == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA backward requires planning context";
+        }
+        if (node.inputIds().size() != 2) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA backward requires attention output and output gradient";
+        }
+        CompiledNode attentionOut = context.compiledNode(node.inputIds().get(0));
+        CompiledNode outGrad = context.compiledNode(node.inputIds().get(1));
+        if (attentionOut == null
+                || attentionOut.operation() == null
+                || attentionOut.operation().opType() != Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION
+                || outGrad == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA backward requires a direct SDPA producer and output gradient";
+        }
+        if (attentionOut.inputIds().size() != 3 && attentionOut.inputIds().size() != 4) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA backward requires a 3-input or 4-input SDPA producer";
+        }
+        MetalSdpaMaskSemantics.Decision maskDecision = MetalSdpaMaskSemantics.classify(attentionOut, context);
+        if (!maskDecision.supported()) {
+            return maskDecision.unsupportedReason();
+        }
+        CompiledNode query = context.compiledNode(attentionOut.inputIds().get(0));
+        CompiledNode key = context.compiledNode(attentionOut.inputIds().get(1));
+        CompiledNode value = context.compiledNode(attentionOut.inputIds().get(2));
+        if (query == null || key == null || value == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA backward query/key/value inputs are unavailable";
+        }
+        tensor.DataType dtype = dataType(context, node);
+        if (!isMetalFloatingDType(dtype)
+                || dataType(context, query) != dtype
+                || dataType(context, key) != dtype
+                || dataType(context, value) != dtype
+                || dataType(context, outGrad) != dtype) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL SDPA backward supports dtype-matched FLOAT32/BFLOAT16 query/key/value/outGrad/output";
+        }
+        if (!sdpaInputLayoutSupported(context, query)
+                || !sdpaInputLayoutSupported(context, key)
+                || !sdpaInputLayoutSupported(context, value)
+                || !sdpaInputLayoutSupported(context, outGrad)) {
+            return "UNSUPPORTED_LAYOUT: GPU_METAL SDPA backward inputs require dense layout or GPU-side layout legalization";
+        }
+        int[] qShape = shape(context, query);
+        int[] kShape = shape(context, key);
+        int[] vShape = shape(context, value);
+        int[] outGradShape = shape(context, outGrad);
+        int[] outputShape = shape(context, node);
+        if (!sdpaRankSupported(qShape)
+                || !sdpaRankSupported(kShape)
+                || !sdpaRankSupported(vShape)
+                || !sdpaRankSupported(outGradShape)
+                || !sdpaRankSupported(outputShape)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA backward supports rank 3 or 4 tensors";
+        }
+        if (!Arrays.equals(outGradShape, shape(context, attentionOut))) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA backward output gradient shape must match attention output";
+        }
+        return "";
+    }
+
+    private static boolean sdpaInputLayoutSupported(PartitionPlanningContext context, CompiledNode node) {
+        if (dense(context, node)) {
+            return true;
+        }
+        return isGpuSideLayoutLegalizationProducer(node);
+    }
+
+    private static boolean isGpuSideLayoutLegalizationProducer(CompiledNode node) {
+        if (node == null || node.operation() == null) {
+            return false;
+        }
+        return switch (node.operation().opType()) {
+            case RESHAPE, PERMUTE, CONTIGUOUS, EXPAND, EXPAND_DIMS, SQUEEZE -> true;
+            default -> false;
+        };
+    }
+
+    private static int[] expectedScoresShape(int[] queryShape, int[] keyShape) {
+        if (queryShape == null || keyShape == null || queryShape.length < 2 || keyShape.length < 2) {
+            return new int[0];
+        }
+        int[] qBatch = Arrays.copyOf(queryShape, queryShape.length - 2);
+        int[] kBatch = Arrays.copyOf(keyShape, keyShape.length - 2);
+        int[] batch = broadcastBatchShape(qBatch, kBatch);
+        if (batch == null) {
+            return new int[0];
+        }
+        int[] out = Arrays.copyOf(batch, batch.length + 2);
+        out[out.length - 2] = queryShape[queryShape.length - 2];
+        out[out.length - 1] = keyShape[keyShape.length - 2];
+        return out;
+    }
+
     private static String indexGatherUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
         Operation.OpType opType = node.operation().opType();
         if (node.backwardNode()) {
@@ -211,19 +353,19 @@ public final class MetalPartitionSupport {
         if (value == null || indices == null) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " inputs are unavailable";
         }
-        if (value.dataType() != tensor.DataType.FLOAT32 || node.dataType() != tensor.DataType.FLOAT32) {
-            return "UNSUPPORTED_DTYPE: GPU_METAL " + opType + " currently supports only FLOAT32 value/output tensors";
+        tensor.DataType dtype = dataType(context, node);
+        if (!isMetalFloatingDType(dtype) || dataType(context, value) != dtype) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL " + opType + " requires dtype-matched FLOAT32/BFLOAT16 value/output tensors";
         }
-        if (indices.dataType() != tensor.DataType.INT32) {
+        if (dataType(context, indices) != tensor.DataType.INT32) {
             return "UNSUPPORTED_DTYPE: GPU_METAL " + opType + " index input requires INT32";
         }
-        if (!value.contiguous() || value.hasStorageOffset()
-                || !indices.contiguous() || indices.hasStorageOffset()) {
+        if (!dense(context, value) || !dense(context, indices)) {
             return "UNSUPPORTED_LAYOUT: GPU_METAL " + opType + " inputs require dense layout";
         }
-        int[] valueShape = value.shape();
-        int[] indexShape = indices.shape();
-        int[] outputShape = node.shape();
+        int[] valueShape = shape(context, value);
+        int[] indexShape = shape(context, indices);
+        int[] outputShape = shape(context, node);
         if (valueShape.length < 1 || valueShape.length > 4
                 || indexShape.length < 1 || indexShape.length > 4
                 || outputShape.length < 1 || outputShape.length > 4) {
@@ -233,7 +375,7 @@ public final class MetalPartitionSupport {
         if (axis < 0 || axis >= valueShape.length) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " axis is outside value rank";
         }
-        String boundsReason = indexBoundsUnsupportedReason(indices, valueShape[axis], opType);
+        String boundsReason = indexBoundsUnsupportedReason(indices, context, valueShape[axis], opType);
         if (!boundsReason.isBlank()) {
             return boundsReason;
         }
@@ -255,7 +397,7 @@ public final class MetalPartitionSupport {
         return "";
     }
 
-    private static String indexBoundsUnsupportedReason(CompiledNode indices, int axisSize, Operation.OpType opType) {
+    private static String indexBoundsUnsupportedReason(CompiledNode indices, PartitionPlanningContext context, int axisSize, Operation.OpType opType) {
         if (axisSize <= 0) {
             return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " axis size must be positive";
         }
@@ -271,11 +413,11 @@ public final class MetalPartitionSupport {
         if (data == null) {
             return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index bounds require readable INT32 storage";
         }
-        int logicalElements = indices.flatDataSize();
-        if (logicalElements < 0 || logicalElements > data.length) {
+        long logicalElements = context.descriptor(indices.id()).logicalElementCount();
+        if (logicalElements < 0 || logicalElements > data.length || logicalElements > Integer.MAX_VALUE) {
             return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index bounds cannot be proven from storage";
         }
-        for (int i = 0; i < logicalElements; i++) {
+        for (int i = 0; i < (int) logicalElements; i++) {
             int index = data[i];
             if (index < 0 || index >= axisSize) {
                 return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index " + index + " is outside axis size " + axisSize;
@@ -322,6 +464,22 @@ public final class MetalPartitionSupport {
             }
         }
         return true;
+    }
+
+    private static int[] broadcastBatchShape(int[] left, int[] right) {
+        int rank = Math.max(left.length, right.length);
+        int[] out = new int[rank];
+        for (int i = 0; i < rank; i++) {
+            int leftIndex = left.length - 1 - i;
+            int rightIndex = right.length - 1 - i;
+            int l = leftIndex >= 0 ? left[leftIndex] : 1;
+            int r = rightIndex >= 0 ? right[rightIndex] : 1;
+            if (l != r && l != 1 && r != 1) {
+                return null;
+            }
+            out[rank - 1 - i] = Math.max(l, r);
+        }
+        return out;
     }
 
     /**
@@ -376,11 +534,11 @@ public final class MetalPartitionSupport {
     }
 
     private static String boolCompareUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
-        if (node.dataType() != tensor.DataType.BOOL) {
-            return "UNSUPPORTED_DTYPE: GPU_METAL BOOL compare output must be BOOL";
-        }
         if (context == null) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL BOOL compare requires planning context";
+        }
+        if (dataType(context, node) != tensor.DataType.BOOL) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL BOOL compare output must be BOOL";
         }
         if (node.inputIds().size() != 2) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL BOOL compare requires two inputs";
@@ -390,10 +548,11 @@ public final class MetalPartitionSupport {
             if (input == null) {
                 return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL BOOL compare inputs are unavailable";
             }
-            if (input.dataType() != tensor.DataType.FLOAT32 && input.dataType() != tensor.DataType.BFLOAT16) {
+            tensor.DataType inputType = dataType(context, input);
+            if (inputType != tensor.DataType.FLOAT32 && inputType != tensor.DataType.BFLOAT16) {
                 return "UNSUPPORTED_DTYPE: GPU_METAL BOOL compare inputs require FLOAT32/BFLOAT16 data";
             }
-            if (!input.contiguous() || input.hasStorageOffset()) {
+            if (!dense(context, input)) {
                 return "UNSUPPORTED_LAYOUT: GPU_METAL BOOL compare inputs require dense layout";
             }
         }
@@ -401,11 +560,11 @@ public final class MetalPartitionSupport {
     }
 
     private static String boolLogicalUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
-        if (node.dataType() != tensor.DataType.BOOL) {
-            return "UNSUPPORTED_DTYPE: GPU_METAL BOOL logical output must be BOOL";
-        }
         if (context == null) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL BOOL logical op requires planning context";
+        }
+        if (dataType(context, node) != tensor.DataType.BOOL) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL BOOL logical output must be BOOL";
         }
         int expectedInputs = node.operation().opType() == Operation.OpType.LOGICAL_NOT ? 1 : 2;
         if (node.inputIds().size() != expectedInputs) {
@@ -416,10 +575,10 @@ public final class MetalPartitionSupport {
             if (input == null) {
                 return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL BOOL logical inputs are unavailable";
             }
-            if (input.dataType() != tensor.DataType.BOOL) {
+            if (dataType(context, input) != tensor.DataType.BOOL) {
                 return "UNSUPPORTED_DTYPE: GPU_METAL BOOL logical inputs require BOOL data";
             }
-            if (!input.contiguous() || input.hasStorageOffset()) {
+            if (!dense(context, input)) {
                 return "UNSUPPORTED_LAYOUT: GPU_METAL BOOL logical inputs require dense layout";
             }
         }
@@ -427,11 +586,11 @@ public final class MetalPartitionSupport {
     }
 
     private static String boolReductionUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
-        if (node.dataType() != tensor.DataType.BOOL) {
-            return "UNSUPPORTED_DTYPE: GPU_METAL BOOL reduction output must be BOOL";
-        }
         if (context == null) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL BOOL reduction requires planning context";
+        }
+        if (dataType(context, node) != tensor.DataType.BOOL) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL BOOL reduction output must be BOOL";
         }
         if (node.inputIds().size() != 1) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL BOOL reduction requires one input";
@@ -440,13 +599,13 @@ public final class MetalPartitionSupport {
         if (input == null) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL BOOL reduction input is unavailable";
         }
-        if (input.dataType() != tensor.DataType.BOOL) {
+        if (dataType(context, input) != tensor.DataType.BOOL) {
             return "UNSUPPORTED_DTYPE: GPU_METAL BOOL reduction input requires BOOL data";
         }
-        if (!input.contiguous() || input.hasStorageOffset()) {
+        if (!dense(context, input)) {
             return "UNSUPPORTED_LAYOUT: GPU_METAL BOOL reduction input requires dense layout";
         }
-        int rank = input.shape().length;
+        int rank = shape(context, input).length;
         if (rank < 1 || rank > 4) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL BOOL reduction supports rank 1..4";
         }
@@ -481,28 +640,26 @@ public final class MetalPartitionSupport {
         if (input == null || gamma == null || (opType == Operation.OpType.LAYER_NORM && beta == null)) {
             return "UNSUPPORTED_RANK_OR_SHAPE: " + backend + " normalization inputs are unavailable";
         }
-        tensor.DataType dtype = node.dataType();
+        tensor.DataType dtype = dataType(context, node);
         if (dtype != tensor.DataType.FLOAT32 && dtype != tensor.DataType.BFLOAT16) {
             return "UNSUPPORTED_DTYPE: " + backend + " normalization supports only FLOAT32/BFLOAT16";
         }
-        if (input.dataType() != dtype
-                || gamma.dataType() != dtype
-                || (beta != null && beta.dataType() != dtype)) {
+        if (dataType(context, input) != dtype
+                || dataType(context, gamma) != dtype
+                || (beta != null && dataType(context, beta) != dtype)) {
             return "UNSUPPORTED_DTYPE: " + backend + " normalization inputs and output must use the same dtype";
         }
-        if (!input.contiguous() || input.hasStorageOffset()
-                || !gamma.contiguous() || gamma.hasStorageOffset()
-                || (beta != null && (!beta.contiguous() || beta.hasStorageOffset()))) {
+        if (!dense(context, input) || !dense(context, gamma) || (beta != null && !dense(context, beta))) {
             return "UNSUPPORTED_LAYOUT: " + backend + " normalization inputs require dense layout";
         }
-        int[] inputShape = input.shape();
-        int[] gammaShape = gamma.shape();
-        int[] betaShape = beta == null ? null : beta.shape();
+        int[] inputShape = shape(context, input);
+        int[] gammaShape = shape(context, gamma);
+        int[] betaShape = beta == null ? null : shape(context, beta);
         if (inputShape.length < 1 || inputShape.length > 4
                 || normalizedRank < 1
                 || normalizedRank > inputShape.length
                 || gammaShape.length != normalizedRank
-                || !Arrays.equals(inputShape, node.shape())
+                || !Arrays.equals(inputShape, shape(context, node))
                 || (betaShape != null && !Arrays.equals(gammaShape, betaShape))) {
             return "UNSUPPORTED_RANK_OR_SHAPE: " + backend + " normalization rank/shape contract is unsupported";
         }
@@ -521,11 +678,37 @@ public final class MetalPartitionSupport {
         }
         for (int inputId : node.inputIds()) {
             CompiledNode input = context.compiledNode(inputId);
-            if (input != null && (!input.contiguous() || input.hasStorageOffset())) {
+            if (input != null && !dense(context, input)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static tensor.DataType dataType(PartitionPlanningContext context, CompiledNode node) {
+        return descriptor(context, node).dataType();
+    }
+
+    private static boolean isMetalFloatingDType(tensor.DataType dtype) {
+        return dtype == tensor.DataType.FLOAT32 || dtype == tensor.DataType.BFLOAT16;
+    }
+
+    private static int[] shape(PartitionPlanningContext context, CompiledNode node) {
+        return descriptor(context, node).shape();
+    }
+
+    private static boolean dense(PartitionPlanningContext context, CompiledNode node) {
+        return descriptor(context, node).denseContiguousWithoutOffset();
+    }
+
+    private static CompiledTensorDescriptor descriptor(PartitionPlanningContext context, CompiledNode node) {
+        if (context == null) {
+            throw new IllegalArgumentException("descriptor lookup requires planning context");
+        }
+        if (node == null) {
+            throw new IllegalArgumentException("descriptor lookup requires compiled node");
+        }
+        return context.descriptor(node.id());
     }
 
     private static boolean isEpilogueAdd(CompiledNode node, PartitionPlanningContext context) {

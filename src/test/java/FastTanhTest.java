@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import tensor.DataType;
@@ -14,7 +14,7 @@ public class FastTanhTest {
     void fastTanhForwardIsCloseToTanh() {
         Tensor a = new Tensor(new double[]{-5.0, -2.0, -1.0, 0.0, 1.0, 2.0, 5.0}, new int[]{7}, null, "a", DataType.FLOAT64);
         Tensor y = a.fastTanh();
-        CompiledGraph.compile(y, OptimizerConfig.trainingDefaults())
+        CompiledGraph.compile(y, CompileConfig.training())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         double[] x = a.toDoubleArrayCopy();
@@ -31,7 +31,7 @@ public class FastTanhTest {
         Tensor a = new Tensor(new double[]{-2.0, -0.5, 0.0, 0.5, 2.0}, new int[]{5}, null, "a", DataType.FLOAT64);
         a.setRequiresGrad(true);
         Tensor y = a.fastTanh();
-        CompiledGraph graph = CompiledGraph.compile(y, OptimizerConfig.trainingDefaults());
+        CompiledGraph graph = CompiledGraph.compile(y, CompileConfig.training());
 
         graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         double[] forward = y.toDoubleArrayCopy();

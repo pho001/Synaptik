@@ -1,6 +1,6 @@
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import tensor.DataType;
@@ -17,7 +17,7 @@ public class AddBroadcastTest {
         Tensor b = new Tensor(new double[]{10, 20, 30}, new int[]{3}, null, "b", DataType.FLOAT64);
 
         Tensor out = a.add(b);
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{11, 22, 33, 14, 25, 36}, out.toDoubleArrayCopy(), 1e-9);
@@ -32,7 +32,7 @@ public class AddBroadcastTest {
         b.setRequiresGrad(true);
 
         Tensor out = a.add(b);
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertNotNull(a.getGradient());
@@ -47,7 +47,7 @@ public class AddBroadcastTest {
         Tensor b = new Tensor(new float[]{10f, 20f, 30f}, new int[]{3}, null, "b", DataType.FLOAT32);
 
         Tensor out = a.add(b);
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{11, 22, 33, 14, 25, 36}, out.toDoubleArrayCopy(), 1e-6);
@@ -62,7 +62,7 @@ public class AddBroadcastTest {
         b.setRequiresGrad(true);
 
         Tensor out = a.add(b);
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertNotNull(a.getGradient());
@@ -84,7 +84,7 @@ public class AddBroadcastTest {
         b.setRequiresGrad(true);
 
         Tensor out = a.add(b);
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertNotNull(a.getGradient());

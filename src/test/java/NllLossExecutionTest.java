@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
@@ -24,7 +24,7 @@ public class NllLossExecutionTest {
         }, new int[]{2, 3}, null, "targets", DataType.FLOAT64);
 
         Tensor loss = logProbs.nllLoss(targets, 1);
-        CompiledGraph compiledGraph = CompiledGraph.compile(loss, OptimizerConfig.noOptimization());
+        CompiledGraph compiledGraph = CompiledGraph.compile(loss, CompileConfig.noGraphOptimizationBaseline());
         compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         double[] row0 = logSoftmaxRow(new double[]{1.0, 2.0, 3.0});
@@ -49,7 +49,7 @@ public class NllLossExecutionTest {
         }, new int[]{2, 3}, null, "targets", DataType.FLOAT64);
 
         Tensor loss = logProbs.nllLoss(targets, 1);
-        CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults())
+        CompiledGraph.compile(loss, CompileConfig.training())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
@@ -68,7 +68,7 @@ public class NllLossExecutionTest {
         }, new int[]{1, 3}, null, "targets", DataType.FLOAT64);
 
         Tensor loss = logProbs.nllLoss(targets, 1);
-        CompiledGraph.compile(loss, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(loss, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         double expected = -(0.2 * -1.0 + 0.3 * -0.5 + 0.5 * -2.0);

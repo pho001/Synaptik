@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
@@ -8,6 +8,7 @@ import tensor.DataType;
 import tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class IndexTargetCrossEntropyLossExecutionTest {
@@ -22,7 +23,7 @@ public class IndexTargetCrossEntropyLossExecutionTest {
         Tensor targetIndicesA = new Tensor(new int[]{2, 0}, new int[]{2}, null, "targetIndicesA", DataType.INT32);
 
         Tensor reference = logitsA.logSoftmax(1).nllLossFromIndices(targetIndicesA, 1);
-        CompiledGraph.compile(reference, OptimizerConfig.trainingDefaults())
+        CompiledGraph.compile(reference, CompileConfig.training())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
         double[] referenceLoss = reference.toDoubleArrayCopy();
         double[] referenceGrad = logitsA.getGradient().toDoubleArrayCopy();
@@ -35,7 +36,7 @@ public class IndexTargetCrossEntropyLossExecutionTest {
         Tensor targetIndicesB = new Tensor(new int[]{2, 0}, new int[]{2}, null, "targetIndicesB", DataType.INT32);
 
         Tensor direct = logitsB.crossEntropyLossFromIndices(targetIndicesB, 1);
-        CompiledGraph compiledGraph = CompiledGraph.compile(direct, OptimizerConfig.trainingDefaults());
+        CompiledGraph compiledGraph = CompiledGraph.compile(direct, CompileConfig.training());
         compiledGraph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(referenceLoss, direct.toDoubleArrayCopy(), 1e-9);
@@ -45,7 +46,7 @@ public class IndexTargetCrossEntropyLossExecutionTest {
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.CROSS_ENTROPY_LOSS_INDICES));
-        assertTrue(compiledGraph.getCompiledGraphAsList().stream()
+        assertFalse(compiledGraph.getCompiledGraphAsList().stream()
                 .map(Tensor::getOperation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
@@ -63,7 +64,7 @@ public class IndexTargetCrossEntropyLossExecutionTest {
                 1.0, 0.0, 0.0
         }, new int[]{2, 3}, null, "oneHotTargets", DataType.FLOAT64);
         Tensor denseLoss = logitsA.crossEntropyLoss(oneHotTargets, 1);
-        CompiledGraph.compile(denseLoss, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(denseLoss, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         Tensor logitsB = new Tensor(new double[]{
@@ -72,7 +73,7 @@ public class IndexTargetCrossEntropyLossExecutionTest {
         }, new int[]{2, 3}, null, "logitsB", DataType.FLOAT64);
         Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "targetIndices", DataType.INT32);
         Tensor indexLoss = logitsB.crossEntropyLossFromIndices(targetIndices, 1);
-        CompiledGraph.compile(indexLoss, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(indexLoss, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(denseLoss.toDoubleArrayCopy(), indexLoss.toDoubleArrayCopy(), 1e-9);

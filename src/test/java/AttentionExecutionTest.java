@@ -1,15 +1,15 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
-import operations.linalg.scaledDotProductAttentionWeights;
 import org.junit.jupiter.api.Test;
 import tensor.options.AttentionOptions;
 import tensor.DataType;
 import tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -32,7 +32,7 @@ public class AttentionExecutionTest {
         }, new int[]{1, 2, 2}, null, "v", DataType.FLOAT64);
 
         Tensor out = q.scaledDotProductAttention(k, v, AttentionOptions.defaults().withScale(1.0));
-        CompiledGraph compiledGraph = CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         double e = Math.exp(1.0);
@@ -44,7 +44,7 @@ public class AttentionExecutionTest {
                 (10.0 + e) / denom,
                 (1.0 + 10.0 * e) / denom
         }, out.toDoubleArrayCopy(), 1e-6);
-        assertTrue(containsOp(compiledGraph, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
+        assertCanonicalAttentionGraph(compiledGraph);
     }
 
     @Test
@@ -63,7 +63,7 @@ public class AttentionExecutionTest {
         }, new int[]{1, 2, 2}, null, "v", DataType.FLOAT64);
 
         Tensor out = q.scaledDotProductAttention(k, v, AttentionOptions.causalDefaults().withScale(1.0));
-        CompiledGraph compiledGraph = CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         double e = Math.exp(1.0);
@@ -73,7 +73,7 @@ public class AttentionExecutionTest {
                 (10.0 + e) / denom,
                 (1.0 + 10.0 * e) / denom
         }, out.toDoubleArrayCopy(), 1e-6);
-        assertTrue(containsOp(compiledGraph, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
+        assertCanonicalAttentionGraph(compiledGraph);
     }
 
     @Test
@@ -90,11 +90,11 @@ public class AttentionExecutionTest {
         Tensor mask = new Tensor(new byte[]{0, 1}, new int[]{1, 1, 2}, null, "mask", DataType.BOOL);
 
         Tensor out = q.scaledDotProductAttention(k, v, mask, AttentionOptions.defaults().withScale(1.0));
-        CompiledGraph compiledGraph = CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{1.0, 10.0}, out.toDoubleArrayCopy(), 1e-6);
-        assertTrue(containsOp(compiledGraph, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
+        assertCanonicalAttentionGraph(compiledGraph);
     }
 
     @Test
@@ -113,7 +113,7 @@ public class AttentionExecutionTest {
         }, new int[]{1, 1, 2, 2}, null, "v4", DataType.FLOAT32);
 
         Tensor out = q.scaledDotProductAttention(k, v, AttentionOptions.defaults());
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         double scale = 1.0d / Math.sqrt(2.0d);
@@ -147,7 +147,7 @@ public class AttentionExecutionTest {
     }
 
     @Test
-    void scaledDotProductAttentionCachesSoftmaxWeightsForBackward() {
+    void scaledDotProductAttentionBuildsCanonicalWeightsDag() {
         Tensor q = new Tensor(new double[]{
                 1, 0,
                 0, 1
@@ -165,27 +165,25 @@ public class AttentionExecutionTest {
         v.setRequiresGrad(true);
 
         Tensor out = q.scaledDotProductAttention(k, v, AttentionOptions.defaults().withScale(1.0));
-        Tensor weights = new Tensor(
-                new int[]{1, 2, 2},
-                java.util.List.of(out),
-                new scaledDotProductAttentionWeights(),
-                "attentionWeights",
-                DataType.FLOAT64
-        );
-        CompiledGraph.compile(weights, OptimizerConfig.noOptimization())
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
+        compiledGraph
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD);
 
         double e = Math.exp(1.0);
         double denom = e + 1.0;
-        assertArrayEquals(new int[]{1, 2, 2}, weights.getShape());
+        assertArrayEquals(new int[]{1, 2, 2}, out.getShape());
         assertArrayEquals(new double[]{
-                e / denom, 1.0 / denom,
-                1.0 / denom, e / denom
-        }, weights.toDoubleArrayCopy(), 1e-6);
+                (10.0 * e + 1.0) / denom,
+                (1.0 * e + 10.0) / denom,
+                (10.0 + e) / denom,
+                (1.0 + 10.0 * e) / denom
+        }, out.toDoubleArrayCopy(), 1e-6);
+        assertCanonicalAttentionGraph(compiledGraph);
+        assertFalse(containsOp(compiledGraph, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS));
     }
 
     @Test
-    void scaledDotProductAttentionBackwardUsesDedicatedPrimitive() {
+    void scaledDotProductAttentionBackwardUsesCanonicalPrimitiveDag() {
         Tensor q = new Tensor(new double[]{
                 1, 0,
                 0, 1
@@ -203,15 +201,15 @@ public class AttentionExecutionTest {
         v.setRequiresGrad(true);
 
         Tensor loss = q.scaledDotProductAttention(k, v, AttentionOptions.defaults().withScale(1.0)).sum();
-        CompiledGraph compiledGraph = CompiledGraph.compile(loss, OptimizerConfig.noOptimization());
+        CompiledGraph compiledGraph = CompiledGraph.compile(loss, CompileConfig.noGraphOptimizationBaseline());
         compiledGraph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
-        assertTrue(containsOp(compiledGraph, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
-        assertTrue(containsOp(compiledGraph, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD));
+        assertCanonicalAttentionGraph(compiledGraph);
+        assertFalse(containsOp(compiledGraph, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD));
     }
 
     @Test
-    void bfloat16AttentionWeightsCanBeReadFromFloat32RuntimeCache() {
+    void bfloat16AttentionForwardUsesCanonicalPrimitiveDag() {
         Tensor q = new Tensor(new double[]{
                 1, 0,
                 0, 1
@@ -229,22 +227,19 @@ public class AttentionExecutionTest {
         v.setRequiresGrad(true);
 
         Tensor out = q.scaledDotProductAttention(k, v, AttentionOptions.defaults().withScale(1.0));
-        Tensor weights = new Tensor(
-                new int[]{1, 2, 2},
-                java.util.List.of(out),
-                new scaledDotProductAttentionWeights(),
-                "attentionWeights",
-                DataType.BFLOAT16
-        );
-        CompiledGraph.compile(weights, OptimizerConfig.noOptimization())
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
+        compiledGraph
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD);
 
         double e = Math.exp(1.0);
         double denom = e + 1.0;
         assertArrayEquals(new double[]{
-                e / denom, 1.0 / denom,
-                1.0 / denom, e / denom
-        }, weights.toDoubleArrayCopy(), 2e-2);
+                (10.0 * e + 1.0) / denom,
+                (1.0 * e + 10.0) / denom,
+                (10.0 + e) / denom,
+                (1.0 + 10.0 * e) / denom
+        }, out.toDoubleArrayCopy(), 2e-2);
+        assertCanonicalAttentionGraph(compiledGraph);
     }
 
     @Test
@@ -265,7 +260,7 @@ public class AttentionExecutionTest {
         k64.setRequiresGrad(true);
         v64.setRequiresGrad(true);
         Tensor loss64 = q64.scaledDotProductAttention(k64, v64, AttentionOptions.defaults().withScale(1.0)).sum();
-        CompiledGraph.compile(loss64, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(loss64, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         Tensor q16 = new Tensor(new double[]{
@@ -284,10 +279,10 @@ public class AttentionExecutionTest {
         k16.setRequiresGrad(true);
         v16.setRequiresGrad(true);
         Tensor loss16 = q16.scaledDotProductAttention(k16, v16, AttentionOptions.defaults().withScale(1.0)).sum();
-        CompiledGraph compiledGraph = CompiledGraph.compile(loss16, OptimizerConfig.noOptimization());
+        CompiledGraph compiledGraph = CompiledGraph.compile(loss16, CompileConfig.noGraphOptimizationBaseline());
         compiledGraph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
-        assertTrue(containsOp(compiledGraph, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD));
+        assertFalse(containsOp(compiledGraph, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD));
         assertNotNull(q16.getGradient());
         assertNotNull(k16.getGradient());
         assertNotNull(v16.getGradient());
@@ -302,5 +297,13 @@ public class AttentionExecutionTest {
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(type -> type == opType);
+    }
+
+    private static void assertCanonicalAttentionGraph(CompiledGraph compiledGraph) {
+        assertFalse(containsOp(compiledGraph, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
+        assertTrue(containsOp(compiledGraph, Operation.OpType.MATMUL));
+        assertTrue(containsOp(compiledGraph, Operation.OpType.REDUCE_MAX));
+        assertTrue(containsOp(compiledGraph, Operation.OpType.EXP));
+        assertTrue(containsOp(compiledGraph, Operation.OpType.SUM));
     }
 }

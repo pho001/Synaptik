@@ -3,6 +3,7 @@ package tensor.ops.loss;
 import operations.loss.crossEntropyLoss;
 import operations.loss.crossEntropyLossIndices;
 import operations.loss.nllLoss;
+import graph.optimizer.intent.BackendIntentPropagator;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorDataTypeUtil;
@@ -484,9 +485,11 @@ public final class TensorLossOps {
 
             Tensor safeIndices = ignoreIndexOrNull == null ? targetIndices : LossSupport.buildSafeIndices(targetIndices, ignoreIndexOrNull);
             Tensor sampleScale = reductionScalePerSample(outGrad, logits, targetIndices, reducedShape, normalizedClassDimension, reduction, ignoreIndexOrNull);
+            BackendIntentPropagator.preserve(sampleScale, out);
             Tensor grad = logits.softmax(normalizedClassDimension)
                     .mul(sampleScale.expandDims(normalizedClassDimension))
                     .sub(Tensor.zerosLike(logits).scatterAdd(safeIndices, sampleScale, normalizedClassDimension));
+            BackendIntentPropagator.preserve(grad, out);
             LossSupport.accumulateGradient(logits, grad);
         });
         return out;

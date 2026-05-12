@@ -188,7 +188,6 @@ public final class CpuNodePreparer {
     ) {
         return switch (operation.opType()) {
             case MAX_POOL2D -> CpuNodeWorkspace.withIntWorkspace(node.flatDataSize());
-            case MAX_POOL2D_BACKWARD_INPUT -> resolveSharedMaxPoolWorkspace(node, context);
             case MATMUL -> resolveMatMulWorkspace(node, cpuPlan, publishFloatContinuation);
             case LINEAR -> (publishFloatContinuation || needsBFloat16BlasWorkspace(node, cpuPlan))
                     ? CpuNodeWorkspace.withFloatWorkspaceAndPackedLinearWeights(node.flatDataSize())
@@ -224,24 +223,6 @@ public final class CpuNodePreparer {
                 && cpuPlan != null
                 && cpuPlan.matMulHints() != null
                 && (cpuPlan.matMulHints().useBlas() || cpuPlan.matMulHints().useBatchedBlas());
-    }
-
-    private CpuNodeWorkspace resolveSharedMaxPoolWorkspace(CompiledNode node, BackendPrepareContext context) {
-        for (int inputId : node.inputIds()) {
-            CompiledNode input = context.compiledNode(inputId);
-            if (input == null || input.operation() == null) {
-                continue;
-            }
-            if (input.operation().opType() != Operation.OpType.MAX_POOL2D) {
-                continue;
-            }
-            CompiledNodeExecutionMetadata metadata = context.preparedMetadataFor(input.id());
-            if (metadata == null || metadata.cpuWorkspace() == null) {
-                throw new IllegalStateException("Missing prepared maxPool2d workspace for backward node " + node.label());
-            }
-            return metadata.cpuWorkspace();
-        }
-        throw new IllegalStateException("maxPool2d backward node is missing its forward maxPool2d dependency.");
     }
 
     private boolean shouldPublishFloatContinuation(

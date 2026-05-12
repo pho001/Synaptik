@@ -1,6 +1,6 @@
 import backend.runtime.ExecutionMode;
 import config.backend.CpuKernelConfig;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import org.junit.jupiter.api.Test;
@@ -24,7 +24,7 @@ public class MinMaxReductionExecutionTest {
         }, new int[]{2, 3}, null, "matrix", dataType);
 
         Tensor out = a.min(1, true);
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 1}, out.getShape());
         assertArrayEquals(new double[]{1.0, 4.0}, out.toDoubleArrayCopy(), eps(dataType));
@@ -36,7 +36,7 @@ public class MinMaxReductionExecutionTest {
         Tensor a = new Tensor(new double[]{1, 6, 3, 6}, new int[]{4}, null, "vector", dataType);
 
         Tensor out = a.max();
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{1}, out.getShape());
         assertArrayEquals(new double[]{6.0}, out.toDoubleArrayCopy(), eps(dataType));
@@ -51,7 +51,7 @@ public class MinMaxReductionExecutionTest {
         a.setRequiresGrad(true);
 
         Tensor out = a.min(1, true);
-        CompiledGraph.compile(out, OptimizerConfig.trainingDefaults()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph.compile(out, CompileConfig.training()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new int[]{2, 3}, a.getGradient().getShape());
         assertArrayEquals(new double[]{
@@ -66,7 +66,7 @@ public class MinMaxReductionExecutionTest {
         a.setRequiresGrad(true);
 
         Tensor out = a.max();
-        CompiledGraph.compile(out, OptimizerConfig.trainingDefaults()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph.compile(out, CompileConfig.training()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new int[]{4}, a.getGradient().getShape());
         assertArrayEquals(new double[]{0.0, 0.5, 0.5, 0.0}, a.getGradient().toDoubleArrayCopy(), EPS64);
@@ -78,11 +78,11 @@ public class MinMaxReductionExecutionTest {
 
         RuntimeConfig stridedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 100_000));
         Tensor strided = a.min(1);
-        CompiledGraph.compile(strided, OptimizerConfig.noOptimization()).execute(stridedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(strided, CompileConfig.noGraphOptimizationBaseline()).execute(stridedConfig, ExecutionMode.FORWARD);
 
         RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0));
         Tensor materialized = a.min(1);
-        CompiledGraph.compile(materialized, OptimizerConfig.noOptimization()).execute(materializedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(materialized, CompileConfig.noGraphOptimizationBaseline()).execute(materializedConfig, ExecutionMode.FORWARD);
 
         assertArrayEquals(materialized.toDoubleArrayCopy(), strided.toDoubleArrayCopy(), EPS64);
     }

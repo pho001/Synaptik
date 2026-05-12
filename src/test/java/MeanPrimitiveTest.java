@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import graph.CompiledGraph;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
@@ -19,7 +19,7 @@ public class MeanPrimitiveTest {
         }, new int[]{2, 3}, null, "matrix", DataType.FLOAT64);
 
         Tensor mean = a.mean(1, true);
-        CompiledGraph compiledGraph = CompiledGraph.compile(mean, OptimizerConfig.noOptimization());
+        CompiledGraph compiledGraph = CompiledGraph.compile(mean, CompileConfig.noGraphOptimizationBaseline());
         compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{2.0, 5.0}, mean.toDoubleArrayCopy(), 1e-9);
@@ -35,7 +35,7 @@ public class MeanPrimitiveTest {
         Tensor a = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{6}, null, "a", DataType.FLOAT64);
 
         Tensor mean = a.mean();
-        CompiledGraph compiledGraph = CompiledGraph.compile(mean, OptimizerConfig.noOptimization());
+        CompiledGraph compiledGraph = CompiledGraph.compile(mean, CompileConfig.noGraphOptimizationBaseline());
         compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{3.5}, mean.toDoubleArrayCopy(), 1e-9);

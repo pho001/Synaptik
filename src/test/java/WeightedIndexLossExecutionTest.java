@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -24,11 +24,11 @@ public class WeightedIndexLossExecutionTest {
         Tensor sum = logProbs.nllLossFromIndices(targetIndices, 1, classWeights, LossReduction.SUM);
         Tensor mean = logProbs.nllLossFromIndices(targetIndices, 1, classWeights, LossReduction.MEAN);
 
-        graph.CompiledGraph.compile(none, OptimizerConfig.noOptimization())
+        graph.CompiledGraph.compile(none, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        graph.CompiledGraph.compile(sum, OptimizerConfig.noOptimization())
+        graph.CompiledGraph.compile(sum, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        graph.CompiledGraph.compile(mean, OptimizerConfig.noOptimization())
+        graph.CompiledGraph.compile(mean, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         double[] expectedNone = new double[]{
@@ -53,11 +53,11 @@ public class WeightedIndexLossExecutionTest {
         Tensor sum = logits.crossEntropyLossFromIndices(targetIndices, 1, -1, classWeights, LossReduction.SUM);
         Tensor mean = logits.crossEntropyLossFromIndices(targetIndices, 1, -1, classWeights, LossReduction.MEAN);
 
-        graph.CompiledGraph.compile(none, OptimizerConfig.noOptimization())
+        graph.CompiledGraph.compile(none, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        graph.CompiledGraph.compile(sum, OptimizerConfig.noOptimization())
+        graph.CompiledGraph.compile(sum, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        graph.CompiledGraph.compile(mean, OptimizerConfig.noOptimization())
+        graph.CompiledGraph.compile(mean, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         double weighted = 0.4076059644443804 * 2.0;

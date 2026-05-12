@@ -1,7 +1,7 @@
 import org.junit.jupiter.api.Test;
 
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import tensor.Tensor;
@@ -18,7 +18,7 @@ public class TensorAddTest {
         b.setRequiresGrad(true);
 
         Tensor c = a.add(b);
-        CompiledGraph.compile(c, OptimizerConfig.trainingDefaults())
+        CompiledGraph.compile(c, CompileConfig.training())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{4.0, 6.0}, c.toDoubleArrayCopy(), 1e-9);
@@ -32,7 +32,7 @@ public class TensorAddTest {
         b.setRequiresGrad(true);
 
         Tensor c = a.add(b);
-        CompiledGraph.compile(c, OptimizerConfig.trainingDefaults())
+        CompiledGraph.compile(c, CompileConfig.training())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertNotNull(a.getGradient());

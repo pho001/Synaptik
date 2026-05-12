@@ -46,14 +46,17 @@ Phase 44 adds a real scoped custom Metal kernel route on top of the MPSGraph cov
 | reductions | `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX` | supported | `SUPPORTED`; axis and keep-dims metadata lower through the shared DAG ABI |
 | normalization pieces | `LAYER_NORM`, `RMS_NORM` | supported | `SUPPORTED`; lowered as repeated keep-dims `MEAN` plus elementwise normalization DAG with epsilon scalar |
 | loss-adjacent ops | `NLL_LOSS`, `CROSS_ENTROPY_LOSS` | supported | `SUPPORTED`; dense `FLOAT32`, dense-layout, rank 1..4, mean-reduced scalar loss lowers to existing DAG primitives |
-| loss-adjacent ops | `CROSS_ENTROPY_LOSS_INDICES`, `CROSS_ENTROPY_LOSS_INDICES_GRAD` | unsupported | `UNSUPPORTED_INDEX_SEMANTICS` |
-| attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION` | supported | `SUPPORTED`; direct FLOAT32 rank-3/4 native MPSGraph primitive SDPA DAG supports unmasked, dense external BOOL masked, causal, and external+causal effective mask modes |
-| attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD` | supported | `SUPPORTED` |
+| loss-adjacent ops | `CROSS_ENTROPY_LOSS_INDICES`, `CROSS_ENTROPY_LOSS_INDICES_GRAD` | supported | `SUPPORTED`; dense `FLOAT32` logits/sampleScale, dense static in-bounds `INT32` targets, ignore-index masking, `NONE`/`SUM`/`MEAN` reductions, and scatter-style gradient subtraction lower to MPSGraph |
+| attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION` | supported | `SUPPORTED`; direct FLOAT32/BFLOAT16 rank-3/4 native MPSGraph primitive SDPA DAG supports unmasked, dense external BOOL masked, causal, and external+causal effective mask modes |
+| attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD` | supported | `SUPPORTED`; unmasked, dense external BOOL masked, causal, and external+causal SDPA producers lower to native Metal backward DAG nodes |
+| attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS` | supported | `SUPPORTED`; lowers from the producer SDPA descriptor to a native Metal `softmax(QK^T * scale + mask)` DAG without CPU runtime-cache materialization |
 | conv/pool | `CONV2D`, `CONV2D_GEMM` | supported | `SUPPORTED`; direct dense `FLOAT32` NCHW/OIHW forward Conv2D lowers to MPSGraph `convolution2D` for groups=1, dilation=1, stride/padding, and optional bias; `CONV2D_GEMM` preserves the original conv descriptor and routes to the same native primitive |
 | conv/pool | `MAX_POOL2D`, `AVG_POOL2D` | supported | `SUPPORTED`; direct dense `FLOAT32` NCHW forward pooling lowers to MPSGraph pooling for compact kernel/stride/padding metadata, with `AVG_POOL2D` scoped to `countIncludePad=false` |
-| conv/pool | `CONV2D_BACKWARD_INPUT`, `CONV2D_BACKWARD_WEIGHT`, `CONV2D_BACKWARD_INPUT_GEMM`, `CONV2D_BACKWARD_WEIGHT_GEMM`, `MAX_POOL2D_BACKWARD_INPUT`, `AVG_POOL2D_BACKWARD_INPUT` | unsupported | `CAPABILITY_MISSING` |
+| conv/pool | `CONV2D_BACKWARD_INPUT`, `CONV2D_BACKWARD_WEIGHT`, `CONV2D_BACKWARD_INPUT_GEMM`, `CONV2D_BACKWARD_WEIGHT_GEMM` | supported | `SUPPORTED`; dense `FLOAT32` rank-4 NCHW/OIHW conv backward lowers to MPSGraph `convolution2DDataGradient` / `convolution2DWeightsGradient`, scoped to groups=1 and dilation=1 |
+| conv/pool | `AVG_POOL2D_BACKWARD_INPUT` | supported | `SUPPORTED`; dense `FLOAT32` rank-4 NCHW average-pool backward lowers to MPSGraph `avgPooling2DGradient`, scoped to `countIncludePad=false` |
+| conv/pool | `MAX_POOL2D_BACKWARD_INPUT` | supported | `SUPPORTED`; dense `FLOAT32` rank-4 NCHW max-pool backward now carries the original source tensor and lowers to MPSGraph `maxPooling2DGradient` with CPU first-max tie parity tests |
 | index/scatter/gather | `GATHER`, `TAKE_ALONG_AXIS` | supported | `SUPPORTED`; dense `FLOAT32` value/output with `INT32` indices lowers to MPSGraph `gatherAlongAxis` |
-| index/scatter/gather | `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, `SCATTER_ADD` | unsupported | `UNSUPPORTED_DUPLICATE_INDEX` |
+| index/scatter/gather | `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, `SCATTER_ADD` | supported | `SUPPORTED`; dense `FLOAT32` gradients/values with static in-bounds `INT32` indices lower to MPSGraph `scatterAlongAxis` add |
 | compare/bool | `GT`, `GE`, `LT`, `LE`, `EQ`, `NE`, `LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`, `REDUCE_ALL`, `REDUCE_ANY` | supported | `SUPPORTED`; dense scoped BOOL outputs execute through dtype ABI v3 and can feed legal `WHERE` mask-chain consumers without CPU materialization |
 | backward-adjacent | `SOFTMAX_GRAD`, `LOG_SOFTMAX_GRAD`, `REDUCE_MIN_GRAD`, `REDUCE_MAX_GRAD`, `MIN_GRAD`, `MAX_GRAD` | supported | `SUPPORTED` |
 | fused compound patterns | `FUSED` | unsupported | `CPU_FUSED_OPERATION_UNSUPPORTED`; CPU `Operation.OpType.FUSED` remains CPU-only for Phase 12 |
@@ -110,56 +113,54 @@ consumer primitive proves that contract.
 
 `dtype residency is not native dtype compute`. Phase 16 dtype residency records whether values such as `BFLOAT16`, `INT32`, and `BOOL` can stay represented in runtime storage and trace/report metadata. It does not widen Metal or CUDA native arithmetic beyond the backend role gates.
 
-Metal currently accepts `FLOAT32` compute/output broadly, `BFLOAT16` compute/output only for scoped operation families (`MATMUL`, `LINEAR`, arithmetic elementwise and activation ops, scalar multiply/clamp, `SOFTMAX`, `LOG_SOFTMAX`, `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`, `LAYER_NORM`, and `RMS_NORM`), and `BOOL` compute/output only for scoped compare/logical/reduction mask families. `BOOL` can also be a predicate-style external input for `WHERE`, but reports distinguish that from native BOOL-producing compute through role-specific `dtypeResidency` evidence. CUDA native dense buffer execution remains `FLOAT32` only. Other dtype-role combinations reject with `UNSUPPORTED_DTYPE` or `RESIDENCY_ONLY_NOT_COMPUTE` and stable details such as `backend=GPU_METAL role=operation dtype=BFLOAT16 code=UNSUPPORTED_OPERATION_DTYPE` or `backend=GPU_CUDA role=COMPUTE_OUTPUT dtype=INT32 code=RESIDENCY_ONLY_NOT_COMPUTE`.
+Metal currently accepts `FLOAT32` and `BFLOAT16` compute/output for the Metal-supported floating operation families, and `BOOL` compute/output only for scoped compare/logical/reduction mask families. `BOOL` can also be a predicate-style external input for `WHERE`, but reports distinguish that from native BOOL-producing compute through role-specific `dtypeResidency` evidence. CUDA native dense buffer execution remains `FLOAT32` only. Other dtype-role combinations reject with `UNSUPPORTED_DTYPE` or `RESIDENCY_ONLY_NOT_COMPUTE` and stable details such as `backend=GPU_CUDA role=COMPUTE_OUTPUT dtype=INT32 code=RESIDENCY_ONLY_NOT_COMPUTE`.
 
 Reports use `dtypeResidency` evidence to explain why a region stayed resident, shortened, or exited. A dtype-resident internal value can still be materialized later for a real CPU consumer, graph output, or gradient publication, and that CPU boundary remains reportable.
 
 Metal dtype capability truth is role-specific. `MetalMpsCapabilities` distinguishes storage representability, external
 input legality, predicate input legality, native compute legality, native output legality, and operation-specific dtype
 support. The optional Metal dtype ABI v3 probes prove that a native shim can describe widened dtype roles; BF16 support
-is still operation-scoped and capability-gated, BOOL output is limited to scoped compare/logical/reduction families,
+tracks the Metal floating operation coverage, BOOL output is limited to scoped compare/logical/reduction families,
 and INT32 plus FLOAT64 remain non-native compute/output.
 
 ## Phase 30 BF16 Metal contract
 
-Phase 30 adds native Metal BF16 compute/output for the scoped families above. The contract is intentionally narrower
-than "Metal supports BF16 everywhere":
+Phase 30 introduced native Metal BF16 compute/output, and the current contract extends it to dtype parity with Metal-supported `FLOAT32` floating operation families. The contract is still narrower than "Metal supports BF16 everywhere":
 
 - BF16 storage, external inputs, compute nodes, and outputs use dtype ABI v3 metadata.
 - BF16 upload/readback roundtrip is exact raw BF16 storage equality.
-- BF16 MATMUL and reduction parity use explicit BF16 numeric tolerance.
-- BF16 LayerNorm/RMSNorm and softmax/log-softmax parity use a separate normalization/softmax tolerance.
+- BF16 MATMUL, reduction, conv/pool, loss, index/scatter, normalization, SDPA, and elementwise parity use explicit BF16 numeric tolerance.
 - BF16 hot-path targets `mlp_classifier_small_bf16`, `layer_norm_small_bf16`, `rms_norm_small_bf16`, and
   `reduction_chain_small_bf16` require Metal native buffer evidence, dtype residency evidence, zero CPU
   materializations, zero CPU fallback, and zero tensor-array fallback.
 
-Unsupported BF16 and BOOL families must remain visible. Conv/pool, loss-adjacent ops, gather/take gradients, scatter,
-arbitrary BOOL consumers, non-dense/unsupported SDPA mask layouts, and generic INT32 compute/output remain rejected or fallback rows until their own
-semantic, native execution, parity, trace, and regression-gate evidence exists.
+Unsupported BF16 and BOOL families must remain visible. BF16 now follows the existing Metal `FLOAT32` operation-family coverage and keeps the same shape/layout/semantic limits; arbitrary BOOL consumers, non-dense/unsupported SDPA mask layouts, generic INT32 compute/output, grouped/dilated conv, and unsupported pooling variants remain rejected or fallback rows until their own semantic, native execution, parity, trace, and regression-gate evidence exists.
 
 ## Phase 17 normalization, reduction, and loss-adjacent contract
 
 Phase 17 covers `GPUNORM-01` and `GPUNORM-02` by making normalization, reduction, softmax-ish, conv, and loss-adjacent gaps explicit in the shared Metal/CUDA matrix. The source-of-truth targets are `target=layer_norm_small`, `target=conv2d_resnet_3x3`, and `target=transformer_block_hot_path`.
 
-Phase 23 closes the forward reduction subset. `SUM`, `MEAN`, `REDUCE_MIN`, and `REDUCE_MAX` are supported rows for legal dense `FLOAT32` Metal/CUDA regions. Phase 24 extends that support to legal dense `FLOAT32` `LAYER_NORM` and `RMS_NORM` by lowering them into repeated keep-dims `MEAN`, epsilon scalar add, and elementwise DAG primitives. Phase 31 closes the Metal BOOL compare/logical/reduction subset. Phase 35 promotes scoped Metal `CONV2D`, `CONV2D_GEMM`, `MAX_POOL2D`, and `AVG_POOL2D` forward execution. Loss, conv/pool backward variants, grouped/dilated conv variants, and CUDA BOOL outputs remain separate closure targets.
+Phase 23 closes the forward reduction subset. `SUM`, `MEAN`, `REDUCE_MIN`, and `REDUCE_MAX` are supported rows for legal dense `FLOAT32` Metal/CUDA regions. Phase 24 extends that support to legal dense `FLOAT32` `LAYER_NORM` and `RMS_NORM` by lowering them into repeated keep-dims `MEAN`, epsilon scalar add, and elementwise DAG primitives. Phase 31 closes the Metal BOOL compare/logical/reduction subset. Phase 35 promotes scoped Metal `CONV2D`, `CONV2D_GEMM`, `MAX_POOL2D`, and `AVG_POOL2D` forward execution. Phase 58 promotes scoped Metal conv backward, pool backward, and index-target cross entropy forward/backward. Grouped/dilated conv variants and CUDA BOOL outputs remain separate closure targets.
 
-`LOG_SOFTMAX remains lowered as SOFTMAX followed by LOG`. That support is separate from loss-adjacent operations such as `NLL_LOSS`, `CROSS_ENTROPY_LOSS`, and `CROSS_ENTROPY_LOSS_INDICES`, where unsupported loss-adjacent rows must remain visible fallback, not silent CPU replay.
+`LOG_SOFTMAX remains lowered as SOFTMAX followed by LOG`. Loss-adjacent support is similarly scoped by row and backend:
+Metal dense and index-target loss rows are supported only for their locked contracts, while CUDA loss rows must remain
+visible fallback/rejection instead of silent CPU replay.
 
-Forward reductions (`SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`) and legal dense `FLOAT32` or scoped `BFLOAT16` normalization (`LAYER_NORM`, `RMS_NORM`) are now supported for the `target=layer_norm_small` and BF16 coverage paths. Unsupported normalization variants still reject explicitly: unsupported dtype or BF16 operation family uses `UNSUPPORTED_DTYPE`, non-dense direct inputs use `UNSUPPORTED_LAYOUT`, and invalid rank or tail parameter shape uses `UNSUPPORTED_RANK_OR_SHAPE`. Scoped Metal `CONV2D` and `CONV2D_GEMM` are now supported for `target=conv2d_resnet_3x3`; unsupported Conv2D variants still reject for dtype, layout, rank/shape, groups, dilation, or metadata encoding limits. Scoped Metal direct `MAX_POOL2D` and `AVG_POOL2D` are supported for `target=max_pool2d_small` and `target=avg_pool2d_small`; unsupported pooling variants still reject for dtype, layout, rank/shape, metadata encoding limits, or `AVG_POOL2D countIncludePad=true`. Dense Metal loss rows are now supported for `NLL_LOSS` and dense `CROSS_ENTROPY_LOSS` after validating `FLOAT32` scores/log-probabilities, dense `FLOAT32` targets, dense zero-offset layouts, rank 1..4, a valid class axis, matching target shape, and public mean-reduced output shape `[1]`. The lowering uses existing primitives: dense CE emits `SOFTMAX -> LOG -> MUL(targets) -> SUM(all axes) -> MUL_SCALAR(-1/sampleCount)`, and dense NLL emits `MUL(targets) -> SUM(all axes) -> MUL_SCALAR(-1/sampleCount)`. Index-target loss rows remain separate and use `UNSUPPORTED_INDEX_SEMANTICS` because `INT32` targets, bounds checks, ignore-index handling, class weights, reduction denominator semantics, and gradient scatter behavior are outside the current native accelerator DAG compute contract.
+Forward reductions (`SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`) and legal dense `FLOAT32/BFLOAT16` normalization (`LAYER_NORM`, `RMS_NORM`) are now supported for the `target=layer_norm_small` and BF16 coverage paths. Unsupported normalization variants still reject explicitly: unsupported dtype uses `UNSUPPORTED_DTYPE`, non-dense direct inputs use `UNSUPPORTED_LAYOUT`, and invalid rank or tail parameter shape uses `UNSUPPORTED_RANK_OR_SHAPE`. Scoped Metal `CONV2D`, `CONV2D_GEMM`, `CONV2D_BACKWARD_INPUT`, `CONV2D_BACKWARD_WEIGHT`, `CONV2D_BACKWARD_INPUT_GEMM`, and `CONV2D_BACKWARD_WEIGHT_GEMM` are now supported for dense `FLOAT32/BFLOAT16` rank-4 NCHW/OIHW tensors; unsupported Conv2D variants still reject for dtype mismatch, layout, rank/shape, groups, dilation, or metadata encoding limits. Scoped Metal direct `MAX_POOL2D`, `MAX_POOL2D_BACKWARD_INPUT`, `AVG_POOL2D`, and `AVG_POOL2D_BACKWARD_INPUT` are supported for dense `FLOAT32/BFLOAT16` NCHW pooling with `AVG_POOL2D`/backward scoped to `countIncludePad=false`. Dense Metal loss rows are supported for `NLL_LOSS` and dense `CROSS_ENTROPY_LOSS`; index-target `CROSS_ENTROPY_LOSS_INDICES` and `CROSS_ENTROPY_LOSS_INDICES_GRAD` are supported for dense `FLOAT32/BFLOAT16` logits/sampleScale, dense static in-bounds `INT32` targets, public ignore-index masking, and `NONE`/`SUM`/`MEAN` reductions.
 
 ## Phase 26 loss and indexing contract
 
-Phase 26 makes loss-adjacent and indexing gaps explicit without claiming native GPU execution. Phase 37 promotes the dense Metal side of that blocker: `NLL_LOSS` and dense `CROSS_ENTROPY_LOSS` are supported only for the locked dense `FLOAT32` mean-loss subset described above. The `dense_loss_small` hot-path target is the positive Metal gate and requires native buffer-binding evidence, lowered dense-loss primitive evidence, and no CPU/tensor-array fallback. `cross_entropy_small` remains the index-target loss blocker and must continue to show `UNSUPPORTED_INDEX_SEMANTICS` rather than being counted as dense-loss coverage. `CROSS_ENTROPY_LOSS_INDICES` and `CROSS_ENTROPY_LOSS_INDICES_GRAD` remain `UNSUPPORTED_INDEX_SEMANTICS` because legal support must preserve INT32 targets, bounds behavior, ignore-index masking, class weights, reduction denominators, and per-class gradient scatter behavior.
+Phase 26 made loss-adjacent and indexing gaps explicit. Phase 37 promoted dense Metal `NLL_LOSS` and dense `CROSS_ENTROPY_LOSS`. Phase 58 promotes index-target Metal cross entropy: `CROSS_ENTROPY_LOSS_INDICES` lowers to MPSGraph softmax/log/gather/reduction, and `CROSS_ENTROPY_LOSS_INDICES_GRAD` lowers to MPSGraph softmax plus `scatterAlongAxis` sample-scale subtraction. `cross_entropy_small` is now a positive Metal native-buffer gate; CUDA keeps the visible `UNSUPPORTED_INDEX_SEMANTICS` blocker.
 
-Phase 32 promotes scoped Metal forward `GATHER` and `TAKE_ALONG_AXIS` from residency-only evidence to native index compute for dense `FLOAT32` value/output tensors with `INT32` index inputs whose bounds can be proven from a static leaf index tensor. `TAKE_ALONG_AXIS` maps directly to MPSGraph `gatherAlongAxis`; `GATHER` expands the reduced index tensor on the gathered axis, runs `gatherAlongAxis`, then squeezes the axis back to the public shape. Unproven or out-of-range bounds reject with `UNSUPPORTED_BOUNDS_CHECK` because MPSGraph out-of-bounds behavior does not match CPU exception semantics. CUDA forward gather/take remains `CAPABILITY_MISSING`, but Phase 41 now validates the same scoped contract first so dtype, layout, rank, and bounds mistakes do not collapse into a generic capability gap.
+Phase 32 promotes scoped Metal forward `GATHER` and `TAKE_ALONG_AXIS` from residency-only evidence to native index compute for dense `FLOAT32/BFLOAT16` value/output tensors with `INT32` index inputs whose bounds can be proven from a static leaf index tensor. `TAKE_ALONG_AXIS` maps directly to MPSGraph `gatherAlongAxis`; `GATHER` expands the reduced index tensor on the gathered axis, runs `gatherAlongAxis`, then squeezes the axis back to the public shape. Unproven or out-of-range bounds reject with `UNSUPPORTED_BOUNDS_CHECK` because MPSGraph out-of-bounds behavior does not match CPU exception semantics. CUDA forward gather/take remains `CAPABILITY_MISSING`, but Phase 41 now validates the same scoped contract first so dtype, layout, rank, and bounds mistakes do not collapse into a generic capability gap.
 
-Phase 36 locks the index-write and index-gradient blocker before any native support claim. `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, and `SCATTER_ADD` remain `UNSUPPORTED_DUPLICATE_INDEX` until backend execution proves CPU-compatible duplicate-index accumulation, static bounds checks, and device-resident gradient/write-add behavior. Metal planner diagnostics now validate the narrow candidate contract first: dense `FLOAT32` values/output, dense static `INT32` indices, legal rank/axis/shape, and in-bounds indices. If those pass, the remaining rejection is the duplicate-index accumulation blocker. Forward index support must not be counted as index-gradient support in reports: `gather_take_small` is the native forward index target, while `scatter_index_gradient_small` is the visible-blocker target for `SCATTER_ADD`, `GATHER_GRAD`, and `TAKE_ALONG_AXIS_GRAD`.
+Phase 58 promotes the Metal side of the index-write and index-gradient blocker. `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, and `SCATTER_ADD` now lower to MPSGraph `scatterAlongAxis` with `MPSGraphScatterModeAdd` for the narrow supported contract: dense `FLOAT32/BFLOAT16` values/output, dense static `INT32` indices, legal rank/axis/shape, and proven in-bounds indices. Invalid dtype, layout, rank/shape, dynamic-index, and out-of-bounds cases still reject before native execution. CUDA keeps the earlier visible `UNSUPPORTED_DUPLICATE_INDEX` blocker until it has equivalent native duplicate-index accumulation evidence.
 
 `native support is not implied by matrix text alone`. A supported row means lowering, legality, native execution, trace/report, and parity evidence exist for the legal scoped case. A fallback or unsupported row means the blocker is recognized, diagnosed, and kept visible for planning and reports.
 
 ## Phase 27 conv/pool and BOOL output contract
 
-Phase 27 expands the matrix surface for conv/pool and BOOL-producing operations without claiming native GPU execution prematurely. Metal and CUDA now list every targeted conv/pool op explicitly: `CONV2D`, `CONV2D_GEMM`, `CONV2D_BACKWARD_INPUT`, `CONV2D_BACKWARD_WEIGHT`, `CONV2D_BACKWARD_INPUT_GEMM`, `CONV2D_BACKWARD_WEIGHT_GEMM`, `MAX_POOL2D`, `MAX_POOL2D_BACKWARD_INPUT`, `AVG_POOL2D`, and `AVG_POOL2D_BACKWARD_INPUT`. Phase 35 promotes scoped Metal `CONV2D`, `CONV2D_GEMM`, `MAX_POOL2D`, and `AVG_POOL2D` rows to supported after DAG lowering, MPSGraph buffer execution, and prepared execution evidence. Remaining rows are `CAPABILITY_MISSING` until backend-owned primitives or verified library routing preserve backward gradients, grouped/dilated conv variants, pooling tie behavior, and average-pool divisor variants.
+Phase 27 expands the matrix surface for conv/pool and BOOL-producing operations without claiming native GPU execution prematurely. Metal and CUDA now list every targeted conv/pool op explicitly: `CONV2D`, `CONV2D_GEMM`, `CONV2D_BACKWARD_INPUT`, `CONV2D_BACKWARD_WEIGHT`, `CONV2D_BACKWARD_INPUT_GEMM`, `CONV2D_BACKWARD_WEIGHT_GEMM`, `MAX_POOL2D`, `MAX_POOL2D_BACKWARD_INPUT`, `AVG_POOL2D`, and `AVG_POOL2D_BACKWARD_INPUT`. Phase 35 promotes scoped Metal `CONV2D`, `CONV2D_GEMM`, `MAX_POOL2D`, and `AVG_POOL2D` rows to supported after DAG lowering, MPSGraph buffer execution, and prepared execution evidence. Phase 58 promotes scoped Metal conv backward plus max/average-pool backward rows after native MPSGraph buffer execution and CPU parity tests.
 
 BOOL-producing operations are also explicit: `GT`, `GE`, `LT`, `LE`, `EQ`, `NE`, `LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`, `REDUCE_ALL`, and `REDUCE_ANY`. Phase 31 promotes the Metal rows to supported for dense scoped BOOL outputs through MPSGraph compare/logical/reduction primitives. Existing BOOL residency evidence for external `WHERE` predicate inputs remains storage/role support only; native BOOL-producing GPU compute is proved separately by operation dtype legality, native buffer execution, exact BOOL byte parity, and `dtypeResidency` evidence for `role=compute` or `role=internalValue`.
 
@@ -286,15 +287,17 @@ region plus lowered primitive counts must stay above the target threshold. This 
 legal normalization targets, Metal forward SDPA, and the fused/MLP-style hot path.
 
 Targets that remain unsupported or capability-gated are still audit targets, but they pass only when the report exposes
-stable visible blockers. Conv/pool, CUDA BOOL-producing outputs, loss/index blockers, and CUDA forward SDPA
+stable visible blockers. CUDA conv/pool, CUDA BOOL-producing outputs, CUDA loss/index blockers, and CUDA forward SDPA
 must surface reason evidence such as `CAPABILITY_MISSING`, `UNSUPPORTED_DTYPE`, `UNSUPPORTED_INDEX_SEMANTICS`, operation
 family names, or target names. They do not count as native coverage closure until backend-owned execution and parity
 evidence exist.
 
-Phase 36 adds `scatter_index_gradient_small` to that visible-blocker set. It must surface `UNSUPPORTED_DUPLICATE_INDEX`
-or one of the named index-write/gradient operations (`SCATTER_ADD`, `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`) rather than
-passing because forward `GATHER` / `TAKE_ALONG_AXIS` coverage exists. The native forward target remains
-`gather_take_small`, which still requires `INT32` dtype residency and native buffer evidence.
+Phase 36 originally added `scatter_index_gradient_small` to the visible-blocker set. Phase 58 promotes the Metal side:
+Metal reports must now provide hard native evidence for `SCATTER_ADD`, `GATHER_GRAD`, and
+`TAKE_ALONG_AXIS_GRAD`, while CUDA still must surface `UNSUPPORTED_DUPLICATE_INDEX` or one of the named
+index-write/gradient operations rather than passing because forward `GATHER` / `TAKE_ALONG_AXIS` coverage exists.
+The native forward target remains `gather_take_small`, which separately requires `INT32` dtype residency and native
+buffer evidence.
 
 Suite reports include `coverageDeltaVsBaseline` so reviewers can compare trace-derived coverage counters against the
 v1.4 pre-closure baseline without using raw latency medians as proof. The relevant evidence fields are
@@ -309,19 +312,21 @@ Training support is per backward operation, not inherited from forward support. 
 explicit backward rows for `SOFTMAX_GRAD`, `LOG_SOFTMAX_GRAD`, `REDUCE_MIN_GRAD`, `REDUCE_MAX_GRAD`, `MIN_GRAD`,
 `MAX_GRAD`, `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD`, conv/pool backward variants, index gradients, and index-target
 loss gradients. Metal marks only the backward rows with existing prepared-execution, native buffer trace, and parity
-evidence as `NATIVE_EXECUTABLE`. `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD` remains matrix-supported-only for Metal until
-the buffer bridge supports the backward SDPA DAG; CUDA rows remain matrix-supported-only or explicit rejection until
-CUDA-native evidence exists.
+evidence as `NATIVE_EXECUTABLE`. `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD` is scoped to FLOAT32 rank-3/4 SDPA
+producers and supports unmasked, dense external BOOL masked, causal, and external+causal mask modes. CUDA rows remain
+matrix-supported-only or explicit rejection until CUDA-native evidence exists.
 
-Forward conv/pool, gather/take, dense loss, BOOL compare, and SDPA support does not imply backward support. Conv/pool
-backward remains `CAPABILITY_MISSING`, index gradients and scatter remain `UNSUPPORTED_DUPLICATE_INDEX`, and
-index-target loss gradients remain `UNSUPPORTED_INDEX_SEMANTICS`.
+Forward conv/pool, gather/take, dense loss, BOOL compare, and SDPA support does not imply backward support. Metal
+currently marks scoped conv/pool backward, index gradients/scatter, and index-target loss gradients as native
+executable only where native buffer execution and parity evidence exist. CUDA still reports conv/pool backward as
+`CAPABILITY_MISSING`, index gradients and scatter as `UNSUPPORTED_DUPLICATE_INDEX`, and index-target loss gradients
+as `UNSUPPORTED_INDEX_SEMANTICS`.
 
 Phase 38 training gates add explicit `training_*` hot-path targets. Supported targets allow bounded
 `GRADIENT_PUBLICATION` materialization, require zero `internalCpuMaterializationCount`, and still fail tensor-array
-bridge replay, CPU fallback, or shorter selected regions. Unsupported training targets such as
-`training_transformer_block_hot_path` and `training_cross_entropy_small` pass only when the report exposes stable
-blocker evidence for SDPA backward or index-target loss gradients.
+bridge replay, CPU fallback, or shorter selected regions. `training_cross_entropy_small` is a hard native Metal
+target after Phase 58 and remains a visible CUDA blocker. Unsupported training targets such as
+`training_transformer_block_hot_path` pass only when the report exposes stable blocker evidence for SDPA backward.
 
 Phase 43 applies the same training target discipline to CUDA. CUDA `training_reduction_chain_small` and
 `training_layer_norm_small` require native buffer evidence and zero hidden internal CPU materialization, while CUDA

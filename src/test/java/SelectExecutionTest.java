@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
@@ -20,7 +20,7 @@ public class SelectExecutionTest {
         }, new int[]{2, 3}, null, "x", DataType.FLOAT64);
         Tensor y = x.select(1, 2);
 
-        CompiledGraph compiledGraph = CompiledGraph.compile(y, OptimizerConfig.noOptimization());
+        CompiledGraph compiledGraph = CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline());
         compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2}, y.getShape());
@@ -36,7 +36,7 @@ public class SelectExecutionTest {
         }, new int[]{2, 3}, null, "x", DataType.FLOAT64);
         Tensor y = x.select(1, -1);
 
-        CompiledGraph.compile(y, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{3.0, 6.0}, y.toDoubleArrayCopy(), 1e-9);
@@ -50,7 +50,7 @@ public class SelectExecutionTest {
         }, new int[]{2, 3}, null, "x", DataType.FLOAT64);
         Tensor y = x.select(0, 1);
 
-        CompiledGraph.compile(y, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         x.setDataAt(3, 40.0);
@@ -68,7 +68,7 @@ public class SelectExecutionTest {
         }, new int[]{2, 3}, null, "x", DataType.FLOAT64);
         Tensor y = x.permute(1, 0).select(0, 1);
 
-        CompiledGraph.compile(y, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{2.0, 5.0}, y.toDoubleArrayCopy(), 1e-9);
@@ -86,7 +86,7 @@ public class SelectExecutionTest {
         }, new int[]{2, 3}, null, "x", DataType.FLOAT64);
         Tensor loss = x.select(0, 1).sum();
 
-        CompiledGraph.compile(loss, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(loss, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{15.0}, loss.toDoubleArrayCopy(), 1e-9);
@@ -103,11 +103,11 @@ public class SelectExecutionTest {
         Tensor min = x.select(0, 1).min();
         Tensor max = x.select(0, 1).max();
 
-        CompiledGraph.compile(max, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(max, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(mean, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(mean, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(min, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(min, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{5.0}, mean.toDoubleArrayCopy(), 1e-9);
@@ -125,9 +125,9 @@ public class SelectExecutionTest {
         Tensor softmax = x.select(0, 1).softmax(0);
         Tensor logSoftmax = x.select(0, 1).logSoftmax(0);
 
-        CompiledGraph.compile(logSoftmax, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(logSoftmax, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(softmax, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(softmax, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         double[] expected = new double[]{
@@ -157,9 +157,9 @@ public class SelectExecutionTest {
         Tensor nll = logits.logSoftmax(1).select(0, 1).nllLoss(targets.select(0, 1), 0);
         Tensor crossEntropy = logits.select(0, 1).crossEntropyLoss(targets.select(0, 1), 0);
 
-        CompiledGraph.compile(crossEntropy, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(crossEntropy, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(nll, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(nll, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{1.4076059644443804}, nll.toDoubleArrayCopy(), 1e-9);
@@ -189,11 +189,11 @@ public class SelectExecutionTest {
                 0
         );
 
-        CompiledGraph.compile(scatterAdd, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(scatterAdd, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(takeAlongAxis, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(takeAlongAxis, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(gather, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(gather, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{6.0}, gather.toDoubleArrayCopy(), 1e-9);
@@ -210,7 +210,7 @@ public class SelectExecutionTest {
         xMin.setRequiresGrad(true);
         Tensor minLoss = xMin.select(0, 1).min();
 
-        CompiledGraph.compile(minLoss, OptimizerConfig.trainingDefaults())
+        CompiledGraph.compile(minLoss, CompileConfig.training())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
@@ -225,7 +225,7 @@ public class SelectExecutionTest {
         xMax.setRequiresGrad(true);
         Tensor maxLoss = xMax.select(0, 1).max();
 
-        CompiledGraph.compile(maxLoss, OptimizerConfig.trainingDefaults())
+        CompiledGraph.compile(maxLoss, CompileConfig.training())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
@@ -246,7 +246,7 @@ public class SelectExecutionTest {
         }, new int[]{2, 3}, null, "b", DataType.FLOAT64);
         Tensor y = a.select(0, 1).greaterThan(b.select(0, 1));
 
-        CompiledGraph.compile(y, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new boolean[]{false, true, false}, y.toBooleanArrayCopy());
@@ -264,7 +264,7 @@ public class SelectExecutionTest {
         }, new int[]{2, 3}, null, "other", DataType.BOOL);
         Tensor y = mask.select(0, 1).logicalOr(other.select(0, 1));
 
-        CompiledGraph.compile(y, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new boolean[]{true, true, false}, y.toBooleanArrayCopy());
@@ -287,7 +287,7 @@ public class SelectExecutionTest {
 
         Tensor y = Tensor.where(mask.select(0, 1), ifTrue.select(0, 1), ifFalse.select(0, 1));
 
-        CompiledGraph.compile(y, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{4.0, 50.0, 6.0}, y.toDoubleArrayCopy(), 1e-9);
@@ -303,9 +303,9 @@ public class SelectExecutionTest {
         Tensor all = mask.select(0, 1).all();
         Tensor any = mask.select(0, 1).any();
 
-        CompiledGraph.compile(any, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(any, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(all, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(all, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new boolean[]{false}, all.toBooleanArrayCopy());
@@ -326,7 +326,7 @@ public class SelectExecutionTest {
         bMin.setRequiresGrad(true);
         Tensor minLoss = aMin.select(0, 1).min(bMin.select(0, 1)).sum();
 
-        CompiledGraph compiledMin = CompiledGraph.compile(minLoss, OptimizerConfig.trainingDefaults());
+        CompiledGraph compiledMin = CompiledGraph.compile(minLoss, CompileConfig.training());
         assertTrue(containsOp(compiledMin, Operation.OpType.MIN_GRAD));
         compiledMin.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
@@ -351,7 +351,7 @@ public class SelectExecutionTest {
         bMax.setRequiresGrad(true);
         Tensor maxLoss = aMax.select(0, 1).max(bMax.select(0, 1)).sum();
 
-        CompiledGraph compiledMax = CompiledGraph.compile(maxLoss, OptimizerConfig.trainingDefaults());
+        CompiledGraph compiledMax = CompiledGraph.compile(maxLoss, CompileConfig.training());
         assertTrue(containsOp(compiledMax, Operation.OpType.MAX_GRAD));
         compiledMax.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 

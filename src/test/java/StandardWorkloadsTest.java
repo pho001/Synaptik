@@ -60,7 +60,7 @@ public class StandardWorkloadsTest {
                 "layout-repair-profile",
                 tensor.DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -82,7 +82,7 @@ public class StandardWorkloadsTest {
                 "gather-take-profile",
                 tensor.DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -104,7 +104,7 @@ public class StandardWorkloadsTest {
                 "scatter-index-gradient-profile",
                 tensor.DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -134,7 +134,7 @@ public class StandardWorkloadsTest {
                 "dense-loss-profile",
                 tensor.DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -164,7 +164,7 @@ public class StandardWorkloadsTest {
                 "transformer-block-profile",
                 tensor.DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 StandardWorkloads.transformerHotPathDefaults()
         );
@@ -186,7 +186,7 @@ public class StandardWorkloadsTest {
                 "accelerator-closure-transformer-block",
                 tensor.DataType.FLOAT32,
                 ExecutionMode.FORWARD_BACKWARD,
-                config.optimizer.OptimizerConfig.trainingDefaults(),
+                config.compile.CompileConfig.training(),
                 config.runtime.RuntimeConfig.trainingDefaults(),
                 StandardWorkloads.transformerHotPathDefaults()
         );
@@ -217,7 +217,7 @@ public class StandardWorkloadsTest {
                 "transformer-profile",
                 tensor.DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 StandardWorkloads.transformerHotPathDefaults()
         );
@@ -240,7 +240,7 @@ public class StandardWorkloadsTest {
                 "workload-validation",
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.compile.CompileConfig.inference(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
@@ -329,7 +329,7 @@ public class StandardWorkloadsTest {
                 "preset",
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         ));
@@ -348,7 +348,7 @@ public class StandardWorkloadsTest {
                 "preset",
                 tensor.DataType.FLOAT64,
                 ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         ));

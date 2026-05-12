@@ -1,5 +1,8 @@
 package backend.cuda.lowering;
 
+import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+
 import backend.ComputeBackend;
 import backend.accelerator.lowering.GpuCompoundLoweringArtifact;
 import backend.accelerator.lowering.GpuCompoundPatternType;
@@ -29,6 +32,7 @@ import backend.accelerator.dag.AcceleratorDagValueRef;
 import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
 import graph.optimizer.region.DefaultRegionOptimizer;
+import graph.optimizer.region.ExecutionUnitKind;
 import graph.optimizer.region.OptimizedRegion;
 import graph.optimizer.region.RegionOptimizationContext;
 import operations.Operation;
@@ -72,6 +76,7 @@ class CudaRegionLowererTest {
                 RuntimeConfig.inferenceDefaults(),
                 false,
                 compiledNodes,
+                CompiledTensorDescriptorBuilder.build(compiledNodes),
                 consumers(compiledNodes)
         );
         int linearNodeId = nodeId(context, operations.Operation.OpType.LINEAR);
@@ -110,13 +115,19 @@ class CudaRegionLowererTest {
                 region,
                 MemoryPlanner.plan(graph),
                 new BackendCapabilities(Set.of(ComputeBackend.GPU_CUDA)),
-                new LoweringContext(RuntimeConfig.inferenceDefaults(), compiledNodes, java.util.Map.of(partition.partitionId(), plan))
+                new LoweringContext(RuntimeConfig.inferenceDefaults(), compiledNodes, CompiledTensorDescriptorBuilder.build(compiledNodes), java.util.Map.of(partition.partitionId(), plan))
         ));
 
         assertNotNull(result);
         GpuCompoundLoweringArtifact artifact = result.loweredRegion().units().getFirst().requireArtifact(GpuCompoundLoweringArtifact.class);
         assertEquals(GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION, artifact.summary().patternType());
         assertTrue(artifact.summary().orderedNodeIds().containsAll(List.of(linearNodeId, reluNodeId)));
+        assertTrue(artifact.units().stream().anyMatch(unit ->
+                unit.kind() == ExecutionUnitKind.MATMUL_EPILOGUE
+                        && unit.orderedNodeIds().containsAll(List.of(linearNodeId, reluNodeId))));
+        assertTrue(artifact.units().stream()
+                .flatMap(unit -> unit.traceEvents().stream())
+                .anyMatch(event -> event.contains("lowering-decision:")));
     }
 
     @Test
@@ -135,6 +146,7 @@ class CudaRegionLowererTest {
                 RuntimeConfig.inferenceDefaults(),
                 false,
                 compiledNodes,
+                CompiledTensorDescriptorBuilder.build(compiledNodes),
                 consumers(compiledNodes)
         );
         int matmulNodeId = nodeId(planningContext, Operation.OpType.MATMUL);
@@ -167,7 +179,7 @@ class CudaRegionLowererTest {
                 region,
                 MemoryPlanner.plan(graph),
                 new BackendCapabilities(Set.of(ComputeBackend.GPU_CUDA)),
-                new LoweringContext(RuntimeConfig.inferenceDefaults(), compiledNodes, java.util.Map.of(partition.partitionId(), attachedPlan))
+                new LoweringContext(RuntimeConfig.inferenceDefaults(), compiledNodes, CompiledTensorDescriptorBuilder.build(compiledNodes), java.util.Map.of(partition.partitionId(), attachedPlan))
         ));
 
         assertNotNull(result);
@@ -176,6 +188,13 @@ class CudaRegionLowererTest {
         assertTrue(attachedPlan.manifest().selectedRegionLength() > 1);
         assertTrue(attachedPlan.manifest().loweredPrimitives().size() > 1);
         assertTrue(result.loweredRegion().units().getFirst().orderedNodeIds().containsAll(selectedNodeIds));
+        GpuCompoundLoweringArtifact artifact = result.loweredRegion().units().getFirst().requireArtifact(GpuCompoundLoweringArtifact.class);
+        assertEquals(GpuCompoundPatternType.NONE, artifact.summary().patternType());
+        assertTrue(artifact.units().stream().anyMatch(unit -> unit.kind() == ExecutionUnitKind.UNIT_KERNEL));
+        assertTrue(artifact.units().stream().anyMatch(unit -> unit.kind() == ExecutionUnitKind.FUSED_ELEMENTWISE));
+        assertTrue(artifact.units().stream()
+                .flatMap(unit -> unit.traceEvents().stream())
+                .anyMatch(event -> event.contains("KEEP_AS_BACKEND_PRIMITIVE")));
     }
 
     @Test
@@ -185,7 +204,7 @@ class CudaRegionLowererTest {
         Tensor matmul = a.matmul(b);
         Tensor relu = matmul.relu();
         Tensor out = relu.exp();
-        Tensor logSoftmax = out.logSoftmax(1);
+        Tensor logSoftmax = specialLogSoftmax(out, 1);
         TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_CUDA);
         TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_CUDA);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
@@ -229,7 +248,7 @@ class CudaRegionLowererTest {
         Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaSdpaQ", DataType.FLOAT32);
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaSdpaK", DataType.FLOAT32);
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cudaSdpaV", DataType.FLOAT32);
-        Tensor out = q.scaledDotProductAttention(k, v, AttentionOptions.defaults().withScale(0.5));
+        Tensor out = specialSdpa(q, k, v, null, 0.5d);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
 
         PartitionPlanningContext context = planningContext(out);
@@ -251,7 +270,7 @@ class CudaRegionLowererTest {
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaMaskedSdpaK", DataType.FLOAT32);
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cudaMaskedSdpaV", DataType.FLOAT32);
         Tensor mask = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{1, 2, 2}, null, "cudaMaskedSdpaMask", DataType.BOOL);
-        Tensor out = q.scaledDotProductAttention(k, v, mask, AttentionOptions.defaults().withScale(0.5));
+        Tensor out = specialSdpa(q, k, v, mask, 0.5d);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
 
         PartitionPlanningContext context = planningContext(out);
@@ -274,7 +293,7 @@ class CudaRegionLowererTest {
         Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaCausalSdpaQ", DataType.FLOAT32);
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaCausalSdpaK", DataType.FLOAT32);
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cudaCausalSdpaV", DataType.FLOAT32);
-        Tensor out = q.scaledDotProductAttention(k, v, AttentionOptions.causalDefaults().withScale(0.5));
+        Tensor out = specialSdpa(q, k, v, causalMask(), 0.5d);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
 
         PartitionPlanningContext context = planningContext(out);
@@ -297,7 +316,7 @@ class CudaRegionLowererTest {
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaExternalCausalSdpaK", DataType.FLOAT32);
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cudaExternalCausalSdpaV", DataType.FLOAT32);
         Tensor mask = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{1, 2, 2}, null, "cudaExternalCausalSdpaMask", DataType.BOOL);
-        Tensor out = q.scaledDotProductAttention(k, v, mask, AttentionOptions.causalDefaults().withScale(0.5));
+        Tensor out = specialSdpa(q, k, v, mask.logicalAnd(causalMask()), 0.5d);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
 
         PartitionPlanningContext context = planningContext(out);
@@ -319,7 +338,7 @@ class CudaRegionLowererTest {
         Tensor q64 = new Tensor(new double[]{1d, 0d, 0d, 1d}, new int[]{1, 2, 2}, null, "cudaSdpaQ64", DataType.FLOAT64);
         Tensor k64 = new Tensor(new double[]{1d, 0d, 0d, 1d}, new int[]{1, 2, 2}, null, "cudaSdpaK64", DataType.FLOAT64);
         Tensor v64 = new Tensor(new double[]{10d, 1d, 1d, 10d}, new int[]{1, 2, 2}, null, "cudaSdpaV64", DataType.FLOAT64);
-        Tensor dtypeOut = q64.scaledDotProductAttention(k64, v64, AttentionOptions.defaults().withScale(0.5));
+        Tensor dtypeOut = specialSdpa(q64, k64, v64, null, 0.5d);
         TensorInternalAccess.setBackend(dtypeOut, ComputeBackend.GPU_CUDA);
         PartitionPlanningContext dtypeContext = planningContext(dtypeOut);
 
@@ -333,7 +352,7 @@ class CudaRegionLowererTest {
         Tensor qView = baseQ.permute(0, 2, 1);
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaSdpaDenseK", DataType.FLOAT32);
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cudaSdpaDenseV", DataType.FLOAT32);
-        Tensor layoutOut = qView.scaledDotProductAttention(k, v, AttentionOptions.defaults().withScale(0.5));
+        Tensor layoutOut = specialSdpa(qView, k, v, null, 0.5d);
         TensorInternalAccess.setBackend(layoutOut, ComputeBackend.GPU_CUDA);
         PartitionPlanningContext layoutContext = planningContext(layoutOut);
 
@@ -502,7 +521,7 @@ class CudaRegionLowererTest {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cudaLogSoftmaxInput", DataType.FLOAT32);
         Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f}, new int[]{3, 3}, null, "cudaLogSoftmaxWeight", DataType.FLOAT32);
         Tensor matmul = input.matmul(weight);
-        Tensor out = matmul.logSoftmax(1);
+        Tensor out = specialLogSoftmax(matmul, 1);
         TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_CUDA);
         TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
 
@@ -931,7 +950,7 @@ class CudaRegionLowererTest {
                 region,
                 MemoryPlanner.plan(graph),
                 new BackendCapabilities(Set.of(ComputeBackend.GPU_CUDA)),
-                new LoweringContext(RuntimeConfig.inferenceDefaults(), compiledNodes, java.util.Map.of(partition.partitionId(), plan))
+                new LoweringContext(RuntimeConfig.inferenceDefaults(), compiledNodes, CompiledTensorDescriptorBuilder.build(compiledNodes), java.util.Map.of(partition.partitionId(), plan))
         ));
 
         assertNotNull(result);
@@ -959,6 +978,7 @@ class CudaRegionLowererTest {
                 RuntimeConfig.inferenceDefaults(),
                 false,
                 compiledNodes,
+                CompiledTensorDescriptorBuilder.build(compiledNodes),
                 consumers(compiledNodes)
         );
         int matmulNodeId = nodeId(planningContext, Operation.OpType.MATMUL);
@@ -992,7 +1012,7 @@ class CudaRegionLowererTest {
                 region,
                 MemoryPlanner.plan(graph),
                 new BackendCapabilities(Set.of(ComputeBackend.GPU_CUDA)),
-                new LoweringContext(RuntimeConfig.inferenceDefaults(), compiledNodes, java.util.Map.of(partition.partitionId(), plan))
+                new LoweringContext(RuntimeConfig.inferenceDefaults(), compiledNodes, CompiledTensorDescriptorBuilder.build(compiledNodes), java.util.Map.of(partition.partitionId(), plan))
         ));
 
         assertNotNull(result);
@@ -1121,6 +1141,7 @@ class CudaRegionLowererTest {
                 RuntimeConfig.inferenceDefaults(),
                 false,
                 compiledNodes,
+                CompiledTensorDescriptorBuilder.build(compiledNodes),
                 consumers(compiledNodes)
         );
     }
@@ -1136,6 +1157,42 @@ class CudaRegionLowererTest {
             }
         }
         return consumers;
+    }
+
+    private static Tensor specialLogSoftmax(Tensor input, int dimension) {
+        return TensorPrimitiveBuilder.unary(
+                input,
+                input.getShapeUnsafe().clone(),
+                new operations.reduction.logSoftmax(dimension),
+                "legacyLogSoftmax",
+                input.getDataType()
+        );
+    }
+
+    private static Tensor specialSdpa(Tensor query, Tensor key, Tensor value, Tensor mask, double scale) {
+        int[] outShape = query.getShapeUnsafe().clone();
+        outShape[outShape.length - 1] = value.getShapeUnsafe()[value.getShapeUnsafe().length - 1];
+        java.util.ArrayList<Tensor> inputs = new java.util.ArrayList<>();
+        inputs.add(query);
+        inputs.add(key);
+        inputs.add(value);
+        if (mask != null) {
+            inputs.add(mask);
+        }
+        return TensorPrimitiveBuilder.nary(
+                outShape,
+                inputs,
+                new operations.linalg.scaledDotProductAttention(scale, mask != null),
+                "legacyScaledDotProductAttention",
+                query.getDataType()
+        );
+    }
+
+    private static Tensor causalMask() {
+        return new Tensor(new byte[]{
+                1, 0,
+                1, 1
+        }, new int[]{1, 2, 2}, null, "causal_mask", DataType.BOOL);
     }
 
     private static int nodeId(PartitionPlanningContext context, operations.Operation.OpType opType) {

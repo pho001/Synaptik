@@ -17,6 +17,9 @@ import backend.metal.kernel.MetalCustomKernelExecutable;
 import backend.metal.lowering.MetalPartitionPlan;
 import config.runtime.AcceleratorBackendConfig;
 import config.runtime.AcceleratorBufferBindingMode;
+import graph.optimizer.cost.CostDirection;
+import graph.optimizer.cost.CostExplanation;
+import graph.optimizer.cost.CostScore;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -29,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MetalExecutionRouterTest {
     @Test
-    void selectsCustomKernelOnlyForScopedReluBufferCandidate() {
+    void keepsMpsGraphFirstWhenScopedReluCustomKernelIsEligible() {
         MetalRouteDecision decision = MetalExecutionRouter.decide(
                 reluPlan(DataType.FLOAT32),
                 capabilities(),
@@ -39,12 +42,14 @@ class MetalExecutionRouterTest {
                 customExecutable()
         );
 
-        assertEquals(MetalExecutionRoute.CUSTOM_KERNEL, decision.selectedRoute());
-        assertEquals(MetalRouteReasonCode.CUSTOM_KERNEL_SELECTED, decision.reasonCode());
+        assertEquals(MetalExecutionRoute.MPS_GRAPH, decision.selectedRoute());
+        assertEquals(MetalRouteReasonCode.MPS_GRAPH_SELECTED, decision.reasonCode());
         assertTrue(decision.customKernelAvailable());
         assertTrue(decision.detail().contains("kernelId=" + MetalCustomKernelCandidate.RELU_F32_KERNEL_ID));
-        assertTrue(decision.rejectedRoutes().contains(MetalExecutionRoute.MPS_GRAPH));
-        assertFalse(decision.rejectedRoutes().contains(MetalExecutionRoute.CUSTOM_KERNEL));
+        assertTrue(decision.detail().contains("metalRegionLowering=MPSGRAPH_DAG"));
+        assertTrue(decision.detail().contains("metalExecutionRoute=MPS_GRAPH"));
+        assertTrue(decision.rejectedRoutes().contains(MetalExecutionRoute.CUSTOM_KERNEL));
+        assertTrue(decision.rejectedReasonCodes().contains(MetalRouteReasonCode.CUSTOM_KERNEL_NOT_PROFITABLE));
     }
 
     @Test
@@ -97,6 +102,82 @@ class MetalExecutionRouterTest {
         assertFalse(decision.customKernelAvailable());
         assertTrue(decision.rejectedRoutes().contains(MetalExecutionRoute.CUSTOM_KERNEL));
         assertTrue(decision.rejectedReasonCodes().contains(MetalRouteReasonCode.CUSTOM_KERNEL_UNAVAILABLE));
+
+        CostScore score = decision.toCostScore();
+        CostExplanation explanation = score.explain(decision.reasonCode().name());
+        assertEquals("MetalBackendRouteCostModel", score.modelName());
+        assertEquals("metal-prepared-execution-route", score.inputKind());
+        assertEquals("MPS_GRAPH_SELECTED", explanation.reasonCode());
+        assertEquals(8.0d, component(score, "estimatedRouteCost").value());
+        assertEquals(0.0d, component(score, "tensorArrayFallback").value());
+        assertEquals(0.0d, component(score, "cpuFallback").value());
+        assertEquals("MPS_GRAPH", component(score, "selectedRoute").reason());
+    }
+
+    @Test
+    void routeCostScoreMarksTensorArrayFallback() {
+        MetalRouteDecision decision = MetalExecutionRouter.decide(
+                reluPlan(DataType.FLOAT32),
+                capabilities(),
+                AcceleratorBackendConfig.defaults(),
+                tensorArrayTransport(),
+                MetalCustomKernelCapabilities.unavailable("custom route unavailable"),
+                MetalCustomKernelExecutable.unavailable("custom route unavailable")
+        );
+
+        CostScore score = decision.toCostScore();
+
+        assertEquals(MetalExecutionRoute.TENSOR_ARRAY, decision.selectedRoute());
+        assertEquals(MetalRouteReasonCode.BUFFER_ABI_UNAVAILABLE, decision.reasonCode());
+        assertEquals(24.0d, component(score, "estimatedRouteCost").value());
+        assertEquals(1.0d, component(score, "tensorArrayFallback").value());
+        assertEquals(0.0d, component(score, "cpuFallback").value());
+        assertEquals(CostDirection.LOWER_IS_BETTER, component(score, "tensorArrayFallback").direction());
+        assertEquals("TENSOR_ARRAY", component(score, "selectedRoute").reason());
+    }
+
+    @Test
+    void routeCostScoreMarksCpuFallback() {
+        MetalRouteDecision decision = MetalExecutionRouter.decide(
+                reluPlan(DataType.FLOAT32),
+                capabilities(),
+                AcceleratorBackendConfig.defaults(),
+                staticCpuFallbackTransport(),
+                MetalCustomKernelCapabilities.unavailable("custom route unavailable"),
+                MetalCustomKernelExecutable.unavailable("custom route unavailable")
+        );
+
+        CostScore score = decision.toCostScore();
+
+        assertEquals(MetalExecutionRoute.CPU_FALLBACK, decision.selectedRoute());
+        assertEquals(MetalRouteReasonCode.UNSUPPORTED_LAYOUT, decision.reasonCode());
+        assertEquals(16.0d, component(score, "estimatedRouteCost").value());
+        assertEquals(0.0d, component(score, "tensorArrayFallback").value());
+        assertEquals(1.0d, component(score, "cpuFallback").value());
+        assertEquals(0.0d, component(score, "unavailableRequired").value());
+        assertEquals("CPU_FALLBACK", component(score, "selectedRoute").reason());
+    }
+
+    @Test
+    void routeCostScoreMarksUnavailableRequired() {
+        MetalRouteDecision decision = MetalExecutionRouter.decide(
+                reluPlan(DataType.FLOAT32),
+                capabilities(),
+                AcceleratorBackendConfig.defaults(),
+                unavailableRequiredTransport(),
+                MetalCustomKernelCapabilities.unavailable("custom route unavailable"),
+                MetalCustomKernelExecutable.unavailable("custom route unavailable")
+        );
+
+        CostScore score = decision.toCostScore();
+
+        assertEquals(MetalExecutionRoute.UNAVAILABLE_REQUIRED, decision.selectedRoute());
+        assertEquals(MetalRouteReasonCode.UNAVAILABLE_REQUIRED, decision.reasonCode());
+        assertEquals("UNAVAILABLE_REQUIRED", score.explain(decision.reasonCode().name()).reasonCode());
+        assertEquals(16.0d, component(score, "estimatedRouteCost").value());
+        assertEquals(1.0d, component(score, "unavailableRequired").value());
+        assertEquals(0.0d, component(score, "bridgeAvailable").value());
+        assertEquals("UNAVAILABLE_REQUIRED", component(score, "selectedRoute").reason());
     }
 
     private static MetalExecutionRouter.TransportEvidence bufferTransport() {
@@ -114,6 +195,64 @@ class MetalExecutionRouterTest {
                 8,
                 0
         );
+    }
+
+    private static MetalExecutionRouter.TransportEvidence tensorArrayTransport() {
+        return new MetalExecutionRouter.TransportEvidence(
+                MetalExecutionRouter.TransportPath.TENSOR_ARRAY,
+                AcceleratorBufferBindingMode.AUTO,
+                AcceleratorBufferReasonCode.NATIVE_BUFFER_ABI_UNAVAILABLE,
+                "native buffer ABI unavailable",
+                true,
+                true,
+                true,
+                false,
+                true,
+                false,
+                8,
+                0
+        );
+    }
+
+    private static MetalExecutionRouter.TransportEvidence staticCpuFallbackTransport() {
+        return new MetalExecutionRouter.TransportEvidence(
+                MetalExecutionRouter.TransportPath.STATIC_CPU_FALLBACK,
+                AcceleratorBufferBindingMode.AUTO,
+                AcceleratorBufferReasonCode.INPUT_LAYOUT_UNSUPPORTED,
+                "input layout unsupported",
+                true,
+                true,
+                true,
+                true,
+                true,
+                false,
+                8,
+                0
+        );
+    }
+
+    private static MetalExecutionRouter.TransportEvidence unavailableRequiredTransport() {
+        return new MetalExecutionRouter.TransportEvidence(
+                MetalExecutionRouter.TransportPath.UNAVAILABLE_REQUIRED,
+                AcceleratorBufferBindingMode.REQUIRE,
+                AcceleratorBufferReasonCode.BRIDGE_UNAVAILABLE,
+                "bridge unavailable",
+                false,
+                false,
+                false,
+                false,
+                true,
+                false,
+                8,
+                0
+        );
+    }
+
+    private static graph.optimizer.cost.CostComponent component(CostScore score, String name) {
+        return score.components().stream()
+                .filter(component -> component.name().equals(name))
+                .findFirst()
+                .orElseThrow();
     }
 
     private static MetalMpsBridgeCapabilities capabilities() {

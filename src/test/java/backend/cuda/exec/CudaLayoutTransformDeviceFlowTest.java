@@ -1,5 +1,8 @@
 package backend.cuda.exec;
 
+import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+
 import backend.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferDecision;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
@@ -14,7 +17,7 @@ import backend.memory.CpuMaterializationReason;
 import backend.memory.StorageResidency;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
@@ -28,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
+import tensor.TensorPrimitiveBuilder;
 
 import java.lang.foreign.MemorySegment;
 import java.util.List;
@@ -87,7 +91,7 @@ class CudaLayoutTransformDeviceFlowTest {
         }, new int[]{2, 3}, null, "cudaBase", DataType.FLOAT32);
         Tensor nonDenseSource = base.permute(1, 0);
         Tensor contiguous = nonDenseSource.contiguous();
-        CompiledGraph compiled = CompiledGraph.compile(contiguous, OptimizerConfig.noOptimization());
+        CompiledGraph compiled = CompiledGraph.compile(contiguous, CompileConfig.noGraphOptimizationBaseline());
         List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
         CompiledNode baseNode = nodeFor(nodes, base);
         CompiledNode sourceNode = nodeFor(nodes, nonDenseSource);
@@ -128,11 +132,11 @@ class CudaLayoutTransformDeviceFlowTest {
     @Test
     void layoutViewThenLogSoftmaxStaysDeviceOwnedUntilOutputBoundary() {
         Tensor expected = linearReshapePermuteLogSoftmaxGraph("cpu");
-        CompiledGraph.compile(expected, OptimizerConfig.inferenceDefaults())
+        CompiledGraph.compile(expected, CompileConfig.inference())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         Tensor actual = linearReshapePermuteLogSoftmaxGraph("cuda");
-        CompiledGraph compiled = CompiledGraph.compile(actual, OptimizerConfig.inferenceDefaults());
+        CompiledGraph compiled = CompiledGraph.compile(actual, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
         var trace = execution.executeTraced(ExecutionMode.FORWARD);
         int logSoftmaxNodeId = nodeId(compiled.compileArtifacts().compiledNodes(), Operation.OpType.LOG_SOFTMAX);
@@ -163,6 +167,7 @@ class CudaLayoutTransformDeviceFlowTest {
                 steps,
                 List.of(),
                 nodes,
+                CompiledTensorDescriptorBuilder.build(nodes),
                 Map.of(),
                 rootTensor,
                 forwardOutputNode,
@@ -240,7 +245,7 @@ class CudaLayoutTransformDeviceFlowTest {
         Tensor reshape = linear.reshape(3, 4);
         Tensor permute = reshape.permute(1, 0);
         Tensor contiguous = permute.contiguous();
-        Tensor out = contiguous.logSoftmax(1);
+        Tensor out = specialLogSoftmax(contiguous, 1);
 
         if ("cuda".equals(labelPrefix)) {
             TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_CUDA);
@@ -250,6 +255,16 @@ class CudaLayoutTransformDeviceFlowTest {
             TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
         }
         return out;
+    }
+
+    private static Tensor specialLogSoftmax(Tensor input, int dimension) {
+        return TensorPrimitiveBuilder.unary(
+                input,
+                input.getShapeUnsafe().clone(),
+                new operations.reduction.logSoftmax(dimension),
+                "legacyLogSoftmax",
+                input.getDataType()
+        );
     }
 
     private record SyntheticCudaSourceExecutable(int nodeId) implements PreparedAcceleratorExecutable {

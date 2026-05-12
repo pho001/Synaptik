@@ -47,7 +47,7 @@ final class MetalIndexWriteSemantics {
         if (base == null || indices == null || src == null) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SCATTER_ADD inputs are unavailable";
         }
-        String dtypeReason = requireFloat32ValueAndInt32Index("SCATTER_ADD", node, indices, base, src);
+        String dtypeReason = requireFloatingValueAndInt32Index("SCATTER_ADD", node, indices, base, src);
         if (!dtypeReason.isBlank()) {
             return dtypeReason;
         }
@@ -71,7 +71,7 @@ final class MetalIndexWriteSemantics {
         if (!boundsReason.isBlank()) {
             return boundsReason;
         }
-        return duplicateUnsupported("SCATTER_ADD");
+        return "";
     }
 
     private static String gatherGradReason(CompiledNode node, PartitionPlanningContext context) {
@@ -86,7 +86,7 @@ final class MetalIndexWriteSemantics {
         if (indices == null || outGrad == null) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_GRAD inputs are unavailable";
         }
-        String dtypeReason = requireFloat32ValueAndInt32Index("GATHER_GRAD", node, indices, outGrad);
+        String dtypeReason = requireFloatingValueAndInt32Index("GATHER_GRAD", node, indices, outGrad);
         if (!dtypeReason.isBlank()) {
             return dtypeReason;
         }
@@ -107,7 +107,7 @@ final class MetalIndexWriteSemantics {
         if (!boundsReason.isBlank()) {
             return boundsReason;
         }
-        return duplicateUnsupported("GATHER_GRAD");
+        return "";
     }
 
     private static String takeAlongAxisGradReason(CompiledNode node, PartitionPlanningContext context) {
@@ -122,7 +122,7 @@ final class MetalIndexWriteSemantics {
         if (indices == null || outGrad == null) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL TAKE_ALONG_AXIS_GRAD inputs are unavailable";
         }
-        String dtypeReason = requireFloat32ValueAndInt32Index("TAKE_ALONG_AXIS_GRAD", node, indices, outGrad);
+        String dtypeReason = requireFloatingValueAndInt32Index("TAKE_ALONG_AXIS_GRAD", node, indices, outGrad);
         if (!dtypeReason.isBlank()) {
             return dtypeReason;
         }
@@ -148,7 +148,7 @@ final class MetalIndexWriteSemantics {
         if (!boundsReason.isBlank()) {
             return boundsReason;
         }
-        return duplicateUnsupported("TAKE_ALONG_AXIS_GRAD");
+        return "";
     }
 
     private static String commonReason(Operation.OpType opType, CompiledNode node, PartitionPlanningContext context) {
@@ -165,24 +165,28 @@ final class MetalIndexWriteSemantics {
         return "";
     }
 
-    private static String requireFloat32ValueAndInt32Index(
+    private static String requireFloatingValueAndInt32Index(
             String opName,
             CompiledNode output,
             CompiledNode indices,
             CompiledNode... values
     ) {
-        if (output.dataType() != DataType.FLOAT32) {
-            return "UNSUPPORTED_DTYPE: GPU_METAL " + opName + " currently supports only FLOAT32 output";
+        if (!isMetalFloatingDType(output.dataType())) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL " + opName + " output requires FLOAT32/BFLOAT16";
         }
         if (indices.dataType() != DataType.INT32) {
             return "UNSUPPORTED_DTYPE: GPU_METAL " + opName + " index input requires INT32";
         }
         for (CompiledNode value : values) {
-            if (value != null && value.dataType() != DataType.FLOAT32) {
-                return "UNSUPPORTED_DTYPE: GPU_METAL " + opName + " currently supports only FLOAT32 value inputs";
+            if (value != null && value.dataType() != output.dataType()) {
+                return "UNSUPPORTED_DTYPE: GPU_METAL " + opName + " value inputs must match FLOAT32/BFLOAT16 output dtype";
             }
         }
         return "";
+    }
+
+    private static boolean isMetalFloatingDType(DataType dtype) {
+        return dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16;
     }
 
     private static String requireDense(String opName, CompiledNode... inputs) {
@@ -216,16 +220,6 @@ final class MetalIndexWriteSemantics {
             }
         }
         return "";
-    }
-
-    private static String duplicateUnsupported(String opName) {
-        String detail = switch (opName) {
-            case "TAKE_ALONG_AXIS_GRAD" -> "duplicate-index accumulation parity and rank-preserving static bounds checks are not proven";
-            case "SCATTER_ADD" -> "duplicate-index accumulation order/tolerance and native write-add semantics are not proven";
-            default -> "duplicate-index accumulation parity is not proven";
-        };
-        return "UNSUPPORTED_DUPLICATE_INDEX: operation " + opName + " GPU_METAL"
-                + " native " + detail + "; family=INDEX_SCATTER_GATHER";
     }
 
     private static int[] reduceShape(int[] shape, int axis) {

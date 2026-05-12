@@ -4,7 +4,7 @@ import backend.ComputeBackend;
 import backend.memory.CpuMaterializationReason;
 import backend.metal.exec.PreparedMetalExecutable;
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
@@ -37,7 +37,7 @@ class MetalBufferTraceSmokeTest {
         Tensor output = input.relu();
         TensorInternalAccess.setBackend(output, ComputeBackend.GPU_METAL);
 
-        PreparedExecution execution = CompiledGraph.compile(output, OptimizerConfig.noOptimization())
+        PreparedExecution execution = CompiledGraph.compile(output, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
         RunTrace trace = execution.executeTraced(ExecutionMode.FORWARD);
         ExecutionStepTrace metalStep = trace.steps().stream()
@@ -50,10 +50,19 @@ class MetalBufferTraceSmokeTest {
         assertEquals("BUFFER_BINDING", attrs.get("acceleratorBufferExecutionPath"));
         assertEquals("BUFFER_BINDING_AVAILABLE", attrs.get("acceleratorBufferReasonCode"));
         assertTrue(attrs.containsKey("acceleratorBufferPreparedInputUsed"));
-        assertEquals("CUSTOM_KERNEL", attrs.get("metalExecutionPath"));
-        assertEquals("CUSTOM_KERNEL", attrs.get("metalExecutionRoute"));
-        assertEquals("TRUE_OUTPUT_BUFFER_WRITE", attrs.get("metalNativeCopyStrategy"));
-        assertTrue(attrs.containsKey("metalNativeDeviceCopyNs"));
+        assertEquals("BUFFER_BINDING", attrs.get("metalExecutionPath"));
+        assertEquals("MPS_GRAPH", attrs.get("metalExecutionRoute"));
+        if ("TRUE_OUTPUT_BUFFER_WRITE".equals(attrs.get("metalNativeCopyStrategy"))) {
+            assertEquals("TRUE_OUTPUT_BUFFER_WRITE", attrs.get("metalNativeCopyStrategy"));
+            assertEquals(true, attrs.get("metalOutputBufferWriteProven"));
+            assertEquals("PROVEN_TRUE_WRITE", attrs.get("metalOutputBufferWriteStatus"));
+            assertEquals(0L, attrs.get("metalNativeDeviceCopyNs"));
+        } else {
+            assertEquals("MPSGRAPH_RESULT_COPY", attrs.get("metalNativeCopyStrategy"));
+            assertEquals(false, attrs.get("metalOutputBufferWriteProven"));
+            assertEquals("COPY_REQUIRED", attrs.get("metalOutputBufferWriteStatus"));
+            assertTrue(attrs.containsKey("metalNativeDeviceCopyNs"));
+        }
         assertEquals(0L, attrs.get("metalNativeToJavaCopyNs"));
         assertEquals("DEVICE_OWNED", attrs.get("storageResidency"));
         assertEquals(false, attrs.get("storageCpuCurrent"));
@@ -73,7 +82,7 @@ class MetalBufferTraceSmokeTest {
     @Test
     void layoutAwareTraceReportsBufferPathAndLogicalMaterialization() {
         Tensor out = layoutAwareLinearReshapePermute("metal");
-        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+        PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.inference())
                 .prepare(RuntimeConfig.inferenceDefaults());
         assumeNativeBufferBridge(execution);
 
@@ -119,7 +128,7 @@ class MetalBufferTraceSmokeTest {
         TensorInternalAccess.setBackend(reshape, ComputeBackend.GPU_METAL);
         TensorInternalAccess.setBackend(permute, ComputeBackend.GPU_METAL);
 
-        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+        PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.inference())
                 .prepare(RuntimeConfig.inferenceDefaults());
         assumeNativeBufferBridge(execution);
 
@@ -145,7 +154,7 @@ class MetalBufferTraceSmokeTest {
         );
         TensorInternalAccess.setBackend(broadcastZeroStrideOutput, ComputeBackend.GPU_METAL);
 
-        PreparedExecution execution = CompiledGraph.compile(broadcastZeroStrideOutput, OptimizerConfig.inferenceDefaults())
+        PreparedExecution execution = CompiledGraph.compile(broadcastZeroStrideOutput, CompileConfig.inference())
                 .prepare(RuntimeConfig.inferenceDefaults());
         assumeNativeBufferBridge(execution);
 

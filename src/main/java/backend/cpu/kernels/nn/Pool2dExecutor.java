@@ -22,16 +22,16 @@ final class Pool2dExecutor {
         Pool2dDirectBackend.maxForwardBF16(op, input, out, argmaxWorkspace);
     }
 
-    static void maxBackwardInputF64(maxPool2dBackwardInput op, Tensor outGrad, Tensor gradInput, int[] argmaxWorkspace) {
-        Pool2dDirectBackend.maxBackwardInputF64(op, outGrad, gradInput, argmaxWorkspace);
+    static void maxBackwardInputF64(maxPool2dBackwardInput op, Tensor outGrad, Tensor source, Tensor gradInput) {
+        Pool2dDirectBackend.maxBackwardInputF64(op, outGrad, source, gradInput);
     }
 
-    static void maxBackwardInputF32(maxPool2dBackwardInput op, Tensor outGrad, Tensor gradInput, int[] argmaxWorkspace) {
-        Pool2dDirectBackend.maxBackwardInputF32(op, outGrad, gradInput, argmaxWorkspace);
+    static void maxBackwardInputF32(maxPool2dBackwardInput op, Tensor outGrad, Tensor source, Tensor gradInput) {
+        Pool2dDirectBackend.maxBackwardInputF32(op, outGrad, source, gradInput);
     }
 
-    static void maxBackwardInputBF16(maxPool2dBackwardInput op, Tensor outGrad, Tensor gradInput, int[] argmaxWorkspace) {
-        Pool2dDirectBackend.maxBackwardInputBF16(op, outGrad, gradInput, argmaxWorkspace);
+    static void maxBackwardInputBF16(maxPool2dBackwardInput op, Tensor outGrad, Tensor source, Tensor gradInput) {
+        Pool2dDirectBackend.maxBackwardInputBF16(op, outGrad, source, gradInput);
     }
 
     static void avgForwardF64(avgPool2d op, Tensor input, Tensor out) {

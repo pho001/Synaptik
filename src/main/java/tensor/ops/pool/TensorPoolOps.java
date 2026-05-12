@@ -50,7 +50,7 @@ public final class TensorPoolOps {
             }
             Tensor grad = TensorPrimitiveBuilder.binaryNoGrad(
                     outGrad,
-                    out,
+                    input,
                     inputShape.clone(),
                     new operations.nn.pool.maxPool2dBackwardInput(options, inputShape),
                     "maxPool2dBackwardInput",

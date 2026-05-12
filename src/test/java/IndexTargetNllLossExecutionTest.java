@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import org.junit.jupiter.api.Test;
@@ -22,7 +22,7 @@ public class IndexTargetNllLossExecutionTest {
                 1.0, 0.0, 0.0
         }, new int[]{2, 3}, null, "oneHotTargets", DataType.FLOAT64);
         Tensor denseLoss = logProbsA.nllLoss(oneHotTargets, 1);
-        CompiledGraph.compile(denseLoss, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(denseLoss, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         Tensor logitsB = new Tensor(new double[]{
@@ -32,7 +32,7 @@ public class IndexTargetNllLossExecutionTest {
         Tensor logProbsB = logitsB.logSoftmax(1);
         Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "targetIndices", DataType.INT32);
         Tensor indexLoss = logProbsB.nllLossFromIndices(targetIndices, 1);
-        CompiledGraph.compile(indexLoss, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(indexLoss, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(denseLoss.toDoubleArrayCopy(), indexLoss.toDoubleArrayCopy(), 1e-9);
@@ -50,7 +50,7 @@ public class IndexTargetNllLossExecutionTest {
         Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "targetIndices", DataType.INT32);
         Tensor loss = logProbs.nllLossFromIndices(targetIndices, 1);
 
-        CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults())
+        CompiledGraph.compile(loss, CompileConfig.training())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{

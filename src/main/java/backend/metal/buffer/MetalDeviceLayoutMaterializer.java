@@ -56,9 +56,9 @@ public final class MetalDeviceLayoutMaterializer implements DeviceLayoutMaterial
         }
 
         AcceleratorBufferLayout targetLayout = decision.targetLayout();
-        if (targetLayout.dataType() != DataType.FLOAT32) {
+        if (!supportsMaterializationDType(targetLayout.dataType())) {
             throw new UnsupportedOperationException("NATIVE_LAYOUT_DTYPE_UNSUPPORTED: Metal dense layout materialization "
-                    + "supports FLOAT32 only; got " + targetLayout.dataType());
+                    + "supports FLOAT32/BFLOAT16/BOOL; got " + targetLayout.dataType());
         }
         if (targetLayout.layoutClass() != AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS) {
             throw new UnsupportedOperationException("Metal dense layout materialization requires dense target layout; got "
@@ -76,5 +76,11 @@ public final class MetalDeviceLayoutMaterializer implements DeviceLayoutMaterial
     private static boolean isSupportedMaterialization(AcceleratorLayoutTransformKind kind) {
         return kind == AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION
                 || kind == AcceleratorLayoutTransformKind.BROADCAST_GPU_MATERIALIZATION;
+    }
+
+    private static boolean supportsMaterializationDType(DataType dataType) {
+        return dataType == DataType.FLOAT32
+                || dataType == DataType.BFLOAT16
+                || dataType == DataType.BOOL;
     }
 }

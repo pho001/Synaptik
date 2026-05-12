@@ -1,5 +1,5 @@
-import config.optimizer.OptimizerConfig;
-import config.optimizer.OptimizerStage;
+import config.compile.CompileConfig;
+import config.compile.GraphOptimizationConfig;
 import graph.CompiledGraph;
 import operations.Operation;
 import operations.elementwise.binary.div;
@@ -55,7 +55,7 @@ public class AlgebraicRewritingDivInvTest {
                 .noneMatch(opType -> opType == Operation.OpType.INV));
     }
 
-    private static OptimizerConfig arOnlyInferenceConfig() {
-        return OptimizerConfig.inferenceDefaults().withStageOrder(List.of(OptimizerStage.AR));
+    private static CompileConfig arOnlyInferenceConfig() {
+        return CompileConfig.inference().withGraphOptimization(GraphOptimizationConfig.stages(true, false, false, false, false));
     }
 }

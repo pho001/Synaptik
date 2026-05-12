@@ -71,20 +71,12 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
     }
 
     private boolean sameTargetSupportedProducer(CompiledNode producer, CompiledNode consumer, PartitionPlanningContext context) {
-        if (isForwardValueInputToBackwardRegion(producer, consumer)) {
-            return false;
-        }
         return producer != null
+                && consumer != null
+                && producer.backwardNode() == consumer.backwardNode()
                 && producer.operation() != null
                 && producer.backend() == target().backend()
                 && MetalPartitionSupport.isPlannerSupported(producer, context);
-    }
-
-    private boolean isForwardValueInputToBackwardRegion(CompiledNode producer, CompiledNode consumer) {
-        return producer != null
-                && consumer != null
-                && !producer.backwardNode()
-                && consumer.backwardNode();
     }
 
     private boolean externalInputRolesAreSupported(CompiledNode producer, CompiledNode consumer) {
@@ -117,9 +109,6 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
             return null;
         }
         List<Integer> orderedNodeIds = selectedNodeIds.stream().sorted().toList();
-        if (mixesForwardAndBackward(orderedNodeIds, context)) {
-            return null;
-        }
         for (int nodeId : orderedNodeIds) {
             if (!MetalPartitionSupport.isPlannerSupported(context.compiledNode(nodeId), context)) {
                 return null;
@@ -160,26 +149,6 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
                 List.copyOf(outputNodeIds),
                 anchorNodeId
         );
-    }
-
-    private boolean mixesForwardAndBackward(List<Integer> orderedNodeIds, PartitionPlanningContext context) {
-        boolean hasForward = false;
-        boolean hasBackward = false;
-        for (int nodeId : orderedNodeIds) {
-            CompiledNode node = context.compiledNode(nodeId);
-            if (node == null) {
-                continue;
-            }
-            if (node.backwardNode()) {
-                hasBackward = true;
-            } else {
-                hasForward = true;
-            }
-            if (hasForward && hasBackward) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -230,12 +199,71 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
         }
         if (requiredMaterializedValueRefs != null) {
             for (int nodeId : orderedNodeIds) {
-                if (requiredMaterializedValueRefs.contains(PartitionValueRef.ofNode(nodeId))) {
+                if (requiredMaterializedValueRefs.contains(PartitionValueRef.ofNode(nodeId))
+                        && requiredMaterializationMustLeaveRegion(nodeId, selectedNodeIds, context)) {
                     outputs.add(nodeId);
                 }
             }
         }
+        addHiddenBackwardContextOutputs(outputs, selectedNodeIds, orderedNodeIds, context);
         return outputs;
+    }
+
+    private boolean requiredMaterializationMustLeaveRegion(
+            int nodeId,
+            Set<Integer> selectedNodeIds,
+            PartitionPlanningContext context
+    ) {
+        boolean hasSelectedConsumer = false;
+        for (CompiledNode consumer : context.consumersFor(nodeId)) {
+            if (consumer == null) {
+                continue;
+            }
+            if (selectedNodeIds.contains(consumer.id())) {
+                hasSelectedConsumer = true;
+            } else {
+                return true;
+            }
+        }
+        if (!hasSelectedConsumer) {
+            return true;
+        }
+        CompiledNode node = context.compiledNode(nodeId);
+        return node == null || !hasZeroStride(node.strides());
+    }
+
+    private boolean hasZeroStride(int[] strides) {
+        if (strides == null) {
+            return false;
+        }
+        for (int stride : strides) {
+            if (stride == 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void addHiddenBackwardContextOutputs(
+            LinkedHashSet<Integer> outputs,
+            Set<Integer> selectedNodeIds,
+            List<Integer> orderedNodeIds,
+            PartitionPlanningContext context
+    ) {
+        for (int nodeId : orderedNodeIds) {
+            CompiledNode node = context.compiledNode(nodeId);
+            if (node == null || node.operation() == null) {
+                continue;
+            }
+            if (node.operation().opType() != operations.Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION) {
+                continue;
+            }
+            for (int inputId : node.inputIds()) {
+                if (selectedNodeIds.contains(inputId)) {
+                    outputs.add(inputId);
+                }
+            }
+        }
     }
 
     private boolean hasExternalConsumerBeforeAnchor(

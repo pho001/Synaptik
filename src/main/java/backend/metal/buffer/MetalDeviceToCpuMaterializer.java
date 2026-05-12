@@ -39,16 +39,26 @@ public final class MetalDeviceToCpuMaterializer implements DeviceToCpuMaterializ
         AcceleratorBufferLayout bindingLayout = metalBinding.layout();
         AcceleratorBufferLayoutClass layoutClass = bindingLayout.layoutClass();
         MetalLayoutPolicy.Decision layoutDecision = MetalLayoutPolicy.output(bindingLayout);
+        boolean exactLayout = Arrays.equals(bindingLayout.strides(), targetLayout.strides())
+                && bindingLayout.storageOffset() == targetLayout.storageOffset();
+        boolean denseRepairedLogicalLayout = bindingLayout.layoutClass() == AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS
+                && bindingLayout.storageOffset() == 0
+                && bindingLayout.logicalElementCount() == targetLayout.logicalElementCount();
         return metalBinding.available()
-                && bindingLayout.dataType() == DataType.FLOAT32
-                && target.getDataType() == DataType.FLOAT32
+                && supportsReadbackDType(bindingLayout.dataType())
+                && bindingLayout.dataType() == target.getDataType()
                 && Arrays.equals(bindingLayout.shape(), targetLayout.shape())
-                && Arrays.equals(bindingLayout.strides(), targetLayout.strides())
-                && bindingLayout.storageOffset() == targetLayout.storageOffset()
+                && (exactLayout || denseRepairedLogicalLayout)
                 && bindingLayout.logicalElementCount() == targetLayout.logicalElementCount()
                 && layoutDecision.accepted()
                 && layoutClass != AcceleratorBufferLayoutClass.BROADCAST_ZERO_STRIDE_VIEW
                 && layoutClass != AcceleratorBufferLayoutClass.UNSUPPORTED;
+    }
+
+    private static boolean supportsReadbackDType(DataType dataType) {
+        return dataType == DataType.FLOAT32
+                || dataType == DataType.BFLOAT16
+                || dataType == DataType.BOOL;
     }
 
     /**

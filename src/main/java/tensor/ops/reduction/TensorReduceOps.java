@@ -2,13 +2,11 @@ package tensor.ops.reduction;
 
 import graph.optimizer.intent.BackendIntentPropagator;
 import operations.Operation;
-import operations.reduction.logSoftmax;
 import operations.reduction.mean;
 import operations.reduction.reduceAll;
 import operations.reduction.reduceAny;
 import operations.reduction.reduceMax;
 import operations.reduction.reduceMin;
-import operations.reduction.softmax;
 import operations.reduction.sum;
 import tensor.DataType;
 import tensor.Tensor;
@@ -161,13 +159,12 @@ public final class TensorReduceOps {
     public static Tensor softmax(Tensor input, int dimension) {
         ReductionSupport.requireFloatingInput(input, "softmax");
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, input.getShape().length);
-        Tensor out = TensorPrimitiveBuilder.unary(
-                input,
-                input.getShape().clone(),
-                new softmax(normalizedDimension),
-                "softmax",
-                input.getDataType()
-        );
+        Tensor max = input.max(normalizedDimension, true);
+        Tensor shifted = input.sub(max);
+        Tensor exp = shifted.exp();
+        Tensor denominator = exp.sum(normalizedDimension, true);
+        Tensor out = exp.div(denominator);
+        out.setLabel("softmax");
         TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
@@ -192,13 +189,12 @@ public final class TensorReduceOps {
     public static Tensor logSoftmax(Tensor input, int dimension) {
         ReductionSupport.requireFloatingInput(input, "logSoftmax");
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, input.getShape().length);
-        Tensor out = TensorPrimitiveBuilder.unary(
-                input,
-                input.getShape().clone(),
-                new logSoftmax(normalizedDimension),
-                "logSoftmax",
-                input.getDataType()
-        );
+        Tensor max = input.max(normalizedDimension, true);
+        Tensor shifted = input.sub(max);
+        Tensor exp = shifted.exp();
+        Tensor denominator = exp.sum(normalizedDimension, true);
+        Tensor out = shifted.sub(denominator.log());
+        out.setLabel("logSoftmax");
         TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {

@@ -134,9 +134,11 @@ class GpuLoweringCoverageMatrixTest {
                         GpuLoweringCoverageMatrix.entryFor(backend, opType).status(),
                         () -> opType + " should be supported by native accelerator DAG execution");
             }
-            assertFalse(GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES).reason()
-                            == GpuLoweringUnsupportedReason.SUPPORTED,
-                    "index-target loss must keep a stable non-supported reason");
+            GpuLoweringUnsupportedReason expectedIndexLossReason = backend == ComputeBackend.GPU_METAL
+                    ? GpuLoweringUnsupportedReason.SUPPORTED
+                    : GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS;
+            assertEquals(expectedIndexLossReason,
+                    GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES).reason());
         }
     }
 
@@ -163,8 +165,13 @@ class GpuLoweringCoverageMatrixTest {
                 if (backend == ComputeBackend.GPU_METAL
                         && (opType == Operation.OpType.NLL_LOSS
                         || opType == Operation.OpType.CROSS_ENTROPY_LOSS
+                        || opType == Operation.OpType.CROSS_ENTROPY_LOSS_INDICES
+                        || opType == Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD
                         || opType == Operation.OpType.GATHER
-                        || opType == Operation.OpType.TAKE_ALONG_AXIS)) {
+                        || opType == Operation.OpType.TAKE_ALONG_AXIS
+                        || opType == Operation.OpType.GATHER_GRAD
+                        || opType == Operation.OpType.TAKE_ALONG_AXIS_GRAD
+                        || opType == Operation.OpType.SCATTER_ADD)) {
                     assertEquals(GpuLoweringCoverageStatus.SUPPORTED, entry.status());
                     assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, entry.reason());
                 } else {
@@ -175,9 +182,13 @@ class GpuLoweringCoverageMatrixTest {
                 assertFalse(entry.note().isBlank());
             }
 
-            assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
+            assertEquals(backend == ComputeBackend.GPU_METAL
+                            ? GpuLoweringUnsupportedReason.SUPPORTED
+                            : GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES).reason());
-            assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
+            assertEquals(backend == ComputeBackend.GPU_METAL
+                            ? GpuLoweringUnsupportedReason.SUPPORTED
+                            : GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD).reason());
             GpuLoweringUnsupportedReason expectedForwardIndexReason = backend == ComputeBackend.GPU_METAL
                     ? GpuLoweringUnsupportedReason.SUPPORTED
@@ -186,18 +197,22 @@ class GpuLoweringCoverageMatrixTest {
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.GATHER).reason());
             assertEquals(expectedForwardIndexReason,
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.TAKE_ALONG_AXIS).reason());
-            assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DUPLICATE_INDEX,
+            GpuLoweringUnsupportedReason expectedIndexWriteReason = backend == ComputeBackend.GPU_METAL
+                    ? GpuLoweringUnsupportedReason.SUPPORTED
+                    : GpuLoweringUnsupportedReason.UNSUPPORTED_DUPLICATE_INDEX;
+            assertEquals(expectedIndexWriteReason,
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.GATHER_GRAD).reason());
-            assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DUPLICATE_INDEX,
+            assertEquals(expectedIndexWriteReason,
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.TAKE_ALONG_AXIS_GRAD).reason());
-            assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DUPLICATE_INDEX,
+            assertEquals(expectedIndexWriteReason,
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.SCATTER_ADD).reason());
+            String expectedNote = backend == ComputeBackend.GPU_METAL ? "scatterAlongAxis" : "duplicate-index";
             assertTrue(GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.GATHER_GRAD).note()
-                    .contains("duplicate-index accumulation parity"));
+                    .contains(expectedNote));
             assertTrue(GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.TAKE_ALONG_AXIS_GRAD).note()
-                    .contains("rank-preserving static bounds checks"));
+                    .contains(expectedNote));
             assertTrue(GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.SCATTER_ADD).note()
-                    .contains("native write-add semantics"));
+                    .contains(backend == ComputeBackend.GPU_METAL ? "scatterAlongAxis" : "native write-add semantics"));
         }
     }
 
@@ -216,10 +231,12 @@ class GpuLoweringCoverageMatrixTest {
         assertTrue(denseCe.note().contains("SOFTMAX"));
         assertTrue(denseCe.note().contains("target=loss_dense_small"));
 
-        assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS, indexCe.reason());
-        assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS, indexCeGrad.reason());
+        assertEquals(GpuLoweringCoverageStatus.SUPPORTED, indexCe.status());
+        assertEquals(GpuLoweringCoverageStatus.SUPPORTED, indexCeGrad.status());
+        assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, indexCe.reason());
+        assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, indexCeGrad.reason());
         assertTrue(indexCe.note().contains("ignore-index"));
-        assertTrue(indexCeGrad.note().contains("scatter-like per-class gradient semantics"));
+        assertTrue(indexCeGrad.note().contains("scatterAlongAxis"));
     }
 
     @Test
@@ -259,13 +276,30 @@ class GpuLoweringCoverageMatrixTest {
                 Operation.OpType.MAX_POOL2D_BACKWARD_INPUT,
                 Operation.OpType.AVG_POOL2D_BACKWARD_INPUT
         )) {
-            for (ComputeBackend backend : List.of(ComputeBackend.GPU_METAL, ComputeBackend.GPU_CUDA)) {
-                GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(backend, opType);
-
-                assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, entry.status(), opType.name());
-                assertEquals(GpuLoweringUnsupportedReason.CAPABILITY_MISSING, entry.reason(), opType.name());
-            }
+            GpuLoweringCoverageEntry metalEntry = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, opType);
+            assertEquals(GpuLoweringCoverageStatus.SUPPORTED, metalEntry.status(), opType.name());
+            assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, metalEntry.reason(), opType.name());
         }
+
+        for (Operation.OpType opType : List.of(
+                Operation.OpType.CONV2D_BACKWARD_INPUT,
+                Operation.OpType.CONV2D_BACKWARD_WEIGHT,
+                Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM,
+                Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM,
+                Operation.OpType.MAX_POOL2D_BACKWARD_INPUT,
+                Operation.OpType.AVG_POOL2D_BACKWARD_INPUT
+        )) {
+            GpuLoweringCoverageEntry cudaEntry = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_CUDA, opType);
+            assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, cudaEntry.status(), opType.name());
+            assertEquals(GpuLoweringUnsupportedReason.CAPABILITY_MISSING, cudaEntry.reason(), opType.name());
+        }
+
+        GpuLoweringCoverageEntry cudaMaxPoolBackward = GpuLoweringCoverageMatrix.entryFor(
+                ComputeBackend.GPU_CUDA,
+                Operation.OpType.MAX_POOL2D_BACKWARD_INPUT
+        );
+        assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, cudaMaxPoolBackward.status());
+        assertEquals(GpuLoweringUnsupportedReason.CAPABILITY_MISSING, cudaMaxPoolBackward.reason());
     }
 
     @Test
@@ -308,11 +342,17 @@ class GpuLoweringCoverageMatrixTest {
                 if (backend == ComputeBackend.GPU_METAL
                         && (opType == Operation.OpType.CONV2D
                         || opType == Operation.OpType.CONV2D_GEMM
+                        || opType == Operation.OpType.CONV2D_BACKWARD_INPUT
+                        || opType == Operation.OpType.CONV2D_BACKWARD_WEIGHT
+                        || opType == Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM
+                        || opType == Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM
                         || opType == Operation.OpType.MAX_POOL2D
-                        || opType == Operation.OpType.AVG_POOL2D)) {
+                        || opType == Operation.OpType.MAX_POOL2D_BACKWARD_INPUT
+                        || opType == Operation.OpType.AVG_POOL2D
+                        || opType == Operation.OpType.AVG_POOL2D_BACKWARD_INPUT)) {
                     assertEquals(GpuLoweringCoverageStatus.SUPPORTED, entry.status());
                     assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, entry.reason(),
-                            () -> opType + " should be supported for scoped Metal direct conv/pool forward execution");
+                            () -> opType + " should be supported for scoped Metal direct conv/pool execution");
                     assertTrue(entry.note().contains("MPSGraph"));
                 } else {
                     assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, entry.status());
@@ -381,10 +421,7 @@ class GpuLoweringCoverageMatrixTest {
     void phaseSeventeenNonSupportedRowsUseStableReasonCodes() {
         for (ComputeBackend backend : List.of(ComputeBackend.GPU_METAL, ComputeBackend.GPU_CUDA)) {
             List<Operation.OpType> nonSupportedOps = backend == ComputeBackend.GPU_METAL
-                    ? List.of(
-                    Operation.OpType.CROSS_ENTROPY_LOSS_INDICES,
-                    Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD
-            )
+                    ? List.of()
                     : List.of(
                     Operation.OpType.NLL_LOSS,
                     Operation.OpType.CROSS_ENTROPY_LOSS,

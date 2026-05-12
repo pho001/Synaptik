@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import tensor.DataType;
@@ -20,7 +20,7 @@ public class BroadcastBinaryOpsTest {
         b.setRequiresGrad(true);
 
         Tensor out = a.sub(b);
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{-9, -18, -27, -6, -15, -24}, out.toDoubleArrayCopy(), 1e-9);
@@ -38,7 +38,7 @@ public class BroadcastBinaryOpsTest {
         b.setRequiresGrad(true);
 
         Tensor out = a.mul(b);
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{10, 40, 90, 40, 100, 180}, out.toDoubleArrayCopy(), 1e-9);
@@ -54,7 +54,7 @@ public class BroadcastBinaryOpsTest {
         b.setRequiresGrad(true);
 
         Tensor out = a.add(b);
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{11, 12, 13, 14, 15, 16}, out.toDoubleArrayCopy(), 1e-9);
@@ -82,7 +82,7 @@ public class BroadcastBinaryOpsTest {
         b.setRequiresGrad(true);
 
         Tensor out = a.add(b); // out shape [2,3,4]
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new int[]{2, 3, 4}, out.getShape());
@@ -105,7 +105,7 @@ public class BroadcastBinaryOpsTest {
         }, new int[]{3, 4}, null, "b", DataType.FLOAT64);
 
         Tensor out = a.add(b);
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 3, 4}, out.getShape());
@@ -132,7 +132,7 @@ public class BroadcastBinaryOpsTest {
         }, new int[]{2, 1, 4}, null, "b", DataType.FLOAT64);
 
         Tensor out = a.add(b);
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 3, 4}, out.getShape());
@@ -162,7 +162,7 @@ public class BroadcastBinaryOpsTest {
         }, new int[]{2, 3, 1, 4}, null, "b", DataType.FLOAT64);
 
         Tensor out = a.add(b);
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 3, 2, 4}, out.getShape());
@@ -205,7 +205,7 @@ public class BroadcastBinaryOpsTest {
         b.setRequiresGrad(true);
 
         Tensor out = a.div(b);
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{1, 2, 2, 4, 5, 4}, out.toDoubleArrayCopy(), 1e-9);
@@ -221,7 +221,7 @@ public class BroadcastBinaryOpsTest {
         b.setRequiresGrad(true);
 
         Tensor minOut = a.min(b);
-        CompiledGraph.compile(minOut, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(minOut, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{1, 4, 3, 4, 2, 4}, minOut.toDoubleArrayCopy(), 1e-9);
@@ -232,7 +232,7 @@ public class BroadcastBinaryOpsTest {
         TensorInternalAccess.clearGradient(b);
 
         Tensor maxOut = a.max(b);
-        CompiledGraph.compile(maxOut, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(maxOut, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{4, 5, 4, 7, 4, 9}, maxOut.toDoubleArrayCopy(), 1e-9);
@@ -248,7 +248,7 @@ public class BroadcastBinaryOpsTest {
         b.setRequiresGrad(true);
 
         Tensor minOut = a.min(b);
-        CompiledGraph.compile(minOut, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(minOut, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{1, 4, 3, 4, 2, 4}, minOut.toDoubleArrayCopy(), 1e-6);
@@ -259,7 +259,7 @@ public class BroadcastBinaryOpsTest {
         TensorInternalAccess.clearGradient(b);
 
         Tensor maxOut = a.max(b);
-        CompiledGraph.compile(maxOut, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(maxOut, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{4, 5, 4, 7, 4, 9}, maxOut.toDoubleArrayCopy(), 1e-6);
@@ -280,7 +280,7 @@ public class BroadcastBinaryOpsTest {
         b.setRequiresGrad(true);
 
         Tensor minOut = a.min(b);
-        CompiledGraph.compile(minOut, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(minOut, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{1, 4, 3, 4, 2, 4}, minOut.toDoubleArrayCopy(), 1e-2);
@@ -291,7 +291,7 @@ public class BroadcastBinaryOpsTest {
         TensorInternalAccess.clearGradient(b);
 
         Tensor maxOut = a.max(b);
-        CompiledGraph.compile(maxOut, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(maxOut, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{4, 5, 4, 7, 4, 9}, maxOut.toDoubleArrayCopy(), 1e-2);
@@ -307,7 +307,7 @@ public class BroadcastBinaryOpsTest {
         b.setRequiresGrad(true);
 
         Tensor minOut = a.min(b);
-        CompiledGraph.compile(minOut, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(minOut, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{0.5, 0.5, 0.5, 0.5}, a.getGradient().toDoubleArrayCopy(), 1e-9);
@@ -317,7 +317,7 @@ public class BroadcastBinaryOpsTest {
         TensorInternalAccess.clearGradient(b);
 
         Tensor maxOut = a.max(b);
-        CompiledGraph.compile(maxOut, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(maxOut, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{0.5, 0.5, 0.5, 0.5}, a.getGradient().toDoubleArrayCopy(), 1e-9);

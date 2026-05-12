@@ -152,6 +152,8 @@ public final class CudaFfmBridge implements CudaGraphBridge {
             int[] input2Indices = new int[nodeCount];
             int[] input3Kinds = new int[nodeCount];
             int[] input3Indices = new int[nodeCount];
+            int[] input4Kinds = new int[nodeCount];
+            int[] input4Indices = new int[nodeCount];
             float[] scalarValues = new float[nodeCount];
             int[] outputRanks = new int[nodeCount];
             int[] outputDim0 = new int[nodeCount];
@@ -169,6 +171,8 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                 input2Indices[i] = node.input2().index();
                 input3Kinds[i] = node.input3().kind().abiCode();
                 input3Indices[i] = node.input3().index();
+                input4Kinds[i] = node.input4().kind().abiCode();
+                input4Indices[i] = node.input4().index();
                 scalarValues[i] = Float.intBitsToFloat(node.scalarValueBits());
                 outputRanks[i] = node.outputRank();
                 outputDim0[i] = node.outputDim0();
@@ -197,6 +201,8 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                     intArrayOrNull(compileArena, input2Indices),
                     intArrayOrNull(compileArena, input3Kinds),
                     intArrayOrNull(compileArena, input3Indices),
+                    intArrayOrNull(compileArena, input4Kinds),
+                    intArrayOrNull(compileArena, input4Indices),
                     floatArrayOrNull(compileArena, scalarValues),
                     intArrayOrNull(compileArena, outputRanks),
                     intArrayOrNull(compileArena, outputDim0),
@@ -542,6 +548,8 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                             ADDRESS,
                             ADDRESS,
                             JAVA_INT,
+                            ADDRESS,
+                            ADDRESS,
                             ADDRESS,
                             ADDRESS,
                             ADDRESS,

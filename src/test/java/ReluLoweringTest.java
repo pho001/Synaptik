@@ -1,7 +1,7 @@
 import backend.runtime.ExecutionMode;
 import config.optimizer.PiecewiseLoweringConfig;
-import config.optimizer.OptimizerConfig;
-import config.optimizer.OptimizerStage;
+import config.compile.CompileConfig;
+import config.compile.GraphOptimizationConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
@@ -26,7 +26,7 @@ public class ReluLoweringTest {
                 baselineInput,
                 Tensor.zerosLike(baselineInput)
         );
-        CompiledGraph.compile(baselineOut, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(baselineOut, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         Tensor optimizedInput = new Tensor(new double[]{-2.0, 0.0, 3.0}, new int[]{3}, null, "x_opt", DataType.FLOAT64);
@@ -86,7 +86,7 @@ public class ReluLoweringTest {
         input.setRequiresGrad(true);
         Tensor out = input.relu();
 
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{0.0, 0.0, 3.0}, out.toDoubleArrayCopy(), 1e-9);
@@ -119,13 +119,17 @@ public class ReluLoweringTest {
                 .anyMatch(type -> type == opType);
     }
 
-    private static OptimizerConfig arOnlyConfig() {
-        return OptimizerConfig.inferenceDefaults().withStageOrder(List.of(OptimizerStage.AR));
+    private static CompileConfig arOnlyConfig() {
+        return CompileConfig.inference().withGraphOptimization(GraphOptimizationConfig.stages(true, false, false, false, false));
     }
 
-    private static OptimizerConfig arWithPiecewiseConfig(PiecewiseLoweringConfig piecewiseLowering) {
-        return OptimizerConfig.inferenceDefaults()
-                .withStageOrder(List.of(OptimizerStage.AR))
-                .withRewrite(OptimizerConfig.inferenceDefaults().rewrite().withPiecewiseLowering(piecewiseLowering));
+    private static CompileConfig arWithPiecewiseConfig(PiecewiseLoweringConfig piecewiseLowering) {
+        return CompileConfig.inference()
+                .withGraphOptimization(GraphOptimizationConfig
+                        .stages(true, false, false, false, false)
+                        .withRewrite(CompileConfig.inference()
+                                .graphOptimization()
+                                .rewrite()
+                                .withPiecewiseLowering(piecewiseLowering)));
     }
 }

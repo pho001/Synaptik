@@ -25,16 +25,40 @@ final class Pool2dDirectBackend {
         runMaxForwardF16(input.getBFloat16Data(), input.getShapeUnsafe(), out.getBFloat16Data(), out.getShapeUnsafe(), op.getOptions(), argmaxWorkspace);
     }
 
-    static void maxBackwardInputF64(maxPool2dBackwardInput op, Tensor outGrad, Tensor gradInput, int[] argmaxWorkspace) {
-        runMaxBackwardInputF64(outGrad.getFloat64Data(), outGrad.getShapeUnsafe(), gradInput.getFloat64Data(), op.getInputShape(), argmaxWorkspace);
+    static void maxBackwardInputF64(maxPool2dBackwardInput op, Tensor outGrad, Tensor source, Tensor gradInput) {
+        runMaxBackwardInputF64(
+                source.getFloat64Data(),
+                source.getShapeUnsafe(),
+                outGrad.getFloat64Data(),
+                outGrad.getShapeUnsafe(),
+                gradInput.getFloat64Data(),
+                op.getInputShape(),
+                op.getOptions()
+        );
     }
 
-    static void maxBackwardInputF32(maxPool2dBackwardInput op, Tensor outGrad, Tensor gradInput, int[] argmaxWorkspace) {
-        runMaxBackwardInputF32(outGrad.getFloat32Data(), outGrad.getShapeUnsafe(), gradInput.getFloat32Data(), op.getInputShape(), argmaxWorkspace);
+    static void maxBackwardInputF32(maxPool2dBackwardInput op, Tensor outGrad, Tensor source, Tensor gradInput) {
+        runMaxBackwardInputF32(
+                source.getFloat32Data(),
+                source.getShapeUnsafe(),
+                outGrad.getFloat32Data(),
+                outGrad.getShapeUnsafe(),
+                gradInput.getFloat32Data(),
+                op.getInputShape(),
+                op.getOptions()
+        );
     }
 
-    static void maxBackwardInputBF16(maxPool2dBackwardInput op, Tensor outGrad, Tensor gradInput, int[] argmaxWorkspace) {
-        runMaxBackwardInputF16(outGrad.getBFloat16Data(), outGrad.getShapeUnsafe(), gradInput.getBFloat16Data(), op.getInputShape(), argmaxWorkspace);
+    static void maxBackwardInputBF16(maxPool2dBackwardInput op, Tensor outGrad, Tensor source, Tensor gradInput) {
+        runMaxBackwardInputF16(
+                source.getBFloat16Data(),
+                source.getShapeUnsafe(),
+                outGrad.getBFloat16Data(),
+                outGrad.getShapeUnsafe(),
+                gradInput.getBFloat16Data(),
+                op.getInputShape(),
+                op.getOptions()
+        );
     }
 
     static void avgForwardF64(avgPool2d op, Tensor input, Tensor out) {
@@ -202,19 +226,32 @@ final class Pool2dDirectBackend {
         }
     }
 
-    private static void runMaxBackwardInputF64(double[] outGrad, int[] outGradShape, double[] gradInput, int[] inputShape, int[] argmaxWorkspace) {
+    private static void runMaxBackwardInputF64(
+            double[] source,
+            int[] sourceShape,
+            double[] outGrad,
+            int[] outGradShape,
+            double[] gradInput,
+            int[] inputShape,
+            Pool2dOptions options
+    ) {
+        validateMaxBackwardSourceShape(sourceShape, inputShape);
         java.util.Arrays.fill(gradInput, 0.0d);
         int n = inputShape[0];
         int c = inputShape[1];
+        int inH = inputShape[2];
+        int inW = inputShape[3];
         int outH = outGradShape[2];
         int outW = outGradShape[3];
 
         for (int batch = 0; batch < n; batch++) {
             for (int channel = 0; channel < c; channel++) {
                 for (int oh = 0; oh < outH; oh++) {
+                    int inOriginH = oh * options.strideH() - options.padH();
                     for (int ow = 0; ow < outW; ow++) {
+                        int inOriginW = ow * options.strideW() - options.padW();
                         int outputIndex = indexNCHW(batch, channel, oh, ow, c, outH, outW);
-                        int bestIndex = argmaxWorkspace[outputIndex];
+                        int bestIndex = findMaxIndexF64(source, batch, channel, inOriginH, inOriginW, c, inH, inW, options);
                         gradInput[bestIndex] += outGrad[indexNCHW(batch, channel, oh, ow, c, outH, outW)];
                     }
                 }
@@ -222,19 +259,32 @@ final class Pool2dDirectBackend {
         }
     }
 
-    private static void runMaxBackwardInputF32(float[] outGrad, int[] outGradShape, float[] gradInput, int[] inputShape, int[] argmaxWorkspace) {
+    private static void runMaxBackwardInputF32(
+            float[] source,
+            int[] sourceShape,
+            float[] outGrad,
+            int[] outGradShape,
+            float[] gradInput,
+            int[] inputShape,
+            Pool2dOptions options
+    ) {
+        validateMaxBackwardSourceShape(sourceShape, inputShape);
         java.util.Arrays.fill(gradInput, 0.0f);
         int n = inputShape[0];
         int c = inputShape[1];
+        int inH = inputShape[2];
+        int inW = inputShape[3];
         int outH = outGradShape[2];
         int outW = outGradShape[3];
 
         for (int batch = 0; batch < n; batch++) {
             for (int channel = 0; channel < c; channel++) {
                 for (int oh = 0; oh < outH; oh++) {
+                    int inOriginH = oh * options.strideH() - options.padH();
                     for (int ow = 0; ow < outW; ow++) {
+                        int inOriginW = ow * options.strideW() - options.padW();
                         int outputIndex = indexNCHW(batch, channel, oh, ow, c, outH, outW);
-                        int bestIndex = argmaxWorkspace[outputIndex];
+                        int bestIndex = findMaxIndexF32(source, batch, channel, inOriginH, inOriginW, c, inH, inW, options);
                         gradInput[bestIndex] += outGrad[indexNCHW(batch, channel, oh, ow, c, outH, outW)];
                     }
                 }
@@ -242,19 +292,32 @@ final class Pool2dDirectBackend {
         }
     }
 
-    private static void runMaxBackwardInputF16(short[] outGrad, int[] outGradShape, short[] gradInput, int[] inputShape, int[] argmaxWorkspace) {
+    private static void runMaxBackwardInputF16(
+            short[] source,
+            int[] sourceShape,
+            short[] outGrad,
+            int[] outGradShape,
+            short[] gradInput,
+            int[] inputShape,
+            Pool2dOptions options
+    ) {
+        validateMaxBackwardSourceShape(sourceShape, inputShape);
         java.util.Arrays.fill(gradInput, (short) 0);
         int n = inputShape[0];
         int c = inputShape[1];
+        int inH = inputShape[2];
+        int inW = inputShape[3];
         int outH = outGradShape[2];
         int outW = outGradShape[3];
 
         for (int batch = 0; batch < n; batch++) {
             for (int channel = 0; channel < c; channel++) {
                 for (int oh = 0; oh < outH; oh++) {
+                    int inOriginH = oh * options.strideH() - options.padH();
                     for (int ow = 0; ow < outW; ow++) {
+                        int inOriginW = ow * options.strideW() - options.padW();
                         int outputIndex = indexNCHW(batch, channel, oh, ow, c, outH, outW);
-                        int bestIndex = argmaxWorkspace[outputIndex];
+                        int bestIndex = findMaxIndexF16(source, batch, channel, inOriginH, inOriginW, c, inH, inW, options);
                         float updated = CpuDTypeOps.fromBFloat16Bits(gradInput[bestIndex])
                                 + CpuDTypeOps.fromBFloat16Bits(outGrad[indexNCHW(batch, channel, oh, ow, c, outH, outW)]);
                         gradInput[bestIndex] = CpuDTypeOps.toBFloat16Bits(updated);
@@ -262,6 +325,129 @@ final class Pool2dDirectBackend {
                 }
             }
         }
+    }
+
+    private static void validateMaxBackwardSourceShape(int[] sourceShape, int[] inputShape) {
+        if (!java.util.Arrays.equals(sourceShape, inputShape)) {
+            throw new IllegalArgumentException("maxPool2d backward source shape must match original input shape.");
+        }
+    }
+
+    private static int findMaxIndexF64(
+            double[] source,
+            int batch,
+            int channel,
+            int inOriginH,
+            int inOriginW,
+            int channels,
+            int inH,
+            int inW,
+            Pool2dOptions options
+    ) {
+        double best = 0.0d;
+        int bestIndex = -1;
+        boolean found = false;
+        for (int kh = 0; kh < options.kernelH(); kh++) {
+            int ih = inOriginH + kh;
+            if (ih < 0 || ih >= inH) {
+                continue;
+            }
+            for (int kw = 0; kw < options.kernelW(); kw++) {
+                int iw = inOriginW + kw;
+                if (iw < 0 || iw >= inW) {
+                    continue;
+                }
+                int index = indexNCHW(batch, channel, ih, iw, channels, inH, inW);
+                double value = source[index];
+                if (!found || value > best) {
+                    best = value;
+                    bestIndex = index;
+                    found = true;
+                }
+            }
+        }
+        if (!found) {
+            throw new IllegalArgumentException("maxPool2d backward window has no valid input elements.");
+        }
+        return bestIndex;
+    }
+
+    private static int findMaxIndexF32(
+            float[] source,
+            int batch,
+            int channel,
+            int inOriginH,
+            int inOriginW,
+            int channels,
+            int inH,
+            int inW,
+            Pool2dOptions options
+    ) {
+        float best = 0.0f;
+        int bestIndex = -1;
+        boolean found = false;
+        for (int kh = 0; kh < options.kernelH(); kh++) {
+            int ih = inOriginH + kh;
+            if (ih < 0 || ih >= inH) {
+                continue;
+            }
+            for (int kw = 0; kw < options.kernelW(); kw++) {
+                int iw = inOriginW + kw;
+                if (iw < 0 || iw >= inW) {
+                    continue;
+                }
+                int index = indexNCHW(batch, channel, ih, iw, channels, inH, inW);
+                float value = source[index];
+                if (!found || value > best) {
+                    best = value;
+                    bestIndex = index;
+                    found = true;
+                }
+            }
+        }
+        if (!found) {
+            throw new IllegalArgumentException("maxPool2d backward window has no valid input elements.");
+        }
+        return bestIndex;
+    }
+
+    private static int findMaxIndexF16(
+            short[] source,
+            int batch,
+            int channel,
+            int inOriginH,
+            int inOriginW,
+            int channels,
+            int inH,
+            int inW,
+            Pool2dOptions options
+    ) {
+        float best = 0.0f;
+        int bestIndex = -1;
+        boolean found = false;
+        for (int kh = 0; kh < options.kernelH(); kh++) {
+            int ih = inOriginH + kh;
+            if (ih < 0 || ih >= inH) {
+                continue;
+            }
+            for (int kw = 0; kw < options.kernelW(); kw++) {
+                int iw = inOriginW + kw;
+                if (iw < 0 || iw >= inW) {
+                    continue;
+                }
+                int index = indexNCHW(batch, channel, ih, iw, channels, inH, inW);
+                float value = CpuDTypeOps.fromBFloat16Bits(source[index]);
+                if (!found || value > best) {
+                    best = value;
+                    bestIndex = index;
+                    found = true;
+                }
+            }
+        }
+        if (!found) {
+            throw new IllegalArgumentException("maxPool2d backward window has no valid input elements.");
+        }
+        return bestIndex;
     }
 
     private static void runAvgForwardF64(double[] input, int[] inputShape, double[] out, int[] outShape, Pool2dOptions options) {

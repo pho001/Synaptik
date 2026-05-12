@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
@@ -21,7 +21,7 @@ public class GatherExecutionTest {
         Tensor indices = new Tensor(new double[]{2, 0}, new int[]{2}, null, "indices", DataType.FLOAT64);
         Tensor y = x.gather(indices, 1);
 
-        CompiledGraph compiledGraph = CompiledGraph.compile(y, OptimizerConfig.noOptimization());
+        CompiledGraph compiledGraph = CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline());
         compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2}, y.getShape());
@@ -36,7 +36,7 @@ public class GatherExecutionTest {
         Tensor indices = new Tensor(new double[]{2, 0}, new int[]{2}, null, "indices", DataType.FLOAT64);
         Tensor y = view.gather(indices, 0);
 
-        CompiledGraph.compile(y, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{3.0, 4.0}, y.toDoubleArrayCopy(), 1e-9);
@@ -49,7 +49,7 @@ public class GatherExecutionTest {
         Tensor indices = new Tensor(new double[]{2, 0}, new int[]{2}, null, "indices", DataType.FLOAT64);
         Tensor y = x.gather(indices, 1);
 
-        CompiledGraph.compile(y, OptimizerConfig.trainingDefaults())
+        CompiledGraph.compile(y, CompileConfig.training())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
@@ -71,7 +71,7 @@ public class GatherExecutionTest {
                 DataType.FLOAT64
         );
 
-        CompiledGraph.compile(grad, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(grad, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
@@ -93,7 +93,7 @@ public class GatherExecutionTest {
                 DataType.FLOAT64
         );
 
-        CompiledGraph.compile(grad, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(grad, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
@@ -116,7 +116,7 @@ public class GatherExecutionTest {
         );
 
         assertThrows(IllegalArgumentException.class, () ->
-                CompiledGraph.compile(grad, OptimizerConfig.noOptimization())
+                CompiledGraph.compile(grad, CompileConfig.noGraphOptimizationBaseline())
                         .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD));
     }
 
@@ -127,7 +127,7 @@ public class GatherExecutionTest {
         Tensor y = x.gather(indices, 1);
 
         assertThrows(IllegalArgumentException.class, () ->
-                CompiledGraph.compile(y, OptimizerConfig.noOptimization())
+                CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline())
                         .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD));
     }
 

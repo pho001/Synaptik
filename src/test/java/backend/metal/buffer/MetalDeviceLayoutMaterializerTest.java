@@ -94,6 +94,12 @@ class MetalDeviceLayoutMaterializerTest {
     }
 
     @Test
+    void materializesDenseBFloat16AndBoolTargetsThroughBridge() {
+        assertMaterializesDType(DataType.BFLOAT16);
+        assertMaterializesDType(DataType.BOOL);
+    }
+
+    @Test
     void rejectsUnsupportedTargetDTypeBeforeBridgeCall() {
         RecordingBridge bridge = new RecordingBridge();
         MetalBufferAllocator allocator = allocator();
@@ -124,9 +130,41 @@ class MetalDeviceLayoutMaterializerTest {
                 () -> materializer.materialize(decision(sourceLayout, targetLayout), source, null)
         );
 
-        assertTrue(failure.getMessage().contains("FLOAT32 only"));
+        assertTrue(failure.getMessage().contains("FLOAT32/BFLOAT16/BOOL"));
         assertTrue(failure.getMessage().contains("NATIVE_LAYOUT_DTYPE_UNSUPPORTED"));
         assertEquals(false, bridge.materializeCalled.get());
+    }
+
+    private static void assertMaterializesDType(DataType dataType) {
+        RecordingBridge bridge = new RecordingBridge();
+        MetalBufferAllocator allocator = allocator();
+        AcceleratorBufferLayout sourceLayout = AcceleratorBufferLayout.of(
+                dataType,
+                new int[]{2, 2},
+                new int[]{1, 2},
+                0,
+                4
+        );
+        AcceleratorBufferLayout targetLayout = AcceleratorBufferLayout.of(
+                dataType,
+                new int[]{2, 2},
+                new int[]{2, 1},
+                0,
+                4
+        );
+        MetalBufferBinding source = new MetalBufferBinding(
+                1,
+                sourceLayout,
+                new MetalBufferHandle(MemorySegment.ofAddress(10), sourceLayout.logicalByteLength(), "shared", "source:logical-view", false),
+                MetalBufferAccess.READ
+        );
+
+        var materializer = new MetalDeviceLayoutMaterializer(bridge, context(), allocator);
+        var materialized = materializer.materialize(decision(sourceLayout, targetLayout), source, null);
+
+        assertTrue(bridge.materializeCalled.get());
+        assertEquals(2, materialized.nodeId());
+        assertEquals(targetLayout, materialized.layout());
     }
 
     private static AcceleratorLayoutTransformDecision decision(

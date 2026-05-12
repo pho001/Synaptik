@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -23,11 +23,11 @@ public class IndexLossReductionExecutionTest {
         Tensor sum = logProbs.nllLossFromIndices(targetIndices, 1, LossReduction.SUM);
         Tensor mean = logProbs.nllLossFromIndices(targetIndices, 1, LossReduction.MEAN);
 
-        graph.CompiledGraph.compile(none, OptimizerConfig.noOptimization())
+        graph.CompiledGraph.compile(none, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        graph.CompiledGraph.compile(sum, OptimizerConfig.noOptimization())
+        graph.CompiledGraph.compile(sum, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        graph.CompiledGraph.compile(mean, OptimizerConfig.noOptimization())
+        graph.CompiledGraph.compile(mean, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         double[] expectedNone = new double[]{0.4076059644443804, 1.0986122886681098};
@@ -48,9 +48,9 @@ public class IndexLossReductionExecutionTest {
         Tensor none = logits.crossEntropyLossFromIndices(targetIndices, 1, -1, LossReduction.NONE);
         Tensor sum = logits.crossEntropyLossFromIndices(targetIndices, 1, -1, LossReduction.SUM);
 
-        graph.CompiledGraph.compile(none, OptimizerConfig.noOptimization())
+        graph.CompiledGraph.compile(none, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        graph.CompiledGraph.compile(sum, OptimizerConfig.noOptimization())
+        graph.CompiledGraph.compile(sum, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2}, none.getShape());

@@ -1,7 +1,7 @@
 import backend.runtime.ExecutionMode;
 import config.optimizer.PiecewiseLoweringConfig;
-import config.optimizer.OptimizerConfig;
-import config.optimizer.OptimizerStage;
+import config.compile.CompileConfig;
+import config.compile.GraphOptimizationConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
@@ -22,7 +22,7 @@ public class ClampLoweringTest {
         baselineInput.setRequiresGrad(true);
         Tensor lowerBase = Tensor.scalar(0.0, DataType.FLOAT64);
         Tensor baselineOut = Tensor.where(baselineInput.lessThan(lowerBase), lowerBase, baselineInput);
-        CompiledGraph.compile(baselineOut, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(baselineOut, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         Tensor optimizedInput = new Tensor(new double[]{-2.0, 0.0, 0.5, 3.0}, new int[]{4}, null, "x_opt", DataType.FLOAT64);
@@ -44,7 +44,7 @@ public class ClampLoweringTest {
         baselineInput.setRequiresGrad(true);
         Tensor upperBase = Tensor.scalar(1.0, DataType.FLOAT64);
         Tensor baselineOut = Tensor.where(baselineInput.greaterThan(upperBase), upperBase, baselineInput);
-        CompiledGraph.compile(baselineOut, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(baselineOut, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         Tensor optimizedInput = new Tensor(new double[]{-2.0, 0.0, 0.5, 3.0}, new int[]{4}, null, "x_opt", DataType.FLOAT64);
@@ -67,8 +67,8 @@ public class ClampLoweringTest {
         Tensor yMin = x.clampMin(0.0);
         Tensor yMax = x.clampMax(1.0);
 
-        CompiledGraph minGraph = CompiledGraph.compile(yMin, OptimizerConfig.noOptimization());
-        CompiledGraph maxGraph = CompiledGraph.compile(yMax, OptimizerConfig.noOptimization());
+        CompiledGraph minGraph = CompiledGraph.compile(yMin, CompileConfig.noGraphOptimizationBaseline());
+        CompiledGraph maxGraph = CompiledGraph.compile(yMax, CompileConfig.noGraphOptimizationBaseline());
         minGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         maxGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
@@ -101,13 +101,17 @@ public class ClampLoweringTest {
                 .anyMatch(type -> type == opType);
     }
 
-    private static OptimizerConfig arOnlyConfig() {
-        return OptimizerConfig.inferenceDefaults().withStageOrder(List.of(OptimizerStage.AR));
+    private static CompileConfig arOnlyConfig() {
+        return CompileConfig.inference().withGraphOptimization(GraphOptimizationConfig.stages(true, false, false, false, false));
     }
 
-    private static OptimizerConfig arWithPiecewiseConfig(PiecewiseLoweringConfig piecewiseLowering) {
-        return OptimizerConfig.inferenceDefaults()
-                .withStageOrder(List.of(OptimizerStage.AR))
-                .withRewrite(OptimizerConfig.inferenceDefaults().rewrite().withPiecewiseLowering(piecewiseLowering));
+    private static CompileConfig arWithPiecewiseConfig(PiecewiseLoweringConfig piecewiseLowering) {
+        return CompileConfig.inference()
+                .withGraphOptimization(GraphOptimizationConfig
+                        .stages(true, false, false, false, false)
+                        .withRewrite(CompileConfig.inference()
+                                .graphOptimization()
+                                .rewrite()
+                                .withPiecewiseLowering(piecewiseLowering)));
     }
 }

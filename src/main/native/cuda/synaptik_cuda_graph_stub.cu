@@ -502,6 +502,8 @@ extern "C" void* synaptik_cuda_graph_compile_partition_f32(
         const int* input2Indices,
         const int* input3Kinds,
         const int* input3Indices,
+        const int* input4Kinds,
+        const int* input4Indices,
         const float* scalarValues,
         const int* outputRanks,
         const int* outputDim0,
@@ -527,6 +529,8 @@ extern "C" void* synaptik_cuda_graph_compile_partition_f32(
     (void) input2Indices;
     (void) input3Kinds;
     (void) input3Indices;
+    (void) input4Kinds;
+    (void) input4Indices;
     if (context == nullptr) {
         stable_reason("CUDA compile requested without a context.");
         return nullptr;

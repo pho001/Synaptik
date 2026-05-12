@@ -113,24 +113,10 @@ public final class MetalExecutionRouter {
         return switch (evidence.preferredPath()) {
             case BUFFER_BINDING -> {
                 if (customKernel.available()) {
-                    List<MetalExecutionRoute> customRejected = new ArrayList<>(rejected);
-                    List<MetalRouteReasonCode> customRejectedReasonCodes = new ArrayList<>(rejectedReasonCodes);
-                    List<String> customRejectedReasons = new ArrayList<>(rejectedRouteReasons);
-                    customRejected.add(MetalExecutionRoute.MPS_GRAPH);
-                    customRejectedReasonCodes.add(MetalRouteReasonCode.MPS_GRAPH_SELECTED);
-                    customRejectedReasons.add("MPSGraph not selected because scoped custom Metal kernel route is available");
-                    yield decision(
-                            MetalExecutionRoute.CUSTOM_KERNEL,
-                            customRejected,
-                            customRejectedReasonCodes,
-                            customRejectedReasons,
-                            MetalRouteReasonCode.CUSTOM_KERNEL_SELECTED,
-                            customKernelDetail(plan.manifest(), evidence, customKernel),
-                            work,
-                            evidence,
-                            caps,
-                            customKernel
-                    );
+                    rejected.add(MetalExecutionRoute.CUSTOM_KERNEL);
+                    rejectedReasonCodes.add(MetalRouteReasonCode.CUSTOM_KERNEL_NOT_PROFITABLE);
+                    rejectedRouteReasons.add("custom Metal kernel route is eligible but not selected by the MPSGraph-first baseline; "
+                            + "selection requires calibrated benchmark/cost evidence");
                 }
                 yield decision(
                         MetalExecutionRoute.MPS_GRAPH,
@@ -249,24 +235,16 @@ public final class MetalExecutionRouter {
             MetalCustomKernelRouteAdapter.CustomKernelEvidence customKernel
     ) {
         String regionId = manifest == null ? "" : manifest.regionId();
+        String customEvidence = customKernel.available()
+                ? "custom kernel eligible kernelId=" + customKernel.kernelId()
+                + " primitiveIds=" + customKernel.loweredPrimitiveIds()
+                + " but rejected by MPSGraph-first baseline until calibrated benchmark/cost evidence selects it"
+                : "custom kernel rejected: " + customKernel.reasonCode() + ": " + customKernel.reason();
         String base = "MPSGraph selected via " + evidence.preferredPath()
-                + "; custom kernel rejected: " + customKernel.reasonCode() + ": " + customKernel.reason()
+                + "; metalRegionLowering=MPSGRAPH_DAG"
+                + "; metalExecutionRoute=MPS_GRAPH"
+                + "; " + customEvidence
                 + "; native copy cost unknown";
-        return regionId == null || regionId.isBlank()
-                ? base
-                : base + "; regionId=" + regionId;
-    }
-
-    private static String customKernelDetail(
-            GpuLoweredRegionManifest manifest,
-            TransportEvidence evidence,
-            MetalCustomKernelRouteAdapter.CustomKernelEvidence customKernel
-    ) {
-        String regionId = manifest == null ? "" : manifest.regionId();
-        String base = "Custom Metal kernel selected via " + evidence.preferredPath()
-                + "; kernelId=" + customKernel.kernelId()
-                + "; primitiveIds=" + customKernel.loweredPrimitiveIds()
-                + "; native copy cost not applicable";
         return regionId == null || regionId.isBlank()
                 ? base
                 : base + "; regionId=" + regionId;

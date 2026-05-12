@@ -7,7 +7,7 @@ import java.util.Objects;
 /**
  * ABI-stable description of one lowered accelerator DAG operation.
  *
- * <p>The four inputs reference either external DAG inputs or earlier node outputs.
+ * <p>The five inputs reference either external DAG inputs or earlier node outputs.
  * Scalar payloads are stored as raw float bits so Java and native bridges agree on
  * the wire representation.</p>
  *
@@ -17,6 +17,7 @@ import java.util.Objects;
  * @param input1 second operand reference, or {@link AcceleratorDagValueRef#none()}
  * @param input2 third operand reference, or {@link AcceleratorDagValueRef#none()}
  * @param input3 fourth operand reference, or {@link AcceleratorDagValueRef#none()}
+ * @param input4 fifth operand reference, or {@link AcceleratorDagValueRef#none()}
  * @param scalarValueBits raw {@code float} bits for scalar-valued operations
  * @param outputRank rank of the produced tensor, clamped to at least one
  * @param outputDim0 first output dimension, clamped to at least one
@@ -32,6 +33,7 @@ public record AcceleratorDagNode(
         AcceleratorDagValueRef input1,
         AcceleratorDagValueRef input2,
         AcceleratorDagValueRef input3,
+        AcceleratorDagValueRef input4,
         int scalarValueBits,
         int outputRank,
         int outputDim0,
@@ -46,12 +48,79 @@ public record AcceleratorDagNode(
         input1 = input1 == null ? AcceleratorDagValueRef.none() : input1;
         input2 = input2 == null ? AcceleratorDagValueRef.none() : input2;
         input3 = input3 == null ? AcceleratorDagValueRef.none() : input3;
+        input4 = input4 == null ? AcceleratorDagValueRef.none() : input4;
         outputRank = Math.max(1, outputRank);
         outputDim0 = Math.max(1, outputDim0);
         outputDim1 = Math.max(1, outputDim1);
         outputDim2 = Math.max(1, outputDim2);
         outputDim3 = Math.max(1, outputDim3);
         outputDataType = outputDataType == null ? DataType.FLOAT32 : outputDataType;
+    }
+
+    public AcceleratorDagNode(
+            int nodeId,
+            AcceleratorDagNodeType type,
+            AcceleratorDagValueRef input0,
+            AcceleratorDagValueRef input1,
+            AcceleratorDagValueRef input2,
+            AcceleratorDagValueRef input3,
+            AcceleratorDagValueRef input4,
+            int scalarValueBits,
+            int outputRank,
+            int outputDim0,
+            int outputDim1,
+            int outputDim2,
+            int outputDim3
+    ) {
+        this(
+                nodeId,
+                type,
+                input0,
+                input1,
+                input2,
+                input3,
+                input4,
+                scalarValueBits,
+                outputRank,
+                outputDim0,
+                outputDim1,
+                outputDim2,
+                outputDim3,
+                DataType.FLOAT32
+        );
+    }
+
+    public AcceleratorDagNode(
+            int nodeId,
+            AcceleratorDagNodeType type,
+            AcceleratorDagValueRef input0,
+            AcceleratorDagValueRef input1,
+            AcceleratorDagValueRef input2,
+            AcceleratorDagValueRef input3,
+            int scalarValueBits,
+            int outputRank,
+            int outputDim0,
+            int outputDim1,
+            int outputDim2,
+            int outputDim3,
+            DataType outputDataType
+    ) {
+        this(
+                nodeId,
+                type,
+                input0,
+                input1,
+                input2,
+                input3,
+                AcceleratorDagValueRef.none(),
+                scalarValueBits,
+                outputRank,
+                outputDim0,
+                outputDim1,
+                outputDim2,
+                outputDim3,
+                outputDataType
+        );
     }
 
     public AcceleratorDagNode(
@@ -75,6 +144,7 @@ public record AcceleratorDagNode(
                 input1,
                 input2,
                 input3,
+                AcceleratorDagValueRef.none(),
                 scalarValueBits,
                 outputRank,
                 outputDim0,

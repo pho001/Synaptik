@@ -1,6 +1,7 @@
 package tuning.workload;
 
 import backend.ApproxMode;
+import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
@@ -19,7 +20,7 @@ final class WorkloadValidationProfiles {
                 candidateProfile.candidateName() + "_baseline",
                 candidateProfile.dataType(),
                 candidateProfile.mode(),
-                config.optimizer.OptimizerConfig.noOptimization(),
+                CompileConfig.noGraphOptimizationBaseline(),
                 new RuntimeConfig(
                         candidateProfile.runtime().kernel(),
                         new ApproximationConfig(ApproxMode.OFF, true),

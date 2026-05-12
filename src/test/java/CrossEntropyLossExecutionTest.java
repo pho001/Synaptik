@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
@@ -24,7 +24,7 @@ public class CrossEntropyLossExecutionTest {
         }, new int[]{2, 3}, null, "targetsA", DataType.FLOAT64);
 
         Tensor reference = logitsA.logSoftmax(1).nllLoss(targetsA, 1);
-        CompiledGraph.compile(reference, OptimizerConfig.trainingDefaults())
+        CompiledGraph.compile(reference, CompileConfig.training())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
         double[] referenceLoss = reference.toDoubleArrayCopy();
         double[] referenceGrad = logitsA.getGradient().toDoubleArrayCopy();
@@ -40,7 +40,7 @@ public class CrossEntropyLossExecutionTest {
         }, new int[]{2, 3}, null, "targetsB", DataType.FLOAT64);
 
         Tensor direct = logitsB.crossEntropyLoss(targetsB, 1);
-        CompiledGraph compiledGraph = CompiledGraph.compile(direct, OptimizerConfig.trainingDefaults());
+        CompiledGraph compiledGraph = CompiledGraph.compile(direct, CompileConfig.training());
         compiledGraph
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 

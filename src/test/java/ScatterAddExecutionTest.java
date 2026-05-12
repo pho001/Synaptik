@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
@@ -20,7 +20,7 @@ public class ScatterAddExecutionTest {
         Tensor src = new Tensor(new double[]{1, 5}, new int[]{2}, null, "src", DataType.FLOAT64);
         Tensor out = base.scatterAdd(indices, src, 1);
 
-        CompiledGraph compiledGraph = CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{10, 20, 31, 45, 50, 60}, out.toDoubleArrayCopy(), 1e-9);
@@ -37,7 +37,7 @@ public class ScatterAddExecutionTest {
         Tensor src = new Tensor(new double[]{1, 2, 3}, new int[]{3}, null, "src", DataType.FLOAT64);
         Tensor out = base.scatterAdd(indices, src, 0);
 
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
@@ -56,7 +56,7 @@ public class ScatterAddExecutionTest {
         Tensor src = new Tensor(new double[]{5, 7}, new int[]{2}, null, "src", DataType.FLOAT64);
         Tensor out = base.scatterAdd(indices, src, 1);
 
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
@@ -76,7 +76,7 @@ public class ScatterAddExecutionTest {
         Tensor out = base.scatterAdd(indices, src, 1);
 
         assertThrows(IllegalArgumentException.class, () ->
-                CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                         .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD));
     }
 
@@ -89,7 +89,7 @@ public class ScatterAddExecutionTest {
         src.setRequiresGrad(true);
         Tensor out = base.scatterAdd(indices, src, 1);
 
-        CompiledGraph.compile(out, OptimizerConfig.trainingDefaults())
+        CompiledGraph.compile(out, CompileConfig.training())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{1, 1, 1, 1, 1, 1}, base.getGradient().toDoubleArrayCopy(), 1e-9);

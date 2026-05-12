@@ -223,11 +223,12 @@ public final class MetalBufferAllocator {
             throw new IllegalArgumentException("Metal binding shape " + Arrays.toString(binding.layout().shape())
                     + " does not match destination shape " + Arrays.toString(destinationLayout.shape()) + ".");
         }
-        if (!Arrays.equals(binding.layout().strides(), destinationLayout.strides())) {
+        boolean denseRepairedLogicalLayout = denseRepairedLogicalLayout(binding.layout(), destinationLayout);
+        if (!denseRepairedLogicalLayout && !Arrays.equals(binding.layout().strides(), destinationLayout.strides())) {
             throw new IllegalArgumentException("Metal binding strides " + Arrays.toString(binding.layout().strides())
                     + " do not match destination strides " + Arrays.toString(destinationLayout.strides()) + ".");
         }
-        if (binding.layout().storageOffset() != destinationLayout.storageOffset()) {
+        if (!denseRepairedLogicalLayout && binding.layout().storageOffset() != destinationLayout.storageOffset()) {
             throw new IllegalArgumentException("Metal binding storageOffset " + binding.layout().storageOffset()
                     + " does not match destination storageOffset " + destinationLayout.storageOffset() + ".");
         }
@@ -297,6 +298,16 @@ public final class MetalBufferAllocator {
             case DENSE_CONTIGUOUS, ZERO_OFFSET_VIEW, NON_ZERO_OFFSET_VIEW, PERMUTED_OR_STRIDED_VIEW -> true;
             case BROADCAST_ZERO_STRIDE_VIEW, UNSUPPORTED -> false;
         };
+    }
+
+    private static boolean denseRepairedLogicalLayout(
+            AcceleratorBufferLayout bindingLayout,
+            AcceleratorBufferLayout destinationLayout
+    ) {
+        return bindingLayout.layoutClass() == AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS
+                && bindingLayout.storageOffset() == 0
+                && Arrays.equals(bindingLayout.shape(), destinationLayout.shape())
+                && bindingLayout.logicalElementCount() == destinationLayout.logicalElementCount();
     }
 
     private static int checkedLogicalElementCount(long logicalElementCount) {

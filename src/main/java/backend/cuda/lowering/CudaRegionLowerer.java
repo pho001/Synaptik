@@ -4,6 +4,7 @@ import backend.ComputeBackend;
 import backend.accelerator.lowering.GpuCompoundLoweringArtifact;
 import backend.accelerator.lowering.GpuCompoundPatternType;
 import backend.accelerator.lowering.GpuCompoundRegionSummary;
+import backend.accelerator.lowering.GpuRegionLoweredUnitSummary;
 import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweredRegion;
 import backend.lowering.LoweringFamily;
@@ -46,7 +47,7 @@ public final class CudaRegionLowerer implements RegionLowerer {
                                 loweringFamily,
                                 request.region().sourcePartition().orderedNodeIds(),
                                 cudaPlan.externalInputNodeIds(),
-                                compoundArtifact(summary)
+                                regionArtifact(summary, request.region().executionUnits())
                         ))
                 ),
                 List.of()
@@ -63,10 +64,22 @@ public final class CudaRegionLowerer implements RegionLowerer {
         return LoweringFamily.CUDA_GRAPH_REGION;
     }
 
-    private static GpuCompoundLoweringArtifact compoundArtifact(GpuCompoundRegionSummary summary) {
-        if (summary == null || summary.patternType() == GpuCompoundPatternType.NONE) {
+    private static GpuCompoundLoweringArtifact regionArtifact(
+            GpuCompoundRegionSummary summary,
+            List<ExecutionUnit> executionUnits
+    ) {
+        List<GpuRegionLoweredUnitSummary> units = executionUnits == null
+                ? List.of()
+                : executionUnits.stream().map(GpuRegionLoweredUnitSummary::fromExecutionUnit).toList();
+        if ((summary == null || summary.patternType() == GpuCompoundPatternType.NONE) && units.isEmpty()) {
             return null;
         }
-        return new GpuCompoundLoweringArtifact(summary);
+        GpuCompoundRegionSummary resolvedSummary = summary == null
+                ? GpuCompoundRegionSummary.none(ComputeBackend.GPU_CUDA, units.stream()
+                        .flatMap(unit -> unit.orderedNodeIds().stream())
+                        .distinct()
+                        .toList())
+                : summary;
+        return new GpuCompoundLoweringArtifact(resolvedSummary, units);
     }
 }

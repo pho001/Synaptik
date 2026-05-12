@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import org.junit.jupiter.api.Test;
@@ -38,7 +38,7 @@ public class Int32IndexDtypeTest {
         Tensor indices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "indices", DataType.INT32);
         Tensor y = x.gather(indices, 1);
 
-        CompiledGraph.compile(y, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{3.0, 4.0}, y.toDoubleArrayCopy(), 1e-9);
@@ -55,9 +55,9 @@ public class Int32IndexDtypeTest {
         Tensor nll = logits.logSoftmax(1).nllLossFromIndices(targetIndices, 1);
         Tensor ce = logits.crossEntropyLossFromIndices(targetIndices, 1);
 
-        CompiledGraph.compile(nll, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(nll, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(ce, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(ce, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(nll.toDoubleArrayCopy(), ce.toDoubleArrayCopy(), 1e-9);
@@ -72,7 +72,7 @@ public class Int32IndexDtypeTest {
         Tensor targetIndices = new Tensor(new int[]{2, -1}, new int[]{2}, null, "targetIndices", DataType.INT32);
 
         Tensor loss = logits.crossEntropyLossFromIndices(targetIndices, 1, -1);
-        CompiledGraph.compile(loss, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(loss, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{0.4076059644443804}, loss.toDoubleArrayCopy(), 1e-9);

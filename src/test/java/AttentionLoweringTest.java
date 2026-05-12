@@ -1,6 +1,6 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
-import config.optimizer.OptimizerStage;
+import config.compile.CompileConfig;
+import config.compile.GraphOptimizationConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
@@ -12,12 +12,11 @@ import tensor.Tensor;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 public class AttentionLoweringTest {
     @Test
-    void manualAttentionPatternLowersToAttentionSurfaceWithoutMask() {
+    void cleanupDoesNotLowerManualAttentionPatternWithoutMask() {
         Tensor qManual = matrix3d("q_manual");
         Tensor kManual = matrix3d("k_manual");
         Tensor vManual = values3d("v_manual");
@@ -30,15 +29,15 @@ public class AttentionLoweringTest {
         Tensor kDirect = matrix3d("k_direct");
         Tensor vDirect = values3d("v_direct");
         Tensor direct = qDirect.scaledDotProductAttention(kDirect, vDirect, AttentionOptions.defaults().withScale(0.5));
-        CompiledGraph.compile(direct, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(direct, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(direct.toDoubleArrayCopy(), manual.toDoubleArrayCopy(), 1e-9);
-        assertEquals("scaledDotProductAttention", sinkLabel(compiled));
+        assertFalse(containsOp(compiled, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
     }
 
     @Test
-    void manualAttentionPatternLowersToAttentionSurfaceWithMask() {
+    void cleanupDoesNotLowerManualAttentionPatternWithMask() {
         Tensor qManual = matrix3d("q_manual");
         Tensor kManual = matrix3d("k_manual");
         Tensor vManual = values3d("v_manual");
@@ -54,15 +53,15 @@ public class AttentionLoweringTest {
         Tensor vDirect = values3d("v_direct");
         Tensor maskDirect = mask3d("mask_direct");
         Tensor direct = qDirect.scaledDotProductAttention(kDirect, vDirect, maskDirect, AttentionOptions.defaults().withScale(0.5));
-        CompiledGraph.compile(direct, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(direct, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(direct.toDoubleArrayCopy(), manual.toDoubleArrayCopy(), 1e-9);
-        assertEquals("scaledDotProductAttention", sinkLabel(compiled));
+        assertFalse(containsOp(compiled, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
     }
 
     @Test
-    void manualAttentionLoweringPreservesBackwardGradients() {
+    void cleanupKeepsManualAttentionBackwardGraphExplicit() {
         Tensor qManual = matrix3d("q_manual");
         Tensor kManual = matrix3d("k_manual");
         Tensor vManual = values3d("v_manual");
@@ -82,20 +81,14 @@ public class AttentionLoweringTest {
         vDirect.setRequiresGrad(true);
         Tensor direct = qDirect.scaledDotProductAttention(kDirect, vDirect, AttentionOptions.defaults().withScale(0.5)).sum();
 
-        CompiledGraph.compile(direct, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(direct, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(direct.toDoubleArrayCopy(), manual.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(qDirect.getGradient().toDoubleArrayCopy(), qManual.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(kDirect.getGradient().toDoubleArrayCopy(), kManual.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(vDirect.getGradient().toDoubleArrayCopy(), vManual.getGradient().toDoubleArrayCopy(), 1e-9);
-        long backwardOps = compiled.getCompiledGraphAsList().stream()
-                .map(Tensor::getOperation)
-                .filter(op -> op != null)
-                .map(Operation::opType)
-                .filter(type -> type == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD)
-                .count();
-        assertTrue(backwardOps >= 3);
+        assertFalse(containsOp(compiled, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD));
     }
 
     @Test
@@ -113,7 +106,7 @@ public class AttentionLoweringTest {
                 Tensor.scalar(-1.0e30, DataType.FLOAT64)
         ).softmax(2).matmul(vManual).sum();
 
-        CompiledGraph.compile(manual, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(manual, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         Tensor qDirect = matrix3d("q_direct");
@@ -125,7 +118,7 @@ public class AttentionLoweringTest {
         vDirect.setRequiresGrad(true);
         Tensor direct = qDirect.scaledDotProductAttention(kDirect, vDirect, maskDirect, AttentionOptions.defaults().withScale(0.5)).sum();
 
-        CompiledGraph.compile(direct, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(direct, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(direct.toDoubleArrayCopy(), manual.toDoubleArrayCopy(), 1e-9);
@@ -149,7 +142,7 @@ public class AttentionLoweringTest {
                 Tensor.scalar(-1.0e30, DataType.FLOAT64)
         ).softmax(2).matmul(vManual).sum();
 
-        CompiledGraph.compile(manual, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(manual, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         Tensor qDirect = matrix3d("q_direct");
@@ -161,7 +154,7 @@ public class AttentionLoweringTest {
         vDirect.setRequiresGrad(true);
         Tensor direct = qDirect.scaledDotProductAttention(kDirect, vDirect, maskDirect, AttentionOptions.defaults().withScale(0.5)).sum();
 
-        CompiledGraph.compile(direct, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(direct, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(direct.toDoubleArrayCopy(), manual.toDoubleArrayCopy(), 1e-9);
@@ -202,16 +195,19 @@ public class AttentionLoweringTest {
         }, new int[]{1, 2, 2}, null, label, DataType.BOOL);
     }
 
-    private static String sinkLabel(CompiledGraph compiledGraph) {
-        List<Tensor> nodes = compiledGraph.getCompiledGraphAsList();
-        return nodes.get(nodes.size() - 2).getLabel();
+    private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
+        return compiledGraph.getCompiledGraphAsList().stream()
+                .map(Tensor::getOperation)
+                .filter(op -> op != null)
+                .map(Operation::opType)
+                .anyMatch(type -> type == opType);
     }
 
-    private static OptimizerConfig arOnlyConfig() {
-        return OptimizerConfig.inferenceDefaults().withStageOrder(List.of(OptimizerStage.AR));
+    private static CompileConfig arOnlyConfig() {
+        return CompileConfig.inference().withGraphOptimization(GraphOptimizationConfig.stages(true, false, false, false, false));
     }
 
-    private static OptimizerConfig trainingArOnlyConfig() {
-        return OptimizerConfig.trainingDefaults().withStageOrder(List.of(OptimizerStage.AR));
+    private static CompileConfig trainingArOnlyConfig() {
+        return CompileConfig.training().withGraphOptimization(GraphOptimizationConfig.stages(true, false, false, false, false));
     }
 }

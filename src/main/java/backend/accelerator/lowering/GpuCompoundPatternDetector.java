@@ -28,6 +28,8 @@ public final class GpuCompoundPatternDetector {
             AcceleratorDagNodeType.SUB,
             AcceleratorDagNodeType.MUL,
             AcceleratorDagNodeType.DIV,
+            AcceleratorDagNodeType.MIN,
+            AcceleratorDagNodeType.MAX,
             AcceleratorDagNodeType.RELU,
             AcceleratorDagNodeType.TANH,
             AcceleratorDagNodeType.SIGMOID,
@@ -38,6 +40,7 @@ public final class GpuCompoundPatternDetector {
             AcceleratorDagNodeType.SQRT,
             AcceleratorDagNodeType.INV,
             AcceleratorDagNodeType.MUL_SCALAR,
+            AcceleratorDagNodeType.POW_SCALAR,
             AcceleratorDagNodeType.ADD_SCALAR,
             AcceleratorDagNodeType.CLAMP_MIN,
             AcceleratorDagNodeType.CLAMP_MAX
@@ -206,7 +209,8 @@ public final class GpuCompoundPatternDetector {
         return consumesPrimitiveOutput(node.input0(), primitiveIndex)
                 || consumesPrimitiveOutput(node.input1(), primitiveIndex)
                 || consumesPrimitiveOutput(node.input2(), primitiveIndex)
-                || consumesPrimitiveOutput(node.input3(), primitiveIndex);
+                || consumesPrimitiveOutput(node.input3(), primitiveIndex)
+                || consumesPrimitiveOutput(node.input4(), primitiveIndex);
     }
 
     private static boolean consumesPrimitiveOutput(AcceleratorDagValueRef ref, int primitiveIndex) {

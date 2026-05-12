@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
@@ -17,7 +17,7 @@ public class AbsExecutionTest {
         Tensor x = new Tensor(new double[]{-3.0, -0.5, 0.0, 2.0}, new int[]{4}, null, "x", DataType.FLOAT64);
         Tensor y = x.abs();
 
-        CompiledGraph compiledGraph = CompiledGraph.compile(y, OptimizerConfig.noOptimization());
+        CompiledGraph compiledGraph = CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline());
         compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{3.0, 0.5, 0.0, 2.0}, y.toDoubleArrayCopy(), 1e-9);
@@ -30,7 +30,7 @@ public class AbsExecutionTest {
         x.setRequiresGrad(true);
         Tensor y = x.abs();
 
-        CompiledGraph.compile(y, OptimizerConfig.trainingDefaults())
+        CompiledGraph.compile(y, CompileConfig.training())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{-1.0, -1.0, 0.0, 1.0}, x.getGradient().toDoubleArrayCopy(), 1e-9);
@@ -41,7 +41,7 @@ public class AbsExecutionTest {
         Tensor x = new Tensor(new float[]{-3.0f, -0.5f, 0.0f, 2.0f}, new int[]{4}, null, "x", DataType.FLOAT32);
         Tensor y = x.abs();
 
-        CompiledGraph.compile(y, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{3.0, 0.5, 0.0, 2.0}, y.toDoubleArrayCopy(), 1e-6);

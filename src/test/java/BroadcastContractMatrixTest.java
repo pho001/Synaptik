@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import tensor.DataType;
@@ -104,7 +104,7 @@ public class BroadcastContractMatrixTest {
             default -> throw new IllegalArgumentException("Unsupported op: " + op);
         };
 
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         double[] expected = expectedForward(op, left.toDoubleArrayCopy(), left.getShape(), right.toDoubleArrayCopy(), right.getShape(), dataType);
@@ -137,7 +137,7 @@ public class BroadcastContractMatrixTest {
             default -> throw new IllegalArgumentException("Unsupported op: " + op);
         };
 
-        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         GradientPair expected = expectedBackward(op, left.toDoubleArrayCopy(), left.getShape(), right.toDoubleArrayCopy(), right.getShape());

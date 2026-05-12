@@ -1,7 +1,11 @@
 package backend.accelerator.lowering;
 
+import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+
 import backend.ComputeBackend;
 import backend.accelerator.dag.AcceleratorDagNodeType;
+import backend.accelerator.dag.AcceleratorDagValueRefKind;
 import backend.accelerator.dag.AcceleratorPostOpType;
 import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
@@ -66,7 +70,7 @@ class AcceleratorSubgraphLowererTest {
     @Test
     void logSoftmaxLowersAsSoftmaxThenLog() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "logSoftmaxInput", DataType.FLOAT32);
-        Tensor out = input.logSoftmax(1);
+        Tensor out = specialLogSoftmax(input, 1);
         PartitionPlanningContext context = planningContext(out);
         CompiledNode node = context.compiledNode(nodeId(context, Operation.OpType.LOG_SOFTMAX));
 
@@ -81,7 +85,7 @@ class AcceleratorSubgraphLowererTest {
     @Test
     void logSoftmaxKeepsOriginalCompiledNodeAsOutput() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "logSoftmaxOutputInput", DataType.FLOAT32);
-        Tensor out = input.logSoftmax(1);
+        Tensor out = specialLogSoftmax(input, 1);
         PartitionPlanningContext context = planningContext(out);
         CompiledNode node = context.compiledNode(nodeId(context, Operation.OpType.LOG_SOFTMAX));
 
@@ -96,7 +100,7 @@ class AcceleratorSubgraphLowererTest {
     @Test
     void logSoftmaxManifestMapsOneOriginalOpToTwoPrimitives() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "logSoftmaxManifestInput", DataType.FLOAT32);
-        Tensor out = input.logSoftmax(1);
+        Tensor out = specialLogSoftmax(input, 1);
         PartitionPlanningContext context = planningContext(out);
         CompiledNode node = context.compiledNode(nodeId(context, Operation.OpType.LOG_SOFTMAX));
 
@@ -157,7 +161,7 @@ class AcceleratorSubgraphLowererTest {
     @Test
     void manifestRegionIdBackendAndLengthAreStable() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "stableManifestInput", DataType.FLOAT32);
-        Tensor out = input.logSoftmax(1);
+        Tensor out = specialLogSoftmax(input, 1);
         PartitionPlanningContext context = planningContext(out);
         CompiledNode node = context.compiledNode(nodeId(context, Operation.OpType.LOG_SOFTMAX));
 
@@ -297,13 +301,58 @@ class AcceleratorSubgraphLowererTest {
     }
 
     @Test
+    void metalElementwiseParityGapOpsLowerToMpsGraphDagPrimitives() {
+        Tensor a = new Tensor(new float[]{1f, 4f, 9f, 16f}, new int[]{4}, null, "metalParityA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{2f, 3f, 10f, 8f}, new int[]{4}, null, "metalParityB", DataType.FLOAT32);
+        Tensor c = new Tensor(new float[]{3f, 3f, 7f, 12f}, new int[]{4}, null, "metalParityC", DataType.FLOAT32);
+        Tensor min = a.min(b);
+        Tensor max = min.max(c);
+        Tensor out = max.pow(1.5);
+        PartitionPlanningContext context = planningContext(out);
+        int minNodeId = nodeId(context, Operation.OpType.MIN);
+        int maxNodeId = nodeId(context, Operation.OpType.MAX);
+        int powNodeId = nodeId(context, Operation.OpType.POW);
+        List<Integer> selectedNodeIds = List.of(minNodeId, maxNodeId, powNodeId);
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                new AcceleratorSubgraphSpec(
+                        minNodeId,
+                        selectedNodeIds,
+                        List.of(
+                                new AcceleratorSubgraphOp(minNodeId, Operation.OpType.MIN),
+                                new AcceleratorSubgraphOp(maxNodeId, Operation.OpType.MAX),
+                                new AcceleratorSubgraphOp(powNodeId, Operation.OpType.POW)
+                        ),
+                        externalInputNodeIds(context, selectedNodeIds),
+                        List.of(powNodeId)
+                ),
+                context
+        );
+
+        assertNotNull(result);
+        List<AcceleratorDagNodeType> types = result.dagSpec().nodes().stream()
+                .map(nodeSpec -> nodeSpec.type())
+                .toList();
+        assertEquals(List.of(
+                AcceleratorDagNodeType.MIN,
+                AcceleratorDagNodeType.MAX,
+                AcceleratorDagNodeType.POW_SCALAR
+        ), types);
+        assertEquals(Float.floatToIntBits(1.5f), result.dagSpec().nodes().getLast().scalarValueBits());
+        assertEquals(GpuCompoundPatternType.ELEMENTWISE_CHAIN, result.manifest().fusedSummary().patternType());
+        assertTrue(result.manifest().fusedSummary().supported());
+        assertEquals(List.of(powNodeId), result.dagSpec().outputNodeIds());
+    }
+
+    @Test
     void epilogueFusionRejectsUnsupportedActivationWithStableReason() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "badEpilogueA", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{1f, 0f, 0f, 1f, 1f, 1f}, new int[]{3, 2}, null, "badEpilogueB", DataType.FLOAT32);
         Tensor bias = new Tensor(new float[]{0.25f, -0.5f}, new int[]{2}, null, "badEpilogueBias", DataType.FLOAT32);
         Tensor matmul = a.matmul(b);
         Tensor add = matmul.add(bias);
-        Tensor out = add.softmax(1);
+        Tensor out = specialSoftmax(add, 1);
         PartitionPlanningContext context = planningContext(out);
         int matmulNodeId = nodeId(context, Operation.OpType.MATMUL);
         int addNodeId = nodeId(context, Operation.OpType.ADD);
@@ -337,7 +386,7 @@ class AcceleratorSubgraphLowererTest {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "phase19LayoutInput", DataType.FLOAT32);
         Tensor permuted = input.permute(1, 0);
         Tensor relu = permuted.relu();
-        Tensor out = relu.logSoftmax(1);
+        Tensor out = specialLogSoftmax(relu, 1);
         PartitionPlanningContext context = planningContext(out);
         int permuteNodeId = nodeId(context, Operation.OpType.PERMUTE);
         int reluNodeId = nodeId(context, Operation.OpType.RELU);
@@ -371,6 +420,349 @@ class AcceleratorSubgraphLowererTest {
         assertTrue(primitiveTypes.contains("RELU"));
         assertTrue(primitiveTypes.contains("SOFTMAX"));
         assertTrue(primitiveTypes.contains("LOG"));
+    }
+
+    @Test
+    void metalLayoutExpandAndSelectLowerToNativeDagShapePrimitives() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f}, new int[]{1, 3}, null, "metalLayoutShapeInput", DataType.FLOAT32);
+        Tensor expanded = input.expand(2, 3);
+        Tensor selected = expanded.select(0, 1);
+        Tensor out = selected.relu();
+        PartitionPlanningContext context = planningContext(out);
+        int expandNodeId = nodeId(context, Operation.OpType.EXPAND);
+        int selectNodeId = nodeId(context, Operation.OpType.SELECT);
+        int reluNodeId = nodeId(context, Operation.OpType.RELU);
+        List<Integer> selectedNodeIds = List.of(expandNodeId, selectNodeId, reluNodeId);
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                new AcceleratorSubgraphSpec(
+                        expandNodeId,
+                        selectedNodeIds,
+                        List.of(
+                                new AcceleratorSubgraphOp(expandNodeId, Operation.OpType.EXPAND),
+                                new AcceleratorSubgraphOp(selectNodeId, Operation.OpType.SELECT),
+                                new AcceleratorSubgraphOp(reluNodeId, Operation.OpType.RELU)
+                        ),
+                        externalInputNodeIds(context, selectedNodeIds),
+                        List.of(reluNodeId)
+                ),
+                context
+        );
+
+        assertNotNull(result);
+        List<AcceleratorDagNodeType> types = result.dagSpec().nodes().stream()
+                .map(nodeSpec -> nodeSpec.type())
+                .toList();
+        assertEquals(List.of(
+                AcceleratorDagNodeType.EXPAND,
+                AcceleratorDagNodeType.SELECT,
+                AcceleratorDagNodeType.RELU
+        ), types);
+        assertEquals((0 & 0xFFFF) | (1 << 16), result.dagSpec().nodes().get(1).scalarValueBits());
+        assertEquals(List.of(reluNodeId), result.dagSpec().outputNodeIds());
+        assertTrue(result.manifest().loweredPrimitives().stream()
+                .anyMatch(primitive -> "EXPAND".equals(primitive.primitiveType())));
+        assertTrue(result.manifest().loweredPrimitives().stream()
+                .anyMatch(primitive -> "SELECT".equals(primitive.primitiveType())));
+    }
+
+    @Test
+    void specializedSdpaDoesNotLiftInternalRegionValuesToExternalInputs() {
+        Tensor qSource = new Tensor(new float[]{
+                1f, 0f,
+                0f, 1f
+        }, new int[]{1, 1, 2, 2}, null, "sdpaInternalQSource", DataType.FLOAT32);
+        Tensor kSource = new Tensor(new float[]{
+                1f, 2f,
+                3f, 4f
+        }, new int[]{1, 1, 2, 2}, null, "sdpaInternalKSource", DataType.FLOAT32);
+        Tensor vSource = new Tensor(new float[]{
+                5f, 6f,
+                7f, 8f
+        }, new int[]{1, 1, 2, 2}, null, "sdpaInternalVSource", DataType.FLOAT32);
+        Tensor query = qSource.relu();
+        Tensor key = kSource.relu();
+        Tensor value = vSource.relu();
+        Tensor keyTransposed = key.permute(0, 1, 3, 2);
+        Tensor scores = query.matmul(keyTransposed);
+        Tensor scaled = scores.mul(0.5);
+        Tensor weights = scaled.softmax(3);
+        Tensor out = weights.matmul(value);
+        PartitionPlanningContext context = planningContext(out);
+        List<Integer> selectedNodeIds = context.compiledNodes().stream()
+                .filter(node -> node.operation() != null)
+                .map(CompiledNode::id)
+                .toList();
+        java.util.Set<Integer> selected = java.util.Set.copyOf(selectedNodeIds);
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                new AcceleratorSubgraphSpec(
+                        selectedNodeIds.getFirst(),
+                        selectedNodeIds,
+                        selectedNodeIds.stream()
+                                .map(nodeId -> new AcceleratorSubgraphOp(
+                                        nodeId,
+                                        context.compiledNode(nodeId).operation().opType()
+                                ))
+                                .toList(),
+                        externalInputNodeIds(context, selectedNodeIds),
+                        List.of(selectedNodeIds.getLast())
+                ),
+                context
+        );
+
+        assertNotNull(result);
+        assertTrue(result.dagSpec().externalInputs().stream()
+                .noneMatch(input -> selected.contains(input.nodeId())));
+        List<AcceleratorDagNodeType> types = result.dagSpec().nodes().stream()
+                .map(nodeSpec -> nodeSpec.type())
+                .toList();
+        assertTrue(types.contains(AcceleratorDagNodeType.RELU));
+        assertTrue(types.contains(AcceleratorDagNodeType.MATMUL));
+        assertTrue(types.contains(AcceleratorDagNodeType.EXP));
+        assertTrue(types.contains(AcceleratorDagNodeType.SUM));
+    }
+
+    @Test
+    void metalSdpaWeightsPublicationLowersFromProducerAttentionDescriptor() {
+        Tensor query = new Tensor(new float[]{
+                1f, 0f,
+                0f, 1f
+        }, new int[]{1, 2, 2}, null, "sdpaWeightsQuery", DataType.FLOAT32);
+        Tensor key = new Tensor(new float[]{
+                1f, 0f,
+                0f, 1f
+        }, new int[]{1, 2, 2}, null, "sdpaWeightsKey", DataType.FLOAT32);
+        Tensor value = new Tensor(new float[]{
+                10f, 1f,
+                1f, 10f
+        }, new int[]{1, 2, 2}, null, "sdpaWeightsValue", DataType.FLOAT32);
+        Tensor attention = specialSdpa(query, key, value, null, 1.0d);
+        Tensor weights = TensorPrimitiveBuilder.unaryNoGrad(
+                attention,
+                new int[]{1, 2, 2},
+                new operations.linalg.scaledDotProductAttentionWeights(),
+                "sdpaWeightsPublication",
+                DataType.FLOAT32
+        );
+        PartitionPlanningContext context = planningContext(weights);
+        int weightsNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS);
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                spec(context.compiledNode(weightsNodeId)),
+                context
+        );
+
+        assertNotNull(result);
+        assertEquals(List.of(AcceleratorDagNodeType.SDPA_WEIGHTS), result.dagSpec().nodes().stream()
+                .map(nodeSpec -> nodeSpec.type())
+                .toList());
+        assertEquals(List.of(weightsNodeId), result.dagSpec().outputNodeIds());
+        assertEquals(2, result.dagSpec().externalInputs().size());
+        CompiledNode attentionNode = context.compiledNode(nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
+        assertEquals(attentionNode.inputIds().subList(0, 2), result.dagSpec().externalInputs().stream()
+                .map(input -> input.nodeId())
+                .toList());
+        assertTrue(result.manifest().loweredPrimitives().stream()
+                .anyMatch(primitive -> "SDPA_WEIGHTS".equals(primitive.primitiveType())));
+    }
+
+    @Test
+    void maskedSdpaBackwardLowersMaskAsFifthDagInput() {
+        Tensor query = new Tensor(new float[]{
+                1f, 0f,
+                0f, 1f
+        }, new int[]{1, 2, 2}, null, "maskedBackwardQuery", DataType.FLOAT32);
+        Tensor key = new Tensor(new float[]{
+                1f, 0f,
+                0f, 1f
+        }, new int[]{1, 2, 2}, null, "maskedBackwardKey", DataType.FLOAT32);
+        Tensor value = new Tensor(new float[]{
+                10f, 1f,
+                1f, 10f
+        }, new int[]{1, 2, 2}, null, "maskedBackwardValue", DataType.FLOAT32);
+        Tensor mask = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{1, 2, 2}, null, "maskedBackwardMask", DataType.BOOL);
+        Tensor outGrad = new Tensor(new float[]{
+                1f, 2f,
+                3f, 4f
+        }, new int[]{1, 2, 2}, null, "maskedBackwardOutGrad", DataType.FLOAT32);
+        Tensor attention = specialSdpa(query, key, value, mask, 1.0d);
+        Tensor queryGrad = TensorPrimitiveBuilder.binaryNoGrad(
+                attention,
+                outGrad,
+                new int[]{1, 2, 2},
+                new operations.linalg.scaledDotProductAttentionBackward(
+                        operations.linalg.scaledDotProductAttentionBackward.OutputKind.QUERY
+                ),
+                "maskedBackwardQueryGrad",
+                DataType.FLOAT32
+        );
+        PartitionPlanningContext context = planningContext(queryGrad);
+        int backwardNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD);
+        CompiledNode backwardNode = context.compiledNode(backwardNodeId);
+        CompiledNode attentionNode = context.compiledNode(nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                spec(backwardNode),
+                context
+        );
+
+        assertNotNull(result);
+        assertEquals(List.of(AcceleratorDagNodeType.SDPA_BACKWARD_QUERY), result.dagSpec().nodes().stream()
+                .map(nodeSpec -> nodeSpec.type())
+                .toList());
+        assertEquals(5, result.dagSpec().externalInputs().size());
+        assertEquals(attentionNode.inputIds().get(3), result.dagSpec().externalInputs().get(4).nodeId());
+        assertEquals(AcceleratorDagValueRefKind.EXTERNAL_INPUT, result.dagSpec().nodes().getFirst().input4().kind());
+        assertEquals(4, result.dagSpec().nodes().getFirst().input4().index());
+    }
+
+    @Test
+    void valueSdpaBackwardLowersToRegionInternalWeightsDag() {
+        Tensor query = new Tensor(new float[]{
+                1f, 0f,
+                0f, 1f
+        }, new int[]{1, 2, 2}, null, "valueBackwardQuery", DataType.FLOAT32);
+        Tensor key = new Tensor(new float[]{
+                1f, 0f,
+                0f, 1f
+        }, new int[]{1, 2, 2}, null, "valueBackwardKey", DataType.FLOAT32);
+        Tensor value = new Tensor(new float[]{
+                10f, 1f,
+                1f, 10f
+        }, new int[]{1, 2, 2}, null, "valueBackwardValue", DataType.FLOAT32);
+        Tensor outGrad = new Tensor(new float[]{
+                1f, 2f,
+                3f, 4f
+        }, new int[]{1, 2, 2}, null, "valueBackwardOutGrad", DataType.FLOAT32);
+        Tensor attention = specialSdpa(query, key, value, null, 1.0d);
+        Tensor valueGrad = TensorPrimitiveBuilder.binaryNoGrad(
+                attention,
+                outGrad,
+                new int[]{1, 2, 2},
+                new operations.linalg.scaledDotProductAttentionBackward(
+                        operations.linalg.scaledDotProductAttentionBackward.OutputKind.VALUE
+                ),
+                "valueBackwardGrad",
+                DataType.FLOAT32
+        );
+        PartitionPlanningContext context = planningContext(valueGrad);
+        CompiledNode backwardNode = context.compiledNode(nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD));
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                spec(backwardNode),
+                context
+        );
+
+        assertNotNull(result);
+        assertEquals(List.of(
+                        AcceleratorDagNodeType.SDPA_WEIGHTS,
+                        AcceleratorDagNodeType.PERMUTE,
+                        AcceleratorDagNodeType.MATMUL
+                ),
+                result.dagSpec().nodes().stream().map(nodeSpec -> nodeSpec.type()).toList());
+        assertEquals(List.of(backwardNode.id()), result.dagSpec().outputNodeIds());
+        assertEquals(List.of(2), result.dagSpec().outputNodeIndices());
+    }
+
+    @Test
+    void sdpaWeightsCanLowerInsideMultiNodeValueBackwardDag() {
+        Tensor query = new Tensor(new float[]{
+                1f, 0f,
+                0f, 1f
+        }, new int[]{1, 2, 2}, null, "valueDagQuery", DataType.FLOAT32);
+        Tensor key = new Tensor(new float[]{
+                1f, 0f,
+                0f, 1f
+        }, new int[]{1, 2, 2}, null, "valueDagKey", DataType.FLOAT32);
+        Tensor value = new Tensor(new float[]{
+                10f, 1f,
+                1f, 10f
+        }, new int[]{1, 2, 2}, null, "valueDagValue", DataType.FLOAT32);
+        Tensor outGrad = new Tensor(new float[]{
+                1f, 2f,
+                3f, 4f
+        }, new int[]{1, 2, 2}, null, "valueDagOutGrad", DataType.FLOAT32);
+        Tensor attention = specialSdpa(query, key, value, null, 1.0d);
+        Tensor weights = TensorPrimitiveBuilder.unaryNoGrad(
+                attention,
+                new int[]{1, 2, 2},
+                new operations.linalg.scaledDotProductAttentionWeights(),
+                "valueDagWeights",
+                DataType.FLOAT32
+        );
+        Tensor weightsT = weights.permute(0, 2, 1);
+        Tensor valueGrad = weightsT.matmul(outGrad);
+        PartitionPlanningContext context = planningContext(valueGrad);
+        int weightsNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS);
+        int permuteNodeId = nodeId(context, Operation.OpType.PERMUTE);
+        int matmulNodeId = nodeId(context, Operation.OpType.MATMUL);
+        List<Integer> selectedNodeIds = List.of(weightsNodeId, permuteNodeId, matmulNodeId);
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                new AcceleratorSubgraphSpec(
+                        weightsNodeId,
+                        selectedNodeIds,
+                        selectedNodeIds.stream()
+                                .map(nodeId -> new AcceleratorSubgraphOp(
+                                        nodeId,
+                                        context.compiledNode(nodeId).operation().opType()
+                                ))
+                                .toList(),
+                        externalInputNodeIds(context, selectedNodeIds),
+                        List.of(matmulNodeId)
+                ),
+                context
+        );
+
+        assertNotNull(result);
+        assertEquals(List.of(
+                        AcceleratorDagNodeType.SDPA_WEIGHTS,
+                        AcceleratorDagNodeType.PERMUTE,
+                        AcceleratorDagNodeType.MATMUL
+                ),
+                result.dagSpec().nodes().stream().map(nodeSpec -> nodeSpec.type()).toList());
+        assertEquals(List.of(matmulNodeId), result.dagSpec().outputNodeIds());
+        assertTrue(result.dagSpec().externalInputs().stream()
+                .anyMatch(input -> input.nodeId() == context.compiledNode(nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION)).inputIds().get(0)));
+        assertTrue(result.manifest().loweredPrimitives().stream()
+                .anyMatch(primitive -> "SDPA_WEIGHTS".equals(primitive.primitiveType())));
+    }
+
+    @Test
+    void metalIndexWriteAndGradientOpsLowerToScatterDagPrimitives() {
+        Tensor base = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "scatterBase", DataType.FLOAT32);
+        Tensor indices = new Tensor(new int[]{2, 1}, new int[]{2}, null, "scatterIndices", DataType.INT32);
+        Tensor src = new Tensor(new float[]{10f, 20f}, new int[]{2}, null, "scatterSrc", DataType.FLOAT32);
+        Tensor scatter = base.scatterAdd(indices, src, 1);
+        Tensor gatherGrad = TensorPrimitiveBuilder.binaryNoGrad(
+                indices,
+                src,
+                new int[]{2, 3},
+                new operations.index.gatherGrad(1),
+                "gatherGrad",
+                DataType.FLOAT32
+        );
+        Tensor takeIndices = new Tensor(new int[]{2, 1, 0, 2}, new int[]{2, 2}, null, "takeGradIndices", DataType.INT32);
+        Tensor takeOutGrad = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "takeGradOut", DataType.FLOAT32);
+        Tensor takeGrad = TensorPrimitiveBuilder.binaryNoGrad(
+                takeIndices,
+                takeOutGrad,
+                new int[]{2, 3},
+                new operations.index.takeAlongAxisGrad(1),
+                "takeAlongAxisGrad",
+                DataType.FLOAT32
+        );
+
+        assertSingleNodeLowering(scatter, Operation.OpType.SCATTER_ADD, AcceleratorDagNodeType.SCATTER_ADD);
+        assertSingleNodeLowering(gatherGrad, Operation.OpType.GATHER_GRAD, AcceleratorDagNodeType.GATHER_GRAD);
+        assertSingleNodeLowering(takeGrad, Operation.OpType.TAKE_ALONG_AXIS_GRAD, AcceleratorDagNodeType.TAKE_ALONG_AXIS_GRAD);
     }
 
     @Test
@@ -553,13 +945,69 @@ class AcceleratorSubgraphLowererTest {
         );
     }
 
+    private static void assertSingleNodeLowering(Tensor out, Operation.OpType opType, AcceleratorDagNodeType expectedType) {
+        PartitionPlanningContext context = planningContext(out);
+        CompiledNode node = context.compiledNode(nodeId(context, opType));
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                spec(node),
+                context
+        );
+
+        assertNotNull(result);
+        assertEquals(expectedType, result.dagSpec().nodes().getFirst().type());
+        assertEquals(List.of(node.id()), result.dagSpec().outputNodeIds());
+        assertEquals(1, result.dagSpec().nodes().getFirst().scalarValueBits());
+    }
+
     private static PartitionPlanningContext planningContext(Tensor out) {
         List<CompiledNode> compiledNodes = CompiledNode.snapshot(out.topologicalSort());
         return new PartitionPlanningContext(
                 RuntimeConfig.inferenceDefaults(),
                 false,
                 compiledNodes,
+                CompiledTensorDescriptorBuilder.build(compiledNodes),
                 consumers(compiledNodes)
+        );
+    }
+
+    private static Tensor specialLogSoftmax(Tensor input, int dimension) {
+        return TensorPrimitiveBuilder.unary(
+                input,
+                input.getShapeUnsafe().clone(),
+                new operations.reduction.logSoftmax(dimension),
+                "legacyLogSoftmax",
+                input.getDataType()
+        );
+    }
+
+    private static Tensor specialSoftmax(Tensor input, int dimension) {
+        return TensorPrimitiveBuilder.unary(
+                input,
+                input.getShapeUnsafe().clone(),
+                new operations.reduction.softmax(dimension),
+                "legacySoftmax",
+                input.getDataType()
+        );
+    }
+
+    private static Tensor specialSdpa(Tensor query, Tensor key, Tensor value, Tensor mask, double scale) {
+        int[] outShape = query.getShapeUnsafe().clone();
+        outShape[outShape.length - 1] = value.getShapeUnsafe()[value.getShapeUnsafe().length - 1];
+        java.util.ArrayList<Tensor> inputs = new java.util.ArrayList<>();
+        inputs.add(query);
+        inputs.add(key);
+        inputs.add(value);
+        if (mask != null) {
+            inputs.add(mask);
+        }
+        return TensorPrimitiveBuilder.nary(
+                outShape,
+                inputs,
+                new operations.linalg.scaledDotProductAttention(scale, mask != null),
+                "legacyScaledDotProductAttention",
+                query.getDataType()
         );
     }
 

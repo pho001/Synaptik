@@ -12,6 +12,7 @@ import backend.lowering.LoweringRequest;
 import backend.lowering.LoweringResult;
 import backend.lowering.RegionLowerer;
 import graph.CompiledNode;
+import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.optimizer.region.ExecutionUnit;
 import graph.optimizer.region.ExecutionUnitKind;
 import graph.optimizer.region.RegionValueRef;
@@ -99,7 +100,10 @@ public final class CpuRegionLowerer implements RegionLowerer {
             }
             boolean aliasView = switch (node.operation().opType()) {
                 case NOOP, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE -> true;
-                case RESHAPE -> node.inputTensors().getFirst().isContiguous();
+                case RESHAPE -> {
+                    CompiledTensorDescriptor input = request.context().descriptor(node.inputIds().getFirst());
+                    yield input != null && input.contiguous();
+                }
                 default -> false;
             };
             if (!aliasView) {

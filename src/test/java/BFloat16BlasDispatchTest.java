@@ -2,11 +2,11 @@ import backend.blas.BlasProvider;
 import backend.blas.OpenBlasFfmBridge;
 import backend.runtime.ExecutionMode;
 import config.backend.KernelTuningConfig;
+import config.compile.BackendPlanningConfig;
+import config.compile.CompileConfig;
+import config.compile.GraphOptimizationConfig;
 import config.optimizer.Conv2dLoweringConfig;
 import config.optimizer.Conv2dLoweringMode;
-import config.optimizer.OffloadConfig;
-import config.optimizer.OptimizerConfig;
-import config.optimizer.OptimizerStage;
 import config.optimizer.RewriteConfig;
 import config.runtime.BlasConfig;
 import config.runtime.RuntimeConfig;
@@ -16,8 +16,6 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
-
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -31,7 +29,7 @@ public class BFloat16BlasDispatchTest {
         Tensor b = new Tensor(random(64 * 64), new int[]{64, 64}, null, "b", DataType.BFLOAT16);
         Tensor out = a.matmul(b);
 
-        var trace = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+        var trace = CompiledGraph.compile(out, CompileConfig.inference())
                 .executeTraced(blasRuntime(1L), ExecutionMode.FORWARD);
 
         ExecutionStepTrace matmul = trace.steps().stream()
@@ -52,7 +50,7 @@ public class BFloat16BlasDispatchTest {
         Tensor b = new Tensor(random(96), new int[]{96}, null, "b", DataType.BFLOAT16);
         Tensor out = x.linear(w, b).sum();
 
-        var trace = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+        var trace = CompiledGraph.compile(out, CompileConfig.inference())
                 .executeTraced(blasRuntime(1L), ExecutionMode.FORWARD);
 
         ExecutionStepTrace linear = trace.steps().stream()
@@ -72,7 +70,7 @@ public class BFloat16BlasDispatchTest {
         Tensor b = new Tensor(random(256 * 2048), new int[]{256, 2048}, null, "b", DataType.BFLOAT16);
         Tensor out = a.matmul(b);
 
-        var trace = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+        var trace = CompiledGraph.compile(out, CompileConfig.inference())
                 .executeTraced(blasRuntimeWide(1L, true, 4.0d, true, 12.0d), ExecutionMode.FORWARD);
 
         ExecutionStepTrace matmul = trace.steps().stream()
@@ -90,13 +88,7 @@ public class BFloat16BlasDispatchTest {
         Tensor weight = new Tensor(random(128 * 64 * 3 * 3), new int[]{128, 64, 3, 3}, null, "weight", DataType.BFLOAT16);
         Tensor out = input.conv2d(weight, tensor.options.Conv2dOptions.defaults().withPadding(1, 1)).sum();
 
-        OptimizerConfig optimizer = new OptimizerConfig(
-                List.of(OptimizerStage.AR),
-                new RewriteConfig(new Conv2dLoweringConfig(Conv2dLoweringMode.ALWAYS)),
-                config.optimizer.CseConfig.strictDefaults(),
-                config.optimizer.FuseConfig.inferenceDefaults(),
-                config.optimizer.MemoryConfig.defaults()
-        );
+        CompileConfig optimizer = convLoweringOnlyConfig();
 
         var trace = CompiledGraph.compile(out, optimizer)
                 .executeTraced(blasRuntime(1L), ExecutionMode.FORWARD);
@@ -112,13 +104,7 @@ public class BFloat16BlasDispatchTest {
         Tensor weight = new Tensor(random(128 * 64 * 3 * 3), new int[]{128, 64, 3, 3}, null, "weight", DataType.BFLOAT16);
         Tensor out = input.conv2d(weight, tensor.options.Conv2dOptions.defaults().withPadding(1, 1)).sum();
 
-        OptimizerConfig optimizer = new OptimizerConfig(
-                List.of(OptimizerStage.AR),
-                new RewriteConfig(new Conv2dLoweringConfig(Conv2dLoweringMode.ALWAYS)),
-                config.optimizer.CseConfig.strictDefaults(),
-                config.optimizer.FuseConfig.inferenceDefaults(),
-                config.optimizer.MemoryConfig.defaults()
-        );
+        CompileConfig optimizer = convLoweringOnlyConfig();
 
         var trace = CompiledGraph.compile(out, optimizer)
                 .executeTraced(blasRuntime(1L), ExecutionMode.FORWARD);
@@ -140,13 +126,7 @@ public class BFloat16BlasDispatchTest {
         Tensor weight = new Tensor(random(128 * 64 * 3 * 3), new int[]{128, 64, 3, 3}, null, "weight", DataType.BFLOAT16);
         Tensor out = input.conv2d(weight, tensor.options.Conv2dOptions.defaults().withPadding(1, 1)).sum();
 
-        OptimizerConfig optimizer = new OptimizerConfig(
-                List.of(OptimizerStage.AR),
-                new RewriteConfig(new Conv2dLoweringConfig(Conv2dLoweringMode.ALWAYS)),
-                config.optimizer.CseConfig.strictDefaults(),
-                config.optimizer.FuseConfig.inferenceDefaults(),
-                config.optimizer.MemoryConfig.defaults()
-        );
+        CompileConfig optimizer = convLoweringOnlyConfig();
 
         RuntimeConfig runtime = new RuntimeConfig(
                 KernelTuningConfig.defaultsInference(),
@@ -169,14 +149,14 @@ public class BFloat16BlasDispatchTest {
     }
 
     @Test
-    void blasDispatchRemainsAvailableWithAcceleratorOffloadPolicy() {
+    void blasDispatchRemainsAvailableWithAutoAcceleratorPlanning() {
         Tensor a = new Tensor(random(64 * 64), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(random(64 * 96), new int[]{64, 96}, null, "b", DataType.BFLOAT16);
         Tensor out = a.matmul(b);
 
         var execution = CompiledGraph.compile(
                         out,
-                        OptimizerConfig.inferenceDefaults().withOffload(OffloadConfig.acceleratorScored())
+                        CompileConfig.inference().withBackendPlanning(BackendPlanningConfig.autoAccelerator())
                 )
                 .prepare(blasRuntime(1L));
 
@@ -187,6 +167,13 @@ public class BFloat16BlasDispatchTest {
                 .orElseThrow();
 
         assertTrue("CPU_MATMUL_BLAS".equals(matmul.metadata().cpuPlan().computeContract().backend().name()));
+    }
+
+    private static CompileConfig convLoweringOnlyConfig() {
+        return CompileConfig.inference()
+                .withGraphOptimization(GraphOptimizationConfig
+                        .stages(false, false, false, false, true)
+                        .withRewrite(new RewriteConfig(new Conv2dLoweringConfig(Conv2dLoweringMode.ALWAYS))));
     }
 
     private static RuntimeConfig blasRuntime(long minWork) {

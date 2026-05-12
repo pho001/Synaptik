@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
+import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,7 +30,7 @@ public class AllOpsTest {
         a = tensor(new double[]{1.0, 2.0});
         b = tensor(new double[]{3.0, 4.0});
         c = a.add(b);
-        CompiledGraph graph = CompiledGraph.compile(c, OptimizerConfig.trainingDefaults());
+        CompiledGraph graph = CompiledGraph.compile(c, CompileConfig.training());
         graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{4.0, 6.0}, c.toDoubleArrayCopy(), 1e-9);
 
@@ -44,7 +44,7 @@ public class AllOpsTest {
         a = tensor(new double[]{5.0, 7.0});
         b = tensor(new double[]{2.0, 3.0});
         c = a.sub(b);
-        CompiledGraph graph = CompiledGraph.compile(c, OptimizerConfig.trainingDefaults());
+        CompiledGraph graph = CompiledGraph.compile(c, CompileConfig.training());
         graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{3.0, 4.0}, c.toDoubleArrayCopy(), 1e-9);
 
@@ -58,7 +58,7 @@ public class AllOpsTest {
         a = tensor(new double[]{2.0, 3.0});
         b = tensor(new double[]{4.0, 5.0});
         c = a.mul(b);
-        CompiledGraph graph = CompiledGraph.compile(c, OptimizerConfig.trainingDefaults());
+        CompiledGraph graph = CompiledGraph.compile(c, CompileConfig.training());
         graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{8.0, 15.0}, c.toDoubleArrayCopy(), 1e-9);
 
@@ -72,7 +72,7 @@ public class AllOpsTest {
         a = tensor(new double[]{8.0, 9.0});
         b = tensor(new double[]{2.0, 3.0});
         c = a.div(b);
-        CompiledGraph graph = CompiledGraph.compile(c, OptimizerConfig.trainingDefaults());
+        CompiledGraph graph = CompiledGraph.compile(c, CompileConfig.training());
         graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{4.0, 3.0}, c.toDoubleArrayCopy(), 1e-9);
 
@@ -86,7 +86,7 @@ public class AllOpsTest {
         a = tensor(new double[]{1.0, 5.0, 3.0});
         b = tensor(new double[]{2.0, 4.0, 3.0});
         c = a.min(b);
-        CompiledGraph graph = CompiledGraph.compile(c, OptimizerConfig.trainingDefaults());
+        CompiledGraph graph = CompiledGraph.compile(c, CompileConfig.training());
         graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{1.0, 4.0, 3.0}, c.toDoubleArrayCopy(), 1e-9);
 
@@ -101,7 +101,7 @@ public class AllOpsTest {
         a = tensor(new double[]{1.0, 5.0, 3.0});
         b = tensor(new double[]{2.0, 4.0, 3.0});
         c = a.max(b);
-        CompiledGraph graph = CompiledGraph.compile(c, OptimizerConfig.trainingDefaults());
+        CompiledGraph graph = CompiledGraph.compile(c, CompileConfig.training());
         graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{2.0, 5.0, 3.0}, c.toDoubleArrayCopy(), 1e-9);
 
@@ -115,7 +115,7 @@ public class AllOpsTest {
     public void testLogForwardAndBackward() {
         a = tensor(new double[]{Math.E, Math.E * Math.E});
         c = a.log();
-        CompiledGraph graph = CompiledGraph.compile(c, OptimizerConfig.trainingDefaults());
+        CompiledGraph graph = CompiledGraph.compile(c, CompileConfig.training());
         graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{1.0, 2.0}, c.toDoubleArrayCopy(), 1e-9);
 
@@ -127,7 +127,7 @@ public class AllOpsTest {
     public void testExpForwardAndBackward() {
         a = tensor(new double[]{0.0, 1.0});
         c = a.exp();
-        CompiledGraph graph = CompiledGraph.compile(c, OptimizerConfig.trainingDefaults());
+        CompiledGraph graph = CompiledGraph.compile(c, CompileConfig.training());
         graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{1.0, Math.exp(1.0)}, c.toDoubleArrayCopy(), 1e-9);
 
@@ -139,7 +139,7 @@ public class AllOpsTest {
     public void testPowForwardAndBackward() {
         a = tensor(new double[]{2.0, 3.0});
         c = a.pow(3.0);
-        CompiledGraph graph = CompiledGraph.compile(c, OptimizerConfig.trainingDefaults());
+        CompiledGraph graph = CompiledGraph.compile(c, CompileConfig.training());
         graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{8.0, 27.0}, c.toDoubleArrayCopy(), 1e-9);
 
@@ -151,7 +151,7 @@ public class AllOpsTest {
     public void testSumForward() {
         a = new Tensor(new double[]{1.0, 2.0, 3.0, 4.0}, new int[]{4}, null, "t", DataType.FLOAT64);
         Tensor s = a.sum(0);
-        CompiledGraph.compile(s, OptimizerConfig.inferenceDefaults())
+        CompiledGraph.compile(s, CompileConfig.inference())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertEquals(1, s.getShape().length);

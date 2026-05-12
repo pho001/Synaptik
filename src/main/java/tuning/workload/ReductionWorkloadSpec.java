@@ -41,7 +41,7 @@ public final class ReductionWorkloadSpec implements WorkloadSpec {
         DataType dataType = profile.dataType();
 
         Tensor input = tensor("REDUCTION_INPUT", 701, dataType, requiresGrad, batch, features);
-        Tensor scaled = input.mul(Tensor.scalar(0.75d).expand(batch, features));
+        Tensor scaled = input.mul(Tensor.scalar(0.75d, dataType).expand(batch, features));
         Tensor reduced = scaled.sum(1, true)
                 .add(scaled.mean(1, true))
                 .add(scaled.min(1, true))

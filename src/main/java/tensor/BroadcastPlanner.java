@@ -55,6 +55,9 @@ public final class BroadcastPlanner {
         }
 
         int[] outStrides = TensorMetadata.computeStrides(outShape);
+        noBroadcast = noBroadcast
+                && Arrays.equals(aEffStrides, outStrides)
+                && Arrays.equals(bEffStrides, outStrides);
         return new BroadcastPlan(
                 outShape,
                 outStrides,
