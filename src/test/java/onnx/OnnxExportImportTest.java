@@ -7,6 +7,8 @@ import operations.index.ScatterReduction;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.options.Conv2dOptions;
+import tensor.options.Pool2dOptions;
 
 import java.nio.file.Files;
 import java.util.function.Consumer;
@@ -463,6 +465,159 @@ class OnnxExportImportTest {
         assertEquals("add", scatterNd.getAttribute(0).getS().toStringUtf8());
         assertThrows(OnnxUnsupportedException.class,
                 () -> exportInputs(x.gather(new Tensor(new int[]{2, 0}, new int[]{2}, null, "old_idx", DataType.INT32), 1)));
+    }
+
+    @Test
+    void exportNnInferenceSubsetUsesOnnxOperatorNames() {
+        Tensor image = new Tensor(new float[9], new int[]{1, 1, 3, 3}, null, "image", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[4], new int[]{1, 1, 2, 2}, null, "weight", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[1], new int[]{1}, null, "bias", DataType.FLOAT32);
+        OnnxProto.NodeProto conv = singleNode(image.conv2d(weight, bias, Conv2dOptions.defaults().withPadding(1, 1)));
+        assertEquals("Conv", conv.getOpType());
+        assertEquals("pads", conv.getAttribute(2).getName());
+        assertArrayEquals(new long[]{1, 1, 1, 1}, conv.getAttribute(2).getIntsList().stream().mapToLong(Long::longValue).toArray());
+
+        Tensor poolInput = new Tensor(new float[16], new int[]{1, 1, 4, 4}, null, "poolInput", DataType.FLOAT32);
+        assertEquals("MaxPool", singleNode(poolInput.maxPool2d(Pool2dOptions.square(2))).getOpType());
+        OnnxProto.NodeProto avgPool = singleNode(poolInput.avgPool2d(Pool2dOptions.of(2, 2).withStride(1, 1).withCountIncludePad(true)));
+        assertEquals("AveragePool", avgPool.getOpType());
+        assertTrue(avgPool.getAttributeList().stream()
+                .anyMatch(attr -> attr.getName().equals("count_include_pad") && attr.getI() == 1));
+
+        Tensor normInput = new Tensor(new float[6], new int[]{2, 3}, null, "normInput", DataType.FLOAT32);
+        Tensor gamma = new Tensor(new float[]{1f, 1f, 1f}, new int[]{3}, null, "gamma", DataType.FLOAT32);
+        Tensor beta = new Tensor(new float[]{0f, 0f, 0f}, new int[]{3}, null, "beta", DataType.FLOAT32);
+        OnnxProto.NodeProto layerNorm = singleNode(normInput.layerNorm(gamma, beta, 1.0e-5));
+        assertEquals("LayerNormalization", layerNorm.getOpType());
+        assertTrue(layerNorm.getAttributeList().stream()
+                .anyMatch(attr -> attr.getName().equals("axis") && attr.getI() == 1));
+    }
+
+    @Test
+    void importNnInferenceSubsetExecutes() {
+        OnnxProto.ModelProto model = model("nn_inference", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("conv_x", DataType.FLOAT32, new int[]{1, 1, 3, 3}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("pool_x", DataType.FLOAT32, new int[]{1, 1, 4, 4}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("norm_x", DataType.FLOAT32, new int[]{2, 3}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("bn_x", DataType.FLOAT32, new int[]{1, 2, 1, 2}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("conv_w",
+                        new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 1, 2, 2}, null, "conv_w", DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("ln_scale",
+                        new Tensor(new float[]{1f, 1f, 1f}, new int[]{3}, null, "ln_scale", DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("ln_bias",
+                        new Tensor(new float[]{0f, 0f, 0f}, new int[]{3}, null, "ln_bias", DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("bn_scale",
+                        new Tensor(new float[]{2f, 3f}, new int[]{2}, null, "bn_scale", DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("bn_bias",
+                        new Tensor(new float[]{1f, -1f}, new int[]{2}, null, "bn_bias", DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("bn_mean",
+                        new Tensor(new float[]{2f, 12f}, new int[]{2}, null, "bn_mean", DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("bn_var",
+                        new Tensor(new float[]{1f, 4f}, new int[]{2}, null, "bn_var", DataType.FLOAT32)))
+                .addNode(nodeBuilder("conv", "Conv", "conv_y", "conv_x", "conv_w")
+                        .addAttribute(intsAttr("kernel_shape", 2, 2))
+                        .build())
+                .addNode(nodeBuilder("max_pool", "MaxPool", "max_y", "pool_x")
+                        .addAttribute(intsAttr("kernel_shape", 2, 2))
+                        .addAttribute(intsAttr("strides", 2, 2))
+                        .build())
+                .addNode(nodeBuilder("avg_pool", "AveragePool", "avg_y", "pool_x")
+                        .addAttribute(intsAttr("kernel_shape", 2, 2))
+                        .addAttribute(intsAttr("strides", 2, 2))
+                        .build())
+                .addNode(nodeBuilder("layer_norm", "LayerNormalization", "ln_y", "norm_x", "ln_scale", "ln_bias")
+                        .addAttribute(intAttr("axis", 1))
+                        .addAttribute(floatAttr("epsilon", 1.0e-12f))
+                        .build())
+                .addNode(nodeBuilder("batch_norm", "BatchNormalization", "bn_y", "bn_x", "bn_scale", "bn_bias", "bn_mean", "bn_var")
+                        .addAttribute(floatAttr("epsilon", 1.0e-12f))
+                        .build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("conv_y", DataType.FLOAT32, new int[]{1, 1, 2, 2}))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("max_y", DataType.FLOAT32, new int[]{1, 1, 2, 2}))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("avg_y", DataType.FLOAT32, new int[]{1, 1, 2, 2}))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("ln_y", DataType.FLOAT32, new int[]{2, 3}))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("bn_y", DataType.FLOAT32, new int[]{1, 2, 1, 2})));
+
+        ImportedOnnxModel imported = Onnx.importModel(model);
+        imported.input("conv_x").setData(new float[]{1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f});
+        imported.input("pool_x").setData(new float[]{1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f, 11f, 12f, 13f, 14f, 15f, 16f});
+        imported.input("norm_x").setData(new float[]{1f, 2f, 3f, 2f, 4f, 6f});
+        imported.input("bn_x").setData(new float[]{1f, 3f, 10f, 14f});
+
+        execute(imported, "conv_y");
+        assertArrayEquals(new double[]{6.0, 8.0, 12.0, 14.0}, imported.output("conv_y").toDoubleArrayCopy(), 1e-6);
+        execute(imported, "max_y");
+        assertArrayEquals(new double[]{6.0, 8.0, 14.0, 16.0}, imported.output("max_y").toDoubleArrayCopy(), 1e-6);
+        execute(imported, "avg_y");
+        assertArrayEquals(new double[]{3.5, 5.5, 11.5, 13.5}, imported.output("avg_y").toDoubleArrayCopy(), 1e-6);
+        execute(imported, "ln_y");
+        assertArrayEquals(new double[]{-1.224744, 0.0, 1.224744, -1.224744, 0.0, 1.224744},
+                imported.output("ln_y").toDoubleArrayCopy(), 1e-5);
+        execute(imported, "bn_y");
+        assertArrayEquals(new double[]{-1.0, 3.0, -4.0, 2.0}, imported.output("bn_y").toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void nnInferenceSubsetRoundTripsThroughOnnx() {
+        Tensor image = new Tensor(new float[9], new int[]{1, 1, 3, 3}, null, "image", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[4], new int[]{1, 1, 2, 2}, null, "weight", DataType.FLOAT32);
+        Tensor conv = image.conv2d(weight, Conv2dOptions.defaults());
+        conv.setLabel("conv_y");
+
+        ImportedOnnxModel importedConv = Onnx.importModel(exportInputs(conv).proto());
+        importedConv.input("image").setData(new float[]{1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f});
+        importedConv.input("weight").setData(new float[]{1f, 0f, 0f, 1f});
+        execute(importedConv, "conv_y");
+        assertArrayEquals(new double[]{6.0, 8.0, 12.0, 14.0}, importedConv.output("conv_y").toDoubleArrayCopy(), 1e-6);
+
+        Tensor normInput = new Tensor(new float[6], new int[]{2, 3}, null, "normInput", DataType.FLOAT32);
+        Tensor gamma = new Tensor(new float[]{1f, 1f, 1f}, new int[]{3}, null, "gamma", DataType.FLOAT32);
+        Tensor beta = new Tensor(new float[]{0f, 0f, 0f}, new int[]{3}, null, "beta", DataType.FLOAT32);
+        Tensor norm = normInput.layerNorm(gamma, beta, 1.0e-12);
+        norm.setLabel("ln_y");
+        ImportedOnnxModel importedNorm = Onnx.importModel(exportInputs(norm).proto());
+        importedNorm.input("normInput").setData(new float[]{1f, 2f, 3f, 2f, 4f, 6f});
+        importedNorm.input("gamma").setData(new float[]{1f, 1f, 1f});
+        importedNorm.input("beta").setData(new float[]{0f, 0f, 0f});
+        execute(importedNorm, "ln_y");
+        assertArrayEquals(new double[]{-1.224744, 0.0, 1.224744, -1.224744, 0.0, 1.224744},
+                importedNorm.output("ln_y").toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void importNnInferenceSubsetRejectsUnsupportedAttributes() {
+        OnnxProto.ModelProto asymmetricConv = model("bad_conv", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{1, 1, 3, 3}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("w",
+                        new Tensor(new float[4], new int[]{1, 1, 2, 2}, null, "w", DataType.FLOAT32)))
+                .addNode(nodeBuilder("conv", "Conv", "y", "x", "w")
+                        .addAttribute(intsAttr("pads", 1, 0, 0, 0))
+                        .build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{1, 1, 3, 2})));
+        OnnxProto.ModelProto ceilPool = model("bad_pool", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{1, 1, 4, 4}))
+                .addNode(nodeBuilder("pool", "MaxPool", "y", "x")
+                        .addAttribute(intsAttr("kernel_shape", 2, 2))
+                        .addAttribute(intAttr("ceil_mode", 1))
+                        .build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{1, 1, 2, 2})));
+        OnnxProto.ModelProto trainingBatchNorm = model("bad_bn", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{1, 1, 1, 1}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("scale", Tensor.scalar(1.0, DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("bias", Tensor.scalar(0.0, DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("mean", Tensor.scalar(0.0, DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("var", Tensor.scalar(1.0, DataType.FLOAT32)))
+                .addNode(nodeBuilder("bn", "BatchNormalization", "y", "x", "scale", "bias", "mean", "var")
+                        .addAttribute(intAttr("training_mode", 1))
+                        .build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{1, 1, 1, 1})));
+
+        assertTrue(assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(asymmetricConv))
+                .getMessage().contains("symmetric"));
+        assertTrue(assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(ceilPool))
+                .getMessage().contains("ceil_mode"));
+        assertTrue(assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(trainingBatchNorm))
+                .getMessage().contains("training_mode"));
     }
 
     @Test
@@ -936,6 +1091,22 @@ class OnnxExportImportTest {
         return nodeBuilder(name, "Cast", output, input)
                 .addAttribute(OnnxProto.AttributeProto.newBuilder().setName("to").setI(target.getNumber()))
                 .build();
+    }
+
+    private static OnnxProto.AttributeProto intAttr(String name, long value) {
+        return OnnxProto.AttributeProto.newBuilder().setName(name).setI(value).build();
+    }
+
+    private static OnnxProto.AttributeProto floatAttr(String name, float value) {
+        return OnnxProto.AttributeProto.newBuilder().setName(name).setF(value).build();
+    }
+
+    private static OnnxProto.AttributeProto intsAttr(String name, long... values) {
+        OnnxProto.AttributeProto.Builder attr = OnnxProto.AttributeProto.newBuilder().setName(name);
+        for (long value : values) {
+            attr.addInts(value);
+        }
+        return attr.build();
     }
 
     private static OnnxProto.NodeProto.Builder nodeBuilder(String name, String opType, String output, String... inputs) {

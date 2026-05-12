@@ -20,6 +20,10 @@ import operations.layout.reshape;
 import operations.layout.squeeze;
 import operations.layout.slice;
 import operations.linalg.linear;
+import operations.nn.conv.conv2d;
+import operations.nn.pool.avgPool2d;
+import operations.nn.pool.maxPool2d;
+import operations.normalization.layerNorm;
 import operations.reduction.logSoftmax;
 import operations.reduction.mean;
 import operations.reduction.reduceMax;
@@ -28,6 +32,8 @@ import operations.reduction.softmax;
 import operations.reduction.sum;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.options.Conv2dOptions;
+import tensor.options.Pool2dOptions;
 
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -135,6 +141,10 @@ final class OnnxGraphExporter {
             case WHERE -> node.setOpType("Where");
             case MATMUL -> node.setOpType("MatMul");
             case LINEAR -> exportLinear(node, op);
+            case CONV2D -> exportConv(node, op, tensor);
+            case MAX_POOL2D -> exportMaxPool(node, op);
+            case AVG_POOL2D -> exportAveragePool(node, op);
+            case LAYER_NORM -> exportLayerNormalization(node, op, tensor);
             case PERMUTE -> exportPermute(node, op);
             case RESHAPE -> exportReshape(node, op, names, graphBuilder);
             case EXPAND -> exportExpand(node, op, names, graphBuilder);
@@ -170,6 +180,61 @@ final class OnnxGraphExporter {
         if (linear.hasBias() && node.getInputCount() != 3) {
             throw new OnnxUnsupportedException("Linear with bias must have three inputs.");
         }
+    }
+
+    private static void exportConv(OnnxProto.NodeProto.Builder node, Operation op, Tensor tensor) {
+        conv2d conv = (conv2d) op;
+        if (!conv.hasBias() && node.getInputCount() != 2) {
+            throw new OnnxUnsupportedException("Conv2D without bias must have two inputs.");
+        }
+        if (conv.hasBias() && node.getInputCount() != 3) {
+            throw new OnnxUnsupportedException("Conv2D with bias must have three inputs.");
+        }
+        Tensor weight = tensor.getPrevTensors().get(1);
+        int[] weightShape = weight.getShapeUnsafe();
+        if (weightShape.length != 4) {
+            throw new OnnxUnsupportedException("Conv2D export requires rank-4 OIHW weights.");
+        }
+        Conv2dOptions options = conv.getOptions();
+        node.setOpType("Conv")
+                .addAttribute(intsAttr("kernel_shape", new int[]{weightShape[2], weightShape[3]}))
+                .addAttribute(intsAttr("strides", new int[]{options.strideH(), options.strideW()}))
+                .addAttribute(intsAttr("pads", new int[]{options.padH(), options.padW(), options.padH(), options.padW()}))
+                .addAttribute(intsAttr("dilations", new int[]{options.dilationH(), options.dilationW()}));
+        if (options.groups() != 1) {
+            node.addAttribute(intAttr("group", options.groups()));
+        }
+    }
+
+    private static void exportMaxPool(OnnxProto.NodeProto.Builder node, Operation op) {
+        node.setOpType("MaxPool");
+        exportPoolAttributes(node, ((maxPool2d) op).getOptions());
+    }
+
+    private static void exportAveragePool(OnnxProto.NodeProto.Builder node, Operation op) {
+        avgPool2d pool = (avgPool2d) op;
+        node.setOpType("AveragePool");
+        exportPoolAttributes(node, pool.getOptions());
+        if (pool.getOptions().countIncludePad()) {
+            node.addAttribute(intAttr("count_include_pad", 1));
+        }
+    }
+
+    private static void exportPoolAttributes(OnnxProto.NodeProto.Builder node, Pool2dOptions options) {
+        node.addAttribute(intsAttr("kernel_shape", new int[]{options.kernelH(), options.kernelW()}))
+                .addAttribute(intsAttr("strides", new int[]{options.strideH(), options.strideW()}))
+                .addAttribute(intsAttr("pads", new int[]{options.padH(), options.padW(), options.padH(), options.padW()}));
+    }
+
+    private static void exportLayerNormalization(OnnxProto.NodeProto.Builder node, Operation op, Tensor tensor) {
+        if (node.getInputCount() != 3) {
+            throw new OnnxUnsupportedException("LayerNorm export requires input, scale, and bias tensors.");
+        }
+        layerNorm layerNorm = (layerNorm) op;
+        int axis = tensor.getShapeUnsafe().length - layerNorm.getNormalizedRank();
+        node.setOpType("LayerNormalization")
+                .addAttribute(intAttr("axis", axis))
+                .addAttribute(floatAttr("epsilon", (float) layerNorm.getEpsilon()));
     }
 
     private static void exportPermute(OnnxProto.NodeProto.Builder node, Operation op) {
@@ -380,6 +445,10 @@ final class OnnxGraphExporter {
 
     private static OnnxProto.AttributeProto intAttr(String name, long value) {
         return OnnxProto.AttributeProto.newBuilder().setName(name).setI(value).build();
+    }
+
+    private static OnnxProto.AttributeProto floatAttr(String name, float value) {
+        return OnnxProto.AttributeProto.newBuilder().setName(name).setF(value).build();
     }
 
     private static OnnxProto.AttributeProto intsAttr(String name, int[] values) {

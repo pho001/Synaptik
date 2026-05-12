@@ -4,6 +4,8 @@ import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorOps;
 import operations.index.ScatterReduction;
+import tensor.options.Conv2dOptions;
+import tensor.options.Pool2dOptions;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -21,6 +23,7 @@ final class OnnxGraphImporter {
             "And", "Or", "Not",
             "Where", "Identity", "Clip", "Cast",
             "MatMul", "Gemm",
+            "Conv", "MaxPool", "AveragePool", "LayerNormalization", "BatchNormalization",
             "Transpose", "Reshape", "Flatten", "Expand", "Squeeze", "Unsqueeze", "Slice", "Concat", "Shape", "Size", "Gather", "GatherElements", "GatherND", "ScatterElements", "ScatterND",
             "ReduceSum", "ReduceMean", "ReduceMax", "ReduceMin",
             "Softmax", "LogSoftmax",
@@ -28,6 +31,10 @@ final class OnnxGraphImporter {
     );
 
     private OnnxGraphImporter() {
+    }
+
+    static Set<String> supportedOps() {
+        return SUPPORTED_OPS;
     }
 
     static ImportedOnnxModel importModel(OnnxProto.ModelProto model, OnnxImportOptions options) {
@@ -153,6 +160,11 @@ final class OnnxGraphImporter {
             case "Cast" -> cast(node, tensors, int64Constants, attrs);
             case "MatMul" -> binary(node, tensors, TensorOps::matmul);
             case "Gemm" -> gemm(node, tensors, attrs);
+            case "Conv" -> conv(node, tensors, attrs);
+            case "MaxPool" -> maxPool(node, tensors, attrs);
+            case "AveragePool" -> averagePool(node, tensors, attrs);
+            case "LayerNormalization" -> layerNormalization(node, tensors, attrs);
+            case "BatchNormalization" -> batchNormalization(node, tensors, attrs);
             case "Transpose" -> transpose(node, tensors, attrs);
             case "Reshape" -> reshape(node, tensors, int64Constants);
             case "Flatten" -> flatten(node, tensors, attrs);
@@ -301,6 +313,114 @@ final class OnnxGraphImporter {
             out = out.add(beta == 1.0f ? c : c.mul(beta));
         }
         return out;
+    }
+
+    private static Tensor conv(OnnxProto.NodeProto node, Map<String, Tensor> tensors, OnnxAttributeReader attrs) {
+        requireInputCount(node, 2, 3);
+        rejectAutoPad(node, attrs);
+        Tensor input = tensorInput(node, tensors, 0);
+        Tensor weight = tensorInput(node, tensors, 1);
+        Tensor bias = node.getInputCount() >= 3 && !node.getInput(2).isBlank() ? tensorInput(node, tensors, 2) : null;
+        int[] weightShape = weight.getShapeUnsafe();
+        if (weightShape.length != 4) {
+            throw unsupported(node, "Conv currently requires rank-4 OIHW weights");
+        }
+        int[] kernel = pairAttribute(node, attrs, "kernel_shape", new int[]{weightShape[2], weightShape[3]});
+        if (kernel[0] != weightShape[2] || kernel[1] != weightShape[3]) {
+            throw unsupported(node, "Conv kernel_shape must match weight spatial dimensions");
+        }
+        int[] strides = pairAttribute(node, attrs, "strides", new int[]{1, 1});
+        int[] dilations = pairAttribute(node, attrs, "dilations", new int[]{1, 1});
+        int[] pads = symmetricPads(node, attrs, "Conv");
+        Conv2dOptions options = new Conv2dOptions(
+                strides[0],
+                strides[1],
+                pads[0],
+                pads[1],
+                dilations[0],
+                dilations[1],
+                attrs.intAttribute("group", 1)
+        );
+        return bias == null ? input.conv2d(weight, options) : input.conv2d(weight, bias, options);
+    }
+
+    private static Tensor maxPool(OnnxProto.NodeProto node, Map<String, Tensor> tensors, OnnxAttributeReader attrs) {
+        requireInputCount(node, 1, 1);
+        return tensorInput(node, tensors, 0).maxPool2d(poolOptions(node, attrs, "MaxPool", false));
+    }
+
+    private static Tensor averagePool(OnnxProto.NodeProto node, Map<String, Tensor> tensors, OnnxAttributeReader attrs) {
+        requireInputCount(node, 1, 1);
+        return tensorInput(node, tensors, 0).avgPool2d(
+                poolOptions(node, attrs, "AveragePool", attrs.intAttribute("count_include_pad", 0) != 0)
+        );
+    }
+
+    private static Pool2dOptions poolOptions(
+            OnnxProto.NodeProto node,
+            OnnxAttributeReader attrs,
+            String opName,
+            boolean countIncludePad
+    ) {
+        rejectAutoPad(node, attrs);
+        if (attrs.intAttribute("ceil_mode", 0) != 0) {
+            throw unsupported(node, opName + " ceil_mode=1 is not supported");
+        }
+        if (attrs.intAttribute("storage_order", 0) != 0) {
+            throw unsupported(node, opName + " storage_order must be 0");
+        }
+        int[] kernel = pairAttribute(node, attrs, "kernel_shape", null);
+        if (kernel == null) {
+            throw unsupported(node, opName + " requires kernel_shape");
+        }
+        int[] strides = pairAttribute(node, attrs, "strides", new int[]{1, 1});
+        int[] pads = symmetricPads(node, attrs, opName);
+        return new Pool2dOptions(kernel[0], kernel[1], strides[0], strides[1], pads[0], pads[1], countIncludePad);
+    }
+
+    private static Tensor layerNormalization(OnnxProto.NodeProto node, Map<String, Tensor> tensors, OnnxAttributeReader attrs) {
+        requireInputCount(node, 2, 3);
+        Tensor input = tensorInput(node, tensors, 0);
+        Tensor scale = tensorInput(node, tensors, 1);
+        Tensor bias = node.getInputCount() >= 3 && !node.getInput(2).isBlank()
+                ? tensorInput(node, tensors, 2)
+                : Tensor.zerosLike(scale);
+        int inputRank = input.getShapeUnsafe().length;
+        int axis = attrs.intAttribute("axis", -1);
+        int normalizedAxis = axis < 0 ? axis + inputRank : axis;
+        if (normalizedAxis < 0 || normalizedAxis >= inputRank) {
+            throw unsupported(node, "LayerNormalization axis out of range for rank " + inputRank + ": " + axis);
+        }
+        int normalizedRank = inputRank - normalizedAxis;
+        int[] inputShape = input.getShapeUnsafe();
+        int[] scaleShape = scale.getShapeUnsafe();
+        if (scaleShape.length != normalizedRank) {
+            throw unsupported(node, "LayerNormalization scale shape must match the normalized trailing axes");
+        }
+        for (int i = 0; i < normalizedRank; i++) {
+            if (scaleShape[i] != inputShape[normalizedAxis + i]) {
+                throw unsupported(node, "LayerNormalization scale shape must match the normalized trailing axes");
+            }
+        }
+        if (!Arrays.equals(bias.getShapeUnsafe(), scaleShape)) {
+            throw unsupported(node, "LayerNormalization bias shape must match scale shape");
+        }
+        return input.layerNorm(scale, bias, attrs.floatAttribute("epsilon", 1.0e-5f));
+    }
+
+    private static Tensor batchNormalization(OnnxProto.NodeProto node, Map<String, Tensor> tensors, OnnxAttributeReader attrs) {
+        requireInputCount(node, 5, 5);
+        if (attrs.intAttribute("training_mode", 0) != 0) {
+            throw unsupported(node, "BatchNormalization training_mode=1 is not supported");
+        }
+        return tensorInput(node, tensors, 0).batchNorm(
+                tensorInput(node, tensors, 1),
+                tensorInput(node, tensors, 2),
+                tensorInput(node, tensors, 3),
+                tensorInput(node, tensors, 4),
+                1,
+                attrs.floatAttribute("epsilon", 1.0e-5f)
+        );
     }
 
     private static Tensor transpose(OnnxProto.NodeProto node, Map<String, Tensor> tensors, OnnxAttributeReader attrs) {
@@ -792,6 +912,38 @@ final class OnnxGraphImporter {
             axes[i] = i;
         }
         return axes;
+    }
+
+    private static void rejectAutoPad(OnnxProto.NodeProto node, OnnxAttributeReader attrs) {
+        String autoPad = attrs.stringAttribute("auto_pad", "NOTSET");
+        if (!autoPad.isBlank() && !"NOTSET".equals(autoPad)) {
+            throw unsupported(node, node.getOpType() + " auto_pad='" + autoPad + "' is not supported");
+        }
+    }
+
+    private static int[] pairAttribute(OnnxProto.NodeProto node, OnnxAttributeReader attrs, String name, int[] defaultValue) {
+        int[] values = attrs.intsAttribute(name);
+        if (values == null) {
+            return defaultValue == null ? null : defaultValue.clone();
+        }
+        if (values.length != 2) {
+            throw unsupported(node, name + " must contain exactly two values");
+        }
+        return values;
+    }
+
+    private static int[] symmetricPads(OnnxProto.NodeProto node, OnnxAttributeReader attrs, String opName) {
+        int[] pads = attrs.intsAttribute("pads");
+        if (pads == null) {
+            return new int[]{0, 0};
+        }
+        if (pads.length != 4) {
+            throw unsupported(node, opName + " pads must contain four values");
+        }
+        if (pads[0] != pads[2] || pads[1] != pads[3]) {
+            throw unsupported(node, opName + " supports only symmetric NCHW spatial pads");
+        }
+        return new int[]{pads[0], pads[1]};
     }
 
     private static int[] normalizeAxes(int[] axes, int rank, OnnxProto.NodeProto node, String field) {

@@ -97,6 +97,11 @@ Supported node families:
 | `Cast` | Explicit graph dtype conversion for supported Synaptik dtypes except runtime `INT64`. Shape-only `INT64`/`INT32` casts are evaluated during import. |
 | `MatMul` | `Tensor.matmul`. |
 | `Gemm` | `matmul` plus optional bias and scalar `alpha`/`beta`; rank-2 transpose flags are supported. |
+| `Conv` | Rank-4 NCHW convolution mapped to `Tensor.conv2d`. Weights must be OIHW, bias is optional rank-1, attributes are static, and pads must be symmetric spatial NCHW pads. |
+| `MaxPool` | Rank-4 NCHW max pooling mapped to `Tensor.maxPool2d`. `kernel_shape` is required, `strides` and symmetric `pads` are supported, and `ceil_mode=1` is rejected. |
+| `AveragePool` | Rank-4 NCHW average pooling mapped to `Tensor.avgPool2d`. `count_include_pad` is preserved in the Synaptik pool options, but backend-native support remains backend-specific. |
+| `LayerNormalization` | Single-output inference form mapped to `Tensor.layerNorm`. The ONNX `axis` must select trailing normalized dimensions so it matches Synaptik's tail-parameter contract. Missing bias is imported as a zero tensor matching scale. |
+| `BatchNormalization` | Single-output inference form mapped to external-statistics `Tensor.batchNorm` with channel axis 1. `training_mode=1` and multi-output training forms are rejected. Export is not first-class because Synaptik currently represents batch norm as a composed graph, not a single descriptor. |
 | `Transpose` | `Tensor.permute`. |
 | `Reshape` | `Tensor.reshape` with constant shape input. |
 | `Flatten` | Static reshape using the ONNX `axis` attribute. |
@@ -113,7 +118,20 @@ Supported node families:
 | `Softmax`, `LogSoftmax` | Axis normalization ops. |
 | `Constant` | Tensor initializer in graph-node form. |
 
+## Coverage Matrix
+
+The code-level source of truth for interchange coverage is `onnx.OnnxCoverageMatrix`. Each row separates:
+
+- ONNX import support: whether an ONNX node can be translated into a Synaptik graph.
+- ONNX export support: whether a Synaptik semantic op can be serialized as that ONNX op.
+- CPU support: whether the imported graph has a CPU execution path.
+- Metal/CUDA support: whether the mapped Synaptik operation is covered by the native GPU lowering matrix.
+
+This distinction matters. For example, `GatherND`, `ScatterElements`, and `ScatterND` are valid ONNX import/export rows and execute on CPU, but their tuple/rank-preserving index-write semantics are still explicit GPU unsupported rows. Conversely, Metal supports internal operations such as SDPA, selected losses, and backward-adjacent ops that are not ONNX interchange rows yet.
+
 Index conformance is covered by checked-in miniature ONNX models under `src/test/resources/onnx/index/`. Those fixtures are regenerated from the Java builder in `OnnxIndexFixtureModels` and then byte-compared in tests, so review can inspect both executable ONNX files and the source definition. The current fixture set covers executable `GatherElements`, `GatherND`, `ScatterElements`, and `ScatterND` variants, including axes, negative axes/indices, tuple slices, `GatherND batch_dims`, and `ScatterND` inference reductions. Invalid duplicate-write cases are kept as code-built rejection tests instead of executable fixture files.
+
+NN inference conformance is covered the same way under `src/test/resources/onnx/nn/`. `OnnxNnFixtureModels` generates the checked-in fixture files and `OnnxNnFixtureTest` byte-compares them before execution. The current fixture set covers `Conv`, `MaxPool`, `AveragePool`, `LayerNormalization`, and inference `BatchNormalization`.
 
 Explicit non-goals in the current algebra subset:
 
@@ -133,7 +151,7 @@ Unsupported by design in the first subset:
 - external data files;
 - custom domains;
 - multi-output nodes;
-- broad convolution, pooling, gather/scatter, and indexing import coverage.
+- broad dynamic-shape, quantized, sparse, control-flow, and full training import coverage.
 
 ## Failure Mode
 
