@@ -28,6 +28,7 @@ public final class CpuTypeContractResolver {
             case LOGICAL_NOT -> resolveLogicalUnaryContract(inputs);
             case REDUCE_ALL, REDUCE_ANY -> resolveBoolReductionContract(inputs);
             case ARGMAX -> resolveArgMaxContract(inputs);
+            case CUMSUM -> resolveCumSumContract(inputs);
             case GATHER -> resolveGatherContract(inputs);
             case GATHER_GRAD -> resolveGatherGradContract(inputs);
             case GATHER_AXIS -> resolveGatherContract(inputs);
@@ -155,6 +156,17 @@ public final class CpuTypeContractResolver {
             throw new IllegalArgumentException("argMax requires numeric input.");
         }
         return new PreparedTypeContract(DataType.INT32, List.of(inputType));
+    }
+
+    private static PreparedTypeContract resolveCumSumContract(List<Tensor> inputs) {
+        if (inputs == null || inputs.size() != 1) {
+            throw new IllegalArgumentException("cumSum expects exactly one input.");
+        }
+        DataType inputType = inputs.getFirst().getDataType();
+        if (inputType == DataType.BOOL) {
+            throw new IllegalArgumentException("cumSum requires floating or INT32 input.");
+        }
+        return new PreparedTypeContract(inputType, List.of(inputType));
     }
 
     private static PreparedTypeContract resolveGatherContract(List<Tensor> inputs) {

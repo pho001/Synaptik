@@ -2,6 +2,7 @@ package tensor.ops.reduction;
 
 import graph.optimizer.intent.BackendIntentPropagator;
 import operations.Operation;
+import operations.reduction.cumSum;
 import operations.reduction.mean;
 import operations.reduction.reduceAll;
 import operations.reduction.reduceAny;
@@ -195,6 +196,27 @@ public final class TensorReduceOps {
                 new argMax(normalizedDimension, keepDims),
                 "argmax",
                 DataType.INT32
+        );
+    }
+
+    public static Tensor cumSum(Tensor input, int axis) {
+        return cumSum(input, axis, false, false);
+    }
+
+    public static Tensor cumSum(Tensor input, int axis, boolean exclusive, boolean reverse) {
+        if (input == null) {
+            throw new IllegalArgumentException("cumSum input cannot be null");
+        }
+        if (input.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("cumSum requires floating or INT32 input.");
+        }
+        int normalizedAxis = TensorLayoutTransform.normalizeAxis(axis, input.getShape().length);
+        return TensorPrimitiveBuilder.unaryNoGrad(
+                input,
+                input.getShape(),
+                new cumSum(normalizedAxis, exclusive, reverse),
+                "cumsum",
+                input.getDataType()
         );
     }
 

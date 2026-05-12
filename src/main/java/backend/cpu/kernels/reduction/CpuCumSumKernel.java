@@ -1,0 +1,134 @@
+package backend.cpu.kernels.reduction;
+
+import backend.cpu.kernels.CpuDTypeOps;
+import backend.cpu.kernels.CpuKernel;
+import backend.cpu.kernels.CpuKernelContext;
+import operations.Operation;
+import operations.reduction.cumSum;
+import tensor.DataType;
+import tensor.Tensor;
+import tensor.TensorMetadata;
+
+import java.util.List;
+
+public final class CpuCumSumKernel implements CpuKernel {
+    @Override
+    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        scan(op, inputs, node);
+    }
+
+    @Override
+    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        scan(op, inputs, node);
+    }
+
+    @Override
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        scan(op, inputs, node);
+    }
+
+    @Override
+    public void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        scan(op, inputs, node);
+    }
+
+    private static void scan(Operation op, List<Tensor> inputs, Tensor node) {
+        if (!(op instanceof cumSum scan)) {
+            throw new IllegalArgumentException("CpuCumSumKernel requires cumSum operation.");
+        }
+        Tensor input = CpuSumKernel.requireSingleInput(inputs, "CumSum");
+        if (input.getDataType() == DataType.BOOL || node.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("CumSum requires floating or INT32 tensors.");
+        }
+        if (input.getDataType() != node.getDataType()) {
+            throw new IllegalArgumentException("CumSum requires input and output dtypes to match.");
+        }
+        int[] shape = input.getShapeUnsafe();
+        int axis = scan.getAxis();
+        if (axis < 0 || axis >= shape.length) {
+            throw new IllegalArgumentException("CumSum axis out of bounds: " + axis);
+        }
+        int axisSize = shape[axis];
+        int lineCount = axisSize == 0 ? 0 : input.getFlatDataSize() / axisSize;
+        int[] denseStrides = TensorMetadata.computeStrides(shape);
+        for (int line = 0; line < lineCount; line++) {
+            if (scan.isReverse()) {
+                scanReverseLine(input, node, line, axis, axisSize, denseStrides, scan.isExclusive());
+            } else {
+                scanForwardLine(input, node, line, axis, axisSize, denseStrides, scan.isExclusive());
+            }
+        }
+        node.markStorageModified();
+    }
+
+    private static void scanForwardLine(
+            Tensor input,
+            Tensor output,
+            int line,
+            int axis,
+            int axisSize,
+            int[] denseStrides,
+            boolean exclusive
+    ) {
+        double acc = 0.0d;
+        for (int k = 0; k < axisSize; k++) {
+            int logical = logicalIndex(line, k, axis, input.getShapeUnsafe(), denseStrides);
+            double value = input.getByFlatIndex(logical);
+            if (exclusive) {
+                write(output, logical, acc);
+                acc += value;
+            } else {
+                acc += value;
+                write(output, logical, acc);
+            }
+        }
+    }
+
+    private static void scanReverseLine(
+            Tensor input,
+            Tensor output,
+            int line,
+            int axis,
+            int axisSize,
+            int[] denseStrides,
+            boolean exclusive
+    ) {
+        double acc = 0.0d;
+        for (int k = axisSize - 1; k >= 0; k--) {
+            int logical = logicalIndex(line, k, axis, input.getShapeUnsafe(), denseStrides);
+            double value = input.getByFlatIndex(logical);
+            if (exclusive) {
+                write(output, logical, acc);
+                acc += value;
+            } else {
+                acc += value;
+                write(output, logical, acc);
+            }
+        }
+    }
+
+    private static int logicalIndex(int line, int axisCoord, int axis, int[] shape, int[] denseStrides) {
+        int tmp = line;
+        int logical = axisCoord * denseStrides[axis];
+        for (int d = shape.length - 1; d >= 0; d--) {
+            if (d == axis) {
+                continue;
+            }
+            int coord = tmp % shape[d];
+            tmp /= shape[d];
+            logical += coord * denseStrides[d];
+        }
+        return logical;
+    }
+
+    private static void write(Tensor out, int logical, double value) {
+        int offset = out.getStorageOffsetUnsafe() + logical;
+        switch (out.getDataType()) {
+            case FLOAT64 -> out.getFloat64Data()[offset] = value;
+            case FLOAT32 -> out.getFloat32Data()[offset] = (float) value;
+            case BFLOAT16 -> out.getBFloat16Data()[offset] = CpuDTypeOps.toBFloat16Bits((float) value);
+            case INT32 -> out.getInt32Data()[offset] = (int) value;
+            case BOOL -> throw new IllegalArgumentException("CumSum requires floating or INT32 output.");
+        }
+    }
+}

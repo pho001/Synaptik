@@ -1993,6 +1993,28 @@ public class Tensor {
     }
 
     /**
+     * Computes cumulative sums along one axis.
+     *
+     * @param axis axis to scan; negative axes are normalized
+     * @return shape-preserving cumulative sum tensor
+     */
+    public Tensor cumSum(int axis) {
+        return TensorOps.cumSum(this, axis);
+    }
+
+    /**
+     * Computes cumulative sums along one axis.
+     *
+     * @param axis axis to scan; negative axes are normalized
+     * @param exclusive true to exclude the current element from its prefix
+     * @param reverse true to scan from the end of the selected axis
+     * @return shape-preserving cumulative sum tensor
+     */
+    public Tensor cumSum(int axis, boolean exclusive, boolean reverse) {
+        return TensorOps.cumSum(this, axis, exclusive, reverse);
+    }
+
+    /**
      * Applies softmax along one dimension.
      *
      * @param dimension axis over which output values sum to 1

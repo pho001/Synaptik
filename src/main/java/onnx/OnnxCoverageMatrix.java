@@ -135,6 +135,12 @@ public final class OnnxCoverageMatrix {
         addLayout(out, "Expand", Operation.OpType.EXPAND, "constant target shape");
         addLayout(out, "Pad", Operation.OpType.PAD, "constant mode, static non-negative pads, scalar constant value");
         addLayout(out, "Tile", Operation.OpType.TILE, "constant positive repeats");
+        add(out, "ConstantOfShape", "constant leaf materialization", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+                CoverageStatus.SUPPORTED, CoverageStatus.PARTIAL, CoverageStatus.PARTIAL,
+                "import-time static shape input only; no first-class runtime operation");
+        add(out, "Range", "shape constant or constant tensor leaf", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+                CoverageStatus.SUPPORTED, CoverageStatus.PARTIAL, CoverageStatus.PARTIAL,
+                "import-time static scalar inputs only; runtime data-dependent length is unsupported");
         addLayout(out, "Squeeze", Operation.OpType.SQUEEZE, "constant axes");
         addLayout(out, "Unsqueeze", Operation.OpType.EXPAND_DIMS, "constant axes");
         addLayout(out, "Slice", Operation.OpType.SLICE, "constant positive-step slice parameters");
@@ -173,10 +179,26 @@ public final class OnnxCoverageMatrix {
         addReduction(out, "ReduceMax", Operation.OpType.REDUCE_MAX);
         addReduction(out, "ReduceMin", Operation.OpType.REDUCE_MIN);
         addReduction(out, "ReduceProd", Operation.OpType.REDUCE_PROD);
+        add(out, "ReduceL1", "abs then ReduceSum", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+                CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
+                "import-only composed lowering; export recognition is not implemented", Operation.OpType.ABS, Operation.OpType.SUM);
+        add(out, "ReduceL2", "mul then ReduceSum then sqrt", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+                CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
+                "import-only composed lowering; final sqrt is applied after all requested axes", Operation.OpType.MUL, Operation.OpType.SUM, Operation.OpType.SQRT);
+        add(out, "ReduceLogSum", "ReduceSum then log", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+                CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
+                "import-only composed lowering; final log is applied after all requested axes", Operation.OpType.SUM, Operation.OpType.LOG);
+        add(out, "ReduceLogSumExp", "exp then ReduceSum then log", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+                CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
+                "import-only direct lowering; not numerically stabilized with max-shift yet", Operation.OpType.EXP, Operation.OpType.SUM, Operation.OpType.LOG);
         add(out, "ArgMax", "argMax", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.ARGMAX),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.ARGMAX),
                 "output is INT32 because runtime INT64 tensors are unsupported; select_last_index=0 only", Operation.OpType.ARGMAX);
+        add(out, "CumSum", "cumSum", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
+                CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.CUMSUM),
+                gpu(ComputeBackend.GPU_CUDA, Operation.OpType.CUMSUM),
+                "axis input must be a static INT64/INT32 scalar constant; BOOL input is unsupported", Operation.OpType.CUMSUM);
         add(out, "GlobalAveragePool", "repeated mean over spatial axes", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.MEAN),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.MEAN),
@@ -190,6 +212,9 @@ public final class OnnxCoverageMatrix {
         add(out, "Constant", "initializer tensor or shape constant", CoverageStatus.SUPPORTED, CoverageStatus.PARTIAL,
                 CoverageStatus.SUPPORTED, CoverageStatus.PARTIAL, CoverageStatus.PARTIAL,
                 "export usually serializes leaves as graph inputs or initializers rather than Constant nodes");
+        add(out, "NonZero", "unsupported dynamic-shape op", CoverageStatus.UNSUPPORTED, CoverageStatus.UNSUPPORTED,
+                CoverageStatus.UNSUPPORTED, CoverageStatus.UNSUPPORTED, CoverageStatus.UNSUPPORTED,
+                "runtime output shape depends on input values; requires a dynamic-shape execution model");
         return List.copyOf(out);
     }
 

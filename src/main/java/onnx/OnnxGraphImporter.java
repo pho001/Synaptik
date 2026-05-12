@@ -1,5 +1,6 @@
 package onnx;
 
+import backend.cpu.kernels.CpuDTypeOps;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorOps;
@@ -24,8 +25,8 @@ final class OnnxGraphImporter {
             "Where", "Identity", "Clip", "Cast",
             "MatMul", "Gemm",
             "Conv", "MaxPool", "AveragePool", "LayerNormalization", "BatchNormalization",
-            "Transpose", "Reshape", "Flatten", "Expand", "Pad", "Tile", "Squeeze", "Unsqueeze", "Slice", "Concat", "Split", "Shape", "Size", "Gather", "GatherElements", "GatherND", "ScatterElements", "ScatterND",
-            "ReduceSum", "ReduceMean", "ReduceMax", "ReduceMin", "ReduceProd", "ArgMax", "GlobalAveragePool",
+            "Transpose", "Reshape", "Flatten", "Expand", "Pad", "Tile", "ConstantOfShape", "Range", "Squeeze", "Unsqueeze", "Slice", "Concat", "Split", "Shape", "Size", "Gather", "GatherElements", "GatherND", "ScatterElements", "ScatterND",
+            "ReduceSum", "ReduceMean", "ReduceMax", "ReduceMin", "ReduceProd", "ReduceL1", "ReduceL2", "ReduceLogSum", "ReduceLogSumExp", "ArgMax", "CumSum", "GlobalAveragePool",
             "Softmax", "LogSoftmax",
             "Constant"
     );
@@ -175,6 +176,8 @@ final class OnnxGraphImporter {
             case "Expand" -> expand(node, tensors, int64Constants);
             case "Pad" -> pad(node, tensors, int64Constants, constantTensors, attrs);
             case "Tile" -> tile(node, tensors, int64Constants);
+            case "ConstantOfShape" -> constantOfShape(node, tensors, int64Constants, constantTensors, attrs);
+            case "Range" -> range(node, tensors, int64Constants, constantTensors);
             case "Squeeze" -> squeeze(node, tensors, int64Constants, attrs);
             case "Unsqueeze" -> unsqueeze(node, tensors, int64Constants, attrs);
             case "Slice" -> slice(node, tensors, int64Constants, constantTensors);
@@ -191,7 +194,12 @@ final class OnnxGraphImporter {
             case "ReduceMax" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.MAX);
             case "ReduceMin" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.MIN);
             case "ReduceProd" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.PROD);
+            case "ReduceL1" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.L1);
+            case "ReduceL2" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.L2);
+            case "ReduceLogSum" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.LOG_SUM);
+            case "ReduceLogSumExp" -> reduce(node, tensors, int64Constants, attrs, ReductionKind.LOG_SUM_EXP);
             case "ArgMax" -> argMax(node, tensors, attrs);
+            case "CumSum" -> cumSum(node, tensors, int64Constants, constantTensors, attrs);
             case "GlobalAveragePool" -> globalAveragePool(node, tensors);
             case "Softmax" -> unaryAxis(node, tensors, attrs, TensorOps::softmax);
             case "LogSoftmax" -> unaryAxis(node, tensors, attrs, TensorOps::logSoftmax);
@@ -525,6 +533,213 @@ final class OnnxGraphImporter {
             }
         }
         return TensorOps.tile(input, repeats);
+    }
+
+    private static Tensor constantOfShape(
+            OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
+            Map<String, long[]> int64Constants,
+            Set<String> constantTensors,
+            OnnxAttributeReader attrs
+    ) {
+        requireInputCount(node, 1, 1);
+        int[] shape = toIntArray(intConstantInput(node, tensors, int64Constants, constantTensors, 0), node, "shape");
+        for (int dim : shape) {
+            if (dim < 0) {
+                throw unsupported(node, "ConstantOfShape shape dimensions must be non-negative");
+            }
+        }
+        OnnxProto.TensorProto value = attrs.tensorAttribute("value");
+        Tensor out = value == null
+                ? filledConstant(shape, DataType.FLOAT32, 0.0d, node.getOutput(0))
+                : constantOfShapeValue(node, value, shape);
+        constantTensors.add(node.getOutput(0));
+        return out;
+    }
+
+    private static Tensor constantOfShapeValue(OnnxProto.NodeProto node, OnnxProto.TensorProto value, int[] shape) {
+        OnnxTensorProtoUtil.ImportedConstant constant = OnnxTensorProtoUtil.parseConstant(
+                value,
+                "ConstantOfShape node '" + nodeName(node) + "' value"
+        );
+        if (!constant.isTensor()) {
+            throw unsupported(node, "ConstantOfShape runtime INT64 output is unsupported");
+        }
+        Tensor scalar = constant.tensor();
+        if (scalar.getFlatDataSize() != 1) {
+            throw unsupported(node, "ConstantOfShape value attribute must be scalar");
+        }
+        return filledConstant(shape, scalar.getDataType(), scalarConstantValue(scalar), node.getOutput(0));
+    }
+
+    private static double scalarConstantValue(Tensor scalar) {
+        if (scalar.getDataType() == DataType.BOOL) {
+            return scalar.toBooleanArrayCopy()[0] ? 1.0d : 0.0d;
+        }
+        return scalar.scalarAsDouble();
+    }
+
+    private static Tensor filledConstant(int[] shape, DataType dataType, double value, String label) {
+        int count = 1;
+        for (int dim : shape) {
+            count = Math.multiplyExact(count, dim);
+        }
+        return switch (dataType) {
+            case FLOAT64 -> {
+                double[] data = new double[count];
+                Arrays.fill(data, value);
+                yield new Tensor(data, shape, null, label, DataType.FLOAT64);
+            }
+            case FLOAT32 -> {
+                float[] data = new float[count];
+                Arrays.fill(data, (float) value);
+                yield new Tensor(data, shape, null, label, DataType.FLOAT32);
+            }
+            case BFLOAT16 -> {
+                short[] data = new short[count];
+                Arrays.fill(data, CpuDTypeOps.toBFloat16Bits((float) value));
+                yield new Tensor(data, shape, null, label, DataType.BFLOAT16);
+            }
+            case INT32 -> {
+                int[] data = new int[count];
+                Arrays.fill(data, (int) value);
+                yield new Tensor(data, shape, null, label, DataType.INT32);
+            }
+            case BOOL -> {
+                byte[] data = new byte[count];
+                Arrays.fill(data, value == 0.0d ? (byte) 0 : (byte) 1);
+                yield new Tensor(data, shape, null, label, DataType.BOOL);
+            }
+        };
+    }
+
+    private static Tensor range(
+            OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
+            Map<String, long[]> int64Constants,
+            Set<String> constantTensors
+    ) {
+        requireInputCount(node, 3, 3);
+        if (int64Constants.containsKey(node.getInput(0))
+                && int64Constants.containsKey(node.getInput(1))
+                && int64Constants.containsKey(node.getInput(2))) {
+            long start = singleIntConstant(node, int64Constants.get(node.getInput(0)), "start");
+            long limit = singleIntConstant(node, int64Constants.get(node.getInput(1)), "limit");
+            long delta = singleIntConstant(node, int64Constants.get(node.getInput(2)), "delta");
+            int64Constants.put(node.getOutput(0), longRange(node, start, limit, delta));
+            return null;
+        }
+        Tensor start = scalarTensorConstant(node, tensors, constantTensors, 0, "start");
+        Tensor limit = scalarTensorConstant(node, tensors, constantTensors, 1, "limit");
+        Tensor delta = scalarTensorConstant(node, tensors, constantTensors, 2, "delta");
+        if (start.getDataType() != limit.getDataType() || start.getDataType() != delta.getDataType()) {
+            throw unsupported(node, "Range tensor inputs must have matching dtypes");
+        }
+        if (start.getDataType() == DataType.BOOL) {
+            throw unsupported(node, "Range BOOL inputs are unsupported");
+        }
+        Tensor out = tensorRange(node, start.scalarAsDouble(), limit.scalarAsDouble(), delta.scalarAsDouble(), start.getDataType());
+        constantTensors.add(node.getOutput(0));
+        return out;
+    }
+
+    private static long singleIntConstant(OnnxProto.NodeProto node, long[] values, String name) {
+        if (values.length != 1) {
+            throw unsupported(node, "Range " + name + " must be scalar");
+        }
+        return values[0];
+    }
+
+    private static long[] longRange(OnnxProto.NodeProto node, long start, long limit, long delta) {
+        if (delta == 0) {
+            throw unsupported(node, "Range delta cannot be zero");
+        }
+        java.util.ArrayList<Long> values = new java.util.ArrayList<>();
+        if (delta > 0) {
+            for (long value = start; value < limit; value += delta) {
+                values.add(value);
+                guardStaticRangeSize(node, values.size());
+            }
+        } else {
+            for (long value = start; value > limit; value += delta) {
+                values.add(value);
+                guardStaticRangeSize(node, values.size());
+            }
+        }
+        long[] out = new long[values.size()];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = values.get(i);
+        }
+        return out;
+    }
+
+    private static Tensor tensorRange(OnnxProto.NodeProto node, double start, double limit, double delta, DataType dataType) {
+        if (delta == 0.0d) {
+            throw unsupported(node, "Range delta cannot be zero");
+        }
+        java.util.ArrayList<Double> values = new java.util.ArrayList<>();
+        if (delta > 0.0d) {
+            for (double value = start; value < limit; value += delta) {
+                values.add(value);
+                guardStaticRangeSize(node, values.size());
+            }
+        } else {
+            for (double value = start; value > limit; value += delta) {
+                values.add(value);
+                guardStaticRangeSize(node, values.size());
+            }
+        }
+        int[] shape = new int[]{values.size()};
+        return switch (dataType) {
+            case FLOAT64 -> {
+                double[] data = new double[values.size()];
+                for (int i = 0; i < data.length; i++) data[i] = values.get(i);
+                yield new Tensor(data, shape, null, node.getOutput(0), DataType.FLOAT64);
+            }
+            case FLOAT32 -> {
+                float[] data = new float[values.size()];
+                for (int i = 0; i < data.length; i++) data[i] = values.get(i).floatValue();
+                yield new Tensor(data, shape, null, node.getOutput(0), DataType.FLOAT32);
+            }
+            case BFLOAT16 -> {
+                short[] data = new short[values.size()];
+                for (int i = 0; i < data.length; i++) data[i] = CpuDTypeOps.toBFloat16Bits(values.get(i).floatValue());
+                yield new Tensor(data, shape, null, node.getOutput(0), DataType.BFLOAT16);
+            }
+            case INT32 -> {
+                int[] data = new int[values.size()];
+                for (int i = 0; i < data.length; i++) data[i] = values.get(i).intValue();
+                yield new Tensor(data, shape, null, node.getOutput(0), DataType.INT32);
+            }
+            case BOOL -> throw unsupported(node, "Range BOOL output is unsupported");
+        };
+    }
+
+    private static void guardStaticRangeSize(OnnxProto.NodeProto node, int size) {
+        if (size > 10_000_000) {
+            throw unsupported(node, "Range static output is too large");
+        }
+    }
+
+    private static Tensor scalarTensorConstant(
+            OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
+            Set<String> constantTensors,
+            int index,
+            String name
+    ) {
+        String inputName = node.getInput(index);
+        if (!constantTensors.contains(inputName)) {
+            throw unsupported(node, "Range " + name + " must be a scalar initializer or Constant node");
+        }
+        Tensor tensor = tensors.get(inputName);
+        if (tensor == null) {
+            throw unsupported(node, "Range " + name + " is missing or is not a tensor");
+        }
+        if (tensor.getFlatDataSize() != 1) {
+            throw unsupported(node, "Range " + name + " must be scalar");
+        }
+        return tensor;
     }
 
     private static Tensor squeeze(
@@ -866,6 +1081,13 @@ final class OnnxGraphImporter {
     ) {
         requireInputCount(node, 1, 2);
         Tensor out = tensorInput(node, tensors, 0);
+        if (kind == ReductionKind.L1) {
+            out = out.abs();
+        } else if (kind == ReductionKind.L2) {
+            out = out.mul(out);
+        } else if (kind == ReductionKind.LOG_SUM_EXP) {
+            out = out.exp();
+        }
         boolean keepDims = attrs.intAttribute("keepdims", 1) != 0;
         int[] axes = node.getInputCount() >= 2 && !node.getInput(1).isBlank()
                 ? toIntArray(intConstantInput(node, tensors, int64Constants, 1), node, "axes")
@@ -881,12 +1103,17 @@ final class OnnxGraphImporter {
                 out = reduceOne(out, axis, true, kind);
             }
         }
+        if (kind == ReductionKind.L2) {
+            out = out.sqrt();
+        } else if (kind == ReductionKind.LOG_SUM || kind == ReductionKind.LOG_SUM_EXP) {
+            out = out.log();
+        }
         return out;
     }
 
     private static Tensor reduceOne(Tensor input, int axis, boolean keepDims, ReductionKind kind) {
         return switch (kind) {
-            case SUM -> input.sum(axis, keepDims);
+            case SUM, L1, L2, LOG_SUM, LOG_SUM_EXP -> input.sum(axis, keepDims);
             case MEAN -> input.mean(axis, keepDims);
             case MAX -> input.max(axis, keepDims);
             case MIN -> input.min(axis, keepDims);
@@ -900,6 +1127,25 @@ final class OnnxGraphImporter {
             throw unsupported(node, "ArgMax select_last_index=1 is not supported; first-index tie semantics are used");
         }
         return tensorInput(node, tensors, 0).argMax(attrs.intAttribute("axis", 0), attrs.intAttribute("keepdims", 1) != 0);
+    }
+
+    private static Tensor cumSum(
+            OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
+            Map<String, long[]> int64Constants,
+            Set<String> constantTensors,
+            OnnxAttributeReader attrs
+    ) {
+        requireInputCount(node, 2, 2);
+        long[] axisValues = intConstantInput(node, tensors, int64Constants, constantTensors, 1);
+        if (axisValues.length != 1) {
+            throw unsupported(node, "CumSum axis input must be scalar");
+        }
+        return tensorInput(node, tensors, 0).cumSum(
+                Math.toIntExact(axisValues[0]),
+                attrs.intAttribute("exclusive", 0) != 0,
+                attrs.intAttribute("reverse", 0) != 0
+        );
     }
 
     private static Tensor globalAveragePool(OnnxProto.NodeProto node, Map<String, Tensor> tensors) {
@@ -1263,7 +1509,11 @@ final class OnnxGraphImporter {
         MEAN,
         MAX,
         MIN,
-        PROD
+        PROD,
+        L1,
+        L2,
+        LOG_SUM,
+        LOG_SUM_EXP
     }
 
     @FunctionalInterface

@@ -25,6 +25,7 @@ import operations.linalg.linear;
 import operations.nn.conv.conv2d;
 import operations.nn.pool.avgPool2d;
 import operations.nn.pool.maxPool2d;
+import operations.reduction.cumSum;
 import operations.normalization.layerNorm;
 import operations.reduction.logSoftmax;
 import operations.reduction.mean;
@@ -169,6 +170,7 @@ final class OnnxGraphExporter {
             case REDUCE_MAX -> exportReduction(node, "ReduceMax", ((reduceMax) op).getDimension(), ((reduceMax) op).keepDims(), names, graphBuilder);
             case REDUCE_MIN -> exportReduction(node, "ReduceMin", ((reduceMin) op).getDimension(), ((reduceMin) op).keepDims(), names, graphBuilder);
             case REDUCE_PROD -> exportReduction(node, "ReduceProd", ((reduceProd) op).getDimension(), ((reduceProd) op).keepDims(), names, graphBuilder);
+            case CUMSUM -> exportCumSum(node, op, names, graphBuilder);
             case ARGMAX -> exportArgMax(node, op);
             case SOFTMAX -> exportAxisOp(node, "Softmax", ((softmax) op).getDimension());
             case LOG_SOFTMAX -> exportAxisOp(node, "LogSoftmax", ((logSoftmax) op).getDimension());
@@ -426,6 +428,25 @@ final class OnnxGraphExporter {
                 .addAttribute(intAttr("axis", argMax.getDimension()))
                 .addAttribute(intAttr("keepdims", argMax.keepDims() ? 1 : 0))
                 .addAttribute(intAttr("select_last_index", 0));
+    }
+
+    private static void exportCumSum(
+            OnnxProto.NodeProto.Builder node,
+            Operation op,
+            OnnxNameRegistry names,
+            OnnxProto.GraphProto.Builder graphBuilder
+    ) {
+        cumSum scan = (cumSum) op;
+        node.setOpType("CumSum");
+        String axisName = names.auxiliary(node.getOutput(0) + "_axis");
+        graphBuilder.addInitializer(OnnxTensorProtoUtil.int64Initializer(axisName, new long[]{scan.getAxis()}));
+        node.addInput(axisName);
+        if (scan.isExclusive()) {
+            node.addAttribute(intAttr("exclusive", 1));
+        }
+        if (scan.isReverse()) {
+            node.addAttribute(intAttr("reverse", 1));
+        }
     }
 
     private static void exportMulScalar(

@@ -108,6 +108,8 @@ Supported node families:
 | `Expand` | `Tensor.expand` with constant target shape. |
 | `Pad` | Constant-mode padding mapped to `Tensor.pad`. Pads must be static, non-negative, and have length `2 * rank`; the optional pad value must be a scalar initializer or scalar `Constant` node. Reflect/edge/wrap modes are rejected because they require different boundary semantics. |
 | `Tile` | `Tensor.tile` with static positive repeat counts. The repeat vector length must match input rank. |
+| `ConstantOfShape` | Import-time materialization of a constant leaf tensor. The shape input must be a static `INT64` or `INT32` constant vector. The optional `value` attribute must contain exactly one element. Supported output dtypes are `FLOAT`, `DOUBLE`, `BFLOAT16`, `INT32`, and `BOOL`; runtime `INT64` output remains unsupported. |
+| `Range` | Import-time constant folding. `INT64` inputs produce an importer-internal shape constant for later shape plumbing; supported scalar tensor initializers or scalar `Constant` nodes produce a materialized constant leaf tensor. Positive and negative `delta` are supported, and `delta=0` is rejected. Runtime `Range` is not supported because output length is data-dependent. |
 | `Squeeze`, `Unsqueeze` | `Tensor.squeeze` / `Tensor.expandDims` with constant axes. |
 | `Slice` | Static positive-step slice with constant `starts`, `ends`, `axes`, and `steps`. Runtime tensor slicing maps to `Tensor.slice`; importer-internal shape-vector slicing is evaluated during import. Very large ONNX end sentinels such as `INT64_MAX` are saturated and then clamped to the known static dimension. |
 | `Concat` | Runtime tensor concat for matching dtypes/ranks; shape-only concat for importer-internal `INT64` shape vectors. |
@@ -118,7 +120,12 @@ Supported node families:
 | `ScatterElements` | Runtime `ScatterElements` maps to functional `Tensor.scatterElements`. The output shape equals `data.shape`; `indices` and `updates` must have the same rank and shape, and non-axis dimensions must match `data`. Supported reductions are `none`, `add`, `mul`, `max`, and `min` for inference; backward is defined only for `none` and `add`. Runtime indices are `INT32`; ONNX `INT64` remains shape-constant-only. |
 | `ScatterND` | Runtime `ScatterND` maps to functional `Tensor.scatterNd`. The output shape equals `data.shape`; the final dimension of `indices` is the coordinate tuple length; `updates.shape` must equal `indices.shape[:-1] + data.shape[indices.shape[-1]:]`. Supported reductions are `none`, `add`, `mul`, `max`, and `min` for inference; backward is defined only for `none` and `add`. Runtime indices are `INT32`; ONNX `INT64` remains shape-constant-only. |
 | `ReduceSum`, `ReduceMean`, `ReduceMax`, `ReduceMin`, `ReduceProd` | Axis reductions; multi-axis reductions are applied as repeated Synaptik reductions. `ReduceProd` is currently an inference primitive and does not define autograd. |
+| `ReduceL1` | Import-only composed lowering: `Abs` followed by `ReduceSum`. Multi-axis behavior matches `ReduceSum`. Export recognition is not implemented. |
+| `ReduceL2` | Import-only composed lowering: square with `Mul`, reduce with `ReduceSum`, then apply `Sqrt` after all axes have been reduced. Applying `Sqrt` once at the end is required for correct multi-axis math. Export recognition is not implemented. |
+| `ReduceLogSum` | Import-only composed lowering: `ReduceSum` followed by `Log` after all axes have been reduced. Export recognition is not implemented. |
+| `ReduceLogSumExp` | Import-only composed lowering: `Exp`, then `ReduceSum`, then `Log`. This is the direct ONNX formula, not the numerically stabilized max-shift variant. Export recognition is not implemented. |
 | `ArgMax` | Axis argmax with first-index tie behavior. Export and import support `select_last_index=0`; `select_last_index=1` is rejected. Output is `INT32`, not ONNX's usual `INT64`, because Synaptik runtime tensors do not support `INT64`. |
+| `CumSum` | First-class `Tensor.cumSum(axis, exclusive, reverse)` with shape-preserving output. The ONNX axis input must be a static scalar `INT64`/`INT32` constant. Floating dtypes and `INT32` are supported; `BOOL` is rejected. CPU execution is layout-aware. GPU lowering is explicitly unsupported until a native/lowered scan primitive exists. |
 | `GlobalAveragePool` | Import-only lowering to repeated `Tensor.mean(axis, keepDims=true)` over spatial axes `2..rank-1`. This preserves the ONNX `N,C,1,1...` output shape for static dense inference. |
 | `Softmax`, `LogSoftmax` | Axis normalization ops. |
 | `Constant` | Tensor initializer in graph-node form. |
@@ -139,6 +146,13 @@ Index conformance is covered by checked-in miniature ONNX models under `src/test
 NN inference conformance is covered the same way under `src/test/resources/onnx/nn/`. `OnnxNnFixtureModels` generates the checked-in fixture files and `OnnxNnFixtureTest` byte-compares them before execution. The current fixture set covers `Conv`, `MaxPool`, `AveragePool`, `LayerNormalization`, and inference `BatchNormalization`.
 
 Static breadth conformance is covered under `src/test/resources/onnx/breadth/`. `OnnxBreadthFixtureModels` generates checked-in fixtures for `Pad`, `Split`, `Tile`, `ArgMax`, `ReduceProd`, and `GlobalAveragePool`; `OnnxBreadthFixtureTest` byte-compares them and executes every declared output, including both outputs of the special-case `Split` lowering.
+The same fixture set also covers wave 3 static inference breadth: `ConstantOfShape`, static tensor `Range`, `ReduceL1`, `ReduceL2`, `ReduceLogSum`, `ReduceLogSumExp`, and `CumSum`.
+
+Static helper terminology in this importer:
+
+- **Importer-internal shape constant** means a Java `long[]` tracked by the ONNX importer for shape plumbing. It is not a Synaptik runtime tensor and cannot be a graph output.
+- **Constant tensor leaf** means a normal Synaptik `Tensor` with storage materialized during import. It can feed runtime graph ops or be a graph output.
+- **Runtime tensor op** means a Synaptik graph node executed by CPU/Metal/CUDA after compile. `ConstantOfShape` and `Range` are not runtime tensor ops in this implementation; only their static subsets are folded during ONNX import.
 
 Explicit non-goals in the current algebra subset:
 
@@ -147,6 +161,7 @@ Explicit non-goals in the current algebra subset:
 - Runtime ONNX `Gather` is supported through the dedicated `gatherAxis` graph op, not the older Synaptik `gather` helper with reduced output shape. Runtime ONNX `GatherElements` is supported through `takeAlongAxis`, which preserves rank and uses the index tensor shape as the output shape. `GatherND` supports ONNX `batch_dims`; the leading batch dimensions select matching slices and are not part of the coordinate tuple stored in the final index dimension.
 - General multi-output graph support is still not part of the importer. `Split` is a named exception because it can be lowered immediately to independent `Slice` tensors with static shapes and no shared mutable output state.
 - Dynamic shape, slice, reshape, and expand parameters are rejected; the current importer remains static dense inference.
+- Runtime `NonZero` is rejected because its output shape depends on input data. ONNX defines the second output dimension as the number of non-zero values, which is unknown until execution. Supporting it as a normal runtime op would require a dynamic-shape graph/execution model, not just another CPU kernel.
 
 Unsupported by design in the first subset:
 
@@ -159,6 +174,7 @@ Unsupported by design in the first subset:
 - external data files;
 - custom domains;
 - multi-output nodes other than the narrow static `Split` lowering;
+- data-dependent output shapes such as runtime `NonZero`;
 - broad dynamic-shape, quantized, sparse, control-flow, and full training import coverage.
 
 ## Failure Mode

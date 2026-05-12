@@ -340,6 +340,14 @@ public final class TensorOps {
         return TensorReduceOps.argMax(input, dimension, keepDims);
     }
 
+    public static Tensor cumSum(Tensor input, int axis) {
+        return TensorReduceOps.cumSum(input, axis);
+    }
+
+    public static Tensor cumSum(Tensor input, int axis, boolean exclusive, boolean reverse) {
+        return TensorReduceOps.cumSum(input, axis, exclusive, reverse);
+    }
+
     public static Tensor softmax(Tensor input, int dimension) {
         return TensorReduceOps.softmax(input, dimension);
     }

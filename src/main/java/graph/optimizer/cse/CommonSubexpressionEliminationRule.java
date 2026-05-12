@@ -48,6 +48,7 @@ import operations.loss.nllLoss;
 import operations.layout.noop;
 import operations.layout.permute;
 import operations.elementwise.unary.pow;
+import operations.reduction.cumSum;
 import operations.reduction.reduceMax;
 import operations.reduction.reduceMaxGrad;
 import operations.reduction.reduceMin;
@@ -255,6 +256,11 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case REDUCE_MIN -> new ReductionSignature(((reduceMin) op).getDimension(), ((reduceMin) op).keepDims());
             case REDUCE_MAX -> new ReductionSignature(((reduceMax) op).getDimension(), ((reduceMax) op).keepDims());
             case REDUCE_PROD -> new ReductionSignature(((reduceProd) op).getDimension(), ((reduceProd) op).keepDims());
+            case CUMSUM -> IntArrayValue.copyOf(new int[]{
+                    ((cumSum) op).getAxis(),
+                    ((cumSum) op).isExclusive() ? 1 : 0,
+                    ((cumSum) op).isReverse() ? 1 : 0
+            });
             case ARGMAX -> new ReductionSignature(((argMax) op).getDimension(), ((argMax) op).keepDims());
             case MIN_GRAD -> new InputSelectorSignature(((minGrad) op).isForFirstInput());
             case MAX_GRAD -> new InputSelectorSignature(((maxGrad) op).isForFirstInput());

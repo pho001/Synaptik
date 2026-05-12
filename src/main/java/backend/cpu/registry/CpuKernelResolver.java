@@ -63,6 +63,7 @@ public final class CpuKernelResolver {
     private static final CpuReduceMinKernel REDUCE_MIN = new CpuReduceMinKernel();
     private static final CpuReduceMaxKernel REDUCE_MAX = new CpuReduceMaxKernel();
     private static final CpuReduceProdKernel REDUCE_PROD = new CpuReduceProdKernel();
+    private static final CpuCumSumKernel CUMSUM = new CpuCumSumKernel();
     private static final CpuArgMaxKernel ARGMAX = new CpuArgMaxKernel();
     private static final CpuReduceAllKernel REDUCE_ALL = new CpuReduceAllKernel();
     private static final CpuReduceAnyKernel REDUCE_ANY = new CpuReduceAnyKernel();
@@ -160,6 +161,7 @@ public final class CpuKernelResolver {
             case REDUCE_MIN -> REDUCE_MIN;
             case REDUCE_MAX -> REDUCE_MAX;
             case REDUCE_PROD -> REDUCE_PROD;
+            case CUMSUM -> CUMSUM;
             case ARGMAX -> ARGMAX;
             case REDUCE_ALL -> REDUCE_ALL;
             case REDUCE_ANY -> REDUCE_ANY;

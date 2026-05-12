@@ -45,6 +45,7 @@ public interface Operation {
         REDUCE_MIN(OpArityClass.REDUCTION, false),
         REDUCE_MAX(OpArityClass.REDUCTION, false),
         REDUCE_PROD(OpArityClass.REDUCTION, false),
+        CUMSUM(OpArityClass.REDUCTION, false),
         ARGMAX(OpArityClass.REDUCTION, false),
         REDUCE_ALL(OpArityClass.REDUCTION, false),
         REDUCE_ANY(OpArityClass.REDUCTION, false),

@@ -27,7 +27,16 @@ class OnnxCoverageMatrixTest {
             assertNotNull(entry.metalStatus(), entry.onnxOp());
             assertNotNull(entry.cudaStatus(), entry.onnxOp());
         }
-        assertEquals(OnnxGraphImporter.supportedOps(), names);
+        Set<String> importSupportedRows = new HashSet<>();
+        for (OnnxCoverageMatrix.Entry entry : OnnxCoverageMatrix.entries()) {
+            if (entry.importStatus() != OnnxCoverageMatrix.CoverageStatus.UNSUPPORTED) {
+                importSupportedRows.add(entry.onnxOp());
+            }
+        }
+        assertEquals(OnnxGraphImporter.supportedOps(), importSupportedRows);
+        assertTrue(names.contains("NonZero"));
+        assertEquals(OnnxCoverageMatrix.CoverageStatus.UNSUPPORTED,
+                OnnxCoverageMatrix.entryFor("NonZero").importStatus());
     }
 
     @Test
