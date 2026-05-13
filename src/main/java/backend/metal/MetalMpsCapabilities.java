@@ -11,7 +11,7 @@ import tensor.DataType;
  * native {@code synaptik_apple_mps_*} ABI. It intentionally describes only what
  * the bridge can execute today: float32 compute/output tensors, bfloat16 parity
  * for Metal-supported floating operation families, scoped bool outputs, bool external inputs in predicate roles,
- * and int32 external inputs in index roles.</p>
+ * int32 external inputs in index roles, and scoped int32 index outputs.</p>
  */
 public final class MetalMpsCapabilities {
     private MetalMpsCapabilities() {
@@ -83,13 +83,17 @@ public final class MetalMpsCapabilities {
             return supported(MetalDTypeRole.COMPUTE, dtype, true, false, MetalDTypeReasonCode.SUPPORTED,
                     "BOOL native compute is supported for scoped compare/logical/reduction and predicate layout operation families");
         }
+        if (dtype == DataType.INT32) {
+            return supported(MetalDTypeRole.COMPUTE, dtype, true, false, MetalDTypeReasonCode.SUPPORTED,
+                    "INT32 native compute is supported only for scoped index-output operation families such as ARGMAX");
+        }
         return unsupported(
                 MetalDTypeRole.COMPUTE,
                 dtype,
                 dtype == DataType.FLOAT64
                         ? MetalDTypeReasonCode.FLOAT64_UNSUPPORTED
                         : MetalDTypeReasonCode.UNSUPPORTED_NATIVE_COMPUTE_DTYPE,
-                "native Metal compute is FLOAT32/BFLOAT16 for supported floating operation families plus BOOL compare/logical/reduction and predicate layout operation families in the current bridge"
+                "native Metal compute is FLOAT32/BFLOAT16 for supported floating operation families, BOOL compare/logical/reduction and predicate layout operation families, plus scoped INT32 index-output operation families in the current bridge"
         );
     }
 
@@ -109,13 +113,17 @@ public final class MetalMpsCapabilities {
             return supported(MetalDTypeRole.OUTPUT, dtype, false, true, MetalDTypeReasonCode.SUPPORTED,
                     "BOOL native output is supported for scoped compare/logical/reduction and predicate layout operation families");
         }
+        if (dtype == DataType.INT32) {
+            return supported(MetalDTypeRole.OUTPUT, dtype, false, true, MetalDTypeReasonCode.SUPPORTED,
+                    "INT32 native output is supported only for scoped index-output operation families such as ARGMAX");
+        }
         return unsupported(
                 MetalDTypeRole.OUTPUT,
                 dtype,
                 dtype == DataType.FLOAT64
                         ? MetalDTypeReasonCode.FLOAT64_UNSUPPORTED
                         : MetalDTypeReasonCode.UNSUPPORTED_NATIVE_OUTPUT_DTYPE,
-                "native Metal output publication is FLOAT32/BFLOAT16 for supported floating operation families plus BOOL compare/logical/reduction and predicate layout operation families in the current bridge"
+                "native Metal output publication is FLOAT32/BFLOAT16 for supported floating operation families, BOOL compare/logical/reduction and predicate layout operation families, plus scoped INT32 index-output operation families in the current bridge"
         );
     }
 
@@ -142,6 +150,14 @@ public final class MetalMpsCapabilities {
             }
             return unsupported(MetalDTypeRole.OPERATION, outputDType, MetalDTypeReasonCode.UNSUPPORTED_OPERATION_DTYPE,
                     "operation " + opType + " cannot produce native BOOL output on the current Metal bridge");
+        }
+        if (outputDType == DataType.INT32) {
+            if (opType == Operation.OpType.ARGMAX) {
+                return supported(MetalDTypeRole.OPERATION, outputDType, true, true, MetalDTypeReasonCode.SUPPORTED,
+                        "operation " + opType + " is dtype-legal for INT32 index output in the scoped Metal bridge");
+            }
+            return unsupported(MetalDTypeRole.OPERATION, outputDType, MetalDTypeReasonCode.UNSUPPORTED_OPERATION_DTYPE,
+                    "operation " + opType + " cannot produce native INT32 output on the current Metal bridge");
         }
         if (outputDType != DataType.FLOAT32) {
             return unsupported(MetalDTypeRole.OPERATION, outputDType, MetalDTypeReasonCode.UNSUPPORTED_OPERATION_DTYPE,
@@ -320,6 +336,16 @@ public final class MetalMpsCapabilities {
                         opType + " has no supported input role at index " + inputIndex);
             };
         }
+        if (opType == Operation.OpType.ARGMAX) {
+            if (inputIndex == 0 && isMetalFloatingDType(dtype)) {
+                return supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, true, false,
+                        MetalDTypeReasonCode.SUPPORTED,
+                        "ARGMAX value input accepts FLOAT32/BFLOAT16 data and produces INT32 indices");
+            }
+            return unsupported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype,
+                    MetalDTypeReasonCode.UNSUPPORTED_EXTERNAL_INPUT_ROLE,
+                    "ARGMAX value input requires FLOAT32/BFLOAT16 data");
+        }
         if (supportsBoolCompareOperation(opType)) {
             if ((inputIndex == 0 || inputIndex == 1) && (dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16)) {
                 return supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, true, false,
@@ -463,7 +489,7 @@ public final class MetalMpsCapabilities {
     public static String unsupportedDTypeMessage(DataType dtype) {
         MetalDTypeCapabilityDecision compute = computeDecision(dtype);
         return "UNSUPPORTED_DTYPE: " + compute.detail()
-                + "; Metal MPS bridge currently supports FLOAT32/BFLOAT16 compute/output tensors for supported floating operation families, scoped BOOL outputs, BOOL predicate inputs, and INT32 index inputs; got "
+                + "; Metal MPS bridge currently supports FLOAT32/BFLOAT16 compute/output tensors for supported floating operation families, scoped BOOL outputs, BOOL predicate inputs, INT32 index inputs, and scoped INT32 index outputs; got "
                 + dtype + ".";
     }
 
@@ -501,6 +527,8 @@ public final class MetalMpsCapabilities {
                  MEAN,
                  REDUCE_MIN,
                  REDUCE_MAX,
+                 REDUCE_PROD,
+                 CUMSUM,
                  REDUCE_MIN_GRAD,
                  REDUCE_MAX_GRAD,
                  MIN_GRAD,

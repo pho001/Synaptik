@@ -27,7 +27,7 @@ class MetalMpsCapabilitiesTest {
 
         assertTrue(MetalMpsCapabilities.supportsComputeDType(DataType.BOOL));
         assertTrue(MetalMpsCapabilities.supportsOutputDType(DataType.BOOL));
-        assertFalse(MetalMpsCapabilities.supportsOutputDType(DataType.INT32));
+        assertTrue(MetalMpsCapabilities.supportsOutputDType(DataType.INT32));
 
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.MATMUL, DataType.BFLOAT16).supported());
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.CONV2D, DataType.BFLOAT16).supported());
@@ -36,21 +36,23 @@ class MetalMpsCapabilitiesTest {
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.GE, DataType.BOOL).supported());
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.LOGICAL_AND, DataType.BOOL).supported());
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.REDUCE_ANY, DataType.BOOL).supported());
+        assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.ARGMAX, DataType.INT32).supported());
+        assertFalse(MetalMpsCapabilities.operationDecision(Operation.OpType.CUMSUM, DataType.INT32).supported());
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.EXPAND, DataType.BOOL).supported());
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.PERMUTE, DataType.BOOL).supported());
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.RESHAPE, DataType.BOOL).supported());
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.SQUEEZE, DataType.BOOL).supported());
         assertFalse(MetalMpsCapabilities.operationDecision(Operation.OpType.MATMUL, DataType.BOOL).supported());
         assertTrue(MetalMpsCapabilities.unsupportedDTypeMessage(DataType.INT32)
-                .contains("FLOAT32/BFLOAT16 compute/output tensors for supported floating operation families, scoped BOOL outputs, BOOL predicate inputs, and INT32 index inputs"));
+                .contains("FLOAT32/BFLOAT16 compute/output tensors for supported floating operation families, scoped BOOL outputs, BOOL predicate inputs, INT32 index inputs, and scoped INT32 index outputs"));
     }
 
     @Test
     void exposesRoleSpecificDTypeDecisionsForEveryPublicDType() {
         for (DataType dtype : DataType.values()) {
             assertTrue(MetalMpsCapabilities.storageDecision(dtype).storageRepresentable());
-            assertEquals(dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16 || dtype == DataType.BOOL, MetalMpsCapabilities.computeDecision(dtype).supported());
-            assertEquals(dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16 || dtype == DataType.BOOL, MetalMpsCapabilities.outputDecision(dtype).supported());
+            assertEquals(dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16 || dtype == DataType.BOOL || dtype == DataType.INT32, MetalMpsCapabilities.computeDecision(dtype).supported());
+            assertEquals(dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16 || dtype == DataType.BOOL || dtype == DataType.INT32, MetalMpsCapabilities.outputDecision(dtype).supported());
         }
 
         assertTrue(MetalMpsCapabilities.externalInputDecision(DataType.BOOL).supported());

@@ -2,7 +2,7 @@
 
 ## Stav Rozpracovani
 
-Status: `PLANNED`
+Status: `IMPLEMENTED`
 
 Todo 68 uzavrelo dalsi layout/index parity mezeru pro Metal: `GATHER_AXIS`, `GATHER_AXIS_GRAD`,
 `SLICE`, `CONCAT`, `PAD` a `TILE` maji coverage truth, planner legality, backend-neutral DAG reprezentaci,

@@ -222,11 +222,11 @@ public final class OnnxCoverageMatrix {
         add(out, "ArgMax", "argMax", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.ARGMAX),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.ARGMAX),
-                "output is INT32 because runtime INT64 tensors are unsupported; select_last_index=0 only", Operation.OpType.ARGMAX);
+                "output is INT32 because runtime INT64 tensors are unsupported; select_last_index=0 only; Metal supports FLOAT32/BFLOAT16 inputs", Operation.OpType.ARGMAX);
         add(out, "CumSum", "cumSum", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.CUMSUM),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.CUMSUM),
-                "axis input must be a static INT64/INT32 scalar constant; BOOL input is unsupported", Operation.OpType.CUMSUM);
+                "axis input must be a static INT64/INT32 scalar constant; BOOL input is unsupported; Metal supports FLOAT32/BFLOAT16 inputs", Operation.OpType.CUMSUM);
         add(out, "GlobalAveragePool", "repeated mean over spatial axes", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.MEAN),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.MEAN),

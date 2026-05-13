@@ -317,6 +317,31 @@ static int32_t SynaptikDecodeReductionAxis(const float *nodeScalarValues, int32_
     return axis;
 }
 
+static void SynaptikDecodeScanMode(
+        const float *nodeScalarValues,
+        int32_t index,
+        int32_t *axis,
+        BOOL *exclusive,
+        BOOL *reverse) {
+    uint32_t encoded = 0;
+    if (nodeScalarValues != NULL) {
+        memcpy(&encoded, &nodeScalarValues[index], sizeof(float));
+    }
+    int32_t decodedAxis = (int32_t) (encoded & 0xFFFFu);
+    if ((decodedAxis & 0x8000) != 0) {
+        decodedAxis |= 0xFFFF0000;
+    }
+    if (axis != NULL) {
+        *axis = decodedAxis;
+    }
+    if (exclusive != NULL) {
+        *exclusive = ((encoded >> 16) & 0x1u) != 0;
+    }
+    if (reverse != NULL) {
+        *reverse = ((encoded >> 17) & 0x1u) != 0;
+    }
+}
+
 static void SynaptikDecodeConv2DMode(
         const float *nodeScalarValues,
         int32_t index,
@@ -480,6 +505,9 @@ static MPSGraphTensor *SynaptikReductionAllToOutputShape(
                 break;
             case 39:
                 current = [graph reductionMaximumWithTensor:current axis:axis name:name];
+                break;
+            case 78:
+                current = [graph reductionProductWithTensor:current axis:axis name:name];
                 break;
             case 50:
                 current = [graph reductionAndWithTensor:current axis:axis name:name];
@@ -648,7 +676,7 @@ int32_t synaptik_apple_mps_validate_dtype_abi_v3(
                 break;
             case 4: // native compute
             case 5: // native output
-                if (dtype != 1 && dtype != 2 && dtype != 3) {
+                if (dtype != 1 && dtype != 2 && dtype != 3 && dtype != 4) {
                     return 2;
                 }
                 break;
@@ -867,6 +895,7 @@ static void *SynaptikCompilePartition(
                 return NULL;
             }
             MPSGraphTensor *outTensor = nil;
+            int32_t nodeOutputDType = SynaptikNodeOutputDTypeCode(node_output_dtypes, i);
             switch (node_types[i]) {
                 case 1:
                     if (input1 == nil) return NULL;
@@ -1130,6 +1159,8 @@ static void *SynaptikCompilePartition(
                 case 37:
                 case 38:
                 case 39:
+                case 78:
+                case 79:
                 case 50:
                 case 51: {
                     int32_t axis = SynaptikDecodeReductionAxis(node_scalar_values, i);
@@ -1159,6 +1190,19 @@ static void *SynaptikCompilePartition(
                             case 39:
                                 outTensor = [graph reductionMaximumWithTensor:input0 axis:axis name:@"reduce_max"];
                                 break;
+                            case 78:
+                                outTensor = [graph reductionProductWithTensor:input0 axis:axis name:@"reduce_prod"];
+                                break;
+                            case 79:
+                                if (@available(macOS 12.0, iOS 15.0, tvOS 15.0, *)) {
+                                    outTensor = [graph reductionArgMaximumWithTensor:input0 axis:axis name:@"argmax"];
+                                    if (outTensor != nil && nodeOutputDType == 4) {
+                                        outTensor = [graph castTensor:outTensor toType:MPSDataTypeInt32 name:@"argmax_int32"];
+                                    }
+                                } else {
+                                    outTensor = nil;
+                                }
+                                break;
                             case 50:
                                 outTensor = [graph reductionAndWithTensor:input0 axis:axis name:@"reduce_all"];
                                 break;
@@ -1180,6 +1224,22 @@ static void *SynaptikCompilePartition(
                                 output_dim3,
                                 @"reduction_output_shape"
                         );
+                    }
+                    break;
+                }
+                case 80: {
+                    int32_t axis = 0;
+                    BOOL exclusive = NO;
+                    BOOL reverse = NO;
+                    SynaptikDecodeScanMode(node_scalar_values, i, &axis, &exclusive, &reverse);
+                    if (@available(macOS 13.0, iOS 16.0, tvOS 16.0, *)) {
+                        outTensor = [graph cumulativeSumWithTensor:input0
+                                                              axis:(NSInteger) axis
+                                                         exclusive:exclusive
+                                                           reverse:reverse
+                                                              name:@"cumsum"];
+                    } else {
+                        outTensor = nil;
                     }
                     break;
                 }

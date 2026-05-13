@@ -5,6 +5,7 @@ import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 
 import backend.ComputeBackend;
 import backend.accelerator.dag.AcceleratorDagNodeType;
+import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
 import backend.accelerator.lowering.AcceleratorSubgraphLowerer;
 import backend.accelerator.lowering.GpuCompoundLoweringArtifact;
@@ -255,6 +256,28 @@ class MetalRegionLowererTest {
     }
 
     @Test
+    void metalReductionScanParityOpsArePlannerSupportedAndDagLowerable() {
+        Tensor input = new Tensor(new float[]{1f, 5f, 5f, 4f, 2f, 3f}, new int[]{2, 3}, null, "metalReductionScanInput", DataType.FLOAT32);
+
+        assertPlannerSupportedAndLowered(input.prod(1, true), Operation.OpType.REDUCE_PROD, AcceleratorDagNodeType.REDUCE_PROD);
+        assertPlannerSupportedAndLowered(input.argMax(1, true), Operation.OpType.ARGMAX, AcceleratorDagNodeType.ARGMAX);
+        assertPlannerSupportedAndLowered(input.cumSum(1, true, true), Operation.OpType.CUMSUM, AcceleratorDagNodeType.CUMSUM);
+    }
+
+    @Test
+    void metalReductionScanParityOpsRejectUnsupportedDtypes() {
+        Tensor intInput = new Tensor(new int[]{1, 2, 3, 4}, new int[]{2, 2}, null, "metalIntReductionScanInput", DataType.INT32);
+        Tensor intCumSum = intInput.cumSum(1);
+        TensorInternalAccess.setBackend(intCumSum, ComputeBackend.GPU_METAL);
+
+        PartitionPlanningContext context = planningContext(intCumSum);
+        String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.CUMSUM)), context);
+
+        assertTrue(reason.contains("UNSUPPORTED_DTYPE"));
+        assertTrue(reason.contains("operation CUMSUM cannot produce native INT32 output"));
+    }
+
+    @Test
     void metalSupportedNormalizationUsesSharedCoverageReason() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalNormInput", DataType.FLOAT32);
         Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "metalNormGamma", DataType.FLOAT32);
@@ -266,6 +289,26 @@ class MetalRegionLowererTest {
         String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.LAYER_NORM)), context);
 
         assertEquals("", reason);
+    }
+
+    private void assertPlannerSupportedAndLowered(Tensor out, Operation.OpType opType, AcceleratorDagNodeType dagType) {
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext context = planningContext(out);
+        CompiledNode node = context.compiledNode(nodeId(context, opType));
+
+        assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(node, context));
+        AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
+                node.id(),
+                List.of(node.id()),
+                List.of(new AcceleratorSubgraphOp(node.id(), opType)),
+                node.inputIds(),
+                List.of(node.id())
+        );
+        var lowering = new AcceleratorSubgraphLowerer().tryLower(ComputeBackend.GPU_METAL, subgraph, context);
+
+        assertNotNull(lowering);
+        assertEquals(dagType, lowering.dagSpec().nodes().getFirst().type());
+        assertEquals(node.dataType(), lowering.dagSpec().nodes().getFirst().outputDataType());
     }
 
     @Test

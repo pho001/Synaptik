@@ -7,7 +7,7 @@ Generated from `OnnxCoverageMatrix`; do not hand-edit status rows.
 - Import: supported=78, partial=0, unsupported=1
 - Export: supported=70, partial=1, unsupported=8
 - CPU: supported=78, partial=0, unsupported=1
-- Metal: supported=56, partial=9, unsupported=14
+- Metal: supported=59, partial=9, unsupported=11
 - CUDA: supported=34, partial=9, unsupported=36
 - Round-trip evidence: round_trip_tested=70, explicitly_classified=1, import_only_tested=7, rejection_tested=1, not_applicable=0
 
@@ -82,13 +82,13 @@ Generated from `OnnxCoverageMatrix`; do not hand-edit status rows.
 | ReduceMean | mean | supported | supported | supported | supported | supported | round_trip_tested | MEAN | multi-axis reductions are imported as repeated single-axis reductions |
 | ReduceMax | reduce_max | supported | supported | supported | supported | supported | round_trip_tested | REDUCE_MAX | multi-axis reductions are imported as repeated single-axis reductions |
 | ReduceMin | reduce_min | supported | supported | supported | supported | supported | round_trip_tested | REDUCE_MIN | multi-axis reductions are imported as repeated single-axis reductions |
-| ReduceProd | reduce_prod | supported | supported | supported | unsupported | unsupported | round_trip_tested | REDUCE_PROD | multi-axis reductions are imported as repeated single-axis reductions |
+| ReduceProd | reduce_prod | supported | supported | supported | supported | unsupported | round_trip_tested | REDUCE_PROD | multi-axis reductions are imported as repeated single-axis reductions |
 | ReduceL1 | abs then ReduceSum | supported | supported | supported | supported | supported | round_trip_tested | ABS, SUM | canonical export recognizes abs(x) followed by single-axis sum |
 | ReduceL2 | mul then ReduceSum then sqrt | supported | supported | supported | supported | supported | round_trip_tested | MUL, SUM, SQRT | canonical export recognizes sqrt(sum(x*x)) single-axis pattern |
 | ReduceLogSum | ReduceSum then log | supported | supported | supported | supported | supported | round_trip_tested | SUM, LOG | canonical export recognizes log(sum(x)) single-axis pattern |
 | ReduceLogSumExp | exp then ReduceSum then log | supported | supported | supported | supported | supported | round_trip_tested | EXP, SUM, LOG | canonical export recognizes log(sum(exp(x))) single-axis pattern; not numerically stabilized with max-shift yet |
-| ArgMax | argMax | supported | supported | supported | unsupported | unsupported | round_trip_tested | ARGMAX | output is INT32 because runtime INT64 tensors are unsupported; select_last_index=0 only |
-| CumSum | cumSum | supported | supported | supported | unsupported | unsupported | round_trip_tested | CUMSUM | axis input must be a static INT64/INT32 scalar constant; BOOL input is unsupported |
+| ArgMax | argMax | supported | supported | supported | supported | unsupported | round_trip_tested | ARGMAX | output is INT32 because runtime INT64 tensors are unsupported; select_last_index=0 only; Metal supports FLOAT32/BFLOAT16 inputs |
+| CumSum | cumSum | supported | supported | supported | supported | unsupported | round_trip_tested | CUMSUM | axis input must be a static INT64/INT32 scalar constant; BOOL input is unsupported; Metal supports FLOAT32/BFLOAT16 inputs |
 | GlobalAveragePool | repeated mean over spatial axes | supported | supported | supported | supported | supported | round_trip_tested | MEAN | canonical export recognizes rank-4 keepdims spatial mean chain |
 | Softmax | softmax | supported | supported | supported | supported | supported | round_trip_tested | SOFTMAX |  |
 | LogSoftmax | logSoftmax | supported | supported | supported | supported | supported | round_trip_tested | LOG_SOFTMAX |  |

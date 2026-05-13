@@ -19,6 +19,9 @@ import operations.layout.slice;
 import operations.layout.tile;
 import operations.normalization.layerNorm;
 import operations.normalization.rmsNorm;
+import operations.reduction.argMax;
+import operations.reduction.cumSum;
+import operations.reduction.reduceProd;
 
 import java.util.Arrays;
 
@@ -130,6 +133,12 @@ public final class MetalPartitionSupport {
         }
         if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED) {
             return compoundPatternPrefix(opType) + GpuLoweringCoverageMatrix.plannerUnsupportedDetail(ComputeBackend.GPU_METAL, opType);
+        }
+        if (isReductionScanParityOp(opType)) {
+            String reductionReason = reductionScanUnsupportedReason(node, context);
+            if (!reductionReason.isBlank()) {
+                return reductionReason;
+            }
         }
         if (isSupportedLayoutOp(opType)) {
             String layoutReason = layoutUnsupportedReason(node, context);
@@ -644,6 +653,115 @@ public final class MetalPartitionSupport {
         return reduced;
     }
 
+    private static boolean isReductionScanParityOp(Operation.OpType opType) {
+        return opType == Operation.OpType.REDUCE_PROD
+                || opType == Operation.OpType.ARGMAX
+                || opType == Operation.OpType.CUMSUM;
+    }
+
+    private static String reductionScanUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
+        Operation.OpType opType = node.operation().opType();
+        if (node.backwardNode()) {
+            return "BACKWARD_CONTEXT_UNSUPPORTED: forward " + opType + " nodes are not legal inside Metal backward regions";
+        }
+        if (context == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " requires planning context";
+        }
+        if (node.inputIds().size() != 1) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " requires one input";
+        }
+        CompiledNode input = context.compiledNode(node.inputIds().getFirst());
+        if (input == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " input is unavailable";
+        }
+        if (!dense(context, input)) {
+            return "UNSUPPORTED_LAYOUT: GPU_METAL " + opType + " input requires dense layout";
+        }
+        int[] inputShape = shape(context, input);
+        int[] outputShape = shape(context, node);
+        if (inputShape.length < 1 || inputShape.length > 4 || outputShape.length < 1 || outputShape.length > 4) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " supports rank 1..4 tensors";
+        }
+        return switch (opType) {
+            case REDUCE_PROD -> reduceProdUnsupportedReason(node, input, inputShape, outputShape);
+            case ARGMAX -> argMaxUnsupportedReason(node, input, inputShape, outputShape);
+            case CUMSUM -> cumSumUnsupportedReason(node, input, inputShape, outputShape);
+            default -> "";
+        };
+    }
+
+    private static String reduceProdUnsupportedReason(CompiledNode node, CompiledNode input, int[] inputShape, int[] outputShape) {
+        if (!(node.operation() instanceof reduceProd op)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL REDUCE_PROD descriptor is unavailable";
+        }
+        tensor.DataType dtype = node.dataType();
+        if (!isMetalFloatingDType(dtype) || input.dataType() != dtype) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL REDUCE_PROD requires dtype-matched FLOAT32/BFLOAT16 input/output";
+        }
+        return reductionOutputShapeReason("REDUCE_PROD", inputShape, outputShape, op.getDimension(), op.keepDims());
+    }
+
+    private static String argMaxUnsupportedReason(CompiledNode node, CompiledNode input, int[] inputShape, int[] outputShape) {
+        if (!(node.operation() instanceof argMax op)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL ARGMAX descriptor is unavailable";
+        }
+        if (!isMetalFloatingDType(input.dataType())) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL ARGMAX input requires FLOAT32/BFLOAT16 data";
+        }
+        if (node.dataType() != tensor.DataType.INT32) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL ARGMAX output must be INT32";
+        }
+        if (op.getDimension() < 0) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL ARGMAX requires one explicit axis";
+        }
+        return reductionOutputShapeReason("ARGMAX", inputShape, outputShape, op.getDimension(), op.keepDims());
+    }
+
+    private static String cumSumUnsupportedReason(CompiledNode node, CompiledNode input, int[] inputShape, int[] outputShape) {
+        if (!(node.operation() instanceof cumSum op)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CUMSUM descriptor is unavailable";
+        }
+        tensor.DataType dtype = node.dataType();
+        if (!isMetalFloatingDType(dtype) || input.dataType() != dtype) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL CUMSUM requires dtype-matched FLOAT32/BFLOAT16 input/output";
+        }
+        int axis = op.getAxis();
+        if (axis < 0 || axis >= inputShape.length) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CUMSUM axis is outside input rank";
+        }
+        if (!Arrays.equals(inputShape, outputShape)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CUMSUM output shape must match input shape";
+        }
+        return "";
+    }
+
+    private static String reductionOutputShapeReason(String opName, int[] inputShape, int[] outputShape, int axis, boolean keepDims) {
+        if (axis < -1 || axis >= inputShape.length) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opName + " axis is outside input rank";
+        }
+        int[] expected = axis == -1
+                ? (keepDims ? allAxesKeepDimsShape(inputShape) : new int[]{1})
+                : reduceShape(inputShape, axis, keepDims);
+        return Arrays.equals(outputShape, expected)
+                ? ""
+                : "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opName + " output shape must match reduced input shape";
+    }
+
+    private static int[] reduceShape(int[] shape, int axis, boolean keepDims) {
+        if (keepDims) {
+            int[] out = shape.clone();
+            out[axis] = 1;
+            return out;
+        }
+        return reduceShape(shape, axis);
+    }
+
+    private static int[] allAxesKeepDimsShape(int[] shape) {
+        int[] out = new int[shape.length];
+        Arrays.fill(out, 1);
+        return out;
+    }
+
     private static boolean sdpaRankSupported(int[] shape) {
         return shape != null && (shape.length == 3 || shape.length == 4);
     }
@@ -704,7 +822,7 @@ public final class MetalPartitionSupport {
 
     private static String compoundPatternPrefix(Operation.OpType opType) {
         return switch (opType) {
-            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX -> "REDUCTION_ADJACENT: ";
+            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_PROD, ARGMAX, CUMSUM -> "REDUCTION_ADJACENT: ";
             default -> "";
         };
     }

@@ -185,6 +185,33 @@ public final class GpuLoweringCoverageMatrix {
                 GpuLoweringCoverageStatus.SUPPORTED,
                 GpuLoweringUnsupportedReason.SUPPORTED,
                 "native accelerator DAG forward reduce-max path; target=reduction_chain_small");
+        if (backend == ComputeBackend.GPU_METAL) {
+            add(entries, backend, Operation.OpType.REDUCE_PROD, GpuLoweringOperationFamily.REDUCTION,
+                    GpuLoweringCoverageStatus.SUPPORTED,
+                    GpuLoweringUnsupportedReason.SUPPORTED,
+                    "native Metal MPSGraph product reduction path for dense FLOAT32/BFLOAT16 inputs; target=reduction_chain_small");
+            add(entries, backend, Operation.OpType.ARGMAX, GpuLoweringOperationFamily.REDUCTION,
+                    GpuLoweringCoverageStatus.SUPPORTED,
+                    GpuLoweringUnsupportedReason.SUPPORTED,
+                    "native Metal MPSGraph argmax reduction path with INT32 output and CPU first-index tie parity");
+            add(entries, backend, Operation.OpType.CUMSUM, GpuLoweringOperationFamily.REDUCTION,
+                    GpuLoweringCoverageStatus.SUPPORTED,
+                    GpuLoweringUnsupportedReason.SUPPORTED,
+                    "native Metal MPSGraph cumulative sum path for dense FLOAT32/BFLOAT16 inputs with static axis/exclusive/reverse metadata");
+        } else {
+            add(entries, backend, Operation.OpType.REDUCE_PROD, GpuLoweringOperationFamily.REDUCTION,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
+                    "CUDA product reduction remains unsupported until native accelerator DAG execution maps REDUCE_PROD");
+            add(entries, backend, Operation.OpType.ARGMAX, GpuLoweringOperationFamily.REDUCTION,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
+                    "CUDA argmax remains unsupported until native index-output reduction execution maps ARGMAX");
+            add(entries, backend, Operation.OpType.CUMSUM, GpuLoweringOperationFamily.REDUCTION,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
+                    "CUDA cumulative sum remains unsupported until native scan execution maps CUMSUM");
+        }
         add(entries, backend, Operation.OpType.LAYER_NORM, GpuLoweringOperationFamily.NORMALIZATION,
                 GpuLoweringCoverageStatus.SUPPORTED,
                 GpuLoweringUnsupportedReason.SUPPORTED,

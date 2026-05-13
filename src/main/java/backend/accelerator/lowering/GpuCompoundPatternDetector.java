@@ -241,7 +241,7 @@ public final class GpuCompoundPatternDetector {
 
     private static boolean isReductionAdjacent(Operation.OpType opType) {
         return switch (opType) {
-            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, LAYER_NORM, RMS_NORM -> true;
+            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_PROD, ARGMAX, CUMSUM, LAYER_NORM, RMS_NORM -> true;
             default -> false;
         };
     }

@@ -80,7 +80,10 @@ public enum AcceleratorDagNodeType {
     SLICE(74),
     CONCAT(75),
     PAD(76),
-    TILE(77);
+    TILE(77),
+    REDUCE_PROD(78),
+    ARGMAX(79),
+    CUMSUM(80);
 
     private final int abiCode;
 

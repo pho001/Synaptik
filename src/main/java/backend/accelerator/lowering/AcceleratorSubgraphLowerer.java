@@ -47,10 +47,13 @@ import operations.normalization.layerNorm;
 import operations.normalization.rmsNorm;
 import operations.reduction.reduceMaxGrad;
 import operations.reduction.reduceMinGrad;
+import operations.reduction.argMax;
+import operations.reduction.cumSum;
 import operations.reduction.reduceMax;
 import operations.reduction.reduceMin;
 import operations.reduction.reduceAll;
 import operations.reduction.reduceAny;
+import operations.reduction.reduceProd;
 import operations.reduction.logSoftmax;
 import operations.reduction.logSoftmaxGrad;
 import operations.reduction.mean;
@@ -1550,6 +1553,9 @@ public final class AcceleratorSubgraphLowerer {
                 || type == AcceleratorDagNodeType.MEAN
                 || type == AcceleratorDagNodeType.REDUCE_MIN
                 || type == AcceleratorDagNodeType.REDUCE_MAX
+                || type == AcceleratorDagNodeType.REDUCE_PROD
+                || type == AcceleratorDagNodeType.ARGMAX
+                || type == AcceleratorDagNodeType.CUMSUM
                 || type == AcceleratorDagNodeType.REDUCE_ALL
                 || type == AcceleratorDagNodeType.REDUCE_ANY;
     }
@@ -2378,6 +2384,9 @@ public final class AcceleratorSubgraphLowerer {
             case MEAN -> AcceleratorDagNodeType.MEAN;
             case REDUCE_MIN -> AcceleratorDagNodeType.REDUCE_MIN;
             case REDUCE_MAX -> AcceleratorDagNodeType.REDUCE_MAX;
+            case REDUCE_PROD -> AcceleratorDagNodeType.REDUCE_PROD;
+            case ARGMAX -> AcceleratorDagNodeType.ARGMAX;
+            case CUMSUM -> AcceleratorDagNodeType.CUMSUM;
             case GT -> AcceleratorDagNodeType.GT;
             case GE -> AcceleratorDagNodeType.GE;
             case LT -> AcceleratorDagNodeType.LT;
@@ -2434,6 +2443,9 @@ public final class AcceleratorSubgraphLowerer {
             case MEAN -> node.operation() instanceof mean op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
             case REDUCE_MIN -> node.operation() instanceof reduceMin op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
             case REDUCE_MAX -> node.operation() instanceof reduceMax op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
+            case REDUCE_PROD -> node.operation() instanceof reduceProd op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
+            case ARGMAX -> node.operation() instanceof argMax op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
+            case CUMSUM -> node.operation() instanceof cumSum op ? encodeCumSumMode(op.getAxis(), op.isExclusive(), op.isReverse()) : Integer.MIN_VALUE;
             case REDUCE_ALL -> node.operation() instanceof reduceAll op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
             case REDUCE_ANY -> node.operation() instanceof reduceAny op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
             case GATHER -> node.operation() instanceof gather op ? op.getDimension() : Integer.MIN_VALUE;
@@ -2562,6 +2574,15 @@ public final class AcceleratorSubgraphLowerer {
             return Integer.MIN_VALUE;
         }
         return (axis & 0xFFFF) | (keepDims ? 1 << 16 : 0);
+    }
+
+    private int encodeCumSumMode(int axis, boolean exclusive, boolean reverse) {
+        if (axis < Short.MIN_VALUE || axis > Short.MAX_VALUE) {
+            return Integer.MIN_VALUE;
+        }
+        return (axis & 0xFFFF)
+                | (exclusive ? 1 << 16 : 0)
+                | (reverse ? 1 << 17 : 0);
     }
 
     private int encodeConv2dMode(conv2d op) {
