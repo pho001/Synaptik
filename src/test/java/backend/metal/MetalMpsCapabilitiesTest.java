@@ -27,7 +27,7 @@ class MetalMpsCapabilitiesTest {
 
         assertTrue(MetalMpsCapabilities.supportsComputeDType(DataType.BOOL));
         assertTrue(MetalMpsCapabilities.supportsOutputDType(DataType.BOOL));
-        assertTrue(MetalMpsCapabilities.supportsOutputDType(DataType.INT32));
+        assertTrue(MetalMpsCapabilities.supportsOutputDType(DataType.INT64));
 
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.MATMUL, DataType.BFLOAT16).supported());
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.CONV2D, DataType.BFLOAT16).supported());
@@ -37,7 +37,8 @@ class MetalMpsCapabilitiesTest {
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.GE, DataType.BOOL).supported());
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.LOGICAL_AND, DataType.BOOL).supported());
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.REDUCE_ANY, DataType.BOOL).supported());
-        assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.ARGMAX, DataType.INT32).supported());
+        assertFalse(MetalMpsCapabilities.operationDecision(Operation.OpType.ARGMAX, DataType.INT32).supported());
+        assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.ARGMAX, DataType.INT64).supported());
         assertFalse(MetalMpsCapabilities.operationDecision(Operation.OpType.CUMSUM, DataType.INT32).supported());
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.EXPAND, DataType.BOOL).supported());
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.PERMUTE, DataType.BOOL).supported());
@@ -45,15 +46,15 @@ class MetalMpsCapabilitiesTest {
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.SQUEEZE, DataType.BOOL).supported());
         assertFalse(MetalMpsCapabilities.operationDecision(Operation.OpType.MATMUL, DataType.BOOL).supported());
         assertTrue(MetalMpsCapabilities.unsupportedDTypeMessage(DataType.INT32)
-                .contains("FLOAT32/BFLOAT16 compute/output tensors for supported floating operation families, scoped BOOL outputs, BOOL predicate inputs, INT32 index inputs, and scoped INT32 index outputs"));
+                .contains("FLOAT32/BFLOAT16 compute/output tensors for supported floating operation families, scoped BOOL outputs, BOOL predicate inputs, INT32 index inputs, and scoped INT64 ARGMAX index outputs"));
     }
 
     @Test
     void exposesRoleSpecificDTypeDecisionsForEveryPublicDType() {
         for (DataType dtype : DataType.values()) {
             assertTrue(MetalMpsCapabilities.storageDecision(dtype).storageRepresentable());
-            assertEquals(dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16 || dtype == DataType.BOOL || dtype == DataType.INT32, MetalMpsCapabilities.computeDecision(dtype).supported());
-            assertEquals(dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16 || dtype == DataType.BOOL || dtype == DataType.INT32, MetalMpsCapabilities.outputDecision(dtype).supported());
+            assertEquals(dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16 || dtype == DataType.BOOL || dtype == DataType.INT64, MetalMpsCapabilities.computeDecision(dtype).supported());
+            assertEquals(dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16 || dtype == DataType.BOOL || dtype == DataType.INT64, MetalMpsCapabilities.outputDecision(dtype).supported());
         }
 
         assertTrue(MetalMpsCapabilities.externalInputDecision(DataType.BOOL).supported());
@@ -242,6 +243,7 @@ class MetalMpsCapabilitiesTest {
         assertEquals(3, MetalMpsCapabilities.abiDescriptorDataTypeCode(DataType.BFLOAT16));
         assertEquals(4, MetalMpsCapabilities.abiDescriptorDataTypeCode(DataType.INT32));
         assertEquals(5, MetalMpsCapabilities.abiDescriptorDataTypeCode(DataType.FLOAT64));
+        assertEquals(6, MetalMpsCapabilities.abiDescriptorDataTypeCode(DataType.INT64));
 
         assertEquals(1, MetalMpsCapabilities.abiDataTypeCode(DataType.FLOAT32));
         assertEquals(2, MetalMpsCapabilities.abiDataTypeCode(DataType.BOOL));

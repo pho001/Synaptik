@@ -79,11 +79,14 @@ public final class MetalPartitionSupport {
             }
             return "";
         }
+        var operationDTypeDecision = MetalMpsCapabilities.operationDecision(opType, node.dataType());
         if (!MetalMpsCapabilities.supportsComputeDType(node.dataType())
                 || !MetalMpsCapabilities.supportsOutputDType(node.dataType())) {
+            if (node.dataType() == tensor.DataType.INT32 || node.dataType() == tensor.DataType.INT64) {
+                return "UNSUPPORTED_DTYPE: " + operationDTypeDecision.detail();
+            }
             return MetalMpsCapabilities.unsupportedDTypeMessage(node.dataType());
         }
-        var operationDTypeDecision = MetalMpsCapabilities.operationDecision(opType, node.dataType());
         if (!operationDTypeDecision.supported()) {
             return "UNSUPPORTED_DTYPE: " + operationDTypeDecision.detail();
         }
@@ -955,8 +958,8 @@ public final class MetalPartitionSupport {
         if (!isMetalFloatingDType(input.dataType())) {
             return "UNSUPPORTED_DTYPE: GPU_METAL ARGMAX input requires FLOAT32/BFLOAT16 data";
         }
-        if (node.dataType() != tensor.DataType.INT32) {
-            return "UNSUPPORTED_DTYPE: GPU_METAL ARGMAX output must be INT32";
+        if (node.dataType() != tensor.DataType.INT64) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL ARGMAX output must be INT64";
         }
         if (op.getDimension() < 0) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL ARGMAX requires one explicit axis";

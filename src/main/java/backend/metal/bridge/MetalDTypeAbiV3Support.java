@@ -23,6 +23,7 @@ public final class MetalDTypeAbiV3Support {
     public static final int DTYPE_BFLOAT16 = 3;
     public static final int DTYPE_INT32 = 4;
     public static final int DTYPE_FLOAT64 = 5;
+    public static final int DTYPE_INT64 = 6;
 
     private MetalDTypeAbiV3Support() {
     }
@@ -34,6 +35,7 @@ public final class MetalDTypeAbiV3Support {
             case BFLOAT16 -> DTYPE_BFLOAT16;
             case INT32 -> DTYPE_INT32;
             case FLOAT64 -> DTYPE_FLOAT64;
+            case INT64 -> DTYPE_INT64;
         };
     }
 }

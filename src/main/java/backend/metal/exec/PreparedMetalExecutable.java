@@ -499,6 +499,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
             case FLOAT32 -> tensor.getFloat32Data() == null ? "missing direct float[] storage" : "";
             case BFLOAT16 -> tensor.getBFloat16Data() == null ? "missing direct bfloat16 short[] storage" : "";
             case BOOL -> tensor.getBoolData() == null ? "missing direct bool[] storage" : "";
+            case INT64 -> tensor.getInt64Data() == null ? "missing direct int64 long[] storage" : "";
             default -> MetalMpsCapabilities.unsupportedDTypeMessage(tensor.getDataType());
         };
     }
@@ -547,6 +548,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
             case BFLOAT16 -> Short.BYTES;
             case BOOL -> Byte.BYTES;
             case INT32 -> Integer.BYTES;
+            case INT64 -> Long.BYTES;
         };
     }
 

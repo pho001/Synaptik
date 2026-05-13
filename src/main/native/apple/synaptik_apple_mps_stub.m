@@ -106,6 +106,8 @@ static NSUInteger SynaptikByteSizeForDTypeCode(int32_t dtypeCode) {
             return sizeof(uint16_t);
         case 4:
             return sizeof(int32_t);
+        case 6:
+            return sizeof(int64_t);
         default:
             return 0;
     }
@@ -130,6 +132,9 @@ static BOOL SynaptikMpsDataTypeForCode(int32_t dtypeCode, MPSDataType *outDataTy
             return NO;
         case 4:
             *outDataType = MPSDataTypeInt32;
+            return YES;
+        case 6:
+            *outDataType = MPSDataTypeInt64;
             return YES;
         default:
             return NO;
@@ -683,7 +688,7 @@ int32_t synaptik_apple_mps_validate_dtype_abi_v3(
     for (int32_t i = 0; i < descriptor_count; i++) {
         int32_t role = roles[i];
         int32_t dtype = dtypes[i];
-        if (dtype < 1 || dtype > 5) {
+        if (dtype < 1 || dtype > 6) {
             return 1;
         }
         switch (role) {
@@ -701,7 +706,7 @@ int32_t synaptik_apple_mps_validate_dtype_abi_v3(
                 break;
             case 4: // native compute
             case 5: // native output
-                if (dtype != 1 && dtype != 2 && dtype != 3 && dtype != 4) {
+                if (dtype != 1 && dtype != 2 && dtype != 3 && dtype != 6) {
                     return 2;
                 }
                 break;
@@ -1233,9 +1238,6 @@ static void *SynaptikCompilePartition(
                             case 79:
                                 if (@available(macOS 12.0, iOS 15.0, tvOS 15.0, *)) {
                                     outTensor = [graph reductionArgMaximumWithTensor:input0 axis:axis name:@"argmax"];
-                                    if (outTensor != nil && nodeOutputDType == 4) {
-                                        outTensor = [graph castTensor:outTensor toType:MPSDataTypeInt32 name:@"argmax_int32"];
-                                    }
                                 } else {
                                     outTensor = nil;
                                 }

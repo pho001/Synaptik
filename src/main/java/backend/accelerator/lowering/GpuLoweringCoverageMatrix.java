@@ -218,7 +218,7 @@ public final class GpuLoweringCoverageMatrix {
             add(entries, backend, Operation.OpType.ARGMAX, GpuLoweringOperationFamily.REDUCTION,
                     GpuLoweringCoverageStatus.SUPPORTED,
                     GpuLoweringUnsupportedReason.SUPPORTED,
-                    "native Metal MPSGraph argmax reduction path with INT32 output and CPU first-index tie parity");
+                    "native Metal MPSGraph argmax path for dense FLOAT32/BFLOAT16 inputs with public INT64 index outputs");
             add(entries, backend, Operation.OpType.CUMSUM, GpuLoweringOperationFamily.REDUCTION,
                     GpuLoweringCoverageStatus.SUPPORTED,
                     GpuLoweringUnsupportedReason.SUPPORTED,

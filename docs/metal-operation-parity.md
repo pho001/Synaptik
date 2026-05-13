@@ -25,7 +25,7 @@ Generated from `MetalOperationParityMatrix`; do not hand-edit status rows.
 | REDUCE_MAX | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | native accelerator DAG forward reduce-max path; target=reduction_chain_small |
 | REDUCE_PROD | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | native Metal MPSGraph product reduction path for dense FLOAT32/BFLOAT16 inputs; target=reduction_chain_small |
 | CUMSUM | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | native Metal MPSGraph cumulative sum path for dense FLOAT32/BFLOAT16 inputs with static axis/exclusive/reverse metadata |
-| ARGMAX | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | native Metal MPSGraph argmax reduction path with INT32 output and CPU first-index tie parity |
+| ARGMAX | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | native Metal MPSGraph argmax path for dense FLOAT32/BFLOAT16 inputs with public INT64 index outputs |
 | REDUCE_ALL | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | BOOL all reduction has native Metal BOOL output DAG execution and one-byte BOOL buffer residency; external BOOL predicate input residency for WHERE is separate |
 | REDUCE_ANY | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | BOOL any reduction has native Metal BOOL output DAG execution and one-byte BOOL buffer residency; external BOOL predicate input residency for WHERE is separate |
 | SOFTMAX | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | native accelerator DAG softmax path; target=transformer_block_hot_path |

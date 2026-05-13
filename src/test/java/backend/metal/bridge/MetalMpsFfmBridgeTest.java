@@ -1802,15 +1802,15 @@ class MetalMpsFfmBridgeTest {
                 new int[]{2, 1},
                 "reduceProd"
         );
-        executeInt32Unary(
+        executeInt64Unary(
                 bridge,
                 context,
                 allocator,
                 unaryPlan(1, 9, AcceleratorDagNodeType.ARGMAX, Operation.OpType.ARGMAX,
-                        encodeReductionMode(1, true), new int[]{2, 3}, new int[]{2, 1}, DataType.FLOAT32, DataType.INT32),
+                        encodeReductionMode(1, true), new int[]{2, 3}, new int[]{2, 1}, DataType.FLOAT32, DataType.INT64),
                 new float[]{1f, 5f, 5f, 4f, 9f, 2f},
                 new int[]{2, 3},
-                new int[]{1, 1},
+                new long[]{1L, 1L},
                 new int[]{2, 1},
                 "argMax"
         );
@@ -2795,7 +2795,7 @@ class MetalMpsFfmBridgeTest {
         UnsupportedOperationException failure = assertThrows(UnsupportedOperationException.class,
                 () -> MetalMpsFfmBridge.validateBufferBindings(executable, List.of(input), List.of(output)));
 
-        assertEquals("Metal buffer outputs support FLOAT32/BFLOAT16/BOOL/INT32 only; got FLOAT64.", failure.getMessage());
+        assertEquals("Metal buffer outputs support FLOAT32/BFLOAT16/BOOL/INT32/INT64 only; got FLOAT64.", failure.getMessage());
     }
 
     private static AcceleratorBufferLayout denseF32Layout(int[] shape) {
@@ -2850,14 +2850,14 @@ class MetalMpsFfmBridgeTest {
         }
     }
 
-    private static void executeInt32Unary(
+    private static void executeInt64Unary(
             MetalMpsFfmBridge bridge,
             MetalMpsBridgeContext context,
             MetalBufferAllocator allocator,
             MetalPartitionPlan plan,
             float[] inputValues,
             int[] inputShape,
-            int[] expectedValues,
+            long[] expectedValues,
             int[] outputShape,
             String label
     ) {
@@ -2867,14 +2867,14 @@ class MetalMpsFfmBridgeTest {
         MetalBufferBinding output = null;
         try {
             input = allocator.createInputBinding(1, new Tensor(inputValues, inputShape, null, label + "Input", DataType.FLOAT32));
-            output = allocator.createOutputBinding(9, denseLayout(DataType.INT32, outputShape));
+            output = allocator.createOutputBinding(9, denseLayout(DataType.INT64, outputShape));
 
             MetalMpsBridgeExecutionStats stats = bridge.executeBuffers(context, executable, List.of(input), List.of(output));
-            Tensor destination = new Tensor(new int[expectedValues.length], outputShape, null, label + "Destination", DataType.INT32);
+            Tensor destination = new Tensor(new long[expectedValues.length], outputShape, null, label + "Destination", DataType.INT64);
             allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
 
             assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
-            assertArrayEquals(expectedValues, destination.getInt32Data());
+            assertArrayEquals(expectedValues, destination.getInt64Data());
         } finally {
             if (input != null) {
                 allocator.destroy(input.handle());

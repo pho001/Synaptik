@@ -1035,8 +1035,9 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
             if (binding.layout().dataType() != DataType.FLOAT32
                     && binding.layout().dataType() != DataType.BFLOAT16
                     && binding.layout().dataType() != DataType.BOOL
-                    && binding.layout().dataType() != DataType.INT32) {
-                throw new UnsupportedOperationException("Metal buffer outputs support FLOAT32/BFLOAT16/BOOL/INT32 only; got " + binding.layout().dataType() + ".");
+                    && binding.layout().dataType() != DataType.INT32
+                    && binding.layout().dataType() != DataType.INT64) {
+                throw new UnsupportedOperationException("Metal buffer outputs support FLOAT32/BFLOAT16/BOOL/INT32/INT64 only; got " + binding.layout().dataType() + ".");
             }
             if (!writable(binding.access())) {
                 throw new UnsupportedOperationException("Metal buffer output " + i
@@ -1237,6 +1238,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
             case BFLOAT16 -> Short.BYTES;
             case BOOL -> Byte.BYTES;
             case INT32 -> Integer.BYTES;
+            case INT64 -> Long.BYTES;
         };
     }
 

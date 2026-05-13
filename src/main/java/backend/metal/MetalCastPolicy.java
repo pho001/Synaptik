@@ -22,6 +22,10 @@ public final class MetalCastPolicy {
             return unsupported(source, target, MetalDTypeReasonCode.FLOAT64_UNSUPPORTED,
                     "Metal CAST does not support FLOAT64 source or target tensors");
         }
+        if (source == DataType.INT64 || target == DataType.INT64) {
+            return unsupported(source, target, MetalDTypeReasonCode.UNSUPPORTED_CAST_PAIR,
+                    "Metal CAST does not support INT64 source or target tensors");
+        }
         if (source == target) {
             return switch (source) {
                 case FLOAT32, BFLOAT16, BOOL, INT32 -> new Decision(
@@ -33,6 +37,8 @@ public final class MetalCastPolicy {
                 );
                 case FLOAT64 -> unsupported(source, target, MetalDTypeReasonCode.FLOAT64_UNSUPPORTED,
                         "Metal CAST does not support FLOAT64 identity tensors");
+                case INT64 -> unsupported(source, target, MetalDTypeReasonCode.UNSUPPORTED_CAST_PAIR,
+                        "Metal CAST does not support INT64 identity tensors");
             };
         }
         if ((source == DataType.FLOAT32 && target == DataType.BFLOAT16)

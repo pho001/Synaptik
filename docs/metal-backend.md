@@ -670,15 +670,15 @@ Do not infer execution path from `backend=GPU_METAL` alone. A prepared step can 
 
 | Role | Supported today |
 |---|---|
-| Storage metadata/residency | `FLOAT32`, `BFLOAT16`, `INT32`, `BOOL`, `FLOAT64` are representable as dtype metadata; this is not native compute support. |
-| Compute node dtype | `FLOAT32/BFLOAT16` for Metal-supported floating operation families; `BOOL` for scoped compare/logical/reduction mask families |
-| Output dtype | `FLOAT32/BFLOAT16` for Metal-supported floating operation families; `BOOL` for scoped compare/logical/reduction mask families; `INT32` only for scoped index-output operations such as `ARGMAX` |
+| Storage metadata/residency | `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, `BOOL`, `FLOAT64` are representable as dtype metadata; this is not native compute support. |
+| Compute node dtype | `FLOAT32/BFLOAT16` for Metal-supported floating operation families; `BOOL` for scoped compare/logical/reduction mask families; scoped `INT64` for public `ARGMAX` index outputs |
+| Output dtype | `FLOAT32/BFLOAT16` for Metal-supported floating operation families; `BOOL` for scoped compare/logical/reduction mask families; scoped `INT64` for public `ARGMAX` index outputs |
 | Normal external data input | Dtype-matched `FLOAT32/BFLOAT16` for floating value roles |
 | Index external input | `INT32` only for supported gather/take/scatter/loss index roles |
 | Predicate external input | `BOOL` only for `WHERE` input 0 |
 | Explicit `CAST` pairs | Identity casts plus `FLOAT32 <-> BFLOAT16`; `FLOAT64`, runtime `INT64`, and general `BOOL`/`INT32` numeric casts remain unsupported |
-| Descriptor ABI coverage | dtype ABI v3 can describe `FLOAT32`, `BFLOAT16`, `INT32`, `BOOL`, and `FLOAT64` roles. |
-| Unsupported compute/output dtypes | `FLOAT64`; generic `INT32`; `BOOL` outside scoped BOOL operation families |
+| Descriptor ABI coverage | dtype ABI v3 can describe `FLOAT32`, `BFLOAT16`, `INT32`, `BOOL`, `FLOAT64`, and `INT64` roles. |
+| Unsupported compute/output dtypes | `FLOAT64`; generic `INT32`; generic `INT64` outside scoped `ARGMAX`; `BOOL` outside scoped BOOL operation families |
 
 BF16 support requires the dtype ABI v3 compile path and follows the same operation-family coverage as Metal `FLOAT32` for floating tensors. It does not expand shape/layout semantics beyond the current Metal contract.
 
