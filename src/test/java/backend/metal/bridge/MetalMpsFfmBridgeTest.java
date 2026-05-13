@@ -372,6 +372,62 @@ class MetalMpsFfmBridgeTest {
     }
 
     @Test
+    void explicitShimExecuteBuffersSupportsFloatBfloat16Cast() {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        assumeTrue(bridge.capabilities().dtypeAbiV3Supported());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalMpsBridgeExecutable f32ToBf16 = bridge.compile(
+                context,
+                unaryPlan(1, 9, AcceleratorDagNodeType.CAST, Operation.OpType.CAST, 3,
+                        new int[]{2}, new int[]{2}, DataType.FLOAT32, DataType.BFLOAT16)
+        );
+        MetalMpsBridgeExecutable bf16ToF32 = bridge.compile(
+                context,
+                unaryPlan(2, 10, AcceleratorDagNodeType.CAST, Operation.OpType.CAST, 1,
+                        new int[]{2}, new int[]{2}, DataType.BFLOAT16, DataType.FLOAT32)
+        );
+        assumeTrue(f32ToBf16.available(), f32ToBf16.reason());
+        assumeTrue(bf16ToF32.available(), bf16ToF32.reason());
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        MetalBufferBinding f32Input = null;
+        MetalBufferBinding bf16Output = null;
+        MetalBufferBinding bf16Input = null;
+        MetalBufferBinding f32Output = null;
+        try {
+            f32Input = allocator.createInputBinding(
+                    1,
+                    new Tensor(new float[]{1.5f, -2.25f}, new int[]{2}, null, "castF32Input", DataType.FLOAT32)
+            );
+            bf16Output = allocator.createOutputBinding(9, denseLayout(DataType.BFLOAT16, new int[]{2}));
+            MetalMpsBridgeExecutionStats firstStats = bridge.executeBuffers(context, f32ToBf16, List.of(f32Input), List.of(bf16Output));
+            Tensor bf16Destination = bf16Tensor(new float[]{0.0f, 0.0f}, new int[]{2}, "castBf16Destination");
+            allocator.readToCpu(bf16Output, bf16Destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+            assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, firstStats.executionPath());
+            assertBf16Close(new float[]{1.5f, -2.25f}, bf16Destination, BF16_EXACT_STORAGE_TOLERANCE);
+
+            bf16Input = allocator.createInputBinding(2, bf16Tensor(new float[]{1.5f, -2.25f}, new int[]{2}, "castBf16Input"));
+            f32Output = allocator.createOutputBinding(10, denseF32Layout(new int[]{2}));
+            MetalMpsBridgeExecutionStats secondStats = bridge.executeBuffers(context, bf16ToF32, List.of(bf16Input), List.of(f32Output));
+            Tensor f32Destination = new Tensor(new float[]{0.0f, 0.0f}, new int[]{2}, null, "castF32Destination", DataType.FLOAT32);
+            allocator.readToCpu(f32Output, f32Destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+            assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, secondStats.executionPath());
+            assertArrayEquals(new float[]{1.5f, -2.25f}, f32Destination.getFloat32Data(), 0.0f);
+        } finally {
+            if (f32Input != null) allocator.destroy(f32Input.handle());
+            if (bf16Output != null) allocator.destroy(bf16Output.handle());
+            if (bf16Input != null) allocator.destroy(bf16Input.handle());
+            if (f32Output != null) allocator.destroy(f32Output.handle());
+        }
+    }
+
+    @Test
     void explicitShimExecuteBuffersSupportsBoolCompareOutput() {
         Tensor destination = executeBoolLoweredPlan(
                 binaryPlan(

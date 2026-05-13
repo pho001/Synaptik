@@ -164,6 +164,25 @@ class MetalMpsCapabilitiesTest {
     }
 
     @Test
+    void externalInputRoleUsesCastPairPolicyForCastInputs() {
+        Tensor f32 = new Tensor(new float[]{1.0f, 2.0f}, new int[]{2}, null, "f32CastInput", DataType.FLOAT32);
+        Tensor bf16Cast = f32.cast(DataType.BFLOAT16);
+        List<CompiledNode> f32ToBf16 = CompiledNode.snapshot(List.of(f32, bf16Cast));
+
+        assertTrue(MetalMpsCapabilities.externalInputRoleDecision(f32ToBf16.get(0), f32ToBf16.get(1), 0).supported());
+        assertFalse(MetalMpsCapabilities.externalInputRoleDecision(f32ToBf16.get(0), f32ToBf16.get(1), 1).supported());
+
+        Tensor bf16 = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "bf16CastInput", DataType.BFLOAT16);
+        Tensor f32Cast = bf16.cast(DataType.FLOAT32);
+        List<CompiledNode> bf16ToF32 = CompiledNode.snapshot(List.of(bf16, f32Cast));
+        assertTrue(MetalMpsCapabilities.externalInputRoleDecision(bf16ToF32.get(0), bf16ToF32.get(1), 0).supported());
+
+        Tensor intCast = f32.cast(DataType.INT32);
+        List<CompiledNode> f32ToInt = CompiledNode.snapshot(List.of(f32, intCast));
+        assertFalse(MetalMpsCapabilities.externalInputRoleDecision(f32ToInt.get(0), f32ToInt.get(1), 0).supported());
+    }
+
+    @Test
     void externalInputRoleAllowsInt32ForIndexTargetCrossEntropy() {
         Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "logits", DataType.FLOAT32);
         Tensor targets = new Tensor(new int[]{2, 0}, new int[]{2}, null, "targets", DataType.INT32);

@@ -346,6 +346,24 @@ public final class MetalMpsCapabilities {
                     MetalDTypeReasonCode.UNSUPPORTED_EXTERNAL_INPUT_ROLE,
                     "ARGMAX value input requires FLOAT32/BFLOAT16 data");
         }
+        if (opType == Operation.OpType.CAST) {
+            if (inputIndex != 0) {
+                return unsupported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype,
+                        MetalDTypeReasonCode.UNSUPPORTED_EXTERNAL_INPUT_ROLE,
+                        "CAST has no supported input role at index " + inputIndex);
+            }
+            MetalCastPolicy.Decision decision = MetalCastPolicy.decide(dtype, consumer.dataType());
+            if (decision.supported()) {
+                return supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype,
+                        dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16,
+                        false,
+                        MetalDTypeReasonCode.SUPPORTED,
+                        "CAST input accepts " + dtype + " for " + dtype + " -> " + consumer.dataType());
+            }
+            return unsupported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype,
+                    MetalDTypeReasonCode.UNSUPPORTED_EXTERNAL_INPUT_ROLE,
+                    decision.detail());
+        }
         if (supportsBoolCompareOperation(opType)) {
             if ((inputIndex == 0 || inputIndex == 1) && (dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16)) {
                 return supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, true, false,
@@ -567,6 +585,7 @@ public final class MetalMpsCapabilities {
                  CONCAT,
                  PAD,
                  TILE,
+                 CAST,
                  EXPAND_DIMS,
                  SQUEEZE,
                  SELECT,

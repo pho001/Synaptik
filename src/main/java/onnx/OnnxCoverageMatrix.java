@@ -129,8 +129,10 @@ public final class OnnxCoverageMatrix {
                 CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 "scalar bounds only", Operation.OpType.CLAMP_MIN, Operation.OpType.CLAMP_MAX);
         add(out, "Cast", "cast", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
-                CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED, CoverageStatus.UNSUPPORTED,
-                "runtime INT64 is unsupported", Operation.OpType.CAST);
+                CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.CAST),
+                CoverageStatus.UNSUPPORTED,
+                "runtime INT64 is unsupported; Metal runtime cast is scoped to identity and FLOAT32 <-> BFLOAT16 pairs",
+                Operation.OpType.CAST);
         add(out, "MatMul", "matmul", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.MATMUL),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.MATMUL), "", Operation.OpType.MATMUL);

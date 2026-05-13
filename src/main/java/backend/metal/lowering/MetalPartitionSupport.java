@@ -4,6 +4,7 @@ import backend.ComputeBackend;
 import backend.accelerator.lowering.GpuLoweringCoverageEntry;
 import backend.accelerator.lowering.GpuLoweringCoverageMatrix;
 import backend.accelerator.lowering.GpuLoweringCoverageStatus;
+import backend.metal.MetalCastPolicy;
 import backend.metal.MetalMpsCapabilities;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
@@ -68,6 +69,13 @@ public final class MetalPartitionSupport {
         if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED
                 && entry.reason() == backend.accelerator.lowering.GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE) {
             return compoundPatternPrefix(opType) + GpuLoweringCoverageMatrix.plannerUnsupportedDetail(ComputeBackend.GPU_METAL, opType);
+        }
+        if (opType == Operation.OpType.CAST) {
+            String castReason = castUnsupportedReason(node, context);
+            if (!castReason.isBlank()) {
+                return castReason;
+            }
+            return "";
         }
         if (!MetalMpsCapabilities.supportsComputeDType(node.dataType())
                 || !MetalMpsCapabilities.supportsOutputDType(node.dataType())) {
@@ -636,6 +644,35 @@ public final class MetalPartitionSupport {
             if (repeats[d] <= 0 || outputShape[d] != inputShape[d] * repeats[d]) {
                 return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL TILE requires positive static repeats matching output shape";
             }
+        }
+        return "";
+    }
+
+    private static String castUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
+        if (context == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CAST requires planning context";
+        }
+        if (node.inputIds().size() != 1) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CAST requires one input";
+        }
+        CompiledNode input = context.compiledNode(node.inputIds().getFirst());
+        if (input == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CAST input is unavailable";
+        }
+        int[] inputShape = shape(context, input);
+        int[] outputShape = shape(context, node);
+        if (inputShape.length < 1 || inputShape.length > 4 || outputShape.length < 1 || outputShape.length > 4) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CAST supports rank 1..4 tensors";
+        }
+        if (!Arrays.equals(inputShape, outputShape)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CAST must preserve input shape";
+        }
+        if (!dense(context, input)) {
+            return "UNSUPPORTED_LAYOUT: GPU_METAL CAST input requires dense layout";
+        }
+        MetalCastPolicy.Decision decision = MetalCastPolicy.decide(dataType(context, input), dataType(context, node));
+        if (!decision.supported()) {
+            return decision.reasonCode().name() + ": " + decision.detail();
         }
         return "";
     }

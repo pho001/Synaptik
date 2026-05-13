@@ -41,6 +41,7 @@ Phase 44 adds a real scoped custom Metal kernel route on top of the MPSGraph cov
 | matmul/linear | `MATMUL`, `LINEAR` | supported | `SUPPORTED` |
 | elementwise chains | `ADD`, `SUB`, `MUL`, `DIV`, `RELU`, `TANH`, `SIGMOID`, `ABS`, `EXP`, `LOG`, `NEG`, `SQRT`, `INV`, `MUL_SCALAR`, `WHERE`, `CLAMP_MIN`, `CLAMP_MAX` | supported | `SUPPORTED` |
 | layout/view-adjacent nodes | `RESHAPE`, `CONTIGUOUS`, `NOOP`, `PERMUTE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `SLICE`, `CONCAT`, `PAD`, `TILE` | supported | `SUPPORTED`; router distinguishes metadata-only views, dense materialization, broadcast materialization, and unsupported strided compute. Static Metal layout descriptors support dense `FLOAT32`/`BFLOAT16` slice with `step=1`, concat, constant pad, and tile. |
+| dtype conversion | `CAST` | supported | `SUPPORTED`; scoped explicit cast-pair policy supports identity casts plus `FLOAT32 <-> BFLOAT16` conversion. `FLOAT64`, runtime `INT64`, and general `BOOL`/`INT32` numeric casts remain unsupported. |
 | softmax/log-softmax-ish flows | `SOFTMAX` | supported | `SUPPORTED` |
 | softmax/log-softmax-ish flows | `LOG_SOFTMAX` | supported | `SUPPORTED`; lowered as SOFTMAX followed by LOG |
 | reductions | `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`, `REDUCE_PROD`, `ARGMAX`, `CUMSUM` | supported | `SUPPORTED`; axis and keep-dims metadata lower through the shared DAG ABI. `ARGMAX` is a scoped INT32 index-output reduction, and `CUMSUM` is a shape-preserving scan with static axis/exclusive/reverse metadata. |
@@ -113,7 +114,7 @@ consumer primitive proves that contract.
 
 `dtype residency is not native dtype compute`. Phase 16 dtype residency records whether values such as `BFLOAT16`, `INT32`, and `BOOL` can stay represented in runtime storage and trace/report metadata. It does not widen Metal or CUDA native arithmetic beyond the backend role gates.
 
-Metal currently accepts `FLOAT32` and `BFLOAT16` compute/output for the Metal-supported floating operation families, and `BOOL` compute/output only for scoped compare/logical/reduction mask families. `BOOL` can also be a predicate-style external input for `WHERE`, but reports distinguish that from native BOOL-producing compute through role-specific `dtypeResidency` evidence. CUDA native dense buffer execution remains `FLOAT32` only. Other dtype-role combinations reject with `UNSUPPORTED_DTYPE` or `RESIDENCY_ONLY_NOT_COMPUTE` and stable details such as `backend=GPU_CUDA role=COMPUTE_OUTPUT dtype=INT32 code=RESIDENCY_ONLY_NOT_COMPUTE`.
+Metal currently accepts `FLOAT32` and `BFLOAT16` compute/output for the Metal-supported floating operation families, `BOOL` compute/output only for scoped compare/logical/reduction mask families, scoped `INT32` index outputs such as `ARGMAX`, and explicit `CAST` only for identity and `FLOAT32 <-> BFLOAT16` cast pairs. `BOOL` can also be a predicate-style external input for `WHERE`, but reports distinguish that from native BOOL-producing compute through role-specific `dtypeResidency` evidence. CUDA native dense buffer execution remains `FLOAT32` only. Other dtype-role combinations reject with `UNSUPPORTED_DTYPE`, `UNSUPPORTED_CAST_PAIR`, or `RESIDENCY_ONLY_NOT_COMPUTE` and stable details such as `backend=GPU_CUDA role=COMPUTE_OUTPUT dtype=INT32 code=RESIDENCY_ONLY_NOT_COMPUTE`.
 
 Reports use `dtypeResidency` evidence to explain why a region stayed resident, shortened, or exited. A dtype-resident internal value can still be materialized later for a real CPU consumer, graph output, or gradient publication, and that CPU boundary remains reportable.
 
@@ -121,7 +122,8 @@ Metal dtype capability truth is role-specific. `MetalMpsCapabilities` distinguis
 input legality, predicate input legality, native compute legality, native output legality, and operation-specific dtype
 support. The optional Metal dtype ABI v3 probes prove that a native shim can describe widened dtype roles; BF16 support
 tracks the Metal floating operation coverage, BOOL output is limited to scoped compare/logical/reduction families,
-and INT32 plus FLOAT64 remain non-native compute/output.
+`INT32` is limited to index roles and scoped index outputs, `CAST` is limited by `MetalCastPolicy`, and `FLOAT64`
+remains non-native compute/output.
 
 ## Phase 30 BF16 Metal contract
 

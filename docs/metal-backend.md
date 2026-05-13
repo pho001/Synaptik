@@ -671,18 +671,21 @@ Do not infer execution path from `backend=GPU_METAL` alone. A prepared step can 
 |---|---|
 | Storage metadata/residency | `FLOAT32`, `BFLOAT16`, `INT32`, `BOOL`, `FLOAT64` are representable as dtype metadata; this is not native compute support. |
 | Compute node dtype | `FLOAT32/BFLOAT16` for Metal-supported floating operation families; `BOOL` for scoped compare/logical/reduction mask families |
-| Output dtype | `FLOAT32/BFLOAT16` for Metal-supported floating operation families; `BOOL` for scoped compare/logical/reduction mask families |
+| Output dtype | `FLOAT32/BFLOAT16` for Metal-supported floating operation families; `BOOL` for scoped compare/logical/reduction mask families; `INT32` only for scoped index-output operations such as `ARGMAX` |
 | Normal external data input | Dtype-matched `FLOAT32/BFLOAT16` for floating value roles |
-| Index external input | `INT32` only for supported forward `GATHER` / `TAKE_ALONG_AXIS` input 1 |
+| Index external input | `INT32` only for supported gather/take/scatter/loss index roles |
 | Predicate external input | `BOOL` only for `WHERE` input 0 |
+| Explicit `CAST` pairs | Identity casts plus `FLOAT32 <-> BFLOAT16`; `FLOAT64`, runtime `INT64`, and general `BOOL`/`INT32` numeric casts remain unsupported |
 | Descriptor ABI coverage | dtype ABI v3 can describe `FLOAT32`, `BFLOAT16`, `INT32`, `BOOL`, and `FLOAT64` roles. |
-| Unsupported compute/output dtypes | `FLOAT64`, `INT32`; `BOOL` outside scoped BOOL operation families |
+| Unsupported compute/output dtypes | `FLOAT64`; generic `INT32`; `BOOL` outside scoped BOOL operation families |
 
 BF16 support requires the dtype ABI v3 compile path and follows the same operation-family coverage as Metal `FLOAT32` for floating tensors. It does not expand shape/layout semantics beyond the current Metal contract.
 
 BOOL support is also real but deliberately narrow. Metal can produce and consume device-resident BOOL outputs for dense scoped compare ops (`GT`, `GE`, `LT`, `LE`, `EQ`, `NE`), logical ops (`LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`), and BOOL reductions (`REDUCE_ALL`, `REDUCE_ANY`). A supported `compare -> WHERE -> elementwise` chain should remain a single Metal-owned lowered region with `dtypeResidency` evidence for `dtype=BOOL` and no CPU materialization between the mask producer and `WHERE`.
 
 Forward `GATHER` and `TAKE_ALONG_AXIS` support is deliberately scoped: dense `FLOAT32/BFLOAT16` value/output tensors, dense static leaf `INT32` indices, proven in-bounds index values, and native buffer execution through MPSGraph `gatherAlongAxis`. Index-target cross entropy uses the same INT32 role discipline: dense static in-bounds targets are accepted for `CROSS_ENTROPY_LOSS_INDICES` and `CROSS_ENTROPY_LOSS_INDICES_GRAD`; generic INT32 arithmetic/output remains unsupported.
+
+Explicit `CAST` is governed by cast-pair legality, not by storage residency alone. `FLOAT32 -> BFLOAT16` and `BFLOAT16 -> FLOAT32` can stay Metal-owned through MPSGraph `castTensor`; identity casts are metadata/no-op legal for representable dtypes. `FLOAT32 -> INT32`, `INT32 -> FLOAT32`, `FLOAT32 -> BOOL`, `BOOL -> FLOAT32`, and any `FLOAT64` pair reject before native execution because they would otherwise imply rounding, truthiness, or generic integer compute semantics that the current Metal contract does not support.
 
 Unsupported BOOL families still reject with stable dtype or operation-family diagnostics. Dense loss-adjacent ops support dtype-matched `FLOAT32/BFLOAT16` paths for `NLL_LOSS` and dense `CROSS_ENTROPY_LOSS`. Index-target `CROSS_ENTROPY_LOSS_INDICES` and `CROSS_ENTROPY_LOSS_INDICES_GRAD` now stay device-owned for dense `FLOAT32/BFLOAT16` logits/sampleScale and dense static in-bounds `INT32` targets, including ignore-index masking and `NONE`/`SUM`/`MEAN` reductions. Remaining rejections are scoped capability decisions such as grouped/dilated conv variants, generic INT32 compute/output, arbitrary BOOL consumers, and non-dense/unsupported SDPA mask layouts.
 

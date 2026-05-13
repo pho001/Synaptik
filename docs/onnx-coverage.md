@@ -7,7 +7,7 @@ Generated from `OnnxCoverageMatrix`; do not hand-edit status rows.
 - Import: supported=78, partial=0, unsupported=1
 - Export: supported=70, partial=1, unsupported=8
 - CPU: supported=78, partial=0, unsupported=1
-- Metal: supported=59, partial=9, unsupported=11
+- Metal: supported=60, partial=9, unsupported=10
 - CUDA: supported=34, partial=9, unsupported=36
 - Round-trip evidence: round_trip_tested=70, explicitly_classified=1, import_only_tested=7, rejection_tested=1, not_applicable=0
 
@@ -50,7 +50,7 @@ Generated from `OnnxCoverageMatrix`; do not hand-edit status rows.
 | Where | where | supported | supported | supported | supported | supported | round_trip_tested | WHERE |  |
 | Identity | pass-through | supported | unsupported | supported | partial | partial | import_only_tested | NOOP | import-only pass-through; export preserves the producer op instead |
 | Clip | clampMin/clampMax | supported | supported | supported | supported | supported | round_trip_tested | CLAMP_MIN, CLAMP_MAX | scalar bounds only |
-| Cast | cast | supported | supported | supported | unsupported | unsupported | round_trip_tested | CAST | runtime INT64 is unsupported |
+| Cast | cast | supported | supported | supported | supported | unsupported | round_trip_tested | CAST | runtime INT64 is unsupported; Metal runtime cast is scoped to identity and FLOAT32 <-> BFLOAT16 pairs |
 | MatMul | matmul | supported | supported | supported | supported | supported | round_trip_tested | MATMUL |  |
 | Gemm | matmul plus optional bias/scale | supported | supported | supported | supported | supported | round_trip_tested | MATMUL, ADD | rank-2 transposition flags and scalar alpha/beta only |
 | Conv | conv2d | supported | supported | supported | supported | unsupported | round_trip_tested | CONV2D | rank-4 NCHW/OIHW, symmetric spatial pads, static attributes |

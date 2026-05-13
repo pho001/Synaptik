@@ -162,6 +162,17 @@ public final class GpuLoweringCoverageMatrix {
                     Operation.OpType.PAD,
                     Operation.OpType.TILE);
         }
+        if (backend == ComputeBackend.GPU_METAL) {
+            add(entries, backend, Operation.OpType.CAST, GpuLoweringOperationFamily.DTYPE_CONVERSION,
+                    GpuLoweringCoverageStatus.SUPPORTED,
+                    GpuLoweringUnsupportedReason.SUPPORTED,
+                    "Metal CAST supports scoped identity casts plus FLOAT32 <-> BFLOAT16 conversion through explicit cast-pair policy; FLOAT64, runtime INT64, and general BOOL/INT32 numeric casts remain unsupported");
+        } else {
+            add(entries, backend, Operation.OpType.CAST, GpuLoweringOperationFamily.DTYPE_CONVERSION,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
+                    "CUDA CAST remains unsupported until a CUDA cast-pair policy and native/lowered dtype conversion path exist");
+        }
         addSupported(entries, backend, GpuLoweringOperationFamily.SOFTMAX_LIKE,
                 "native accelerator DAG softmax path; target=transformer_block_hot_path",
                 Operation.OpType.SOFTMAX);

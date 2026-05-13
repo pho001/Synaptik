@@ -106,6 +106,7 @@ public final class MetalOperationParityMatrix {
             Operation.OpType.CONCAT,
             Operation.OpType.PAD,
             Operation.OpType.TILE,
+            Operation.OpType.CAST,
             Operation.OpType.EXPAND_DIMS,
             Operation.OpType.SQUEEZE
     );

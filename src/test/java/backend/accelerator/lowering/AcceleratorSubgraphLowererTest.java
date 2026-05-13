@@ -98,6 +98,26 @@ class AcceleratorSubgraphLowererTest {
     }
 
     @Test
+    void castLowersWithTargetDTypeAttribute() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "castLowerInput", DataType.FLOAT32);
+        Tensor out = input.cast(DataType.BFLOAT16);
+        PartitionPlanningContext context = planningContext(out);
+        CompiledNode node = context.compiledNode(nodeId(context, Operation.OpType.CAST));
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                spec(node),
+                context
+        );
+
+        assertNotNull(result);
+        assertEquals(AcceleratorDagNodeType.CAST, result.dagSpec().nodes().getFirst().type());
+        assertEquals(DataType.BFLOAT16, result.dagSpec().nodes().getFirst().outputDataType());
+        assertEquals(3, result.dagSpec().nodes().getFirst().attribute0());
+        assertEquals(List.of(node.id()), result.dagSpec().outputNodeIds());
+    }
+
+    @Test
     void logSoftmaxManifestMapsOneOriginalOpToTwoPrimitives() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "logSoftmaxManifestInput", DataType.FLOAT32);
         Tensor out = specialLogSoftmax(input, 1);

@@ -100,7 +100,7 @@ Generated from `MetalOperationParityMatrix`; do not hand-edit status rows.
 | PERMUTE | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | layout/view-adjacent accelerator DAG metadata or materialization path |
 | EXPAND_DIMS | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | layout/view-adjacent accelerator DAG metadata or materialization path |
 | SQUEEZE | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | layout/view-adjacent accelerator DAG metadata or materialization path |
-| CAST | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
+| CAST | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | Metal CAST supports scoped identity casts plus FLOAT32 <-> BFLOAT16 conversion through explicit cast-pair policy; FLOAT64, runtime INT64, and general BOOL/INT32 numeric casts remain unsupported |
 | CONST_SCALAR | no | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | CONST_SCALAR is an internal CPU fused-plan scalar node, not a public standalone GPU compute op; GPU DAG lowering carries scalar values as primitive metadata |
 | NOOP | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | layout/view-adjacent accelerator DAG metadata or materialization path |
 | FUSED | yes | no | unsupported | no | no | no | no | no | yes | CPU_FUSED_OPERATION_UNSUPPORTED | CPU Operation.OpType.FUSED remains CPU-only for Phase 12; GPU compound regions lower from normal graph operations |

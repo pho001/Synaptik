@@ -1243,6 +1243,18 @@ static void *SynaptikCompilePartition(
                     }
                     break;
                 }
+                case 81: {
+                    int32_t targetDTypeCode = SynaptikNodeAttribute(node_int_attributes, i, 0);
+                    if (targetDTypeCode <= 0 || targetDTypeCode != nodeOutputDType) {
+                        return NULL;
+                    }
+                    MPSDataType targetType = MPSDataTypeInvalid;
+                    if (!SynaptikMpsDataTypeForCode(targetDTypeCode, &targetType)) {
+                        return NULL;
+                    }
+                    outTensor = [graph castTensor:input0 toType:targetType name:@"cast"];
+                    break;
+                }
                 case 52: {
                     if (input1 == nil) return NULL;
                     if (@available(macOS 12.3, iOS 15.4, tvOS 15.4, *)) {

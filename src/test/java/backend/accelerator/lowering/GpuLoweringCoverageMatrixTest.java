@@ -426,6 +426,21 @@ class GpuLoweringCoverageMatrixTest {
     }
 
     @Test
+    void castCoverageIsScopedToMetalDTypeConversionPolicy() {
+        GpuLoweringCoverageEntry metal = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, Operation.OpType.CAST);
+        assertEquals(GpuLoweringCoverageStatus.SUPPORTED, metal.status());
+        assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, metal.reason());
+        assertEquals(GpuLoweringOperationFamily.DTYPE_CONVERSION, metal.family());
+        assertTrue(metal.note().contains("FLOAT32 <-> BFLOAT16"));
+        assertTrue(metal.note().contains("general BOOL/INT32 numeric casts remain unsupported"));
+
+        GpuLoweringCoverageEntry cuda = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_CUDA, Operation.OpType.CAST);
+        assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, cuda.status());
+        assertEquals(GpuLoweringUnsupportedReason.CAPABILITY_MISSING, cuda.reason());
+        assertEquals(GpuLoweringOperationFamily.DTYPE_CONVERSION, cuda.family());
+    }
+
+    @Test
     void phaseSeventeenNonSupportedRowsUseStableReasonCodes() {
         for (ComputeBackend backend : List.of(ComputeBackend.GPU_METAL, ComputeBackend.GPU_CUDA)) {
             List<Operation.OpType> nonSupportedOps = backend == ComputeBackend.GPU_METAL

@@ -278,6 +278,49 @@ class MetalRegionLowererTest {
     }
 
     @Test
+    void metalCastSupportsScopedFloatBfloat16Pairs() {
+        Tensor f32 = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalCastF32", DataType.FLOAT32);
+        Tensor bf16Cast = f32.cast(DataType.BFLOAT16);
+        assertPlannerSupportedAndLowered(bf16Cast, Operation.OpType.CAST, AcceleratorDagNodeType.CAST);
+
+        Tensor bf16 = new Tensor(new double[]{1.0, 2.0, 3.0, 4.0}, new int[]{2, 2}, null, "metalCastBf16", DataType.BFLOAT16);
+        Tensor f32Cast = bf16.cast(DataType.FLOAT32);
+        assertPlannerSupportedAndLowered(f32Cast, Operation.OpType.CAST, AcceleratorDagNodeType.CAST);
+    }
+
+    @Test
+    void metalCastRejectsUnsupportedPairsWithCastPolicyReason() {
+        Tensor f32 = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalCastRejectF32", DataType.FLOAT32);
+        Tensor intCast = f32.cast(DataType.INT32);
+        TensorInternalAccess.setBackend(intCast, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext intContext = planningContext(intCast);
+        String intReason = MetalPartitionSupport.plannerUnsupportedReason(
+                intContext.compiledNode(nodeId(intContext, Operation.OpType.CAST)),
+                intContext
+        );
+        assertTrue(intReason.contains("UNSUPPORTED_CAST_PAIR"));
+
+        Tensor f64 = new Tensor(new double[]{1.0, 2.0, 3.0, 4.0}, new int[]{2, 2}, null, "metalCastRejectF64", DataType.FLOAT64);
+        Tensor f64ToF32 = f64.cast(DataType.FLOAT32);
+        TensorInternalAccess.setBackend(f64ToF32, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext f64Context = planningContext(f64ToF32);
+        String f64Reason = MetalPartitionSupport.plannerUnsupportedReason(
+                f64Context.compiledNode(nodeId(f64Context, Operation.OpType.CAST)),
+                f64Context
+        );
+        assertTrue(f64Reason.contains("FLOAT64_UNSUPPORTED"));
+
+        Tensor f32ToF64 = f32.cast(DataType.FLOAT64);
+        TensorInternalAccess.setBackend(f32ToF64, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext f32ToF64Context = planningContext(f32ToF64);
+        String f32ToF64Reason = MetalPartitionSupport.plannerUnsupportedReason(
+                f32ToF64Context.compiledNode(nodeId(f32ToF64Context, Operation.OpType.CAST)),
+                f32ToF64Context
+        );
+        assertTrue(f32ToF64Reason.contains("FLOAT64_UNSUPPORTED"));
+    }
+
+    @Test
     void metalSupportedNormalizationUsesSharedCoverageReason() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalNormInput", DataType.FLOAT32);
         Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "metalNormGamma", DataType.FLOAT32);

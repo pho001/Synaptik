@@ -28,6 +28,22 @@ class MetalOperationParityMatrixTest {
     }
 
     @Test
+    void matrixMarksCastAsScopedMpsGraphDTypeConversion() {
+        MetalOperationParityMatrix.Row row = row(Operation.OpType.CAST);
+
+        assertTrue(row.cpuKernelAvailable());
+        assertFalse(row.cpuFusable());
+        assertEquals("SUPPORTED", row.metalCoverageStatus());
+        assertEquals("SUPPORTED", row.metalReason());
+        assertTrue(row.plannerSupported());
+        assertTrue(row.dagLowerable());
+        assertTrue(row.nativeMpsGraphMapped());
+        assertTrue(row.bufferExecutable());
+        assertFalse(row.cpuFallbackOnly());
+        assertTrue(row.note().contains("FLOAT32 <-> BFLOAT16"));
+    }
+
+    @Test
     void matrixMarksSdpaWeightsPublicationAsMpsGraphMappedAttentionOp() {
         MetalOperationParityMatrix.Row row = row(Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS);
 
@@ -125,6 +141,7 @@ class MetalOperationParityMatrixTest {
         assertTrue(markdown.contains("| POW | yes | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| EXPAND | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| SELECT | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| CAST | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| SCATTER_ADD | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| GATHER_GRAD | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));

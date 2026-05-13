@@ -20,6 +20,7 @@ import operations.elementwise.unary.clampMax;
 import operations.elementwise.unary.clampMin;
 import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.pow;
+import operations.dtype.cast;
 import operations.elementwise.binary.maxGrad;
 import operations.elementwise.binary.minGrad;
 import operations.index.gather;
@@ -2376,6 +2377,7 @@ public final class AcceleratorSubgraphLowerer {
             case CONCAT -> AcceleratorDagNodeType.CONCAT;
             case PAD -> AcceleratorDagNodeType.PAD;
             case TILE -> AcceleratorDagNodeType.TILE;
+            case CAST -> AcceleratorDagNodeType.CAST;
             case MUL_SCALAR -> AcceleratorDagNodeType.MUL_SCALAR;
             case POW -> AcceleratorDagNodeType.POW_SCALAR;
             case WHERE -> AcceleratorDagNodeType.WHERE;
@@ -2536,10 +2538,30 @@ public final class AcceleratorSubgraphLowerer {
                 }
                 return out;
             }
+            case CAST -> {
+                if (!(node.operation() instanceof cast op)) {
+                    return null;
+                }
+                out[0] = dtypeAbiCode(op.getTargetType());
+                return out[0] == 0 ? null : out;
+            }
             default -> {
                 return out;
             }
         }
+    }
+
+    private int dtypeAbiCode(DataType dtype) {
+        if (dtype == null) {
+            return 0;
+        }
+        return switch (dtype) {
+            case FLOAT32 -> 1;
+            case BOOL -> 2;
+            case BFLOAT16 -> 3;
+            case INT32 -> 4;
+            case FLOAT64 -> 5;
+        };
     }
 
     private int encodeSelectMode(CompiledNode node, PartitionPlanningContext context) {

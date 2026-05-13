@@ -15,5 +15,6 @@ public enum GpuLoweringOperationFamily {
     CONV_POOL,
     INDEX_SCATTER_GATHER,
     COMPARE_BOOL,
+    DTYPE_CONVERSION,
     BACKWARD_ADJACENT
 }
