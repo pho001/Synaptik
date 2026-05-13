@@ -93,7 +93,7 @@ Generated from `MetalOperationParityMatrix`; do not hand-edit status rows.
 | EXPAND | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | Metal MPSGraph layout path maps broadcast EXPAND and single-index SELECT into native accelerator DAG shape ops |
 | SELECT | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | Metal MPSGraph layout path maps broadcast EXPAND and single-index SELECT into native accelerator DAG shape ops |
 | SLICE | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | Metal MPSGraph layout path supports dense FLOAT32/BFLOAT16 static slice, concat, constant pad, and tile descriptors |
-| SLICE_GRAD | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
+| SLICE_GRAD | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | Metal SLICE_GRAD supports static dense FLOAT32/BFLOAT16 step=1 backward layout writes by lowering to zero-fill pad with explicit before/after attributes |
 | CONCAT | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | Metal MPSGraph layout path supports dense FLOAT32/BFLOAT16 static slice, concat, constant pad, and tile descriptors |
 | PAD | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | Metal MPSGraph layout path supports dense FLOAT32/BFLOAT16 static slice, concat, constant pad, and tile descriptors |
 | TILE | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | Metal MPSGraph layout path supports dense FLOAT32/BFLOAT16 static slice, concat, constant pad, and tile descriptors |

@@ -430,7 +430,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                 return true;
             }
             switch (node.type()) {
-                case GATHER_AXIS, GATHER_AXIS_GRAD, SLICE, CONCAT, PAD, TILE -> {
+                case GATHER_AXIS, GATHER_AXIS_GRAD, SLICE, SLICE_GRAD, CONCAT, PAD, TILE -> {
                     return true;
                 }
                 default -> {

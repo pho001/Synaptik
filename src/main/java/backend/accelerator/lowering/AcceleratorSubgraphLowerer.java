@@ -32,6 +32,7 @@ import operations.layout.pad;
 import operations.layout.permute;
 import operations.layout.select;
 import operations.layout.slice;
+import operations.layout.sliceGrad;
 import operations.layout.squeeze;
 import operations.layout.tile;
 import operations.nn.conv.conv2d;
@@ -868,7 +869,7 @@ public final class AcceleratorSubgraphLowerer {
                 return null;
             }
             int scalarValueBits = resolveScalarValueBits(node, context);
-            int[] attributes = resolveNodeAttributes(node);
+            int[] attributes = resolveNodeAttributes(node, context);
             if (type == AcceleratorDagNodeType.PERMUTE && scalarValueBits == Integer.MIN_VALUE) {
                 return null;
             }
@@ -1576,6 +1577,7 @@ public final class AcceleratorSubgraphLowerer {
 
     private boolean isAttributeEncodedLayout(AcceleratorDagNodeType type) {
         return type == AcceleratorDagNodeType.SLICE
+                || type == AcceleratorDagNodeType.SLICE_GRAD
                 || type == AcceleratorDagNodeType.PAD
                 || type == AcceleratorDagNodeType.TILE;
     }
@@ -2374,6 +2376,7 @@ public final class AcceleratorSubgraphLowerer {
             case EXPAND_DIMS -> AcceleratorDagNodeType.EXPAND_DIMS;
             case SQUEEZE -> AcceleratorDagNodeType.SQUEEZE;
             case SLICE -> AcceleratorDagNodeType.SLICE;
+            case SLICE_GRAD -> AcceleratorDagNodeType.SLICE_GRAD;
             case CONCAT -> AcceleratorDagNodeType.CONCAT;
             case PAD -> AcceleratorDagNodeType.PAD;
             case TILE -> AcceleratorDagNodeType.TILE;
@@ -2486,7 +2489,7 @@ public final class AcceleratorSubgraphLowerer {
         };
     }
 
-    private int[] resolveNodeAttributes(CompiledNode node) {
+    private int[] resolveNodeAttributes(CompiledNode node, PartitionPlanningContext context) {
         if (node == null || node.operation() == null) {
             return null;
         }
@@ -2507,6 +2510,49 @@ public final class AcceleratorSubgraphLowerer {
                         return null;
                     }
                     out[axes[i]] = starts[i];
+                }
+                return out;
+            }
+            case SLICE_GRAD -> {
+                if (!(node.operation() instanceof sliceGrad op) || context == null || node.inputIds().size() != 1) {
+                    return null;
+                }
+                CompiledNode input = context.compiledNode(node.inputIds().getFirst());
+                if (input == null) {
+                    return null;
+                }
+                int[] gradShape = context.descriptor(input.id()).shape();
+                int[] inputShape = op.getInputShape();
+                int[] starts = op.getStarts();
+                int[] axes = op.getAxes();
+                int[] steps = op.getSteps();
+                if (inputShape.length < 1 || inputShape.length > 4
+                        || gradShape.length != inputShape.length
+                        || starts.length != axes.length
+                        || steps.length != axes.length
+                        || axes.length > 4) {
+                    return null;
+                }
+                boolean[] seenAxes = new boolean[inputShape.length];
+                int[] before = new int[inputShape.length];
+                for (int i = 0; i < axes.length; i++) {
+                    int axis = axes[i];
+                    if (axis < 0 || axis >= inputShape.length || seenAxes[axis] || steps[i] != 1 || starts[i] < 0) {
+                        return null;
+                    }
+                    seenAxes[axis] = true;
+                    before[axis] = starts[i];
+                }
+                for (int d = 0; d < inputShape.length; d++) {
+                    if (!seenAxes[d] && gradShape[d] != inputShape[d]) {
+                        return null;
+                    }
+                    int after = inputShape[d] - before[d] - gradShape[d];
+                    if (after < 0) {
+                        return null;
+                    }
+                    out[d] = before[d];
+                    out[d + 4] = after;
                 }
                 return out;
             }

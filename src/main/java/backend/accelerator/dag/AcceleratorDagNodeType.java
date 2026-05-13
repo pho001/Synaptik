@@ -84,7 +84,8 @@ public enum AcceleratorDagNodeType {
     REDUCE_PROD(78),
     ARGMAX(79),
     CUMSUM(80),
-    CAST(81);
+    CAST(81),
+    SLICE_GRAD(82);
 
     private final int abiCode;
 

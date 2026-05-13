@@ -441,6 +441,21 @@ class GpuLoweringCoverageMatrixTest {
     }
 
     @Test
+    void sliceGradCoverageIsScopedToMetalPadBasedBackwardLayoutPolicy() {
+        GpuLoweringCoverageEntry metal = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, Operation.OpType.SLICE_GRAD);
+        assertEquals(GpuLoweringCoverageStatus.SUPPORTED, metal.status());
+        assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, metal.reason());
+        assertEquals(GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT, metal.family());
+        assertTrue(metal.note().contains("step=1"));
+        assertTrue(metal.note().contains("zero-fill pad"));
+
+        GpuLoweringCoverageEntry cuda = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_CUDA, Operation.OpType.SLICE_GRAD);
+        assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, cuda.status());
+        assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_OPERATION, cuda.reason());
+        assertEquals(GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT, cuda.family());
+    }
+
+    @Test
     void phaseSeventeenNonSupportedRowsUseStableReasonCodes() {
         for (ComputeBackend backend : List.of(ComputeBackend.GPU_METAL, ComputeBackend.GPU_CUDA)) {
             List<Operation.OpType> nonSupportedOps = backend == ComputeBackend.GPU_METAL

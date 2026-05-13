@@ -103,6 +103,7 @@ public final class MetalOperationParityMatrix {
             Operation.OpType.EXPAND,
             Operation.OpType.SELECT,
             Operation.OpType.SLICE,
+            Operation.OpType.SLICE_GRAD,
             Operation.OpType.CONCAT,
             Operation.OpType.PAD,
             Operation.OpType.TILE,

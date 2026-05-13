@@ -1255,6 +1255,27 @@ static void *SynaptikCompilePartition(
                     outTensor = [graph castTensor:input0 toType:targetType name:@"cast"];
                     break;
                 }
+                case 82: {
+                    if (@available(macOS 12.3, iOS 15.4, tvOS 15.4, *)) {
+                        if (input0.shape == nil) return NULL;
+                        NSUInteger rank = input0.shape.count;
+                        NSMutableArray<NSNumber *> *leftPadding = [NSMutableArray arrayWithCapacity:rank];
+                        NSMutableArray<NSNumber *> *rightPadding = [NSMutableArray arrayWithCapacity:rank];
+                        for (NSUInteger d = 0; d < rank; d++) {
+                            [leftPadding addObject:@(SynaptikNodeAttribute(node_int_attributes, i, (int32_t) d))];
+                            [rightPadding addObject:@(SynaptikNodeAttribute(node_int_attributes, i, (int32_t) d + 4))];
+                        }
+                        outTensor = [graph padTensor:input0
+                                     withPaddingMode:MPSGraphPaddingModeConstant
+                                         leftPadding:leftPadding
+                                        rightPadding:rightPadding
+                                       constantValue:0.0
+                                                name:@"slice_grad"];
+                    } else {
+                        return NULL;
+                    }
+                    break;
+                }
                 case 52: {
                     if (input1 == nil) return NULL;
                     if (@available(macOS 12.3, iOS 15.4, tvOS 15.4, *)) {

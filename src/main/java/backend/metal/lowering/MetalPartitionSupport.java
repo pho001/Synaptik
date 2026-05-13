@@ -17,6 +17,7 @@ import operations.linalg.scaledDotProductAttention;
 import operations.layout.concat;
 import operations.layout.pad;
 import operations.layout.slice;
+import operations.layout.sliceGrad;
 import operations.layout.tile;
 import operations.normalization.layerNorm;
 import operations.normalization.rmsNorm;
@@ -344,7 +345,7 @@ public final class MetalPartitionSupport {
             return false;
         }
         return switch (node.operation().opType()) {
-            case RESHAPE, PERMUTE, CONTIGUOUS, EXPAND, EXPAND_DIMS, SQUEEZE, SLICE, PAD, TILE -> true;
+            case RESHAPE, PERMUTE, CONTIGUOUS, EXPAND, EXPAND_DIMS, SQUEEZE, SLICE, SLICE_GRAD, PAD, TILE -> true;
             default -> false;
         };
     }
@@ -479,6 +480,7 @@ public final class MetalPartitionSupport {
 
     private static boolean isSupportedLayoutOp(Operation.OpType opType) {
         return opType == Operation.OpType.SLICE
+                || opType == Operation.OpType.SLICE_GRAD
                 || opType == Operation.OpType.CONCAT
                 || opType == Operation.OpType.PAD
                 || opType == Operation.OpType.TILE;
@@ -499,6 +501,7 @@ public final class MetalPartitionSupport {
         }
         return switch (opType) {
             case SLICE -> sliceUnsupportedReason(node, context, dtype, outputShape);
+            case SLICE_GRAD -> sliceGradUnsupportedReason(node, context, dtype, outputShape);
             case CONCAT -> concatUnsupportedReason(node, context, dtype, outputShape);
             case PAD -> padUnsupportedReason(node, context, dtype, outputShape);
             case TILE -> tileUnsupportedReason(node, context, dtype, outputShape);
@@ -544,6 +547,71 @@ public final class MetalPartitionSupport {
             }
             if (starts[i] < 0 || ends[i] < starts[i] || ends[i] > inputShape[axis]) {
                 return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE start/end must be statically in bounds";
+            }
+        }
+        return "";
+    }
+
+    private static String sliceGradUnsupportedReason(CompiledNode node, PartitionPlanningContext context, tensor.DataType dtype, int[] outputShape) {
+        if (!(node.operation() instanceof sliceGrad op)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD descriptor is unavailable";
+        }
+        if (node.inputIds().size() != 1) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD requires one input gradient";
+        }
+        if (!dense(context, node)) {
+            return "UNSUPPORTED_LAYOUT: GPU_METAL SLICE_GRAD output requires dense layout";
+        }
+        CompiledNode input = context.compiledNode(node.inputIds().getFirst());
+        if (input == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD input gradient is unavailable";
+        }
+        if (dataType(context, input) != dtype) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL SLICE_GRAD input/output dtype must match";
+        }
+        if (!layoutInputSupported(context, input)) {
+            return "UNSUPPORTED_LAYOUT: GPU_METAL SLICE_GRAD input requires dense layout or GPU-side layout producer";
+        }
+        int[] gradShape = shape(context, input);
+        int[] inputShape = op.getInputShape();
+        if (inputShape.length < 1 || inputShape.length > 4
+                || outputShape.length != inputShape.length
+                || gradShape.length != inputShape.length
+                || !Arrays.equals(outputShape, inputShape)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD inputShape/output/gradient ranks must match rank 1..4";
+        }
+        int[] starts = op.getStarts();
+        int[] axes = op.getAxes();
+        int[] steps = op.getSteps();
+        if (starts.length != axes.length || steps.length != axes.length || axes.length > 4) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD requires aligned starts/axes/steps";
+        }
+        boolean[] seenAxes = new boolean[inputShape.length];
+        int[] before = new int[inputShape.length];
+        for (int i = 0; i < axes.length; i++) {
+            int axis = axes[i];
+            if (axis < 0 || axis >= inputShape.length) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD axis is outside input rank";
+            }
+            if (seenAxes[axis]) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD duplicate axes are unsupported";
+            }
+            seenAxes[axis] = true;
+            if (steps[i] != 1) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD supports step=1 only";
+            }
+            if (starts[i] < 0 || starts[i] > inputShape[axis]) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD starts must be statically in bounds";
+            }
+            before[axis] = starts[i];
+        }
+        for (int d = 0; d < inputShape.length; d++) {
+            if (!seenAxes[d] && gradShape[d] != inputShape[d]) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD unsliced dimensions must match original input shape";
+            }
+            int after = inputShape[d] - before[d] - gradShape[d];
+            if (after < 0) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD gradient shape must fit original input shape";
             }
         }
         return "";

@@ -41,6 +41,7 @@ Phase 44 adds a real scoped custom Metal kernel route on top of the MPSGraph cov
 | matmul/linear | `MATMUL`, `LINEAR` | supported | `SUPPORTED` |
 | elementwise chains | `ADD`, `SUB`, `MUL`, `DIV`, `RELU`, `TANH`, `SIGMOID`, `ABS`, `EXP`, `LOG`, `NEG`, `SQRT`, `INV`, `MUL_SCALAR`, `WHERE`, `CLAMP_MIN`, `CLAMP_MAX` | supported | `SUPPORTED` |
 | layout/view-adjacent nodes | `RESHAPE`, `CONTIGUOUS`, `NOOP`, `PERMUTE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `SLICE`, `CONCAT`, `PAD`, `TILE` | supported | `SUPPORTED`; router distinguishes metadata-only views, dense materialization, broadcast materialization, and unsupported strided compute. Static Metal layout descriptors support dense `FLOAT32`/`BFLOAT16` slice with `step=1`, concat, constant pad, and tile. |
+| backward layout writes | `SLICE_GRAD` | supported | `SUPPORTED`; scoped static dense `FLOAT32`/`BFLOAT16` `step=1` slice gradients lower to zero-fill pad with explicit before/after attributes. Strided slice gradients and unsupported dtypes remain visible rejections. |
 | dtype conversion | `CAST` | supported | `SUPPORTED`; scoped explicit cast-pair policy supports identity casts plus `FLOAT32 <-> BFLOAT16` conversion. `FLOAT64`, runtime `INT64`, and general `BOOL`/`INT32` numeric casts remain unsupported. |
 | softmax/log-softmax-ish flows | `SOFTMAX` | supported | `SUPPORTED` |
 | softmax/log-softmax-ish flows | `LOG_SOFTMAX` | supported | `SUPPORTED`; lowered as SOFTMAX followed by LOG |

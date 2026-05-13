@@ -26,6 +26,7 @@ import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
 import graph.optimizer.partition.PartitionPlanningContext;
 import operations.Operation;
+import operations.layout.sliceGrad;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -702,6 +703,52 @@ class MetalMpsFfmBridgeTest {
         }, padDestination.getFloat32Data(), 0.0f);
         assertArrayEquals(new float[]{1f, 2f, 3f, 1f, 2f, 3f}, tileDestination.getFloat32Data(), 0.0f);
         assertArrayEquals(new float[]{1f, 2f, 5f, 6f, 3f, 4f, 7f, 8f}, concatDestination.getFloat32Data(), 0.0f);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsSliceGradAsZeroPad() {
+        Tensor outGrad = new Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, null, "metal72NativeSliceGradOutGrad", DataType.FLOAT32);
+        Tensor sliceGrad = TensorPrimitiveBuilder.unaryNoGrad(
+                outGrad,
+                new int[]{2, 4},
+                new sliceGrad(new int[]{0, 1}, new int[]{0, 1}, new int[]{1, 1}, new int[]{2, 4}),
+                "metal72NativeSliceGrad",
+                DataType.FLOAT32
+        );
+        Tensor destination = executeF32LoweredNode(
+                sliceGrad,
+                Operation.OpType.SLICE_GRAD,
+                List.of(outGrad),
+                new int[]{2, 4}
+        );
+
+        assertArrayEquals(new float[]{
+                0f, 10f, 20f, 0f,
+                0f, 30f, 40f, 0f
+        }, destination.getFloat32Data(), 0.0f);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsBfloat16SliceGradAsZeroPad() {
+        Tensor outGrad = bf16Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, "metal72NativeBf16SliceGradOutGrad");
+        Tensor sliceGrad = TensorPrimitiveBuilder.unaryNoGrad(
+                outGrad,
+                new int[]{2, 4},
+                new sliceGrad(new int[]{0, 1}, new int[]{0, 1}, new int[]{1, 1}, new int[]{2, 4}),
+                "metal72NativeBf16SliceGrad",
+                DataType.BFLOAT16
+        );
+        Tensor destination = executeBf16LoweredNode(
+                sliceGrad,
+                Operation.OpType.SLICE_GRAD,
+                List.of(outGrad),
+                new int[]{2, 4}
+        );
+
+        assertBf16Close(new float[]{
+                0f, 10f, 20f, 0f,
+                0f, 30f, 40f, 0f
+        }, destination, BF16_EXACT_STORAGE_TOLERANCE);
     }
 
     @Test

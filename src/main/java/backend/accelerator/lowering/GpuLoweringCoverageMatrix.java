@@ -161,6 +161,10 @@ public final class GpuLoweringCoverageMatrix {
                     Operation.OpType.CONCAT,
                     Operation.OpType.PAD,
                     Operation.OpType.TILE);
+            add(entries, backend, Operation.OpType.SLICE_GRAD, GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT,
+                    GpuLoweringCoverageStatus.SUPPORTED,
+                    GpuLoweringUnsupportedReason.SUPPORTED,
+                    "Metal SLICE_GRAD supports static dense FLOAT32/BFLOAT16 step=1 backward layout writes by lowering to zero-fill pad with explicit before/after attributes");
         }
         if (backend == ComputeBackend.GPU_METAL) {
             add(entries, backend, Operation.OpType.CAST, GpuLoweringOperationFamily.DTYPE_CONVERSION,
@@ -650,6 +654,7 @@ public final class GpuLoweringCoverageMatrix {
                     CONV2D_BACKWARD_WEIGHT_GEMM, MAX_POOL2D, MAX_POOL2D_BACKWARD_INPUT, AVG_POOL2D,
                     AVG_POOL2D_BACKWARD_INPUT -> GpuLoweringOperationFamily.CONV_POOL;
             case GATHER, GATHER_GRAD, GATHER_AXIS, GATHER_AXIS_GRAD, GATHER_ND, GATHER_ND_GRAD, TAKE_ALONG_AXIS, TAKE_ALONG_AXIS_GRAD, SCATTER_ADD, SCATTER_ELEMENTS, SCATTER_ND -> GpuLoweringOperationFamily.INDEX_SCATTER_GATHER;
+            case SLICE_GRAD -> GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT;
             case REDUCE_MIN_GRAD, REDUCE_MAX_GRAD, MIN_GRAD, MAX_GRAD -> GpuLoweringOperationFamily.BACKWARD_ADJACENT;
             default -> GpuLoweringOperationFamily.ELEMENTWISE_CHAIN;
         };

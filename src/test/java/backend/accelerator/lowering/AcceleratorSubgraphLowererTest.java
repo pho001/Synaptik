@@ -13,6 +13,7 @@ import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
 import graph.optimizer.partition.PartitionPlanningContext;
 import operations.Operation;
+import operations.layout.sliceGrad;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -114,6 +115,34 @@ class AcceleratorSubgraphLowererTest {
         assertEquals(AcceleratorDagNodeType.CAST, result.dagSpec().nodes().getFirst().type());
         assertEquals(DataType.BFLOAT16, result.dagSpec().nodes().getFirst().outputDataType());
         assertEquals(3, result.dagSpec().nodes().getFirst().attribute0());
+        assertEquals(List.of(node.id()), result.dagSpec().outputNodeIds());
+    }
+
+    @Test
+    void sliceGradLowersWithPadAttributes() {
+        Tensor outGrad = new Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, null, "sliceGradLowerInput", DataType.FLOAT32);
+        Tensor grad = TensorPrimitiveBuilder.unaryNoGrad(
+                outGrad,
+                new int[]{2, 4},
+                new sliceGrad(new int[]{0, 1}, new int[]{0, 1}, new int[]{1, 1}, new int[]{2, 4}),
+                "sliceGradLower",
+                DataType.FLOAT32
+        );
+        PartitionPlanningContext context = planningContext(grad);
+        CompiledNode node = context.compiledNode(nodeId(context, Operation.OpType.SLICE_GRAD));
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                spec(node),
+                context
+        );
+
+        assertNotNull(result);
+        assertEquals(AcceleratorDagNodeType.SLICE_GRAD, result.dagSpec().nodes().getFirst().type());
+        assertEquals(0, result.dagSpec().nodes().getFirst().attribute0());
+        assertEquals(1, result.dagSpec().nodes().getFirst().attribute1());
+        assertEquals(0, result.dagSpec().nodes().getFirst().attribute4());
+        assertEquals(1, result.dagSpec().nodes().getFirst().attribute5());
         assertEquals(List.of(node.id()), result.dagSpec().outputNodeIds());
     }
 

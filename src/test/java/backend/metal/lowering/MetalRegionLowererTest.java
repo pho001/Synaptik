@@ -8,6 +8,7 @@ import backend.accelerator.dag.AcceleratorDagNodeType;
 import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
 import backend.accelerator.lowering.AcceleratorSubgraphLowerer;
+import backend.accelerator.lowering.AcceleratorSubgraphLoweringResult;
 import backend.accelerator.lowering.GpuCompoundLoweringArtifact;
 import backend.accelerator.lowering.GpuCompoundPatternType;
 import backend.accelerator.lowering.GpuLoweringCoverageMatrix;
@@ -38,6 +39,7 @@ import operations.elementwise.where.where;
 import operations.index.gatherAxisGrad;
 import operations.index.gatherGrad;
 import operations.index.takeAlongAxisGrad;
+import operations.layout.sliceGrad;
 import operations.nn.conv.conv2d;
 import operations.nn.conv.conv2dGemm;
 import operations.nn.pool.maxPool2d;
@@ -731,6 +733,109 @@ class MetalRegionLowererTest {
         ));
         assertTrue(planFor(concat, Operation.OpType.CONCAT).lowering().dagSpec().nodes().stream()
                 .anyMatch(node -> node.type() == AcceleratorDagNodeType.CONCAT && node.scalarValueBits() == 1));
+    }
+
+    @Test
+    void metalSliceGradSupportsStaticStepOnePadBasedSubset() {
+        Tensor outGrad = new Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, null, "metal72SliceGradOutGrad", DataType.FLOAT32);
+        Tensor grad = TensorPrimitiveBuilder.unaryNoGrad(
+                outGrad,
+                new int[]{2, 4},
+                new sliceGrad(new int[]{0, 1}, new int[]{0, 1}, new int[]{1, 1}, new int[]{2, 4}),
+                "metal72SliceGrad",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(grad, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext context = planningContext(grad);
+
+        assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(
+                context.compiledNode(nodeId(context, Operation.OpType.SLICE_GRAD)),
+                context
+        ));
+        assertTrue(planFor(grad, Operation.OpType.SLICE_GRAD).lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.SLICE_GRAD
+                        && node.attribute0() == 0
+                        && node.attribute1() == 1
+                        && node.attribute4() == 0
+                        && node.attribute5() == 1));
+    }
+
+    @Test
+    void metalSliceGradCanLowerAfterElementwiseProducerWithoutCpuBoundary() {
+        Tensor outGrad = new Tensor(new float[]{-1f, 20f, 30f, -4f}, new int[]{2, 2}, null, "metal72SliceGradChainOutGrad", DataType.FLOAT32);
+        Tensor relu = outGrad.relu();
+        Tensor grad = TensorPrimitiveBuilder.unaryNoGrad(
+                relu,
+                new int[]{2, 4},
+                new sliceGrad(new int[]{0, 1}, new int[]{0, 1}, new int[]{1, 1}, new int[]{2, 4}),
+                "metal72SliceGradChain",
+                DataType.FLOAT32
+        );
+        PartitionPlanningContext context = planningContext(grad);
+        int reluNodeId = nodeId(context, Operation.OpType.RELU);
+        int sliceGradNodeId = nodeId(context, Operation.OpType.SLICE_GRAD);
+        List<Integer> selectedNodeIds = List.of(reluNodeId, sliceGradNodeId);
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                new AcceleratorSubgraphSpec(
+                        reluNodeId,
+                        selectedNodeIds,
+                        List.of(
+                                new AcceleratorSubgraphOp(reluNodeId, Operation.OpType.RELU),
+                                new AcceleratorSubgraphOp(sliceGradNodeId, Operation.OpType.SLICE_GRAD)
+                        ),
+                        externalInputNodeIds(context, selectedNodeIds),
+                        List.of(sliceGradNodeId)
+                ),
+                context
+        );
+
+        assertNotNull(result);
+        assertTrue(result.dagSpec().nodes().stream().anyMatch(node -> node.type() == AcceleratorDagNodeType.RELU));
+        assertTrue(result.dagSpec().nodes().stream().anyMatch(node -> node.type() == AcceleratorDagNodeType.SLICE_GRAD));
+        assertEquals(List.of(sliceGradNodeId), result.dagSpec().outputNodeIds());
+    }
+
+    @Test
+    void metalSliceGradRejectsStridedAndUnsupportedDtypeSubsets() {
+        Tensor outGrad = new Tensor(new float[]{10f, 20f}, new int[]{2}, null, "metal72SliceGradRejectOutGrad", DataType.FLOAT32);
+        Tensor stridedGrad = TensorPrimitiveBuilder.unaryNoGrad(
+                outGrad,
+                new int[]{5},
+                new sliceGrad(new int[]{1}, new int[]{0}, new int[]{2}, new int[]{5}),
+                "metal72SliceGradRejectStep",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(stridedGrad, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext stepContext = planningContext(stridedGrad);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        stepContext.compiledNode(nodeId(stepContext, Operation.OpType.SLICE_GRAD)),
+                        stepContext
+                ),
+                "UNSUPPORTED_RANK_OR_SHAPE",
+                "SLICE_GRAD supports step=1 only"
+        );
+
+        Tensor intOutGrad = new Tensor(new int[]{1, 2}, new int[]{2}, null, "metal72SliceGradRejectIntOutGrad", DataType.INT32);
+        Tensor intGrad = TensorPrimitiveBuilder.unaryNoGrad(
+                intOutGrad,
+                new int[]{4},
+                new sliceGrad(new int[]{1}, new int[]{0}, new int[]{1}, new int[]{4}),
+                "metal72SliceGradRejectInt",
+                DataType.INT32
+        );
+        TensorInternalAccess.setBackend(intGrad, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext dtypeContext = planningContext(intGrad);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        dtypeContext.compiledNode(nodeId(dtypeContext, Operation.OpType.SLICE_GRAD)),
+                        dtypeContext
+                ),
+                "UNSUPPORTED_DTYPE",
+                "SLICE_GRAD"
+        );
     }
 
     @Test
@@ -2044,6 +2149,18 @@ class MetalRegionLowererTest {
         MetalPartitionPlan plan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, context);
         assertNotNull(plan);
         return plan;
+    }
+
+    private static List<Integer> externalInputNodeIds(PartitionPlanningContext context, List<Integer> selectedNodeIds) {
+        Set<Integer> selected = Set.copyOf(selectedNodeIds);
+        java.util.LinkedHashSet<Integer> out = new java.util.LinkedHashSet<>();
+        for (int nodeId : selectedNodeIds) {
+            CompiledNode node = context.compiledNode(nodeId);
+            if (node != null) {
+                node.inputIds().stream().filter(inputId -> !selected.contains(inputId)).forEach(out::add);
+            }
+        }
+        return List.copyOf(out);
     }
 
     private static Tensor specialLogSoftmax(Tensor input, int dimension) {
