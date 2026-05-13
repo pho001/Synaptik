@@ -97,6 +97,9 @@ final class OnnxGraphExporter {
             }
             OnnxExportPatternMatch patternMatch = patternMatches.get(tensor);
             if (patternMatch != null) {
+                for (OnnxProto.TensorProto initializer : patternMatch.initializers()) {
+                    graphBuilder.addInitializer(initializer);
+                }
                 graphBuilder.addNode(patternMatch.node());
                 continue;
             }

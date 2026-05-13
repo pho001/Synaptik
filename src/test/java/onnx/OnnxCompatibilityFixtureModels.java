@@ -46,8 +46,14 @@ public final class OnnxCompatibilityFixtureModels {
         add(out, convBiasActivationPool());
         add(out, broadcastBiasWhereTiny());
         add(out, shapeStaticLayoutChain());
+        add(out, multiAxisReductionClassifier());
+        add(out, normalizationResidualBroadcast());
+        add(out, indexSelectScatterTiny());
+        add(out, convPoolGlobalAverageTiny());
         add(out, rejectedNonZeroDynamicShape());
         add(out, rejectedDynamicReduceAxes());
+        add(out, rejectedDynamicSliceParameters());
+        add(out, rejectedRuntimePowExponent());
         return out;
     }
 
@@ -309,6 +315,103 @@ public final class OnnxCompatibilityFixtureModels {
         );
     }
 
+    private static Fixture multiAxisReductionClassifier() {
+        double expected = 4.0d + Math.log(2.0d);
+        OnnxModel model = model("multi_axis_reduction_classifier", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{1, 3}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("w",
+                        new Tensor(new float[]{
+                                1f, 0f,
+                                0f, 1f,
+                                1f, 1f
+                        }, new int[]{3, 2}, null, "w", DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("b",
+                        new Tensor(new float[]{0f, -1f}, new int[]{2}, null, "b", DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("axes", new long[]{0, 1}))
+                .addNode(nodeBuilder("gemm", "Gemm", "h0", "x", "w", "b").build())
+                .addNode(nodeBuilder("relu", "Relu", "h1", "h0").build())
+                .addNode(nodeBuilder("reduce_lse", "ReduceLogSumExp", "y", "h1", "axes")
+                        .addAttribute(intAttr("keepdims", 1))
+                        .build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{1, 1})));
+        return executable(
+                "multi_axis_reduction_classifier.onnx",
+                model,
+                Map.of("y", expected(new int[]{1, 1}, DataType.FLOAT32, expected)),
+                Map.of("x", new float[]{1f, 2f, 3f})
+        );
+    }
+
+    private static Fixture normalizationResidualBroadcast() {
+        double high = 0.5d + Math.sqrt(1.5d);
+        OnnxModel model = model("normalization_residual_broadcast", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{1, 3}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("scale",
+                        new Tensor(new float[]{1f, 1f, 1f}, new int[]{3}, null, "scale", DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("bias",
+                        new Tensor(new float[]{0f, 0f, 0f}, new int[]{3}, null, "bias", DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("residual",
+                        new Tensor(new float[]{0.5f, -10f, 0.5f}, new int[]{1, 3}, null, "residual", DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("zero", Tensor.scalar(0.0d, DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("fallback",
+                        new Tensor(new float[]{1f, 1f, 1f}, new int[]{1, 3}, null, "fallback", DataType.FLOAT32)))
+                .addNode(nodeBuilder("layernorm", "LayerNormalization", "norm", "x", "scale", "bias")
+                        .addAttribute(intAttr("axis", -1))
+                        .addAttribute(floatAttr("epsilon", 1.0e-12f))
+                        .build())
+                .addNode(nodeBuilder("residual_add", "Add", "with_residual", "norm", "residual").build())
+                .addNode(nodeBuilder("mask", "Greater", "mask", "with_residual", "zero").build())
+                .addNode(nodeBuilder("where", "Where", "y", "mask", "with_residual", "fallback").build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{1, 3})));
+        return executable(
+                "normalization_residual_broadcast.onnx",
+                model,
+                Map.of("y", expected(new int[]{1, 3}, DataType.FLOAT32, 1.0, 1.0, high)),
+                Map.of("x", new float[]{1f, 2f, 3f})
+        );
+    }
+
+    private static Fixture indexSelectScatterTiny() {
+        OnnxModel model = model("index_select_scatter_tiny", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2, 3}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("indices",
+                        new Tensor(new int[]{2, 0, 1, 2}, new int[]{2, 2}, null, "indices", DataType.INT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("zeros",
+                        new Tensor(new float[6], new int[]{2, 3}, null, "zeros", DataType.FLOAT32)))
+                .addNode(nodeBuilder("gather_elements", "GatherElements", "selected", "x", "indices")
+                        .addAttribute(intAttr("axis", 1))
+                        .build())
+                .addNode(nodeBuilder("scatter_elements", "ScatterElements", "y", "zeros", "indices", "selected")
+                        .addAttribute(intAttr("axis", 1))
+                        .build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 3})));
+        return executable(
+                "index_select_scatter_tiny.onnx",
+                model,
+                Map.of("y", expected(new int[]{2, 3}, DataType.FLOAT32, 1.0, 0.0, 3.0, 0.0, 5.0, 6.0)),
+                Map.of("x", new float[]{1f, 2f, 3f, 4f, 5f, 6f})
+        );
+    }
+
+    private static Fixture convPoolGlobalAverageTiny() {
+        OnnxModel model = model("conv_pool_global_average_tiny", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{1, 1, 3, 3}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("w",
+                        new Tensor(new float[]{1f, 1f, 1f, 1f}, new int[]{1, 1, 2, 2}, null, "w", DataType.FLOAT32)))
+                .addNode(nodeBuilder("conv", "Conv", "conv", "x", "w")
+                        .addAttribute(intsAttr("kernel_shape", 2, 2))
+                        .build())
+                .addNode(nodeBuilder("relu", "Relu", "relu", "conv").build())
+                .addNode(nodeBuilder("global_average_pool", "GlobalAveragePool", "y", "relu").build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{1, 1, 1, 1})));
+        return executable(
+                "conv_pool_global_average_tiny.onnx",
+                model,
+                Map.of("y", expected(new int[]{1, 1, 1, 1}, DataType.FLOAT32, 20.0)),
+                Map.of("x", new float[]{1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f})
+        );
+    }
+
     private static Fixture rejectedNonZeroDynamicShape() {
         OnnxModel model = model("rejected_nonzero_dynamic_shape", graph -> graph
                 .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{3}))
@@ -339,6 +442,39 @@ public final class OnnxCompatibilityFixtureModels {
                 "constant initializer or Constant node",
                 Map.of(),
                 Map.of("x", new float[]{1f, 2f, 3f, 4f, 5f, 6f})
+        );
+    }
+
+    private static Fixture rejectedDynamicSliceParameters() {
+        OnnxModel model = model("rejected_dynamic_slice_parameters", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{4}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("starts", DataType.INT32, new int[]{1}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("ends", new long[]{3}))
+                .addNode(nodeBuilder("slice", "Slice", "y", "x", "starts", "ends").build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{3})));
+        return new Fixture(
+                "rejected_dynamic_slice_parameters.onnx",
+                model,
+                ExpectedStatus.REJECTED_WITH_REASON,
+                "constant initializer or Constant node",
+                Map.of(),
+                Map.of("x", new float[]{1f, 2f, 3f, 4f})
+        );
+    }
+
+    private static Fixture rejectedRuntimePowExponent() {
+        OnnxModel model = model("rejected_runtime_pow_exponent", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("exponent", DataType.FLOAT32, new int[]{1}))
+                .addNode(nodeBuilder("pow", "Pow", "y", "x", "exponent").build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2})));
+        return new Fixture(
+                "rejected_runtime_pow_exponent.onnx",
+                model,
+                ExpectedStatus.REJECTED_WITH_REASON,
+                "scalar initializer or Constant node",
+                Map.of(),
+                Map.of("x", new float[]{2f, 3f})
         );
     }
 

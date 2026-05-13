@@ -206,18 +206,18 @@ public final class OnnxCoverageMatrix {
         addReduction(out, "ReduceMax", Operation.OpType.REDUCE_MAX);
         addReduction(out, "ReduceMin", Operation.OpType.REDUCE_MIN);
         addReduction(out, "ReduceProd", Operation.OpType.REDUCE_PROD);
-        add(out, "ReduceL1", "abs then ReduceSum", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+        add(out, "ReduceL1", "abs then ReduceSum", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
-                "import-only composed lowering; export recognition is not implemented", Operation.OpType.ABS, Operation.OpType.SUM);
-        add(out, "ReduceL2", "mul then ReduceSum then sqrt", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+                "canonical export recognizes abs(x) followed by single-axis sum", Operation.OpType.ABS, Operation.OpType.SUM);
+        add(out, "ReduceL2", "mul then ReduceSum then sqrt", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
-                "import-only composed lowering; final sqrt is applied after all requested axes", Operation.OpType.MUL, Operation.OpType.SUM, Operation.OpType.SQRT);
-        add(out, "ReduceLogSum", "ReduceSum then log", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+                "canonical export recognizes sqrt(sum(x*x)) single-axis pattern", Operation.OpType.MUL, Operation.OpType.SUM, Operation.OpType.SQRT);
+        add(out, "ReduceLogSum", "ReduceSum then log", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
-                "import-only composed lowering; final log is applied after all requested axes", Operation.OpType.SUM, Operation.OpType.LOG);
-        add(out, "ReduceLogSumExp", "exp then ReduceSum then log", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+                "canonical export recognizes log(sum(x)) single-axis pattern", Operation.OpType.SUM, Operation.OpType.LOG);
+        add(out, "ReduceLogSumExp", "exp then ReduceSum then log", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
-                "import-only direct lowering; not numerically stabilized with max-shift yet", Operation.OpType.EXP, Operation.OpType.SUM, Operation.OpType.LOG);
+                "canonical export recognizes log(sum(exp(x))) single-axis pattern; not numerically stabilized with max-shift yet", Operation.OpType.EXP, Operation.OpType.SUM, Operation.OpType.LOG);
         add(out, "ArgMax", "argMax", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.ARGMAX),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.ARGMAX),
@@ -226,10 +226,10 @@ public final class OnnxCoverageMatrix {
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.CUMSUM),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.CUMSUM),
                 "axis input must be a static INT64/INT32 scalar constant; BOOL input is unsupported", Operation.OpType.CUMSUM);
-        add(out, "GlobalAveragePool", "repeated mean over spatial axes", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+        add(out, "GlobalAveragePool", "repeated mean over spatial axes", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.MEAN),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.MEAN),
-                "import-only static rank >= 3 lowering to MEAN", Operation.OpType.MEAN);
+                "canonical export recognizes rank-4 keepdims spatial mean chain", Operation.OpType.MEAN);
         add(out, "Softmax", "softmax", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.SOFTMAX),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.SOFTMAX), "", Operation.OpType.SOFTMAX);
@@ -321,10 +321,15 @@ public final class OnnxCoverageMatrix {
 
     private static boolean roundTripTested(String onnxOp) {
         return switch (onnxOp) {
-            case "Add", "MatMul", "Conv", "LayerNormalization",
+            case "Add", "Sub", "Mul", "Div", "Min", "Max", "Pow",
+                 "Equal", "Greater", "Less", "And", "Or", "Not",
+                 "ReduceSum", "ReduceMean", "ReduceMax", "ReduceMin", "ReduceProd",
+                 "MatMul", "Conv", "LayerNormalization",
                  "GatherElements", "GatherND", "ScatterElements", "ScatterND",
                  "Reciprocal", "Erf", "Floor", "Ceil", "Sign",
-                 "LeakyRelu", "Elu", "HardSigmoid", "Softplus" -> true;
+                 "LeakyRelu", "Elu", "HardSigmoid", "Softplus",
+                 "ReduceL1", "ReduceL2", "ReduceLogSum", "ReduceLogSumExp",
+                 "GlobalAveragePool" -> true;
             default -> false;
         };
     }

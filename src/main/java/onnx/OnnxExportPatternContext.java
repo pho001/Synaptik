@@ -21,4 +21,8 @@ record OnnxExportPatternContext(
     String name(Tensor tensor) {
         return names.nameFor(tensor, id(tensor));
     }
+
+    String auxiliary(String baseName) {
+        return names.auxiliary(baseName);
+    }
 }

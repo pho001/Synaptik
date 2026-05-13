@@ -4,11 +4,14 @@ import operations.Operation;
 import operations.elementwise.unary.clampMax;
 import operations.elementwise.unary.clampMin;
 import operations.elementwise.unary.mulScalar;
+import operations.reduction.mean;
+import operations.reduction.sum;
 import tensor.DataType;
 import tensor.Tensor;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -31,7 +34,27 @@ final class OnnxExportPatternRegistry {
         if (hardSigmoid.isPresent()) {
             return hardSigmoid;
         }
-        return matchSoftplus(tensor, context);
+        Optional<OnnxExportPatternMatch> softplus = matchSoftplus(tensor, context);
+        if (softplus.isPresent()) {
+            return softplus;
+        }
+        Optional<OnnxExportPatternMatch> reduceLogSumExp = matchReduceLogSumExp(tensor, context);
+        if (reduceLogSumExp.isPresent()) {
+            return reduceLogSumExp;
+        }
+        Optional<OnnxExportPatternMatch> reduceLogSum = matchReduceLogSum(tensor, context);
+        if (reduceLogSum.isPresent()) {
+            return reduceLogSum;
+        }
+        Optional<OnnxExportPatternMatch> reduceL2 = matchReduceL2(tensor, context);
+        if (reduceL2.isPresent()) {
+            return reduceL2;
+        }
+        Optional<OnnxExportPatternMatch> reduceL1 = matchReduceL1(tensor, context);
+        if (reduceL1.isPresent()) {
+            return reduceL1;
+        }
+        return matchGlobalAveragePool(tensor, context);
     }
 
     private static Optional<OnnxExportPatternMatch> matchLeakyRelu(Tensor tensor, OnnxExportPatternContext context) {
@@ -159,6 +182,147 @@ final class OnnxExportPatternRegistry {
         consumed.addAll(add.get().consumedTensors());
         consumed.add(exp);
         return Optional.of(new OnnxExportPatternMatch(node("Softplus", tensor, input(exp, 0), context).build(), consumed));
+    }
+
+    private static Optional<OnnxExportPatternMatch> matchReduceL1(Tensor tensor, OnnxExportPatternContext context) {
+        Optional<ReductionMatch> reduce = matchSum(tensor);
+        if (reduce.isEmpty()) {
+            return Optional.empty();
+        }
+        Tensor abs = reduce.get().input();
+        if (!context.canConsume(abs) || !hasOp(abs, Operation.OpType.ABS)) {
+            return Optional.empty();
+        }
+        Set<Tensor> consumed = identitySet();
+        consumed.add(abs);
+        return Optional.of(reduction("ReduceL1", tensor, input(abs, 0), reduce.get(), context, consumed));
+    }
+
+    private static Optional<OnnxExportPatternMatch> matchReduceL2(Tensor tensor, OnnxExportPatternContext context) {
+        if (!hasOp(tensor, Operation.OpType.SQRT)) {
+            return Optional.empty();
+        }
+        Tensor reduceTensor = input(tensor, 0);
+        if (!context.canConsume(reduceTensor)) {
+            return Optional.empty();
+        }
+        Optional<ReductionMatch> reduce = matchSum(reduceTensor);
+        if (reduce.isEmpty()) {
+            return Optional.empty();
+        }
+        Tensor square = reduce.get().input();
+        if (!context.canConsume(square) || !hasOp(square, Operation.OpType.MUL)) {
+            return Optional.empty();
+        }
+        Tensor left = input(square, 0);
+        Tensor right = input(square, 1);
+        if (left != right) {
+            return Optional.empty();
+        }
+        Set<Tensor> consumed = identitySet();
+        consumed.add(reduceTensor);
+        consumed.add(square);
+        return Optional.of(reduction("ReduceL2", tensor, left, reduce.get(), context, consumed));
+    }
+
+    private static Optional<OnnxExportPatternMatch> matchReduceLogSum(Tensor tensor, OnnxExportPatternContext context) {
+        if (!hasOp(tensor, Operation.OpType.LOG)) {
+            return Optional.empty();
+        }
+        Tensor reduceTensor = input(tensor, 0);
+        if (!context.canConsume(reduceTensor)) {
+            return Optional.empty();
+        }
+        Optional<ReductionMatch> reduce = matchSum(reduceTensor);
+        if (reduce.isEmpty()) {
+            return Optional.empty();
+        }
+        Set<Tensor> consumed = identitySet();
+        consumed.add(reduceTensor);
+        return Optional.of(reduction("ReduceLogSum", tensor, reduce.get().input(), reduce.get(), context, consumed));
+    }
+
+    private static Optional<OnnxExportPatternMatch> matchReduceLogSumExp(Tensor tensor, OnnxExportPatternContext context) {
+        if (!hasOp(tensor, Operation.OpType.LOG)) {
+            return Optional.empty();
+        }
+        Tensor reduceTensor = input(tensor, 0);
+        if (!context.canConsume(reduceTensor)) {
+            return Optional.empty();
+        }
+        Optional<ReductionMatch> reduce = matchSum(reduceTensor);
+        if (reduce.isEmpty()) {
+            return Optional.empty();
+        }
+        Tensor exp = reduce.get().input();
+        if (!context.canConsume(exp) || !hasOp(exp, Operation.OpType.EXP)) {
+            return Optional.empty();
+        }
+        Set<Tensor> consumed = identitySet();
+        consumed.add(reduceTensor);
+        consumed.add(exp);
+        return Optional.of(reduction("ReduceLogSumExp", tensor, input(exp, 0), reduce.get(), context, consumed));
+    }
+
+    private static Optional<OnnxExportPatternMatch> matchGlobalAveragePool(Tensor tensor, OnnxExportPatternContext context) {
+        Optional<MeanMatch> second = matchMean(tensor);
+        if (second.isEmpty() || !second.get().keepDims()) {
+            return Optional.empty();
+        }
+        Tensor firstTensor = second.get().input();
+        if (!context.canConsume(firstTensor)) {
+            return Optional.empty();
+        }
+        Optional<MeanMatch> first = matchMean(firstTensor);
+        if (first.isEmpty() || !first.get().keepDims()) {
+            return Optional.empty();
+        }
+        Tensor input = first.get().input();
+        if (input.getShapeUnsafe().length != 4) {
+            return Optional.empty();
+        }
+        int firstAxis = first.get().axis();
+        int secondAxis = second.get().axis();
+        if (!((firstAxis == 2 && secondAxis == 3) || (firstAxis == 3 && secondAxis == 2))) {
+            return Optional.empty();
+        }
+        Set<Tensor> consumed = identitySet();
+        consumed.add(firstTensor);
+        return Optional.of(new OnnxExportPatternMatch(node("GlobalAveragePool", tensor, input, context).build(), consumed));
+    }
+
+    private static Optional<ReductionMatch> matchSum(Tensor tensor) {
+        if (!(tensor.getOperation() instanceof sum reduce)) {
+            return Optional.empty();
+        }
+        return Optional.of(new ReductionMatch(input(tensor, 0), reduce.getDimension(), reduce.keepDims()));
+    }
+
+    private static Optional<MeanMatch> matchMean(Tensor tensor) {
+        if (!(tensor.getOperation() instanceof mean reduce)) {
+            return Optional.empty();
+        }
+        return Optional.of(new MeanMatch(input(tensor, 0), reduce.getDimension(), reduce.keepDims()));
+    }
+
+    private static OnnxExportPatternMatch reduction(
+            String opType,
+            Tensor output,
+            Tensor input,
+            ReductionMatch reduction,
+            OnnxExportPatternContext context,
+            Set<Tensor> consumed
+    ) {
+        String axesName = context.auxiliary(context.name(output) + "_axes");
+        OnnxProto.NodeProto node = node(opType, output, input, context)
+                .addInput(axesName)
+                .addAttribute(intAttr("keepdims", reduction.keepDims() ? 1 : 0))
+                .build();
+        return new OnnxExportPatternMatch(
+                node,
+                consumed,
+                List.of(OnnxTensorProtoUtil.int64Initializer(axesName, new long[]{reduction.axis()}))
+        );
     }
 
     private static Optional<ScaleMatch> matchScale(Tensor tensor, Tensor expectedInput, OnnxExportPatternContext context) {
@@ -290,9 +454,19 @@ final class OnnxExportPatternRegistry {
         return OnnxProto.AttributeProto.newBuilder().setName(name).setF(value).build();
     }
 
+    private static OnnxProto.AttributeProto intAttr(String name, long value) {
+        return OnnxProto.AttributeProto.newBuilder().setName(name).setI(value).build();
+    }
+
     private record ScaleMatch(Tensor input, double scalar, Set<Tensor> consumedTensors) {
     }
 
     private record AddScalarMatch(Tensor nonScalarInput, double scalar, Set<Tensor> consumedTensors) {
+    }
+
+    private record ReductionMatch(Tensor input, int axis, boolean keepDims) {
+    }
+
+    private record MeanMatch(Tensor input, int axis, boolean keepDims) {
     }
 }
