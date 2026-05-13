@@ -203,7 +203,6 @@ public record GpuTargetSemanticsContract(
     }
 
     private static void addIndex(ArrayList<GpuTargetSemanticsContract> out, Operation.OpType opType, String parameter) {
-        boolean tupleRead = opType == Operation.OpType.GATHER_ND;
         boolean tupleGradient = opType == Operation.OpType.GATHER_ND_GRAD;
         boolean writeOrGradient = opType == Operation.OpType.GATHER_GRAD
                 || tupleGradient
@@ -212,9 +211,7 @@ public record GpuTargetSemanticsContract(
                 || opType == Operation.OpType.SCATTER_ELEMENTS
                 || opType == Operation.OpType.SCATTER_ND;
         String blockerReason = "";
-        if (tupleRead) {
-            blockerReason = "UNSUPPORTED_INDEX_SEMANTICS until backend proves tuple-index read, slice suffix addressing, and static bounds checks";
-        } else if (tupleGradient) {
+        if (tupleGradient) {
             blockerReason = "UNSUPPORTED_INDEX_SEMANTICS until backend proves tuple-index duplicate accumulation, slice suffix addressing, and static bounds checks";
         } else if (writeOrGradient) {
             blockerReason = (opType == Operation.OpType.SCATTER_ELEMENTS || opType == Operation.OpType.SCATTER_ND)
@@ -230,7 +227,7 @@ public record GpuTargetSemanticsContract(
                 "output shape must match CPU indexing shape inference; gather-grad and take-along-axis-grad output the original input shape, scatter-add outputs the base shape",
                 parameter,
                 "CPU parity must cover duplicate indices, logical-index accumulation order/tolerance, repeated writes to one destination, and bounds behavior",
-                tupleRead || writeOrGradient,
+                writeOrGradient,
                 blockerReason
         ));
     }

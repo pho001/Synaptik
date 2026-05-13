@@ -127,8 +127,8 @@ public class GpuTargetSemanticsContractTest {
         assertTrue(loss.dtypeContract().contains("admitted Metal loss candidates"));
         assertTrue(loss.numericalContract().contains("ignore-index"));
         assertTrue(gather.dtypeContract().contains("native compute support is operation-specific"));
-        assertTrue(gatherNd.plannerAdmissionBlocked());
-        assertTrue(gatherNd.blockerReason().contains("UNSUPPORTED_INDEX_SEMANTICS"));
+        assertFalse(gatherNd.plannerAdmissionBlocked());
+        assertEquals("", gatherNd.blockerReason());
         assertTrue(gatherNdGrad.plannerAdmissionBlocked());
         assertTrue(gatherNdGrad.blockerReason().contains("UNSUPPORTED_INDEX_SEMANTICS"));
         assertTrue(scatter.numericalContract().contains("duplicate indices"));

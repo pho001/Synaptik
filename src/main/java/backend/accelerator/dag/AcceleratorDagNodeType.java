@@ -89,7 +89,8 @@ public enum AcceleratorDagNodeType {
     ERF(83),
     FLOOR(84),
     CEIL(85),
-    SIGN(86);
+    SIGN(86),
+    GATHER_ND(87);
 
     private final int abiCode;
 

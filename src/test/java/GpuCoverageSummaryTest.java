@@ -166,6 +166,12 @@ public class GpuCoverageSummaryTest {
                     backend == ComputeBackend.GPU_METAL
                             ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
                             : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                    rows.get(operations.Operation.OpType.GATHER_ND).executionStatus()
+            );
+            assertEquals(
+                    backend == ComputeBackend.GPU_METAL
+                            ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
+                            : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
                     rows.get(operations.Operation.OpType.GATHER_GRAD).executionStatus()
             );
             assertEquals(

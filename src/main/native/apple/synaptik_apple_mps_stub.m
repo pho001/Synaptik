@@ -1371,6 +1371,20 @@ static void *SynaptikCompilePartition(
                     }
                     break;
                 }
+                case 87: {
+                    if (input1 == nil) return NULL;
+                    int32_t batchDims = SynaptikDecodeIntScalar(node_scalar_values, i);
+                    NSUInteger valueRank = input0.shape == nil ? 0 : input0.shape.count;
+                    NSUInteger indexRank = input1.shape == nil ? 0 : input1.shape.count;
+                    if (valueRank < 1 || valueRank > 4 || indexRank < 1 || indexRank > 4 || batchDims < 0 || batchDims >= (int32_t) indexRank) {
+                        return NULL;
+                    }
+                    outTensor = [graph gatherNDWithUpdatesTensor:input0
+                                                   indicesTensor:input1
+                                                 batchDimensions:(NSUInteger) batchDims
+                                                            name:@"gather_nd"];
+                    break;
+                }
                 case 63: {
                     if (input1 == nil || input2 == nil) return NULL;
                     if (@available(macOS 12.3, iOS 15.4, tvOS 15.4, *)) {

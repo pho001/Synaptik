@@ -72,6 +72,7 @@ public final class MetalOperationParityMatrix {
             Operation.OpType.REDUCE_ANY,
             Operation.OpType.GATHER,
             Operation.OpType.GATHER_AXIS,
+            Operation.OpType.GATHER_ND,
             Operation.OpType.TAKE_ALONG_AXIS,
             Operation.OpType.GATHER_GRAD,
             Operation.OpType.GATHER_AXIS_GRAD,

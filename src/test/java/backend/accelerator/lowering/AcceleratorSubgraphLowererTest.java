@@ -825,6 +825,31 @@ class AcceleratorSubgraphLowererTest {
     }
 
     @Test
+    void gatherNdLowersToDedicatedDagNodeWithBatchDims() {
+        Tensor data = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f,
+                7f, 8f, 9f,
+                10f, 11f, 12f
+        }, new int[]{2, 2, 3}, null, "gatherNdLowerData", DataType.FLOAT32);
+        Tensor indices = new Tensor(new int[]{1, 0}, new int[]{2, 1, 1}, null, "gatherNdLowerIndices", DataType.INT32);
+        Tensor out = data.gatherNd(indices, 1);
+        PartitionPlanningContext context = planningContext(out);
+        CompiledNode node = context.compiledNode(nodeId(context, Operation.OpType.GATHER_ND));
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                spec(node),
+                context
+        );
+
+        assertNotNull(result);
+        assertEquals(AcceleratorDagNodeType.GATHER_ND, result.dagSpec().nodes().getFirst().type());
+        assertEquals(1, result.dagSpec().nodes().getFirst().scalarValueBits());
+        assertEquals(List.of(node.id()), result.dagSpec().outputNodeIds());
+    }
+
+    @Test
     void phaseNineteenUnsupportedInternalPrimitiveRecordsCandidateShortening() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "phase19ShortenInput", DataType.FLOAT32);
         Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "phase19ShortenGamma", DataType.FLOAT32);

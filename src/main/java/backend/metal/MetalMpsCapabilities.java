@@ -217,7 +217,10 @@ public final class MetalMpsCapabilities {
                     MetalDTypeReasonCode.UNSUPPORTED_EXTERNAL_INPUT_ROLE,
                     "Metal direct SDPA accepts dtype-matched FLOAT32/BFLOAT16 query/key/value inputs and optional dense BOOL mask input");
         }
-        if (opType == Operation.OpType.GATHER || opType == Operation.OpType.GATHER_AXIS || opType == Operation.OpType.TAKE_ALONG_AXIS) {
+        if (opType == Operation.OpType.GATHER
+                || opType == Operation.OpType.GATHER_AXIS
+                || opType == Operation.OpType.GATHER_ND
+                || opType == Operation.OpType.TAKE_ALONG_AXIS) {
             return switch (inputIndex) {
                 case 0 -> isMetalFloatingDType(dtype) && consumer.dataType() == dtype
                         ? supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, true, false,
@@ -563,6 +566,7 @@ public final class MetalMpsCapabilities {
                  CROSS_ENTROPY_LOSS_INDICES_GRAD,
                  GATHER,
                  GATHER_AXIS,
+                 GATHER_ND,
                  TAKE_ALONG_AXIS,
                  SCATTER_ADD,
                  GATHER_GRAD,

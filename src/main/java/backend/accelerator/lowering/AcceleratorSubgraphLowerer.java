@@ -25,6 +25,7 @@ import operations.elementwise.binary.maxGrad;
 import operations.elementwise.binary.minGrad;
 import operations.index.gather;
 import operations.index.gatherAxis;
+import operations.index.gatherNd;
 import operations.index.takeAlongAxis;
 import operations.layout.concat;
 import operations.layout.expandDims;
@@ -1565,6 +1566,7 @@ public final class AcceleratorSubgraphLowerer {
     private boolean isIndexGather(AcceleratorDagNodeType type) {
         return type == AcceleratorDagNodeType.GATHER
                 || type == AcceleratorDagNodeType.GATHER_AXIS
+                || type == AcceleratorDagNodeType.GATHER_ND
                 || type == AcceleratorDagNodeType.TAKE_ALONG_AXIS;
     }
 
@@ -2409,6 +2411,7 @@ public final class AcceleratorSubgraphLowerer {
             case REDUCE_ANY -> AcceleratorDagNodeType.REDUCE_ANY;
             case GATHER -> AcceleratorDagNodeType.GATHER;
             case GATHER_AXIS -> AcceleratorDagNodeType.GATHER_AXIS;
+            case GATHER_ND -> AcceleratorDagNodeType.GATHER_ND;
             case TAKE_ALONG_AXIS -> AcceleratorDagNodeType.TAKE_ALONG_AXIS;
             case SCATTER_ADD -> AcceleratorDagNodeType.SCATTER_ADD;
             case GATHER_GRAD -> AcceleratorDagNodeType.GATHER_GRAD;
@@ -2459,6 +2462,7 @@ public final class AcceleratorSubgraphLowerer {
             case REDUCE_ANY -> node.operation() instanceof reduceAny op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
             case GATHER -> node.operation() instanceof gather op ? op.getDimension() : Integer.MIN_VALUE;
             case GATHER_AXIS -> node.operation() instanceof gatherAxis op ? op.getAxis() : Integer.MIN_VALUE;
+            case GATHER_ND -> node.operation() instanceof gatherNd op ? op.getBatchDims() : Integer.MIN_VALUE;
             case TAKE_ALONG_AXIS -> node.operation() instanceof takeAlongAxis op ? op.getDimension() : Integer.MIN_VALUE;
             case SCATTER_ADD -> node.operation() instanceof operations.index.scatterAdd op ? op.getDimension() : Integer.MIN_VALUE;
             case GATHER_GRAD -> node.operation() instanceof operations.index.gatherGrad op ? op.getDimension() : Integer.MIN_VALUE;

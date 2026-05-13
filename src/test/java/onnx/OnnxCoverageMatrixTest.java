@@ -47,7 +47,7 @@ class OnnxCoverageMatrixTest {
     void matrixSeparatesOnnxCoverageFromGpuCoverage() {
         assertEquals(OnnxCoverageMatrix.CoverageStatus.SUPPORTED,
                 OnnxCoverageMatrix.entryFor("GatherND").importStatus());
-        assertEquals(OnnxCoverageMatrix.CoverageStatus.UNSUPPORTED,
+        assertEquals(OnnxCoverageMatrix.CoverageStatus.SUPPORTED,
                 OnnxCoverageMatrix.entryFor("GatherND").metalStatus());
         assertEquals(OnnxCoverageMatrix.CoverageStatus.SUPPORTED,
                 OnnxCoverageMatrix.entryFor("Conv").metalStatus());

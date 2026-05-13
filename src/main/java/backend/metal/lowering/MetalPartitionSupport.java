@@ -12,6 +12,7 @@ import graph.optimizer.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.index.gather;
 import operations.index.gatherAxis;
+import operations.index.gatherNd;
 import operations.index.takeAlongAxis;
 import operations.linalg.scaledDotProductAttention;
 import operations.layout.concat;
@@ -163,6 +164,12 @@ public final class MetalPartitionSupport {
         }
         if (opType == Operation.OpType.GATHER || opType == Operation.OpType.GATHER_AXIS || opType == Operation.OpType.TAKE_ALONG_AXIS) {
             String indexReason = indexGatherUnsupportedReason(node, context);
+            if (!indexReason.isBlank()) {
+                return indexReason;
+            }
+        }
+        if (opType == Operation.OpType.GATHER_ND) {
+            String indexReason = gatherNdUnsupportedReason(node, context);
             if (!indexReason.isBlank()) {
                 return indexReason;
             }
@@ -470,6 +477,135 @@ public final class MetalPartitionSupport {
             int index = data[i];
             if (index < 0 || index >= axisSize) {
                 return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index " + index + " is outside axis size " + axisSize;
+            }
+        }
+        return "";
+    }
+
+    private static String gatherNdUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
+        Operation.OpType opType = Operation.OpType.GATHER_ND;
+        if (node.backwardNode()) {
+            return "BACKWARD_CONTEXT_UNSUPPORTED: forward GATHER_ND nodes are not legal inside Metal backward regions";
+        }
+        if (!(node.operation() instanceof gatherNd gatherOp)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_ND descriptor is unavailable";
+        }
+        if (context == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_ND requires planning context";
+        }
+        if (node.inputIds().size() != 2) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_ND requires value and INT32 index inputs";
+        }
+        CompiledNode value = context.compiledNode(node.inputIds().get(0));
+        CompiledNode indices = context.compiledNode(node.inputIds().get(1));
+        if (value == null || indices == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_ND inputs are unavailable";
+        }
+        tensor.DataType dtype = dataType(context, node);
+        if (!isMetalFloatingDType(dtype) || dataType(context, value) != dtype) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL GATHER_ND requires dtype-matched FLOAT32/BFLOAT16 value/output tensors";
+        }
+        if (dataType(context, indices) != tensor.DataType.INT32) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL GATHER_ND index input requires INT32";
+        }
+        if (!dense(context, value) || !dense(context, indices)) {
+            return "UNSUPPORTED_LAYOUT: GPU_METAL GATHER_ND inputs require dense layout";
+        }
+        int[] valueShape = shape(context, value);
+        int[] indexShape = shape(context, indices);
+        int[] outputShape = shape(context, node);
+        if (valueShape.length < 1 || valueShape.length > 4
+                || indexShape.length < 1 || indexShape.length > 4
+                || outputShape.length < 1 || outputShape.length > 4) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_ND supports rank 1..4 tensors";
+        }
+        int batchDims = gatherOp.getBatchDims();
+        String shapeReason = gatherNdShapeUnsupportedReason(valueShape, indexShape, outputShape, batchDims);
+        if (!shapeReason.isBlank()) {
+            return shapeReason;
+        }
+        String boundsReason = gatherNdBoundsUnsupportedReason(indices, context, valueShape, batchDims, indexShape[indexShape.length - 1], opType);
+        if (!boundsReason.isBlank()) {
+            return boundsReason;
+        }
+        return "";
+    }
+
+    private static String gatherNdShapeUnsupportedReason(int[] valueShape, int[] indexShape, int[] outputShape, int batchDims) {
+        if (batchDims < 0 || batchDims >= indexShape.length) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_ND batchDims must be in [0, indices rank)";
+        }
+        if (batchDims > valueShape.length) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_ND batchDims cannot exceed value rank";
+        }
+        for (int i = 0; i < batchDims; i++) {
+            if (indexShape[i] != valueShape[i]) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_ND batch dimensions must match value leading dimensions";
+            }
+        }
+        int tupleRank = indexShape[indexShape.length - 1];
+        if (tupleRank <= 0 || batchDims + tupleRank > valueShape.length) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_ND final index dimension must be in [1, value rank - batchDims]";
+        }
+        int expectedRank = indexShape.length - 1 + valueShape.length - batchDims - tupleRank;
+        if (expectedRank == 0) {
+            if (outputShape.length == 1 && outputShape[0] == 1) {
+                return "";
+            }
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_ND scalar output must use project scalar shape [1]";
+        }
+        if (outputShape.length != expectedRank) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_ND output rank must equal indices.rank - 1 + value.rank - batchDims - tupleRank";
+        }
+        int p = 0;
+        for (int i = 0; i < indexShape.length - 1; i++) {
+            if (outputShape[p++] != indexShape[i]) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_ND output prefix shape must match indices prefix shape";
+            }
+        }
+        for (int i = batchDims + tupleRank; i < valueShape.length; i++) {
+            if (outputShape[p++] != valueShape[i]) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_ND output suffix shape must match value slice suffix";
+            }
+        }
+        return "";
+    }
+
+    private static String gatherNdBoundsUnsupportedReason(
+            CompiledNode indices,
+            PartitionPlanningContext context,
+            int[] valueShape,
+            int batchDims,
+            int tupleRank,
+            Operation.OpType opType
+    ) {
+        if (!indices.leaf()) {
+            return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index bounds require a static INT32 leaf tensor";
+        }
+        int[] data;
+        try {
+            data = indices.semanticTensor().getInt32Data();
+        } catch (RuntimeException ex) {
+            return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index bounds require readable INT32 storage";
+        }
+        if (data == null) {
+            return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index bounds require readable INT32 storage";
+        }
+        long logicalElements = context.descriptor(indices.id()).logicalElementCount();
+        if (logicalElements < 0 || logicalElements > data.length || logicalElements > Integer.MAX_VALUE) {
+            return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index bounds cannot be proven from storage";
+        }
+        if (logicalElements % tupleRank != 0) {
+            return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index storage is not tuple-aligned";
+        }
+        for (int i = 0; i < (int) logicalElements; i++) {
+            int tupleAxis = i % tupleRank;
+            int valueAxis = batchDims + tupleAxis;
+            int axisSize = valueShape[valueAxis];
+            int index = data[i];
+            if (index < 0 || index >= axisSize) {
+                return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " tuple index " + index
+                        + " is outside axis " + valueAxis + " size " + axisSize;
             }
         }
         return "";

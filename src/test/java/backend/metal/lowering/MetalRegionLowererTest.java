@@ -724,6 +724,45 @@ class MetalRegionLowererTest {
         );
         assertTrue(planFor(bf16Gather, Operation.OpType.GATHER).lowering().dagSpec().nodes().stream()
                 .anyMatch(node -> node.type() == AcceleratorDagNodeType.GATHER && node.outputDataType() == DataType.BFLOAT16));
+
+        Tensor gatherNdData = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f,
+                7f, 8f, 9f,
+                10f, 11f, 12f
+        }, new int[]{2, 2, 3}, null, "metalGatherNdData", DataType.FLOAT32);
+        Tensor gatherNdIndices = new Tensor(new int[]{1, 0}, new int[]{2, 1, 1}, null, "metalGatherNdIndices", DataType.INT32);
+        Tensor gatherNd = gatherNdData.gatherNd(gatherNdIndices, 1);
+        TensorInternalAccess.setBackend(gatherNd, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext gatherNdContext = planningContext(gatherNd);
+        assertEquals(
+                "",
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        gatherNdContext.compiledNode(nodeId(gatherNdContext, Operation.OpType.GATHER_ND)),
+                        gatherNdContext
+                )
+        );
+        assertTrue(planFor(gatherNd, Operation.OpType.GATHER_ND).lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.GATHER_ND && node.scalarValueBits() == 1));
+
+        Tensor bf16GatherNdData = new Tensor(new double[]{
+                1d, 2d, 3d,
+                4d, 5d, 6d,
+                7d, 8d, 9d,
+                10d, 11d, 12d
+        }, new int[]{2, 2, 3}, null, "metalBf16GatherNdData", DataType.BFLOAT16);
+        Tensor bf16GatherNd = bf16GatherNdData.gatherNd(gatherNdIndices, 1);
+        TensorInternalAccess.setBackend(bf16GatherNd, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext bf16GatherNdContext = planningContext(bf16GatherNd);
+        assertEquals(
+                "",
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        bf16GatherNdContext.compiledNode(nodeId(bf16GatherNdContext, Operation.OpType.GATHER_ND)),
+                        bf16GatherNdContext
+                )
+        );
+        assertTrue(planFor(bf16GatherNd, Operation.OpType.GATHER_ND).lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.GATHER_ND && node.outputDataType() == DataType.BFLOAT16));
     }
 
     @Test
@@ -1159,6 +1198,32 @@ class MetalRegionLowererTest {
                 MetalPartitionSupport.plannerUnsupportedReason(indexLayoutContext.compiledNode(nodeId(indexLayoutContext, Operation.OpType.TAKE_ALONG_AXIS)), indexLayoutContext),
                 "UNSUPPORTED_LAYOUT",
                 "inputs require dense layout"
+        );
+
+        Tensor gatherNdNegativeIndices = new Tensor(new int[]{-1, 0}, new int[]{1, 2}, null, "metalGatherNdNegativeIndices", DataType.INT32);
+        Tensor gatherNdNegative = input.gatherNd(gatherNdNegativeIndices);
+        TensorInternalAccess.setBackend(gatherNdNegative, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext gatherNdNegativeContext = planningContext(gatherNdNegative);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        gatherNdNegativeContext.compiledNode(nodeId(gatherNdNegativeContext, Operation.OpType.GATHER_ND)),
+                        gatherNdNegativeContext
+                ),
+                "UNSUPPORTED_BOUNDS_CHECK",
+                "tuple index -1 is outside axis 0 size 2"
+        );
+
+        Tensor dynamicGatherNdIndices = new Tensor(new int[]{1, 0}, new int[]{1, 2}, null, "metalDynamicGatherNdIndices", DataType.INT32).reshape(1, 2);
+        Tensor dynamicGatherNd = input.gatherNd(dynamicGatherNdIndices);
+        TensorInternalAccess.setBackend(dynamicGatherNd, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext dynamicGatherNdContext = planningContext(dynamicGatherNd);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        dynamicGatherNdContext.compiledNode(nodeId(dynamicGatherNdContext, Operation.OpType.GATHER_ND)),
+                        dynamicGatherNdContext
+                ),
+                "UNSUPPORTED_BOUNDS_CHECK",
+                "index bounds require a static INT32 leaf tensor"
         );
     }
 

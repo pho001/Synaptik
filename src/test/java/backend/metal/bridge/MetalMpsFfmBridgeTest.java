@@ -746,6 +746,48 @@ class MetalMpsFfmBridgeTest {
     }
 
     @Test
+    void explicitShimExecuteBuffersSupportsGatherNdWithBatchDims() {
+        Tensor data = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f,
+                7f, 8f, 9f,
+                10f, 11f, 12f
+        }, new int[]{2, 2, 3}, null, "metalGatherNdData", DataType.FLOAT32);
+        Tensor indices = new Tensor(new int[]{1, 0}, new int[]{2, 1, 1}, null, "metalGatherNdIndices", DataType.INT32);
+        Tensor gathered = data.gatherNd(indices, 1);
+
+        Tensor destination = executeF32LoweredNode(
+                gathered,
+                Operation.OpType.GATHER_ND,
+                List.of(data, indices),
+                new int[]{2, 1, 3}
+        );
+
+        assertArrayEquals(new float[]{4f, 5f, 6f, 7f, 8f, 9f}, destination.getFloat32Data(), 0.0f);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsBfloat16GatherNd() {
+        Tensor data = bf16Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f,
+                7f, 8f, 9f,
+                10f, 11f, 12f
+        }, new int[]{2, 2, 3}, "metalBf16GatherNdData");
+        Tensor indices = new Tensor(new int[]{1, 0}, new int[]{2, 1, 1}, null, "metalBf16GatherNdIndices", DataType.INT32);
+        Tensor gathered = data.gatherNd(indices, 1);
+
+        Tensor destination = executeBf16LoweredNode(
+                gathered,
+                Operation.OpType.GATHER_ND,
+                List.of(data, indices),
+                new int[]{2, 1, 3}
+        );
+
+        assertArrayEquals(new float[]{4f, 5f, 6f, 7f, 8f, 9f}, bf16Floats(destination), 0.0f);
+    }
+
+    @Test
     void explicitShimExecuteBuffersSupportsSliceGradAsZeroPad() {
         Tensor outGrad = new Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, null, "metal72NativeSliceGradOutGrad", DataType.FLOAT32);
         Tensor sliceGrad = TensorPrimitiveBuilder.unaryNoGrad(

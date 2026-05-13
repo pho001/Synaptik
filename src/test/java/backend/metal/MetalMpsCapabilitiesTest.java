@@ -32,6 +32,7 @@ class MetalMpsCapabilitiesTest {
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.MATMUL, DataType.BFLOAT16).supported());
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.CONV2D, DataType.BFLOAT16).supported());
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.CROSS_ENTROPY_LOSS_INDICES, DataType.BFLOAT16).supported());
+        assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.GATHER_ND, DataType.BFLOAT16).supported());
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.SCATTER_ADD, DataType.BFLOAT16).supported());
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.GE, DataType.BOOL).supported());
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.LOGICAL_AND, DataType.BOOL).supported());
@@ -147,11 +148,15 @@ class MetalMpsCapabilitiesTest {
         Tensor values = new Tensor(new float[]{1.0f, 2.0f, 3.0f, 4.0f}, new int[]{2, 2}, null, "values", DataType.FLOAT32);
         Tensor indices = new Tensor(new int[]{1, 0}, new int[]{2}, null, "indices", DataType.INT32);
         Tensor gathered = values.gather(indices, 1);
+        Tensor gatherNd = values.gatherNd(new Tensor(new int[]{1, 0}, new int[]{1, 2}, null, "gatherNdIndices", DataType.INT32));
         List<CompiledNode> nodes = CompiledNode.snapshot(List.of(values, indices, gathered));
+        List<CompiledNode> gatherNdNodes = CompiledNode.snapshot(gatherNd.topologicalSort());
 
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(nodes.get(0), nodes.get(2), 0).supported());
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(nodes.get(1), nodes.get(2), 1).supported());
         assertFalse(MetalMpsCapabilities.externalInputRoleDecision(nodes.get(1), nodes.get(2), 0).supported());
+        assertTrue(MetalMpsCapabilities.externalInputRoleDecision(gatherNdNodes.get(0), gatherNdNodes.get(2), 0).supported());
+        assertTrue(MetalMpsCapabilities.externalInputRoleDecision(gatherNdNodes.get(1), gatherNdNodes.get(2), 1).supported());
 
         Tensor where = Tensor.where(
                 new Tensor(new byte[]{1, 0}, new int[]{2}, null, "mask", DataType.BOOL),

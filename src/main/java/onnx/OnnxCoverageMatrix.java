@@ -195,7 +195,7 @@ public final class OnnxCoverageMatrix {
         add(out, "GatherND", "gatherNd", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.GATHER_ND),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.GATHER_ND),
-                "runtime indices are INT32; batch_dims supported", Operation.OpType.GATHER_ND);
+                "runtime indices are INT32; batch_dims supported; Metal supports dense FLOAT32/BFLOAT16 values with static non-negative in-bounds INT32 tuple indices", Operation.OpType.GATHER_ND);
         add(out, "ScatterElements", "scatterElements", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.SCATTER_ELEMENTS),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.SCATTER_ELEMENTS),

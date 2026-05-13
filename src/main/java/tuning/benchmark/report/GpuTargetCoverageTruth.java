@@ -43,6 +43,7 @@ public final class GpuTargetCoverageTruth {
             Operation.OpType.MAX_POOL2D,
             Operation.OpType.AVG_POOL2D,
             Operation.OpType.GATHER,
+            Operation.OpType.GATHER_ND,
             Operation.OpType.GATHER_GRAD,
             Operation.OpType.TAKE_ALONG_AXIS,
             Operation.OpType.TAKE_ALONG_AXIS_GRAD,
@@ -165,6 +166,7 @@ public final class GpuTargetCoverageTruth {
         metalTargets.add(Operation.OpType.MIN_GRAD);
         metalTargets.add(Operation.OpType.MAX_GRAD);
         metalTargets.add(Operation.OpType.GATHER);
+        metalTargets.add(Operation.OpType.GATHER_ND);
         metalTargets.add(Operation.OpType.GATHER_GRAD);
         metalTargets.add(Operation.OpType.TAKE_ALONG_AXIS);
         metalTargets.add(Operation.OpType.TAKE_ALONG_AXIS_GRAD);

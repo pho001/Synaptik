@@ -99,6 +99,22 @@ class MetalOperationParityMatrixTest {
     }
 
     @Test
+    void matrixMarksGatherNdAsScopedMpsGraphMappedIndexRead() {
+        MetalOperationParityMatrix.Row row = row(Operation.OpType.GATHER_ND);
+
+        assertTrue(row.cpuKernelAvailable());
+        assertFalse(row.cpuFusable());
+        assertEquals("SUPPORTED", row.metalCoverageStatus());
+        assertEquals("SUPPORTED", row.metalReason());
+        assertTrue(row.plannerSupported());
+        assertTrue(row.dagLowerable());
+        assertTrue(row.nativeMpsGraphMapped());
+        assertTrue(row.bufferExecutable());
+        assertFalse(row.cpuFallbackOnly());
+        assertTrue(row.note().contains("gatherNDWithUpdatesTensor"));
+    }
+
+    @Test
     void matrixMarksScopedConvAndAvgPoolBackwardAsMpsGraphMapped() {
         assertMpsGraphMappedConvPoolBackward(Operation.OpType.CONV2D_BACKWARD_INPUT);
         assertMpsGraphMappedConvPoolBackward(Operation.OpType.CONV2D_BACKWARD_WEIGHT);

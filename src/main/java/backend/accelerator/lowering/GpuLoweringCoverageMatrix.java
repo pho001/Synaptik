@@ -323,9 +323,9 @@ public final class GpuLoweringCoverageMatrix {
                     GpuLoweringUnsupportedReason.SUPPORTED,
                     "ONNX-style gatherAxis lowers to Metal gatherAlongAxis with broadcast INT32 indices for dense FLOAT32/BFLOAT16 value input and static in-bounds 1-D index input; target=gather_take_small");
             add(entries, backend, Operation.OpType.GATHER_ND, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
-                    GpuLoweringCoverageStatus.UNSUPPORTED,
-                    GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
-                    "gather-nd remains CPU-owned until tuple-index read, slice suffix addressing, and static bounds checks are proven for Metal");
+                    GpuLoweringCoverageStatus.SUPPORTED,
+                    GpuLoweringUnsupportedReason.SUPPORTED,
+                    "Metal gather-nd lowers to MPSGraph gatherNDWithUpdatesTensor for dense FLOAT32/BFLOAT16 values, dense static non-negative in-bounds INT32 tuple indices, slice suffix outputs, and validated batch_dims");
             add(entries, backend, Operation.OpType.GATHER_ND_GRAD, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
                     GpuLoweringCoverageStatus.UNSUPPORTED,
                     GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
