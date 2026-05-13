@@ -301,6 +301,13 @@ static int32_t SynaptikDecodeIntScalar(const float *nodeScalarValues, int32_t in
     return (int32_t) bits;
 }
 
+static int32_t SynaptikNodeAttribute(const int32_t *nodeIntAttributes, int32_t nodeIndex, int32_t attributeIndex) {
+    if (nodeIntAttributes == NULL || nodeIndex < 0 || attributeIndex < 0 || attributeIndex >= 8) {
+        return 0;
+    }
+    return nodeIntAttributes[nodeIndex * 8 + attributeIndex];
+}
+
 static int32_t SynaptikDecodeReductionAxis(const float *nodeScalarValues, int32_t index) {
     int32_t encoded = SynaptikDecodeIntScalar(nodeScalarValues, index);
     int32_t axis = encoded & 0xFFFF;
@@ -784,6 +791,7 @@ static void *SynaptikCompilePartition(
         const int32_t *input4_kinds,
         const int32_t *input4_indices,
         const float *node_scalar_values,
+        const int32_t *node_int_attributes,
         const int32_t *output_ranks,
         const int32_t *output_dim0,
         const int32_t *output_dim1,
@@ -993,6 +1001,77 @@ static void *SynaptikCompilePartition(
                     outTensor = slice == nil ? nil : [graph squeezeTensor:slice axis:(NSInteger) axis name:@"select"];
                     break;
                 }
+                case 74: {
+                    NSMutableArray<NSNumber *> *shape = SynaptikOutputShapeForNode(
+                            i,
+                            output_ranks,
+                            output_dim0,
+                            output_dim1,
+                            output_dim2,
+                            output_dim3
+                    );
+                    if (shape == nil || input0.shape == nil || shape.count != input0.shape.count) return NULL;
+                    MPSGraphTensor *current = input0;
+                    for (NSUInteger d = 0; d < shape.count; d++) {
+                        NSInteger start = (NSInteger) SynaptikNodeAttribute(node_int_attributes, i, (int32_t) d);
+                        NSUInteger length = (NSUInteger) [shape[d] unsignedIntegerValue];
+                        current = [graph sliceTensor:current
+                                           dimension:d
+                                               start:start
+                                              length:length
+                                                name:@"slice"];
+                        if (current == nil) return NULL;
+                    }
+                    outTensor = current;
+                    break;
+                }
+                case 75: {
+                    int32_t axis = SynaptikDecodeIntScalar(node_scalar_values, i);
+                    NSMutableArray<MPSGraphTensor *> *tensors = [NSMutableArray arrayWithCapacity:5];
+                    if (input0 != nil) [tensors addObject:input0];
+                    if (input1 != nil) [tensors addObject:input1];
+                    if (input2 != nil) [tensors addObject:input2];
+                    if (input3 != nil) [tensors addObject:input3];
+                    if (input4 != nil) [tensors addObject:input4];
+                    if (tensors.count < 2 || input0.shape == nil || axis < 0 || axis >= (int32_t) input0.shape.count) {
+                        return NULL;
+                    }
+                    outTensor = [graph concatTensors:tensors dimension:(NSUInteger) axis name:@"concat"];
+                    break;
+                }
+                case 76: {
+                    if (@available(macOS 12.3, iOS 15.4, tvOS 15.4, *)) {
+                        if (input0.shape == nil) return NULL;
+                        NSUInteger rank = input0.shape.count;
+                        NSMutableArray<NSNumber *> *leftPadding = [NSMutableArray arrayWithCapacity:rank];
+                        NSMutableArray<NSNumber *> *rightPadding = [NSMutableArray arrayWithCapacity:rank];
+                        for (NSUInteger d = 0; d < rank; d++) {
+                            [leftPadding addObject:@(SynaptikNodeAttribute(node_int_attributes, i, (int32_t) d))];
+                            [rightPadding addObject:@(SynaptikNodeAttribute(node_int_attributes, i, (int32_t) d + 4))];
+                        }
+                        outTensor = [graph padTensor:input0
+                                     withPaddingMode:MPSGraphPaddingModeConstant
+                                         leftPadding:leftPadding
+                                        rightPadding:rightPadding
+                                       constantValue:(double) (node_scalar_values == NULL ? 0.0f : node_scalar_values[i])
+                                                name:@"pad"];
+                    } else {
+                        return NULL;
+                    }
+                    break;
+                }
+                case 77: {
+                    if (input0.shape == nil) return NULL;
+                    NSUInteger rank = input0.shape.count;
+                    NSMutableArray<NSNumber *> *multiples = [NSMutableArray arrayWithCapacity:rank];
+                    for (NSUInteger d = 0; d < rank; d++) {
+                        int32_t repeat = SynaptikNodeAttribute(node_int_attributes, i, (int32_t) d);
+                        if (repeat <= 0) return NULL;
+                        [multiples addObject:@(repeat)];
+                    }
+                    outTensor = [graph tileTensor:input0 withMultiplier:multiples name:@"tile"];
+                    break;
+                }
                 case 40: {
                     MPSGraphTensor *scalarTensor = SynaptikScalarConstant(
                             graph,
@@ -1151,6 +1230,42 @@ static void *SynaptikCompilePartition(
                     }
                     break;
                 }
+                case 72: {
+                    if (input1 == nil) return NULL;
+                    if (@available(macOS 12.3, iOS 15.4, tvOS 15.4, *)) {
+                        int32_t axis = SynaptikDecodeIntScalar(node_scalar_values, i);
+                        NSUInteger valueRank = input0.shape == nil ? 0 : input0.shape.count;
+                        NSUInteger indexRank = input1.shape == nil ? 0 : input1.shape.count;
+                        if (valueRank < 1 || valueRank > 4 || indexRank != 1 || axis < 0 || axis >= (int32_t) valueRank) {
+                            return NULL;
+                        }
+                        NSMutableArray<NSNumber *> *outputShape = SynaptikOutputShapeForNode(
+                                i,
+                                output_ranks,
+                                output_dim0,
+                                output_dim1,
+                                output_dim2,
+                                output_dim3
+                        );
+                        if (outputShape == nil || outputShape.count != valueRank) return NULL;
+                        NSMutableArray<NSNumber *> *indexShape = [NSMutableArray arrayWithCapacity:valueRank];
+                        for (NSUInteger d = 0; d < valueRank; d++) {
+                            [indexShape addObject:(d == (NSUInteger) axis ? input1.shape[0] : @1)];
+                        }
+                        MPSGraphTensor *reshapedIndices = [graph reshapeTensor:input1 withShape:indexShape name:@"gather_axis_indices_reshape"];
+                        MPSGraphTensor *broadcastIndices = reshapedIndices == nil
+                                ? nil
+                                : [graph broadcastTensor:reshapedIndices toShape:outputShape name:@"gather_axis_indices_broadcast"];
+                        if (broadcastIndices == nil) return NULL;
+                        outTensor = [graph gatherAlongAxis:(NSInteger) axis
+                                         withUpdatesTensor:input0
+                                             indicesTensor:broadcastIndices
+                                                      name:@"gather_axis"];
+                    } else {
+                        return NULL;
+                    }
+                    break;
+                }
                 case 63: {
                     if (input1 == nil || input2 == nil) return NULL;
                     if (@available(macOS 12.3, iOS 15.4, tvOS 15.4, *)) {
@@ -1225,6 +1340,46 @@ static void *SynaptikCompilePartition(
                                                       shape:shape
                                                        mode:MPSGraphScatterModeAdd
                                                        name:(node_types[i] == 64 ? @"gather_grad" : @"take_along_axis_grad")];
+                    } else {
+                        return NULL;
+                    }
+                    break;
+                }
+                case 73: {
+                    if (input1 == nil) return NULL;
+                    if (@available(macOS 12.3, iOS 15.4, tvOS 15.4, *)) {
+                        int32_t axis = SynaptikDecodeIntScalar(node_scalar_values, i);
+                        NSMutableArray<NSNumber *> *outputShape = SynaptikOutputShapeForNode(
+                                i,
+                                output_ranks,
+                                output_dim0,
+                                output_dim1,
+                                output_dim2,
+                                output_dim3
+                        );
+                        if (outputShape == nil) return NULL;
+                        NSUInteger outputRank = outputShape.count;
+                        NSUInteger indexRank = input0.shape == nil ? 0 : input0.shape.count;
+                        NSUInteger gradRank = input1.shape == nil ? 0 : input1.shape.count;
+                        if (outputRank < 1 || outputRank > 4 || indexRank != 1 || gradRank != outputRank
+                                || axis < 0 || axis >= (int32_t) outputRank) {
+                            return NULL;
+                        }
+                        NSMutableArray<NSNumber *> *indexShape = [NSMutableArray arrayWithCapacity:outputRank];
+                        for (NSUInteger d = 0; d < outputRank; d++) {
+                            [indexShape addObject:(d == (NSUInteger) axis ? input0.shape[0] : @1)];
+                        }
+                        MPSGraphTensor *reshapedIndices = [graph reshapeTensor:input0 withShape:indexShape name:@"gather_axis_grad_indices_reshape"];
+                        MPSGraphTensor *broadcastIndices = reshapedIndices == nil
+                                ? nil
+                                : [graph broadcastTensor:reshapedIndices toShape:input1.shape name:@"gather_axis_grad_indices_broadcast"];
+                        if (broadcastIndices == nil) return NULL;
+                        outTensor = [graph scatterAlongAxis:(NSInteger) axis
+                                          withUpdatesTensor:input1
+                                              indicesTensor:broadcastIndices
+                                                      shape:outputShape
+                                                       mode:MPSGraphScatterModeAdd
+                                                       name:@"gather_axis_grad"];
                     } else {
                         return NULL;
                     }
@@ -1945,6 +2100,7 @@ void *synaptik_apple_mps_compile_partition_f32(
             input4_kinds,
             input4_indices,
             node_scalar_values,
+            NULL,
             output_ranks,
             output_dim0,
             output_dim1,
@@ -2009,6 +2165,73 @@ void *synaptik_apple_mps_compile_partition_dtype_v3(
             input4_kinds,
             input4_indices,
             node_scalar_values,
+            NULL,
+            output_ranks,
+            output_dim0,
+            output_dim1,
+            output_dim2,
+            output_dim3,
+            node_output_dtypes,
+            output_node_count,
+            output_node_indices
+    );
+}
+
+void *synaptik_apple_mps_compile_partition_dtype_v4(
+        void *context,
+        int32_t external_input_count,
+        const int32_t *external_input_ranks,
+        const int32_t *external_input_dtypes,
+        const int32_t *external_input_dim0,
+        const int32_t *external_input_dim1,
+        const int32_t *external_input_dim2,
+        const int32_t *external_input_dim3,
+        int32_t post_op_count,
+        const int32_t *node_types,
+        const int32_t *input0_kinds,
+        const int32_t *input0_indices,
+        const int32_t *input1_kinds,
+        const int32_t *input1_indices,
+        const int32_t *input2_kinds,
+        const int32_t *input2_indices,
+        const int32_t *input3_kinds,
+        const int32_t *input3_indices,
+        const int32_t *input4_kinds,
+        const int32_t *input4_indices,
+        const float *node_scalar_values,
+        const int32_t *node_int_attributes,
+        const int32_t *output_ranks,
+        const int32_t *output_dim0,
+        const int32_t *output_dim1,
+        const int32_t *output_dim2,
+        const int32_t *output_dim3,
+        const int32_t *node_output_dtypes,
+        int32_t output_node_count,
+        const int32_t *output_node_indices
+) {
+    return SynaptikCompilePartition(
+            context,
+            external_input_count,
+            external_input_ranks,
+            external_input_dtypes,
+            external_input_dim0,
+            external_input_dim1,
+            external_input_dim2,
+            external_input_dim3,
+            post_op_count,
+            node_types,
+            input0_kinds,
+            input0_indices,
+            input1_kinds,
+            input1_indices,
+            input2_kinds,
+            input2_indices,
+            input3_kinds,
+            input3_indices,
+            input4_kinds,
+            input4_indices,
+            node_scalar_values,
+            node_int_attributes,
             output_ranks,
             output_dim0,
             output_dim1,

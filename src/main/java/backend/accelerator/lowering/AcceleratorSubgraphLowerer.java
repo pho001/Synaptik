@@ -23,11 +23,16 @@ import operations.elementwise.unary.pow;
 import operations.elementwise.binary.maxGrad;
 import operations.elementwise.binary.minGrad;
 import operations.index.gather;
+import operations.index.gatherAxis;
 import operations.index.takeAlongAxis;
+import operations.layout.concat;
 import operations.layout.expandDims;
+import operations.layout.pad;
 import operations.layout.permute;
 import operations.layout.select;
+import operations.layout.slice;
 import operations.layout.squeeze;
+import operations.layout.tile;
 import operations.nn.conv.conv2d;
 import operations.nn.conv.conv2dBackwardInput;
 import operations.nn.conv.conv2dBackwardInputGemm;
@@ -859,6 +864,7 @@ public final class AcceleratorSubgraphLowerer {
                 return null;
             }
             int scalarValueBits = resolveScalarValueBits(node, context);
+            int[] attributes = resolveNodeAttributes(node);
             if (type == AcceleratorDagNodeType.PERMUTE && scalarValueBits == Integer.MIN_VALUE) {
                 return null;
             }
@@ -872,6 +878,9 @@ public final class AcceleratorSubgraphLowerer {
                 return null;
             }
             if (isIndexWriteOrGradient(type) && scalarValueBits == Integer.MIN_VALUE) {
+                return null;
+            }
+            if (isAttributeEncodedLayout(type) && attributes == null) {
                 return null;
             }
             if ((type == AcceleratorDagNodeType.CONV2D
@@ -896,6 +905,14 @@ public final class AcceleratorSubgraphLowerer {
                     input3,
                     input4,
                     scalarValueBits,
+                    attributes == null ? 0 : attributes[0],
+                    attributes == null ? 0 : attributes[1],
+                    attributes == null ? 0 : attributes[2],
+                    attributes == null ? 0 : attributes[3],
+                    attributes == null ? 0 : attributes[4],
+                    attributes == null ? 0 : attributes[5],
+                    attributes == null ? 0 : attributes[6],
+                    attributes == null ? 0 : attributes[7],
                     shape.length,
                     shape[0],
                     shape.length >= 2 ? shape[1] : 1,
@@ -1539,13 +1556,21 @@ public final class AcceleratorSubgraphLowerer {
 
     private boolean isIndexGather(AcceleratorDagNodeType type) {
         return type == AcceleratorDagNodeType.GATHER
+                || type == AcceleratorDagNodeType.GATHER_AXIS
                 || type == AcceleratorDagNodeType.TAKE_ALONG_AXIS;
     }
 
     private boolean isIndexWriteOrGradient(AcceleratorDagNodeType type) {
         return type == AcceleratorDagNodeType.SCATTER_ADD
                 || type == AcceleratorDagNodeType.GATHER_GRAD
+                || type == AcceleratorDagNodeType.GATHER_AXIS_GRAD
                 || type == AcceleratorDagNodeType.TAKE_ALONG_AXIS_GRAD;
+    }
+
+    private boolean isAttributeEncodedLayout(AcceleratorDagNodeType type) {
+        return type == AcceleratorDagNodeType.SLICE
+                || type == AcceleratorDagNodeType.PAD
+                || type == AcceleratorDagNodeType.TILE;
     }
 
     private AcceleratorDagSpec tryBuildLogSoftmaxDagSpec(AcceleratorSubgraphSpec subgraph, PartitionPlanningContext context) {
@@ -2341,6 +2366,10 @@ public final class AcceleratorSubgraphLowerer {
             case SELECT -> AcceleratorDagNodeType.SELECT;
             case EXPAND_DIMS -> AcceleratorDagNodeType.EXPAND_DIMS;
             case SQUEEZE -> AcceleratorDagNodeType.SQUEEZE;
+            case SLICE -> AcceleratorDagNodeType.SLICE;
+            case CONCAT -> AcceleratorDagNodeType.CONCAT;
+            case PAD -> AcceleratorDagNodeType.PAD;
+            case TILE -> AcceleratorDagNodeType.TILE;
             case MUL_SCALAR -> AcceleratorDagNodeType.MUL_SCALAR;
             case POW -> AcceleratorDagNodeType.POW_SCALAR;
             case WHERE -> AcceleratorDagNodeType.WHERE;
@@ -2361,9 +2390,11 @@ public final class AcceleratorSubgraphLowerer {
             case REDUCE_ALL -> AcceleratorDagNodeType.REDUCE_ALL;
             case REDUCE_ANY -> AcceleratorDagNodeType.REDUCE_ANY;
             case GATHER -> AcceleratorDagNodeType.GATHER;
+            case GATHER_AXIS -> AcceleratorDagNodeType.GATHER_AXIS;
             case TAKE_ALONG_AXIS -> AcceleratorDagNodeType.TAKE_ALONG_AXIS;
             case SCATTER_ADD -> AcceleratorDagNodeType.SCATTER_ADD;
             case GATHER_GRAD -> AcceleratorDagNodeType.GATHER_GRAD;
+            case GATHER_AXIS_GRAD -> AcceleratorDagNodeType.GATHER_AXIS_GRAD;
             case TAKE_ALONG_AXIS_GRAD -> AcceleratorDagNodeType.TAKE_ALONG_AXIS_GRAD;
             case CONV2D, CONV2D_GEMM -> AcceleratorDagNodeType.CONV2D;
             case CONV2D_BACKWARD_INPUT, CONV2D_BACKWARD_INPUT_GEMM -> AcceleratorDagNodeType.CONV2D_BACKWARD_INPUT;
@@ -2406,9 +2437,11 @@ public final class AcceleratorSubgraphLowerer {
             case REDUCE_ALL -> node.operation() instanceof reduceAll op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
             case REDUCE_ANY -> node.operation() instanceof reduceAny op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
             case GATHER -> node.operation() instanceof gather op ? op.getDimension() : Integer.MIN_VALUE;
+            case GATHER_AXIS -> node.operation() instanceof gatherAxis op ? op.getAxis() : Integer.MIN_VALUE;
             case TAKE_ALONG_AXIS -> node.operation() instanceof takeAlongAxis op ? op.getDimension() : Integer.MIN_VALUE;
             case SCATTER_ADD -> node.operation() instanceof operations.index.scatterAdd op ? op.getDimension() : Integer.MIN_VALUE;
             case GATHER_GRAD -> node.operation() instanceof operations.index.gatherGrad op ? op.getDimension() : Integer.MIN_VALUE;
+            case GATHER_AXIS_GRAD -> node.operation() instanceof operations.index.gatherAxisGrad op ? op.getAxis() : Integer.MIN_VALUE;
             case TAKE_ALONG_AXIS_GRAD -> node.operation() instanceof operations.index.takeAlongAxisGrad op ? op.getDimension() : Integer.MIN_VALUE;
             case CONV2D -> node.operation() instanceof conv2d op ? encodeConv2dMode(op) : Integer.MIN_VALUE;
             case CONV2D_GEMM -> node.operation() instanceof conv2dGemm op ? encodeConv2dMode(op) : Integer.MIN_VALUE;
@@ -2431,10 +2464,70 @@ public final class AcceleratorSubgraphLowerer {
             case SCALED_DOT_PRODUCT_ATTENTION -> node.operation() instanceof scaledDotProductAttention op ? Float.floatToIntBits((float) op.getScale()) : Integer.MIN_VALUE;
             case PERMUTE -> encodePermuteMode(node);
             case SELECT -> encodeSelectMode(node, context);
+            case CONCAT -> node.operation() instanceof concat op ? op.getAxis() : Integer.MIN_VALUE;
+            case PAD -> node.operation() instanceof pad op ? Float.floatToIntBits((float) op.getConstantValue()) : Integer.MIN_VALUE;
             case EXPAND_DIMS -> node.operation() instanceof expandDims op ? op.getAxis() : Integer.MIN_VALUE;
             case SQUEEZE -> node.operation() instanceof squeeze op ? op.getAxis() : Integer.MIN_VALUE;
             default -> 0;
         };
+    }
+
+    private int[] resolveNodeAttributes(CompiledNode node) {
+        if (node == null || node.operation() == null) {
+            return null;
+        }
+        int[] out = new int[8];
+        switch (node.operation().opType()) {
+            case SLICE -> {
+                if (!(node.operation() instanceof slice op)) {
+                    return null;
+                }
+                int[] starts = op.getStarts();
+                int[] axes = op.getAxes();
+                int[] steps = op.getSteps();
+                if (axes.length != starts.length || steps.length != starts.length || starts.length > 4) {
+                    return null;
+                }
+                for (int i = 0; i < starts.length; i++) {
+                    if (axes[i] < 0 || axes[i] >= 4 || steps[i] != 1) {
+                        return null;
+                    }
+                    out[axes[i]] = starts[i];
+                }
+                return out;
+            }
+            case PAD -> {
+                if (!(node.operation() instanceof pad op)) {
+                    return null;
+                }
+                int[] before = op.getBefore();
+                int[] after = op.getAfter();
+                if (before.length > 4 || after.length > 4 || before.length != after.length) {
+                    return null;
+                }
+                for (int i = 0; i < before.length; i++) {
+                    out[i] = before[i];
+                    out[i + 4] = after[i];
+                }
+                return out;
+            }
+            case TILE -> {
+                if (!(node.operation() instanceof tile op)) {
+                    return null;
+                }
+                int[] repeats = op.getRepeats();
+                if (repeats.length > 4) {
+                    return null;
+                }
+                for (int i = 0; i < repeats.length; i++) {
+                    out[i] = repeats[i];
+                }
+                return out;
+            }
+            default -> {
+                return out;
+            }
+        }
     }
 
     private int encodeSelectMode(CompiledNode node, PartitionPlanningContext context) {

@@ -40,8 +40,8 @@ Generated from `MetalOperationParityMatrix`; do not hand-edit status rows.
 | REDUCE_MAX_GRAD | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | native accelerator DAG backward-adjacent path |
 | GATHER | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | forward gather lowers to Metal gatherAlongAxis with expanded INT32 indices; scoped to dense FLOAT32/BFLOAT16 value input and static in-bounds INT32 index input; target=gather_take_small |
 | GATHER_GRAD | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | Metal gather gradient lowers to MPSGraph scatterAlongAxis add with dense FLOAT32/BFLOAT16 gradients, static in-bounds INT32 indices, and duplicate accumulation on device; target=scatter_index_gradient_small |
-| GATHER_AXIS | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
-| GATHER_AXIS_GRAD | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
+| GATHER_AXIS | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | ONNX-style gatherAxis lowers to Metal gatherAlongAxis with broadcast INT32 indices for dense FLOAT32/BFLOAT16 value input and static in-bounds 1-D index input; target=gather_take_small |
+| GATHER_AXIS_GRAD | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | Metal gatherAxis gradient lowers to MPSGraph scatterAlongAxis add with broadcast INT32 indices, dense FLOAT32/BFLOAT16 gradients, and duplicate accumulation on device; target=scatter_index_gradient_small |
 | GATHER_ND | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_INDEX_SEMANTICS | gather-nd remains CPU-owned until tuple-index read, slice suffix addressing, and static bounds checks are proven for Metal |
 | GATHER_ND_GRAD | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_INDEX_SEMANTICS | gather-nd gradient remains CPU-owned until tuple-index duplicate accumulation and batch_dims semantics are proven for Metal |
 | TAKE_ALONG_AXIS | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | take-along-axis lowers to Metal gatherAlongAxis with INT32 indices; scoped to dense FLOAT32/BFLOAT16 value input and static in-bounds INT32 index input; target=gather_take_small |
@@ -92,11 +92,11 @@ Generated from `MetalOperationParityMatrix`; do not hand-edit status rows.
 | RESHAPE | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | layout/view-adjacent accelerator DAG metadata or materialization path |
 | EXPAND | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | Metal MPSGraph layout path maps broadcast EXPAND and single-index SELECT into native accelerator DAG shape ops |
 | SELECT | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | Metal MPSGraph layout path maps broadcast EXPAND and single-index SELECT into native accelerator DAG shape ops |
-| SLICE | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
+| SLICE | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | Metal MPSGraph layout path supports dense FLOAT32/BFLOAT16 static slice, concat, constant pad, and tile descriptors |
 | SLICE_GRAD | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
-| CONCAT | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
-| PAD | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
-| TILE | yes | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION | operation is not in the checked-in GPU lowering coverage matrix |
+| CONCAT | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | Metal MPSGraph layout path supports dense FLOAT32/BFLOAT16 static slice, concat, constant pad, and tile descriptors |
+| PAD | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | Metal MPSGraph layout path supports dense FLOAT32/BFLOAT16 static slice, concat, constant pad, and tile descriptors |
+| TILE | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | Metal MPSGraph layout path supports dense FLOAT32/BFLOAT16 static slice, concat, constant pad, and tile descriptors |
 | PERMUTE | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | layout/view-adjacent accelerator DAG metadata or materialization path |
 | EXPAND_DIMS | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | layout/view-adjacent accelerator DAG metadata or materialization path |
 | SQUEEZE | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED | layout/view-adjacent accelerator DAG metadata or materialization path |

@@ -3,6 +3,7 @@ package backend.metal.lowering;
 import graph.CompiledNode;
 import graph.optimizer.partition.PartitionPlanningContext;
 import operations.Operation;
+import operations.index.gatherAxisGrad;
 import operations.index.gatherGrad;
 import operations.index.scatterAdd;
 import operations.index.takeAlongAxisGrad;
@@ -17,6 +18,7 @@ final class MetalIndexWriteSemantics {
     static boolean isIndexWriteOrGradient(Operation.OpType opType) {
         return opType == Operation.OpType.SCATTER_ADD
                 || opType == Operation.OpType.GATHER_GRAD
+                || opType == Operation.OpType.GATHER_AXIS_GRAD
                 || opType == Operation.OpType.TAKE_ALONG_AXIS_GRAD;
     }
 
@@ -29,6 +31,7 @@ final class MetalIndexWriteSemantics {
         return switch (opType) {
             case SCATTER_ADD -> scatterAddReason(node, context);
             case GATHER_GRAD -> gatherGradReason(node, context);
+            case GATHER_AXIS_GRAD -> gatherAxisGradReason(node, context);
             case TAKE_ALONG_AXIS_GRAD -> takeAlongAxisGradReason(node, context);
             default -> "";
         };
@@ -104,6 +107,48 @@ final class MetalIndexWriteSemantics {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_GRAD indices/outGrad shape must equal output shape without gathered axis";
         }
         String boundsReason = staticBoundsReason("GATHER_GRAD", indices, outputShape[axis]);
+        if (!boundsReason.isBlank()) {
+            return boundsReason;
+        }
+        return "";
+    }
+
+    private static String gatherAxisGradReason(CompiledNode node, PartitionPlanningContext context) {
+        if (!(node.operation() instanceof gatherAxisGrad op)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_AXIS_GRAD descriptor is unavailable";
+        }
+        if (node.inputIds().size() != 2) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_AXIS_GRAD requires INT32 indices and output-gradient inputs";
+        }
+        CompiledNode indices = context.compiledNode(node.inputIds().get(0));
+        CompiledNode outGrad = context.compiledNode(node.inputIds().get(1));
+        if (indices == null || outGrad == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_AXIS_GRAD inputs are unavailable";
+        }
+        String dtypeReason = requireFloatingValueAndInt32Index("GATHER_AXIS_GRAD", node, indices, outGrad);
+        if (!dtypeReason.isBlank()) {
+            return dtypeReason;
+        }
+        String layoutReason = requireDense("GATHER_AXIS_GRAD", indices, outGrad);
+        if (!layoutReason.isBlank()) {
+            return layoutReason;
+        }
+        int axis = op.getAxis();
+        int[] outputShape = node.shape();
+        int[] gradShape = outGrad.shape();
+        if (axis < 0 || axis >= outputShape.length) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_AXIS_GRAD axis is outside output rank";
+        }
+        if (indices.shape().length != 1 || gradShape.length != outputShape.length) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_AXIS_GRAD supports 1-D index tensors that preserve value rank";
+        }
+        for (int i = 0; i < outputShape.length; i++) {
+            int expected = i == axis ? indices.shape()[0] : outputShape[i];
+            if (gradShape[i] != expected) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_AXIS_GRAD outGrad shape must equal output shape with gathered axis replaced by index length";
+            }
+        }
+        String boundsReason = staticBoundsReason("GATHER_AXIS_GRAD", indices, outputShape[axis]);
         if (!boundsReason.isBlank()) {
             return boundsReason;
         }

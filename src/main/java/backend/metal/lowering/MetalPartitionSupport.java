@@ -10,8 +10,13 @@ import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.optimizer.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.index.gather;
+import operations.index.gatherAxis;
 import operations.index.takeAlongAxis;
 import operations.linalg.scaledDotProductAttention;
+import operations.layout.concat;
+import operations.layout.pad;
+import operations.layout.slice;
+import operations.layout.tile;
 import operations.normalization.layerNorm;
 import operations.normalization.rmsNorm;
 
@@ -126,7 +131,13 @@ public final class MetalPartitionSupport {
         if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED) {
             return compoundPatternPrefix(opType) + GpuLoweringCoverageMatrix.plannerUnsupportedDetail(ComputeBackend.GPU_METAL, opType);
         }
-        if (opType == Operation.OpType.GATHER || opType == Operation.OpType.TAKE_ALONG_AXIS) {
+        if (isSupportedLayoutOp(opType)) {
+            String layoutReason = layoutUnsupportedReason(node, context);
+            if (!layoutReason.isBlank()) {
+                return layoutReason;
+            }
+        }
+        if (opType == Operation.OpType.GATHER || opType == Operation.OpType.GATHER_AXIS || opType == Operation.OpType.TAKE_ALONG_AXIS) {
             String indexReason = indexGatherUnsupportedReason(node, context);
             if (!indexReason.isBlank()) {
                 return indexReason;
@@ -316,9 +327,13 @@ public final class MetalPartitionSupport {
             return false;
         }
         return switch (node.operation().opType()) {
-            case RESHAPE, PERMUTE, CONTIGUOUS, EXPAND, EXPAND_DIMS, SQUEEZE -> true;
+            case RESHAPE, PERMUTE, CONTIGUOUS, EXPAND, EXPAND_DIMS, SQUEEZE, SLICE, PAD, TILE -> true;
             default -> false;
         };
+    }
+
+    private static boolean layoutInputSupported(PartitionPlanningContext context, CompiledNode node) {
+        return dense(context, node) || isGpuSideLayoutLegalizationProducer(node);
     }
 
     private static int[] expectedScoresShape(int[] queryShape, int[] keyShape) {
@@ -384,6 +399,16 @@ public final class MetalPartitionSupport {
             if (!Arrays.equals(indexShape, expected) || !Arrays.equals(outputShape, expected)) {
                 return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER index/output shape must equal value shape without gathered axis";
             }
+        } else if (opType == Operation.OpType.GATHER_AXIS) {
+            if (!(node.operation() instanceof gatherAxis) || indexShape.length != 1 || outputShape.length != valueShape.length) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_AXIS supports 1-D index tensors that preserve value rank";
+            }
+            for (int i = 0; i < valueShape.length; i++) {
+                int expected = i == axis ? indexShape[0] : valueShape[i];
+                if (outputShape[i] != expected) {
+                    return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_AXIS output shape must equal value shape with gathered axis replaced by index length";
+                }
+            }
         } else {
             if (indexShape.length != valueShape.length || !Arrays.equals(outputShape, indexShape)) {
                 return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL TAKE_ALONG_AXIS index/output rank and shape must match";
@@ -429,9 +454,181 @@ public final class MetalPartitionSupport {
     private static int indexAxis(CompiledNode node) {
         return switch (node.operation().opType()) {
             case GATHER -> node.operation() instanceof gather op ? op.getDimension() : -1;
+            case GATHER_AXIS -> node.operation() instanceof gatherAxis op ? op.getAxis() : -1;
             case TAKE_ALONG_AXIS -> node.operation() instanceof takeAlongAxis op ? op.getDimension() : -1;
             default -> -1;
         };
+    }
+
+    private static boolean isSupportedLayoutOp(Operation.OpType opType) {
+        return opType == Operation.OpType.SLICE
+                || opType == Operation.OpType.CONCAT
+                || opType == Operation.OpType.PAD
+                || opType == Operation.OpType.TILE;
+    }
+
+    private static String layoutUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
+        Operation.OpType opType = node.operation().opType();
+        if (context == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " requires planning context";
+        }
+        tensor.DataType dtype = dataType(context, node);
+        if (!isMetalFloatingDType(dtype)) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL " + opType + " supports FLOAT32/BFLOAT16 layout values";
+        }
+        int[] outputShape = shape(context, node);
+        if (outputShape.length < 1 || outputShape.length > 4) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " supports rank 1..4 outputs";
+        }
+        return switch (opType) {
+            case SLICE -> sliceUnsupportedReason(node, context, dtype, outputShape);
+            case CONCAT -> concatUnsupportedReason(node, context, dtype, outputShape);
+            case PAD -> padUnsupportedReason(node, context, dtype, outputShape);
+            case TILE -> tileUnsupportedReason(node, context, dtype, outputShape);
+            default -> "";
+        };
+    }
+
+    private static String sliceUnsupportedReason(CompiledNode node, PartitionPlanningContext context, tensor.DataType dtype, int[] outputShape) {
+        if (!(node.operation() instanceof slice op)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE descriptor is unavailable";
+        }
+        if (node.inputIds().size() != 1) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE requires one input";
+        }
+        CompiledNode input = context.compiledNode(node.inputIds().getFirst());
+        if (input == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE input is unavailable";
+        }
+        if (dataType(context, input) != dtype) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL SLICE input/output dtype must match";
+        }
+        if (!dense(context, input)) {
+            return "UNSUPPORTED_LAYOUT: GPU_METAL SLICE input requires dense layout";
+        }
+        int[] inputShape = shape(context, input);
+        if (inputShape.length != outputShape.length) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE preserves rank";
+        }
+        int[] starts = op.getStarts();
+        int[] ends = op.getEnds();
+        int[] axes = op.getAxes();
+        int[] steps = op.getSteps();
+        if (starts.length != axes.length || ends.length != axes.length || steps.length != axes.length || axes.length > 4) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE requires aligned starts/ends/axes/steps";
+        }
+        for (int i = 0; i < axes.length; i++) {
+            int axis = axes[i];
+            if (axis < 0 || axis >= inputShape.length) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE axis is outside input rank";
+            }
+            if (steps[i] != 1) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE supports step=1 only";
+            }
+            if (starts[i] < 0 || ends[i] < starts[i] || ends[i] > inputShape[axis]) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE start/end must be statically in bounds";
+            }
+        }
+        return "";
+    }
+
+    private static String concatUnsupportedReason(CompiledNode node, PartitionPlanningContext context, tensor.DataType dtype, int[] outputShape) {
+        if (!(node.operation() instanceof concat op)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONCAT descriptor is unavailable";
+        }
+        if (node.inputIds().size() < 2 || node.inputIds().size() > 5) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONCAT supports 2..5 inputs in the current DAG ABI";
+        }
+        int axis = op.getAxis();
+        if (axis < 0 || axis >= outputShape.length) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONCAT axis is outside output rank";
+        }
+        int concatSize = 0;
+        for (int inputId : node.inputIds()) {
+            CompiledNode input = context.compiledNode(inputId);
+            if (input == null) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONCAT input is unavailable";
+            }
+            if (dataType(context, input) != dtype) {
+                return "UNSUPPORTED_DTYPE: GPU_METAL CONCAT inputs/output dtype must match";
+            }
+            if (!layoutInputSupported(context, input)) {
+                return "UNSUPPORTED_LAYOUT: GPU_METAL CONCAT inputs require dense layout or GPU-side layout producer";
+            }
+            int[] inputShape = shape(context, input);
+            if (inputShape.length != outputShape.length) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONCAT inputs must match output rank";
+            }
+            for (int d = 0; d < outputShape.length; d++) {
+                if (d == axis) {
+                    concatSize += inputShape[d];
+                } else if (inputShape[d] != outputShape[d]) {
+                    return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONCAT non-axis dimensions must match";
+                }
+            }
+        }
+        return concatSize == outputShape[axis] ? "" : "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONCAT axis sizes must sum to output axis";
+    }
+
+    private static String padUnsupportedReason(CompiledNode node, PartitionPlanningContext context, tensor.DataType dtype, int[] outputShape) {
+        if (!(node.operation() instanceof pad op)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL PAD descriptor is unavailable";
+        }
+        if (node.inputIds().size() != 1) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL PAD requires one input";
+        }
+        CompiledNode input = context.compiledNode(node.inputIds().getFirst());
+        if (input == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL PAD input is unavailable";
+        }
+        if (dataType(context, input) != dtype) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL PAD input/output dtype must match";
+        }
+        if (!dense(context, input)) {
+            return "UNSUPPORTED_LAYOUT: GPU_METAL PAD input requires dense layout";
+        }
+        int[] inputShape = shape(context, input);
+        int[] before = op.getBefore();
+        int[] after = op.getAfter();
+        if (inputShape.length != outputShape.length || before.length != inputShape.length || after.length != inputShape.length) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL PAD before/after must match rank";
+        }
+        for (int d = 0; d < inputShape.length; d++) {
+            if (before[d] < 0 || after[d] < 0 || outputShape[d] != inputShape[d] + before[d] + after[d]) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL PAD requires non-negative static pads matching output shape";
+            }
+        }
+        return "";
+    }
+
+    private static String tileUnsupportedReason(CompiledNode node, PartitionPlanningContext context, tensor.DataType dtype, int[] outputShape) {
+        if (!(node.operation() instanceof tile op)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL TILE descriptor is unavailable";
+        }
+        if (node.inputIds().size() != 1) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL TILE requires one input";
+        }
+        CompiledNode input = context.compiledNode(node.inputIds().getFirst());
+        if (input == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL TILE input is unavailable";
+        }
+        if (dataType(context, input) != dtype) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL TILE input/output dtype must match";
+        }
+        if (!dense(context, input)) {
+            return "UNSUPPORTED_LAYOUT: GPU_METAL TILE input requires dense layout";
+        }
+        int[] inputShape = shape(context, input);
+        int[] repeats = op.getRepeats();
+        if (inputShape.length != outputShape.length || repeats.length != inputShape.length) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL TILE repeats must match rank";
+        }
+        for (int d = 0; d < inputShape.length; d++) {
+            if (repeats[d] <= 0 || outputShape[d] != inputShape[d] * repeats[d]) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL TILE requires positive static repeats matching output shape";
+            }
+        }
+        return "";
     }
 
     private static int[] reduceShape(int[] shape, int axis) {

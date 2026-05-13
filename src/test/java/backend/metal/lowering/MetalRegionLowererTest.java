@@ -34,6 +34,7 @@ import graph.optimizer.region.OptimizedRegion;
 import graph.optimizer.region.RegionOptimizationContext;
 import operations.Operation;
 import operations.elementwise.where.where;
+import operations.index.gatherAxisGrad;
 import operations.index.gatherGrad;
 import operations.index.takeAlongAxisGrad;
 import operations.nn.conv.conv2d;
@@ -565,6 +566,115 @@ class MetalRegionLowererTest {
         );
         assertTrue(planFor(bf16Gather, Operation.OpType.GATHER).lowering().dagSpec().nodes().stream()
                 .anyMatch(node -> node.type() == AcceleratorDagNodeType.GATHER && node.outputDataType() == DataType.BFLOAT16));
+    }
+
+    @Test
+    void metalLayoutIndexParityWaveSupportsGatherAxisAndStaticLayoutOps() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metal68GatherAxisInput", DataType.FLOAT32);
+        Tensor indices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metal68GatherAxisIndices", DataType.INT32);
+        Tensor gatherAxis = input.gatherAxis(indices, 1);
+        TensorInternalAccess.setBackend(gatherAxis, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext gatherAxisContext = planningContext(gatherAxis);
+
+        assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(
+                gatherAxisContext.compiledNode(nodeId(gatherAxisContext, Operation.OpType.GATHER_AXIS)),
+                gatherAxisContext
+        ));
+        assertTrue(planFor(gatherAxis, Operation.OpType.GATHER_AXIS).lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.GATHER_AXIS && node.scalarValueBits() == 1));
+
+        Tensor outGrad = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metal68GatherAxisOutGrad", DataType.FLOAT32);
+        Tensor gatherAxisGrad = TensorPrimitiveBuilder.binary(
+                indices,
+                outGrad,
+                new int[]{2, 3},
+                new gatherAxisGrad(1, new int[]{2, 3}),
+                "metal68GatherAxisGrad",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(gatherAxisGrad, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext gatherAxisGradContext = planningContext(gatherAxisGrad);
+        assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(
+                gatherAxisGradContext.compiledNode(nodeId(gatherAxisGradContext, Operation.OpType.GATHER_AXIS_GRAD)),
+                gatherAxisGradContext
+        ));
+        assertTrue(planFor(gatherAxisGrad, Operation.OpType.GATHER_AXIS_GRAD).lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.GATHER_AXIS_GRAD && node.scalarValueBits() == 1));
+
+        Tensor slice = input.slice(new int[]{0, 1}, new int[]{2, 3}, new int[]{0, 1}, new int[]{1, 1});
+        TensorInternalAccess.setBackend(slice, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext sliceContext = planningContext(slice);
+        assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(
+                sliceContext.compiledNode(nodeId(sliceContext, Operation.OpType.SLICE)),
+                sliceContext
+        ));
+        assertTrue(planFor(slice, Operation.OpType.SLICE).lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.SLICE && node.attribute1() == 1));
+
+        Tensor pad = input.pad(new int[]{1, 0}, new int[]{0, 1}, -1.0);
+        TensorInternalAccess.setBackend(pad, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext padContext = planningContext(pad);
+        assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(
+                padContext.compiledNode(nodeId(padContext, Operation.OpType.PAD)),
+                padContext
+        ));
+        assertTrue(planFor(pad, Operation.OpType.PAD).lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.PAD
+                        && node.attribute0() == 1
+                        && node.attribute5() == 1
+                        && Float.intBitsToFloat(node.scalarValueBits()) == -1.0f));
+
+        Tensor tile = input.tile(2, 1);
+        TensorInternalAccess.setBackend(tile, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext tileContext = planningContext(tile);
+        assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(
+                tileContext.compiledNode(nodeId(tileContext, Operation.OpType.TILE)),
+                tileContext
+        ));
+        assertTrue(planFor(tile, Operation.OpType.TILE).lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.TILE && node.attribute0() == 2 && node.attribute1() == 1));
+
+        Tensor concatLeft = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metal68ConcatLeft", DataType.FLOAT32);
+        Tensor concatRight = new Tensor(new float[]{7f, 8f, 9f, 10f}, new int[]{2, 2}, null, "metal68ConcatRight", DataType.FLOAT32);
+        Tensor concat = Tensor.concat(1, concatLeft, concatRight);
+        TensorInternalAccess.setBackend(concat, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext concatContext = planningContext(concat);
+        assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(
+                concatContext.compiledNode(nodeId(concatContext, Operation.OpType.CONCAT)),
+                concatContext
+        ));
+        assertTrue(planFor(concat, Operation.OpType.CONCAT).lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.CONCAT && node.scalarValueBits() == 1));
+    }
+
+    @Test
+    void metalLayoutIndexParityWaveRejectsUnsupportedLayoutSubsetsExplicitly() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metal68LayoutRejectInput", DataType.FLOAT32);
+
+        Tensor steppedSlice = input.slice(new int[]{0, 0}, new int[]{2, 3}, new int[]{0, 1}, new int[]{1, 2});
+        TensorInternalAccess.setBackend(steppedSlice, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext steppedContext = planningContext(steppedSlice);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        steppedContext.compiledNode(nodeId(steppedContext, Operation.OpType.SLICE)),
+                        steppedContext
+                ),
+                "UNSUPPORTED_RANK_OR_SHAPE",
+                "SLICE supports step=1 only"
+        );
+
+        Tensor nonDense = input.permute(1, 0);
+        Tensor layoutPad = nonDense.pad(new int[]{0, 0}, new int[]{1, 1}, 0.0);
+        TensorInternalAccess.setBackend(layoutPad, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext layoutPadContext = planningContext(layoutPad);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        layoutPadContext.compiledNode(nodeId(layoutPadContext, Operation.OpType.PAD)),
+                        layoutPadContext
+                ),
+                "UNSUPPORTED_LAYOUT",
+                "PAD input requires dense layout"
+        );
     }
 
     @Test

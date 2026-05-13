@@ -183,7 +183,8 @@ public final class OnnxCoverageMatrix {
                 CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED, CoverageStatus.UNSUPPORTED,
                 "import-time static shape plumbing only");
         add(out, "Gather", "gatherAxis or shape gather", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
-                CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED, CoverageStatus.UNSUPPORTED,
+                CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.GATHER_AXIS),
+                gpu(ComputeBackend.GPU_CUDA, Operation.OpType.GATHER_AXIS),
                 "runtime mapping uses GATHER_AXIS; shape-only mapping is axis-0 only", Operation.OpType.GATHER_AXIS);
         add(out, "GatherElements", "takeAlongAxis", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.TAKE_ALONG_AXIS),

@@ -7,10 +7,14 @@ import backend.accelerator.lowering.GpuLoweringCoverageStatus;
 import backend.cpu.registry.CpuKernelResolver;
 import operations.Operation;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -60,8 +64,10 @@ public final class MetalOperationParityMatrix {
             Operation.OpType.REDUCE_ALL,
             Operation.OpType.REDUCE_ANY,
             Operation.OpType.GATHER,
+            Operation.OpType.GATHER_AXIS,
             Operation.OpType.TAKE_ALONG_AXIS,
             Operation.OpType.GATHER_GRAD,
+            Operation.OpType.GATHER_AXIS_GRAD,
             Operation.OpType.TAKE_ALONG_AXIS_GRAD,
             Operation.OpType.SCATTER_ADD,
             Operation.OpType.CONV2D,
@@ -93,6 +99,10 @@ public final class MetalOperationParityMatrix {
             Operation.OpType.PERMUTE,
             Operation.OpType.EXPAND,
             Operation.OpType.SELECT,
+            Operation.OpType.SLICE,
+            Operation.OpType.CONCAT,
+            Operation.OpType.PAD,
+            Operation.OpType.TILE,
             Operation.OpType.EXPAND_DIMS,
             Operation.OpType.SQUEEZE
     );
@@ -167,6 +177,30 @@ public final class MetalOperationParityMatrix {
                     .append(" |\n");
         }
         return out.toString();
+    }
+
+    public static void write(Path path) {
+        Objects.requireNonNull(path, "path cannot be null");
+        try {
+            Path parent = path.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Files.writeString(path, renderMarkdown());
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to write Metal operation parity report to " + path + ".", e);
+        }
+    }
+
+    public static void main(String[] args) {
+        if (args.length == 0) {
+            System.out.print(renderMarkdown());
+            return;
+        }
+        if (args.length != 1) {
+            throw new IllegalArgumentException("Usage: MetalOperationParityMatrix [output-path]");
+        }
+        write(Path.of(args[0]));
     }
 
     private static boolean cpuKernelAvailable(Operation.OpType opType) {

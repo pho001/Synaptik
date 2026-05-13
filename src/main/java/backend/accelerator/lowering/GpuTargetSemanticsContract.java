@@ -119,6 +119,8 @@ public record GpuTargetSemanticsContract(
         addConvPool(out, Operation.OpType.AVG_POOL2D_BACKWARD_INPUT, "avg-pool backward divisor and countIncludePad semantics must match CPU");
         addIndex(out, Operation.OpType.GATHER, "INT32 indices; bounds and axis behavior must match CPU gather");
         addIndex(out, Operation.OpType.GATHER_GRAD, "duplicate-index accumulation must match CPU gather gradient");
+        addIndex(out, Operation.OpType.GATHER_AXIS, "INT32 indices; ONNX gather axis shape insertion and bounds must match CPU gatherAxis");
+        addIndex(out, Operation.OpType.GATHER_AXIS_GRAD, "duplicate-index accumulation must match CPU gatherAxis gradient");
         addIndex(out, Operation.OpType.GATHER_ND, "INT32 tuple indices, slice suffix shape, bounds, and batch_dims behavior must match CPU gather-nd");
         addIndex(out, Operation.OpType.GATHER_ND_GRAD, "duplicate tuple-index accumulation, slice suffix shape, and batch_dims behavior must match CPU gather-nd gradient");
         addIndex(out, Operation.OpType.TAKE_ALONG_AXIS, "INT32 indices; axis-aligned take semantics must match CPU");

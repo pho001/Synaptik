@@ -573,6 +573,82 @@ class MetalMpsFfmBridgeTest {
     }
 
     @Test
+    void explicitShimExecuteBuffersSupportsGatherAxisAndStaticLayoutOps() {
+        Tensor gatherInput = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f
+        }, new int[]{2, 3}, null, "metal68NativeGatherInput", DataType.FLOAT32);
+        Tensor gatherIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metal68NativeGatherIndices", DataType.INT32);
+        Tensor gathered = gatherInput.gatherAxis(gatherIndices, 1);
+
+        Tensor gatherDestination = executeF32LoweredNode(
+                gathered,
+                Operation.OpType.GATHER_AXIS,
+                List.of(gatherInput, gatherIndices),
+                new int[]{2, 2}
+        );
+
+        Tensor sliceInput = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f
+        }, new int[]{2, 3}, null, "metal68NativeSliceInput", DataType.FLOAT32);
+        Tensor sliced = sliceInput.slice(new int[]{0, 1}, new int[]{2, 3}, new int[]{0, 1}, new int[]{1, 1});
+        Tensor sliceDestination = executeF32LoweredNode(
+                sliced,
+                Operation.OpType.SLICE,
+                List.of(sliceInput),
+                new int[]{2, 2}
+        );
+
+        Tensor padInput = new Tensor(new float[]{
+                1f, 2f,
+                3f, 4f
+        }, new int[]{2, 2}, null, "metal68NativePadInput", DataType.FLOAT32);
+        Tensor padded = padInput.pad(new int[]{1, 0}, new int[]{0, 1}, -1.0);
+        Tensor padDestination = executeF32LoweredNode(
+                padded,
+                Operation.OpType.PAD,
+                List.of(padInput),
+                new int[]{3, 3}
+        );
+
+        Tensor tileInput = new Tensor(new float[]{1f, 2f, 3f}, new int[]{1, 3}, null, "metal68NativeTileInput", DataType.FLOAT32);
+        Tensor tiled = tileInput.tile(2, 1);
+        Tensor tileDestination = executeF32LoweredNode(
+                tiled,
+                Operation.OpType.TILE,
+                List.of(tileInput),
+                new int[]{2, 3}
+        );
+
+        Tensor concatLeft = new Tensor(new float[]{
+                1f, 2f,
+                3f, 4f
+        }, new int[]{2, 2}, null, "metal68NativeConcatLeft", DataType.FLOAT32);
+        Tensor concatRight = new Tensor(new float[]{
+                5f, 6f,
+                7f, 8f
+        }, new int[]{2, 2}, null, "metal68NativeConcatRight", DataType.FLOAT32);
+        Tensor concatenated = Tensor.concat(1, concatLeft, concatRight);
+        Tensor concatDestination = executeF32LoweredNode(
+                concatenated,
+                Operation.OpType.CONCAT,
+                List.of(concatLeft, concatRight),
+                new int[]{2, 4}
+        );
+
+        assertArrayEquals(new float[]{3f, 1f, 6f, 4f}, gatherDestination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{2f, 3f, 5f, 6f}, sliceDestination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{
+                -1f, -1f, -1f,
+                1f, 2f, -1f,
+                3f, 4f, -1f
+        }, padDestination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{1f, 2f, 3f, 1f, 2f, 3f}, tileDestination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{1f, 2f, 5f, 6f, 3f, 4f, 7f, 8f}, concatDestination.getFloat32Data(), 0.0f);
+    }
+
+    @Test
     void explicitShimExecuteBuffersSupportsBoolLayoutShapeOps() {
         Tensor reshapeInput = new Tensor(new byte[]{1, 0, 1, 0}, new int[]{2, 2}, null, "boolReshapeInput", DataType.BOOL);
         Tensor reshaped = reshapeInput.reshape(4);

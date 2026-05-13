@@ -74,7 +74,13 @@ public enum AcceleratorDagNodeType {
     AVG_POOL2D_BACKWARD_INPUT(68),
     MAX_POOL2D_BACKWARD_INPUT(69),
     CROSS_ENTROPY_LOSS_INDICES(70),
-    CROSS_ENTROPY_LOSS_INDICES_GRAD(71);
+    CROSS_ENTROPY_LOSS_INDICES_GRAD(71),
+    GATHER_AXIS(72),
+    GATHER_AXIS_GRAD(73),
+    SLICE(74),
+    CONCAT(75),
+    PAD(76),
+    TILE(77);
 
     private final int abiCode;
 

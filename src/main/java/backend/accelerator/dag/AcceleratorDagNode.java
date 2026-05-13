@@ -19,6 +19,14 @@ import java.util.Objects;
  * @param input3 fourth operand reference, or {@link AcceleratorDagValueRef#none()}
  * @param input4 fifth operand reference, or {@link AcceleratorDagValueRef#none()}
  * @param scalarValueBits raw {@code float} bits for scalar-valued operations
+ * @param attribute0 first static integer operation attribute
+ * @param attribute1 second static integer operation attribute
+ * @param attribute2 third static integer operation attribute
+ * @param attribute3 fourth static integer operation attribute
+ * @param attribute4 fifth static integer operation attribute
+ * @param attribute5 sixth static integer operation attribute
+ * @param attribute6 seventh static integer operation attribute
+ * @param attribute7 eighth static integer operation attribute
  * @param outputRank rank of the produced tensor, clamped to at least one
  * @param outputDim0 first output dimension, clamped to at least one
  * @param outputDim1 second output dimension, clamped to at least one
@@ -35,6 +43,14 @@ public record AcceleratorDagNode(
         AcceleratorDagValueRef input3,
         AcceleratorDagValueRef input4,
         int scalarValueBits,
+        int attribute0,
+        int attribute1,
+        int attribute2,
+        int attribute3,
+        int attribute4,
+        int attribute5,
+        int attribute6,
+        int attribute7,
         int outputRank,
         int outputDim0,
         int outputDim1,
@@ -55,6 +71,17 @@ public record AcceleratorDagNode(
         outputDim2 = Math.max(1, outputDim2);
         outputDim3 = Math.max(1, outputDim3);
         outputDataType = outputDataType == null ? DataType.FLOAT32 : outputDataType;
+    }
+
+    public boolean hasAttributes() {
+        return attribute0 != 0
+                || attribute1 != 0
+                || attribute2 != 0
+                || attribute3 != 0
+                || attribute4 != 0
+                || attribute5 != 0
+                || attribute6 != 0
+                || attribute7 != 0;
     }
 
     public AcceleratorDagNode(
@@ -81,12 +108,62 @@ public record AcceleratorDagNode(
                 input3,
                 input4,
                 scalarValueBits,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 outputRank,
                 outputDim0,
                 outputDim1,
                 outputDim2,
                 outputDim3,
                 DataType.FLOAT32
+        );
+    }
+
+    public AcceleratorDagNode(
+            int nodeId,
+            AcceleratorDagNodeType type,
+            AcceleratorDagValueRef input0,
+            AcceleratorDagValueRef input1,
+            AcceleratorDagValueRef input2,
+            AcceleratorDagValueRef input3,
+            AcceleratorDagValueRef input4,
+            int scalarValueBits,
+            int outputRank,
+            int outputDim0,
+            int outputDim1,
+            int outputDim2,
+            int outputDim3,
+            DataType outputDataType
+    ) {
+        this(
+                nodeId,
+                type,
+                input0,
+                input1,
+                input2,
+                input3,
+                input4,
+                scalarValueBits,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                outputRank,
+                outputDim0,
+                outputDim1,
+                outputDim2,
+                outputDim3,
+                outputDataType
         );
     }
 
@@ -114,6 +191,14 @@ public record AcceleratorDagNode(
                 input3,
                 AcceleratorDagValueRef.none(),
                 scalarValueBits,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 outputRank,
                 outputDim0,
                 outputDim1,
@@ -146,6 +231,14 @@ public record AcceleratorDagNode(
                 input3,
                 AcceleratorDagValueRef.none(),
                 scalarValueBits,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 outputRank,
                 outputDim0,
                 outputDim1,

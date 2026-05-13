@@ -7,7 +7,7 @@ Generated from `OnnxCoverageMatrix`; do not hand-edit status rows.
 - Import: supported=78, partial=0, unsupported=1
 - Export: supported=70, partial=1, unsupported=8
 - CPU: supported=78, partial=0, unsupported=1
-- Metal: supported=50, partial=9, unsupported=20
+- Metal: supported=56, partial=9, unsupported=14
 - CUDA: supported=34, partial=9, unsupported=36
 - Round-trip evidence: round_trip_tested=70, explicitly_classified=1, import_only_tested=7, rejection_tested=1, not_applicable=0
 
@@ -62,18 +62,18 @@ Generated from `OnnxCoverageMatrix`; do not hand-edit status rows.
 | Reshape | reshape | supported | supported | supported | supported | supported | round_trip_tested | RESHAPE | constant target shape |
 | Flatten | reshape | supported | supported | supported | supported | supported | round_trip_tested | RESHAPE | static axis reshape |
 | Expand | expand | supported | supported | supported | supported | unsupported | round_trip_tested | EXPAND | constant target shape |
-| Pad | pad | supported | supported | supported | unsupported | unsupported | round_trip_tested | PAD | constant mode, static non-negative pads, scalar constant value |
-| Tile | tile | supported | supported | supported | unsupported | unsupported | round_trip_tested | TILE | constant positive repeats |
+| Pad | pad | supported | supported | supported | supported | unsupported | round_trip_tested | PAD | constant mode, static non-negative pads, scalar constant value |
+| Tile | tile | supported | supported | supported | supported | unsupported | round_trip_tested | TILE | constant positive repeats |
 | ConstantOfShape | constant leaf materialization | supported | unsupported | supported | partial | partial | import_only_tested |  | import-time static shape input only; no first-class runtime operation |
 | Range | shape constant or constant tensor leaf | supported | unsupported | supported | partial | partial | import_only_tested |  | import-time static scalar inputs only; runtime data-dependent length is unsupported |
 | Squeeze | squeeze | supported | supported | supported | supported | supported | round_trip_tested | SQUEEZE | constant axes |
 | Unsqueeze | expand_dims | supported | supported | supported | supported | supported | round_trip_tested | EXPAND_DIMS | constant axes |
-| Slice | slice | supported | supported | supported | unsupported | unsupported | round_trip_tested | SLICE | constant positive-step slice parameters |
-| Concat | concat | supported | supported | supported | unsupported | unsupported | round_trip_tested | CONCAT | runtime tensors or shape-only axis-0 constants |
-| Split | slice per output | supported | unsupported | supported | unsupported | unsupported | import_only_tested | SLICE | import-only multi-output lowering with static split sizes |
+| Slice | slice | supported | supported | supported | supported | unsupported | round_trip_tested | SLICE | constant positive-step slice parameters |
+| Concat | concat | supported | supported | supported | supported | unsupported | round_trip_tested | CONCAT | runtime tensors or shape-only axis-0 constants |
+| Split | slice per output | supported | unsupported | supported | supported | unsupported | import_only_tested | SLICE | import-only multi-output lowering with static split sizes |
 | Shape | shape constant | supported | unsupported | supported | unsupported | unsupported | import_only_tested |  | import-time static shape plumbing only |
 | Size | size constant | supported | unsupported | supported | unsupported | unsupported | import_only_tested |  | import-time static shape plumbing only |
-| Gather | gatherAxis or shape gather | supported | supported | supported | unsupported | unsupported | round_trip_tested | GATHER_AXIS | runtime mapping uses GATHER_AXIS; shape-only mapping is axis-0 only |
+| Gather | gatherAxis or shape gather | supported | supported | supported | supported | unsupported | round_trip_tested | GATHER_AXIS | runtime mapping uses GATHER_AXIS; shape-only mapping is axis-0 only |
 | GatherElements | takeAlongAxis | supported | supported | supported | supported | unsupported | round_trip_tested | TAKE_ALONG_AXIS | runtime indices are INT32 |
 | GatherND | gatherNd | supported | supported | supported | unsupported | unsupported | round_trip_tested | GATHER_ND | runtime indices are INT32; batch_dims supported |
 | ScatterElements | scatterElements | supported | supported | supported | unsupported | unsupported | round_trip_tested | SCATTER_ELEMENTS | forward reductions none/add/mul/max/min; backward only none/add |

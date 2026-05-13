@@ -119,8 +119,12 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
         try {
             AcceleratorDagSpec dagSpec = plan.lowering().dagSpec();
             boolean requiresDTypeV3Compile = requiresDTypeV3Compile(dagSpec);
+            boolean requiresAttributeV4Compile = requiresAttributeV4Compile(dagSpec);
             if (requiresDTypeV3Compile && STATE.compilePartitionDTypeV3Fn == null) {
                 return MetalMpsBridgeExecutable.unavailable("Metal MPS dtype ABI v3 compile symbol is unavailable for widened dtype DAG.");
+            }
+            if (requiresAttributeV4Compile && STATE.compilePartitionDTypeV4Fn == null) {
+                return MetalMpsBridgeExecutable.unavailable("Metal MPS dtype/attribute ABI v4 compile symbol is unavailable for attributed layout/index DAG.");
             }
             AcceleratorSubgraphSignature signature = AcceleratorSubgraphSignature.from(plan);
             boolean cacheHit = EXECUTABLE_CACHE.containsKey(signature);
@@ -158,6 +162,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                         int[] input4Kinds = new int[nodeCount];
                         int[] input4Indices = new int[nodeCount];
                         float[] scalarValues = new float[nodeCount];
+                        int[] nodeAttributes = new int[nodeCount * 8];
                         int[] outputRanks = new int[nodeCount];
                         int[] outputDim0 = new int[nodeCount];
                         int[] outputDim1 = new int[nodeCount];
@@ -178,6 +183,15 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                             input4Kinds[i] = node.input4().kind().abiCode();
                             input4Indices[i] = node.input4().index();
                             scalarValues[i] = Float.intBitsToFloat(node.scalarValueBits());
+                            int attrBase = i * 8;
+                            nodeAttributes[attrBase] = node.attribute0();
+                            nodeAttributes[attrBase + 1] = node.attribute1();
+                            nodeAttributes[attrBase + 2] = node.attribute2();
+                            nodeAttributes[attrBase + 3] = node.attribute3();
+                            nodeAttributes[attrBase + 4] = node.attribute4();
+                            nodeAttributes[attrBase + 5] = node.attribute5();
+                            nodeAttributes[attrBase + 6] = node.attribute6();
+                            nodeAttributes[attrBase + 7] = node.attribute7();
                             outputRanks[i] = node.outputRank();
                             outputDim0[i] = node.outputDim0();
                             outputDim1[i] = node.outputDim1();
@@ -241,6 +255,9 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                         MemorySegment scalarValuesSeg = scalarValues.length == 0
                                 ? MemorySegment.NULL
                                 : compileArena.allocateFrom(JAVA_FLOAT, scalarValues);
+                        MemorySegment nodeAttributesSeg = nodeAttributes.length == 0
+                                ? MemorySegment.NULL
+                                : compileArena.allocateFrom(JAVA_INT, nodeAttributes);
                         MemorySegment outputRanksSeg = outputRanks.length == 0
                                 ? MemorySegment.NULL
                                 : compileArena.allocateFrom(JAVA_INT, outputRanks);
@@ -264,6 +281,40 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                         MemorySegment outputNodeIndicesSeg = outputNodeIndices.length == 0
                                 ? MemorySegment.NULL
                                 : compileArena.allocateFrom(JAVA_INT, outputNodeIndices);
+                        if (requiresAttributeV4Compile) {
+                            return (MemorySegment) STATE.compilePartitionDTypeV4Fn.invokeExact(
+                                bridgeContext.handle(),
+                                externalInputCount,
+                                externalInputRanksSeg,
+                                externalInputDTypesSeg,
+                                externalInputDim0Seg,
+                                externalInputDim1Seg,
+                                externalInputDim2Seg,
+                                externalInputDim3Seg,
+                                nodeCount,
+                                nodeTypesSeg,
+                                input0KindsSeg,
+                                input0IndicesSeg,
+                                input1KindsSeg,
+                                input1IndicesSeg,
+                                input2KindsSeg,
+                                input2IndicesSeg,
+                                input3KindsSeg,
+                                input3IndicesSeg,
+                                input4KindsSeg,
+                                input4IndicesSeg,
+                                scalarValuesSeg,
+                                nodeAttributesSeg,
+                                outputRanksSeg,
+                                outputDim0Seg,
+                                outputDim1Seg,
+                                outputDim2Seg,
+                                outputDim3Seg,
+                                nodeOutputDTypesSeg,
+                                outputCount,
+                                outputNodeIndicesSeg
+                            );
+                        }
                         if (requiresDTypeV3Compile) {
                             return (MemorySegment) STATE.compilePartitionDTypeV3Fn.invokeExact(
                                 bridgeContext.handle(),
@@ -365,6 +416,25 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
         for (AcceleratorDagNode node : dagSpec.nodes()) {
             if (node.outputDataType() != DataType.FLOAT32) {
                 return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean requiresAttributeV4Compile(AcceleratorDagSpec dagSpec) {
+        if (dagSpec == null) {
+            return false;
+        }
+        for (AcceleratorDagNode node : dagSpec.nodes()) {
+            if (node.hasAttributes()) {
+                return true;
+            }
+            switch (node.type()) {
+                case GATHER_AXIS, GATHER_AXIS_GRAD, SLICE, CONCAT, PAD, TILE -> {
+                    return true;
+                }
+                default -> {
+                }
             }
         }
         return false;
@@ -1262,6 +1332,44 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                             ADDRESS
                     )
             );
+            MethodHandle compilePartitionDTypeV4Fn = optionalHandle(
+                    linker,
+                    lookup,
+                    "synaptik_apple_mps_compile_partition_dtype_v4",
+                    FunctionDescriptor.of(
+                            ADDRESS,
+                            ADDRESS,
+                            JAVA_INT,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            JAVA_INT,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            JAVA_INT,
+                            ADDRESS
+                    )
+            );
             MethodHandle executePartitionFn = optionalHandle(
                     linker,
                     lookup,
@@ -1389,7 +1497,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                         metalCapabilityReason(layoutAbiV2Version, layoutAbiV2Supported, dtypeAbiV3Version, dtypeAbiV3Supported)
                 );
                 return new State(true, null, arena, availableFn, unavailableReasonFn, createContextFn, compilePartitionFn,
-                        compilePartitionDTypeV3Fn, executePartitionFn, createBufferFn, writeBufferFn, readBufferFn, destroyBufferFn,
+                        compilePartitionDTypeV3Fn, compilePartitionDTypeV4Fn, executePartitionFn, createBufferFn, writeBufferFn, readBufferFn, destroyBufferFn,
                         executePartitionBuffersFn, probeOutputBufferWriteBuffersFn, destroyContextFn, destroyExecutableFn,
                         layoutContiguousBufferFn, capabilities);
             }
@@ -1410,13 +1518,13 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                     reason
             );
             return new State(false, reason, arena, availableFn, unavailableReasonFn, createContextFn, compilePartitionFn,
-                    compilePartitionDTypeV3Fn, executePartitionFn, createBufferFn, writeBufferFn, readBufferFn, destroyBufferFn,
+                    compilePartitionDTypeV3Fn, compilePartitionDTypeV4Fn, executePartitionFn, createBufferFn, writeBufferFn, readBufferFn, destroyBufferFn,
                     executePartitionBuffersFn, probeOutputBufferWriteBuffersFn, destroyContextFn, destroyExecutableFn,
                     layoutContiguousBufferFn, capabilities);
         } catch (Throwable t) {
             String reason = t.getClass().getSimpleName() + ": " + safeMessage(t);
             return new State(false, t.getClass().getSimpleName() + ": " + safeMessage(t), null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null,
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                     MetalMpsBridgeCapabilities.unavailable(MetalMpsCapabilityCode.NATIVE_LIBRARY_UNAVAILABLE, reason));
         }
     }
@@ -1538,6 +1646,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
         private final MethodHandle createContextFn;
         private final MethodHandle compilePartitionFn;
         private final MethodHandle compilePartitionDTypeV3Fn;
+        private final MethodHandle compilePartitionDTypeV4Fn;
         private final MethodHandle executePartitionFn;
         private final MethodHandle createBufferFn;
         @SuppressWarnings("unused")
@@ -1560,6 +1669,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                 MethodHandle createContextFn,
                 MethodHandle compilePartitionFn,
                 MethodHandle compilePartitionDTypeV3Fn,
+                MethodHandle compilePartitionDTypeV4Fn,
                 MethodHandle executePartitionFn,
                 MethodHandle createBufferFn,
                 MethodHandle writeBufferFn,
@@ -1580,6 +1690,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
             this.createContextFn = createContextFn;
             this.compilePartitionFn = compilePartitionFn;
             this.compilePartitionDTypeV3Fn = compilePartitionDTypeV3Fn;
+            this.compilePartitionDTypeV4Fn = compilePartitionDTypeV4Fn;
             this.executePartitionFn = executePartitionFn;
             this.createBufferFn = createBufferFn;
             this.writeBufferFn = writeBufferFn;

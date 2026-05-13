@@ -201,7 +201,7 @@ public final class MetalMpsCapabilities {
                     MetalDTypeReasonCode.UNSUPPORTED_EXTERNAL_INPUT_ROLE,
                     "Metal direct SDPA accepts dtype-matched FLOAT32/BFLOAT16 query/key/value inputs and optional dense BOOL mask input");
         }
-        if (opType == Operation.OpType.GATHER || opType == Operation.OpType.TAKE_ALONG_AXIS) {
+        if (opType == Operation.OpType.GATHER || opType == Operation.OpType.GATHER_AXIS || opType == Operation.OpType.TAKE_ALONG_AXIS) {
             return switch (inputIndex) {
                 case 0 -> isMetalFloatingDType(dtype) && consumer.dataType() == dtype
                         ? supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, true, false,
@@ -243,7 +243,7 @@ public final class MetalMpsCapabilities {
                         opType + " has no supported input role at index " + inputIndex);
             };
         }
-        if (opType == Operation.OpType.GATHER_GRAD || opType == Operation.OpType.TAKE_ALONG_AXIS_GRAD) {
+        if (opType == Operation.OpType.GATHER_GRAD || opType == Operation.OpType.GATHER_AXIS_GRAD || opType == Operation.OpType.TAKE_ALONG_AXIS_GRAD) {
             return switch (inputIndex) {
                 case 0 -> dtype == DataType.INT32
                         ? supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, false, false,
@@ -351,7 +351,8 @@ public final class MetalMpsCapabilities {
                     "BOOL reduction input requires BOOL data");
         }
         if (supportsDTypePreservingLayoutOperation(opType)) {
-            if (inputIndex == 0
+            boolean legalInputPosition = opType == Operation.OpType.CONCAT ? inputIndex >= 0 : inputIndex == 0;
+            if (legalInputPosition
                     && dtype == consumer.dataType()
                     && (dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16 || dtype == DataType.BOOL)) {
                 return supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, dtype != DataType.BOOL, false,
@@ -362,7 +363,7 @@ public final class MetalMpsCapabilities {
             }
             return unsupported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype,
                     MetalDTypeReasonCode.UNSUPPORTED_EXTERNAL_INPUT_ROLE,
-                    opType + " layout input requires input 0 with matching FLOAT32/BFLOAT16/BOOL dtype");
+                    opType + " layout input requires matching FLOAT32/BFLOAT16/BOOL dtype");
         }
         if (dtype == DataType.FLOAT32) {
             return supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, true, false,
@@ -511,9 +512,11 @@ public final class MetalMpsCapabilities {
                  CROSS_ENTROPY_LOSS_INDICES,
                  CROSS_ENTROPY_LOSS_INDICES_GRAD,
                  GATHER,
+                 GATHER_AXIS,
                  TAKE_ALONG_AXIS,
                  SCATTER_ADD,
                  GATHER_GRAD,
+                 GATHER_AXIS_GRAD,
                  TAKE_ALONG_AXIS_GRAD,
                  CONV2D,
                  CONV2D_GEMM,
@@ -532,6 +535,10 @@ public final class MetalMpsCapabilities {
                  CONTIGUOUS,
                  PERMUTE,
                  EXPAND,
+                 SLICE,
+                 CONCAT,
+                 PAD,
+                 TILE,
                  EXPAND_DIMS,
                  SQUEEZE,
                  SELECT,
@@ -578,6 +585,10 @@ public final class MetalMpsCapabilities {
                  RESHAPE,
                  EXPAND,
                  SELECT,
+                 SLICE,
+                 CONCAT,
+                 PAD,
+                 TILE,
                  PERMUTE,
                  EXPAND_DIMS,
                  SQUEEZE,

@@ -155,6 +155,12 @@ public final class GpuLoweringCoverageMatrix {
                     "Metal MPSGraph layout path maps broadcast EXPAND and single-index SELECT into native accelerator DAG shape ops",
                     Operation.OpType.EXPAND,
                     Operation.OpType.SELECT);
+            addSupported(entries, backend, GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT,
+                    "Metal MPSGraph layout path supports dense FLOAT32/BFLOAT16 static slice, concat, constant pad, and tile descriptors",
+                    Operation.OpType.SLICE,
+                    Operation.OpType.CONCAT,
+                    Operation.OpType.PAD,
+                    Operation.OpType.TILE);
         }
         addSupported(entries, backend, GpuLoweringOperationFamily.SOFTMAX_LIKE,
                 "native accelerator DAG softmax path; target=transformer_block_hot_path",
@@ -260,6 +266,10 @@ public final class GpuLoweringCoverageMatrix {
                     GpuLoweringCoverageStatus.SUPPORTED,
                     GpuLoweringUnsupportedReason.SUPPORTED,
                     "forward gather lowers to Metal gatherAlongAxis with expanded INT32 indices; scoped to dense FLOAT32/BFLOAT16 value input and static in-bounds INT32 index input; target=gather_take_small");
+            add(entries, backend, Operation.OpType.GATHER_AXIS, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
+                    GpuLoweringCoverageStatus.SUPPORTED,
+                    GpuLoweringUnsupportedReason.SUPPORTED,
+                    "ONNX-style gatherAxis lowers to Metal gatherAlongAxis with broadcast INT32 indices for dense FLOAT32/BFLOAT16 value input and static in-bounds 1-D index input; target=gather_take_small");
             add(entries, backend, Operation.OpType.GATHER_ND, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
                     GpuLoweringCoverageStatus.UNSUPPORTED,
                     GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
@@ -273,6 +283,10 @@ public final class GpuLoweringCoverageMatrix {
                     GpuLoweringCoverageStatus.UNSUPPORTED,
                     GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
                     "CUDA forward gather native/lowered path is not implemented yet");
+            add(entries, backend, Operation.OpType.GATHER_AXIS, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
+                    "CUDA ONNX-style gatherAxis native/lowered path is not implemented yet");
             add(entries, backend, Operation.OpType.GATHER_ND, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
                     GpuLoweringCoverageStatus.UNSUPPORTED,
                     GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
@@ -287,11 +301,19 @@ public final class GpuLoweringCoverageMatrix {
                     GpuLoweringCoverageStatus.SUPPORTED,
                     GpuLoweringUnsupportedReason.SUPPORTED,
                     "Metal gather gradient lowers to MPSGraph scatterAlongAxis add with dense FLOAT32/BFLOAT16 gradients, static in-bounds INT32 indices, and duplicate accumulation on device; target=scatter_index_gradient_small");
+            add(entries, backend, Operation.OpType.GATHER_AXIS_GRAD, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
+                    GpuLoweringCoverageStatus.SUPPORTED,
+                    GpuLoweringUnsupportedReason.SUPPORTED,
+                    "Metal gatherAxis gradient lowers to MPSGraph scatterAlongAxis add with broadcast INT32 indices, dense FLOAT32/BFLOAT16 gradients, and duplicate accumulation on device; target=scatter_index_gradient_small");
         } else {
             add(entries, backend, Operation.OpType.GATHER_GRAD, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
                     GpuLoweringCoverageStatus.UNSUPPORTED,
                     GpuLoweringUnsupportedReason.UNSUPPORTED_DUPLICATE_INDEX,
                     "gather gradient remains CPU-owned until Phase 36 proves duplicate-index accumulation parity, static bounds checks, and gradient scatter residency");
+            add(entries, backend, Operation.OpType.GATHER_AXIS_GRAD, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.UNSUPPORTED_DUPLICATE_INDEX,
+                    "gatherAxis gradient remains CPU-owned until CUDA proves duplicate-index accumulation parity, static bounds checks, and gradient scatter residency");
         }
         if (backend == ComputeBackend.GPU_METAL) {
             add(entries, backend, Operation.OpType.TAKE_ALONG_AXIS, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
@@ -589,7 +611,7 @@ public final class GpuLoweringCoverageMatrix {
             case CONV2D, CONV2D_GEMM, CONV2D_BACKWARD_INPUT, CONV2D_BACKWARD_WEIGHT, CONV2D_BACKWARD_INPUT_GEMM,
                     CONV2D_BACKWARD_WEIGHT_GEMM, MAX_POOL2D, MAX_POOL2D_BACKWARD_INPUT, AVG_POOL2D,
                     AVG_POOL2D_BACKWARD_INPUT -> GpuLoweringOperationFamily.CONV_POOL;
-            case GATHER, GATHER_GRAD, GATHER_ND, GATHER_ND_GRAD, TAKE_ALONG_AXIS, TAKE_ALONG_AXIS_GRAD, SCATTER_ADD, SCATTER_ELEMENTS, SCATTER_ND -> GpuLoweringOperationFamily.INDEX_SCATTER_GATHER;
+            case GATHER, GATHER_GRAD, GATHER_AXIS, GATHER_AXIS_GRAD, GATHER_ND, GATHER_ND_GRAD, TAKE_ALONG_AXIS, TAKE_ALONG_AXIS_GRAD, SCATTER_ADD, SCATTER_ELEMENTS, SCATTER_ND -> GpuLoweringOperationFamily.INDEX_SCATTER_GATHER;
             case REDUCE_MIN_GRAD, REDUCE_MAX_GRAD, MIN_GRAD, MAX_GRAD -> GpuLoweringOperationFamily.BACKWARD_ADJACENT;
             default -> GpuLoweringOperationFamily.ELEMENTWISE_CHAIN;
         };
