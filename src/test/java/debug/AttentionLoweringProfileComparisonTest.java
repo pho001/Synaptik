@@ -118,7 +118,7 @@ final class AttentionLoweringProfileComparisonTest {
             case FLOAT64 -> new Tensor(values.clone(), shape, null, label, DataType.FLOAT64);
             case FLOAT32 -> new Tensor(toF32(values), shape, null, label, DataType.FLOAT32);
             case BFLOAT16 -> throw new IllegalArgumentException("BF16 benchmark is not used here.");
-            case INT32, BOOL -> throw new IllegalArgumentException("attention benchmark requires floating dtype");
+            case INT32, INT64, BOOL -> throw new IllegalArgumentException("attention benchmark requires floating dtype");
         };
     }
 
@@ -127,7 +127,7 @@ final class AttentionLoweringProfileComparisonTest {
             case FLOAT64 -> -1.0e30d;
             case FLOAT32 -> -1.0e9d;
             case BFLOAT16 -> -1.0e30d;
-            case INT32, BOOL -> throw new IllegalArgumentException("attention benchmark requires floating dtype");
+            case INT32, INT64, BOOL -> throw new IllegalArgumentException("attention benchmark requires floating dtype");
         };
     }
 
