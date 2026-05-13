@@ -8,6 +8,7 @@ import tensor.DataType;
 import tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class SelectExecutionTest {
@@ -327,7 +328,7 @@ public class SelectExecutionTest {
         Tensor minLoss = aMin.select(0, 1).min(bMin.select(0, 1)).sum();
 
         CompiledGraph compiledMin = CompiledGraph.compile(minLoss, CompileConfig.training());
-        assertTrue(containsOp(compiledMin, Operation.OpType.MIN_GRAD));
+        assertFalse(containsOp(compiledMin, Operation.OpType.MIN_GRAD));
         compiledMin.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
@@ -352,7 +353,7 @@ public class SelectExecutionTest {
         Tensor maxLoss = aMax.select(0, 1).max(bMax.select(0, 1)).sum();
 
         CompiledGraph compiledMax = CompiledGraph.compile(maxLoss, CompileConfig.training());
-        assertTrue(containsOp(compiledMax, Operation.OpType.MAX_GRAD));
+        assertFalse(containsOp(compiledMax, Operation.OpType.MAX_GRAD));
         compiledMax.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{

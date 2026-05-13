@@ -7,9 +7,18 @@ import operations.Operation;
  */
 public final class scatterNd implements Operation {
     private final ScatterReduction reduction;
+    private final int batchDims;
 
     public scatterNd(ScatterReduction reduction) {
+        this(reduction, 0);
+    }
+
+    public scatterNd(ScatterReduction reduction, int batchDims) {
+        if (batchDims < 0) {
+            throw new IllegalArgumentException("scatterNd batchDims must be non-negative.");
+        }
         this.reduction = reduction == null ? ScatterReduction.NONE : reduction;
+        this.batchDims = batchDims;
     }
 
     @Override
@@ -19,10 +28,14 @@ public final class scatterNd implements Operation {
 
     @Override
     public String getExpression() {
-        return "scatterNd(reduction=" + reduction + ")";
+        return "scatterNd(reduction=" + reduction + ",batchDims=" + batchDims + ")";
     }
 
     public ScatterReduction getReduction() {
         return reduction;
+    }
+
+    public int getBatchDims() {
+        return batchDims;
     }
 }

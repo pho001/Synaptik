@@ -1572,6 +1572,8 @@ public final class AcceleratorSubgraphLowerer {
 
     private boolean isIndexWriteOrGradient(AcceleratorDagNodeType type) {
         return type == AcceleratorDagNodeType.SCATTER_ADD
+                || type == AcceleratorDagNodeType.SCATTER_ELEMENTS
+                || type == AcceleratorDagNodeType.SCATTER_ND
                 || type == AcceleratorDagNodeType.GATHER_GRAD
                 || type == AcceleratorDagNodeType.GATHER_AXIS_GRAD
                 || type == AcceleratorDagNodeType.TAKE_ALONG_AXIS_GRAD;
@@ -2414,6 +2416,8 @@ public final class AcceleratorSubgraphLowerer {
             case GATHER_ND -> AcceleratorDagNodeType.GATHER_ND;
             case TAKE_ALONG_AXIS -> AcceleratorDagNodeType.TAKE_ALONG_AXIS;
             case SCATTER_ADD -> AcceleratorDagNodeType.SCATTER_ADD;
+            case SCATTER_ELEMENTS -> AcceleratorDagNodeType.SCATTER_ELEMENTS;
+            case SCATTER_ND -> AcceleratorDagNodeType.SCATTER_ND;
             case GATHER_GRAD -> AcceleratorDagNodeType.GATHER_GRAD;
             case GATHER_AXIS_GRAD -> AcceleratorDagNodeType.GATHER_AXIS_GRAD;
             case TAKE_ALONG_AXIS_GRAD -> AcceleratorDagNodeType.TAKE_ALONG_AXIS_GRAD;
@@ -2465,6 +2469,8 @@ public final class AcceleratorSubgraphLowerer {
             case GATHER_ND -> node.operation() instanceof gatherNd op ? op.getBatchDims() : Integer.MIN_VALUE;
             case TAKE_ALONG_AXIS -> node.operation() instanceof takeAlongAxis op ? op.getDimension() : Integer.MIN_VALUE;
             case SCATTER_ADD -> node.operation() instanceof operations.index.scatterAdd op ? op.getDimension() : Integer.MIN_VALUE;
+            case SCATTER_ELEMENTS -> node.operation() instanceof operations.index.scatterElements op ? op.getAxis() : Integer.MIN_VALUE;
+            case SCATTER_ND -> node.operation() instanceof operations.index.scatterNd op ? op.getBatchDims() : Integer.MIN_VALUE;
             case GATHER_GRAD -> node.operation() instanceof operations.index.gatherGrad op ? op.getDimension() : Integer.MIN_VALUE;
             case GATHER_AXIS_GRAD -> node.operation() instanceof operations.index.gatherAxisGrad op ? op.getAxis() : Integer.MIN_VALUE;
             case TAKE_ALONG_AXIS_GRAD -> node.operation() instanceof operations.index.takeAlongAxisGrad op ? op.getDimension() : Integer.MIN_VALUE;
@@ -2519,6 +2525,20 @@ public final class AcceleratorSubgraphLowerer {
                     }
                     out[axes[i]] = starts[i];
                 }
+                return out;
+            }
+            case SCATTER_ELEMENTS -> {
+                if (!(node.operation() instanceof operations.index.scatterElements op)) {
+                    return null;
+                }
+                out[0] = op.getReduction().ordinal();
+                return out;
+            }
+            case SCATTER_ND -> {
+                if (!(node.operation() instanceof operations.index.scatterNd op)) {
+                    return null;
+                }
+                out[0] = op.getReduction().ordinal();
                 return out;
             }
             case SLICE_GRAD -> {

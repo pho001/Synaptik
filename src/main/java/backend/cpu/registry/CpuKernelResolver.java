@@ -40,6 +40,7 @@ public final class CpuKernelResolver {
     private static final CpuTakeAlongAxisKernel TAKE_ALONG_AXIS = new CpuTakeAlongAxisKernel();
     private static final CpuTakeAlongAxisGradKernel TAKE_ALONG_AXIS_GRAD = new CpuTakeAlongAxisGradKernel();
     private static final CpuScatterAddKernel SCATTER_ADD = new CpuScatterAddKernel();
+    private static final CpuScatterAxisAddKernel SCATTER_AXIS_ADD = new CpuScatterAxisAddKernel();
     private static final CpuScatterElementsKernel SCATTER_ELEMENTS = new CpuScatterElementsKernel();
     private static final CpuScatterNdKernel SCATTER_ND = new CpuScatterNdKernel();
     private static final CpuScaledDotProductAttentionKernel SCALED_DOT_PRODUCT_ATTENTION = new CpuScaledDotProductAttentionKernel();
@@ -105,6 +106,7 @@ public final class CpuKernelResolver {
     private static final CpuExpandKernel EXPAND = new CpuExpandKernel();
     private static final CpuAliasViewKernel ALIAS_VIEW = new CpuAliasViewKernel();
     private static final CpuSliceGradKernel SLICE_GRAD = new CpuSliceGradKernel();
+    private static final CpuSliceScatterAddKernel SLICE_SCATTER_ADD = new CpuSliceScatterAddKernel();
     private static final CpuConcatKernel CONCAT = new CpuConcatKernel();
     private static final CpuPadKernel PAD = new CpuPadKernel();
     private static final CpuTileKernel TILE = new CpuTileKernel();
@@ -142,6 +144,7 @@ public final class CpuKernelResolver {
             case TAKE_ALONG_AXIS -> TAKE_ALONG_AXIS;
             case TAKE_ALONG_AXIS_GRAD -> TAKE_ALONG_AXIS_GRAD;
             case SCATTER_ADD -> SCATTER_ADD;
+            case SCATTER_AXIS_ADD -> SCATTER_AXIS_ADD;
             case SCATTER_ELEMENTS -> SCATTER_ELEMENTS;
             case SCATTER_ND -> SCATTER_ND;
             case SCALED_DOT_PRODUCT_ATTENTION -> SCALED_DOT_PRODUCT_ATTENTION;
@@ -207,6 +210,7 @@ public final class CpuKernelResolver {
             case EXPAND -> EXPAND;
             case SELECT, SLICE, EXPAND_DIMS, SQUEEZE -> ALIAS_VIEW;
             case SLICE_GRAD -> SLICE_GRAD;
+            case SLICE_SCATTER_ADD -> SLICE_SCATTER_ADD;
             case CONCAT -> CONCAT;
             case PAD -> PAD;
             case TILE -> TILE;

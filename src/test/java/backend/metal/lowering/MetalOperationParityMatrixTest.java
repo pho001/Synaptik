@@ -94,6 +94,8 @@ class MetalOperationParityMatrixTest {
     @Test
     void matrixMarksMetalIndexWriteAndGradientOpsAsMpsGraphMapped() {
         assertMpsGraphMappedIndexWrite(Operation.OpType.SCATTER_ADD);
+        assertMpsGraphMappedIndexWrite(Operation.OpType.SCATTER_ELEMENTS);
+        assertMpsGraphMappedIndexWrite(Operation.OpType.SCATTER_ND);
         assertMpsGraphMappedIndexWrite(Operation.OpType.GATHER_GRAD);
         assertMpsGraphMappedIndexWrite(Operation.OpType.TAKE_ALONG_AXIS_GRAD);
     }
@@ -199,6 +201,8 @@ class MetalOperationParityMatrixTest {
         assertTrue(markdown.contains("| SLICE_GRAD | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| SCATTER_ADD | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| SCATTER_ELEMENTS | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| SCATTER_ND | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| GATHER_GRAD | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| TAKE_ALONG_AXIS_GRAD | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| CONV2D_BACKWARD_INPUT | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
@@ -259,7 +263,7 @@ class MetalOperationParityMatrixTest {
         assertTrue(row.nativeMpsGraphMapped());
         assertTrue(row.bufferExecutable());
         assertFalse(row.cpuFallbackOnly());
-        assertTrue(row.note().contains("scatterAlongAxis"));
+        assertTrue(row.note().contains(opType == Operation.OpType.SCATTER_ND ? "scatterNDWithDataTensor" : "scatterAlongAxis"));
     }
 
     private static void assertMpsGraphMappedConvPoolBackward(Operation.OpType opType) {

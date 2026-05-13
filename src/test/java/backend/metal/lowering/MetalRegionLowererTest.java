@@ -701,6 +701,26 @@ class MetalRegionLowererTest {
         PartitionPlanningContext scatterContext = planningContext(scatter);
         String scatterReason = MetalPartitionSupport.plannerUnsupportedReason(scatterContext.compiledNode(nodeId(scatterContext, Operation.OpType.SCATTER_ADD)), scatterContext);
 
+        Tensor scatterElementsIndices = new Tensor(new int[]{2, 0, 1, 2}, new int[]{2, 2}, null, "metalScatterElementsIndices", DataType.INT32);
+        Tensor scatterElementsUpdates = new Tensor(new float[]{1f, 5f, 7f, 9f}, new int[]{2, 2}, null, "metalScatterElementsUpdates", DataType.FLOAT32);
+        Tensor scatterElements = base.scatterElements(scatterElementsIndices, scatterElementsUpdates, 1, operations.index.ScatterReduction.ADD);
+        TensorInternalAccess.setBackend(scatterElements, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext scatterElementsContext = planningContext(scatterElements);
+        String scatterElementsReason = MetalPartitionSupport.plannerUnsupportedReason(
+                scatterElementsContext.compiledNode(nodeId(scatterElementsContext, Operation.OpType.SCATTER_ELEMENTS)),
+                scatterElementsContext
+        );
+
+        Tensor scatterNdIndices = new Tensor(new int[]{0, 1, 1, 2}, new int[]{2, 2}, null, "metalScatterNdIndices", DataType.INT32);
+        Tensor scatterNdUpdates = new Tensor(new float[]{11f, 13f}, new int[]{2}, null, "metalScatterNdUpdates", DataType.FLOAT32);
+        Tensor scatterNd = base.scatterNd(scatterNdIndices, scatterNdUpdates, operations.index.ScatterReduction.MAX);
+        TensorInternalAccess.setBackend(scatterNd, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext scatterNdContext = planningContext(scatterNd);
+        String scatterNdReason = MetalPartitionSupport.plannerUnsupportedReason(
+                scatterNdContext.compiledNode(nodeId(scatterNdContext, Operation.OpType.SCATTER_ND)),
+                scatterNdContext
+        );
+
         assertEquals("", gatherReason);
         assertEquals("", takeReason);
         assertTrue(planFor(gather, Operation.OpType.GATHER).lowering().dagSpec().nodes().stream()
@@ -710,6 +730,16 @@ class MetalRegionLowererTest {
         assertEquals("", scatterReason);
         assertTrue(planFor(scatter, Operation.OpType.SCATTER_ADD).lowering().dagSpec().nodes().stream()
                 .anyMatch(node -> node.type() == AcceleratorDagNodeType.SCATTER_ADD && node.scalarValueBits() == 1));
+        assertEquals("", scatterElementsReason);
+        assertTrue(planFor(scatterElements, Operation.OpType.SCATTER_ELEMENTS).lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.SCATTER_ELEMENTS
+                        && node.scalarValueBits() == 1
+                        && node.attribute0() == operations.index.ScatterReduction.ADD.ordinal()));
+        assertEquals("", scatterNdReason);
+        assertTrue(planFor(scatterNd, Operation.OpType.SCATTER_ND).lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.SCATTER_ND
+                        && node.scalarValueBits() == 0
+                        && node.attribute0() == operations.index.ScatterReduction.MAX.ordinal()));
 
         Tensor bf16Input = new Tensor(new double[]{1d, 2d, 3d, 4d, 5d, 6d}, new int[]{2, 3}, null, "metalPhase32Bf16IndexInput", DataType.BFLOAT16);
         Tensor bf16Gather = bf16Input.gather(gatherIndices, 1);
@@ -1084,6 +1114,126 @@ class MetalRegionLowererTest {
                 ),
                 "UNSUPPORTED_LAYOUT",
                 "SCATTER_ADD inputs require dense layout"
+        );
+    }
+
+    @Test
+    void metalScatterElementsRejectsAmbiguousOrUnprovenIndexWrites() {
+        Tensor data = new Tensor(new float[]{
+                10f, 20f, 30f,
+                40f, 50f, 60f
+        }, new int[]{2, 3}, null, "metalScatterElementsRejectData", DataType.FLOAT32);
+        Tensor updates = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalScatterElementsRejectUpdates", DataType.FLOAT32);
+
+        Tensor duplicateNoneIndices = new Tensor(new int[]{2, 2, 0, 1}, new int[]{2, 2}, null, "metalScatterElementsDuplicateNoneIndices", DataType.INT32);
+        Tensor duplicateNone = data.scatterElements(duplicateNoneIndices, updates, 1, operations.index.ScatterReduction.NONE);
+        TensorInternalAccess.setBackend(duplicateNone, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext duplicateContext = planningContext(duplicateNone);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        duplicateContext.compiledNode(nodeId(duplicateContext, Operation.OpType.SCATTER_ELEMENTS)),
+                        duplicateContext
+                ),
+                "UNSUPPORTED_DUPLICATE_INDEX",
+                "SCATTER_ELEMENTS NONE reduction does not allow duplicate target indices"
+        );
+
+        Tensor duplicateAdd = data.scatterElements(duplicateNoneIndices, updates, 1, operations.index.ScatterReduction.ADD);
+        TensorInternalAccess.setBackend(duplicateAdd, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext duplicateAddContext = planningContext(duplicateAdd);
+        assertEquals(
+                "",
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        duplicateAddContext.compiledNode(nodeId(duplicateAddContext, Operation.OpType.SCATTER_ELEMENTS)),
+                        duplicateAddContext
+                )
+        );
+
+        Tensor oobIndices = new Tensor(new int[]{2, -1, 0, 1}, new int[]{2, 2}, null, "metalScatterElementsOobIndices", DataType.INT32);
+        Tensor oob = data.scatterElements(oobIndices, updates, 1, operations.index.ScatterReduction.ADD);
+        TensorInternalAccess.setBackend(oob, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext oobContext = planningContext(oob);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        oobContext.compiledNode(nodeId(oobContext, Operation.OpType.SCATTER_ELEMENTS)),
+                        oobContext
+                ),
+                "UNSUPPORTED_BOUNDS_CHECK",
+                "index -1 is outside axis size 3"
+        );
+
+        Tensor dynamicIndices = new Tensor(new int[]{2, 0, 0, 1}, new int[]{2, 2}, null, "metalScatterElementsDynamicIndices", DataType.INT32)
+                .reshape(2, 2);
+        Tensor dynamic = data.scatterElements(dynamicIndices, updates, 1, operations.index.ScatterReduction.ADD);
+        TensorInternalAccess.setBackend(dynamic, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext dynamicContext = planningContext(dynamic);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        dynamicContext.compiledNode(nodeId(dynamicContext, Operation.OpType.SCATTER_ELEMENTS)),
+                        dynamicContext
+                ),
+                "UNSUPPORTED_BOUNDS_CHECK",
+                "index bounds require a static INT32 leaf tensor"
+        );
+    }
+
+    @Test
+    void metalScatterNdRejectsAmbiguousOrUnprovenIndexWrites() {
+        Tensor data = new Tensor(new float[]{
+                10f, 20f, 30f,
+                40f, 50f, 60f
+        }, new int[]{2, 3}, null, "metalScatterNdRejectData", DataType.FLOAT32);
+        Tensor updates = new Tensor(new float[]{1f, 2f}, new int[]{2}, null, "metalScatterNdRejectUpdates", DataType.FLOAT32);
+
+        Tensor duplicateNoneIndices = new Tensor(new int[]{0, 1, 0, 1}, new int[]{2, 2}, null, "metalScatterNdDuplicateNoneIndices", DataType.INT32);
+        Tensor duplicateNone = data.scatterNd(duplicateNoneIndices, updates, operations.index.ScatterReduction.NONE);
+        TensorInternalAccess.setBackend(duplicateNone, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext duplicateContext = planningContext(duplicateNone);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        duplicateContext.compiledNode(nodeId(duplicateContext, Operation.OpType.SCATTER_ND)),
+                        duplicateContext
+                ),
+                "UNSUPPORTED_DUPLICATE_INDEX",
+                "SCATTER_ND NONE reduction does not allow duplicate target indices"
+        );
+
+        Tensor duplicateAdd = data.scatterNd(duplicateNoneIndices, updates, operations.index.ScatterReduction.ADD);
+        TensorInternalAccess.setBackend(duplicateAdd, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext duplicateAddContext = planningContext(duplicateAdd);
+        assertEquals(
+                "",
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        duplicateAddContext.compiledNode(nodeId(duplicateAddContext, Operation.OpType.SCATTER_ND)),
+                        duplicateAddContext
+                )
+        );
+
+        Tensor negativeIndices = new Tensor(new int[]{0, 1, -1, 2}, new int[]{2, 2}, null, "metalScatterNdNegativeIndices", DataType.INT32);
+        Tensor negative = data.scatterNd(negativeIndices, updates, operations.index.ScatterReduction.ADD);
+        TensorInternalAccess.setBackend(negative, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext negativeContext = planningContext(negative);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        negativeContext.compiledNode(nodeId(negativeContext, Operation.OpType.SCATTER_ND)),
+                        negativeContext
+                ),
+                "UNSUPPORTED_BOUNDS_CHECK",
+                "index -1 is outside dimension 0 size 2"
+        );
+
+        Tensor dynamicIndices = new Tensor(new int[]{0, 1, 1, 2}, new int[]{2, 2}, null, "metalScatterNdDynamicIndices", DataType.INT32)
+                .reshape(2, 2);
+        Tensor dynamic = data.scatterNd(dynamicIndices, updates, operations.index.ScatterReduction.ADD);
+        TensorInternalAccess.setBackend(dynamic, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext dynamicContext = planningContext(dynamic);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        dynamicContext.compiledNode(nodeId(dynamicContext, Operation.OpType.SCATTER_ND)),
+                        dynamicContext
+                ),
+                "UNSUPPORTED_BOUNDS_CHECK",
+                "index bounds require a static INT32 leaf tensor"
         );
     }
 

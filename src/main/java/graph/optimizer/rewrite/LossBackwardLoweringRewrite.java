@@ -12,7 +12,14 @@ import tensor.Tensor;
 import java.util.List;
 
 /**
- * Lowers backward loss patterns to specialized loss-gradient operations.
+ * Optional legacy specialization matcher for explicit index-loss backward shapes.
+ *
+ * <p>Public Tensor APIs build canonical primitive backward DAGs by default. This
+ * matcher only recognizes graphs that already contain explicit legacy
+ * {@code SOFTMAX} operation descriptors, so it does not collapse the canonical
+ * decomposed {@code softmax} DAG back into {@code CROSS_ENTROPY_LOSS_INDICES_GRAD}.
+ * If this becomes a CPU specialization again, keep it as an explicit
+ * specialization decision rather than semantic graph lowering.</p>
  */
 public final class LossBackwardLoweringRewrite extends AbstractRewriteRule {
     @Override

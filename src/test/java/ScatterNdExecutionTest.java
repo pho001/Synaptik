@@ -91,6 +91,23 @@ public class ScatterNdExecutionTest {
     }
 
     @Test
+    void scatterNdAddSupportsBatchDimsOne() {
+        Tensor data = new Tensor(new double[6], new int[]{2, 3}, null, "data", DataType.FLOAT64);
+        Tensor indices = new Tensor(new int[]{1, 1, 0, 2}, new int[]{2, 2, 1}, null, "indices", DataType.INT32);
+        Tensor updates = new Tensor(new double[]{2, 3, 7, 11}, new int[]{2, 2}, null, "updates", DataType.FLOAT64);
+        Tensor out = data.scatterNd(indices, updates, ScatterReduction.ADD, 1);
+
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
+        compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{
+                0, 5, 0,
+                7, 0, 11
+        }, out.toDoubleArrayCopy(), 1e-9);
+        assertTrue(containsOp(compiledGraph, Operation.OpType.SCATTER_ND));
+    }
+
+    @Test
     void scatterNdNoneRejectsDuplicateTupleTargets() {
         Tensor data = new Tensor(new double[]{
                 10, 20, 30,
@@ -243,6 +260,26 @@ public class ScatterNdExecutionTest {
                 3.0, 3.0, 3.0
         }, data.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{3.0, 3.0, 3.0}, updates.getGradient().toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void scatterNdBackwardForAddSupportsBatchDimsOne() {
+        Tensor data = new Tensor(new double[6], new int[]{2, 3}, null, "data", DataType.FLOAT64);
+        Tensor indices = new Tensor(new int[]{1, 1, 0, 2}, new int[]{2, 2, 1}, null, "indices", DataType.INT32);
+        Tensor updates = new Tensor(new double[]{2, 3, 7, 11}, new int[]{2, 2}, null, "updates", DataType.FLOAT64);
+        data.setRequiresGrad(true);
+        updates.setRequiresGrad(true);
+
+        Tensor out = data.scatterNd(indices, updates, ScatterReduction.ADD, 1).mul(4.0);
+
+        CompiledGraph.compile(out, CompileConfig.training())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(new double[]{
+                4.0, 4.0, 4.0,
+                4.0, 4.0, 4.0
+        }, data.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{4.0, 4.0, 4.0, 4.0}, updates.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 
     @Test

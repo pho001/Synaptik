@@ -3,13 +3,13 @@ import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
-import operations.index.takeAlongAxisGrad;
+import operations.index.ScatterReduction;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorPrimitiveBuilder;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -48,27 +48,24 @@ public class TakeAlongAxisExecutionTest {
         Tensor indices = new Tensor(new int[]{2, 2, 0, 0}, new int[]{2, 2}, null, "indices", DataType.INT32);
         Tensor y = x.takeAlongAxis(indices, 1);
 
-        CompiledGraph.compile(y, CompileConfig.training())
+        CompiledGraph compiled = CompiledGraph.compile(y, CompileConfig.training());
+        compiled
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 0.0, 0.0, 2.0,
                 2.0, 0.0, 0.0
         }, x.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertFalse(containsOp(compiled, Operation.OpType.TAKE_ALONG_AXIS_GRAD));
+        assertTrue(containsOp(compiled, Operation.OpType.SCATTER_ELEMENTS));
     }
 
     @Test
-    void takeAlongAxisGradPrimitiveAccumulatesDuplicateIndicesWithinLane() {
+    void scatterElementsAddAccumulatesDuplicateIndicesWithinLane() {
+        Tensor base = new Tensor(new double[6], new int[]{2, 3}, null, "base", DataType.FLOAT64);
         Tensor indices = new Tensor(new int[]{2, 2, 0, 0}, new int[]{2, 2}, null, "indices", DataType.INT32);
         Tensor outGrad = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2}, null, "outGrad", DataType.FLOAT64);
-        Tensor grad = TensorPrimitiveBuilder.binary(
-                indices,
-                outGrad,
-                new int[]{2, 3},
-                new takeAlongAxisGrad(1),
-                "takeAlongAxisGrad",
-                DataType.FLOAT64
-        );
+        Tensor grad = base.scatterElements(indices, outGrad, 1, ScatterReduction.ADD);
 
         CompiledGraph.compile(grad, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
@@ -80,17 +77,11 @@ public class TakeAlongAxisExecutionTest {
     }
 
     @Test
-    void takeAlongAxisGradRejectsOutOfBoundsIndexAtExecution() {
+    void scatterElementsAddRejectsOutOfBoundsIndexAtExecution() {
+        Tensor base = new Tensor(new double[6], new int[]{2, 3}, null, "base", DataType.FLOAT64);
         Tensor indices = new Tensor(new int[]{2, 3, 0, 0}, new int[]{2, 2}, null, "indices", DataType.INT32);
         Tensor outGrad = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2}, null, "outGrad", DataType.FLOAT64);
-        Tensor grad = TensorPrimitiveBuilder.binary(
-                indices,
-                outGrad,
-                new int[]{2, 3},
-                new takeAlongAxisGrad(1),
-                "takeAlongAxisGrad",
-                DataType.FLOAT64
-        );
+        Tensor grad = base.scatterElements(indices, outGrad, 1, ScatterReduction.ADD);
 
         assertThrows(IllegalArgumentException.class, () ->
                 CompiledGraph.compile(grad, CompileConfig.noGraphOptimizationBaseline())

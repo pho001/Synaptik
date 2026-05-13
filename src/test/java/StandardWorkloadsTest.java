@@ -123,8 +123,7 @@ public class StandardWorkloadsTest {
                 .map(operations.Operation::opType)
                 .toList();
         assertTrue(opTypes.contains(operations.Operation.OpType.SCATTER_ADD));
-        assertTrue(opTypes.contains(operations.Operation.OpType.GATHER_GRAD));
-        assertTrue(opTypes.contains(operations.Operation.OpType.TAKE_ALONG_AXIS_GRAD));
+        assertTrue(opTypes.contains(operations.Operation.OpType.SCATTER_ELEMENTS));
     }
 
     @Test

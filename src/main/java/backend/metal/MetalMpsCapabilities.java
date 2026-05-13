@@ -241,7 +241,9 @@ public final class MetalMpsCapabilities {
                         opType + " has no supported input role at index " + inputIndex);
             };
         }
-        if (opType == Operation.OpType.SCATTER_ADD) {
+        if (opType == Operation.OpType.SCATTER_ADD
+                || opType == Operation.OpType.SCATTER_ELEMENTS
+                || opType == Operation.OpType.SCATTER_ND) {
             return switch (inputIndex) {
                 case 0, 2 -> isMetalFloatingDType(dtype) && consumer.dataType() == dtype
                         ? supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, true, false,
@@ -569,6 +571,8 @@ public final class MetalMpsCapabilities {
                  GATHER_ND,
                  TAKE_ALONG_AXIS,
                  SCATTER_ADD,
+                 SCATTER_ELEMENTS,
+                 SCATTER_ND,
                  GATHER_GRAD,
                  GATHER_AXIS_GRAD,
                  TAKE_ALONG_AXIS_GRAD,

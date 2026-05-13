@@ -50,7 +50,9 @@ public class SoftmaxExecutionTest {
         Tensor probs = logits.softmax(1);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(probs, CompileConfig.training());
-        assertTrue(containsOp(compiledGraph, Operation.OpType.SOFTMAX_GRAD));
+        assertFalse(containsOp(compiledGraph, Operation.OpType.SOFTMAX_GRAD));
+        assertTrue(containsOp(compiledGraph, Operation.OpType.MUL));
+        assertTrue(containsOp(compiledGraph, Operation.OpType.SUM));
         compiledGraph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         double[] y = probs.toDoubleArrayCopy();

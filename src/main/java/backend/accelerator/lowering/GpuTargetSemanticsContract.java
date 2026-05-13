@@ -126,8 +126,10 @@ public record GpuTargetSemanticsContract(
         addIndex(out, Operation.OpType.TAKE_ALONG_AXIS, "INT32 indices; axis-aligned take semantics must match CPU");
         addIndex(out, Operation.OpType.TAKE_ALONG_AXIS_GRAD, "duplicate-index accumulation must match CPU take-along-axis gradient");
         addIndex(out, Operation.OpType.SCATTER_ADD, "duplicate-index accumulation order/tolerance must match CPU scatter-add");
+        addIndex(out, Operation.OpType.SCATTER_AXIS_ADD, "rank-changing gatherAxis inverse writes and duplicate-index accumulation must match CPU scatter-axis-add");
         addIndex(out, Operation.OpType.SCATTER_ELEMENTS, "rank-preserving write, reduction, and duplicate-index policy must match CPU scatter-elements");
         addIndex(out, Operation.OpType.SCATTER_ND, "tuple-index write, slice updates, reduction, and duplicate-index policy must match CPU scatter-nd");
+        addLayout(out, Operation.OpType.SLICE_SCATTER_ADD, "stepped slice sparse writes must match CPU slice-scatter-add");
         addCompare(out, Operation.OpType.GT);
         addCompare(out, Operation.OpType.GE);
         addCompare(out, Operation.OpType.LT);
@@ -229,6 +231,21 @@ public record GpuTargetSemanticsContract(
                 "CPU parity must cover duplicate indices, logical-index accumulation order/tolerance, repeated writes to one destination, and bounds behavior",
                 writeOrGradient,
                 blockerReason
+        ));
+    }
+
+    private static void addLayout(ArrayList<GpuTargetSemanticsContract> out, Operation.OpType opType, String parameter) {
+        out.add(new GpuTargetSemanticsContract(
+                opType,
+                GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT,
+                "dtype-preserving layout-adjacent operation; native compute support is operation-specific",
+                "rank follows operation descriptor",
+                "supported dense/view layouts only",
+                "output shape must match CPU layout shape inference",
+                parameter,
+                "CPU parity must match logical indexing, strides, and bounds behavior",
+                true,
+                "UNSUPPORTED_INDEX_SEMANTICS until backend proves sparse layout-write parity"
         ));
     }
 

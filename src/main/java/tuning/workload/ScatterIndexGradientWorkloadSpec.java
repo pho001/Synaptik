@@ -1,11 +1,9 @@
 package tuning.workload;
 
 import config.profile.ExecutionProfile;
-import operations.index.gatherGrad;
-import operations.index.takeAlongAxisGrad;
+import operations.index.ScatterReduction;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorPrimitiveBuilder;
 import tuning.validate.ValidationReference;
 import tuning.validate.ValidationTarget;
 
@@ -48,21 +46,17 @@ public final class ScatterIndexGradientWorkloadSpec implements WorkloadSpec {
         Tensor bias = tensor("SCATTER_INDEX_BIAS", 932, dataType, 1, features);
         Tensor base = input.add(bias).relu();
         Tensor scatter = base.scatterAdd(scatterIndices(), tensor("SCATTER_INDEX_SRC", 933, dataType, batch), 1);
-        Tensor gatherGrad = TensorPrimitiveBuilder.binary(
+        Tensor zeroBase = Tensor.zerosLike(base);
+        Tensor gatherGrad = zeroBase.scatterAdd(
                 gatherGradIndices(),
                 tensor("SCATTER_INDEX_GATHER_OUT_GRAD", 934, dataType, batch),
-                new int[]{batch, features},
-                new gatherGrad(1),
-                "scatter_index_gather_grad",
-                dataType
+                1
         );
-        Tensor takeGrad = TensorPrimitiveBuilder.binary(
+        Tensor takeGrad = zeroBase.scatterElements(
                 takeGradIndices(),
                 tensor("SCATTER_INDEX_TAKE_OUT_GRAD", 935, dataType, batch, picks),
-                new int[]{batch, features},
-                new takeAlongAxisGrad(1),
-                "scatter_index_take_along_axis_grad",
-                dataType
+                1,
+                ScatterReduction.ADD
         );
         Tensor root = scatter.add(gatherGrad).add(takeGrad).sum();
 
@@ -70,7 +64,7 @@ public final class ScatterIndexGradientWorkloadSpec implements WorkloadSpec {
         metadata.put("batch", batch);
         metadata.put("features", features);
         metadata.put("picks", picks);
-        metadata.put("ops", List.of("SCATTER_ADD", "GATHER_GRAD", "TAKE_ALONG_AXIS_GRAD"));
+        metadata.put("ops", List.of("SCATTER_ADD", "SCATTER_ELEMENTS"));
 
         return new DefaultWorkloadInstance(
                 root,

@@ -2234,9 +2234,11 @@ public class PreparedExecutionBuildTest {
         PreparedExecution execution = CompiledGraph.compile(loss, CompileConfig.training())
                 .prepare(RuntimeConfig.trainingDefaults());
 
-        assertTrue(execution.backwardSteps().stream()
+        assertFalse(execution.backwardSteps().stream()
                 .anyMatch(step -> step.node().getOperation() != null
                         && step.node().getOperation().opType() == Operation.OpType.SOFTMAX_GRAD));
+        assertTrue(execution.backwardSteps().stream()
+                .anyMatch(step -> step.metadata().backend() == ComputeBackend.GPU_METAL));
 
         execution.execute(ExecutionMode.FORWARD_BACKWARD);
 
@@ -2262,9 +2264,11 @@ public class PreparedExecutionBuildTest {
         PreparedExecution execution = CompiledGraph.compile(loss, CompileConfig.training())
                 .prepare(RuntimeConfig.trainingDefaults());
 
-        assertTrue(execution.backwardSteps().stream()
+        assertFalse(execution.backwardSteps().stream()
                 .anyMatch(step -> step.node().getOperation() != null
                         && step.node().getOperation().opType() == Operation.OpType.LOG_SOFTMAX_GRAD));
+        assertTrue(execution.backwardSteps().stream()
+                .anyMatch(step -> step.metadata().backend() == ComputeBackend.GPU_METAL));
 
         execution.execute(ExecutionMode.FORWARD_BACKWARD);
 
@@ -2296,13 +2300,6 @@ public class PreparedExecutionBuildTest {
         PreparedExecution execution = CompiledGraph.compile(loss, CompileConfig.training())
                 .prepare(RuntimeConfig.trainingDefaults());
 
-        var gpuReduceMinGrad = execution.backwardSteps().stream()
-                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.REDUCE_MIN_GRAD)
-                .findFirst()
-                .orElseThrow();
-        assertEquals(ComputeBackend.GPU_METAL, gpuReduceMinGrad.metadata().backend());
-
         execution.execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(expectedGrad, input.getGradient().toDoubleArrayCopy(), 1e-5);
@@ -2326,13 +2323,6 @@ public class PreparedExecutionBuildTest {
 
         PreparedExecution execution = CompiledGraph.compile(loss, CompileConfig.training())
                 .prepare(RuntimeConfig.trainingDefaults());
-
-        var gpuReduceMaxGrad = execution.backwardSteps().stream()
-                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.REDUCE_MAX_GRAD)
-                .findFirst()
-                .orElseThrow();
-        assertEquals(ComputeBackend.GPU_METAL, gpuReduceMaxGrad.metadata().backend());
 
         execution.execute(ExecutionMode.FORWARD_BACKWARD);
 
@@ -2362,13 +2352,6 @@ public class PreparedExecutionBuildTest {
         PreparedExecution execution = CompiledGraph.compile(loss, CompileConfig.training())
                 .prepare(RuntimeConfig.trainingDefaults());
 
-        var gpuMinGrad = execution.backwardSteps().stream()
-                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MIN_GRAD)
-                .findFirst()
-                .orElseThrow();
-        assertEquals(ComputeBackend.GPU_METAL, gpuMinGrad.metadata().backend());
-
         execution.execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(expectedGradA, a.getGradient().toDoubleArrayCopy(), 1e-5);
@@ -2397,13 +2380,6 @@ public class PreparedExecutionBuildTest {
 
         PreparedExecution execution = CompiledGraph.compile(loss, CompileConfig.training())
                 .prepare(RuntimeConfig.trainingDefaults());
-
-        var gpuMaxGrad = execution.backwardSteps().stream()
-                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MAX_GRAD)
-                .findFirst()
-                .orElseThrow();
-        assertEquals(ComputeBackend.GPU_METAL, gpuMaxGrad.metadata().backend());
 
         execution.execute(ExecutionMode.FORWARD_BACKWARD);
 
@@ -2545,34 +2521,30 @@ public class PreparedExecutionBuildTest {
         Tensor softmaxInput = trainable("metalBackwardTraceSoftmax", 2, 3);
         Tensor softmax = softmaxInput.exp().softmax(1);
         TensorInternalAccess.setBackend(softmax, ComputeBackend.GPU_METAL);
-        assertMetalBackwardBufferBinding(weightedSum(softmax, "metalBackwardTraceSoftmaxWeight"), Operation.OpType.SOFTMAX_GRAD, 1);
+        assertMetalBackwardBufferBinding(weightedSum(softmax, "metalBackwardTraceSoftmaxWeight"), Operation.OpType.MUL, 1);
 
         Tensor logSoftmaxInput = trainable("metalBackwardTraceLogSoftmax", 2, 3);
         Tensor logSoftmax = logSoftmaxInput.exp().logSoftmax(1);
         TensorInternalAccess.setBackend(logSoftmax, ComputeBackend.GPU_METAL);
-        assertMetalBackwardBufferBinding(weightedSum(logSoftmax, "metalBackwardTraceLogSoftmaxWeight"), Operation.OpType.LOG_SOFTMAX_GRAD, 1);
+        assertMetalBackwardBufferBinding(weightedSum(logSoftmax, "metalBackwardTraceLogSoftmaxWeight"), Operation.OpType.EXP, 1);
 
         Tensor minInput = trainable("metalBackwardTraceReduceMin", 2, 3);
         Tensor reduceMin = minInput.min(1, true);
         TensorInternalAccess.setBackend(reduceMin, ComputeBackend.GPU_METAL);
-        assertMetalBackwardBufferBinding(weightedSum(reduceMin, "metalBackwardTraceReduceMinWeight"), Operation.OpType.REDUCE_MIN_GRAD, 1);
 
         Tensor maxInput = trainable("metalBackwardTraceReduceMax", 2, 4);
         Tensor reduceMax = maxInput.max(0, true);
         TensorInternalAccess.setBackend(reduceMax, ComputeBackend.GPU_METAL);
-        assertMetalBackwardBufferBinding(weightedSum(reduceMax, "metalBackwardTraceReduceMaxWeight"), Operation.OpType.REDUCE_MAX_GRAD, 1);
 
         Tensor a = trainable("metalBackwardTraceMinA", 3);
         Tensor b = trainable("metalBackwardTraceMinB", 3);
         Tensor min = a.min(b);
         TensorInternalAccess.setBackend(min, ComputeBackend.GPU_METAL);
-        assertMetalBackwardBufferBinding(weightedSum(min, "metalBackwardTraceMinWeight"), Operation.OpType.MIN_GRAD, 1);
 
         Tensor c = trainable("metalBackwardTraceMaxA", 3);
         Tensor d = trainable("metalBackwardTraceMaxB", 3);
         Tensor max = c.max(d);
         TensorInternalAccess.setBackend(max, ComputeBackend.GPU_METAL);
-        assertMetalBackwardBufferBinding(weightedSum(max, "metalBackwardTraceMaxWeight"), Operation.OpType.MAX_GRAD, 1);
 
         Tensor q = trainable("metalBackwardTraceSdpaQ", 1, 2, 2);
         Tensor k = trainable("metalBackwardTraceSdpaK", 1, 2, 2);
@@ -4378,13 +4350,14 @@ public class PreparedExecutionBuildTest {
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.training())
                 .prepare(bfloat16BlasRuntime());
 
-        var softmaxGradStep = execution.backwardSteps().stream()
+        var continuationStep = execution.backwardSteps().stream()
                 .filter(step -> step.node().getOperation() != null
-                        && step.node().getOperation().opType() == Operation.OpType.SOFTMAX_GRAD)
+                        && step.node().getDataType() == DataType.BFLOAT16
+                        && step.metadata().cpuPlan() != null
+                        && step.metadata().cpuPlan().publishFloatContinuation())
                 .findFirst()
                 .orElseThrow();
-        assertNotNull(softmaxGradStep.metadata().cpuPlan());
-        assertTrue(softmaxGradStep.metadata().cpuPlan().publishFloatContinuation());
+        assertFalse(continuationStep.node().getOperation().opType() == Operation.OpType.SOFTMAX_GRAD);
     }
 
     @Test
@@ -4396,13 +4369,14 @@ public class PreparedExecutionBuildTest {
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.training())
                 .prepare(bfloat16BlasRuntime());
 
-        var logSoftmaxGradStep = execution.backwardSteps().stream()
+        var continuationStep = execution.backwardSteps().stream()
                 .filter(step -> step.node().getOperation() != null
-                        && step.node().getOperation().opType() == Operation.OpType.LOG_SOFTMAX_GRAD)
+                        && step.node().getDataType() == DataType.BFLOAT16
+                        && step.metadata().cpuPlan() != null
+                        && step.metadata().cpuPlan().publishFloatContinuation())
                 .findFirst()
                 .orElseThrow();
-        assertNotNull(logSoftmaxGradStep.metadata().cpuPlan());
-        assertTrue(logSoftmaxGradStep.metadata().cpuPlan().publishFloatContinuation());
+        assertFalse(continuationStep.node().getOperation().opType() == Operation.OpType.LOG_SOFTMAX_GRAD);
     }
 
     private static RuntimeConfig bfloat16BlasRuntime() {

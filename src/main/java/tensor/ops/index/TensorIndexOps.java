@@ -2,17 +2,14 @@ package tensor.ops.index;
 
 import operations.index.gather;
 import operations.index.gatherAxis;
-import operations.index.gatherAxisGrad;
-import operations.index.gatherGrad;
 import operations.index.gatherNd;
-import operations.index.gatherNdGrad;
 import operations.index.ScatterReduction;
 import operations.index.scatterAdd;
+import operations.index.scatterAxisAdd;
 import operations.index.scatterElements;
 import operations.index.scatterNd;
 import operations.layout.select;
 import operations.index.takeAlongAxis;
-import operations.index.takeAlongAxisGrad;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
@@ -115,14 +112,7 @@ public final class TensorIndexOps {
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
             }
-            Tensor grad = TensorPrimitiveBuilder.binaryNoGrad(
-                    indices,
-                    outGrad,
-                    input.getShape().clone(),
-                    new gatherGrad(normalizedDimension),
-                    "gather_grad",
-                    input.getDataType()
-            );
+            Tensor grad = Tensor.zerosLike(input).scatterAdd(indices, outGrad, normalizedDimension);
             IndexSupport.accumulateGradient(input, grad);
         });
         return out;
@@ -157,14 +147,7 @@ public final class TensorIndexOps {
             if (outGrad == null || !input.getRequiresGrad() || !isFloating(input.getDataType())) {
                 return;
             }
-            Tensor grad = TensorPrimitiveBuilder.binaryNoGrad(
-                    indices,
-                    outGrad,
-                    input.getShape(),
-                    new gatherAxisGrad(normalizedAxis, input.getShape()),
-                    "gather_axis_grad",
-                    input.getDataType()
-            );
+            Tensor grad = scatterAxisAdd(Tensor.zerosLike(input), indices, outGrad, normalizedAxis);
             IndexSupport.accumulateGradient(input, grad);
         });
         return out;
@@ -202,14 +185,7 @@ public final class TensorIndexOps {
             if (outGrad == null || !input.getRequiresGrad() || !isFloating(input.getDataType())) {
                 return;
             }
-            Tensor grad = TensorPrimitiveBuilder.binaryNoGrad(
-                    indices,
-                    outGrad,
-                    input.getShape().clone(),
-                    new gatherNdGrad(batchDims, input.getShape()),
-                    "gather_nd_grad",
-                    input.getDataType()
-            );
+            Tensor grad = scatterNd(Tensor.zerosLike(input), indices, outGrad, ScatterReduction.ADD, batchDims);
             IndexSupport.accumulateGradient(input, grad);
         });
         return out;
@@ -337,6 +313,14 @@ public final class TensorIndexOps {
      * Writes update values into a copy of {@code data} using tuple indices.
      */
     public static Tensor scatterNd(Tensor data, Tensor indices, Tensor updates, ScatterReduction reduction) {
+        return scatterNd(data, indices, updates, reduction, 0);
+    }
+
+    /**
+     * Writes update values into a copy of {@code data} using tuple indices and
+     * optional leading batch dimensions.
+     */
+    public static Tensor scatterNd(Tensor data, Tensor indices, Tensor updates, ScatterReduction reduction, int batchDims) {
         if (data == null || indices == null || updates == null) {
             throw new IllegalArgumentException("scatterNd inputs cannot be null");
         }
@@ -350,7 +334,7 @@ public final class TensorIndexOps {
         if (data.getDataType() == DataType.BOOL && effectiveReduction != ScatterReduction.NONE) {
             throw new IllegalArgumentException("scatterNd BOOL tensors support only NONE reduction.");
         }
-        validateScatterNdShape(data.getShapeUnsafe(), indices.getShapeUnsafe(), updates.getShapeUnsafe());
+        validateScatterNdShape(data.getShapeUnsafe(), indices.getShapeUnsafe(), updates.getShapeUnsafe(), batchDims);
         boolean differentiable = isFloating(data.getDataType())
                 && (data.getRequiresGrad() || updates.getRequiresGrad());
         if (differentiable && effectiveReduction != ScatterReduction.NONE && effectiveReduction != ScatterReduction.ADD) {
@@ -362,7 +346,7 @@ public final class TensorIndexOps {
                 indices,
                 updates,
                 data.getShape().clone(),
-                new scatterNd(effectiveReduction),
+                new scatterNd(effectiveReduction, batchDims),
                 "scatterNd",
                 data.getDataType()
         );
@@ -374,15 +358,58 @@ public final class TensorIndexOps {
             }
             if (data.getRequiresGrad()) {
                 Tensor dataGrad = switch (effectiveReduction) {
-                    case NONE -> outGrad.scatterNd(indices, Tensor.zerosLike(updates), ScatterReduction.NONE);
+                    case NONE -> scatterNd(outGrad, indices, Tensor.zerosLike(updates), ScatterReduction.NONE, batchDims);
                     case ADD -> outGrad;
                     case MUL, MAX, MIN -> throw new UnsupportedOperationException("scatterNd backward supports only NONE and ADD reductions.");
                 };
                 IndexSupport.accumulateGradient(data, dataGrad);
             }
             if (updates.getRequiresGrad()) {
-                Tensor updatesGrad = outGrad.gatherNd(indices);
+                Tensor updatesGrad = outGrad.gatherNd(indices, batchDims);
                 IndexSupport.accumulateGradient(updates, updatesGrad);
+            }
+        });
+        return out;
+    }
+
+    /**
+     * Adds rank-changing axis updates into a copy of {@code data}.
+     */
+    public static Tensor scatterAxisAdd(Tensor data, Tensor indices, Tensor updates, int axis) {
+        if (data == null || indices == null || updates == null) {
+            throw new IllegalArgumentException("scatterAxisAdd inputs cannot be null");
+        }
+        if (indices.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("scatterAxisAdd indices must be numeric integral values.");
+        }
+        if (data.getDataType() != updates.getDataType()) {
+            throw new IllegalArgumentException("scatterAxisAdd requires data and updates to have matching dtypes.");
+        }
+        if (!isFloating(data.getDataType())) {
+            throw new IllegalArgumentException("scatterAxisAdd requires floating numeric data and updates.");
+        }
+        int normalizedAxis = TensorLayoutTransform.normalizeAxis(axis, data.getShapeUnsafe().length);
+        validateScatterAxisAddShape(data.getShapeUnsafe(), indices.getShapeUnsafe(), updates.getShapeUnsafe(), normalizedAxis);
+        Tensor out = TensorPrimitiveBuilder.ternary(
+                data,
+                indices,
+                updates,
+                data.getShape().clone(),
+                new scatterAxisAdd(normalizedAxis),
+                "scatterAxisAdd",
+                data.getDataType()
+        );
+        out.setRequiresGrad(data.getRequiresGrad() || updates.getRequiresGrad());
+        TensorInternalAccess.setBackwardFunction(out, () -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null || !isFloating(data.getDataType())) {
+                return;
+            }
+            if (data.getRequiresGrad()) {
+                IndexSupport.accumulateGradient(data, outGrad);
+            }
+            if (updates.getRequiresGrad()) {
+                IndexSupport.accumulateGradient(updates, outGrad.gatherAxis(indices, normalizedAxis));
             }
         });
         return out;
@@ -405,15 +432,15 @@ public final class TensorIndexOps {
         }
     }
 
-    private static void validateScatterNdShape(int[] dataShape, int[] indicesShape, int[] updatesShape) {
-        validateGatherNdShape(dataShape, indicesShape, 0);
+    private static void validateScatterNdShape(int[] dataShape, int[] indicesShape, int[] updatesShape, int batchDims) {
+        validateGatherNdShape(dataShape, indicesShape, batchDims);
         int tupleRank = indicesShape[indicesShape.length - 1];
-        int expectedRank = indicesShape.length - 1 + dataShape.length - tupleRank;
+        int expectedRank = indicesShape.length - 1 + dataShape.length - batchDims - tupleRank;
         if (updatesShape.length != expectedRank) {
             if (expectedRank == 0 && updatesShape.length == 1 && updatesShape[0] == 1) {
                 return;
             }
-            throw new IllegalArgumentException("scatterNd updates shape must equal indices.shape[:-1] + data.shape[indices.shape[-1]:].");
+            throw new IllegalArgumentException("scatterNd updates shape must equal indices.shape[:-1] + data.shape[batchDims + indices.shape[-1]:].");
         }
         int p = 0;
         for (int i = 0; i < indicesShape.length - 1; i++) {
@@ -421,9 +448,21 @@ public final class TensorIndexOps {
                 throw new IllegalArgumentException("scatterNd updates prefix shape must match indices prefix shape.");
             }
         }
-        for (int i = tupleRank; i < dataShape.length; i++) {
+        for (int i = batchDims + tupleRank; i < dataShape.length; i++) {
             if (updatesShape[p++] != dataShape[i]) {
                 throw new IllegalArgumentException("scatterNd updates suffix shape must match indexed data slice shape.");
+            }
+        }
+    }
+
+    private static void validateScatterAxisAddShape(int[] dataShape, int[] indicesShape, int[] updatesShape, int axis) {
+        int[] expectedUpdatesShape = gatherAxisOutputShape(dataShape, indicesShape, axis);
+        if (updatesShape.length != expectedUpdatesShape.length) {
+            throw new IllegalArgumentException("scatterAxisAdd updates shape must match gatherAxis output shape.");
+        }
+        for (int i = 0; i < updatesShape.length; i++) {
+            if (updatesShape[i] != expectedUpdatesShape[i]) {
+                throw new IllegalArgumentException("scatterAxisAdd updates shape must match gatherAxis output shape.");
             }
         }
     }
@@ -524,14 +563,7 @@ public final class TensorIndexOps {
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
             }
-            Tensor grad = TensorPrimitiveBuilder.binaryNoGrad(
-                    indices,
-                    outGrad,
-                    input.getShape().clone(),
-                    new takeAlongAxisGrad(normalizedDimension),
-                    "take_along_axis_grad",
-                    input.getDataType()
-            );
+            Tensor grad = Tensor.zerosLike(input).scatterElements(indices, outGrad, normalizedDimension, ScatterReduction.ADD);
             IndexSupport.accumulateGradient(input, grad);
         });
         return out;

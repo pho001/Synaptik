@@ -176,7 +176,9 @@ class GpuLoweringCoverageMatrixTest {
                         || opType == Operation.OpType.TAKE_ALONG_AXIS
                         || opType == Operation.OpType.GATHER_GRAD
                         || opType == Operation.OpType.TAKE_ALONG_AXIS_GRAD
-                        || opType == Operation.OpType.SCATTER_ADD)) {
+                        || opType == Operation.OpType.SCATTER_ADD
+                        || opType == Operation.OpType.SCATTER_ELEMENTS
+                        || opType == Operation.OpType.SCATTER_ND)) {
                     assertEquals(GpuLoweringCoverageStatus.SUPPORTED, entry.status());
                     assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, entry.reason());
                 } else {
@@ -217,6 +219,14 @@ class GpuLoweringCoverageMatrixTest {
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.TAKE_ALONG_AXIS_GRAD).reason());
             assertEquals(expectedIndexWriteReason,
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.SCATTER_ADD).reason());
+            assertEquals(backend == ComputeBackend.GPU_METAL
+                            ? GpuLoweringUnsupportedReason.SUPPORTED
+                            : GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
+                    GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.SCATTER_ELEMENTS).reason());
+            assertEquals(backend == ComputeBackend.GPU_METAL
+                            ? GpuLoweringUnsupportedReason.SUPPORTED
+                            : GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
+                    GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.SCATTER_ND).reason());
             String expectedNote = backend == ComputeBackend.GPU_METAL ? "scatterAlongAxis" : "duplicate-index";
             assertTrue(GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.GATHER_GRAD).note()
                     .contains(expectedNote));
@@ -224,6 +234,10 @@ class GpuLoweringCoverageMatrixTest {
                     .contains(expectedNote));
             assertTrue(GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.SCATTER_ADD).note()
                     .contains(backend == ComputeBackend.GPU_METAL ? "scatterAlongAxis" : "native write-add semantics"));
+            assertTrue(GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.SCATTER_ELEMENTS).note()
+                    .contains(backend == ComputeBackend.GPU_METAL ? "scatterAlongAxis" : "rank-preserving write"));
+            assertTrue(GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.SCATTER_ND).note()
+                    .contains(backend == ComputeBackend.GPU_METAL ? "scatterNDWithDataTensor" : "tuple-index write"));
         }
     }
 

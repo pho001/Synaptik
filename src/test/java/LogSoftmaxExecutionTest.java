@@ -3,7 +3,10 @@ import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import tensor.DataType;
 import tensor.Tensor;
 
@@ -11,8 +14,10 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class LogSoftmaxExecutionTest {
     @Test
+    @Order(1)
     void logSoftmaxAxisMatchesReference() {
         Tensor logits = new Tensor(new double[]{
                 1.0, 2.0, 3.0,
@@ -32,6 +37,7 @@ public class LogSoftmaxExecutionTest {
     }
 
     @Test
+    @Order(2)
     void logSoftmaxIsNumericallyStableForLargeLogits() {
         Tensor logits = new Tensor(new double[]{1000.0, 1001.0, 1002.0}, new int[]{1, 3}, null, "logits", DataType.FLOAT64);
 
@@ -43,6 +49,7 @@ public class LogSoftmaxExecutionTest {
     }
 
     @Test
+    @Order(3)
     void expOfLogSoftmaxMatchesSoftmax() {
         Tensor logits = new Tensor(new double[]{1.0, 2.0, 3.0}, new int[]{1, 3}, null, "logits", DataType.FLOAT64);
 
@@ -59,13 +66,16 @@ public class LogSoftmaxExecutionTest {
     }
 
     @Test
+    @Order(4)
     void logSoftmaxBackwardMatchesReferenceForSeededOnes() {
         Tensor logits = new Tensor(new double[]{1.0, 2.0, 3.0}, new int[]{1, 3}, null, "logits", DataType.FLOAT64);
         logits.setRequiresGrad(true);
         Tensor logProbs = logits.logSoftmax(1);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(logProbs, CompileConfig.training());
-        assertTrue(containsOp(compiledGraph, Operation.OpType.LOG_SOFTMAX_GRAD));
+        assertFalse(containsOp(compiledGraph, Operation.OpType.LOG_SOFTMAX_GRAD));
+        assertTrue(containsOp(compiledGraph, Operation.OpType.EXP));
+        assertTrue(containsOp(compiledGraph, Operation.OpType.SUM));
         compiledGraph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         double[] softmax = softmaxRow(new double[]{1.0, 2.0, 3.0});

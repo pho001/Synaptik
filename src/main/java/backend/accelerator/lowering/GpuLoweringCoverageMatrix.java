@@ -387,14 +387,18 @@ public final class GpuLoweringCoverageMatrix {
                     GpuLoweringCoverageStatus.SUPPORTED,
                     GpuLoweringUnsupportedReason.SUPPORTED,
                     "Metal scatter-add lowers to MPSGraph scatterAlongAxis add onto the base tensor with dense FLOAT32/BFLOAT16 values, static in-bounds INT32 indices, and duplicate accumulation on device; target=scatter_index_gradient_small");
+            add(entries, backend, Operation.OpType.SCATTER_AXIS_ADD, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
+                    "scatter-axis-add remains CPU-owned until rank-changing gather inverse writes and duplicate-index accumulation are proven for Metal");
             add(entries, backend, Operation.OpType.SCATTER_ELEMENTS, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
-                    GpuLoweringCoverageStatus.UNSUPPORTED,
-                    GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
-                    "scatter-elements remains CPU-owned until rank-preserving write, reduction, and duplicate-index policies are proven for Metal");
+                    GpuLoweringCoverageStatus.SUPPORTED,
+                    GpuLoweringUnsupportedReason.SUPPORTED,
+                    "Metal scatter-elements lowers to MPSGraph scatterAlongAxis with dense FLOAT32/BFLOAT16 data/updates, static non-negative in-bounds INT32 indices, and NONE/ADD/MUL/MAX/MIN reduction parity");
             add(entries, backend, Operation.OpType.SCATTER_ND, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
-                    GpuLoweringCoverageStatus.UNSUPPORTED,
-                    GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
-                    "scatter-nd remains CPU-owned until tuple-index write, slice update, reduction, and duplicate-index policies are proven for Metal");
+                    GpuLoweringCoverageStatus.SUPPORTED,
+                    GpuLoweringUnsupportedReason.SUPPORTED,
+                    "Metal scatter-nd lowers to MPSGraph scatterNDWithDataTensor with dense FLOAT32/BFLOAT16 data/updates, static non-negative in-bounds INT32 tuple indices, slice suffix updates, validated batch_dims, and NONE/ADD/MUL/MAX/MIN reduction parity");
         } else {
             add(entries, backend, Operation.OpType.TAKE_ALONG_AXIS_GRAD, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
                     GpuLoweringCoverageStatus.UNSUPPORTED,
@@ -404,6 +408,10 @@ public final class GpuLoweringCoverageMatrix {
                     GpuLoweringCoverageStatus.UNSUPPORTED,
                     GpuLoweringUnsupportedReason.UNSUPPORTED_DUPLICATE_INDEX,
                     "scatter-add remains CPU-owned until Phase 36 proves duplicate-index accumulation order/tolerance, static bounds checks, and native write-add semantics");
+            add(entries, backend, Operation.OpType.SCATTER_AXIS_ADD, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
+                    "scatter-axis-add remains CPU-owned until rank-changing gather inverse writes and duplicate-index accumulation are proven for CUDA");
             add(entries, backend, Operation.OpType.SCATTER_ELEMENTS, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
                     GpuLoweringCoverageStatus.UNSUPPORTED,
                     GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
@@ -413,6 +421,10 @@ public final class GpuLoweringCoverageMatrix {
                     GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
                     "scatter-nd remains CPU-owned until tuple-index write, slice update, reduction, and duplicate-index policies are proven for CUDA");
         }
+        add(entries, backend, Operation.OpType.SLICE_SCATTER_ADD, GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT,
+                GpuLoweringCoverageStatus.UNSUPPORTED,
+                GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
+                "slice-scatter-add remains CPU-owned until stepped slice sparse writes are proven for accelerator lowering");
         addBoolOutputRows(entries, backend);
         addSupported(entries, backend, GpuLoweringOperationFamily.BACKWARD_ADJACENT,
                 "native accelerator DAG backward-adjacent path",
@@ -663,8 +675,10 @@ public final class GpuLoweringCoverageMatrix {
             case CONV2D, CONV2D_GEMM, CONV2D_BACKWARD_INPUT, CONV2D_BACKWARD_WEIGHT, CONV2D_BACKWARD_INPUT_GEMM,
                     CONV2D_BACKWARD_WEIGHT_GEMM, MAX_POOL2D, MAX_POOL2D_BACKWARD_INPUT, AVG_POOL2D,
                     AVG_POOL2D_BACKWARD_INPUT -> GpuLoweringOperationFamily.CONV_POOL;
-            case GATHER, GATHER_GRAD, GATHER_AXIS, GATHER_AXIS_GRAD, GATHER_ND, GATHER_ND_GRAD, TAKE_ALONG_AXIS, TAKE_ALONG_AXIS_GRAD, SCATTER_ADD, SCATTER_ELEMENTS, SCATTER_ND -> GpuLoweringOperationFamily.INDEX_SCATTER_GATHER;
-            case SLICE_GRAD -> GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT;
+            case GATHER, GATHER_GRAD, GATHER_AXIS, GATHER_AXIS_GRAD, GATHER_ND, GATHER_ND_GRAD,
+                 TAKE_ALONG_AXIS, TAKE_ALONG_AXIS_GRAD, SCATTER_ADD, SCATTER_AXIS_ADD,
+                 SCATTER_ELEMENTS, SCATTER_ND -> GpuLoweringOperationFamily.INDEX_SCATTER_GATHER;
+            case SLICE_GRAD, SLICE_SCATTER_ADD -> GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT;
             case REDUCE_MIN_GRAD, REDUCE_MAX_GRAD, MIN_GRAD, MAX_GRAD -> GpuLoweringOperationFamily.BACKWARD_ADJACENT;
             default -> GpuLoweringOperationFamily.ELEMENTWISE_CHAIN;
         };

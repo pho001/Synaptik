@@ -241,20 +241,20 @@ If a BOOL mask chain unexpectedly falls back, check all of these before treating
 3. The trace should include non-rejected `dtypeResidency` evidence with `dtype=BOOL`, especially `role=compute` or `role=internalValue` for produced masks.
 4. `bool_compare_where_small` hot-path gates require `BUFFER_BINDING`, lowered primitive evidence, zero CPU materializations, zero CPU fallback, zero tensor-array fallback, and BOOL dtype residency evidence.
 
-If a forward gather/take path unexpectedly falls back, check all of these before treating it as a Metal bug:
+If a forward gather/take/scatter path unexpectedly falls back, check all of these before treating it as a Metal bug:
 
-1. The value and output dtype must be `FLOAT32`; `INT32` is accepted only for the index input, not compute/output.
-2. The operation must be forward `GATHER` or `TAKE_ALONG_AXIS`; `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, and `SCATTER_ADD` remain duplicate-index semantic blockers.
+1. The value and output dtype must be `FLOAT32` or `BFLOAT16`; `INT32` is accepted only for the index input, not compute/output.
+2. The operation must be one of the scoped index rows: `GATHER`, `GATHER_AXIS`, `GATHER_ND`, `TAKE_ALONG_AXIS`, `SCATTER_ADD`, `SCATTER_ELEMENTS`, `SCATTER_ND`, `GATHER_GRAD`, `GATHER_AXIS_GRAD`, or `TAKE_ALONG_AXIS_GRAD`.
 3. Value and index inputs must be dense with zero storage offset.
-4. Index values must be readable from a static leaf `INT32` tensor and must be in bounds. Unproven or out-of-range bounds reject with `UNSUPPORTED_BOUNDS_CHECK` because MPSGraph out-of-bounds gather behavior does not match CPU exception semantics.
+4. Index values must be readable from a static leaf `INT32` tensor and must be non-negative in bounds. Unproven, negative, or out-of-range bounds reject with `UNSUPPORTED_BOUNDS_CHECK` because MPSGraph out-of-bounds behavior does not match CPU exception semantics.
 5. `gather_take_small` hot-path gates require `BUFFER_BINDING`, lowered primitive evidence, zero CPU materializations, zero CPU fallback, zero tensor-array fallback, and INT32 index dtype residency evidence.
 
-If `SCATTER_ADD`, `GATHER_GRAD`, or `TAKE_ALONG_AXIS_GRAD` appears to be counted as Metal support, treat that as a report or planner bug unless the native duplicate-index contract has explicitly changed:
+If `SCATTER_ELEMENTS` or `SCATTER_ND` rejects while the CPU path works, check the extra write semantics before treating it as a native bug:
 
-1. These operations are not covered by forward `gather_take_small`.
-2. `scatter_index_gradient_small` should remain a visible-blocker target.
-3. The visible reason should include `UNSUPPORTED_DUPLICATE_INDEX` or the specific operation name.
-4. Bounds, dtype, layout, and non-static index failures may appear before the duplicate blocker; those are also explicit rejection paths, not native execution proof.
+1. `NONE` reduction rejects duplicate target indices before native execution to preserve CPU semantics.
+2. `ADD`, `MUL`, `MAX`, and `MIN` require static in-bounds targets so MPSGraph skipped-out-of-bounds behavior cannot hide a CPU error.
+3. `SCATTER_ND` validates `batch_dims`, tuple rank, and slice-suffix update shape before native admission.
+4. CUDA still reports these write rows as visible blockers; Metal support does not imply CUDA parity.
 
 If a conv/pool path unexpectedly falls back, check all of these before treating it as a Metal bug:
 

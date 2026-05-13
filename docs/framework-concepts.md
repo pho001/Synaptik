@@ -155,6 +155,8 @@ Stage ownership:
 
 Backend planning, region optimization, and memory planning are later compile phases, not graph optimizer stages. Source: [`GraphOptimizationConfig.java`](../src/main/java/config/compile/GraphOptimizationConfig.java), [`CompileConfig.java`](../src/main/java/config/compile/CompileConfig.java), [`BackendPlanningConfig.java`](../src/main/java/config/compile/BackendPlanningConfig.java), [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java).
 
+The canonical Tensor DAG is the semantic source of truth. Public APIs should not create or reintroduce opaque gradient descriptors when the gradient is expressible through ordinary primitives. For example, softmax, log-softmax, min/max, gather, take-along-axis, gather-nd, and slice gradients are built from visible primitive nodes and indexed-write primitives. Legacy `*_GRAD` operation descriptors can remain in the codebase as direct backend-test fixtures or future CPU/backend specialization targets, but they are not the default graph form emitted by Tensor API calls.
+
 ## Profiles
 
 `ExecutionProfile` is the runnable profile object. It combines profile names, dtype, execution mode, compile config, runtime config, and workload metadata. Source: [`ExecutionProfile.java`](../src/main/java/config/profile/ExecutionProfile.java).

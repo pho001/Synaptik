@@ -8,6 +8,7 @@ import tensor.DataType;
 import tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -159,13 +160,16 @@ public class GatherNdExecutionTest {
 
         Tensor out = data.gatherNd(indices).mul(2.0);
 
-        CompiledGraph.compile(out, CompileConfig.training())
+        CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.training());
+        compiled
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 0.0, 4.0, 0.0,
                 0.0, 0.0, 2.0
         }, data.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertFalse(containsOp(compiled, Operation.OpType.GATHER_ND_GRAD));
+        assertTrue(containsOp(compiled, Operation.OpType.SCATTER_ND));
     }
 
     @Test
@@ -179,13 +183,16 @@ public class GatherNdExecutionTest {
 
         Tensor out = data.gatherNd(indices, 1).mul(2.0);
 
-        CompiledGraph.compile(out, CompileConfig.training())
+        CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.training());
+        compiled
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 0.0, 4.0, 0.0,
                 2.0, 0.0, 2.0
         }, data.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertFalse(containsOp(compiled, Operation.OpType.GATHER_ND_GRAD));
+        assertTrue(containsOp(compiled, Operation.OpType.SCATTER_ND));
     }
 
     @Test

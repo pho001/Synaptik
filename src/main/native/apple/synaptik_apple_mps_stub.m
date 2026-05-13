@@ -308,6 +308,31 @@ static int32_t SynaptikNodeAttribute(const int32_t *nodeIntAttributes, int32_t n
     return nodeIntAttributes[nodeIndex * 8 + attributeIndex];
 }
 
+static BOOL SynaptikScatterModeFromReduction(int32_t reduction, MPSGraphScatterMode *mode) {
+    if (mode == NULL) {
+        return NO;
+    }
+    switch (reduction) {
+        case 0:
+            *mode = MPSGraphScatterModeSet;
+            return YES;
+        case 1:
+            *mode = MPSGraphScatterModeAdd;
+            return YES;
+        case 2:
+            *mode = MPSGraphScatterModeMul;
+            return YES;
+        case 3:
+            *mode = MPSGraphScatterModeMax;
+            return YES;
+        case 4:
+            *mode = MPSGraphScatterModeMin;
+            return YES;
+        default:
+            return NO;
+    }
+}
+
 static int32_t SynaptikDecodeReductionAxis(const float *nodeScalarValues, int32_t index) {
     int32_t encoded = SynaptikDecodeIntScalar(nodeScalarValues, index);
     int32_t axis = encoded & 0xFFFF;
@@ -1383,6 +1408,55 @@ static void *SynaptikCompilePartition(
                                                    indicesTensor:input1
                                                  batchDimensions:(NSUInteger) batchDims
                                                             name:@"gather_nd"];
+                    break;
+                }
+                case 88: {
+                    if (input1 == nil || input2 == nil) return NULL;
+                    if (@available(macOS 12.3, iOS 15.4, tvOS 15.4, *)) {
+                        int32_t axis = SynaptikDecodeIntScalar(node_scalar_values, i);
+                        int32_t reduction = SynaptikNodeAttribute(node_int_attributes, i, 0);
+                        MPSGraphScatterMode mode;
+                        if (!SynaptikScatterModeFromReduction(reduction, &mode)) return NULL;
+                        NSUInteger outputRank = input0.shape == nil ? 0 : input0.shape.count;
+                        NSUInteger indexRank = input1.shape == nil ? 0 : input1.shape.count;
+                        NSUInteger updateRank = input2.shape == nil ? 0 : input2.shape.count;
+                        if (outputRank < 1 || outputRank > 4 || indexRank != outputRank || updateRank != outputRank
+                                || axis < 0 || axis >= (int32_t) outputRank) {
+                            return NULL;
+                        }
+                        outTensor = [graph scatterAlongAxis:(NSInteger) axis
+                                             withDataTensor:input0
+                                              updatesTensor:input2
+                                              indicesTensor:input1
+                                                       mode:mode
+                                                       name:@"scatter_elements"];
+                    } else {
+                        return NULL;
+                    }
+                    break;
+                }
+                case 89: {
+                    if (input1 == nil || input2 == nil) return NULL;
+                    if (@available(macOS 12.0, iOS 15.0, tvOS 15.0, *)) {
+                        int32_t batchDims = SynaptikDecodeIntScalar(node_scalar_values, i);
+                        int32_t reduction = SynaptikNodeAttribute(node_int_attributes, i, 0);
+                        MPSGraphScatterMode mode;
+                        if (!SynaptikScatterModeFromReduction(reduction, &mode)) return NULL;
+                        NSUInteger dataRank = input0.shape == nil ? 0 : input0.shape.count;
+                        NSUInteger indexRank = input1.shape == nil ? 0 : input1.shape.count;
+                        if (dataRank < 1 || dataRank > 4 || indexRank < 1 || indexRank > 4
+                                || batchDims < 0 || batchDims >= (int32_t) indexRank) {
+                            return NULL;
+                        }
+                        outTensor = [graph scatterNDWithDataTensor:input0
+                                                     updatesTensor:input2
+                                                     indicesTensor:input1
+                                                   batchDimensions:(NSUInteger) batchDims
+                                                              mode:mode
+                                                              name:@"scatter_nd"];
+                    } else {
+                        return NULL;
+                    }
                     break;
                 }
                 case 63: {

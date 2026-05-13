@@ -2,6 +2,7 @@ package backend.cpu.kernels.layout;
 
 import backend.cpu.kernels.CpuDTypeOps;
 import operations.layout.sliceGrad;
+import operations.layout.sliceScatterAdd;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorMetadata;
@@ -11,18 +12,30 @@ final class LayoutGradExecutor {
     }
 
     static void sliceGrad(sliceGrad op, Tensor outGrad, Tensor node) {
-        int[] inputShape = op.getInputShape();
-        validateShape(node.getShapeUnsafe(), inputShape, "sliceGrad output shape must match original input shape.");
-        validateFloating(node.getDataType(), "sliceGrad");
+        sliceScatterAdd(op.getStarts(), op.getAxes(), op.getSteps(), op.getInputShape(), outGrad, node, "sliceGrad");
+    }
+
+    static void sliceScatterAdd(sliceScatterAdd op, Tensor updates, Tensor node) {
+        sliceScatterAdd(op.getStarts(), op.getAxes(), op.getSteps(), op.getInputShape(), updates, node, "sliceScatterAdd");
+    }
+
+    private static void sliceScatterAdd(
+            int[] starts,
+            int[] axes,
+            int[] steps,
+            int[] inputShape,
+            Tensor updates,
+            Tensor node,
+            String opName
+    ) {
+        validateShape(node.getShapeUnsafe(), inputShape, opName + " output shape must match target input shape.");
+        validateFloating(node.getDataType(), opName);
         zero(node);
 
-        int[] outGradShape = outGrad.getShapeUnsafe();
+        int[] outGradShape = updates.getShapeUnsafe();
         int[] outGradDense = TensorMetadata.computeStrides(outGradShape);
         int[] inputDense = TensorMetadata.computeStrides(inputShape);
-        int[] starts = op.getStarts();
-        int[] axes = op.getAxes();
-        int[] steps = op.getSteps();
-        int total = outGrad.getFlatDataSize();
+        int total = updates.getFlatDataSize();
 
         for (int logical = 0; logical < total; logical++) {
             int rem = logical;
@@ -39,7 +52,7 @@ final class LayoutGradExecutor {
                 }
                 inputLogical += inputCoord * inputDense[d];
             }
-            add(node, inputLogical, outGrad.getByFlatIndex(logical));
+            add(node, inputLogical, updates.getByFlatIndex(logical));
         }
         node.markStorageModified();
     }

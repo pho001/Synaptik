@@ -245,6 +245,7 @@ public final class TensorReduceOps {
 
             Tensor dot = outGrad.mul(out).sum(normalizedDimension, true);
             Tensor grad = out.mul(outGrad.sub(dot));
+            BackendIntentPropagator.preserve(grad, out);
             ReductionSupport.accumulateGradient(input, grad);
         });
         return out;
@@ -276,6 +277,7 @@ public final class TensorReduceOps {
             Tensor probs = out.exp();
             Tensor sumGrad = outGrad.sum(normalizedDimension, true);
             Tensor grad = outGrad.sub(probs.mul(sumGrad));
+            BackendIntentPropagator.preserve(grad, out);
             ReductionSupport.accumulateGradient(input, grad);
         });
         return out;
@@ -439,16 +441,7 @@ public final class TensorReduceOps {
 
             Tensor reducedForGrad = keepDims ? out : out.expandDims(normalizedDimension);
             Tensor outGradForGrad = keepDims ? outGrad : outGrad.expandDims(normalizedDimension);
-            Operation gradOp = isMax ? new operations.reduction.reduceMaxGrad(normalizedDimension) : new operations.reduction.reduceMinGrad(normalizedDimension);
-            Tensor grad = TensorPrimitiveBuilder.ternary(
-                    input,
-                    reducedForGrad,
-                    outGradForGrad,
-                    input.getShape().clone(),
-                    gradOp,
-                    isMax ? "reduce_max_grad" : "reduce_min_grad",
-                    outGrad.getDataType()
-            );
+            Tensor grad = reduceMinMaxGrad(input, reducedForGrad, outGradForGrad, normalizedDimension, isMax);
             BackendIntentPropagator.preserve(grad, out);
             ReductionSupport.accumulateGradient(input, grad);
         });
@@ -470,20 +463,27 @@ public final class TensorReduceOps {
                 return;
             }
 
-            Operation gradOp = isMax ? new operations.reduction.reduceMaxGrad(-1) : new operations.reduction.reduceMinGrad(-1);
-            Tensor grad = TensorPrimitiveBuilder.ternary(
-                    input,
-                    out,
-                    outGrad,
-                    input.getShape().clone(),
-                    gradOp,
-                    isMax ? "reduce_max_grad" : "reduce_min_grad",
-                    outGrad.getDataType()
-            );
+            Tensor grad = reduceMinMaxAllGrad(input, out, outGrad);
             BackendIntentPropagator.preserve(grad, out);
             ReductionSupport.accumulateGradient(input, grad);
         });
         return out;
+    }
+
+    private static Tensor reduceMinMaxGrad(Tensor input, Tensor reducedKeepDims, Tensor outGradKeepDims, int dimension, boolean isMax) {
+        Tensor mask = input.equalTo(reducedKeepDims);
+        Tensor maskNumeric = Tensor.where(mask, Tensor.onesLike(input), Tensor.zerosLike(input));
+        Tensor winnerCount = maskNumeric.sum(dimension, true);
+        Tensor scaledGrad = outGradKeepDims.div(winnerCount).expand(input.getShape());
+        return Tensor.where(mask, scaledGrad, Tensor.zerosLike(input));
+    }
+
+    private static Tensor reduceMinMaxAllGrad(Tensor input, Tensor reduced, Tensor outGrad) {
+        Tensor mask = input.equalTo(reduced);
+        Tensor maskNumeric = Tensor.where(mask, Tensor.onesLike(input), Tensor.zerosLike(input));
+        Tensor winnerCount = maskNumeric.sum();
+        Tensor scaledGrad = outGrad.div(winnerCount).expand(input.getShape());
+        return Tensor.where(mask, scaledGrad, Tensor.zerosLike(input));
     }
 
     private static Tensor reduceBool(Tensor input, int dimension, boolean keepDims, boolean isAll) {

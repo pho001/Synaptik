@@ -70,6 +70,29 @@ cleanup iteration 2:
 - backend-neutral lowering changes graph semantics into another graph-level primitive, such as recognizing a safe `matmul + bias` form as `LINEAR`
 - backend-specific lowering turns an already planned region into a target-specific executable representation, such as a Metal MPSGraph DAG or a CPU fused executable
 
+### Canonical DAG Versus Specialization Ops
+
+The public Tensor API owns semantic graph construction. When a differentiable operation can be expressed with existing primitives, the backward graph should stay visible as a canonical DAG. Examples:
+
+```text
+softmax backward      -> MUL, SUB, SUM over the softmax output and output gradient
+logSoftmax backward   -> EXP, MUL, SUM, SUB
+min/max backward      -> compare masks plus WHERE
+gather backward       -> SCATTER_ADD
+gatherAxis backward   -> SCATTER_AXIS_ADD
+gatherNd backward     -> SCATTER_ND with ADD and batch_dims
+takeAlongAxis backward -> SCATTER_ELEMENTS with ADD
+slice backward        -> PAD for unit steps, SLICE_SCATTER_ADD for stepped slices
+```
+
+Legacy descriptors such as `SOFTMAX_GRAD`, `LOG_SOFTMAX_GRAD`, `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, `SLICE_GRAD`, and `CROSS_ENTROPY_LOSS_INDICES_GRAD` still exist because backend coverage tests and future CPU/backend specialization experiments may instantiate them directly. Their existence does not make them the canonical semantic form. A default graph-optimizer rule must not take a public Tensor API primitive DAG and silently replace it with a legacy gradient descriptor.
+
+If a future CPU path wants those descriptors for performance, it should be an explicit specialization decision with three properties:
+
+- it runs after the canonical graph exists,
+- it is scoped to a selected backend or runtime policy,
+- the trace can report that specialization happened and can fall back to the canonical DAG.
+
 ## Compile Flow Around The Optimizer
 
 The optimizer is one middle phase of compile, not the whole compiler.

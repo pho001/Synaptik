@@ -192,6 +192,14 @@ public final class TensorOps {
         return TensorIndexOps.scatterNd(data, indices, updates, reduction);
     }
 
+    public static Tensor scatterNd(Tensor data, Tensor indices, Tensor updates, ScatterReduction reduction, int batchDims) {
+        return TensorIndexOps.scatterNd(data, indices, updates, reduction, batchDims);
+    }
+
+    public static Tensor scatterAxisAdd(Tensor data, Tensor indices, Tensor updates, int axis) {
+        return TensorIndexOps.scatterAxisAdd(data, indices, updates, axis);
+    }
+
     public static Tensor takeAlongAxis(Tensor input, Tensor indices, int dimension) {
         return TensorIndexOps.takeAlongAxis(input, indices, dimension);
     }

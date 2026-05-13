@@ -7,7 +7,7 @@ Generated from `OnnxCoverageMatrix`; do not hand-edit status rows.
 - Import: supported=78, partial=0, unsupported=1
 - Export: supported=70, partial=1, unsupported=8
 - CPU: supported=78, partial=0, unsupported=1
-- Metal: supported=65, partial=9, unsupported=5
+- Metal: supported=67, partial=9, unsupported=3
 - CUDA: supported=34, partial=9, unsupported=36
 - Round-trip evidence: round_trip_tested=70, explicitly_classified=1, import_only_tested=7, rejection_tested=1, not_applicable=0
 
@@ -76,8 +76,8 @@ Generated from `OnnxCoverageMatrix`; do not hand-edit status rows.
 | Gather | gatherAxis or shape gather | supported | supported | supported | supported | unsupported | round_trip_tested | GATHER_AXIS | runtime mapping uses GATHER_AXIS; shape-only mapping is axis-0 only |
 | GatherElements | takeAlongAxis | supported | supported | supported | supported | unsupported | round_trip_tested | TAKE_ALONG_AXIS | runtime indices are INT32 |
 | GatherND | gatherNd | supported | supported | supported | supported | unsupported | round_trip_tested | GATHER_ND | runtime indices are INT32; batch_dims supported; Metal supports dense FLOAT32/BFLOAT16 values with static non-negative in-bounds INT32 tuple indices |
-| ScatterElements | scatterElements | supported | supported | supported | unsupported | unsupported | round_trip_tested | SCATTER_ELEMENTS | forward reductions none/add/mul/max/min; backward only none/add |
-| ScatterND | scatterNd | supported | supported | supported | unsupported | unsupported | round_trip_tested | SCATTER_ND | forward reductions none/add/mul/max/min; backward only none/add |
+| ScatterElements | scatterElements | supported | supported | supported | supported | unsupported | round_trip_tested | SCATTER_ELEMENTS | forward reductions none/add/mul/max/min; backward only none/add |
+| ScatterND | scatterNd | supported | supported | supported | supported | unsupported | round_trip_tested | SCATTER_ND | forward reductions none/add/mul/max/min; backward only none/add |
 | ReduceSum | sum | supported | supported | supported | supported | supported | round_trip_tested | SUM | multi-axis reductions are imported as repeated single-axis reductions |
 | ReduceMean | mean | supported | supported | supported | supported | supported | round_trip_tested | MEAN | multi-axis reductions are imported as repeated single-axis reductions |
 | ReduceMax | reduce_max | supported | supported | supported | supported | supported | round_trip_tested | REDUCE_MAX | multi-axis reductions are imported as repeated single-axis reductions |

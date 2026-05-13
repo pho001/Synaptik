@@ -1640,6 +1640,32 @@ public class Tensor {
     }
 
     /**
+     * Writes or reduces updates into a copy of this tensor using tuple indices
+     * with optional leading batch dimensions.
+     *
+     * @param indices numeric integral index tensor whose final dimension is the tuple rank
+     * @param updates update values matching the indexed slice shape
+     * @param reduction scatter reduction policy
+     * @param batchDims leading batch dimensions shared by this tensor and indices
+     * @return tensor with this tensor's shape and scattered updates
+     */
+    public Tensor scatterNd(Tensor indices, Tensor updates, ScatterReduction reduction, int batchDims) {
+        return TensorOps.scatterNd(this, indices, updates, reduction, batchDims);
+    }
+
+    /**
+     * Adds rank-changing axis updates into a copy of this tensor.
+     *
+     * @param indices numeric integral index tensor used like gatherAxis indices
+     * @param updates updates shaped as {@code gatherAxis(this, indices, axis)}
+     * @param axis target axis; negative axes are normalized
+     * @return tensor with this tensor's shape and scattered additions
+     */
+    public Tensor scatterAxisAdd(Tensor indices, Tensor updates, int axis) {
+        return TensorOps.scatterAxisAdd(this, indices, updates, axis);
+    }
+
+    /**
      * Gathers values using an output-shaped index tensor.
      *
      * @param indices numeric integral index tensor whose shape is the output shape

@@ -104,6 +104,18 @@ final class IndexExecutor {
         IndexReadWriteBackend.gatherAxisGradBF16(indices, outGrad, node, axis);
     }
 
+    static void scatterAxisAddF64(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterAxisAddF64(data, indices, updates, out, axis);
+    }
+
+    static void scatterAxisAddF32(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterAxisAddF32(data, indices, updates, out, axis);
+    }
+
+    static void scatterAxisAddBF16(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterAxisAddBF16(data, indices, updates, out, axis);
+    }
+
     static void takeAlongAxisF64(Tensor input, Tensor indices, Tensor out, int dimension, CpuKernelContext context) {
         IndexReadWriteBackend.takeAlongAxisF64(input, indices, out, dimension);
     }
@@ -168,23 +180,23 @@ final class IndexExecutor {
         IndexReadWriteBackend.scatterElementsI32(data, indices, updates, out, axis, reduction);
     }
 
-    static void scatterNdF64(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, CpuKernelContext context) {
-        IndexReadWriteBackend.scatterNdF64(data, indices, updates, out, reduction);
+    static void scatterNdF64(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterNdF64(data, indices, updates, out, reduction, batchDims);
     }
 
-    static void scatterNdF32(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, CpuKernelContext context) {
-        IndexReadWriteBackend.scatterNdF32(data, indices, updates, out, reduction);
+    static void scatterNdF32(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterNdF32(data, indices, updates, out, reduction, batchDims);
     }
 
-    static void scatterNdBF16(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, CpuKernelContext context) {
-        IndexReadWriteBackend.scatterNdBF16(data, indices, updates, out, reduction);
+    static void scatterNdBF16(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterNdBF16(data, indices, updates, out, reduction, batchDims);
     }
 
-    static void scatterNdBOOL(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, CpuKernelContext context) {
-        IndexReadWriteBackend.scatterNdBOOL(data, indices, updates, out, reduction);
+    static void scatterNdBOOL(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterNdBOOL(data, indices, updates, out, reduction, batchDims);
     }
 
-    static void scatterNdI32(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, CpuKernelContext context) {
-        IndexReadWriteBackend.scatterNdI32(data, indices, updates, out, reduction);
+    static void scatterNdI32(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterNdI32(data, indices, updates, out, reduction, batchDims);
     }
 }

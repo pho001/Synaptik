@@ -78,6 +78,8 @@ public final class MetalOperationParityMatrix {
             Operation.OpType.GATHER_AXIS_GRAD,
             Operation.OpType.TAKE_ALONG_AXIS_GRAD,
             Operation.OpType.SCATTER_ADD,
+            Operation.OpType.SCATTER_ELEMENTS,
+            Operation.OpType.SCATTER_ND,
             Operation.OpType.CONV2D,
             Operation.OpType.CONV2D_GEMM,
             Operation.OpType.CONV2D_BACKWARD_INPUT,

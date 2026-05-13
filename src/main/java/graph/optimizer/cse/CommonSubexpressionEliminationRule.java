@@ -34,6 +34,7 @@ import operations.normalization.layerNorm;
 import operations.nn.pool.maxPool2d;
 import operations.nn.pool.maxPool2dBackwardInput;
 import operations.index.scatterAdd;
+import operations.index.scatterAxisAdd;
 import operations.index.scatterElements;
 import operations.index.scatterNd;
 import operations.linalg.scaledDotProductAttention;
@@ -63,6 +64,7 @@ import operations.normalization.rmsNorm;
 import operations.layout.select;
 import operations.layout.slice;
 import operations.layout.sliceGrad;
+import operations.layout.sliceScatterAdd;
 import operations.layout.squeeze;
 import operations.reduction.sum;
 import operations.layout.tile;
@@ -272,6 +274,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case SELECT -> IntArrayValue.copyOf(new int[]{((select) op).getDimension(), ((select) op).getIndex()});
             case SLICE -> IntArrayValue.copyOf(sliceSignature((slice) op));
             case SLICE_GRAD -> IntArrayValue.copyOf(sliceGradSignature((sliceGrad) op));
+            case SLICE_SCATTER_ADD -> IntArrayValue.copyOf(sliceScatterAddSignature((sliceScatterAdd) op));
             case CONCAT -> new AxisSignature(((concat) op).getAxis());
             case PAD -> IntArrayValue.copyOf(padSignature((pad) op));
             case TILE -> IntArrayValue.copyOf(((tile) op).getRepeats());
@@ -286,11 +289,15 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case TAKE_ALONG_AXIS -> new AxisSignature(((takeAlongAxis) op).getDimension());
             case TAKE_ALONG_AXIS_GRAD -> new AxisSignature(((takeAlongAxisGrad) op).getDimension());
             case SCATTER_ADD -> new AxisSignature(((scatterAdd) op).getDimension());
+            case SCATTER_AXIS_ADD -> new AxisSignature(((scatterAxisAdd) op).getAxis());
             case SCATTER_ELEMENTS -> IntArrayValue.copyOf(new int[]{
                     ((scatterElements) op).getAxis(),
                     ((scatterElements) op).getReduction().ordinal()
             });
-            case SCATTER_ND -> new AxisSignature(((scatterNd) op).getReduction().ordinal());
+            case SCATTER_ND -> IntArrayValue.copyOf(new int[]{
+                    ((scatterNd) op).getReduction().ordinal(),
+                    ((scatterNd) op).getBatchDims()
+            });
             case SCALED_DOT_PRODUCT_ATTENTION -> new AttentionSignature(Double.doubleToLongBits(((scaledDotProductAttention) op).getScale()), ((scaledDotProductAttention) op).hasMask());
             case SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> IntArrayValue.copyOf(new int[]{((scaledDotProductAttentionBackward) op).getOutputKind().ordinal()});
             case LINEAR -> new InputSelectorSignature(((linear) op).hasBias());
@@ -341,6 +348,24 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
     }
 
     private int[] sliceGradSignature(sliceGrad op) {
+        int[] starts = op.getStarts();
+        int[] axes = op.getAxes();
+        int[] steps = op.getSteps();
+        int[] inputShape = op.getInputShape();
+        int[] out = new int[starts.length + axes.length + steps.length + inputShape.length + 4];
+        int p = 0;
+        out[p++] = starts.length;
+        for (int value : starts) out[p++] = value;
+        out[p++] = axes.length;
+        for (int value : axes) out[p++] = value;
+        out[p++] = steps.length;
+        for (int value : steps) out[p++] = value;
+        out[p++] = inputShape.length;
+        for (int value : inputShape) out[p++] = value;
+        return out;
+    }
+
+    private int[] sliceScatterAddSignature(sliceScatterAdd op) {
         int[] starts = op.getStarts();
         int[] axes = op.getAxes();
         int[] steps = op.getSteps();

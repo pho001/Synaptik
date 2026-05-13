@@ -953,6 +953,64 @@ class MetalMpsFfmBridgeTest {
     }
 
     @Test
+    void explicitShimExecuteBuffersSupportsScatterElementsWithInt32Indices() {
+        Tensor expectedBase = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f
+        }, new int[]{2, 3}, null, "expectedScatterElementsBase", DataType.FLOAT32);
+        Tensor expectedIndices = new Tensor(new int[]{2, 0, 1, 2}, new int[]{2, 2}, null, "expectedScatterElementsIndices", DataType.INT32);
+        Tensor expectedUpdates = new Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, null, "expectedScatterElementsUpdates", DataType.FLOAT32);
+        Tensor expected = expectedBase.scatterElements(expectedIndices, expectedUpdates, 1, operations.index.ScatterReduction.ADD);
+        expected.compute();
+
+        Tensor base = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f
+        }, new int[]{2, 3}, null, "scatterElementsBase", DataType.FLOAT32);
+        Tensor indices = new Tensor(new int[]{2, 0, 1, 2}, new int[]{2, 2}, null, "scatterElementsIndices", DataType.INT32);
+        Tensor updates = new Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, null, "scatterElementsUpdates", DataType.FLOAT32);
+        Tensor out = base.scatterElements(indices, updates, 1, operations.index.ScatterReduction.ADD);
+
+        Tensor destination = executeF32LoweredNode(
+                out,
+                Operation.OpType.SCATTER_ELEMENTS,
+                List.of(base, indices, updates),
+                new int[]{2, 3}
+        );
+
+        assertArrayEquals(expected.getFloat32Data(), destination.getFloat32Data(), 0.0f);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsScatterNdWithInt32Indices() {
+        Tensor expectedBase = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f
+        }, new int[]{2, 3}, null, "expectedScatterNdBase", DataType.FLOAT32);
+        Tensor expectedIndices = new Tensor(new int[]{0, 1, 1, 2}, new int[]{2, 2}, null, "expectedScatterNdIndices", DataType.INT32);
+        Tensor expectedUpdates = new Tensor(new float[]{10f, 40f}, new int[]{2}, null, "expectedScatterNdUpdates", DataType.FLOAT32);
+        Tensor expected = expectedBase.scatterNd(expectedIndices, expectedUpdates, operations.index.ScatterReduction.MAX);
+        expected.compute();
+
+        Tensor base = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f
+        }, new int[]{2, 3}, null, "scatterNdBase", DataType.FLOAT32);
+        Tensor indices = new Tensor(new int[]{0, 1, 1, 2}, new int[]{2, 2}, null, "scatterNdIndices", DataType.INT32);
+        Tensor updates = new Tensor(new float[]{10f, 40f}, new int[]{2}, null, "scatterNdUpdates", DataType.FLOAT32);
+        Tensor out = base.scatterNd(indices, updates, operations.index.ScatterReduction.MAX);
+
+        Tensor destination = executeF32LoweredNode(
+                out,
+                Operation.OpType.SCATTER_ND,
+                List.of(base, indices, updates),
+                new int[]{2, 3}
+        );
+
+        assertArrayEquals(expected.getFloat32Data(), destination.getFloat32Data(), 0.0f);
+    }
+
+    @Test
     void explicitShimExecuteBuffersSupportsBfloat16ScatterAddWithInt32Indices() {
         Tensor base = bf16Tensor(new float[]{
                 1f, 2f, 3f,

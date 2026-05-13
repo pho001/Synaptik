@@ -13,35 +13,35 @@ public final class CpuScatterNdKernel implements CpuKernel {
     public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         scatterNd scatterOp = requireOp(op);
         Tensor[] triple = requireTriple(inputs);
-        IndexExecutor.scatterNdF64(triple[0], triple[1], triple[2], node, scatterOp.getReduction(), context);
+        IndexExecutor.scatterNdF64(triple[0], triple[1], triple[2], node, scatterOp.getReduction(), scatterOp.getBatchDims(), context);
     }
 
     @Override
     public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         scatterNd scatterOp = requireOp(op);
         Tensor[] triple = requireTriple(inputs);
-        IndexExecutor.scatterNdF32(triple[0], triple[1], triple[2], node, scatterOp.getReduction(), context);
+        IndexExecutor.scatterNdF32(triple[0], triple[1], triple[2], node, scatterOp.getReduction(), scatterOp.getBatchDims(), context);
     }
 
     @Override
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         scatterNd scatterOp = requireOp(op);
         Tensor[] triple = requireTriple(inputs);
-        IndexExecutor.scatterNdBF16(triple[0], triple[1], triple[2], node, scatterOp.getReduction(), context);
+        IndexExecutor.scatterNdBF16(triple[0], triple[1], triple[2], node, scatterOp.getReduction(), scatterOp.getBatchDims(), context);
     }
 
     @Override
     public void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         scatterNd scatterOp = requireOp(op);
         Tensor[] triple = requireTriple(inputs);
-        IndexExecutor.scatterNdBOOL(triple[0], triple[1], triple[2], node, scatterOp.getReduction(), context);
+        IndexExecutor.scatterNdBOOL(triple[0], triple[1], triple[2], node, scatterOp.getReduction(), scatterOp.getBatchDims(), context);
     }
 
     @Override
     public void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         scatterNd scatterOp = requireOp(op);
         Tensor[] triple = requireTriple(inputs);
-        IndexExecutor.scatterNdI32(triple[0], triple[1], triple[2], node, scatterOp.getReduction(), context);
+        IndexExecutor.scatterNdI32(triple[0], triple[1], triple[2], node, scatterOp.getReduction(), scatterOp.getBatchDims(), context);
     }
 
     private static scatterNd requireOp(Operation op) {

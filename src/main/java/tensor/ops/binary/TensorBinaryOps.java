@@ -224,28 +224,12 @@ public final class TensorBinaryOps {
                 return;
             }
             if (first.getRequiresGrad()) {
-                Tensor gradRaw = TensorPrimitiveBuilder.ternary(
-                        first,
-                        second,
-                        outGrad,
-                        plan.outShape(),
-                        new operations.elementwise.binary.minGrad(plan, true),
-                        "min_grad_a",
-                        outGrad.getDataType()
-                );
+                Tensor gradRaw = minMaxElementwiseGrad(first, second, outGrad, false, true);
                 BackendIntentPropagator.preserve(gradRaw, out);
                 BinarySupport.accumulateGradient(first, TensorBroadcastOps.sumToShape(gradRaw, first.getShape()));
             }
             if (second.getRequiresGrad()) {
-                Tensor gradRaw = TensorPrimitiveBuilder.ternary(
-                        first,
-                        second,
-                        outGrad,
-                        plan.outShape(),
-                        new operations.elementwise.binary.minGrad(plan, false),
-                        "min_grad_b",
-                        outGrad.getDataType()
-                );
+                Tensor gradRaw = minMaxElementwiseGrad(first, second, outGrad, false, false);
                 BackendIntentPropagator.preserve(gradRaw, out);
                 BinarySupport.accumulateGradient(second, TensorBroadcastOps.sumToShape(gradRaw, second.getShape()));
             }
@@ -273,32 +257,26 @@ public final class TensorBinaryOps {
                 return;
             }
             if (first.getRequiresGrad()) {
-                Tensor gradRaw = TensorPrimitiveBuilder.ternary(
-                        first,
-                        second,
-                        outGrad,
-                        plan.outShape(),
-                        new operations.elementwise.binary.maxGrad(plan, true),
-                        "max_grad_a",
-                        outGrad.getDataType()
-                );
+                Tensor gradRaw = minMaxElementwiseGrad(first, second, outGrad, true, true);
                 BackendIntentPropagator.preserve(gradRaw, out);
                 BinarySupport.accumulateGradient(first, TensorBroadcastOps.sumToShape(gradRaw, first.getShape()));
             }
             if (second.getRequiresGrad()) {
-                Tensor gradRaw = TensorPrimitiveBuilder.ternary(
-                        first,
-                        second,
-                        outGrad,
-                        plan.outShape(),
-                        new operations.elementwise.binary.maxGrad(plan, false),
-                        "max_grad_b",
-                        outGrad.getDataType()
-                );
+                Tensor gradRaw = minMaxElementwiseGrad(first, second, outGrad, true, false);
                 BackendIntentPropagator.preserve(gradRaw, out);
                 BinarySupport.accumulateGradient(second, TensorBroadcastOps.sumToShape(gradRaw, second.getShape()));
             }
         });
         return out;
+    }
+
+    private static Tensor minMaxElementwiseGrad(Tensor first, Tensor second, Tensor outGrad, boolean isMax, boolean forFirst) {
+        Tensor tie = first.equalTo(second);
+        Tensor wins = forFirst
+                ? (isMax ? first.greaterThan(second) : first.lessThan(second))
+                : (isMax ? second.greaterThan(first) : second.lessThan(first));
+        Tensor zero = Tensor.zerosLike(outGrad);
+        Tensor half = outGrad.mul(0.5d);
+        return Tensor.where(tie, half, Tensor.where(wins, outGrad, zero));
     }
 }

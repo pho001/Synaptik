@@ -80,14 +80,15 @@ public final class BackendIntentPropagator {
         switch (op.opType()) {
             case RELU, TANH, FAST_TANH, SIGMOID, ABS, EXP, FAST_EXP, ERF, LOG, NEG, INV, POW, SQRT, FLOOR, CEIL, SIGN,
                     CLAMP_MIN, CLAMP_MAX, SUM, MEAN, REDUCE_MIN, REDUCE_MAX,
-                    RESHAPE, CONTIGUOUS, PERMUTE, EXPAND, EXPAND_DIMS, SQUEEZE, SELECT, NOOP -> {
+                    RESHAPE, CONTIGUOUS, PERMUTE, EXPAND, EXPAND_DIMS, SQUEEZE, SELECT, SLICE_SCATTER_ADD, NOOP -> {
                 if (inputs.size() == 1) {
                     propagateBackwardIntent(inputs.getFirst(), backend, seen);
                 }
             }
             case ADD, SUB, MUL, DIV, MIN, MAX, GT, GE, LT, LE, EQ, NE,
                     LOGICAL_AND, LOGICAL_OR, WHERE, MUL_SCALAR,
-                    GATHER, GATHER_AXIS, GATHER_ND, GATHER_ND_GRAD, TAKE_ALONG_AXIS, SCATTER_ADD, SCATTER_ELEMENTS, SCATTER_ND,
+                    GATHER, GATHER_AXIS, GATHER_ND, GATHER_ND_GRAD, TAKE_ALONG_AXIS,
+                    SCATTER_ADD, SCATTER_AXIS_ADD, SCATTER_ELEMENTS, SCATTER_ND,
                     MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD -> {
                 for (Tensor input : inputs) {
                     propagateBackwardIntent(input, backend, seen);

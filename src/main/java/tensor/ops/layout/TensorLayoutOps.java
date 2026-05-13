@@ -10,7 +10,7 @@ import operations.layout.permute;
 import operations.layout.reshape;
 import operations.layout.squeeze;
 import operations.layout.slice;
-import operations.layout.sliceGrad;
+import operations.layout.sliceScatterAdd;
 import operations.layout.tile;
 import tensor.Tensor;
 import tensor.TensorBroadcastOps;
@@ -139,13 +139,27 @@ public final class TensorLayoutOps {
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
             }
-            Tensor grad = TensorPrimitiveBuilder.unaryNoGrad(
-                    outGrad,
-                    input.getShape(),
-                    new sliceGrad(spec.starts, spec.axes, spec.steps, input.getShape()),
-                    "slice_grad",
-                    input.getDataType()
-            );
+            Tensor grad;
+            if (allOnes(spec.steps)) {
+                int rank = input.getShapeUnsafe().length;
+                int[] before = new int[rank];
+                int[] after = new int[rank];
+                int[] inputShape = input.getShapeUnsafe();
+                for (int i = 0; i < spec.axes.length; i++) {
+                    int axis = spec.axes[i];
+                    before[axis] = spec.starts[i];
+                    after[axis] = inputShape[axis] - spec.starts[i] - spec.outputShape[axis];
+                }
+                grad = outGrad.pad(before, after, 0.0d);
+            } else {
+                grad = TensorPrimitiveBuilder.unaryNoGrad(
+                        outGrad,
+                        input.getShape(),
+                        new sliceScatterAdd(spec.starts, spec.axes, spec.steps, input.getShape()),
+                        "slice_scatter_add",
+                        input.getDataType()
+                );
+            }
             LayoutSupport.accumulateGradient(input, grad);
         });
         return out;
@@ -400,6 +414,15 @@ public final class TensorLayoutOps {
         int[] out = new int[count];
         java.util.Arrays.fill(out, 1);
         return out;
+    }
+
+    private static boolean allOnes(int[] values) {
+        for (int value : values) {
+            if (value != 1) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static int[] normalizePads(int[] pads, int rank, String name) {

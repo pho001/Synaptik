@@ -822,6 +822,36 @@ class AcceleratorSubgraphLowererTest {
         assertSingleNodeLowering(scatter, Operation.OpType.SCATTER_ADD, AcceleratorDagNodeType.SCATTER_ADD);
         assertSingleNodeLowering(gatherGrad, Operation.OpType.GATHER_GRAD, AcceleratorDagNodeType.GATHER_GRAD);
         assertSingleNodeLowering(takeGrad, Operation.OpType.TAKE_ALONG_AXIS_GRAD, AcceleratorDagNodeType.TAKE_ALONG_AXIS_GRAD);
+
+        Tensor scatterElementsIndices = new Tensor(new int[]{2, 0, 1, 2}, new int[]{2, 2}, null, "scatterElementsIndices", DataType.INT32);
+        Tensor scatterElementsUpdates = new Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, null, "scatterElementsUpdates", DataType.FLOAT32);
+        Tensor scatterElements = base.scatterElements(scatterElementsIndices, scatterElementsUpdates, 1, operations.index.ScatterReduction.MAX);
+        PartitionPlanningContext elementsContext = planningContext(scatterElements);
+        CompiledNode elementsNode = elementsContext.compiledNode(nodeId(elementsContext, Operation.OpType.SCATTER_ELEMENTS));
+        AcceleratorSubgraphLoweringResult elementsResult = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                spec(elementsNode),
+                elementsContext
+        );
+        assertNotNull(elementsResult);
+        assertEquals(AcceleratorDagNodeType.SCATTER_ELEMENTS, elementsResult.dagSpec().nodes().getFirst().type());
+        assertEquals(1, elementsResult.dagSpec().nodes().getFirst().scalarValueBits());
+        assertEquals(operations.index.ScatterReduction.MAX.ordinal(), elementsResult.dagSpec().nodes().getFirst().attribute0());
+
+        Tensor scatterNdIndices = new Tensor(new int[]{0, 1, 1, 0}, new int[]{2, 2}, null, "scatterNdIndices", DataType.INT32);
+        Tensor scatterNdUpdates = new Tensor(new float[]{10f, 20f}, new int[]{2}, null, "scatterNdUpdates", DataType.FLOAT32);
+        Tensor scatterNd = base.scatterNd(scatterNdIndices, scatterNdUpdates, operations.index.ScatterReduction.ADD);
+        PartitionPlanningContext ndContext = planningContext(scatterNd);
+        CompiledNode ndNode = ndContext.compiledNode(nodeId(ndContext, Operation.OpType.SCATTER_ND));
+        AcceleratorSubgraphLoweringResult ndResult = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                spec(ndNode),
+                ndContext
+        );
+        assertNotNull(ndResult);
+        assertEquals(AcceleratorDagNodeType.SCATTER_ND, ndResult.dagSpec().nodes().getFirst().type());
+        assertEquals(0, ndResult.dagSpec().nodes().getFirst().scalarValueBits());
+        assertEquals(operations.index.ScatterReduction.ADD.ordinal(), ndResult.dagSpec().nodes().getFirst().attribute0());
     }
 
     @Test
