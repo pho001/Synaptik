@@ -435,7 +435,49 @@ public class Tensor {
         storage = TensorStorageSupport.fromIntArray(metadata, data);
     }
 
+    /**
+     * Creates a contiguous INT64 tensor from long values.
+     *
+     * @param data storage-order integer values; length must equal shape size
+     * @param shape logical shape
+     * @param previous parent tensors for autograd metadata; null is treated as an empty list
+     * @param label tensor label, may be null
+     */
+    public Tensor(long[] data, int[] shape, List<Tensor> previous, String label) {
+        this(data, shape, previous, label, DataType.INT64);
+    }
 
+    /**
+     * Creates a contiguous int64 tensor from long values.
+     *
+     * @param data storage-order integer values; length must equal shape size
+     * @param shape logical shape
+     * @param previous parent tensors for autograd metadata; null is treated as an empty list
+     * @param label tensor label, may be null
+     * @param dataType dtype used for storage; must be {@link DataType#INT64}
+     * @throws IllegalArgumentException if data length does not match shape size
+     */
+    public Tensor(long[] data, int[] shape, List<Tensor> previous, String label, DataType dataType) {
+        this(data, shape, TensorMetadata.computeStrides(shape), previous, label, dataType);
+    }
+
+    /**
+     * Creates a strided int64 tensor from long values.
+     *
+     * @param data storage-order integer values; length must match logical flat size
+     * @param shape logical shape
+     * @param strides logical-to-storage strides
+     * @param previous parent tensors for autograd metadata; null is treated as an empty list
+     * @param label tensor label, may be null
+     * @param dataType dtype used for storage; must be {@link DataType#INT64}
+     * @throws IllegalArgumentException if data length does not match logical flat size
+     */
+    public Tensor(long[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType) {
+        this.metadata = new TensorMetadata(shape, strides, label, previous != null && previous.stream().anyMatch(Tensor::getRequiresGrad), dataType);
+        this.prevTensors = previous != null ? new ArrayList<>(previous) : new ArrayList<>();
+        TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "long[]");
+        storage = TensorStorageSupport.fromLongArray(metadata, data);
+    }
 
     /**
      * Creates a shape {@code [1]} scalar tensor using the default dtype.
@@ -568,6 +610,43 @@ public class Tensor {
     }
 
     /**
+     * Reads one INT64 logical element exactly by row-major flat index.
+     *
+     * @param index logical flat index in {@code [0, getFlatDataSize())}
+     * @return stored int64 value
+     * @throws UnsupportedOperationException if this tensor is not INT64-backed
+     * @throws IndexOutOfBoundsException if {@code index} is outside the logical tensor size
+     */
+    public long getInt64ByFlatIndex(int index) {
+        if (metadata.getDataType() != DataType.INT64) {
+            throw new UnsupportedOperationException("getInt64ByFlatIndex() is only supported for INT64 tensors.");
+        }
+        if (index < 0 || index >= getFlatDataSize()) {
+            throw new IndexOutOfBoundsException("Index out of bounds.");
+        }
+        return getInt64Data()[TensorStorageSupport.logicalFlatIndexToStorageOffset(metadata, index)];
+    }
+
+    /**
+     * Reads one integral logical element as a long.
+     *
+     * @param index logical flat index in {@code [0, getFlatDataSize())}
+     * @return stored INT32 or INT64 value
+     * @throws UnsupportedOperationException if this tensor is not an integral tensor
+     */
+    public long getIntegralByFlatIndex(int index) {
+        if (index < 0 || index >= getFlatDataSize()) {
+            throw new IndexOutOfBoundsException("Index out of bounds.");
+        }
+        int offset = TensorStorageSupport.logicalFlatIndexToStorageOffset(metadata, index);
+        return switch (metadata.getDataType()) {
+            case INT32 -> getInt32Data()[offset];
+            case INT64 -> getInt64Data()[offset];
+            default -> throw new UnsupportedOperationException("getIntegralByFlatIndex() is only supported for INT32/INT64 tensors.");
+        };
+    }
+
+    /**
      * Writes one logical element by row-major flat index.
      *
      * @param flatindex logical flat index in {@code [0, getFlatDataSize())}
@@ -678,6 +757,20 @@ public class Tensor {
         }
         TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "int[]");
         storage = TensorStorageSupport.fromIntArray(metadata, data);
+    }
+
+    /**
+     * Replaces this tensor's storage from int64 values.
+     *
+     * @param data storage-order integers; must be non-null and match logical flat size
+     * @throws IllegalArgumentException if {@code data} is null or has the wrong length
+     */
+    public void setData(long[] data) {
+        if (data == null) {
+            throw new IllegalArgumentException("data cannot be null");
+        }
+        TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "long[]");
+        storage = TensorStorageSupport.fromLongArray(metadata, data);
     }
 
     /**
@@ -840,12 +933,12 @@ public class Tensor {
     /**
      * Converts this tensor's storage to another floating dtype.
      *
-     * <p>INT32 and BOOL conversions are deliberately restricted because those
+     * <p>INT32, INT64 and BOOL conversions are deliberately restricted because those
      * dtypes have different semantic roles from floating tensors. This method
      * replaces storage and preserves logical values where conversion is allowed.</p>
      *
      * @param dataType target dtype; must be non-null and compatible
-     * @throws UnsupportedOperationException if converting to or from INT32, or
+     * @throws UnsupportedOperationException if converting to or from INT32/INT64, or
      *                                       between BOOL and numeric dtypes
      */
     public void setDataType(DataType dataType) {
@@ -853,8 +946,9 @@ public class Tensor {
         if (current == dataType) {
             return;
         }
-        if (current == DataType.INT32 || dataType == DataType.INT32) {
-            throw new UnsupportedOperationException("Implicit INT32 <-> other dtype conversion is not supported.");
+        if (current == DataType.INT32 || dataType == DataType.INT32
+                || current == DataType.INT64 || dataType == DataType.INT64) {
+            throw new UnsupportedOperationException("Implicit INT32/INT64 <-> other dtype conversion is not supported.");
         }
         if ((current == DataType.BOOL) != (dataType == DataType.BOOL)) {
             throw new UnsupportedOperationException("Implicit BOOL <-> numeric dtype conversion is not supported.");
@@ -930,6 +1024,16 @@ public class Tensor {
      */
     public int[] getInt32Data() {
         return TensorStorageSupport.int32Data(storage);
+    }
+
+    /**
+     * Returns the mutable INT64 backing array.
+     *
+     * @return storage-order long array
+     * @throws UnsupportedOperationException if the tensor storage is not INT64
+     */
+    public long[] getInt64Data() {
+        return TensorStorageSupport.int64Data(storage);
     }
 
     /**

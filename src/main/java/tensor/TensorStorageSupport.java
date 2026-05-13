@@ -20,6 +20,7 @@ final class TensorStorageSupport {
             case BFLOAT16 -> new BFloat16Storage(size);
             case FLOAT32 -> new Float32Storage(size);
             case INT32 -> new Int32Storage(size);
+            case INT64 -> new Int64Storage(size);
             case FLOAT64 -> throw new IllegalStateException("Unexpected dtype branch");
         };
     }
@@ -27,8 +28,8 @@ final class TensorStorageSupport {
     static TensorStorage fromDoubleArray(TensorMetadata metadata, double[] source) {
         requireSource(source);
         DataType type = normalizeDataType(metadata);
-        if (type == DataType.BOOL || type == DataType.INT32) {
-            throw new UnsupportedOperationException("Implicit numeric -> BOOL/INT32 storage conversion is not supported.");
+        if (type == DataType.BOOL || type == DataType.INT32 || type == DataType.INT64) {
+            throw new UnsupportedOperationException("Implicit numeric -> BOOL/INT32/INT64 storage conversion is not supported.");
         }
         int size = source.length;
         if (type == DataType.FLOAT64) {
@@ -51,8 +52,8 @@ final class TensorStorageSupport {
     static TensorStorage fromFloatArray(TensorMetadata metadata, float[] source) {
         requireSource(source);
         DataType type = normalizeDataType(metadata);
-        if (type == DataType.BOOL || type == DataType.INT32) {
-            throw new UnsupportedOperationException("Implicit numeric -> BOOL/INT32 storage conversion is not supported.");
+        if (type == DataType.BOOL || type == DataType.INT32 || type == DataType.INT64) {
+            throw new UnsupportedOperationException("Implicit numeric -> BOOL/INT32/INT64 storage conversion is not supported.");
         }
         int size = source.length;
         return switch (type) {
@@ -71,15 +72,15 @@ final class TensorStorageSupport {
                 }
                 yield new BFloat16Storage(converted);
             }
-            case BOOL, INT32 -> throw new UnsupportedOperationException("Implicit numeric -> BOOL/INT32 storage conversion is not supported.");
+            case BOOL, INT32, INT64 -> throw new UnsupportedOperationException("Implicit numeric -> BOOL/INT32/INT64 storage conversion is not supported.");
         };
     }
 
     static TensorStorage fromBFloat16Array(TensorMetadata metadata, short[] source) {
         requireSource(source);
         DataType type = normalizeDataType(metadata);
-        if (type == DataType.BOOL || type == DataType.INT32) {
-            throw new UnsupportedOperationException("Implicit numeric -> BOOL/INT32 storage conversion is not supported.");
+        if (type == DataType.BOOL || type == DataType.INT32 || type == DataType.INT64) {
+            throw new UnsupportedOperationException("Implicit numeric -> BOOL/INT32/INT64 storage conversion is not supported.");
         }
         int size = source.length;
         return switch (type) {
@@ -98,7 +99,7 @@ final class TensorStorageSupport {
                 }
                 yield new Float64Storage(converted);
             }
-            case BOOL, INT32 -> throw new UnsupportedOperationException("Implicit numeric -> BOOL/INT32 storage conversion is not supported.");
+            case BOOL, INT32, INT64 -> throw new UnsupportedOperationException("Implicit numeric -> BOOL/INT32/INT64 storage conversion is not supported.");
         };
     }
 
@@ -124,6 +125,15 @@ final class TensorStorageSupport {
         return new Int32Storage(source);
     }
 
+    static TensorStorage fromLongArray(TensorMetadata metadata, long[] source) {
+        requireSource(source);
+        DataType type = normalizeDataType(metadata);
+        if (type != DataType.INT64) {
+            throw new UnsupportedOperationException("Implicit INT64 -> other dtype conversion is not supported.");
+        }
+        return new Int64Storage(source);
+    }
+
     static void validateInputLength(int actual, int expected, String sourceName) {
         if (actual != expected) {
             throw new IllegalArgumentException(sourceName + " length mismatch. expected=" + expected + ", actual=" + actual);
@@ -142,6 +152,7 @@ final class TensorStorageSupport {
             case FLOAT32 -> ((Float32Storage) storage).getFloatArray()[offset];
             case BFLOAT16 -> CpuDTypeOps.fromBFloat16Bits(((BFloat16Storage) storage).getShortArray()[offset]);
             case INT32 -> ((Int32Storage) storage).getIntArray()[offset];
+            case INT64 -> ((Int64Storage) storage).getLongArray()[offset];
             case BOOL -> ((BoolStorage) storage).getByteArray()[offset] == 0 ? 0.0d : 1.0d;
         };
     }
@@ -163,6 +174,13 @@ final class TensorStorageSupport {
                     throw new UnsupportedOperationException("Non-integral write into INT32 storage is not supported.");
                 }
                 ((Int32Storage) storage).getIntArray()[offset] = (int) integral;
+            }
+            case INT64 -> {
+                long integral = Math.round(value);
+                if (Math.abs(value - integral) > 1e-9) {
+                    throw new UnsupportedOperationException("Non-integral write into INT64 storage is not supported.");
+                }
+                ((Int64Storage) storage).getLongArray()[offset] = integral;
             }
             case BOOL -> throw new UnsupportedOperationException("Numeric write into BOOL storage is not supported.");
         }
@@ -192,6 +210,10 @@ final class TensorStorageSupport {
 
     static int[] int32Data(TensorStorage storage) {
         return storage instanceof Int32Storage s ? s.getIntArray() : null;
+    }
+
+    static long[] int64Data(TensorStorage storage) {
+        return storage instanceof Int64Storage s ? s.getLongArray() : null;
     }
 
     static byte[] boolData(TensorStorage storage) {

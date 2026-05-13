@@ -34,7 +34,7 @@ public enum ValidationToleranceProfile {
             case FLOAT64 -> f64;
             case FLOAT32 -> f32;
             case BFLOAT16 -> f16;
-            case BOOL, INT32 -> 0.0d;
+            case BOOL, INT32, INT64 -> 0.0d;
         };
     }
 
@@ -46,7 +46,7 @@ public enum ValidationToleranceProfile {
             case FLOAT64 -> f64;
             case FLOAT32 -> f32;
             case BFLOAT16 -> f16;
-            case BOOL, INT32 -> 0.0d;
+            case BOOL, INT32, INT64 -> 0.0d;
         };
     }
 }

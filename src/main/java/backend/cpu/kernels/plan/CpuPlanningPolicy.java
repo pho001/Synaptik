@@ -229,7 +229,7 @@ public final class CpuPlanningPolicy {
             case FLOAT64 -> cheapF64MaterializeThreshold;
             case FLOAT32 -> cheapF32MaterializeThreshold;
             case BFLOAT16 -> cheapBF16MaterializeThreshold;
-            case BOOL, INT32 -> contiguousMaterializeThreshold;
+            case BOOL, INT32, INT64 -> contiguousMaterializeThreshold;
         };
     }
 
@@ -270,7 +270,7 @@ public final class CpuPlanningPolicy {
         return switch (contract.computeType()) {
             case F64 -> DoubleVector.SPECIES_PREFERRED.length();
             case F32, BF16_NATIVE -> FloatVector.SPECIES_PREFERRED.length();
-            case INT32, BOOL -> 1;
+            case INT32, INT64, BOOL -> 1;
         };
     }
 
@@ -284,7 +284,7 @@ public final class CpuPlanningPolicy {
         int available = switch (contract.computeType()) {
             case F32, BF16_NATIVE -> FloatVector.SPECIES_PREFERRED.length();
             case F64 -> DoubleVector.SPECIES_PREFERRED.length();
-            case INT32, BOOL -> 1;
+            case INT32, INT64, BOOL -> 1;
         };
         int configuredWidth = resolveFusedAsmVectorWidthForFamily(
                 fused == null ? FusedDispatchFamily.NON_CHEAP_STRIDED : fused.getDispatchFamily()

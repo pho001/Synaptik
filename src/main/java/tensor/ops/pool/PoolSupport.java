@@ -16,7 +16,7 @@ final class PoolSupport {
         if (options == null) {
             throw new IllegalArgumentException(opName + " options cannot be null");
         }
-        if (input.getDataType() == DataType.BOOL || input.getDataType() == DataType.INT32) {
+        if (input.getDataType() == DataType.BOOL || input.getDataType() == DataType.INT32 || input.getDataType() == DataType.INT64) {
             throw new IllegalArgumentException(opName + " requires floating numeric input.");
         }
         int[] inputShape = input.getShapeUnsafe();

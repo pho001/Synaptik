@@ -85,6 +85,7 @@ public record AcceleratorBufferLayout(
             case FLOAT32 -> Float.BYTES;
             case BFLOAT16 -> Short.BYTES;
             case INT32 -> Integer.BYTES;
+            case INT64 -> Long.BYTES;
             case BOOL -> Byte.BYTES;
         };
     }

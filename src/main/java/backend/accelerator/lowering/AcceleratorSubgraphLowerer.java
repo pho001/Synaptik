@@ -2635,6 +2635,7 @@ public final class AcceleratorSubgraphLowerer {
             case BFLOAT16 -> 3;
             case INT32 -> 4;
             case FLOAT64 -> 5;
+            case INT64 -> 6;
         };
     }
 

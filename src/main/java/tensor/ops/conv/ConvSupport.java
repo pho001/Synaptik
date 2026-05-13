@@ -18,7 +18,7 @@ final class ConvSupport {
     }
 
     static void validateFloatingTensor(Tensor tensor, String name) {
-        if (tensor.getDataType() == DataType.BOOL || tensor.getDataType() == DataType.INT32) {
+        if (tensor.getDataType() == DataType.BOOL || tensor.getDataType() == DataType.INT32 || tensor.getDataType() == DataType.INT64) {
             throw new IllegalArgumentException(name + " must use a floating dtype.");
         }
     }

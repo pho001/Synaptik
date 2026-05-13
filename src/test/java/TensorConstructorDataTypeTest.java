@@ -3,12 +3,14 @@ import tensor.DataType;
 import tensor.BFloat16Storage;
 import tensor.Float32Storage;
 import tensor.Float64Storage;
+import tensor.Int64Storage;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -70,5 +72,24 @@ public class TensorConstructorDataTypeTest {
         assertTrue(e3.getStorage() instanceof Float32Storage);
         assertTrue(e4.getStorage() instanceof Float64Storage);
         assertTrue(e5.getStorage() instanceof BFloat16Storage);
+    }
+
+    @Test
+    void int64ConstructorsExposeLongStorageAndAccessors() {
+        Tensor values = new Tensor(new long[]{7L, 11L, 13L, 17L}, new int[]{2, 2}, null, "values", DataType.INT64);
+        Tensor scalar = Tensor.scalar(42, DataType.INT64);
+        Tensor zeros = Tensor.zerosLike(values);
+        Tensor ones = Tensor.onesLike(values);
+
+        assertEquals(DataType.INT64, values.getDataType());
+        assertTrue(values.getStorage() instanceof Int64Storage);
+        assertArrayEquals(new long[]{7L, 11L, 13L, 17L}, values.getInt64Data());
+        assertEquals(13L, values.getInt64ByFlatIndex(2));
+        assertEquals(17L, values.getIntegralByFlatIndex(3));
+
+        assertEquals(DataType.INT64, scalar.getDataType());
+        assertArrayEquals(new long[]{42L}, scalar.getInt64Data());
+        assertArrayEquals(new long[]{0L, 0L, 0L, 0L}, zeros.getInt64Data());
+        assertArrayEquals(new long[]{1L, 1L, 1L, 1L}, ones.getInt64Data());
     }
 }

@@ -54,6 +54,15 @@ public final class CpuTakeAlongAxisKernel implements CpuKernel {
         IndexExecutor.takeAlongAxisI32(pair[0], pair[1], node, gatherOp.getDimension(), context);
     }
 
+    @Override
+    public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        if (!(op instanceof takeAlongAxis gatherOp)) {
+            throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
+        }
+        Tensor[] pair = requirePair(inputs);
+        IndexExecutor.takeAlongAxisI64(pair[0], pair[1], node, gatherOp.getDimension(), context);
+    }
+
     private static Tensor[] requirePair(List<Tensor> inputs) {
         if (inputs == null || inputs.size() != 2) {
             throw new IllegalArgumentException("takeAlongAxis expects exactly two inputs");

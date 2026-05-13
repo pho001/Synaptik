@@ -38,4 +38,10 @@ public class CpuNoopKernel implements CpuKernel {
         if (inputs == null || inputs.isEmpty()) return;
         TensorInternalAccess.aliasRuntimeFrom(node, inputs.get(0));
     }
+
+    @Override
+    public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        if (inputs == null || inputs.isEmpty()) return;
+        TensorInternalAccess.aliasRuntimeFrom(node, inputs.get(0));
+    }
 }

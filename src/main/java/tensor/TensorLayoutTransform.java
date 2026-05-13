@@ -20,6 +20,7 @@ public final class TensorLayoutTransform {
             case FLOAT32 -> copyLinearizedF32(src.getFloat32Data(), dst, srcShape, srcStrides, srcDenseStrides, srcBaseOffset, size);
             case BFLOAT16 -> copyLinearizedBF16(src.getBFloat16Data(), dst, srcShape, srcStrides, srcDenseStrides, srcBaseOffset, size);
             case INT32 -> copyLinearizedI32(src.getInt32Data(), dst, srcShape, srcStrides, srcDenseStrides, srcBaseOffset, size);
+            case INT64 -> copyLinearizedI64(src.getInt64Data(), dst, srcShape, srcStrides, srcDenseStrides, srcBaseOffset, size);
             case BOOL -> copyLinearizedBool(src.getBoolData(), dst, srcShape, srcStrides, srcDenseStrides, srcBaseOffset, size);
         }
     }
@@ -48,6 +49,7 @@ public final class TensorLayoutTransform {
             case FLOAT32 -> copyPermutedF32(src.getFloat32Data(), dst, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, size, rank);
             case BFLOAT16 -> copyPermutedBF16(src.getBFloat16Data(), dst, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, size, rank);
             case INT32 -> copyPermutedI32(src.getInt32Data(), dst, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, size, rank);
+            case INT64 -> copyPermutedI64(src.getInt64Data(), dst, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, size, rank);
             case BOOL -> copyPermutedBool(src.getBoolData(), dst, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, size, rank);
         }
     }
@@ -187,6 +189,25 @@ public final class TensorLayoutTransform {
             return;
         }
         throw new IllegalStateException("Destination INT32 storage is missing");
+    }
+
+    private static void copyLinearizedI64(
+            long[] srcData,
+            Tensor dst,
+            int[] srcShape,
+            int[] srcStrides,
+            int[] srcDenseStrides,
+            int srcBaseOffset,
+            int size
+    ) {
+        long[] dstI64 = dst.getInt64Data();
+        if (dstI64 != null) {
+            for (int i = 0; i < size; i++) {
+                dstI64[i] = srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides, srcBaseOffset)];
+            }
+            return;
+        }
+        throw new IllegalStateException("Destination INT64 storage is missing");
     }
 
     private static void copyPermutedF64(
@@ -329,6 +350,26 @@ public final class TensorLayoutTransform {
             return;
         }
         throw new IllegalStateException("Destination INT32 storage is missing");
+    }
+
+    private static void copyPermutedI64(
+            long[] srcData,
+            Tensor dst,
+            int[] normalizedAxes,
+            int[] srcStrides,
+            int[] dstDenseStrides,
+            int srcBaseOffset,
+            int size,
+            int rank
+    ) {
+        long[] dstI64 = dst.getInt64Data();
+        if (dstI64 != null) {
+            for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
+                dstI64[logicalIndex] = srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, rank)];
+            }
+            return;
+        }
+        throw new IllegalStateException("Destination INT64 storage is missing");
     }
 
     private static int permutedSourceOffset(int logicalIndex, int[] normalizedAxes, int[] srcStrides, int[] dstDenseStrides, int srcBaseOffset, int rank) {

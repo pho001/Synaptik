@@ -43,7 +43,8 @@ public final class TensorSelectOps {
             throw new IllegalArgumentException("where condition must have BOOL dtype.");
         }
         if (ifTrue.getDataType() == DataType.BOOL || ifFalse.getDataType() == DataType.BOOL
-                || ifTrue.getDataType() == DataType.INT32 || ifFalse.getDataType() == DataType.INT32) {
+                || ifTrue.getDataType() == DataType.INT32 || ifFalse.getDataType() == DataType.INT32
+                || ifTrue.getDataType() == DataType.INT64 || ifFalse.getDataType() == DataType.INT64) {
             throw new IllegalArgumentException("where branches must have floating numeric dtypes.");
         }
 

@@ -41,7 +41,8 @@ public final class TensorLossOps {
             throw new IllegalArgumentException("nllLoss inputs cannot be null");
         }
         if (logProbs.getDataType() == DataType.BOOL || targets.getDataType() == DataType.BOOL
-                || logProbs.getDataType() == DataType.INT32 || targets.getDataType() == DataType.INT32) {
+                || logProbs.getDataType() == DataType.INT32 || targets.getDataType() == DataType.INT32
+                || logProbs.getDataType() == DataType.INT64 || targets.getDataType() == DataType.INT64) {
             throw new IllegalArgumentException("nllLoss requires floating numeric inputs.");
         }
         int[] logShape = logProbs.getShape();
@@ -95,7 +96,8 @@ public final class TensorLossOps {
             throw new IllegalArgumentException("crossEntropyLoss inputs cannot be null");
         }
         if (logits.getDataType() == DataType.BOOL || targets.getDataType() == DataType.BOOL
-                || logits.getDataType() == DataType.INT32 || targets.getDataType() == DataType.INT32) {
+                || logits.getDataType() == DataType.INT32 || targets.getDataType() == DataType.INT32
+                || logits.getDataType() == DataType.INT64 || targets.getDataType() == DataType.INT64) {
             throw new IllegalArgumentException("crossEntropyLoss requires floating numeric inputs.");
         }
         int[] logitsShape = logits.getShape();
@@ -382,7 +384,8 @@ public final class TensorLossOps {
         if (logProbs.getDataType() == DataType.BOOL || targetIndices.getDataType() == DataType.BOOL || classWeights.getDataType() == DataType.BOOL) {
             throw new IllegalArgumentException("weighted nllLossFromIndices requires numeric tensors and numeric integral indices.");
         }
-        if (logProbs.getDataType() == DataType.INT32 || classWeights.getDataType() == DataType.INT32) {
+        if (logProbs.getDataType() == DataType.INT32 || classWeights.getDataType() == DataType.INT32
+                || logProbs.getDataType() == DataType.INT64 || classWeights.getDataType() == DataType.INT64) {
             throw new IllegalArgumentException("weighted nllLossFromIndices requires floating logProbs and floating classWeights.");
         }
         if (logProbs.getDataType() != classWeights.getDataType()) {
@@ -440,7 +443,8 @@ public final class TensorLossOps {
         if (logits.getDataType() == DataType.BOOL || targetIndices.getDataType() == DataType.BOOL || classWeights.getDataType() == DataType.BOOL) {
             throw new IllegalArgumentException("weighted crossEntropyLossFromIndices requires numeric logits, floating weights, and numeric integral indices.");
         }
-        if (logits.getDataType() == DataType.INT32 || classWeights.getDataType() == DataType.INT32) {
+        if (logits.getDataType() == DataType.INT32 || classWeights.getDataType() == DataType.INT32
+                || logits.getDataType() == DataType.INT64 || classWeights.getDataType() == DataType.INT64) {
             throw new IllegalArgumentException("weighted crossEntropyLossFromIndices requires floating logits and floating classWeights.");
         }
         if (logits.getDataType() != classWeights.getDataType()) {

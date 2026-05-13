@@ -201,7 +201,7 @@ When adding new tensor semantics:
 - Axis indices are zero-based.
 - Shapes are written as arrays such as `[2, 3, 4]`.
 - `BOOL` tensors are logical tensors.
-- `INT32` is the preferred dtype for indexing-style tensors such as gather/scatter targets.
+- `INT32` and `INT64` are supported integer dtypes for indexing-style tensors such as gather/scatter targets. `INT64` exists primarily for ONNX-compatible index and shape-like values.
 - Comparison ops and logical bool ops are nondifferentiable.
 - `where(condition, x, y)` is differentiable only in the data branches.
 - `all` / `any` are `BOOL`-only reductions and are nondifferentiable.
@@ -1985,7 +1985,7 @@ Returns:
 - tensor whose shape equals `indices.shape`
 
 Behavior:
-- `INT32` is the preferred index dtype
+- `INT32` and `INT64` are supported index dtypes
 - numeric floating tensors with integral values are still accepted as a compatibility mode
 - this surface is intentionally narrow and acts as the minimal gather primitive for index-style losses and related indexing contracts
 - backward scatters upstream gradient back into the selected input positions
@@ -3036,7 +3036,7 @@ Returns:
 Behavior:
 - implementation is composition-first:
   - `logProbs.gather(targetIndices, classDimension).neg().mean()`
-- `INT32` is the preferred target-index dtype
+- `INT32` and `INT64` are supported target-index dtypes
 - this is the first index-target loss surface built on top of the new indexing primitive
 
 Example:
@@ -3377,7 +3377,7 @@ Changes dtype within compatible numeric families by rebuilding storage from the 
 
 Contract:
 - `BOOL <-> numeric` implicit conversion is not supported
-- `INT32 <-> other dtype` implicit conversion is not supported
+- `INT32/INT64 <-> other dtype` implicit conversion is not supported
 
 #### `getStorage()`
 Returns the backing storage object.

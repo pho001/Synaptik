@@ -195,7 +195,7 @@ public final class TensorReduceOps {
                 ReductionSupport.reduceShape(input.getShape(), normalizedDimension, keepDims),
                 new argMax(normalizedDimension, keepDims),
                 "argmax",
-                DataType.INT32
+                DataType.INT64
         );
     }
 

@@ -66,6 +66,7 @@ public final class CpuBackend {
             case FLOAT32 -> kernel.forwardF32(op, inputs, runtimeTensor, kernelContext);
             case BFLOAT16 -> kernel.forwardBF16(op, inputs, runtimeTensor, kernelContext);
             case INT32 -> kernel.forwardI32(op, inputs, runtimeTensor, kernelContext);
+            case INT64 -> kernel.forwardI64(op, inputs, runtimeTensor, kernelContext);
             case BOOL -> kernel.forwardBOOL(op, inputs, runtimeTensor, kernelContext);
         }
 

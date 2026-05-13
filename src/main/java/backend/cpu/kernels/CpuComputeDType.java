@@ -5,5 +5,6 @@ public enum CpuComputeDType {
     F32,
     BF16_NATIVE,
     INT32,
+    INT64,
     BOOL
 }

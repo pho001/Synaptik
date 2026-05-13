@@ -43,7 +43,7 @@ For contributor instructions on adding a new operation to these layers, see [Add
 
 Shapes are `int[]` arrays. An empty shape is normalized to `[1]`, so scalar-like tensors in this API are rank-1 tensors of shape `[1]`. Logical data is row-major. `toDoubleArrayCopy()` reads logical row-major values even for non-contiguous views.
 
-Dtypes are defined by `DataType`: `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, and `BOOL`. Numeric math operations are for floating dtypes. `INT32` is primarily for index tensors, and `BOOL` is for masks and boolean reductions.
+Dtypes are defined by `DataType`: `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL`. Numeric math operations are for floating dtypes. `INT32` and `INT64` are primarily for index or ONNX-compatible shape-like tensors, and `BOOL` is for masks and boolean reductions.
 
 ## Constructors, Storage, And Dtype
 
@@ -87,6 +87,8 @@ new Tensor(byte[] data, int[] shape, int[] strides, List<Tensor> previous, Strin
 new Tensor(int[] data, int[] shape, List<Tensor> previous, String label)                         // INT32
 new Tensor(int[] data, int[] shape, List<Tensor> previous, String label, DataType dataType)
 new Tensor(int[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType)
+new Tensor(long[] data, int[] shape, List<Tensor> previous, String label, DataType dataType)     // INT64
+new Tensor(long[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType)
 
 // Manual graph-node constructors used mostly by internals and low-level tests
 new Tensor(int[] shape, List<Tensor> previous, Operation operation, String label)
@@ -109,8 +111,8 @@ Tensor.zerosLike(Tensor other)
 - `previous` supplies graph predecessors for manual graph construction. Ordinary leaves pass `null`.
 - Constructors that omit `DataType` mostly use `TensorMetadata.DEFAULT_DATA_TYPE`, currently `FLOAT32`: object, dimension, `double[]`, `float[]`, and `short[]` overloads all default this way. The two intentional exceptions are `byte[]`, which defaults to `BOOL`, and `int[]`, which defaults to `INT32`.
 - Passing `dataType = null` normalizes metadata to `FLOAT32`. That is valid for floating/numeric source arrays that can be represented as floating storage, but it is not a compatibility conversion for every storage kind: `byte[]` with `null` becomes a failed BOOL-to-numeric conversion, and `int[]` with `null` becomes a failed INT32-to-floating conversion.
-- `Tensor.scalar(value, DataType.INT32)` accepts integral values only and returns shape `[1]`.
-- `onesLike` and `zerosLike` preserve shape and preserve `INT32` or floating storage. They do not support `BOOL` inputs because numeric factory conversion to `BOOL` is rejected.
+- `Tensor.scalar(value, DataType.INT32)` and `Tensor.scalar(value, DataType.INT64)` accept integral values only and return shape `[1]`.
+- `onesLike` and `zerosLike` preserve shape and preserve `INT32`, `INT64`, or floating storage. They do not support `BOOL` inputs because numeric factory conversion to `BOOL` is rejected.
 
 ### Example
 
@@ -1495,7 +1497,7 @@ Tensor y = Tensor.where(condition, a, b);
 
 Implementation: `src/main/java/tensor/ops/index/TensorIndexOps.java`, `src/main/java/operations/index/*.java`
 
-Index tensors may be `INT32` or floating numeric tensors containing integral values. `BOOL` indices are rejected.
+Index tensors may be `INT32`, `INT64`, or floating numeric tensors containing integral values. `BOOL` indices are rejected.
 
 Mental model: `select` is a metadata alias view, while `gather`, `gatherNd`, `takeAlongAxis`, `scatterAdd`, `scatterElements`, and `scatterNd` are index kernels that materialize values based on an index tensor.
 
@@ -1695,7 +1697,7 @@ Tensor y = x.takeAlongAxis(indices, 1);
 
 Implementation: `src/main/java/tensor/ops/unary/TensorUnaryOps.java`, `src/main/java/operations/elementwise/unary/*.java`
 
-Unary math operations reject `BOOL` and `INT32` unless noted otherwise.
+Unary math operations reject `BOOL`, `INT32`, and `INT64` unless noted otherwise.
 
 Mechanism: unary math operations create one-input graph nodes with the same shape as the input. Most preserve the input floating dtype through `TensorDataTypeUtil.unary(...)`. Their backward functions compose other tensor operations, so gradients remain part of the graph instead of being computed as detached Java arrays.
 
@@ -2041,7 +2043,7 @@ Tensor y = x.clampMax(1.0);
 
 Implementation: `src/main/java/tensor/ops/reduction/TensorReduceOps.java`, `src/main/java/operations/reduction/*.java`
 
-Floating reductions reject `BOOL` and `INT32`. Boolean reductions require `BOOL` input and do not carry gradients.
+Floating reductions reject `BOOL`, `INT32`, and `INT64`. Boolean reductions require `BOOL` input and do not carry gradients.
 
 Mechanism: a reduction replaces one axis with either nothing (`keepDims=false`) or size `1` (`keepDims=true`). Backward reverses that shape change by inserting the reduced axis when needed and then broadcasting the upstream gradient back to the original input shape.
 
@@ -2728,14 +2730,14 @@ Tensor loss = logits.crossEntropyLossFromIndices(target, 1);
 ## Dtype, Shape, And Edge-Case Rules
 
 - Floating math accepts `FLOAT64`, `FLOAT32`, and `BFLOAT16`; result dtype is promoted by `TensorDataTypeUtil`.
-- Comparisons reject `BOOL` and `INT32` inputs and return `BOOL`.
+- Comparisons reject `BOOL`, `INT32`, and `INT64` inputs and return `BOOL`.
 - Boolean logic and `all`/`any` require `BOOL` input and do not produce gradients.
 - Index tensors cannot be `BOOL`; index values must be integral at runtime.
 - Broadcasting gradients always reduce back to the original operand shape.
 - Binary `min`/`max` split ties equally. Piecewise `minimum`/`maximum` route ties to the second branch. Reduction `min`/`max` split ties across every winner in the reduction group.
 - `reshape`, `expand`, `permute`, `expandDims`, `squeeze`, and `select` are view-like where possible and define explicit backward behavior except `contiguous`, which currently has no attached backward lambda.
 - `maxPool2d` backward routes to recorded argmax positions; tied windows use the first maximum selected by the forward scan in the CPU direct backend.
-- `setDataType` does not permit implicit conversion to or from `INT32`, or between `BOOL` and numeric dtypes.
+- `setDataType` does not permit implicit conversion to or from `INT32`/`INT64`, or between `BOOL` and numeric dtypes.
 
 ## Implementation Source Map
 

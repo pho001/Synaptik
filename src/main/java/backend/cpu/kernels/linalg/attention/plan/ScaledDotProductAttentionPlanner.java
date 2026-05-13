@@ -153,7 +153,7 @@ public final class ScaledDotProductAttentionPlanner {
         return switch (dataType) {
             case FLOAT64 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F64, CpuExecutionBackend.CPU_REDUCTION, CpuAccumulateDType.F64);
             case FLOAT32, BFLOAT16 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F32, CpuExecutionBackend.CPU_REDUCTION, CpuAccumulateDType.F64);
-            case INT32, BOOL -> throw new IllegalArgumentException("Attention compute contract requires floating dtype.");
+            case INT32, INT64, BOOL -> throw new IllegalArgumentException("Attention compute contract requires floating dtype.");
         };
     }
 

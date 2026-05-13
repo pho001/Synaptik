@@ -53,7 +53,7 @@ final class NormalizationSupport {
         if (tensor == null) {
             throw new IllegalArgumentException(name + " cannot be null");
         }
-        if (tensor.getDataType() == DataType.BOOL || tensor.getDataType() == DataType.INT32) {
+        if (tensor.getDataType() == DataType.BOOL || tensor.getDataType() == DataType.INT32 || tensor.getDataType() == DataType.INT64) {
             throw new IllegalArgumentException(name + " must use a floating dtype.");
         }
     }

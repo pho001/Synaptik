@@ -36,6 +36,11 @@ public final class CpuTileKernel implements CpuKernel {
         tile(op, inputs, node);
     }
 
+    @Override
+    public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        tile(op, inputs, node);
+    }
+
     private static void tile(Operation op, List<Tensor> inputs, Tensor node) {
         if (!(op instanceof tile tileOp)) {
             throw new IllegalArgumentException("CpuTileKernel requires tile operation.");
@@ -53,6 +58,10 @@ public final class CpuTileKernel implements CpuKernel {
                 int coord = tmp / outDenseStrides[d];
                 tmp %= outDenseStrides[d];
                 inputLogical += (coord % inputShape[d]) * inputDenseStrides[d];
+            }
+            if (node.getDataType() == tensor.DataType.INT64) {
+                node.getInt64Data()[outLogical] = input.getInt64ByFlatIndex(inputLogical);
+                continue;
             }
             write(node, outLogical, input.getByFlatIndex(inputLogical));
         }
@@ -72,6 +81,7 @@ public final class CpuTileKernel implements CpuKernel {
             case FLOAT32 -> out.getFloat32Data()[index] = (float) value;
             case BFLOAT16 -> out.getBFloat16Data()[index] = CpuDTypeOps.toBFloat16Bits((float) value);
             case INT32 -> out.getInt32Data()[index] = (int) value;
+            case INT64 -> out.getInt64Data()[index] = (long) value;
             case BOOL -> out.getBoolData()[index] = value == 0.0d ? (byte) 0 : (byte) 1;
         }
     }

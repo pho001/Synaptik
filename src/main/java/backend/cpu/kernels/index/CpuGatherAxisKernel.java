@@ -39,6 +39,12 @@ public final class CpuGatherAxisKernel implements CpuKernel {
         IndexExecutor.gatherAxisI32(pair[0], pair[1], node, ((gatherAxis) op).getAxis(), context);
     }
 
+    @Override
+    public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        Tensor[] pair = requirePair(op, inputs);
+        IndexExecutor.gatherAxisI64(pair[0], pair[1], node, ((gatherAxis) op).getAxis(), context);
+    }
+
     private static Tensor[] requirePair(Operation op, List<Tensor> inputs) {
         if (!(op instanceof gatherAxis)) {
             throw new IllegalArgumentException("CpuGatherAxisKernel requires gatherAxis operation.");

@@ -13,6 +13,15 @@ import java.util.List;
 public final class CpuArgMaxKernel implements CpuKernel {
     @Override
     public void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        argMax(op, inputs, node, node.getInt32Data(), null);
+    }
+
+    @Override
+    public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        argMax(op, inputs, node, null, node.getInt64Data());
+    }
+
+    private static void argMax(Operation op, List<Tensor> inputs, Tensor node, int[] bestIndices32, long[] bestIndices64) {
         if (!(op instanceof argMax reduction)) {
             throw new IllegalArgumentException("CpuArgMaxKernel requires argMax operation.");
         }
@@ -25,8 +34,12 @@ public final class CpuArgMaxKernel implements CpuKernel {
         double[] bestValues = new double[node.getFlatDataSize()];
         Arrays.fill(bestValues, Double.NEGATIVE_INFINITY);
         boolean[] seen = new boolean[node.getFlatDataSize()];
-        int[] bestIndices = node.getInt32Data();
-        Arrays.fill(bestIndices, 0);
+        if (bestIndices32 != null) {
+            Arrays.fill(bestIndices32, 0);
+        }
+        if (bestIndices64 != null) {
+            Arrays.fill(bestIndices64, 0L);
+        }
 
         int[] inputDenseStrides = TensorMetadata.computeStrides(shape);
         int[] outShape = node.getShapeUnsafe();
@@ -51,7 +64,12 @@ public final class CpuArgMaxKernel implements CpuKernel {
             if (!seen[outLogical] || value > bestValues[outLogical]) {
                 seen[outLogical] = true;
                 bestValues[outLogical] = value;
-                bestIndices[node.getStorageOffsetUnsafe() + outLogical] = axisCoord;
+                int offset = node.getStorageOffsetUnsafe() + outLogical;
+                if (bestIndices32 != null) {
+                    bestIndices32[offset] = axisCoord;
+                } else {
+                    bestIndices64[offset] = axisCoord;
+                }
             }
         }
         node.markStorageModified();

@@ -54,6 +54,15 @@ public final class CpuGatherKernel implements CpuKernel {
         IndexExecutor.gatherI32(pair[0], pair[1], node, gatherOp.getDimension(), context);
     }
 
+    @Override
+    public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        if (!(op instanceof gather gatherOp)) {
+            throw new IllegalArgumentException("CpuGatherKernel requires gather operation");
+        }
+        Tensor[] pair = requirePair(inputs);
+        IndexExecutor.gatherI64(pair[0], pair[1], node, gatherOp.getDimension(), context);
+    }
+
     private static Tensor[] requirePair(List<Tensor> inputs) {
         if (inputs == null || inputs.size() != 2) {
             throw new IllegalArgumentException("Gather expects exactly two inputs");

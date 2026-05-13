@@ -51,6 +51,15 @@ public interface CpuKernel {
         throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support INT32");
     }
 
+    default void forwardI64(
+            Operation op,
+            List<Tensor> inputs,
+            Tensor node,
+            CpuKernelContext context
+    ) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support INT64");
+    }
+
     default CpuKernelCostClass costClass(Operation op) {
         return CpuKernelCostClass.MEDIUM;
     }

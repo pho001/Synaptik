@@ -31,4 +31,9 @@ public class CpuContiguousKernel implements CpuKernel {
     public void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         LayoutExecutor.contiguous(inputs, node, context);
     }
+
+    @Override
+    public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        LayoutExecutor.contiguous(inputs, node, context);
+    }
 }

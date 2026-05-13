@@ -44,6 +44,13 @@ public final class CpuScatterElementsKernel implements CpuKernel {
         IndexExecutor.scatterElementsI32(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction(), context);
     }
 
+    @Override
+    public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        scatterElements scatterOp = requireOp(op);
+        Tensor[] triple = requireTriple(inputs);
+        IndexExecutor.scatterElementsI64(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction(), context);
+    }
+
     private static scatterElements requireOp(Operation op) {
         if (!(op instanceof scatterElements scatterOp)) {
             throw new IllegalArgumentException("CpuScatterElementsKernel requires scatterElements operation");

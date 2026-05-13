@@ -35,6 +35,11 @@ public final class CpuCastKernel implements CpuKernel {
         cast(inputs, node);
     }
 
+    @Override
+    public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        cast(inputs, node);
+    }
+
     private static void cast(List<Tensor> inputs, Tensor node) {
         if (inputs == null || inputs.size() != 1) {
             throw new IllegalArgumentException("cast expects exactly one input.");
@@ -67,6 +72,12 @@ public final class CpuCastKernel implements CpuKernel {
                 int[] out = node.getInt32Data();
                 for (int i = 0; i < size; i++) {
                     out[i] = (int) input.getByFlatIndex(i);
+                }
+            }
+            case INT64 -> {
+                long[] out = node.getInt64Data();
+                for (int i = 0; i < size; i++) {
+                    out[i] = (long) input.getByFlatIndex(i);
                 }
             }
             case BOOL -> {

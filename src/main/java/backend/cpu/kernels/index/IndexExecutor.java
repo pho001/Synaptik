@@ -28,6 +28,10 @@ final class IndexExecutor {
         IndexReadWriteBackend.runI32(input, indices, out, dimension);
     }
 
+    static void gatherI64(Tensor input, Tensor indices, Tensor out, int dimension, CpuKernelContext context) {
+        IndexReadWriteBackend.runI64(input, indices, out, dimension);
+    }
+
     static void gatherAxisF64(Tensor input, Tensor indices, Tensor out, int axis, CpuKernelContext context) {
         IndexReadWriteBackend.gatherAxisF64(input, indices, out, axis);
     }
@@ -48,6 +52,10 @@ final class IndexExecutor {
         IndexReadWriteBackend.gatherAxisI32(input, indices, out, axis);
     }
 
+    static void gatherAxisI64(Tensor input, Tensor indices, Tensor out, int axis, CpuKernelContext context) {
+        IndexReadWriteBackend.gatherAxisI64(input, indices, out, axis);
+    }
+
     static void gatherNdF64(Tensor input, Tensor indices, Tensor out, int batchDims, CpuKernelContext context) {
         IndexReadWriteBackend.gatherNdF64(input, indices, out, batchDims);
     }
@@ -66,6 +74,10 @@ final class IndexExecutor {
 
     static void gatherNdI32(Tensor input, Tensor indices, Tensor out, int batchDims, CpuKernelContext context) {
         IndexReadWriteBackend.gatherNdI32(input, indices, out, batchDims);
+    }
+
+    static void gatherNdI64(Tensor input, Tensor indices, Tensor out, int batchDims, CpuKernelContext context) {
+        IndexReadWriteBackend.gatherNdI64(input, indices, out, batchDims);
     }
 
     static void gatherNdGradF64(Tensor indices, Tensor outGrad, Tensor node, int batchDims, CpuKernelContext context) {
@@ -136,6 +148,10 @@ final class IndexExecutor {
         IndexReadWriteBackend.takeAlongAxisI32(input, indices, out, dimension);
     }
 
+    static void takeAlongAxisI64(Tensor input, Tensor indices, Tensor out, int dimension, CpuKernelContext context) {
+        IndexReadWriteBackend.takeAlongAxisI64(input, indices, out, dimension);
+    }
+
     static void takeAlongAxisGradF64(Tensor indices, Tensor outGrad, Tensor node, int dimension, CpuKernelContext context) {
         IndexReadWriteBackend.takeAlongAxisScatterF64(indices, outGrad, node, dimension);
     }
@@ -180,6 +196,10 @@ final class IndexExecutor {
         IndexReadWriteBackend.scatterElementsI32(data, indices, updates, out, axis, reduction);
     }
 
+    static void scatterElementsI64(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, ScatterReduction reduction, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterElementsI64(data, indices, updates, out, axis, reduction);
+    }
+
     static void scatterNdF64(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims, CpuKernelContext context) {
         IndexReadWriteBackend.scatterNdF64(data, indices, updates, out, reduction, batchDims);
     }
@@ -198,5 +218,9 @@ final class IndexExecutor {
 
     static void scatterNdI32(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims, CpuKernelContext context) {
         IndexReadWriteBackend.scatterNdI32(data, indices, updates, out, reduction, batchDims);
+    }
+
+    static void scatterNdI64(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims, CpuKernelContext context) {
+        IndexReadWriteBackend.scatterNdI64(data, indices, updates, out, reduction, batchDims);
     }
 }

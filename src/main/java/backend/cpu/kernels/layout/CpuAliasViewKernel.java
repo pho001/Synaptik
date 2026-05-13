@@ -32,4 +32,9 @@ public final class CpuAliasViewKernel implements CpuKernel {
     public void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         LayoutExecutor.alias(inputs, node);
     }
+
+    @Override
+    public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        LayoutExecutor.alias(inputs, node);
+    }
 }

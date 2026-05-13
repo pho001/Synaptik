@@ -61,7 +61,7 @@ final class CrossEntropyLossIndicesGradExecutor {
         if (grad == null || logits == null || targetIndices == null || sampleScale == null || node == null || context == null) {
             throw new IllegalArgumentException("cross entropy loss indices grad execution arguments cannot be null");
         }
-        if (logits.getDataType() == DataType.BOOL || logits.getDataType() == DataType.INT32) {
+        if (logits.getDataType() == DataType.BOOL || logits.getDataType() == DataType.INT32 || logits.getDataType() == DataType.INT64) {
             throw new IllegalArgumentException("cross entropy loss indices grad requires floating logits");
         }
         if (targetIndices.getDataType() == DataType.BOOL) {
@@ -422,6 +422,7 @@ final class CrossEntropyLossIndicesGradExecutor {
     private static int readIndex(Tensor targetIndices, int storageOffset) {
         return switch (targetIndices.getDataType()) {
             case INT32 -> targetIndices.getInt32Data()[storageOffset];
+            case INT64 -> Math.toIntExact(targetIndices.getInt64Data()[storageOffset]);
             case FLOAT64 -> toIntegralIndex(targetIndices.getFloat64Data()[storageOffset]);
             case FLOAT32 -> toIntegralIndex(targetIndices.getFloat32Data()[storageOffset]);
             case BFLOAT16 -> toIntegralIndex(CpuDTypeOps.fromBFloat16Bits(targetIndices.getBFloat16Data()[storageOffset]));

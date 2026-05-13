@@ -56,6 +56,15 @@ final class IndexReadWriteBackend {
         );
     }
 
+    public static void runI64(Tensor input, Tensor indices, Tensor out, int dimension) {
+        validateGather(input, indices, out, dimension);
+        long[] in = input.getInt64Data();
+        long[] dst = out.getInt64Data();
+        forEachGather(input, indices, out, dimension, (baseIn, baseOut, axisStrideIn, axisStrideOut, axisIndex) ->
+                dst[baseOut] = in[baseIn + axisIndex * axisStrideIn]
+        );
+    }
+
     public static void gatherAxisF64(Tensor input, Tensor indices, Tensor out, int axis) {
         validateGatherAxis(input, indices, out, axis);
         double[] dst = out.getFloat64Data();
@@ -93,6 +102,14 @@ final class IndexReadWriteBackend {
         int[] dst = out.getInt32Data();
         forEachGatherAxis(input, indices, out, axis, (sourceLogical, outLogical) ->
                 dst[outLogical] = (int) input.getByFlatIndex(sourceLogical)
+        );
+    }
+
+    public static void gatherAxisI64(Tensor input, Tensor indices, Tensor out, int axis) {
+        validateGatherAxis(input, indices, out, axis);
+        long[] dst = out.getInt64Data();
+        forEachGatherAxis(input, indices, out, axis, (sourceLogical, outLogical) ->
+                dst[outLogical] = input.getInt64ByFlatIndex(sourceLogical)
         );
     }
 
@@ -136,6 +153,15 @@ final class IndexReadWriteBackend {
         validateGatherNd(input, indices, out, batchDims);
         int[] in = input.getInt32Data();
         int[] dst = out.getInt32Data();
+        forEachGatherNd(input, indices, out, batchDims, (sourceOffset, outOffset) ->
+                dst[outOffset] = in[sourceOffset]
+        );
+    }
+
+    public static void gatherNdI64(Tensor input, Tensor indices, Tensor out, int batchDims) {
+        validateGatherNd(input, indices, out, batchDims);
+        long[] in = input.getInt64Data();
+        long[] dst = out.getInt64Data();
         forEachGatherNd(input, indices, out, batchDims, (sourceOffset, outOffset) ->
                 dst[outOffset] = in[sourceOffset]
         );
@@ -212,6 +238,15 @@ final class IndexReadWriteBackend {
         validateTakeAlongAxis(input, indices, out, dimension);
         int[] in = input.getInt32Data();
         int[] dst = out.getInt32Data();
+        forEachTakeAlongAxis(input, indices, out, dimension, (baseIn, outOffset, axisStrideIn, axisIndex) ->
+                dst[outOffset] = in[baseIn + axisIndex * axisStrideIn]
+        );
+    }
+
+    public static void takeAlongAxisI64(Tensor input, Tensor indices, Tensor out, int dimension) {
+        validateTakeAlongAxis(input, indices, out, dimension);
+        long[] in = input.getInt64Data();
+        long[] dst = out.getInt64Data();
         forEachTakeAlongAxis(input, indices, out, dimension, (baseIn, outOffset, axisStrideIn, axisIndex) ->
                 dst[outOffset] = in[baseIn + axisIndex * axisStrideIn]
         );
@@ -394,6 +429,18 @@ final class IndexReadWriteBackend {
                 }));
     }
 
+    public static void scatterElementsI64(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, ScatterReduction reduction) {
+        ScatterReduction effectiveReduction = validateScatterElements(data, indices, updates, out, axis, reduction);
+        out.copyDataFrom(data);
+        long[] updateData = updates.getInt64Data();
+        long[] dst = out.getInt64Data();
+        scatterDuplicateState(out, effectiveReduction, "scatterElements", state ->
+                forEachScatterElements(data, indices, updates, out, axis, (updateOffset, targetOffset, targetLogical) -> {
+                    state.mark(targetLogical);
+                    dst[targetOffset] = reduceLong(dst[targetOffset], updateData[updateOffset], effectiveReduction);
+                }));
+    }
+
     public static void scatterNdF64(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims) {
         ScatterReduction effectiveReduction = validateScatterNd(data, indices, updates, out, reduction, batchDims);
         out.copyDataFrom(data);
@@ -453,6 +500,18 @@ final class IndexReadWriteBackend {
                 forEachScatterNd(data, indices, updates, out, batchDims, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
                     dst[targetOffset] = reduceInt(dst[targetOffset], updateData[updateOffset], effectiveReduction);
+                }));
+    }
+
+    public static void scatterNdI64(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims) {
+        ScatterReduction effectiveReduction = validateScatterNd(data, indices, updates, out, reduction, batchDims);
+        out.copyDataFrom(data);
+        long[] updateData = updates.getInt64Data();
+        long[] dst = out.getInt64Data();
+        scatterDuplicateState(out, effectiveReduction, "scatterNd", state ->
+                forEachScatterNd(data, indices, updates, out, batchDims, (updateOffset, targetOffset, targetLogical) -> {
+                    state.mark(targetLogical);
+                    dst[targetOffset] = reduceLong(dst[targetOffset], updateData[updateOffset], effectiveReduction);
                 }));
     }
 
@@ -522,7 +581,7 @@ final class IndexReadWriteBackend {
         if (outGrad.getDataType() != node.getDataType()) {
             throw new IllegalArgumentException("gatherAxisGrad output dtype must match outGrad dtype.");
         }
-        if (node.getDataType() == DataType.BOOL || node.getDataType() == DataType.INT32) {
+        if (node.getDataType() == DataType.BOOL || node.getDataType() == DataType.INT32 || node.getDataType() == DataType.INT64) {
             throw new IllegalArgumentException("gatherAxisGrad requires floating output dtype.");
         }
     }
@@ -533,7 +592,7 @@ final class IndexReadWriteBackend {
         if (data.getDataType() != updates.getDataType() || data.getDataType() != out.getDataType()) {
             throw new IllegalArgumentException("scatterAxisAdd requires matching dtypes for data, updates and output.");
         }
-        if (data.getDataType() == DataType.BOOL || data.getDataType() == DataType.INT32) {
+        if (data.getDataType() == DataType.BOOL || data.getDataType() == DataType.INT32 || data.getDataType() == DataType.INT64) {
             throw new IllegalArgumentException("scatterAxisAdd requires floating numeric tensors.");
         }
     }
@@ -558,7 +617,7 @@ final class IndexReadWriteBackend {
         if (outGrad.getDataType() != node.getDataType()) {
             throw new IllegalArgumentException("gatherNdGrad output dtype must match outGrad dtype.");
         }
-        if (node.getDataType() == DataType.BOOL || node.getDataType() == DataType.INT32) {
+        if (node.getDataType() == DataType.BOOL || node.getDataType() == DataType.INT32 || node.getDataType() == DataType.INT64) {
             throw new IllegalArgumentException("gatherNdGrad requires floating output dtype.");
         }
     }
@@ -588,7 +647,8 @@ final class IndexReadWriteBackend {
         validateShape(src.getShapeUnsafe(), expectedSrcShape, "scatterAdd source shape must equal indices shape.");
         validateShape(out.getShapeUnsafe(), baseShape, "scatterAdd output shape must equal base shape.");
         if (base.getDataType() == DataType.BOOL || src.getDataType() == DataType.BOOL || out.getDataType() == DataType.BOOL
-                || base.getDataType() == DataType.INT32 || src.getDataType() == DataType.INT32 || out.getDataType() == DataType.INT32) {
+                || base.getDataType() == DataType.INT32 || src.getDataType() == DataType.INT32 || out.getDataType() == DataType.INT32
+                || base.getDataType() == DataType.INT64 || src.getDataType() == DataType.INT64 || out.getDataType() == DataType.INT64) {
             throw new IllegalArgumentException("scatterAdd requires floating numeric tensors.");
         }
         if (base.getDataType() != src.getDataType() || base.getDataType() != out.getDataType()) {
@@ -1146,6 +1206,13 @@ final class IndexReadWriteBackend {
     }
 
     private static int readAxisIndex(Tensor indices, int logicalIndex, int axisSize) {
+        if (indices.getDataType() == DataType.INT32 || indices.getDataType() == DataType.INT64) {
+            long integral = indices.getIntegralByFlatIndex(logicalIndex);
+            if (integral < 0 || integral >= axisSize) {
+                throw new IllegalArgumentException("Gather index out of bounds: " + integral + " for axis size " + axisSize);
+            }
+            return (int) integral;
+        }
         double raw = indices.getByFlatIndex(logicalIndex);
         if (!Double.isFinite(raw)) {
             throw new IllegalArgumentException("Gather index must be finite.");
@@ -1161,6 +1228,17 @@ final class IndexReadWriteBackend {
     }
 
     private static int readAxisIndexAllowNegative(Tensor indices, int logicalIndex, int axisSize) {
+        if (indices.getDataType() == DataType.INT32 || indices.getDataType() == DataType.INT64) {
+            long integral = indices.getIntegralByFlatIndex(logicalIndex);
+            long raw = integral;
+            if (integral < 0) {
+                integral += axisSize;
+            }
+            if (integral < 0 || integral >= axisSize) {
+                throw new IllegalArgumentException("Gather index out of bounds: " + raw + " for axis size " + axisSize);
+            }
+            return (int) integral;
+        }
         double raw = indices.getByFlatIndex(logicalIndex);
         if (!Double.isFinite(raw)) {
             throw new IllegalArgumentException("Gather index must be finite.");
@@ -1189,6 +1267,16 @@ final class IndexReadWriteBackend {
     }
 
     private static int reduceInt(int current, int update, ScatterReduction reduction) {
+        return switch (reduction) {
+            case NONE -> update;
+            case ADD -> Math.addExact(current, update);
+            case MUL -> Math.multiplyExact(current, update);
+            case MAX -> Math.max(current, update);
+            case MIN -> Math.min(current, update);
+        };
+    }
+
+    private static long reduceLong(long current, long update, ScatterReduction reduction) {
         return switch (reduction) {
             case NONE -> update;
             case ADD -> Math.addExact(current, update);

@@ -239,6 +239,7 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
             case BFLOAT16 -> CpuDTypeOps.fromBFloat16Bits(input.getBFloat16Data()[storageIndex]);
             case BOOL -> input.getBoolData()[storageIndex] == 0 ? 0.0d : 1.0d;
             case INT32 -> input.getInt32Data()[storageIndex];
+            case INT64 -> input.getInt64Data()[storageIndex];
         };
     }
 
@@ -249,6 +250,7 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
             case BFLOAT16 -> out.getBFloat16Data()[storageIndex] = CpuDTypeOps.toBFloat16Bits((float) value);
             case BOOL -> out.getBoolData()[storageIndex] = value == 0.0d ? (byte) 0 : (byte) 1;
             case INT32 -> out.getInt32Data()[storageIndex] = (int) value;
+            case INT64 -> out.getInt64Data()[storageIndex] = (long) value;
         }
     }
 

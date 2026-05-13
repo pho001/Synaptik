@@ -567,6 +567,7 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
             case BFLOAT16 -> Short.BYTES;
             case BOOL -> Byte.BYTES;
             case INT32 -> Integer.BYTES;
+            case INT64 -> Long.BYTES;
         };
     }
 

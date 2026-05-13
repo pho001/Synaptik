@@ -69,7 +69,7 @@ public final class TensorBroadcastOps {
             case FLOAT64 -> minMaxGradF64(first, second, outGrad, plan, forFirst, isMax);
             case FLOAT32 -> minMaxGradF32(first, second, outGrad, plan, forFirst, isMax);
             case BFLOAT16 -> minMaxGradF16(first, second, outGrad, plan, forFirst, isMax);
-            case INT32, BOOL -> throw new UnsupportedOperationException("INT32/BOOL are not supported by min/max numeric gradient helpers.");
+            case INT32, INT64, BOOL -> throw new UnsupportedOperationException("INT32/INT64/BOOL are not supported by min/max numeric gradient helpers.");
         };
     }
 

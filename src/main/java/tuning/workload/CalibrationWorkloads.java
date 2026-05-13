@@ -337,7 +337,7 @@ public final class CalibrationWorkloads {
             case FLOAT64 -> new Tensor(values.clone(), shape, null, label, DataType.FLOAT64);
             case FLOAT32 -> new Tensor(toF32(values), shape, null, label, DataType.FLOAT32);
             case BFLOAT16 -> new Tensor(toBf16(values), shape, null, label, DataType.BFLOAT16);
-            case INT32, BOOL -> throw new IllegalArgumentException("attention workload requires floating dtype");
+            case INT32, INT64, BOOL -> throw new IllegalArgumentException("attention workload requires floating dtype");
         };
     }
 
@@ -362,7 +362,7 @@ public final class CalibrationWorkloads {
             case FLOAT64 -> -1.0e30d;
             case FLOAT32 -> -1.0e9d;
             case BFLOAT16 -> -1.0e9d;
-            case INT32, BOOL -> throw new IllegalArgumentException("attention workload requires floating dtype");
+            case INT32, INT64, BOOL -> throw new IllegalArgumentException("attention workload requires floating dtype");
         };
     }
 

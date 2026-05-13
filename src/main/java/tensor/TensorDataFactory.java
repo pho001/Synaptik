@@ -13,10 +13,10 @@ public final class TensorDataFactory {
     /**
      * Creates a rank-1 scalar tensor with one element.
      *
-     * @param value scalar value; must be integral when {@code dataType} is {@link DataType#INT32}
+     * @param value scalar value; must be integral when {@code dataType} is {@link DataType#INT32} or {@link DataType#INT64}
      * @param dataType dtype of the returned tensor; must be non-null
      * @return tensor with shape {@code [1]} and label {@code scalar_const}
-     * @throws IllegalArgumentException if an INT32 scalar is requested with a non-integral value
+     * @throws IllegalArgumentException if an INT32/INT64 scalar is requested with a non-integral value
      */
     public static Tensor scalar(double value, DataType dataType) {
         if (dataType == DataType.INT32) {
@@ -25,6 +25,13 @@ public final class TensorDataFactory {
                 throw new IllegalArgumentException("INT32 scalar requires an integral value. got=" + value);
             }
             return new Tensor(new int[]{(int) integral}, new int[]{1}, null, "scalar_const", DataType.INT32);
+        }
+        if (dataType == DataType.INT64) {
+            long integral = Math.round(value);
+            if (Math.abs(value - integral) > 1e-9) {
+                throw new IllegalArgumentException("INT64 scalar requires an integral value. got=" + value);
+            }
+            return new Tensor(new long[]{integral}, new int[]{1}, null, "scalar_const", DataType.INT64);
         }
         return new Tensor(new double[]{value}, new int[]{1}, new int[]{1}, null, "scalar_const", dataType);
     }
@@ -43,6 +50,11 @@ public final class TensorDataFactory {
             java.util.Arrays.fill(data, 1);
             return new Tensor(data, shape, null, "ones_like", DataType.INT32);
         }
+        if (other.getDataType() == DataType.INT64) {
+            long[] data = new long[size];
+            java.util.Arrays.fill(data, 1L);
+            return new Tensor(data, shape, null, "ones_like", DataType.INT64);
+        }
         double[] data = new double[size];
         java.util.Arrays.fill(data, 1.0d);
         return new Tensor(data, shape, null, "ones_like", other.getDataType());
@@ -59,6 +71,9 @@ public final class TensorDataFactory {
         int[] shape = other.getShape().clone();
         if (other.getDataType() == DataType.INT32) {
             return new Tensor(new int[size], shape, null, "zeros_like", DataType.INT32);
+        }
+        if (other.getDataType() == DataType.INT64) {
+            return new Tensor(new long[size], shape, null, "zeros_like", DataType.INT64);
         }
         return new Tensor(new double[size], shape, null, "zeros_like", other.getDataType());
     }

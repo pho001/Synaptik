@@ -35,7 +35,7 @@ final class ReductionSupport {
         if (input == null) {
             throw new IllegalArgumentException(opName + " input cannot be null");
         }
-        if (input.getDataType() == DataType.BOOL || input.getDataType() == DataType.INT32) {
+        if (input.getDataType() == DataType.BOOL || input.getDataType() == DataType.INT32 || input.getDataType() == DataType.INT64) {
             throw new IllegalArgumentException(opName + " requires floating numeric input.");
         }
     }

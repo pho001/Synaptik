@@ -1772,7 +1772,7 @@ final class ScaledDotProductAttentionExecutor {
             case FLOAT64 -> -1.0e30d;
             case FLOAT32 -> -1.0e9d;
             case BFLOAT16 -> -1.0e30d;
-            case INT32, BOOL -> throw new IllegalArgumentException("attention mask fill requires floating dtype.");
+            case INT32, INT64, BOOL -> throw new IllegalArgumentException("attention mask fill requires floating dtype.");
         };
     }
 
@@ -1792,7 +1792,7 @@ final class ScaledDotProductAttentionExecutor {
                 || query.getDataType() != node.getDataType()) {
             throw new IllegalArgumentException("attention requires matching floating dtypes for q, k, v and output");
         }
-        if (query.getDataType() == DataType.BOOL || query.getDataType() == DataType.INT32) {
+        if (query.getDataType() == DataType.BOOL || query.getDataType() == DataType.INT32 || query.getDataType() == DataType.INT64) {
             throw new IllegalArgumentException("attention requires floating inputs");
         }
         if (mask != null && mask.getDataType() != DataType.BOOL) {

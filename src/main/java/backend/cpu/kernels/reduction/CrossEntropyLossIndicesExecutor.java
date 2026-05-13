@@ -475,6 +475,7 @@ final class CrossEntropyLossIndicesExecutor {
     private static int readIndex(Tensor targetIndices, int storageOffset) {
         return switch (targetIndices.getDataType()) {
             case INT32 -> targetIndices.getInt32Data()[storageOffset];
+            case INT64 -> Math.toIntExact(targetIndices.getInt64Data()[storageOffset]);
             case FLOAT64 -> toIntegralIndex(targetIndices.getFloat64Data()[storageOffset]);
             case FLOAT32 -> toIntegralIndex(targetIndices.getFloat32Data()[storageOffset]);
             case BFLOAT16 -> toIntegralIndex(CpuDTypeOps.fromBFloat16Bits(targetIndices.getBFloat16Data()[storageOffset]));

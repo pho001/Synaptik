@@ -823,6 +823,7 @@ public final class MemoryPlanner {
             case FLOAT32 -> 4;
             case BFLOAT16 -> 2;
             case INT32 -> 4;
+            case INT64 -> 8;
             case BOOL -> 1;
         };
     }

@@ -157,7 +157,7 @@ public final class CpuTypeContractResolver {
         if (inputType == DataType.BOOL) {
             throw new IllegalArgumentException("argMax requires numeric input.");
         }
-        return new PreparedTypeContract(DataType.INT32, List.of(inputType));
+        return new PreparedTypeContract(DataType.INT64, List.of(inputType));
     }
 
     private static PreparedTypeContract resolveCumSumContract(List<Tensor> inputs) {
@@ -259,7 +259,7 @@ public final class CpuTypeContractResolver {
         }
         DataType logitsType = inputs.get(0).getDataType();
         DataType indexType = inputs.get(1).getDataType();
-        if (logitsType == DataType.BOOL || logitsType == DataType.INT32) {
+        if (logitsType == DataType.BOOL || logitsType == DataType.INT32 || logitsType == DataType.INT64) {
             throw new IllegalArgumentException("crossEntropyLossFromIndices requires floating logits.");
         }
         if (indexType == DataType.BOOL) {
@@ -275,7 +275,8 @@ public final class CpuTypeContractResolver {
         DataType logitsType = inputs.get(0).getDataType();
         DataType indexType = inputs.get(1).getDataType();
         DataType scaleType = inputs.get(2).getDataType();
-        if (logitsType == DataType.BOOL || logitsType == DataType.INT32 || scaleType == DataType.BOOL || scaleType == DataType.INT32) {
+        if (logitsType == DataType.BOOL || logitsType == DataType.INT32 || logitsType == DataType.INT64
+                || scaleType == DataType.BOOL || scaleType == DataType.INT32 || scaleType == DataType.INT64) {
             throw new IllegalArgumentException("crossEntropyLossFromIndicesGrad requires floating logits and floating scale.");
         }
         if (indexType == DataType.BOOL) {
@@ -294,9 +295,9 @@ public final class CpuTypeContractResolver {
         DataType queryType = inputs.get(0).getDataType();
         DataType keyType = inputs.get(1).getDataType();
         DataType valueType = inputs.get(2).getDataType();
-        if (queryType == DataType.BOOL || queryType == DataType.INT32
-                || keyType == DataType.BOOL || keyType == DataType.INT32
-                || valueType == DataType.BOOL || valueType == DataType.INT32) {
+        if (queryType == DataType.BOOL || queryType == DataType.INT32 || queryType == DataType.INT64
+                || keyType == DataType.BOOL || keyType == DataType.INT32 || keyType == DataType.INT64
+                || valueType == DataType.BOOL || valueType == DataType.INT32 || valueType == DataType.INT64) {
             throw new IllegalArgumentException("scaledDotProductAttention requires floating q/k/v inputs.");
         }
         DataType promoted = promote(promote(queryType, keyType), valueType);
@@ -315,8 +316,8 @@ public final class CpuTypeContractResolver {
         }
         DataType leftType = inputs.get(0).getDataType();
         DataType rightType = inputs.get(1).getDataType();
-        if (leftType == DataType.BOOL || leftType == DataType.INT32
-                || rightType == DataType.BOOL || rightType == DataType.INT32) {
+        if (leftType == DataType.BOOL || leftType == DataType.INT32 || leftType == DataType.INT64
+                || rightType == DataType.BOOL || rightType == DataType.INT32 || rightType == DataType.INT64) {
             throw new IllegalArgumentException(opName + " requires floating inputs.");
         }
         if (leftType != rightType) {
@@ -330,7 +331,7 @@ public final class CpuTypeContractResolver {
             throw new IllegalArgumentException(opName + " expects exactly one input.");
         }
         DataType inputType = inputs.getFirst().getDataType();
-        if (inputType == DataType.BOOL || inputType == DataType.INT32) {
+        if (inputType == DataType.BOOL || inputType == DataType.INT32 || inputType == DataType.INT64) {
             throw new IllegalArgumentException(opName + " requires a floating input.");
         }
         return new PreparedTypeContract(inputType, List.of(inputType));
@@ -376,8 +377,8 @@ public final class CpuTypeContractResolver {
     }
 
     private static DataType promote(DataType left, DataType right) {
-        if (left == DataType.INT32 || right == DataType.INT32) {
-            throw new IllegalArgumentException("INT32 is not supported by generic floating numeric promotion. left=" + left + ", right=" + right);
+        if (left == DataType.INT32 || right == DataType.INT32 || left == DataType.INT64 || right == DataType.INT64) {
+            throw new IllegalArgumentException("INT32/INT64 are not supported by generic floating numeric promotion. left=" + left + ", right=" + right);
         }
         if (left == DataType.FLOAT64 || right == DataType.FLOAT64) {
             return DataType.FLOAT64;

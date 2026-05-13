@@ -105,6 +105,14 @@ final class LossSupport {
             }
             return new Tensor(safe, targetIndices.getShape().clone(), null, "safe_indices", DataType.INT32);
         }
+        if (targetIndices.getDataType() == DataType.INT64) {
+            long[] safe = new long[size];
+            for (int i = 0; i < size; i++) {
+                long value = readIntegralIndex(targetIndices, i);
+                safe[i] = value == ignoreIndex ? 0L : value;
+            }
+            return new Tensor(safe, targetIndices.getShape().clone(), null, "safe_indices", DataType.INT64);
+        }
         double[] safe = new double[size];
         for (int i = 0; i < size; i++) {
             long value = readIntegralIndex(targetIndices, i);
@@ -114,6 +122,9 @@ final class LossSupport {
     }
 
     private static long readIntegralIndex(Tensor indices, int flatIndex) {
+        if (indices.getDataType() == DataType.INT32 || indices.getDataType() == DataType.INT64) {
+            return indices.getIntegralByFlatIndex(flatIndex);
+        }
         double raw = indices.getByFlatIndex(flatIndex);
         if (!Double.isFinite(raw)) {
             throw new IllegalArgumentException("Index tensor contains non-finite value.");

@@ -32,13 +32,18 @@ public final class CpuCumSumKernel implements CpuKernel {
         scan(op, inputs, node);
     }
 
+    @Override
+    public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        scan(op, inputs, node);
+    }
+
     private static void scan(Operation op, List<Tensor> inputs, Tensor node) {
         if (!(op instanceof cumSum scan)) {
             throw new IllegalArgumentException("CpuCumSumKernel requires cumSum operation.");
         }
         Tensor input = CpuSumKernel.requireSingleInput(inputs, "CumSum");
         if (input.getDataType() == DataType.BOOL || node.getDataType() == DataType.BOOL) {
-            throw new IllegalArgumentException("CumSum requires floating or INT32 tensors.");
+            throw new IllegalArgumentException("CumSum requires floating or integer tensors.");
         }
         if (input.getDataType() != node.getDataType()) {
             throw new IllegalArgumentException("CumSum requires input and output dtypes to match.");
@@ -51,6 +56,17 @@ public final class CpuCumSumKernel implements CpuKernel {
         int axisSize = shape[axis];
         int lineCount = axisSize == 0 ? 0 : input.getFlatDataSize() / axisSize;
         int[] denseStrides = TensorMetadata.computeStrides(shape);
+        if (input.getDataType() == DataType.INT64) {
+            for (int line = 0; line < lineCount; line++) {
+                if (scan.isReverse()) {
+                    scanReverseLongLine(input, node, line, axis, axisSize, denseStrides, scan.isExclusive());
+                } else {
+                    scanForwardLongLine(input, node, line, axis, axisSize, denseStrides, scan.isExclusive());
+                }
+            }
+            node.markStorageModified();
+            return;
+        }
         for (int line = 0; line < lineCount; line++) {
             if (scan.isReverse()) {
                 scanReverseLine(input, node, line, axis, axisSize, denseStrides, scan.isExclusive());
@@ -80,6 +96,52 @@ public final class CpuCumSumKernel implements CpuKernel {
             } else {
                 acc += value;
                 write(output, logical, acc);
+            }
+        }
+    }
+
+    private static void scanForwardLongLine(
+            Tensor input,
+            Tensor output,
+            int line,
+            int axis,
+            int axisSize,
+            int[] denseStrides,
+            boolean exclusive
+    ) {
+        long acc = 0L;
+        for (int k = 0; k < axisSize; k++) {
+            int logical = logicalIndex(line, k, axis, input.getShapeUnsafe(), denseStrides);
+            long value = input.getInt64ByFlatIndex(logical);
+            if (exclusive) {
+                writeLong(output, logical, acc);
+                acc += value;
+            } else {
+                acc += value;
+                writeLong(output, logical, acc);
+            }
+        }
+    }
+
+    private static void scanReverseLongLine(
+            Tensor input,
+            Tensor output,
+            int line,
+            int axis,
+            int axisSize,
+            int[] denseStrides,
+            boolean exclusive
+    ) {
+        long acc = 0L;
+        for (int k = axisSize - 1; k >= 0; k--) {
+            int logical = logicalIndex(line, k, axis, input.getShapeUnsafe(), denseStrides);
+            long value = input.getInt64ByFlatIndex(logical);
+            if (exclusive) {
+                writeLong(output, logical, acc);
+                acc += value;
+            } else {
+                acc += value;
+                writeLong(output, logical, acc);
             }
         }
     }
@@ -128,7 +190,13 @@ public final class CpuCumSumKernel implements CpuKernel {
             case FLOAT32 -> out.getFloat32Data()[offset] = (float) value;
             case BFLOAT16 -> out.getBFloat16Data()[offset] = CpuDTypeOps.toBFloat16Bits((float) value);
             case INT32 -> out.getInt32Data()[offset] = (int) value;
-            case BOOL -> throw new IllegalArgumentException("CumSum requires floating or INT32 output.");
+            case INT64 -> out.getInt64Data()[offset] = (long) value;
+            case BOOL -> throw new IllegalArgumentException("CumSum requires floating or integer output.");
         }
+    }
+
+    private static void writeLong(Tensor out, int logical, long value) {
+        int offset = out.getStorageOffsetUnsafe() + logical;
+        out.getInt64Data()[offset] = value;
     }
 }

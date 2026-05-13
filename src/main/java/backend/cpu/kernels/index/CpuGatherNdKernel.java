@@ -39,6 +39,12 @@ public final class CpuGatherNdKernel implements CpuKernel {
         IndexExecutor.gatherNdI32(pair[0], pair[1], node, requireOp(op).getBatchDims(), context);
     }
 
+    @Override
+    public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        Tensor[] pair = requirePair(op, inputs);
+        IndexExecutor.gatherNdI64(pair[0], pair[1], node, requireOp(op).getBatchDims(), context);
+    }
+
     private static gatherNd requireOp(Operation op) {
         if (!(op instanceof gatherNd gatherOp)) {
             throw new IllegalArgumentException("CpuGatherNdKernel requires gatherNd operation.");

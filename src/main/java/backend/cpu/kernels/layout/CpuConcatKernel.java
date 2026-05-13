@@ -36,6 +36,11 @@ public final class CpuConcatKernel implements CpuKernel {
         concat(op, inputs, node);
     }
 
+    @Override
+    public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        concat(op, inputs, node);
+    }
+
     private static void concat(Operation op, List<Tensor> inputs, Tensor node) {
         if (!(op instanceof concat concatOp)) {
             throw new IllegalArgumentException("CpuConcatKernel requires concat operation.");
@@ -69,6 +74,10 @@ public final class CpuConcatKernel implements CpuKernel {
                 }
                 outLogical += coord * outDenseStrides[d];
             }
+            if (out.getDataType() == tensor.DataType.INT64) {
+                out.getInt64Data()[outLogical] = input.getInt64ByFlatIndex(logical);
+                continue;
+            }
             write(out, outLogical, input.getByFlatIndex(logical));
         }
     }
@@ -79,6 +88,7 @@ public final class CpuConcatKernel implements CpuKernel {
             case FLOAT32 -> out.getFloat32Data()[index] = (float) value;
             case BFLOAT16 -> out.getBFloat16Data()[index] = CpuDTypeOps.toBFloat16Bits((float) value);
             case INT32 -> out.getInt32Data()[index] = (int) value;
+            case INT64 -> out.getInt64Data()[index] = (long) value;
             case BOOL -> out.getBoolData()[index] = value == 0.0d ? (byte) 0 : (byte) 1;
         }
     }

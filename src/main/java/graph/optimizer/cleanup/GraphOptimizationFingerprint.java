@@ -62,6 +62,7 @@ public record GraphOptimizationFingerprint(String value) {
         return switch (dataType) {
             case BOOL -> Arrays.hashCode(tensor.toBooleanArrayCopy());
             case INT32 -> Arrays.hashCode(tensor.getInt32Data());
+            case INT64 -> Arrays.hashCode(tensor.getInt64Data());
             case FLOAT32, FLOAT64, BFLOAT16 -> Arrays.hashCode(tensor.toDoubleArrayCopy());
         };
     }

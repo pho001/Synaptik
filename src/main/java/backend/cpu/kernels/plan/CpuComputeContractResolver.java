@@ -48,6 +48,7 @@ public final class CpuComputeContractResolver {
             case FLOAT32 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F32, backend, CpuAccumulateDType.NONE);
             case BFLOAT16 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F32, backend, CpuAccumulateDType.NONE);
             case INT32 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.INT32, backend, CpuAccumulateDType.NONE);
+            case INT64 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.INT64, backend, CpuAccumulateDType.NONE);
             case BOOL -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.BOOL, backend, CpuAccumulateDType.NONE);
         };
     }
@@ -58,6 +59,7 @@ public final class CpuComputeContractResolver {
             case FLOAT32 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F32, CpuExecutionBackend.CPU_REDUCTION, CpuAccumulateDType.F64);
             case BFLOAT16 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F32, CpuExecutionBackend.CPU_REDUCTION, CpuAccumulateDType.F64);
             case INT32 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.INT32, CpuExecutionBackend.CPU_REDUCTION, CpuAccumulateDType.NONE);
+            case INT64 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.INT64, CpuExecutionBackend.CPU_REDUCTION, CpuAccumulateDType.NONE);
             case BOOL -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.BOOL, CpuExecutionBackend.CPU_REDUCTION, CpuAccumulateDType.NONE);
         };
     }
@@ -71,6 +73,7 @@ public final class CpuComputeContractResolver {
             case FLOAT32 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F32, backend, CpuAccumulateDType.NONE);
             case BFLOAT16 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F32, backend, CpuAccumulateDType.NONE);
             case INT32 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.INT32, backend, CpuAccumulateDType.NONE);
+            case INT64 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.INT64, backend, CpuAccumulateDType.NONE);
             case BOOL -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.BOOL, backend, CpuAccumulateDType.NONE);
         };
     }
@@ -81,6 +84,7 @@ public final class CpuComputeContractResolver {
             case FLOAT32 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F32, backend, CpuAccumulateDType.NONE);
             case BFLOAT16 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F32, backend, CpuAccumulateDType.NONE);
             case INT32 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.INT32, backend, CpuAccumulateDType.NONE);
+            case INT64 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.INT64, backend, CpuAccumulateDType.NONE);
             case BOOL -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.BOOL, backend, CpuAccumulateDType.NONE);
         };
     }

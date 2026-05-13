@@ -212,7 +212,8 @@ public final class TensorIndexOps {
             throw new IllegalArgumentException("scatterAdd inputs cannot be null");
         }
         if (base.getDataType() == DataType.BOOL || src.getDataType() == DataType.BOOL
-                || base.getDataType() == DataType.INT32 || src.getDataType() == DataType.INT32) {
+                || base.getDataType() == DataType.INT32 || src.getDataType() == DataType.INT32
+                || base.getDataType() == DataType.INT64 || src.getDataType() == DataType.INT64) {
             throw new IllegalArgumentException("scatterAdd requires floating numeric base and source tensors.");
         }
         if (indices.getDataType() == DataType.BOOL) {

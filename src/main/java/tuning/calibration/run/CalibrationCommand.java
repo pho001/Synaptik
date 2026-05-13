@@ -226,6 +226,7 @@ public record CalibrationCommand(
             case FLOAT32 -> "f32";
             case BFLOAT16 -> "bf16";
             case INT32 -> "i32";
+            case INT64 -> "i64";
             case BOOL -> "bool";
         };
     }

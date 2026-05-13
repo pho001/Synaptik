@@ -191,6 +191,7 @@ class RuntimeMemoryBinderTest {
             case FLOAT32 -> new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, label, dataType);
             case BFLOAT16 -> new Tensor(new short[]{1, 2, 3, 4}, new int[]{4}, null, label, dataType);
             case INT32 -> new Tensor(new int[]{1, 2, 3, 4}, new int[]{4}, null, label, dataType);
+            case INT64 -> new Tensor(new long[]{1L, 2L, 3L, 4L}, new int[]{4}, null, label, dataType);
             case BOOL -> new Tensor(new byte[]{1, 0, 1, 0}, new int[]{4}, null, label, dataType);
         };
     }

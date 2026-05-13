@@ -44,6 +44,13 @@ public final class CpuScatterNdKernel implements CpuKernel {
         IndexExecutor.scatterNdI32(triple[0], triple[1], triple[2], node, scatterOp.getReduction(), scatterOp.getBatchDims(), context);
     }
 
+    @Override
+    public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        scatterNd scatterOp = requireOp(op);
+        Tensor[] triple = requireTriple(inputs);
+        IndexExecutor.scatterNdI64(triple[0], triple[1], triple[2], node, scatterOp.getReduction(), scatterOp.getBatchDims(), context);
+    }
+
     private static scatterNd requireOp(Operation op) {
         if (!(op instanceof scatterNd scatterOp)) {
             throw new IllegalArgumentException("CpuScatterNdKernel requires scatterNd operation");

@@ -129,6 +129,7 @@ public final class TensorRemap {
             case FLOAT32 -> applyF32(src, dst, plan, parallelThreshold);
             case BFLOAT16 -> applyBF16(src, dst, plan, parallelThreshold);
             case INT32 -> applyI32(src, dst, plan, parallelThreshold);
+            case INT64 -> applyI64(src, dst, plan, parallelThreshold);
             case BOOL -> applyBool(src, dst, plan, parallelThreshold);
         }
         dst.markStorageModified();
@@ -265,6 +266,17 @@ public final class TensorRemap {
         }
     }
 
+    private static void applyI64(Tensor src, Tensor dst, RemapPlan plan, int parallelThreshold) {
+        if (tryFastCopyI64(src, dst, plan, plan.logicalSize)) {
+            return;
+        }
+        if (plan.logicalSize > parallelThreshold) {
+            parallelApplyI64(src, dst, plan);
+        } else {
+            sequentialApplyI64(src, dst, plan);
+        }
+    }
+
     private static void sequentialApplyF16(Tensor src, Tensor dst, RemapPlan plan) {
         short[] srcData = src.getBFloat16Data();
         short[] dstData = dst.getBFloat16Data();
@@ -299,6 +311,14 @@ public final class TensorRemap {
         });
     }
 
+    private static void sequentialApplyI64(Tensor src, Tensor dst, RemapPlan plan) {
+        long[] srcData = src.getInt64Data();
+        long[] dstData = dst.getInt64Data();
+        walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, plan.srcBaseOffset, plan.dstBaseOffset, 0, plan.logicalSize, (srcOffset, dstOffset) -> {
+            dstData[dstOffset] = srcData[srcOffset];
+        });
+    }
+
     private static void parallelApplyBool(Tensor src, Tensor dst, RemapPlan plan) {
         byte[] srcData = src.getBoolData();
         byte[] dstData = dst.getBoolData();
@@ -312,6 +332,16 @@ public final class TensorRemap {
     private static void parallelApplyI32(Tensor src, Tensor dst, RemapPlan plan) {
         int[] srcData = src.getInt32Data();
         int[] dstData = dst.getInt32Data();
+        parallelForRanges(plan.logicalSize, (start, end) -> {
+            walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, plan.srcBaseOffset, plan.dstBaseOffset, start, end, (srcOffset, dstOffset) -> {
+                dstData[dstOffset] = srcData[srcOffset];
+            });
+        });
+    }
+
+    private static void parallelApplyI64(Tensor src, Tensor dst, RemapPlan plan) {
+        long[] srcData = src.getInt64Data();
+        long[] dstData = dst.getInt64Data();
         parallelForRanges(plan.logicalSize, (start, end) -> {
             walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, plan.srcBaseOffset, plan.dstBaseOffset, start, end, (srcOffset, dstOffset) -> {
                 dstData[dstOffset] = srcData[srcOffset];
@@ -441,6 +471,19 @@ public final class TensorRemap {
         return true;
     }
 
+    private static boolean tryFastCopyI64(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
+        long[] srcData = src.getInt64Data();
+        long[] dstData = dst.getInt64Data();
+        if (srcData == null || dstData == null) {
+            return false;
+        }
+        if (!canUseRawCopy(src, dst, logicalSize)) {
+            return false;
+        }
+        System.arraycopy(srcData, plan.srcBaseOffset, dstData, plan.dstBaseOffset, logicalSize);
+        return true;
+    }
+
     private static boolean canUseRawCopy(Tensor src, Tensor dst, int logicalSize) {
         return src.isContiguous()
                 && dst.isContiguous()
@@ -449,7 +492,9 @@ public final class TensorRemap {
     }
 
     private static boolean canConvertNumeric(DataType srcType, DataType dstType) {
-        if (srcType == DataType.BOOL || dstType == DataType.BOOL || srcType == DataType.INT32 || dstType == DataType.INT32) {
+        if (srcType == DataType.BOOL || dstType == DataType.BOOL
+                || srcType == DataType.INT32 || dstType == DataType.INT32
+                || srcType == DataType.INT64 || dstType == DataType.INT64) {
             return false;
         }
         return srcType != null && dstType != null;
