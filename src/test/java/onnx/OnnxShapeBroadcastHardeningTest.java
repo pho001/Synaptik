@@ -101,8 +101,8 @@ class OnnxShapeBroadcastHardeningTest {
     }
 
     @Test
-    void invalidBroadcastShapesAreRejectedAsOnnxUnsupported() {
-        OnnxProto.ModelProto model = model("invalid_broadcast", graph -> graph
+    void invalidBinaryBroadcastShapesAreRejectedAsOnnxUnsupported() {
+        OnnxProto.ModelProto model = model("invalid_binary_broadcast", graph -> graph
                 .addInput(OnnxTensorProtoUtil.valueInfo("a", DataType.FLOAT32, new int[]{2, 3}))
                 .addInput(OnnxTensorProtoUtil.valueInfo("b", DataType.FLOAT32, new int[]{2}))
                 .addNode(nodeBuilder("add", "Add", "y", "a", "b").build())
@@ -111,6 +111,51 @@ class OnnxShapeBroadcastHardeningTest {
         OnnxUnsupportedException ex = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(model));
 
         assertTrue(ex.getMessage().contains("add"));
+    }
+
+    @Test
+    void invalidWhereBranchBroadcastShapesAreRejectedAsOnnxUnsupported() {
+        OnnxProto.ModelProto model = model("invalid_where_branch_broadcast", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("condition", DataType.BOOL, new int[]{2, 3}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2, 3}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("fallback", DataType.FLOAT32, new int[]{2}))
+                .addNode(nodeBuilder("where", "Where", "y", "condition", "x", "fallback").build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 3})));
+
+        OnnxUnsupportedException ex = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(model));
+
+        assertTrue(ex.getMessage().contains("where"));
+    }
+
+    @Test
+    void invalidConstantTensorBroadcastShapesAreRejectedAsOnnxUnsupported() {
+        OnnxProto.ModelProto model = model("invalid_constant_tensor_broadcast", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2, 3}))
+                .addNode(nodeBuilder("bias", "Constant", "bias")
+                        .addAttribute(tensorAttr("value", new Tensor(new float[]{10f, 20f}, new int[]{2}, null, "bias", DataType.FLOAT32)))
+                        .build())
+                .addNode(nodeBuilder("add", "Add", "y", "x", "bias").build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 3})));
+
+        OnnxUnsupportedException ex = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(model));
+
+        assertTrue(ex.getMessage().contains("add"));
+    }
+
+    @Test
+    void invalidBoolMaskBroadcastShapesAreRejectedAsOnnxUnsupported() {
+        OnnxProto.ModelProto model = model("invalid_bool_mask_broadcast", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2, 3}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("fallback", DataType.FLOAT32, new int[]{2, 3}))
+                .addNode(nodeBuilder("mask", "Constant", "mask")
+                        .addAttribute(tensorAttr("value", new Tensor(new byte[]{1, 0}, new int[]{2}, null, "mask", DataType.BOOL)))
+                        .build())
+                .addNode(nodeBuilder("where", "Where", "y", "mask", "x", "fallback").build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 3})));
+
+        OnnxUnsupportedException ex = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(model));
+
+        assertTrue(ex.getMessage().contains("where"));
     }
 
     private static void assertStaticParameterRejected(OnnxProto.ModelProto model) {

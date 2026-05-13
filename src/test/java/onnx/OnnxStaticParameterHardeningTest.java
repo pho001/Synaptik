@@ -19,6 +19,27 @@ class OnnxStaticParameterHardeningTest {
                 .addInitializer(OnnxTensorProtoUtil.int64Initializer("ends", new long[]{3}))
                 .addNode(node("slice", "Slice", "y", "x", "starts", "ends"))
                 .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{3}))));
+        assertConstantRejected(model("dynamic_slice_ends", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{4}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("ends", DataType.INT32, new int[]{1}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("starts", new long[]{1}))
+                .addNode(node("slice", "Slice", "y", "x", "starts", "ends"))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2}))));
+        assertConstantRejected(model("dynamic_slice_axes", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2, 3}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("axes", DataType.INT32, new int[]{1}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("starts", new long[]{0}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("ends", new long[]{2}))
+                .addNode(node("slice", "Slice", "y", "x", "starts", "ends", "axes"))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 3}))));
+        assertConstantRejected(model("dynamic_slice_steps", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{4}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("steps", DataType.INT32, new int[]{1}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("starts", new long[]{0}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("ends", new long[]{4}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("axes", new long[]{0}))
+                .addNode(node("slice", "Slice", "y", "x", "starts", "ends", "axes", "steps"))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{4}))));
         assertConstantRejected(model("dynamic_pad_pads", graph -> graph
                 .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2}))
                 .addInput(OnnxTensorProtoUtil.valueInfo("pads", DataType.INT32, new int[]{2}))
@@ -50,6 +71,11 @@ class OnnxStaticParameterHardeningTest {
                 .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2}))
                 .addInput(OnnxTensorProtoUtil.valueInfo("min", DataType.FLOAT32, new int[]{1}))
                 .addNode(node("clip", "Clip", "y", "x", "min"))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2}))));
+        assertScalarRejected(model("dynamic_clip_max", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("max", DataType.FLOAT32, new int[]{1}))
+                .addNode(node("clip", "Clip", "y", "x", "", "max"))
                 .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2}))));
         assertScalarRejected(model("dynamic_pow_exponent", graph -> graph
                 .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2}))
