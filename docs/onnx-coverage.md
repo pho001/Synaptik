@@ -5,11 +5,11 @@ Generated from `OnnxCoverageMatrix`; do not hand-edit status rows.
 ## Summary
 
 - Import: supported=78, partial=0, unsupported=1
-- Export: supported=70, partial=1, unsupported=8
+- Export: supported=73, partial=0, unsupported=6
 - CPU: supported=78, partial=0, unsupported=1
 - Metal: supported=67, partial=9, unsupported=3
 - CUDA: supported=34, partial=9, unsupported=36
-- Round-trip evidence: round_trip_tested=70, explicitly_classified=1, import_only_tested=7, rejection_tested=1, not_applicable=0
+- Round-trip evidence: round_trip_tested=72, explicitly_classified=1, import_only_tested=5, rejection_tested=1, not_applicable=0
 
 ## Matrix
 
@@ -50,14 +50,14 @@ Generated from `OnnxCoverageMatrix`; do not hand-edit status rows.
 | Where | where | supported | supported | supported | supported | supported | round_trip_tested | WHERE |  |
 | Identity | pass-through | supported | unsupported | supported | partial | partial | import_only_tested | NOOP | import-only pass-through; export preserves the producer op instead |
 | Clip | clampMin/clampMax | supported | supported | supported | supported | supported | round_trip_tested | CLAMP_MIN, CLAMP_MAX | scalar bounds only |
-| Cast | cast | supported | supported | supported | supported | unsupported | round_trip_tested | CAST | runtime INT64 is unsupported; Metal runtime cast is scoped to identity and FLOAT32 <-> BFLOAT16 pairs |
+| Cast | cast | supported | supported | supported | supported | unsupported | round_trip_tested | CAST | CPU import/export supports runtime INT64 tensors; Metal runtime cast is scoped to identity and FLOAT32 <-> BFLOAT16 pairs |
 | MatMul | matmul | supported | supported | supported | supported | supported | round_trip_tested | MATMUL |  |
 | Gemm | matmul plus optional bias/scale | supported | supported | supported | supported | supported | round_trip_tested | MATMUL, ADD | rank-2 transposition flags and scalar alpha/beta only |
 | Conv | conv2d | supported | supported | supported | supported | unsupported | round_trip_tested | CONV2D | rank-4 NCHW/OIHW, symmetric spatial pads, static attributes |
 | MaxPool | maxPool2d | supported | supported | supported | supported | unsupported | round_trip_tested | MAX_POOL2D | rank-4 NCHW, static attributes, ceil_mode=0 |
 | AveragePool | avgPool2d | supported | supported | supported | supported | unsupported | round_trip_tested | AVG_POOL2D | rank-4 NCHW, static attributes, ceil_mode=0; Metal native row is scoped to count_include_pad=false |
 | LayerNormalization | layerNorm | supported | supported | supported | supported | supported | round_trip_tested | LAYER_NORM | single output; axis must select trailing normalized dimensions |
-| BatchNormalization | batchNorm with external statistics | supported | unsupported | supported | partial | partial | import_only_tested | SUB, DIV, MUL, ADD | single-output inference form only; export has no first-class batchNorm descriptor |
+| BatchNormalization | batchNorm with external statistics | supported | supported | supported | partial | partial | round_trip_tested | SUB, DIV, MUL, ADD | single-output inference form only; export recognizes canonical external-statistics batchNorm graphs |
 | Transpose | permute | supported | supported | supported | supported | supported | round_trip_tested | PERMUTE |  |
 | Reshape | reshape | supported | supported | supported | supported | supported | round_trip_tested | RESHAPE | constant target shape |
 | Flatten | reshape | supported | supported | supported | supported | supported | round_trip_tested | RESHAPE | static axis reshape |
@@ -70,14 +70,14 @@ Generated from `OnnxCoverageMatrix`; do not hand-edit status rows.
 | Unsqueeze | expand_dims | supported | supported | supported | supported | supported | round_trip_tested | EXPAND_DIMS | constant axes |
 | Slice | slice | supported | supported | supported | supported | unsupported | round_trip_tested | SLICE | constant positive-step slice parameters |
 | Concat | concat | supported | supported | supported | supported | unsupported | round_trip_tested | CONCAT | runtime tensors or shape-only axis-0 constants |
-| Split | slice per output | supported | unsupported | supported | supported | unsupported | import_only_tested | SLICE | import-only multi-output lowering with static split sizes |
+| Split | slice per output | supported | supported | supported | supported | unsupported | round_trip_tested | SLICE | multi-output export is supported for graph-output slice siblings that exactly cover one axis |
 | Shape | shape constant | supported | unsupported | supported | unsupported | unsupported | import_only_tested |  | import-time static shape plumbing only |
 | Size | size constant | supported | unsupported | supported | unsupported | unsupported | import_only_tested |  | import-time static shape plumbing only |
 | Gather | gatherAxis or shape gather | supported | supported | supported | supported | unsupported | round_trip_tested | GATHER_AXIS | runtime mapping uses GATHER_AXIS; shape-only mapping is axis-0 only |
-| GatherElements | takeAlongAxis | supported | supported | supported | supported | unsupported | round_trip_tested | TAKE_ALONG_AXIS | runtime indices are INT32 |
-| GatherND | gatherNd | supported | supported | supported | supported | unsupported | round_trip_tested | GATHER_ND | runtime indices are INT32; batch_dims supported; Metal supports dense FLOAT32/BFLOAT16 values with static non-negative in-bounds INT32 tuple indices |
-| ScatterElements | scatterElements | supported | supported | supported | supported | unsupported | round_trip_tested | SCATTER_ELEMENTS | forward reductions none/add/mul/max/min; backward only none/add |
-| ScatterND | scatterNd | supported | supported | supported | supported | unsupported | round_trip_tested | SCATTER_ND | forward reductions none/add/mul/max/min; backward only none/add |
+| GatherElements | takeAlongAxis | supported | supported | supported | supported | unsupported | round_trip_tested | TAKE_ALONG_AXIS | runtime indices may be INT32 or INT64 on CPU/ONNX; accelerator native rows remain backend-scoped |
+| GatherND | gatherNd | supported | supported | supported | supported | unsupported | round_trip_tested | GATHER_ND | runtime indices may be INT32 or INT64 on CPU/ONNX; batch_dims supported; Metal native row is scoped to static non-negative in-bounds INT32 tuple indices |
+| ScatterElements | scatterElements | supported | supported | supported | supported | unsupported | round_trip_tested | SCATTER_ELEMENTS | runtime indices may be INT32 or INT64 on CPU/ONNX; forward reductions none/add/mul/max/min; backward only none/add; accelerator native rows remain backend-scoped |
+| ScatterND | scatterNd | supported | supported | supported | supported | unsupported | round_trip_tested | SCATTER_ND | runtime indices may be INT32 or INT64 on CPU/ONNX; forward reductions none/add/mul/max/min; backward only none/add; accelerator native rows remain backend-scoped |
 | ReduceSum | sum | supported | supported | supported | supported | supported | round_trip_tested | SUM | multi-axis reductions are imported as repeated single-axis reductions |
 | ReduceMean | mean | supported | supported | supported | supported | supported | round_trip_tested | MEAN | multi-axis reductions are imported as repeated single-axis reductions |
 | ReduceMax | reduce_max | supported | supported | supported | supported | supported | round_trip_tested | REDUCE_MAX | multi-axis reductions are imported as repeated single-axis reductions |
@@ -87,10 +87,10 @@ Generated from `OnnxCoverageMatrix`; do not hand-edit status rows.
 | ReduceL2 | mul then ReduceSum then sqrt | supported | supported | supported | supported | supported | round_trip_tested | MUL, SUM, SQRT | canonical export recognizes sqrt(sum(x*x)) single-axis pattern |
 | ReduceLogSum | ReduceSum then log | supported | supported | supported | supported | supported | round_trip_tested | SUM, LOG | canonical export recognizes log(sum(x)) single-axis pattern |
 | ReduceLogSumExp | exp then ReduceSum then log | supported | supported | supported | supported | supported | round_trip_tested | EXP, SUM, LOG | canonical export recognizes log(sum(exp(x))) single-axis pattern; not numerically stabilized with max-shift yet |
-| ArgMax | argMax | supported | supported | supported | supported | unsupported | round_trip_tested | ARGMAX | output is INT32 because runtime INT64 tensors are unsupported; select_last_index=0 only; Metal supports FLOAT32/BFLOAT16 inputs |
+| ArgMax | argMax | supported | supported | supported | supported | unsupported | round_trip_tested | ARGMAX | output is INT64; select_last_index=0 only; Metal produces public INT64 index outputs; CUDA remains unsupported |
 | CumSum | cumSum | supported | supported | supported | supported | unsupported | round_trip_tested | CUMSUM | axis input must be a static INT64/INT32 scalar constant; BOOL input is unsupported; Metal supports FLOAT32/BFLOAT16 inputs |
 | GlobalAveragePool | repeated mean over spatial axes | supported | supported | supported | supported | supported | round_trip_tested | MEAN | canonical export recognizes rank-4 keepdims spatial mean chain |
 | Softmax | softmax | supported | supported | supported | supported | supported | round_trip_tested | SOFTMAX |  |
 | LogSoftmax | logSoftmax | supported | supported | supported | supported | supported | round_trip_tested | LOG_SOFTMAX |  |
-| Constant | initializer tensor or shape constant | supported | partial | supported | partial | partial | explicitly_classified |  | export usually serializes leaves as graph inputs or initializers rather than Constant nodes |
+| Constant | initializer tensor or shape constant | supported | supported | supported | partial | partial | explicitly_classified |  | leaf tensors can export as graph inputs, initializers, trainable inputs, or Constant nodes according to OnnxLeafTensorPolicy |
 | NonZero | unsupported dynamic-shape op | unsupported | unsupported | unsupported | unsupported | unsupported | rejection_tested |  | runtime output shape depends on input values; requires a dynamic-shape execution model |

@@ -131,7 +131,7 @@ public final class OnnxCoverageMatrix {
         add(out, "Cast", "cast", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.CAST),
                 CoverageStatus.UNSUPPORTED,
-                "runtime INT64 is unsupported; Metal runtime cast is scoped to identity and FLOAT32 <-> BFLOAT16 pairs",
+                "CPU import/export supports runtime INT64 tensors; Metal runtime cast is scoped to identity and FLOAT32 <-> BFLOAT16 pairs",
                 Operation.OpType.CAST);
         add(out, "MatMul", "matmul", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.MATMUL),
@@ -155,9 +155,9 @@ public final class OnnxCoverageMatrix {
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.LAYER_NORM),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.LAYER_NORM),
                 "single output; axis must select trailing normalized dimensions", Operation.OpType.LAYER_NORM);
-        add(out, "BatchNormalization", "batchNorm with external statistics", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+        add(out, "BatchNormalization", "batchNorm with external statistics", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, CoverageStatus.PARTIAL, CoverageStatus.PARTIAL,
-                "single-output inference form only; export has no first-class batchNorm descriptor", Operation.OpType.SUB, Operation.OpType.DIV, Operation.OpType.MUL, Operation.OpType.ADD);
+                "single-output inference form only; export recognizes canonical external-statistics batchNorm graphs", Operation.OpType.SUB, Operation.OpType.DIV, Operation.OpType.MUL, Operation.OpType.ADD);
         addLayout(out, "Transpose", Operation.OpType.PERMUTE);
         addLayout(out, "Reshape", Operation.OpType.RESHAPE, "constant target shape");
         addLayout(out, "Flatten", Operation.OpType.RESHAPE, "static axis reshape");
@@ -174,10 +174,10 @@ public final class OnnxCoverageMatrix {
         addLayout(out, "Unsqueeze", Operation.OpType.EXPAND_DIMS, "constant axes");
         addLayout(out, "Slice", Operation.OpType.SLICE, "constant positive-step slice parameters");
         addLayout(out, "Concat", Operation.OpType.CONCAT, "runtime tensors or shape-only axis-0 constants");
-        add(out, "Split", "slice per output", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
+        add(out, "Split", "slice per output", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.SLICE),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.SLICE),
-                "import-only multi-output lowering with static split sizes", Operation.OpType.SLICE);
+                "multi-output export is supported for graph-output slice siblings that exactly cover one axis", Operation.OpType.SLICE);
         add(out, "Shape", "shape constant", CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED,
                 CoverageStatus.SUPPORTED, CoverageStatus.UNSUPPORTED, CoverageStatus.UNSUPPORTED,
                 "import-time static shape plumbing only");
@@ -191,19 +191,19 @@ public final class OnnxCoverageMatrix {
         add(out, "GatherElements", "takeAlongAxis", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.TAKE_ALONG_AXIS),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.TAKE_ALONG_AXIS),
-                "runtime indices are INT32", Operation.OpType.TAKE_ALONG_AXIS);
+                "runtime indices may be INT32 or INT64 on CPU/ONNX; accelerator native rows remain backend-scoped", Operation.OpType.TAKE_ALONG_AXIS);
         add(out, "GatherND", "gatherNd", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.GATHER_ND),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.GATHER_ND),
-                "runtime indices are INT32; batch_dims supported; Metal supports dense FLOAT32/BFLOAT16 values with static non-negative in-bounds INT32 tuple indices", Operation.OpType.GATHER_ND);
+                "runtime indices may be INT32 or INT64 on CPU/ONNX; batch_dims supported; Metal native row is scoped to static non-negative in-bounds INT32 tuple indices", Operation.OpType.GATHER_ND);
         add(out, "ScatterElements", "scatterElements", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.SCATTER_ELEMENTS),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.SCATTER_ELEMENTS),
-                "forward reductions none/add/mul/max/min; backward only none/add", Operation.OpType.SCATTER_ELEMENTS);
+                "runtime indices may be INT32 or INT64 on CPU/ONNX; forward reductions none/add/mul/max/min; backward only none/add; accelerator native rows remain backend-scoped", Operation.OpType.SCATTER_ELEMENTS);
         add(out, "ScatterND", "scatterNd", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.SCATTER_ND),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.SCATTER_ND),
-                "forward reductions none/add/mul/max/min; backward only none/add", Operation.OpType.SCATTER_ND);
+                "runtime indices may be INT32 or INT64 on CPU/ONNX; forward reductions none/add/mul/max/min; backward only none/add; accelerator native rows remain backend-scoped", Operation.OpType.SCATTER_ND);
         addReduction(out, "ReduceSum", Operation.OpType.SUM);
         addReduction(out, "ReduceMean", Operation.OpType.MEAN);
         addReduction(out, "ReduceMax", Operation.OpType.REDUCE_MAX);
@@ -224,7 +224,7 @@ public final class OnnxCoverageMatrix {
         add(out, "ArgMax", "argMax", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.ARGMAX),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.ARGMAX),
-                "output is INT32 because runtime INT64 tensors are unsupported; select_last_index=0 only; Metal supports FLOAT32/BFLOAT16 inputs", Operation.OpType.ARGMAX);
+                "output is INT64; select_last_index=0 only; Metal produces public INT64 index outputs; CUDA remains unsupported", Operation.OpType.ARGMAX);
         add(out, "CumSum", "cumSum", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.CUMSUM),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.CUMSUM),
@@ -239,9 +239,9 @@ public final class OnnxCoverageMatrix {
         add(out, "LogSoftmax", "logSoftmax", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.LOG_SOFTMAX),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.LOG_SOFTMAX), "", Operation.OpType.LOG_SOFTMAX);
-        add(out, "Constant", "initializer tensor or shape constant", CoverageStatus.SUPPORTED, CoverageStatus.PARTIAL,
+        add(out, "Constant", "initializer tensor or shape constant", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, CoverageStatus.PARTIAL, CoverageStatus.PARTIAL,
-                "export usually serializes leaves as graph inputs or initializers rather than Constant nodes");
+                "leaf tensors can export as graph inputs, initializers, trainable inputs, or Constant nodes according to OnnxLeafTensorPolicy");
         add(out, "NonZero", "unsupported dynamic-shape op", CoverageStatus.UNSUPPORTED, CoverageStatus.UNSUPPORTED,
                 CoverageStatus.UNSUPPORTED, CoverageStatus.UNSUPPORTED, CoverageStatus.UNSUPPORTED,
                 "runtime output shape depends on input values; requires a dynamic-shape execution model");
@@ -329,9 +329,9 @@ public final class OnnxCoverageMatrix {
                  "Equal", "Greater", "GreaterOrEqual", "Less", "LessOrEqual", "And", "Or", "Not", "Where",
                  "Clip", "Cast",
                  "ReduceSum", "ReduceMean", "ReduceMax", "ReduceMin", "ReduceProd",
-                 "MatMul", "Gemm", "Conv", "MaxPool", "AveragePool", "LayerNormalization",
+                 "MatMul", "Gemm", "Conv", "MaxPool", "AveragePool", "LayerNormalization", "BatchNormalization",
                  "Transpose", "Reshape", "Flatten", "Expand", "Pad", "Tile", "Squeeze", "Unsqueeze", "Slice", "Concat",
-                 "Gather", "GatherElements", "GatherND", "ScatterElements", "ScatterND",
+                 "Split", "Gather", "GatherElements", "GatherND", "ScatterElements", "ScatterND",
                  "Reciprocal", "Erf", "Floor", "Ceil", "Sign",
                  "LeakyRelu", "Elu", "HardSigmoid", "Softplus",
                  "ReduceL1", "ReduceL2", "ReduceLogSum", "ReduceLogSumExp",

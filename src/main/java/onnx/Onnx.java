@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -23,12 +24,28 @@ public final class Onnx {
         return new OnnxModel(OnnxGraphExporter.export(output, options));
     }
 
+    public static OnnxModel exportModel(List<Tensor> outputs) {
+        return exportModel(outputs, OnnxExportOptions.defaults());
+    }
+
+    public static OnnxModel exportModel(List<Tensor> outputs, OnnxExportOptions options) {
+        return new OnnxModel(OnnxGraphExporter.export(outputs, options));
+    }
+
     public static void write(Tensor output, Path path) {
         write(output, path, OnnxExportOptions.defaults());
     }
 
     public static void write(Tensor output, Path path, OnnxExportOptions options) {
         exportModel(output, options).write(path);
+    }
+
+    public static void write(List<Tensor> outputs, Path path) {
+        write(outputs, path, OnnxExportOptions.defaults());
+    }
+
+    public static void write(List<Tensor> outputs, Path path, OnnxExportOptions options) {
+        exportModel(outputs, options).write(path);
     }
 
     public static ImportedOnnxModel read(Path path) {

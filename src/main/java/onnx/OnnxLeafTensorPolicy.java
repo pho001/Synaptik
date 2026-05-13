@@ -15,6 +15,12 @@ public enum OnnxLeafTensorPolicy {
     INITIALIZERS,
 
     /**
+     * Every leaf tensor becomes a Constant node. This is useful when the ONNX graph
+     * should preserve literal constant producers instead of initializer storage.
+     */
+    CONSTANT_NODES,
+
+    /**
      * Trainable leaves become graph inputs; non-trainable leaves become initializers.
      */
     TRAINABLE_INPUTS

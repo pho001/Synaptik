@@ -40,7 +40,12 @@ import tensor.Tensor;
 import tensor.options.Conv2dOptions;
 import tensor.options.Pool2dOptions;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,9 +59,20 @@ final class OnnxGraphExporter {
 
     static OnnxProto.ModelProto export(Tensor output, OnnxExportOptions options) {
         Objects.requireNonNull(output, "output cannot be null");
+        return export(List.of(output), options);
+    }
+
+    static OnnxProto.ModelProto export(List<Tensor> outputs, OnnxExportOptions options) {
+        Objects.requireNonNull(outputs, "outputs cannot be null");
+        if (outputs.isEmpty()) {
+            throw new IllegalArgumentException("outputs cannot be empty");
+        }
+        for (Tensor output : outputs) {
+            Objects.requireNonNull(output, "outputs cannot contain null tensors");
+        }
         options = options == null ? OnnxExportOptions.defaults() : options;
 
-        List<Tensor> graph = output.topologicalSort();
+        List<Tensor> graph = topologicalSort(outputs);
         OnnxNameRegistry names = new OnnxNameRegistry();
         IdentityHashMap<Tensor, Integer> ids = new IdentityHashMap<>();
         for (int i = 0; i < graph.size(); i++) {
@@ -64,11 +80,17 @@ final class OnnxGraphExporter {
             names.nameFor(graph.get(i), i);
         }
         IdentityHashMap<Tensor, Integer> consumerCounts = consumerCounts(graph);
-        OnnxExportPatternContext patternContext = new OnnxExportPatternContext(output, consumerCounts, ids, names);
+        Set<Tensor> graphOutputs = Collections.newSetFromMap(new IdentityHashMap<>());
+        graphOutputs.addAll(outputs);
+        OnnxExportPatternContext patternContext = new OnnxExportPatternContext(graphOutputs, consumerCounts, ids, names);
         IdentityHashMap<Tensor, OnnxExportPatternMatch> patternMatches = new IdentityHashMap<>();
         Set<Tensor> patternConsumed = Collections.newSetFromMap(new IdentityHashMap<>());
+        addSplitOutputPatterns(outputs, ids, names, patternMatches, patternConsumed);
         for (Tensor tensor : graph) {
             if (tensor.getOperation() == null) {
+                continue;
+            }
+            if (patternMatches.containsKey(tensor) || patternConsumed.contains(tensor)) {
                 continue;
             }
             Optional<OnnxExportPatternMatch> match = OnnxExportPatternRegistry.match(tensor, patternContext);
@@ -88,11 +110,7 @@ final class OnnxGraphExporter {
             String name = names.nameFor(tensor, i);
             Operation op = tensor.getOperation();
             if (op == null) {
-                if (exportLeafAsInput(tensor, options.leafTensorPolicy())) {
-                    graphBuilder.addInput(OnnxTensorProtoUtil.valueInfo(name, tensor.getDataType(), tensor.getShapeUnsafe()));
-                } else {
-                    graphBuilder.addInitializer(OnnxTensorProtoUtil.tensorInitializer(name, tensor));
-                }
+                exportLeaf(tensor, name, options.leafTensorPolicy(), graphBuilder);
                 continue;
             }
             OnnxExportPatternMatch patternMatch = patternMatches.get(tensor);
@@ -105,11 +123,13 @@ final class OnnxGraphExporter {
             }
             graphBuilder.addNode(nodeFor(tensor, name, ids, names, graphBuilder, op));
         }
-        graphBuilder.addOutput(OnnxTensorProtoUtil.valueInfo(
-                names.nameFor(output, ids.get(output)),
-                output.getDataType(),
-                output.getShapeUnsafe()
-        ));
+        for (Tensor output : outputs) {
+            graphBuilder.addOutput(OnnxTensorProtoUtil.valueInfo(
+                    names.nameFor(output, ids.get(output)),
+                    output.getDataType(),
+                    output.getShapeUnsafe()
+            ));
+        }
 
         return OnnxProto.ModelProto.newBuilder()
                 .setIrVersion(OnnxProto.Version.IR_VERSION_2023_5_5.getNumber())
@@ -121,12 +141,35 @@ final class OnnxGraphExporter {
                 .build();
     }
 
-    private static boolean exportLeafAsInput(Tensor tensor, OnnxLeafTensorPolicy policy) {
-        return switch (policy) {
-            case INPUTS -> true;
-            case INITIALIZERS -> false;
-            case TRAINABLE_INPUTS -> tensor.getRequiresGrad();
-        };
+    private static void exportLeaf(
+            Tensor tensor,
+            String name,
+            OnnxLeafTensorPolicy policy,
+            OnnxProto.GraphProto.Builder graphBuilder
+    ) {
+        switch (policy) {
+            case INPUTS -> graphBuilder.addInput(OnnxTensorProtoUtil.valueInfo(name, tensor.getDataType(), tensor.getShapeUnsafe()));
+            case INITIALIZERS -> graphBuilder.addInitializer(OnnxTensorProtoUtil.tensorInitializer(name, tensor));
+            case CONSTANT_NODES -> graphBuilder.addNode(constantNode(name, tensor));
+            case TRAINABLE_INPUTS -> {
+                if (tensor.getRequiresGrad()) {
+                    graphBuilder.addInput(OnnxTensorProtoUtil.valueInfo(name, tensor.getDataType(), tensor.getShapeUnsafe()));
+                } else {
+                    graphBuilder.addInitializer(OnnxTensorProtoUtil.tensorInitializer(name, tensor));
+                }
+            }
+        }
+    }
+
+    private static OnnxProto.NodeProto constantNode(String outputName, Tensor tensor) {
+        return OnnxProto.NodeProto.newBuilder()
+                .setName("const_" + outputName)
+                .setOpType("Constant")
+                .addOutput(outputName)
+                .addAttribute(OnnxProto.AttributeProto.newBuilder()
+                        .setName("value")
+                        .setT(OnnxTensorProtoUtil.tensorInitializer(outputName + "_value", tensor)))
+                .build();
     }
 
     private static IdentityHashMap<Tensor, Integer> consumerCounts(List<Tensor> graph) {
@@ -137,6 +180,133 @@ final class OnnxGraphExporter {
             }
         }
         return counts;
+    }
+
+    private static List<Tensor> topologicalSort(List<Tensor> outputs) {
+        Deque<Tensor> sorted = new ArrayDeque<>();
+        Set<Tensor> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Tensor output : outputs) {
+            visit(output, visited, sorted);
+        }
+        return new ArrayList<>(sorted);
+    }
+
+    private static void visit(Tensor tensor, Set<Tensor> visited, Deque<Tensor> sorted) {
+        if (visited.contains(tensor)) {
+            return;
+        }
+        visited.add(tensor);
+        List<Tensor> previous = tensor.getPrevTensors();
+        if (previous != null) {
+            for (Tensor prev : previous) {
+                visit(prev, visited, sorted);
+            }
+        }
+        if (previous == null) {
+            sorted.addFirst(tensor);
+        } else {
+            sorted.addLast(tensor);
+        }
+    }
+
+    private static void addSplitOutputPatterns(
+            List<Tensor> outputs,
+            IdentityHashMap<Tensor, Integer> ids,
+            OnnxNameRegistry names,
+            IdentityHashMap<Tensor, OnnxExportPatternMatch> patternMatches,
+            Set<Tensor> patternConsumed
+    ) {
+        Map<SplitGroupKey, List<SplitPart>> groups = new HashMap<>();
+        for (Tensor output : outputs) {
+            if (!(output.getOperation() instanceof slice sliceOp) || output.getPrevTensors().size() != 1) {
+                continue;
+            }
+            SplitPart part = splitPart(output, sliceOp);
+            if (part == null) {
+                continue;
+            }
+            groups.computeIfAbsent(new SplitGroupKey(output.getPrevTensors().get(0), part.axis()), ignored -> new ArrayList<>())
+                    .add(part);
+        }
+        for (List<SplitPart> parts : groups.values()) {
+            if (parts.size() < 2) {
+                continue;
+            }
+            parts.sort(Comparator.comparingInt(SplitPart::start));
+            if (!coversSingleAxis(parts)) {
+                continue;
+            }
+            Tensor key = parts.stream()
+                    .min(Comparator.comparingInt(part -> ids.get(part.tensor())))
+                    .orElseThrow()
+                    .tensor();
+            SplitGroupKey groupKey = new SplitGroupKey(key.getPrevTensors().get(0), parts.getFirst().axis());
+            OnnxProto.NodeProto.Builder node = OnnxProto.NodeProto.newBuilder()
+                    .setName("node_" + ids.get(key))
+                    .setOpType("Split")
+                    .addInput(names.nameFor(groupKey.input(), ids.get(groupKey.input())));
+            String splitName = names.auxiliary(names.nameFor(key, ids.get(key)) + "_split");
+            node.addInput(splitName)
+                    .addAttribute(intAttr("axis", groupKey.axis()));
+            for (SplitPart part : parts) {
+                node.addOutput(names.nameFor(part.tensor(), ids.get(part.tensor())));
+            }
+            List<OnnxProto.TensorProto> initializers = List.of(OnnxTensorProtoUtil.int64Initializer(
+                    splitName,
+                    parts.stream().mapToLong(SplitPart::size).toArray()
+            ));
+            Set<Tensor> consumed = Collections.newSetFromMap(new IdentityHashMap<>());
+            for (SplitPart part : parts) {
+                if (part.tensor() != key) {
+                    consumed.add(part.tensor());
+                }
+            }
+            patternMatches.put(key, new OnnxExportPatternMatch(node.build(), consumed, initializers));
+            patternConsumed.addAll(consumed);
+        }
+    }
+
+    private static SplitPart splitPart(Tensor tensor, slice sliceOp) {
+        int[] inputShape = tensor.getPrevTensors().get(0).getShapeUnsafe();
+        int[] starts = sliceOp.getStarts();
+        int[] ends = sliceOp.getEnds();
+        int[] axes = sliceOp.getAxes();
+        int[] steps = sliceOp.getSteps();
+        if (starts.length != inputShape.length || ends.length != inputShape.length
+                || axes.length != inputShape.length || steps.length != inputShape.length) {
+            return null;
+        }
+        int splitAxis = -1;
+        for (int i = 0; i < inputShape.length; i++) {
+            if (axes[i] != i || steps[i] != 1) {
+                return null;
+            }
+            if (starts[i] == 0 && ends[i] == inputShape[i]) {
+                continue;
+            }
+            if (splitAxis >= 0) {
+                return null;
+            }
+            splitAxis = i;
+        }
+        if (splitAxis < 0 || starts[splitAxis] < 0 || ends[splitAxis] <= starts[splitAxis]
+                || ends[splitAxis] > inputShape[splitAxis]) {
+            return null;
+        }
+        return new SplitPart(tensor, splitAxis, starts[splitAxis], ends[splitAxis]);
+    }
+
+    private static boolean coversSingleAxis(List<SplitPart> parts) {
+        Tensor input = parts.getFirst().tensor().getPrevTensors().get(0);
+        int axis = parts.getFirst().axis();
+        int offset = 0;
+        for (SplitPart part : parts) {
+            if (part.tensor().getPrevTensors().get(0) != input || part.axis() != axis || part.start() != offset) {
+                return false;
+            }
+            offset = part.end();
+        }
+        return offset == input.getShapeUnsafe()[axis];
     }
 
     private static OnnxProto.NodeProto nodeFor(
@@ -642,5 +812,14 @@ final class OnnxGraphExporter {
             out[first.length + i] = second[i];
         }
         return out;
+    }
+
+    private record SplitGroupKey(Tensor input, int axis) {
+    }
+
+    private record SplitPart(Tensor tensor, int axis, int start, int end) {
+        int size() {
+            return end - start;
+        }
     }
 }

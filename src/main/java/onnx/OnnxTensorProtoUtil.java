@@ -60,6 +60,12 @@ final class OnnxTensorProtoUtil {
                     builder.addInt32Data(value);
                 }
             }
+            case INT64 -> {
+                long[] values = logicalInt64(tensor);
+                for (long value : values) {
+                    builder.addInt64Data(value);
+                }
+            }
             case BOOL -> {
                 boolean[] values = tensor.toBooleanArrayCopy();
                 for (boolean value : values) {
@@ -87,15 +93,13 @@ final class OnnxTensorProtoUtil {
         }
         int[] shape = dims(proto, context);
         int count = elementCount(shape);
-        if (OnnxDataTypes.isInt64(proto.getDataType())) {
-            return ImportedConstant.int64(readInt64(proto, count, context));
-        }
         DataType dataType = OnnxDataTypes.toSynaptik(proto.getDataType(), context);
         return ImportedConstant.tensor(switch (dataType) {
             case FLOAT32 -> new Tensor(readFloat32(proto, count, context), shape, null, proto.getName(), DataType.FLOAT32);
             case FLOAT64 -> new Tensor(readFloat64(proto, count, context), shape, null, proto.getName(), DataType.FLOAT64);
             case BFLOAT16 -> new Tensor(readBfloat16(proto, count, context), shape, null, proto.getName(), DataType.BFLOAT16);
             case INT32 -> new Tensor(readInt32(proto, count, context), shape, null, proto.getName(), DataType.INT32);
+            case INT64 -> new Tensor(readInt64(proto, count, context), shape, null, proto.getName(), DataType.INT64);
             case BOOL -> new Tensor(readBool(proto, count, context), shape, null, proto.getName(), DataType.BOOL);
         });
     }
@@ -294,13 +298,23 @@ final class OnnxTensorProtoUtil {
         return out;
     }
 
+    private static long[] logicalInt64(Tensor tensor) {
+        if (tensor.isContiguous() && !tensor.hasStorageOffset()) {
+            return Arrays.copyOf(tensor.getInt64Data(), tensor.getFlatDataSize());
+        }
+        long[] out = new long[tensor.getFlatDataSize()];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = tensor.getInt64ByFlatIndex(i);
+        }
+        return out;
+    }
+
     record ImportedConstant(Tensor tensor, long[] int64Values) {
         static ImportedConstant tensor(Tensor tensor) {
-            return new ImportedConstant(tensor, null);
-        }
-
-        static ImportedConstant int64(long[] values) {
-            return new ImportedConstant(null, values);
+            long[] int64Values = tensor != null && tensor.getDataType() == DataType.INT64
+                    ? logicalInt64(tensor)
+                    : null;
+            return new ImportedConstant(tensor, int64Values);
         }
 
         boolean isTensor() {

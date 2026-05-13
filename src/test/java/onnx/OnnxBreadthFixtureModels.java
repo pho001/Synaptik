@@ -121,7 +121,7 @@ public final class OnnxBreadthFixtureModels {
         return fixture(
                 "argmax_keepdims_true.onnx",
                 y,
-                Map.of("y", expected(new int[]{2, 1}, DataType.INT32, 1, 0)),
+                Map.of("y", expected(new int[]{2, 1}, DataType.INT64, 1, 0)),
                 Map.of("input", new float[]{1f, 4f, 4f, 7f, 6f, 7f})
         );
     }
@@ -133,7 +133,7 @@ public final class OnnxBreadthFixtureModels {
         return fixture(
                 "argmax_keepdims_false.onnx",
                 y,
-                Map.of("y", expected(new int[]{2}, DataType.INT32, 1, 0)),
+                Map.of("y", expected(new int[]{2}, DataType.INT64, 1, 0)),
                 Map.of("input", new float[]{1f, 4f, 4f, 7f, 6f, 7f})
         );
     }

@@ -11,6 +11,7 @@ import tensor.options.Conv2dOptions;
 import tensor.options.Pool2dOptions;
 
 import java.nio.file.Files;
+import java.util.List;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -523,6 +524,106 @@ class OnnxExportImportTest {
         assertEquals("LayerNormalization", layerNorm.getOpType());
         assertTrue(layerNorm.getAttributeList().stream()
                 .anyMatch(attr -> attr.getName().equals("axis") && attr.getI() == 1));
+
+        Tensor bnInput = new Tensor(new float[6], new int[]{1, 3, 2}, null, "bnInput", DataType.FLOAT32);
+        Tensor bnScale = new Tensor(new float[]{1f, 1.5f, 2f}, new int[]{3}, null, "bnScale", DataType.FLOAT32);
+        Tensor bnBias = new Tensor(new float[]{0f, 1f, -1f}, new int[]{3}, null, "bnBias", DataType.FLOAT32);
+        Tensor bnMean = new Tensor(new float[]{1f, 2f, 3f}, new int[]{3}, null, "bnMean", DataType.FLOAT32);
+        Tensor bnVar = new Tensor(new float[]{4f, 9f, 16f}, new int[]{3}, null, "bnVar", DataType.FLOAT32);
+        OnnxProto.NodeProto batchNorm = singleNode(bnInput.batchNorm(bnScale, bnBias, bnMean, bnVar, 1, 1.0e-3));
+        assertEquals("BatchNormalization", batchNorm.getOpType());
+        assertEquals(5, batchNorm.getInputCount());
+        assertTrue(batchNorm.getAttributeList().stream()
+                .anyMatch(attr -> attr.getName().equals("epsilon") && Math.abs(attr.getF() - 1.0e-3f) < 1.0e-8f));
+    }
+
+    @Test
+    void batchNormalizationRoundTripsThroughOnnx() {
+        Tensor input = new Tensor(new float[6], new int[]{1, 3, 2}, null, "input", DataType.FLOAT32);
+        Tensor scale = new Tensor(new float[]{1f, 1.5f, 2f}, new int[]{3}, null, "scale", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0f, 1f, -1f}, new int[]{3}, null, "bias", DataType.FLOAT32);
+        Tensor mean = new Tensor(new float[]{1f, 2f, 3f}, new int[]{3}, null, "mean", DataType.FLOAT32);
+        Tensor variance = new Tensor(new float[]{4f, 9f, 16f}, new int[]{3}, null, "variance", DataType.FLOAT32);
+        Tensor out = input.batchNorm(scale, bias, mean, variance, 1, 1.0e-3);
+        out.setLabel("bn_out");
+
+        OnnxModel exported = Onnx.exportModel(out, OnnxExportOptions.defaults().withLeafTensorPolicy(OnnxLeafTensorPolicy.INPUTS));
+        ImportedOnnxModel imported = Onnx.importModel(exported.proto());
+        imported.input("input").setData(new float[]{1f, 3f, 2f, 5f, 3f, 7f});
+        imported.input("scale").setData(new float[]{1f, 1.5f, 2f});
+        imported.input("bias").setData(new float[]{0f, 1f, -1f});
+        imported.input("mean").setData(new float[]{1f, 2f, 3f});
+        imported.input("variance").setData(new float[]{4f, 9f, 16f});
+
+        execute(imported, "bn_out");
+
+        Tensor expected = new Tensor(new float[]{1f, 3f, 2f, 5f, 3f, 7f}, new int[]{1, 3, 2}, null, "expectedInput", DataType.FLOAT32)
+                .batchNorm(scale, bias, mean, variance, 1, 1.0e-3);
+        expected.compute();
+        assertArrayEquals(expected.toDoubleArrayCopy(), imported.output("bn_out").toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void splitOutputSiblingsExportAsSingleOnnxSplit() {
+        Tensor input = new Tensor(new float[12], new int[]{2, 6}, null, "splitInput", DataType.FLOAT32);
+        Tensor left = input.slice(new int[]{0, 0}, new int[]{2, 2}, new int[]{0, 1}, new int[]{1, 1});
+        left.setLabel("left");
+        Tensor right = input.slice(new int[]{0, 2}, new int[]{2, 6}, new int[]{0, 1}, new int[]{1, 1});
+        right.setLabel("right");
+
+        OnnxModel exported = Onnx.exportModel(
+                List.of(left, right),
+                OnnxExportOptions.defaults().withLeafTensorPolicy(OnnxLeafTensorPolicy.INPUTS)
+        );
+        OnnxProto.GraphProto graph = exported.proto().getGraph();
+        assertEquals(1, graph.getNodeCount());
+        assertEquals("Split", graph.getNode(0).getOpType());
+        assertEquals(2, graph.getNode(0).getOutputCount());
+        assertEquals(2, graph.getOutputCount());
+
+        ImportedOnnxModel imported = Onnx.importModel(exported.proto());
+        imported.input("splitInput").setData(new float[]{
+                1f, 2f, 3f, 4f, 5f, 6f,
+                7f, 8f, 9f, 10f, 11f, 12f
+        });
+        execute(imported, "left");
+        execute(imported, "right");
+
+        assertArrayEquals(new double[]{1, 2, 7, 8}, imported.output("left").toDoubleArrayCopy(), 1e-6);
+        assertArrayEquals(new double[]{3, 4, 5, 6, 9, 10, 11, 12}, imported.output("right").toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void constantNodeLeafPolicyExportsLiteralConstantProducer() {
+        Tensor constant = new Tensor(new float[]{1f, 2f, 3f}, new int[]{3}, null, "literal", DataType.FLOAT32);
+
+        OnnxModel exported = Onnx.exportModel(
+                constant,
+                OnnxExportOptions.defaults().withLeafTensorPolicy(OnnxLeafTensorPolicy.CONSTANT_NODES)
+        );
+
+        OnnxProto.GraphProto graph = exported.proto().getGraph();
+        assertEquals(0, graph.getInputCount());
+        assertEquals(0, graph.getInitializerCount());
+        assertEquals(1, graph.getNodeCount());
+        assertEquals("Constant", graph.getNode(0).getOpType());
+        ImportedOnnxModel imported = Onnx.importModel(exported.proto());
+        assertArrayEquals(new double[]{1, 2, 3}, imported.output("literal").toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void int64ConstantNodeRoundTripsAsRuntimeTensor() {
+        Tensor constant = new Tensor(new long[]{3L, 5L, 8L}, new int[]{3}, null, "literal_i64", DataType.INT64);
+
+        OnnxModel exported = Onnx.exportModel(
+                constant,
+                OnnxExportOptions.defaults().withLeafTensorPolicy(OnnxLeafTensorPolicy.CONSTANT_NODES)
+        );
+
+        ImportedOnnxModel imported = Onnx.importModel(exported.proto());
+
+        assertEquals(DataType.INT64, imported.output("literal_i64").getDataType());
+        assertArrayEquals(new long[]{3L, 5L, 8L}, imported.output("literal_i64").getInt64Data());
     }
 
     @Test
@@ -683,7 +784,7 @@ class OnnxExportImportTest {
                 .addOutput(OnnxTensorProtoUtil.valueInfo("pad_y", DataType.FLOAT32, new int[]{3, 3}))
                 .addOutput(OnnxTensorProtoUtil.valueInfo("tile_y", DataType.FLOAT32, new int[]{4, 6}))
                 .addOutput(OnnxTensorProtoUtil.valueInfo("prod_y", DataType.FLOAT32, new int[]{2}))
-                .addOutput(OnnxTensorProtoUtil.valueInfo("arg_y", DataType.INT32, new int[]{2, 1}))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("arg_y", DataType.INT64, new int[]{2, 1}))
                 .addOutput(OnnxTensorProtoUtil.valueInfo("pool_y", DataType.FLOAT32, new int[]{1, 2, 1, 1}))
                 .addOutput(OnnxTensorProtoUtil.valueInfo("split_a", DataType.FLOAT32, new int[]{2, 1}))
                 .addOutput(OnnxTensorProtoUtil.valueInfo("split_b", DataType.FLOAT32, new int[]{2, 3})));
@@ -708,7 +809,7 @@ class OnnxExportImportTest {
         execute(imported, "prod_y");
         assertArrayEquals(new double[]{6.0, 120.0}, imported.output("prod_y").toDoubleArrayCopy(), 1e-6);
         execute(imported, "arg_y");
-        assertEquals(DataType.INT32, imported.output("arg_y").getDataType());
+        assertEquals(DataType.INT64, imported.output("arg_y").getDataType());
         assertArrayEquals(new double[]{1.0, 0.0}, imported.output("arg_y").toDoubleArrayCopy(), 1e-6);
         execute(imported, "pool_y");
         assertArrayEquals(new double[]{2.5, 25.0}, imported.output("pool_y").toDoubleArrayCopy(), 1e-6);
@@ -793,15 +894,20 @@ class OnnxExportImportTest {
     }
 
     @Test
-    void importGatherElementsRejectsInt64ShapeConstantIndices() {
+    void importGatherElementsSupportsInt64RuntimeIndices() {
         OnnxProto.ModelProto model = model("gather_elements_int64_indices", graph -> graph
                 .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2, 3}))
-                .addInitializer(OnnxTensorProtoUtil.int64Initializer("idx", new long[]{2, 1, 0, 0}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("idx",
+                        new Tensor(new long[]{2L, 1L, 0L, 0L}, new int[]{2, 2}, null, "idx", DataType.INT64)))
                 .addNode(axisNode("gather_elements", "GatherElements", "y", 1, "x", "idx"))
                 .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 2})));
 
-        OnnxUnsupportedException ex = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(model));
-        assertTrue(ex.getMessage().contains("GatherElements requires runtime INT32 indices"));
+        ImportedOnnxModel imported = Onnx.importModel(model);
+        imported.input("x").setData(new float[]{1f, 2f, 3f, 4f, 5f, 6f});
+
+        execute(imported, "y");
+
+        assertArrayEquals(new double[]{3.0, 2.0, 4.0, 4.0}, imported.output("y").toDoubleArrayCopy(), 1e-6);
     }
 
     @Test
@@ -894,12 +1000,13 @@ class OnnxExportImportTest {
                 .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 2, 2})));
         OnnxProto.ModelProto int64Indices = model("gather_nd_int64_indices", graph -> graph
                 .addInput(OnnxTensorProtoUtil.valueInfo("data", DataType.FLOAT32, new int[]{2, 3}))
-                .addInitializer(OnnxTensorProtoUtil.int64Initializer("indices", new long[]{0, 2}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("indices",
+                        new Tensor(new long[]{0L, 2L}, new int[]{1, 2}, null, "indices", DataType.INT64)))
                 .addNode(node("gather_nd", "GatherND", "y", "data", "indices"))
                 .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{1})));
 
         ImportedOnnxModel imported = Onnx.importModel(batchDims);
-        OnnxUnsupportedException int64Ex = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(int64Indices));
+        ImportedOnnxModel importedInt64 = Onnx.importModel(int64Indices);
 
         imported.input("data").setData(new float[]{
                 1f, 2f,
@@ -917,7 +1024,10 @@ class OnnxExportImportTest {
                 9.0, 10.0,
                 7.0, 8.0
         }, imported.output("y").toDoubleArrayCopy(), 1e-6);
-        assertTrue(int64Ex.getMessage().contains("GatherND requires runtime INT32 indices"));
+
+        importedInt64.input("data").setData(new float[]{10f, 20f, 30f, 40f, 50f, 60f});
+        execute(importedInt64, "y");
+        assertArrayEquals(new double[]{30.0}, importedInt64.output("y").toDoubleArrayCopy(), 1e-6);
     }
 
     @Test
@@ -1052,10 +1162,11 @@ class OnnxExportImportTest {
     }
 
     @Test
-    void importRejectsScatterElementsAndScatterNdInvalidCases() {
+    void importSupportsInt64ScatterIndicesAndRejectsDuplicateNoneCases() {
         OnnxProto.ModelProto int64ScatterElements = model("scatter_elements_int64_indices", graph -> graph
                 .addInput(OnnxTensorProtoUtil.valueInfo("data", DataType.FLOAT32, new int[]{2, 3}))
-                .addInitializer(OnnxTensorProtoUtil.int64Initializer("indices", new long[]{2, 0, 0, 2}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("indices",
+                        new Tensor(new long[]{2L, 0L, 0L, 2L}, new int[]{2, 2}, null, "indices", DataType.INT64)))
                 .addInitializer(OnnxTensorProtoUtil.tensorInitializer("updates",
                         new Tensor(new float[]{1f, 5f, 7f, 9f}, new int[]{2, 2}, null, "updates", DataType.FLOAT32)))
                 .addNode(axisNode("scatter_elements", "ScatterElements", "y", 1, "data", "indices", "updates"))
@@ -1070,7 +1181,8 @@ class OnnxExportImportTest {
                 .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 3})));
         OnnxProto.ModelProto int64ScatterNd = model("scatter_nd_int64_indices", graph -> graph
                 .addInput(OnnxTensorProtoUtil.valueInfo("data", DataType.FLOAT32, new int[]{2, 3}))
-                .addInitializer(OnnxTensorProtoUtil.int64Initializer("indices", new long[]{0, 1}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("indices",
+                        new Tensor(new long[]{0L, 1L}, new int[]{1, 2}, null, "indices", DataType.INT64)))
                 .addInitializer(OnnxTensorProtoUtil.tensorInitializer("updates",
                         new Tensor(new float[]{9f}, new int[]{1}, null, "updates", DataType.FLOAT32)))
                 .addNode(node("scatter_nd", "ScatterND", "y", "data", "indices", "updates"))
@@ -1084,15 +1196,25 @@ class OnnxExportImportTest {
                 .addNode(node("scatter_nd", "ScatterND", "y", "data", "indices", "updates"))
                 .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 3})));
 
-        OnnxUnsupportedException elementsEx = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(int64ScatterElements));
-        OnnxUnsupportedException ndEx = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(int64ScatterNd));
+        ImportedOnnxModel int64ElementsImported = Onnx.importModel(int64ScatterElements);
+        int64ElementsImported.input("data").setData(new float[]{10f, 20f, 30f, 40f, 50f, 60f});
+        ImportedOnnxModel int64NdImported = Onnx.importModel(int64ScatterNd);
+        int64NdImported.input("data").setData(new float[]{10f, 20f, 30f, 40f, 50f, 60f});
         ImportedOnnxModel duplicateImported = Onnx.importModel(duplicateNone);
         duplicateImported.input("data").setData(new float[]{10f, 20f, 30f, 40f, 50f, 60f});
         ImportedOnnxModel duplicateScatterNdImported = Onnx.importModel(duplicateScatterNdNone);
         duplicateScatterNdImported.input("data").setData(new float[]{10f, 20f, 30f, 40f, 50f, 60f});
 
-        assertTrue(elementsEx.getMessage().contains("ScatterElements requires runtime INT32 indices"));
-        assertTrue(ndEx.getMessage().contains("ScatterND requires runtime INT32 indices"));
+        execute(int64ElementsImported, "y");
+        assertArrayEquals(new double[]{
+                5.0, 20.0, 1.0,
+                7.0, 50.0, 9.0
+        }, int64ElementsImported.output("y").toDoubleArrayCopy(), 1e-6);
+        execute(int64NdImported, "y");
+        assertArrayEquals(new double[]{
+                10.0, 9.0, 30.0,
+                40.0, 50.0, 60.0
+        }, int64NdImported.output("y").toDoubleArrayCopy(), 1e-6);
         assertThrows(IllegalArgumentException.class, () -> execute(duplicateImported, "y"));
         assertThrows(IllegalArgumentException.class, () -> execute(duplicateScatterNdImported, "y"));
     }

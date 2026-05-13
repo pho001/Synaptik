@@ -12,6 +12,7 @@ final class OnnxDataTypes {
             case FLOAT64 -> OnnxProto.TensorProto.DataType.DOUBLE.getNumber();
             case BFLOAT16 -> OnnxProto.TensorProto.DataType.BFLOAT16.getNumber();
             case INT32 -> OnnxProto.TensorProto.DataType.INT32.getNumber();
+            case INT64 -> OnnxProto.TensorProto.DataType.INT64.getNumber();
             case BOOL -> OnnxProto.TensorProto.DataType.BOOL.getNumber();
         };
     }
@@ -26,6 +27,7 @@ final class OnnxDataTypes {
             case DOUBLE -> DataType.FLOAT64;
             case BFLOAT16 -> DataType.BFLOAT16;
             case INT32 -> DataType.INT32;
+            case INT64 -> DataType.INT64;
             case BOOL -> DataType.BOOL;
             default -> throw new OnnxUnsupportedException(context + " uses unsupported ONNX dtype " + type + ".");
         };

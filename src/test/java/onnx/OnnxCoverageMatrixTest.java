@@ -53,7 +53,7 @@ class OnnxCoverageMatrixTest {
                 OnnxCoverageMatrix.entryFor("Conv").metalStatus());
         assertEquals(OnnxCoverageMatrix.CoverageStatus.UNSUPPORTED,
                 OnnxCoverageMatrix.entryFor("Conv").cudaStatus());
-        assertEquals(OnnxCoverageMatrix.CoverageStatus.UNSUPPORTED,
+        assertEquals(OnnxCoverageMatrix.CoverageStatus.SUPPORTED,
                 OnnxCoverageMatrix.entryFor("BatchNormalization").exportStatus());
     }
 

@@ -62,7 +62,8 @@ final class OnnxGraphImporter {
             if (constant.isTensor()) {
                 tensors.put(name, constant.tensor());
                 constantTensors.add(name);
-            } else {
+            }
+            if (constant.int64Values() != null) {
                 int64Constants.put(name, constant.int64Values());
             }
         }
@@ -240,9 +241,8 @@ final class OnnxGraphImporter {
                 value,
                 "Constant node '" + nodeName(node) + "'"
         );
-        if (!constant.isTensor()) {
+        if (constant.int64Values() != null) {
             int64Constants.put(node.getOutput(0), constant.int64Values());
-            return null;
         }
         constantTensors.add(node.getOutput(0));
         return constant.tensor();
@@ -349,15 +349,12 @@ final class OnnxGraphImporter {
         }
         String inputName = node.getInput(0);
         long[] shapeConstant = int64Constants.get(inputName);
-        if (shapeConstant != null) {
+        if (shapeConstant != null && !tensors.containsKey(inputName)) {
             if (!OnnxDataTypes.isInt64(to) && to != OnnxProto.TensorProto.DataType.INT32.getNumber()) {
                 throw unsupported(node, "shape-only Cast supports only INT64/INT32 targets");
             }
             int64Constants.put(node.getOutput(0), shapeConstant.clone());
             return null;
-        }
-        if (OnnxDataTypes.isInt64(to)) {
-            throw unsupported(node, "runtime INT64 tensors are not supported");
         }
         return TensorOps.cast(tensorInput(node, tensors, 0), OnnxDataTypes.toSynaptik(to, "Cast node '" + nodeName(node) + "'"));
     }
@@ -630,9 +627,6 @@ final class OnnxGraphImporter {
                 value,
                 "ConstantOfShape node '" + nodeName(node) + "' value"
         );
-        if (!constant.isTensor()) {
-            throw unsupported(node, "ConstantOfShape runtime INT64 output is unsupported");
-        }
         Tensor scalar = constant.tensor();
         if (scalar.getFlatDataSize() != 1) {
             throw unsupported(node, "ConstantOfShape value attribute must be scalar");
@@ -673,6 +667,11 @@ final class OnnxGraphImporter {
                 Arrays.fill(data, (int) value);
                 yield new Tensor(data, shape, null, label, DataType.INT32);
             }
+            case INT64 -> {
+                long[] data = new long[count];
+                Arrays.fill(data, (long) value);
+                yield new Tensor(data, shape, null, label, DataType.INT64);
+            }
             case BOOL -> {
                 byte[] data = new byte[count];
                 Arrays.fill(data, value == 0.0d ? (byte) 0 : (byte) 1);
@@ -694,8 +693,10 @@ final class OnnxGraphImporter {
             long start = singleIntConstant(node, int64Constants.get(node.getInput(0)), "start");
             long limit = singleIntConstant(node, int64Constants.get(node.getInput(1)), "limit");
             long delta = singleIntConstant(node, int64Constants.get(node.getInput(2)), "delta");
-            int64Constants.put(node.getOutput(0), longRange(node, start, limit, delta));
-            return null;
+            long[] values = longRange(node, start, limit, delta);
+            int64Constants.put(node.getOutput(0), values);
+            constantTensors.add(node.getOutput(0));
+            return new Tensor(values, new int[]{values.length}, null, node.getOutput(0), DataType.INT64);
         }
         Tensor start = scalarTensorConstant(node, tensors, constantTensors, 0, "start");
         Tensor limit = scalarTensorConstant(node, tensors, constantTensors, 1, "limit");
@@ -778,6 +779,11 @@ final class OnnxGraphImporter {
                 int[] data = new int[values.size()];
                 for (int i = 0; i < data.length; i++) data[i] = values.get(i).intValue();
                 yield new Tensor(data, shape, null, node.getOutput(0), DataType.INT32);
+            }
+            case INT64 -> {
+                long[] data = new long[values.size()];
+                for (int i = 0; i < data.length; i++) data[i] = values.get(i).longValue();
+                yield new Tensor(data, shape, null, node.getOutput(0), DataType.INT64);
             }
             case BOOL -> throw unsupported(node, "Range BOOL output is unsupported");
         };
@@ -1074,9 +1080,6 @@ final class OnnxGraphImporter {
             OnnxAttributeReader attrs
     ) {
         requireInputCount(node, 2, 2);
-        if (int64Constants.containsKey(node.getInput(1))) {
-            throw unsupported(node, "GatherElements requires runtime INT32 indices; INT64 is supported only for shape constants");
-        }
         return TensorOps.takeAlongAxis(tensorInput(node, tensors, 0), tensorInput(node, tensors, 1), attrs.intAttribute("axis", 0));
     }
 
@@ -1088,9 +1091,6 @@ final class OnnxGraphImporter {
     ) {
         requireInputCount(node, 2, 2);
         int batchDims = attrs.intAttribute("batch_dims", 0);
-        if (int64Constants.containsKey(node.getInput(1))) {
-            throw unsupported(node, "GatherND requires runtime INT32 indices; INT64 is supported only for shape constants");
-        }
         return TensorOps.gatherNd(tensorInput(node, tensors, 0), tensorInput(node, tensors, 1), batchDims);
     }
 
@@ -1101,9 +1101,6 @@ final class OnnxGraphImporter {
             OnnxAttributeReader attrs
     ) {
         requireInputCount(node, 3, 3);
-        if (int64Constants.containsKey(node.getInput(1))) {
-            throw unsupported(node, "ScatterElements requires runtime INT32 indices; INT64 is supported only for shape constants");
-        }
         return TensorOps.scatterElements(
                 tensorInput(node, tensors, 0),
                 tensorInput(node, tensors, 1),
@@ -1120,9 +1117,6 @@ final class OnnxGraphImporter {
             OnnxAttributeReader attrs
     ) {
         requireInputCount(node, 3, 3);
-        if (int64Constants.containsKey(node.getInput(1))) {
-            throw unsupported(node, "ScatterND requires runtime INT32 indices; INT64 is supported only for shape constants");
-        }
         return TensorOps.scatterNd(
                 tensorInput(node, tensors, 0),
                 tensorInput(node, tensors, 1),

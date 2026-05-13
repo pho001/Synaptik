@@ -22,6 +22,10 @@ final class OnnxExportPatternRegistry {
     }
 
     static Optional<OnnxExportPatternMatch> match(Tensor tensor, OnnxExportPatternContext context) {
+        Optional<OnnxExportPatternMatch> batchNormalization = matchBatchNormalization(tensor, context);
+        if (batchNormalization.isPresent()) {
+            return batchNormalization;
+        }
         Optional<OnnxExportPatternMatch> leakyRelu = matchLeakyRelu(tensor, context);
         if (leakyRelu.isPresent()) {
             return leakyRelu;
@@ -55,6 +59,99 @@ final class OnnxExportPatternRegistry {
             return reduceL1;
         }
         return matchGlobalAveragePool(tensor, context);
+    }
+
+    private static Optional<OnnxExportPatternMatch> matchBatchNormalization(Tensor tensor, OnnxExportPatternContext context) {
+        if (!hasOp(tensor, Operation.OpType.ADD)) {
+            return Optional.empty();
+        }
+        Tensor left = input(tensor, 0);
+        Tensor right = input(tensor, 1);
+        Tensor scaled;
+        Tensor betaView;
+        if (hasOp(left, Operation.OpType.MUL) && hasOp(right, Operation.OpType.RESHAPE)) {
+            scaled = left;
+            betaView = right;
+        } else if (hasOp(right, Operation.OpType.MUL) && hasOp(left, Operation.OpType.RESHAPE)) {
+            scaled = right;
+            betaView = left;
+        } else {
+            return Optional.empty();
+        }
+        if (!context.canConsume(scaled) || !context.canConsume(betaView)) {
+            return Optional.empty();
+        }
+        Tensor scaledLeft = input(scaled, 0);
+        Tensor scaledRight = input(scaled, 1);
+        Tensor normalized;
+        Tensor gammaView;
+        if (hasOp(scaledLeft, Operation.OpType.DIV) && hasOp(scaledRight, Operation.OpType.RESHAPE)) {
+            normalized = scaledLeft;
+            gammaView = scaledRight;
+        } else if (hasOp(scaledRight, Operation.OpType.DIV) && hasOp(scaledLeft, Operation.OpType.RESHAPE)) {
+            normalized = scaledRight;
+            gammaView = scaledLeft;
+        } else {
+            return Optional.empty();
+        }
+        if (!context.canConsume(normalized) || !context.canConsume(gammaView)) {
+            return Optional.empty();
+        }
+        Tensor centered = input(normalized, 0);
+        Tensor denominator = input(normalized, 1);
+        if (!hasOp(centered, Operation.OpType.SUB) || !hasOp(denominator, Operation.OpType.SQRT)
+                || !context.canConsume(centered) || !context.canConsume(denominator)) {
+            return Optional.empty();
+        }
+        Tensor source = input(centered, 0);
+        Tensor meanView = input(centered, 1);
+        int[] sourceShape = source.getShapeUnsafe();
+        if (sourceShape.length < 2) {
+            return Optional.empty();
+        }
+        Tensor variancePlusEpsilon = input(denominator, 0);
+        if (!hasOp(variancePlusEpsilon, Operation.OpType.ADD) || !context.canConsume(variancePlusEpsilon)) {
+            return Optional.empty();
+        }
+        Tensor addLeft = input(variancePlusEpsilon, 0);
+        Tensor addRight = input(variancePlusEpsilon, 1);
+        Tensor varianceView;
+        Tensor epsilon;
+        if (hasOp(addLeft, Operation.OpType.RESHAPE) && isScalarConstant(addRight)) {
+            varianceView = addLeft;
+            epsilon = addRight;
+        } else if (hasOp(addRight, Operation.OpType.RESHAPE) && isScalarConstant(addLeft)) {
+            varianceView = addRight;
+            epsilon = addLeft;
+        } else {
+            return Optional.empty();
+        }
+        if (!context.canConsume(varianceView) || !isConsumableScalar(epsilon, epsilon.scalarAsDouble(), context)) {
+            return Optional.empty();
+        }
+        Optional<Tensor> gamma = matchChannelReshape(gammaView, sourceShape, context);
+        Optional<Tensor> beta = matchChannelReshape(betaView, sourceShape, context);
+        Optional<Tensor> mean = matchChannelReshape(meanView, sourceShape, context);
+        Optional<Tensor> variance = matchChannelReshape(varianceView, sourceShape, context);
+        if (gamma.isEmpty() || beta.isEmpty() || mean.isEmpty() || variance.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Set<Tensor> consumed = identitySet();
+        Collections.addAll(consumed, scaled, betaView, normalized, gammaView, centered, denominator,
+                meanView, variancePlusEpsilon, varianceView, epsilon);
+        OnnxProto.NodeProto node = OnnxProto.NodeProto.newBuilder()
+                .setName("node_" + context.id(tensor))
+                .setOpType("BatchNormalization")
+                .addInput(context.name(source))
+                .addInput(context.name(gamma.get()))
+                .addInput(context.name(beta.get()))
+                .addInput(context.name(mean.get()))
+                .addInput(context.name(variance.get()))
+                .addOutput(context.name(tensor))
+                .addAttribute(floatAttr("epsilon", (float) epsilon.scalarAsDouble()))
+                .build();
+        return Optional.of(new OnnxExportPatternMatch(node, consumed));
     }
 
     private static Optional<OnnxExportPatternMatch> matchLeakyRelu(Tensor tensor, OnnxExportPatternContext context) {
@@ -289,6 +386,26 @@ final class OnnxExportPatternRegistry {
         Set<Tensor> consumed = identitySet();
         consumed.add(firstTensor);
         return Optional.of(new OnnxExportPatternMatch(node("GlobalAveragePool", tensor, input, context).build(), consumed));
+    }
+
+    private static Optional<Tensor> matchChannelReshape(Tensor tensor, int[] sourceShape, OnnxExportPatternContext context) {
+        if (!(tensor.getOperation() instanceof operations.layout.reshape reshape) || !context.canConsume(tensor)) {
+            return Optional.empty();
+        }
+        Tensor parameter = input(tensor, 0);
+        int channels = sourceShape[1];
+        int[] parameterShape = parameter.getShapeUnsafe();
+        int[] targetShape = reshape.getTargetShape();
+        if (parameterShape.length != 1 || parameterShape[0] != channels || targetShape.length != sourceShape.length) {
+            return Optional.empty();
+        }
+        for (int i = 0; i < targetShape.length; i++) {
+            int expected = i == 1 ? channels : 1;
+            if (targetShape[i] != expected) {
+                return Optional.empty();
+            }
+        }
+        return Optional.of(parameter);
     }
 
     private static Optional<ReductionMatch> matchSum(Tensor tensor) {

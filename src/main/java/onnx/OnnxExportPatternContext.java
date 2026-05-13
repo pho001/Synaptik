@@ -3,15 +3,16 @@ package onnx;
 import tensor.Tensor;
 
 import java.util.IdentityHashMap;
+import java.util.Set;
 
 record OnnxExportPatternContext(
-        Tensor graphOutput,
+        Set<Tensor> graphOutputs,
         IdentityHashMap<Tensor, Integer> consumerCounts,
         IdentityHashMap<Tensor, Integer> ids,
         OnnxNameRegistry names
 ) {
     boolean canConsume(Tensor tensor) {
-        return tensor != graphOutput && consumerCounts.getOrDefault(tensor, 0) == 1;
+        return !graphOutputs.contains(tensor) && consumerCounts.getOrDefault(tensor, 0) == 1;
     }
 
     int id(Tensor tensor) {
