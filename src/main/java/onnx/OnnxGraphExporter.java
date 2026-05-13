@@ -194,7 +194,7 @@ final class OnnxGraphExporter {
             case AVG_POOL2D -> exportAveragePool(node, op);
             case LAYER_NORM -> exportLayerNormalization(node, op, tensor);
             case PERMUTE -> exportPermute(node, op);
-            case RESHAPE -> exportReshape(node, op, names, graphBuilder);
+            case RESHAPE -> exportReshape(node, op, tensor, names, graphBuilder);
             case EXPAND -> exportExpand(node, op, names, graphBuilder);
             case SLICE -> exportSlice(node, op, names, graphBuilder);
             case CONCAT -> exportConcat(node, op);
@@ -298,13 +298,51 @@ final class OnnxGraphExporter {
     private static void exportReshape(
             OnnxProto.NodeProto.Builder node,
             Operation op,
+            Tensor tensor,
             OnnxNameRegistry names,
             OnnxProto.GraphProto.Builder graphBuilder
     ) {
+        Integer flattenAxis = flattenAxis(tensor, ((reshape) op).getTargetShape());
+        if (flattenAxis != null) {
+            node.setOpType("Flatten");
+            if (flattenAxis != 1) {
+                node.addAttribute(intAttr("axis", flattenAxis));
+            }
+            return;
+        }
         node.setOpType("Reshape");
         String shapeName = names.auxiliary(node.getOutput(0) + "_shape");
         graphBuilder.addInitializer(OnnxTensorProtoUtil.int64Initializer(shapeName, toLong(((reshape) op).getTargetShape())));
         node.addInput(shapeName);
+    }
+
+    private static Integer flattenAxis(Tensor tensor, int[] targetShape) {
+        if (targetShape.length != 2) {
+            return null;
+        }
+        List<Tensor> inputs = tensor.getPrevTensors();
+        if (inputs == null || inputs.size() != 1) {
+            return null;
+        }
+        int[] inputShape = inputs.get(0).getShapeUnsafe();
+        if (inputShape.length <= 2) {
+            return null;
+        }
+        for (int axis = 0; axis <= inputShape.length; axis++) {
+            if (product(inputShape, 0, axis) == targetShape[0]
+                    && product(inputShape, axis, inputShape.length) == targetShape[1]) {
+                return axis;
+            }
+        }
+        return null;
+    }
+
+    private static int product(int[] values, int startInclusive, int endExclusive) {
+        int product = 1;
+        for (int i = startInclusive; i < endExclusive; i++) {
+            product *= values[i];
+        }
+        return product;
     }
 
     private static void exportExpand(

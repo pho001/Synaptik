@@ -171,3 +171,6 @@ Pouzivane hodnoty:
 
 - [66-onnx-interchange-closure-wave-6.md](./66-onnx-interchange-closure-wave-6.md)
   - Status: `IMPLEMENTED`. Dalsi ONNX closure vlna: composite reduction/global-pool export recognizery, sirsi static-param hardening, mini model suite expansion, coverage evidence upgrade, GPU parity audit bez overclaimu a workflow docs.
+
+- [67-onnx-evidence-and-export-policy-closure.md](./67-onnx-evidence-and-export-policy-closure.md)
+  - Status: `IMPLEMENTED`. ONNX evidence closure bez GPU scope: `ROUND_TRIP_TESTED` rows narostly na 70, `EXPLICITLY_CLASSIFIED` zustal jen `Constant`, canonical `Flatten` export je zpresneny pro reshape pattern a `OnnxLeafTensorPolicy` ma explicitni kontrakt testy.

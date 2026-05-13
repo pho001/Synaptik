@@ -105,7 +105,7 @@ Supported node families:
 | `BatchNormalization` | Single-output inference form mapped to external-statistics `Tensor.batchNorm` with channel axis 1. `training_mode=1` and multi-output training forms are rejected. Export is not first-class because Synaptik currently represents batch norm as a composed graph, not a single descriptor. |
 | `Transpose` | `Tensor.permute`. |
 | `Reshape` | `Tensor.reshape` with constant shape input. |
-| `Flatten` | Static reshape using the ONNX `axis` attribute. |
+| `Flatten` | Static reshape using the ONNX `axis` attribute. Export emits canonical `Flatten` only for rank > 2 reshapes whose rank-2 target exactly matches an ONNX flatten split; other reshapes remain `Reshape`. |
 | `Expand` | `Tensor.expand` with constant target shape. |
 | `Pad` | Constant-mode padding mapped to `Tensor.pad`. Pads must be static, non-negative, and have length `2 * rank`; the optional pad value must be a scalar initializer or scalar `Constant` node. Reflect/edge/wrap modes are rejected because they require different boundary semantics. |
 | `Tile` | `Tensor.tile` with static positive repeat counts. The repeat vector length must match input rank. |

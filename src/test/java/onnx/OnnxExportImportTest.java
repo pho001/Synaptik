@@ -51,6 +51,31 @@ class OnnxExportImportTest {
     }
 
     @Test
+    void leafTensorPoliciesControlInputAndInitializerPublication() {
+        Tensor trainable = new Tensor(new float[]{1f, 2f}, new int[]{2}, null, "trainable", DataType.FLOAT32);
+        trainable.setRequiresGrad(true);
+        Tensor fixed = new Tensor(new float[]{3f, 4f}, new int[]{2}, null, "fixed", DataType.FLOAT32);
+        Tensor out = trainable.add(fixed);
+        out.setLabel("policyOut");
+
+        OnnxProto.GraphProto inputs = Onnx.exportModel(out, OnnxExportOptions.defaults()
+                .withLeafTensorPolicy(OnnxLeafTensorPolicy.INPUTS)).proto().getGraph();
+        OnnxProto.GraphProto initializers = Onnx.exportModel(out, OnnxExportOptions.defaults()
+                .withLeafTensorPolicy(OnnxLeafTensorPolicy.INITIALIZERS)).proto().getGraph();
+        OnnxProto.GraphProto trainableInputs = Onnx.exportModel(out, OnnxExportOptions.defaults()
+                .withLeafTensorPolicy(OnnxLeafTensorPolicy.TRAINABLE_INPUTS)).proto().getGraph();
+
+        assertEquals(2, inputs.getInputCount());
+        assertEquals(0, inputs.getInitializerCount());
+        assertEquals(0, initializers.getInputCount());
+        assertEquals(2, initializers.getInitializerCount());
+        assertEquals(1, trainableInputs.getInputCount());
+        assertEquals("trainable", trainableInputs.getInput(0).getName());
+        assertEquals(1, trainableInputs.getInitializerCount());
+        assertEquals("fixed", trainableInputs.getInitializer(0).getName());
+    }
+
+    @Test
     void exportedInputModelImportsAndExecutes() {
         Tensor a = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "b", DataType.FLOAT32);

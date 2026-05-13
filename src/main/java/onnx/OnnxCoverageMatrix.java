@@ -322,14 +322,17 @@ public final class OnnxCoverageMatrix {
     private static boolean roundTripTested(String onnxOp) {
         return switch (onnxOp) {
             case "Add", "Sub", "Mul", "Div", "Min", "Max", "Pow",
-                 "Equal", "Greater", "Less", "And", "Or", "Not",
+                 "Neg", "Abs", "Relu", "Tanh", "Sigmoid", "Exp", "Log", "Sqrt",
+                 "Equal", "Greater", "GreaterOrEqual", "Less", "LessOrEqual", "And", "Or", "Not", "Where",
+                 "Clip", "Cast",
                  "ReduceSum", "ReduceMean", "ReduceMax", "ReduceMin", "ReduceProd",
-                 "MatMul", "Conv", "LayerNormalization",
-                 "GatherElements", "GatherND", "ScatterElements", "ScatterND",
+                 "MatMul", "Gemm", "Conv", "MaxPool", "AveragePool", "LayerNormalization",
+                 "Transpose", "Reshape", "Flatten", "Expand", "Pad", "Tile", "Squeeze", "Unsqueeze", "Slice", "Concat",
+                 "Gather", "GatherElements", "GatherND", "ScatterElements", "ScatterND",
                  "Reciprocal", "Erf", "Floor", "Ceil", "Sign",
                  "LeakyRelu", "Elu", "HardSigmoid", "Softplus",
                  "ReduceL1", "ReduceL2", "ReduceLogSum", "ReduceLogSumExp",
-                 "GlobalAveragePool" -> true;
+                 "ArgMax", "CumSum", "GlobalAveragePool", "Softmax", "LogSoftmax" -> true;
             default -> false;
         };
     }
