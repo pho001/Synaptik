@@ -35,6 +35,7 @@ import graph.optimizer.region.ExecutionUnitKind;
 import graph.optimizer.region.OptimizedRegion;
 import graph.optimizer.region.RegionOptimizationContext;
 import operations.Operation;
+import operations.elementwise.unary.sign;
 import operations.elementwise.where.where;
 import operations.index.gatherAxisGrad;
 import operations.index.gatherGrad;
@@ -320,6 +321,75 @@ class MetalRegionLowererTest {
                 f32ToF64Context
         );
         assertTrue(f32ToF64Reason.contains("FLOAT64_UNSUPPORTED"));
+    }
+
+    @Test
+    void metalUnaryMathParityOpsSupportScopedFloatingSubset() {
+        Tensor input = new Tensor(new float[]{-1.25f, -0.0f, 0.25f, 2.75f}, new int[]{2, 2}, null, "metal70UnaryInput", DataType.FLOAT32);
+
+        assertPlannerSupportedAndLowered(input.erf(), Operation.OpType.ERF, AcceleratorDagNodeType.ERF);
+        assertPlannerSupportedAndLowered(input.floor(), Operation.OpType.FLOOR, AcceleratorDagNodeType.FLOOR);
+        assertPlannerSupportedAndLowered(input.ceil(), Operation.OpType.CEIL, AcceleratorDagNodeType.CEIL);
+        assertPlannerSupportedAndLowered(input.sign(), Operation.OpType.SIGN, AcceleratorDagNodeType.SIGN);
+
+        Tensor bf16 = new Tensor(new double[]{-1.25, -0.0, 0.25, 2.75}, new int[]{2, 2}, null, "metal70UnaryBf16Input", DataType.BFLOAT16);
+        assertPlannerSupportedAndLowered(bf16.erf(), Operation.OpType.ERF, AcceleratorDagNodeType.ERF);
+        assertPlannerSupportedAndLowered(bf16.floor(), Operation.OpType.FLOOR, AcceleratorDagNodeType.FLOOR);
+        assertPlannerSupportedAndLowered(bf16.ceil(), Operation.OpType.CEIL, AcceleratorDagNodeType.CEIL);
+        assertPlannerSupportedAndLowered(bf16.sign(), Operation.OpType.SIGN, AcceleratorDagNodeType.SIGN);
+    }
+
+    @Test
+    void metalUnaryMathParityOpsRejectUnsupportedDtypeAndShapeMismatch() {
+        Tensor f64 = new Tensor(new double[]{-1.25, 0.25}, new int[]{2}, null, "metal70UnaryF64Input", DataType.FLOAT64);
+        Tensor f64Sign = f64.sign();
+        TensorInternalAccess.setBackend(f64Sign, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext f64Context = planningContext(f64Sign);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        f64Context.compiledNode(nodeId(f64Context, Operation.OpType.SIGN)),
+                        f64Context
+                ),
+                "UNSUPPORTED_DTYPE",
+                "FLOAT64"
+        );
+
+        Tensor intInput = new Tensor(new int[]{-1, 0, 2}, new int[]{3}, null, "metal70UnaryIntInput", DataType.INT32);
+        Tensor intSign = TensorPrimitiveBuilder.unaryNoGrad(
+                intInput,
+                intInput.getShape(),
+                new sign(),
+                "metal70UnaryIntSign",
+                DataType.INT32
+        );
+        TensorInternalAccess.setBackend(intSign, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext intContext = planningContext(intSign);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        intContext.compiledNode(nodeId(intContext, Operation.OpType.SIGN)),
+                        intContext
+                ),
+                "UNSUPPORTED_DTYPE",
+                "SIGN"
+        );
+
+        Tensor shapeMismatch = TensorPrimitiveBuilder.unaryNoGrad(
+                new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "metal70UnaryShapeInput", DataType.FLOAT32),
+                new int[]{2, 2},
+                new sign(),
+                "metal70UnaryShapeMismatch",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(shapeMismatch, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext shapeContext = planningContext(shapeMismatch);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        shapeContext.compiledNode(nodeId(shapeContext, Operation.OpType.SIGN)),
+                        shapeContext
+                ),
+                "UNSUPPORTED_RANK_OR_SHAPE",
+                "must preserve input shape"
+        );
     }
 
     @Test

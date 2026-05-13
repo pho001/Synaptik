@@ -155,6 +155,12 @@ public final class MetalPartitionSupport {
                 return layoutReason;
             }
         }
+        if (isUnaryMathParityOp(opType)) {
+            String unaryReason = unaryMathUnsupportedReason(node, context);
+            if (!unaryReason.isBlank()) {
+                return unaryReason;
+            }
+        }
         if (opType == Operation.OpType.GATHER || opType == Operation.OpType.GATHER_AXIS || opType == Operation.OpType.TAKE_ALONG_AXIS) {
             String indexReason = indexGatherUnsupportedReason(node, context);
             if (!indexReason.isBlank()) {
@@ -951,6 +957,43 @@ public final class MetalPartitionSupport {
             case REDUCE_ALL, REDUCE_ANY -> true;
             default -> false;
         };
+    }
+
+    private static boolean isUnaryMathParityOp(Operation.OpType opType) {
+        return opType == Operation.OpType.ERF
+                || opType == Operation.OpType.FLOOR
+                || opType == Operation.OpType.CEIL
+                || opType == Operation.OpType.SIGN;
+    }
+
+    private static String unaryMathUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
+        Operation.OpType opType = node.operation().opType();
+        if (context == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " requires planning context";
+        }
+        if (node.inputIds().size() != 1) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " requires one input";
+        }
+        CompiledNode input = context.compiledNode(node.inputIds().getFirst());
+        if (input == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " input is unavailable";
+        }
+        tensor.DataType dtype = dataType(context, node);
+        if (!isMetalFloatingDType(dtype) || dataType(context, input) != dtype) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL " + opType + " requires dtype-matched FLOAT32/BFLOAT16 input and output";
+        }
+        if (!layoutInputSupported(context, input)) {
+            return "UNSUPPORTED_LAYOUT: GPU_METAL " + opType + " input requires dense layout or GPU-side layout producer";
+        }
+        int[] inputShape = shape(context, input);
+        int[] outputShape = shape(context, node);
+        if (inputShape.length < 1 || inputShape.length > 4 || outputShape.length < 1 || outputShape.length > 4) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " supports rank 1..4 tensors";
+        }
+        if (!Arrays.equals(inputShape, outputShape)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " must preserve input shape";
+        }
+        return "";
     }
 
     private static String boolCompareUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {

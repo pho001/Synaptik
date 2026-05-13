@@ -959,6 +959,18 @@ static void *SynaptikCompilePartition(
                 case 15:
                     outTensor = [graph reciprocalWithTensor:input0 name:@"inv"];
                     break;
+                case 83:
+                    outTensor = [graph erfWithTensor:input0 name:@"erf"];
+                    break;
+                case 84:
+                    outTensor = [graph floorWithTensor:input0 name:@"floor"];
+                    break;
+                case 85:
+                    outTensor = [graph ceilWithTensor:input0 name:@"ceil"];
+                    break;
+                case 86:
+                    outTensor = [graph signWithTensor:input0 name:@"sign"];
+                    break;
                 case 16: {
                     MPSGraphTensor *scalarTensor = SynaptikScalarConstant(
                             graph,

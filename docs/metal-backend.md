@@ -215,7 +215,7 @@ Metal partition legality is intentionally separate from runtime availability. A 
 |---|---|
 | Leaves | Rejected as compute nodes. Leaves become external inputs to a Metal region. |
 | DType | Floating compute and output nodes must be dtype-matched `FLOAT32` or `BFLOAT16` for Metal-supported floating operation families, or `BOOL` for scoped compare/logical/reduction mask families. |
-| Forward ops | Allows `MATMUL`, `LINEAR`, arithmetic elementwise ops, common activations, `WHERE`, `SOFTMAX`, shape/layout ops such as `RESHAPE`, `CONTIGUOUS`, `PERMUTE`, `EXPAND`, `EXPAND_DIMS`, and `SQUEEZE`. |
+| Forward ops | Allows `MATMUL`, `LINEAR`, arithmetic elementwise ops, common activations, `ERF`, `FLOOR`, `CEIL`, `SIGN`, `WHERE`, `SOFTMAX`, shape/layout ops such as `RESHAPE`, `CONTIGUOUS`, `PERMUTE`, `EXPAND`, `EXPAND_DIMS`, and `SQUEEZE`. |
 | Backward layout writes | Allows scoped `SLICE_GRAD` for static dense `FLOAT32/BFLOAT16` `step=1` slice gradients by lowering the gradient slice to a zero-filled pad. This is a write-back gradient operation, not a metadata-only forward view. |
 | Backward ops | Allows `MATMUL`, `LINEAR`, softmax/log-softmax gradients, min/max reduction gradients, min/max gradients, and `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD` for unmasked, dense external BOOL masked, causal, and external+causal SDPA producers. |
 | Direct forward SDPA | Supported for legal dtype-matched `FLOAT32/BFLOAT16` rank-3/4 dense inputs or Q/K/V inputs produced by GPU-side layout legalization nodes after native MPSGraph primitive DAG scale parity verification. |
@@ -683,6 +683,8 @@ Do not infer execution path from `backend=GPU_METAL` alone. A prepared step can 
 BF16 support requires the dtype ABI v3 compile path and follows the same operation-family coverage as Metal `FLOAT32` for floating tensors. It does not expand shape/layout semantics beyond the current Metal contract.
 
 BOOL support is also real but deliberately narrow. Metal can produce and consume device-resident BOOL outputs for dense scoped compare ops (`GT`, `GE`, `LT`, `LE`, `EQ`, `NE`), logical ops (`LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`), and BOOL reductions (`REDUCE_ALL`, `REDUCE_ANY`). A supported `compare -> WHERE -> elementwise` chain should remain a single Metal-owned lowered region with `dtypeResidency` evidence for `dtype=BOOL` and no CPU materialization between the mask producer and `WHERE`.
+
+Unary math support is value-preserving with respect to shape and dtype. `ERF`, `FLOOR`, `CEIL`, and `SIGN` are admitted for dense or GPU-produced `FLOAT32/BFLOAT16` tensors. `FLOOR` and `CEIL` return floating tensors with rounded values; they are not casts to `INT32`, and they do not widen generic integer compute support.
 
 Forward `GATHER` and `TAKE_ALONG_AXIS` support is deliberately scoped: dense `FLOAT32/BFLOAT16` value/output tensors, dense static leaf `INT32` indices, proven in-bounds index values, and native buffer execution through MPSGraph `gatherAlongAxis`. Index-target cross entropy uses the same INT32 role discipline: dense static in-bounds targets are accepted for `CROSS_ENTROPY_LOSS_INDICES` and `CROSS_ENTROPY_LOSS_INDICES_GRAD`; generic INT32 arithmetic/output remains unsupported.
 

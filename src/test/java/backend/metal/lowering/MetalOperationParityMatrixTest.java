@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -57,6 +58,23 @@ class MetalOperationParityMatrixTest {
         assertTrue(row.bufferExecutable());
         assertFalse(row.cpuFallbackOnly());
         assertTrue(row.note().contains("zero-fill pad"));
+    }
+
+    @Test
+    void matrixMarksUnaryMathParityOpsAsMpsGraphMapped() {
+        for (Operation.OpType opType : List.of(Operation.OpType.ERF, Operation.OpType.FLOOR, Operation.OpType.CEIL, Operation.OpType.SIGN)) {
+            MetalOperationParityMatrix.Row row = row(opType);
+
+            assertTrue(row.cpuKernelAvailable(), opType.name());
+            assertFalse(row.cpuFusable(), opType.name());
+            assertEquals("SUPPORTED", row.metalCoverageStatus(), opType.name());
+            assertEquals("SUPPORTED", row.metalReason(), opType.name());
+            assertTrue(row.plannerSupported(), opType.name());
+            assertTrue(row.dagLowerable(), opType.name());
+            assertTrue(row.nativeMpsGraphMapped(), opType.name());
+            assertTrue(row.bufferExecutable(), opType.name());
+            assertFalse(row.cpuFallbackOnly(), opType.name());
+        }
     }
 
     @Test
@@ -155,6 +173,10 @@ class MetalOperationParityMatrixTest {
         assertTrue(markdown.contains("| MIN | yes | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| MAX | yes | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| POW | yes | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| ERF | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| FLOOR | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| CEIL | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| SIGN | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| EXPAND | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| SELECT | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| CAST | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));

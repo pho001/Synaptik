@@ -147,6 +147,16 @@ class AcceleratorSubgraphLowererTest {
     }
 
     @Test
+    void unaryMathParityOpsLowerToDedicatedDagNodes() {
+        Tensor input = new Tensor(new float[]{-1.25f, 0.0f, 2.75f}, new int[]{3}, null, "unaryMathLowerInput", DataType.FLOAT32);
+
+        assertSingleUnaryMathLowering(input.erf(), Operation.OpType.ERF, AcceleratorDagNodeType.ERF);
+        assertSingleUnaryMathLowering(input.floor(), Operation.OpType.FLOOR, AcceleratorDagNodeType.FLOOR);
+        assertSingleUnaryMathLowering(input.ceil(), Operation.OpType.CEIL, AcceleratorDagNodeType.CEIL);
+        assertSingleUnaryMathLowering(input.sign(), Operation.OpType.SIGN, AcceleratorDagNodeType.SIGN);
+    }
+
+    @Test
     void logSoftmaxManifestMapsOneOriginalOpToTwoPrimitives() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "logSoftmaxManifestInput", DataType.FLOAT32);
         Tensor out = specialLogSoftmax(input, 1);
@@ -1008,6 +1018,23 @@ class AcceleratorSubgraphLowererTest {
         assertEquals(expectedType, result.dagSpec().nodes().getFirst().type());
         assertEquals(List.of(node.id()), result.dagSpec().outputNodeIds());
         assertEquals(1, result.dagSpec().nodes().getFirst().scalarValueBits());
+    }
+
+    private static void assertSingleUnaryMathLowering(Tensor out, Operation.OpType opType, AcceleratorDagNodeType expectedType) {
+        PartitionPlanningContext context = planningContext(out);
+        CompiledNode node = context.compiledNode(nodeId(context, opType));
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                spec(node),
+                context
+        );
+
+        assertNotNull(result);
+        assertEquals(expectedType, result.dagSpec().nodes().getFirst().type());
+        assertEquals(0, result.dagSpec().nodes().getFirst().scalarValueBits());
+        assertEquals(DataType.FLOAT32, result.dagSpec().nodes().getFirst().outputDataType());
+        assertEquals(List.of(node.id()), result.dagSpec().outputNodeIds());
     }
 
     private static PartitionPlanningContext planningContext(Tensor out) {

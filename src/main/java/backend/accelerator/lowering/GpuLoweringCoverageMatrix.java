@@ -127,7 +127,11 @@ public final class GpuLoweringCoverageMatrix {
                     "MPSGraph-first elementwise parity gap closed through native accelerator DAG mapping",
                     Operation.OpType.MIN,
                     Operation.OpType.MAX,
-                    Operation.OpType.POW);
+                    Operation.OpType.POW,
+                    Operation.OpType.ERF,
+                    Operation.OpType.FLOOR,
+                    Operation.OpType.CEIL,
+                    Operation.OpType.SIGN);
         } else {
             add(entries, backend, Operation.OpType.MIN, GpuLoweringOperationFamily.ELEMENTWISE_CHAIN,
                     GpuLoweringCoverageStatus.UNSUPPORTED,
@@ -141,6 +145,12 @@ public final class GpuLoweringCoverageMatrix {
                     GpuLoweringCoverageStatus.UNSUPPORTED,
                     GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
                     "CUDA POW remains unsupported until scalar exponent power is mapped in native accelerator DAG execution");
+            for (Operation.OpType opType : List.of(Operation.OpType.ERF, Operation.OpType.FLOOR, Operation.OpType.CEIL, Operation.OpType.SIGN)) {
+                add(entries, backend, opType, GpuLoweringOperationFamily.ELEMENTWISE_CHAIN,
+                        GpuLoweringCoverageStatus.UNSUPPORTED,
+                        GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
+                        "CUDA " + opType + " remains unsupported until native accelerator DAG execution maps the unary math primitive");
+            }
         }
         addSupported(entries, backend, GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT,
                 "layout/view-adjacent accelerator DAG metadata or materialization path",

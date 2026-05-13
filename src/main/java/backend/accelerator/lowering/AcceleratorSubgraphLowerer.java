@@ -2366,6 +2366,10 @@ public final class AcceleratorSubgraphLowerer {
             case NEG -> AcceleratorDagNodeType.NEG;
             case SQRT -> AcceleratorDagNodeType.SQRT;
             case INV -> AcceleratorDagNodeType.INV;
+            case ERF -> AcceleratorDagNodeType.ERF;
+            case FLOOR -> AcceleratorDagNodeType.FLOOR;
+            case CEIL -> AcceleratorDagNodeType.CEIL;
+            case SIGN -> AcceleratorDagNodeType.SIGN;
             case CLAMP_MIN -> AcceleratorDagNodeType.CLAMP_MIN;
             case CLAMP_MAX -> AcceleratorDagNodeType.CLAMP_MAX;
             case RESHAPE -> AcceleratorDagNodeType.RESHAPE;

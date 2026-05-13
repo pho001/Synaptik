@@ -456,6 +456,22 @@ class GpuLoweringCoverageMatrixTest {
     }
 
     @Test
+    void unaryMathParityOpsAreMetalSupportedAndCudaCapabilityMissing() {
+        for (Operation.OpType opType : List.of(Operation.OpType.ERF, Operation.OpType.FLOOR, Operation.OpType.CEIL, Operation.OpType.SIGN)) {
+            GpuLoweringCoverageEntry metal = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, opType);
+            assertEquals(GpuLoweringCoverageStatus.SUPPORTED, metal.status(), opType.name());
+            assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, metal.reason(), opType.name());
+            assertEquals(GpuLoweringOperationFamily.ELEMENTWISE_CHAIN, metal.family(), opType.name());
+            assertTrue(metal.note().contains("MPSGraph-first"), opType.name());
+
+            GpuLoweringCoverageEntry cuda = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_CUDA, opType);
+            assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, cuda.status(), opType.name());
+            assertEquals(GpuLoweringUnsupportedReason.CAPABILITY_MISSING, cuda.reason(), opType.name());
+            assertEquals(GpuLoweringOperationFamily.ELEMENTWISE_CHAIN, cuda.family(), opType.name());
+        }
+    }
+
+    @Test
     void phaseSeventeenNonSupportedRowsUseStableReasonCodes() {
         for (ComputeBackend backend : List.of(ComputeBackend.GPU_METAL, ComputeBackend.GPU_CUDA)) {
             List<Operation.OpType> nonSupportedOps = backend == ComputeBackend.GPU_METAL

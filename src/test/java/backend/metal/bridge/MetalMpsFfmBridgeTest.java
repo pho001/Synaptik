@@ -333,6 +333,46 @@ class MetalMpsFfmBridgeTest {
     }
 
     @Test
+    void explicitShimExecuteBuffersSupportsUnaryMathParityMpsGraphMappings() {
+        Tensor input = new Tensor(new float[]{-1.25f, -0.0f, 0.25f, 2.75f}, new int[]{4}, null, "nativeUnaryMathInput", DataType.FLOAT32);
+
+        Tensor erfDestination = executeF32LoweredNode(input.erf(), Operation.OpType.ERF, List.of(input), new int[]{4});
+        Tensor floorDestination = executeF32LoweredNode(input.floor(), Operation.OpType.FLOOR, List.of(input), new int[]{4});
+        Tensor ceilDestination = executeF32LoweredNode(input.ceil(), Operation.OpType.CEIL, List.of(input), new int[]{4});
+        Tensor signDestination = executeF32LoweredNode(input.sign(), Operation.OpType.SIGN, List.of(input), new int[]{4});
+
+        assertArrayEquals(new float[]{
+                utils.SpecialFunctions.erf(-1.25f),
+                utils.SpecialFunctions.erf(-0.0f),
+                utils.SpecialFunctions.erf(0.25f),
+                utils.SpecialFunctions.erf(2.75f)
+        }, erfDestination.getFloat32Data(), 1.0e-5f);
+        assertArrayEquals(new float[]{-2f, -0.0f, 0f, 2f}, floorDestination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{-1f, -0.0f, 1f, 3f}, ceilDestination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{-1f, -0.0f, 1f, 1f}, signDestination.getFloat32Data(), 0.0f);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsBfloat16UnaryMathParityMpsGraphMappings() {
+        Tensor input = bf16Tensor(new float[]{-1.25f, -0.0f, 0.25f, 2.75f}, new int[]{4}, "nativeBf16UnaryMathInput");
+
+        Tensor erfDestination = executeBf16LoweredNode(input.erf(), Operation.OpType.ERF, List.of(input), new int[]{4});
+        Tensor floorDestination = executeBf16LoweredNode(input.floor(), Operation.OpType.FLOOR, List.of(input), new int[]{4});
+        Tensor ceilDestination = executeBf16LoweredNode(input.ceil(), Operation.OpType.CEIL, List.of(input), new int[]{4});
+        Tensor signDestination = executeBf16LoweredNode(input.sign(), Operation.OpType.SIGN, List.of(input), new int[]{4});
+
+        assertBf16Close(new float[]{
+                utils.SpecialFunctions.erf(-1.25f),
+                utils.SpecialFunctions.erf(-0.0f),
+                utils.SpecialFunctions.erf(0.25f),
+                utils.SpecialFunctions.erf(2.75f)
+        }, erfDestination, 0.01f);
+        assertBf16Close(new float[]{-2f, -0.0f, 0f, 2f}, floorDestination, BF16_EXACT_STORAGE_TOLERANCE);
+        assertBf16Close(new float[]{-1f, -0.0f, 1f, 3f}, ceilDestination, BF16_EXACT_STORAGE_TOLERANCE);
+        assertBf16Close(new float[]{-1f, -0.0f, 1f, 1f}, signDestination, BF16_EXACT_STORAGE_TOLERANCE);
+    }
+
+    @Test
     void explicitShimExecuteBuffersSupportsBfloat16Relu() {
         String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());

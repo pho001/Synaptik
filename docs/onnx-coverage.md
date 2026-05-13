@@ -7,7 +7,7 @@ Generated from `OnnxCoverageMatrix`; do not hand-edit status rows.
 - Import: supported=78, partial=0, unsupported=1
 - Export: supported=70, partial=1, unsupported=8
 - CPU: supported=78, partial=0, unsupported=1
-- Metal: supported=60, partial=9, unsupported=10
+- Metal: supported=64, partial=9, unsupported=6
 - CUDA: supported=34, partial=9, unsupported=36
 - Round-trip evidence: round_trip_tested=70, explicitly_classified=1, import_only_tested=7, rejection_tested=1, not_applicable=0
 
@@ -35,10 +35,10 @@ Generated from `OnnxCoverageMatrix`; do not hand-edit status rows.
 | Log | log | supported | supported | supported | supported | supported | round_trip_tested | LOG |  |
 | Sqrt | sqrt | supported | supported | supported | supported | supported | round_trip_tested | SQRT |  |
 | Reciprocal | inv | supported | supported | supported | supported | supported | round_trip_tested | INV |  |
-| Erf | erf | supported | supported | supported | unsupported | unsupported | round_trip_tested | ERF |  |
-| Floor | floor | supported | supported | supported | unsupported | unsupported | round_trip_tested | FLOOR |  |
-| Ceil | ceil | supported | supported | supported | unsupported | unsupported | round_trip_tested | CEIL |  |
-| Sign | sign | supported | supported | supported | unsupported | unsupported | round_trip_tested | SIGN |  |
+| Erf | erf | supported | supported | supported | supported | unsupported | round_trip_tested | ERF |  |
+| Floor | floor | supported | supported | supported | supported | unsupported | round_trip_tested | FLOOR |  |
+| Ceil | ceil | supported | supported | supported | supported | unsupported | round_trip_tested | CEIL |  |
+| Sign | sign | supported | supported | supported | supported | unsupported | round_trip_tested | SIGN |  |
 | Equal | eq | supported | supported | supported | supported | unsupported | round_trip_tested | EQ |  |
 | Greater | gt | supported | supported | supported | supported | unsupported | round_trip_tested | GT |  |
 | GreaterOrEqual | ge | supported | supported | supported | supported | unsupported | round_trip_tested | GE |  |
