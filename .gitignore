@@ -37,7 +37,10 @@ build/
 
 ### Local agent / workspace metadata ###
 .oca/
-.planning/tmp/
+.plan
+.plan/
+.planning/
+todo/
 
 ### Git (generated artifacts) ###
 /*.class
@@ -53,4 +56,3 @@ config/optimizer-profile-f64.json
 config/optimizer-hw-profiles.tsv
 config/optimizer-hw-profiles-f32.tsv
 config/optimizer-hw-profiles-f64.tsv
-todo/
