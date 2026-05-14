@@ -2,6 +2,7 @@ package training.optimizer;
 
 import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
 import backend.metal.bridge.MetalMpsBridgeContext;
+import backend.metal.bridge.MetalNativeLibraryResolver;
 import backend.metal.buffer.MetalBufferAccess;
 import backend.metal.buffer.MetalBufferBinding;
 import tensor.DataType;
@@ -211,15 +212,7 @@ final class MetalOptimizerBridge {
     }
 
     private static SymbolLookup resolveLookup(Arena arena) {
-        String explicit = System.getProperty("synaptik.metal.mps.lib");
-        if (explicit != null && !explicit.isBlank()) {
-            return SymbolLookup.libraryLookup(explicit.trim(), arena);
-        }
-        String envLib = System.getenv("SYNAPTIK_METAL_MPS_LIB");
-        if (envLib != null && !envLib.isBlank()) {
-            return SymbolLookup.libraryLookup(envLib.trim(), arena);
-        }
-        return SymbolLookup.libraryLookup("synaptik_apple_mps", arena);
+        return MetalNativeLibraryResolver.resolveLookup(arena);
     }
 
     private static MethodHandle optionalHandle(Linker linker, SymbolLookup lookup, String symbol, FunctionDescriptor descriptor) {

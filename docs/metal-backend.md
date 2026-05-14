@@ -250,7 +250,15 @@ The bridge checks the configured Metal MPS library path/name in this order:
 
 1. JVM property `synaptik.metal.mps.lib`
 2. environment variable `SYNAPTIK_METAL_MPS_LIB`
-3. default library name `synaptik_apple_mps`
+3. bundled JAR resource `native/<platform>/libsynaptik_apple_mps.dylib`
+4. default library name `synaptik_apple_mps`
+
+The bundled path is what makes a published Synaptik artifact self-contained on supported macOS
+platforms. A macOS build copies the compiled shim into generated resources under a platform id such as
+`native/macos-aarch64/libsynaptik_apple_mps.dylib`. At runtime `MetalNativeLibraryResolver` extracts that
+resource to a content-addressed cache under `~/.synaptik/native/metal-mps/<platform>/<sha256>/` and passes
+the extracted file path to Java FFM. The cache root can be overridden with
+`-Dsynaptik.native.cache.dir=<dir>`.
 
 The standard macOS build path is:
 
@@ -259,7 +267,9 @@ The standard macOS build path is:
 ./gradlew metalTest
 ```
 
-`metalTest` builds the shim and injects `-Dsynaptik.metal.mps.lib=build/native/apple/libsynaptik_apple_mps.dylib` for the Metal test slice.
+`processResources`, `jar`, and publication tasks on macOS also build and bundle the shim. `metalTest`
+still injects `-Dsynaptik.metal.mps.lib=build/native/apple/libsynaptik_apple_mps.dylib` so tests exercise
+the freshly built local shim directly rather than the extracted JAR resource.
 
 ### Symbol discovery
 

@@ -46,7 +46,9 @@ Optional native Metal commands:
 ./gradlew metalTest
 ```
 
-`buildMetalMpsShim` is the low-level macOS shim builder. `nativeBuild` is the explicit optional-native lifecycle task. `metalTest` builds the Metal shim and runs the Metal/MPS test slice with `synaptik.metal.mps.lib` set to `build/native/apple/libsynaptik_apple_mps.dylib`. These tasks are deliberately separate from `classes`, `build`, and `check`.
+`buildMetalMpsShim` is the low-level macOS shim builder. `nativeBuild` is the explicit optional-native lifecycle task. `metalTest` builds the Metal shim and runs the Metal/MPS test slice with `synaptik.metal.mps.lib` set to `build/native/apple/libsynaptik_apple_mps.dylib`.
+
+On macOS, `processResources`, `jar`, and publication tasks also build the Metal shim and bundle it into the Synaptik artifact as `native/<platform>/libsynaptik_apple_mps.dylib`. A consumer that depends on a macOS-built Synaptik JAR does not need to set `synaptik.metal.mps.lib`; the runtime extracts the bundled shim into `~/.synaptik/native/metal-mps/...` and loads it from there. Explicit property/env configuration still wins when you want to test a local native build.
 
 The `test` task defaults to `maxHeapSize = 2g`. Override it with:
 
@@ -571,7 +573,8 @@ This section covers build, core runtime, optimizer, native bridge, diagnostic, a
 | `cg.cpu.blas.f32RequireMgeK` | `true` | F32 BLAS shape guard. | `backend/blas/BlasRuntime.java` |
 | `cg.cpu.blas.f32MaxNOverK` | `3.0` | F32 BLAS shape ratio guard. | `backend/blas/BlasRuntime.java` |
 | `openblas.lib` | bundled JavaCPP OpenBLAS, then library name `openblas` | Explicit OpenBLAS library path/name for FFM lookup. When unset, Synaptik tries the bundled `org.bytedeco:openblas-platform` dependency before the platform loader name. | `backend/blas/OpenBlasFfmBridge.java` |
-| `synaptik.metal.mps.lib` | library name `synaptik_apple_mps` | Explicit Metal MPS shim library path/name for FFM lookup. | `backend/metal/bridge/MetalMpsFfmBridge.java` |
+| `synaptik.metal.mps.lib` | bundled JAR resource, then library name `synaptik_apple_mps` | Explicit Metal MPS shim library path/name for FFM lookup. When unset, Synaptik tries the bundled platform resource before the system library name. | `backend/metal/bridge/MetalNativeLibraryResolver.java` |
+| `synaptik.native.cache.dir` | `~/.synaptik/native` | Root directory for extracted bundled native libraries. The Metal shim is cached below `metal-mps/<platform>/<sha256>/`. | `backend/metal/bridge/MetalNativeLibraryResolver.java` |
 | `synaptik.cuda.graph.lib` | library name `synaptik_cuda_graph` | Explicit CUDA graph bridge library path/name for FFM lookup. | `backend/cuda/bridge/CudaFfmBridge.java` |
 | `cg.cpu.fused.profile` | `false` | Enables fused execution profiler collection. | `backend/cpu/kernels/fused/FusedExecutionProfiler.java` |
 | `cg.math.forceExactTranscendentals` | `false` | Forces utility fast transcendental methods to call exact `Math` functions. | `utils/FastTranscendentals.java` |
@@ -636,7 +639,7 @@ This section covers build, core runtime, optimizer, native bridge, diagnostic, a
 | Variable | Effect | Source |
 |---|---|---|
 | `OPENBLAS_LIB` | OpenBLAS library path/name used when `openblas.lib` is unset; it wins over bundled JavaCPP lookup. | `backend/blas/OpenBlasFfmBridge.java` |
-| `SYNAPTIK_METAL_MPS_LIB` | Fallback Metal MPS shim library path/name when `synaptik.metal.mps.lib` is unset. | `backend/metal/bridge/MetalMpsFfmBridge.java` |
+| `SYNAPTIK_METAL_MPS_LIB` | Fallback Metal MPS shim library path/name when `synaptik.metal.mps.lib` is unset. It has priority over the bundled JAR resource. | `backend/metal/bridge/MetalNativeLibraryResolver.java` |
 | `SYNAPTIK_CUDA_GRAPH_LIB` | Fallback CUDA graph bridge library path/name when `synaptik.cuda.graph.lib` is unset. | `backend/cuda/bridge/CudaFfmBridge.java` |
 
 Optional CUDA native tasks:

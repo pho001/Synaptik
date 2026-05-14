@@ -67,7 +67,7 @@ The main code is under `src/main/java`:
 | `src/main/java/synaptik/app/TuningCli.java` | Tuning CLI entry point |
 | `src/main/java/synaptik/app/Main.java` | Programmatic calibration and benchmark example using regular Java calls |
 | `src/main/native/apple` | Metal MPS Objective-C shim source |
-| `scripts/build-metal-mps-shim.sh` | Builds `build/native/apple/libsynaptik_apple_mps.dylib` on macOS |
+| `scripts/build-metal-mps-shim.sh` | Builds `build/native/apple/libsynaptik_apple_mps.dylib` on macOS; packaging copies it into generated JAR resources |
 | `profiles/platform/...` | Checked-in platform calibration/report artifacts for the current known platform |
 
 Root-level backend implementation classes are intentionally limited. `SourceTreeHygieneTest.backendRootContainsOnlyFacadeFiles` allows only `ApproxMode.java`, `ComputeBackend.java`, and `ComputeEngine.java` directly under `src/main/java/backend`.
@@ -168,8 +168,8 @@ For elementwise kernels, use `CpuAddKernel` as the reference shape: scalar appli
 
 For native or accelerator-adjacent paths:
 
-- OpenBLAS FFM lookup checks `-Dopenblas.lib=<path>`, then `OPENBLAS_LIB`, then library name `openblas`.
-- Metal MPS lookup checks `-Dsynaptik.metal.mps.lib=<path>`, then `SYNAPTIK_METAL_MPS_LIB`, then library name `synaptik_apple_mps`.
+- OpenBLAS FFM lookup checks `-Dopenblas.lib=<path>`, then `OPENBLAS_LIB`, then bundled JavaCPP OpenBLAS, then library name `openblas`.
+- Metal MPS lookup checks `-Dsynaptik.metal.mps.lib=<path>`, then `SYNAPTIK_METAL_MPS_LIB`, then the bundled JAR resource `native/<platform>/libsynaptik_apple_mps.dylib`, then library name `synaptik_apple_mps`.
 - CUDA lookup checks `-Dsynaptik.cuda.graph.lib=<path>`, then `SYNAPTIK_CUDA_GRAPH_LIB`, then library name `synaptik_cuda_graph`.
 - macOS Metal shim build commands:
 
@@ -192,9 +192,9 @@ The general native-bridge model, including BLAS/GEMM terminology and Java FFM sy
 [Native Bridges & BLAS: Java FFM Step-By-Step](native-bridges-and-blas.md#java-ffm-step-by-step). Read it before changing `backend.blas`, `OpenBlasFfmBridge`,
 or native dispatch thresholds.
 
-`buildMetalMpsShim` is the low-level task that calls `scripts/build-metal-mps-shim.sh` and writes `build/native/apple/libsynaptik_apple_mps.dylib`. `nativeBuild` is the user-facing optional-native lifecycle task. `metalTest` builds the shim, sets `-Dsynaptik.metal.mps.lib` to the freshly built dylib, and runs only Metal/MPS-focused tests.
+`buildMetalMpsShim` is the low-level task that calls `scripts/build-metal-mps-shim.sh` and writes `build/native/apple/libsynaptik_apple_mps.dylib`. `bundleMetalMpsShimResource` copies that file into generated resources under `native/<platform>/libsynaptik_apple_mps.dylib`, so macOS-built JARs contain the compiled Metal shim. `nativeBuild` is the user-facing optional-native lifecycle task. `metalTest` builds the shim, sets `-Dsynaptik.metal.mps.lib` to the freshly built dylib, and runs only Metal/MPS-focused tests.
 
-Default Java lifecycle tasks stay portable: `classes`, `build`, and `check` do not depend on Metal native compilation. Use `nativeBuild` or `metalTest` when a change touches `src/main/native/apple`, `src/main/java/backend/metal`, or Metal partition/lowering behavior. The native ABI and Objective-C call path are documented in [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi) and [Metal Backend: Objective-C Native Shim](metal-backend.md#objective-c-native-shim).
+On macOS, `processResources`, `jar`, and publication tasks depend on `bundleMetalMpsShimResource`, because the published Synaptik artifact is expected to carry the compiled Metal shim for the platform that built it. Use `nativeBuild` or `metalTest` when a change touches `src/main/native/apple`, `src/main/java/backend/metal`, or Metal partition/lowering behavior and you want an explicit native verification command. The native ABI and Objective-C call path are documented in [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi) and [Metal Backend: Objective-C Native Shim](metal-backend.md#objective-c-native-shim).
 
 Layout ABI v2 capability checks are optional-symbol gated for both Metal and CUDA. Portable bridge tests cover
 missing-symbol behavior without requiring hardware; native tasks such as `./gradlew metalTest` and

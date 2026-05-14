@@ -1610,15 +1610,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
     }
 
     private static SymbolLookup resolveLookup(Arena arena) {
-        String explicit = System.getProperty("synaptik.metal.mps.lib");
-        if (explicit != null && !explicit.isBlank()) {
-            return SymbolLookup.libraryLookup(explicit.trim(), arena);
-        }
-        String envLib = System.getenv("SYNAPTIK_METAL_MPS_LIB");
-        if (envLib != null && !envLib.isBlank()) {
-            return SymbolLookup.libraryLookup(envLib.trim(), arena);
-        }
-        return SymbolLookup.libraryLookup("synaptik_apple_mps", arena);
+        return MetalNativeLibraryResolver.resolveLookup(arena);
     }
 
     private static String cStringOrDefault(MemorySegment ptr, String fallback) {

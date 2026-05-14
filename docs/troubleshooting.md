@@ -198,7 +198,20 @@ Lookup order in `src/main/java/backend/metal/bridge/MetalMpsFfmBridge.java`:
 ```text
 -Dsynaptik.metal.mps.lib=<path>
 SYNAPTIK_METAL_MPS_LIB
+bundled native/<platform>/libsynaptik_apple_mps.dylib resource
 synaptik_apple_mps
+```
+
+When the bundled resource is present, Synaptik extracts it to:
+
+```text
+~/.synaptik/native/metal-mps/<platform>/<sha256>/libsynaptik_apple_mps.dylib
+```
+
+Override the extraction root with:
+
+```text
+-Dsynaptik.native.cache.dir=<dir>
 ```
 
 Build the shim on macOS:

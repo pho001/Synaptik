@@ -139,7 +139,34 @@ tasks.named('check') {
 def isMacOs = {
     System.getProperty('os.name', '').toLowerCase().contains('mac')
 }
+def normalizedNativeOs = {
+    def os = System.getProperty('os.name', '').toLowerCase()
+    if (os.contains('mac')) {
+        return 'macos'
+    }
+    if (os.contains('linux')) {
+        return 'linux'
+    }
+    if (os.contains('windows')) {
+        return 'windows'
+    }
+    return os.replaceAll('[^a-z0-9]+', '_')
+}
+def normalizedNativeArch = {
+    def arch = System.getProperty('os.arch', '').toLowerCase()
+    if (arch == 'aarch64' || arch == 'arm64') {
+        return 'aarch64'
+    }
+    if (arch == 'x86_64' || arch == 'amd64') {
+        return 'x86_64'
+    }
+    return arch.replaceAll('[^a-z0-9_]+', '_')
+}
+def nativePlatformId = {
+    "${normalizedNativeOs()}-${normalizedNativeArch()}"
+}
 def metalMpsShimLib = layout.buildDirectory.file('native/apple/libsynaptik_apple_mps.dylib')
+def metalMpsBundledResourceRoot = layout.buildDirectory.dir('generated/resources/metalMps')
 def cudaGraphShimLib = layout.buildDirectory.file("native/cuda/${isMacOs() ? 'libsynaptik_cuda_graph.dylib' : 'libsynaptik_cuda_graph.so'}")
 def hasNvcc = {
     def process = new ProcessBuilder('bash', '-lc', 'command -v nvcc >/dev/null 2>&1').start()
@@ -152,11 +179,31 @@ tasks.register('buildMetalMpsShim', Exec) {
     onlyIf {
         isMacOs()
     }
+    inputs.file layout.projectDirectory.file('src/main/native/apple/synaptik_apple_mps_stub.m')
+    outputs.file metalMpsShimLib
     commandLine '/bin/zsh', "${project.projectDir}/scripts/build-metal-mps-shim.sh"
     doFirst {
         if (!isMacOs()) {
             throw new GradleException('buildMetalMpsShim is supported only on macOS.')
         }
+    }
+}
+
+tasks.register('bundleMetalMpsShimResource', Copy) {
+    group = 'build setup'
+    description = 'Copies the compiled Metal MPS shim into generated resources for packaging in the Synaptik JAR.'
+    onlyIf {
+        isMacOs()
+    }
+    dependsOn tasks.named('buildMetalMpsShim')
+    from metalMpsShimLib
+    into metalMpsBundledResourceRoot.map { it.dir("native/${nativePlatformId()}") }
+}
+
+tasks.named('processResources') {
+    if (isMacOs()) {
+        dependsOn tasks.named('bundleMetalMpsShimResource')
+        from metalMpsBundledResourceRoot
     }
 }
 
