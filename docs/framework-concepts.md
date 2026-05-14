@@ -5,7 +5,7 @@ Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](archite
 
 Chapters: [Tensors As Graph Nodes](#tensors-as-graph-nodes) | [Operation Descriptors](#operation-descriptors) | [Storage And Layout](#storage-and-layout) | [Broadcasting](#broadcasting) | [Compile, Prepare, Execute](#compile-prepare-execute) | [Autodiff](#autodiff) | [Semantic Canonicalization And Optimizer Stages](#semantic-canonicalization-and-optimizer-stages) | [Profiles](#profiles) | [Tuning, Calibration, And Persistence](#tuning-calibration-and-persistence) | [Common Mental Pitfalls](#common-mental-pitfalls)
 
-Synaptik is a Java tensor, autodiff, and compiled-graph framework. The main mental model is: user code builds a semantic tensor graph, compile snapshots and rewrites that graph, prepare binds runtime/backend policy, and execute runs prepared node steps against per-run runtime tensors.
+Synaptik core is a Java autograd engine and compiled tensor runtime. The main mental model is: user code builds a semantic tensor graph, compile snapshots and rewrites that graph, prepare binds runtime/backend policy, and execute runs prepared node steps against per-run runtime tensors. Higher-level neural-network layers can be built above this core, but the core API should remain primitive tensor and graph oriented.
 
 ```mermaid
 flowchart TD
@@ -99,7 +99,7 @@ flowchart LR
 
 ### Compile
 
-`CompiledGraph.compile(rootTensor, optimizerConfig, compileMode)` snapshots graph structure and runs compile-time transformations. It does not execute kernels. `GraphCompiler` normalizes the semantic root through `forwardOutput()`, optionally runs semantic forward canonicalization, decides whether backward is needed from `CompileMode` and trainable leaves, builds backward graph when needed, optimizes a snapshot, captures `CompiledNode` metadata, collects gradient bindings, and creates partition/memory planning artifacts. Source: [`CompiledGraph.java`](../src/main/java/graph/CompiledGraph.java), [`GraphCompiler.java`](../src/main/java/graph/compile/GraphCompiler.java), [`CompiledNode.java`](../src/main/java/graph/CompiledNode.java).
+`CompiledGraph.compile(rootTensor, compileConfig, compileMode)` snapshots graph structure and runs compile-time transformations. It does not execute kernels. `GraphCompiler` normalizes the semantic root through `forwardOutput()`, optionally runs semantic forward canonicalization, decides whether backward is needed from `CompileMode` and trainable leaves, builds backward graph when needed, optimizes a snapshot, captures `CompiledNode` metadata, collects gradient bindings, and creates partition/memory planning artifacts. Source: [`CompiledGraph.java`](../src/main/java/graph/CompiledGraph.java), [`GraphCompiler.java`](../src/main/java/graph/compile/GraphCompiler.java), [`CompiledNode.java`](../src/main/java/graph/CompiledNode.java).
 
 `CompileMode` means:
 

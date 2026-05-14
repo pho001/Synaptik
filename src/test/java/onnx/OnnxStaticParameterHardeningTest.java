@@ -77,11 +77,22 @@ class OnnxStaticParameterHardeningTest {
                 .addInput(OnnxTensorProtoUtil.valueInfo("max", DataType.FLOAT32, new int[]{1}))
                 .addNode(node("clip", "Clip", "y", "x", "", "max"))
                 .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2}))));
-        assertScalarRejected(model("dynamic_pow_exponent", graph -> graph
-                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2}))
-                .addInput(OnnxTensorProtoUtil.valueInfo("exponent", DataType.FLOAT32, new int[]{1}))
-                .addNode(node("pow", "Pow", "y", "x", "exponent"))
-                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2}))));
+    }
+
+    @Test
+    void staticNegativeStepSliceIsRejectedAsUnsupportedSubset() {
+        OnnxProto.ModelProto model = model("negative_step_slice", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{4}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("starts", new long[]{3}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("ends", new long[]{0}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("axes", new long[]{0}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("steps", new long[]{-1}))
+                .addNode(node("slice", "Slice", "y", "x", "starts", "ends", "axes", "steps"))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{3})));
+
+        OnnxUnsupportedException ex = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(model));
+        assertTrue(ex.getMessage().contains("Slice"));
+        assertTrue(ex.getMessage().contains("step"));
     }
 
     @Test

@@ -1,6 +1,7 @@
 package onnx;
 
 import backend.cpu.kernels.CpuDTypeOps;
+import operations.reduction.ArgMaxTiePolicy;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorOps;
@@ -145,8 +146,8 @@ final class OnnxGraphImporter {
             case "Sub" -> binary(node, tensors, TensorOps::sub);
             case "Mul" -> binary(node, tensors, TensorOps::mul);
             case "Div" -> binary(node, tensors, TensorOps::div);
-            case "Min" -> binary(node, tensors, TensorOps::min);
-            case "Max" -> binary(node, tensors, TensorOps::max);
+            case "Min" -> variadic(node, tensors, TensorOps::min);
+            case "Max" -> variadic(node, tensors, TensorOps::max);
             case "Pow" -> pow(node, tensors, int64Constants, constantTensors);
             case "Neg" -> unary(node, tensors, TensorOps::neg);
             case "Abs" -> unary(node, tensors, TensorOps::abs);
@@ -255,7 +256,16 @@ final class OnnxGraphImporter {
             Set<String> constantTensors
     ) {
         requireInputCount(node, 2, 2);
-        return TensorOps.pow(tensorInput(node, tensors, 0), scalarConstantInput(node, tensors, int64Constants, constantTensors, 1));
+        Tensor base = tensorInput(node, tensors, 0);
+        Tensor exponent = tensorInput(node, tensors, 1);
+        if (constantTensors.contains(node.getInput(1)) && exponent.getFlatDataSize() == 1) {
+            return TensorOps.pow(base, exponent.scalarAsDouble());
+        }
+        try {
+            return TensorOps.pow(base, exponent);
+        } catch (IllegalArgumentException e) {
+            throw unsupported(node, e.getMessage());
+        }
     }
 
     private static Tensor leakyRelu(OnnxProto.NodeProto node, Map<String, Tensor> tensors, OnnxAttributeReader attrs) {
@@ -398,7 +408,11 @@ final class OnnxGraphImporter {
         }
         int[] strides = pairAttribute(node, attrs, "strides", new int[]{1, 1});
         int[] dilations = pairAttribute(node, attrs, "dilations", new int[]{1, 1});
-        int[] pads = symmetricPads(node, attrs, "Conv");
+        int[] pads = pads4(node, attrs, "Conv");
+        if (pads[0] != pads[2] || pads[1] != pads[3]) {
+            input = input.pad(new int[]{0, 0, pads[0], pads[1]}, new int[]{0, 0, pads[2], pads[3]}, 0.0d);
+            pads = new int[]{0, 0, 0, 0};
+        }
         Conv2dOptions options = new Conv2dOptions(
                 strides[0],
                 strides[1],
@@ -430,9 +444,7 @@ final class OnnxGraphImporter {
             boolean countIncludePad
     ) {
         rejectAutoPad(node, attrs);
-        if (attrs.intAttribute("ceil_mode", 0) != 0) {
-            throw unsupported(node, opName + " ceil_mode=1 is not supported");
-        }
+        boolean ceilMode = attrs.intAttribute("ceil_mode", 0) != 0;
         if (attrs.intAttribute("storage_order", 0) != 0) {
             throw unsupported(node, opName + " storage_order must be 0");
         }
@@ -442,7 +454,7 @@ final class OnnxGraphImporter {
         }
         int[] strides = pairAttribute(node, attrs, "strides", new int[]{1, 1});
         int[] pads = symmetricPads(node, attrs, opName);
-        return new Pool2dOptions(kernel[0], kernel[1], strides[0], strides[1], pads[0], pads[1], countIncludePad);
+        return new Pool2dOptions(kernel[0], kernel[1], strides[0], strides[1], pads[0], pads[1], countIncludePad, ceilMode);
     }
 
     private static Tensor layerNormalization(OnnxProto.NodeProto node, Map<String, Tensor> tensors, OnnxAttributeReader attrs) {
@@ -900,7 +912,11 @@ final class OnnxGraphImporter {
         int[] steps = node.getInputCount() >= 5 && !node.getInput(4).isBlank()
                 ? toSliceIntArray(stepsRaw)
                 : new int[0];
-        return TensorOps.slice(input, starts, ends, axes, steps);
+        try {
+            return TensorOps.slice(input, starts, ends, axes, steps);
+        } catch (IllegalArgumentException e) {
+            throw unsupported(node, "Slice " + e.getMessage());
+        }
     }
 
     private static Tensor concat(
@@ -1188,10 +1204,10 @@ final class OnnxGraphImporter {
 
     private static Tensor argMax(OnnxProto.NodeProto node, Map<String, Tensor> tensors, OnnxAttributeReader attrs) {
         requireInputCount(node, 1, 1);
-        if (attrs.intAttribute("select_last_index", 0) != 0) {
-            throw unsupported(node, "ArgMax select_last_index=1 is not supported; first-index tie semantics are used");
-        }
-        return tensorInput(node, tensors, 0).argMax(attrs.intAttribute("axis", 0), attrs.intAttribute("keepdims", 1) != 0);
+        ArgMaxTiePolicy tiePolicy = attrs.intAttribute("select_last_index", 0) != 0
+                ? ArgMaxTiePolicy.LAST_INDEX
+                : ArgMaxTiePolicy.FIRST_INDEX;
+        return tensorInput(node, tensors, 0).argMax(attrs.intAttribute("axis", 0), attrs.intAttribute("keepdims", 1) != 0, tiePolicy);
     }
 
     private static Tensor cumSum(
@@ -1246,6 +1262,19 @@ final class OnnxGraphImporter {
         requireInputCount(node, 2, 2);
         try {
             return op.apply(tensorInput(node, tensors, 0), tensorInput(node, tensors, 1));
+        } catch (IllegalArgumentException e) {
+            throw unsupported(node, e.getMessage());
+        }
+    }
+
+    private static Tensor variadic(OnnxProto.NodeProto node, Map<String, Tensor> tensors, BinaryOp op) {
+        requireInputCount(node, 2, Integer.MAX_VALUE);
+        try {
+            Tensor out = tensorInput(node, tensors, 0);
+            for (int i = 1; i < node.getInputCount(); i++) {
+                out = op.apply(out, tensorInput(node, tensors, i));
+            }
+            return out;
         } catch (IllegalArgumentException e) {
             throw unsupported(node, e.getMessage());
         }
@@ -1399,17 +1428,22 @@ final class OnnxGraphImporter {
     }
 
     private static int[] symmetricPads(OnnxProto.NodeProto node, OnnxAttributeReader attrs, String opName) {
-        int[] pads = attrs.intsAttribute("pads");
-        if (pads == null) {
-            return new int[]{0, 0};
-        }
-        if (pads.length != 4) {
-            throw unsupported(node, opName + " pads must contain four values");
-        }
+        int[] pads = pads4(node, attrs, opName);
         if (pads[0] != pads[2] || pads[1] != pads[3]) {
             throw unsupported(node, opName + " supports only symmetric NCHW spatial pads");
         }
         return new int[]{pads[0], pads[1]};
+    }
+
+    private static int[] pads4(OnnxProto.NodeProto node, OnnxAttributeReader attrs, String opName) {
+        int[] pads = attrs.intsAttribute("pads");
+        if (pads == null) {
+            return new int[]{0, 0, 0, 0};
+        }
+        if (pads.length != 4) {
+            throw unsupported(node, opName + " pads must contain four values");
+        }
+        return pads;
     }
 
     private static int[] normalizeAxes(int[] axes, int rank, OnnxProto.NodeProto node, String field) {

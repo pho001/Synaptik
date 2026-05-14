@@ -30,6 +30,12 @@ class OnnxCoverageMatrixTest {
             assertNotNull(entry.metalStatus(), entry.onnxOp());
             assertNotNull(entry.cudaStatus(), entry.onnxOp());
             assertNotNull(entry.roundTripEvidence(), entry.onnxOp());
+            assertNotNull(entry.limitationCategory(), entry.onnxOp());
+            if (entry.limitations().isBlank()) {
+                assertEquals(OnnxCoverageMatrix.LimitationCategory.NONE, entry.limitationCategory(), entry.onnxOp());
+            } else {
+                assertTrue(entry.limitationCategory() != OnnxCoverageMatrix.LimitationCategory.NONE, entry.onnxOp());
+            }
         }
         Set<String> importSupportedRows = new HashSet<>();
         for (OnnxCoverageMatrix.Entry entry : OnnxCoverageMatrix.entries()) {

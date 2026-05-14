@@ -107,6 +107,14 @@ Run source hygiene checks through the JUnit class:
 ./gradlew test --no-daemon --tests SourceTreeHygieneTest
 ```
 
+Run the public-preview release gate:
+
+```bash
+./gradlew classes
+./gradlew test --no-daemon --tests 'onnx.*' --tests SourceTreeHygieneTest
+git diff --check
+```
+
 Run the Phase 5 accelerator closure verification slices:
 
 ```bash

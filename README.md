@@ -1,9 +1,11 @@
 <!-- generated-by: gsd-doc-writer -->
 # Synaptik
 
-Documentation: [docs/index.md](docs/index.md) | [Tensor API](docs/tensor-api.md) | [Compute Flow](docs/compute-flow.md) | [Graph Optimizer](docs/graph-optimizer.md) | [Calibration & Autotune](docs/calibration-autotune.md) | [Public API](docs/public-api.md)
+Documentation: [docs/index.md](docs/index.md) | [Quickstart](docs/quickstart.md) | [Tensor API](docs/tensor-api.md) | [Compute Flow](docs/compute-flow.md) | [Graph Optimizer](docs/graph-optimizer.md) | [Calibration & Autotune](docs/calibration-autotune.md) | [Public API](docs/public-api.md)
 
-Synaptik is a Java tensor framework built around an explicit graph lifecycle:
+Current version: `0.1.0-alpha.1`
+
+Synaptik is a Java autograd engine and compiled tensor runtime built around an explicit graph lifecycle:
 
 1. the public `Tensor` API builds a semantic graph
 2. `CompiledGraph` snapshots and optimizes that graph
@@ -14,6 +16,99 @@ The project is not designed as an eager-only numerical notebook library.
 Its center of gravity is compiled graph execution, reverse-mode autodiff, separated compile/runtime policy, and platform/profile-driven execution.
 
 Today the CPU backend is the broadest and most complete backend. Metal and CUDA also have real scoped accelerator paths with native buffer/residency plumbing and explicit fallback evidence in traces. OpenCL remains much thinner. Unsupported operations, dtypes, layouts, or unavailable native runtimes must fall back visibly rather than pretending that an accelerator path ran.
+
+## Public Preview Status
+
+`0.1.0-alpha.1` is a public technical preview baseline. It is suitable for
+architecture review, local experimentation, ONNX static dense inference trials,
+CPU correctness work, and accelerator coverage investigation.
+
+It is not a production-stability claim:
+
+- public Java APIs may still change before `1.0.0`;
+- internal package names and configuration records may still be cleaned up;
+- CPU is the correctness baseline;
+- accelerator execution is scoped, capability-gated, and trace-visible;
+- ONNX support is a static dense inference subset, not the full ONNX ecosystem;
+- benchmark and calibration artifacts are local unless explicitly promoted.
+
+Release notes live in [CHANGELOG.md](CHANGELOG.md). The release checklist is in
+[docs/release.md](docs/release.md). The current source license status is in
+[LICENSE.md](LICENSE.md).
+
+## Quickstart
+
+For the full guided path with terms, shapes, exact values, explicit compile/prepare/execute examples, publication policy, ONNX import/export, accelerator expectations, and troubleshooting, start with [docs/quickstart.md](docs/quickstart.md).
+
+Build and run the focused public-preview verification set:
+
+```bash
+./gradlew classes
+./gradlew test --tests 'onnx.*' --tests SourceTreeHygieneTest
+```
+
+Run a tiny tensor graph:
+
+```java
+import tensor.DataType;
+import tensor.Tensor;
+
+Tensor a = new Tensor(new double[]{1.0, 2.0, 3.0, 4.0}, new int[]{2, 2}, null, "a", DataType.FLOAT64);
+Tensor b = new Tensor(new double[]{10.0, 20.0}, new int[]{2}, null, "b", DataType.FLOAT64);
+
+Tensor y = a.add(b).relu().compute();
+double[] values = y.toDoubleArrayCopy();
+```
+
+`values` is:
+
+```text
+[11.0, 22.0, 13.0, 24.0]
+```
+
+Run a tiny reverse-mode autodiff graph:
+
+```java
+import tensor.CompileMode;
+import tensor.DataType;
+import tensor.Tensor;
+
+Tensor x = new Tensor(new double[]{1.0, -2.0, 3.0}, new int[]{3}, null, "x", DataType.FLOAT64);
+x.setRequiresGrad(true);
+
+Tensor loss = x.mul(x).sum();
+loss.compute(CompileMode.TRAINING);
+
+double[] grad = x.getGradient().toDoubleArrayCopy();
+```
+
+`grad` is:
+
+```text
+[2.0, -4.0, 6.0]
+```
+
+## What Works In 0.1
+
+- Dense tensor graph construction through the public `Tensor` API.
+- Forward compute and reverse-mode autodiff for the supported primitive set.
+- CPU execution as the broad correctness backend.
+- Compile-time graph optimization, backend planning, region optimization, and memory planning.
+- CPU fused execution for selected fused elementwise families.
+- Static dense ONNX import/export for the documented subset.
+- Runtime `INT32` and `INT64` index tensors on CPU where ONNX/index semantics require them.
+- Metal and CUDA capability/coverage truth with explicit unsupported rows.
+- Benchmark, graph autotune, platform calibration, and profile persistence.
+
+## Known Limits
+
+- No general runtime dynamic-shape execution yet.
+- No general core multi-output runtime operation model yet.
+- No ONNX control flow (`If`, `Loop`, `Scan`).
+- No sparse tensors, quantized tensors, string tensors, sequence/map/optional values, external ONNX data files, or custom ONNX domains.
+- No layer-aware ONNX import/export yet.
+- Accelerator coverage is backend-specific; a supported ONNX row does not imply native Metal or CUDA execution.
+- Local tuning output under `profiles/platform/...` should not be committed unless intentionally promoted as canonical evidence.
 
 ## What This Repository Contains
 
@@ -40,14 +135,16 @@ That split is intentional:
 Top-level docs:
 
 1. [docs/index.md](docs/index.md) - the main documentation index and recommended reading paths.
-2. [docs/tensor-api.md](docs/tensor-api.md) - detailed operation-level Tensor API guide with signatures, edge cases, examples, and concrete calculations.
-3. [docs/compute-flow.md](docs/compute-flow.md) - deep walkthrough from graph construction through compile, prepare, execution, memory binding, and traces.
-4. [docs/graph-optimizer.md](docs/graph-optimizer.md) - backend-neutral graph optimization: `AR`, `CF`, `CSE`, `DCE`, and optional `LOWER`.
-5. [docs/backend-planning-and-regions.md](docs/backend-planning-and-regions.md) - backend ownership planning, CPU natural regions, accelerator regions, region optimization, memory planning, and publication policy.
-6. [docs/cpu-bf16.md](docs/cpu-bf16.md) - current CPU BF16 storage/compute contract and why BF16 is not automatically faster than F32 on CPU.
-7. [docs/calibration-autotune.md](docs/calibration-autotune.md) - calibration families, owned knobs, candidate values, graph autotune parameters, persistence, and progress.
-8. [docs/architecture.md](docs/architecture.md) - implementation-grounded lifecycle, backend dispatch, module boundaries, tuning, and diagrams.
-9. [docs/modules.md](docs/modules.md) - package-by-package map for tensor, operations, graph, optimizer, backend, CPU kernels, accelerators, config, tuning, CLI, numerics, and utilities.
+2. [docs/quickstart.md](docs/quickstart.md) - detailed first path through build, tensors, broadcasting, autodiff, compile/prepare/execute, publication, profiles, ONNX, accelerators, tuning, and troubleshooting.
+3. [docs/tensor-api.md](docs/tensor-api.md) - detailed operation-level Tensor API guide with signatures, edge cases, examples, and concrete calculations.
+4. [docs/compute-flow.md](docs/compute-flow.md) - deep walkthrough from graph construction through compile, prepare, execution, memory binding, and traces.
+5. [docs/graph-optimizer.md](docs/graph-optimizer.md) - backend-neutral graph optimization: `AR`, `CF`, `CSE`, `DCE`, and optional `LOWER`.
+6. [docs/backend-planning-and-regions.md](docs/backend-planning-and-regions.md) - backend ownership planning, CPU natural regions, accelerator regions, region optimization, memory planning, and publication policy.
+7. [docs/cpu-bf16.md](docs/cpu-bf16.md) - current CPU BF16 storage/compute contract and why BF16 is not automatically faster than F32 on CPU.
+8. [docs/calibration-autotune.md](docs/calibration-autotune.md) - calibration families, owned knobs, candidate values, graph autotune parameters, persistence, and progress.
+9. [docs/architecture.md](docs/architecture.md) - implementation-grounded lifecycle, backend dispatch, module boundaries, tuning, and diagrams.
+10. [docs/modules.md](docs/modules.md) - package-by-package map for tensor, operations, graph, optimizer, backend, CPU kernels, accelerators, config, tuning, CLI, numerics, and utilities.
+11. [docs/documentation-audit.md](docs/documentation-audit.md) - documentation inventory, source-of-truth map, terminology baseline, stale-risk areas, and verification procedure.
 
 If you want the shortest reliable path through the codebase:
 
@@ -126,10 +223,24 @@ Typical local commands:
 ```bash
 ./gradlew classes
 ./gradlew test
+./gradlew check
 ./gradlew run
 ```
 
 On Windows use `gradlew.bat`.
+
+Focused public-preview gates:
+
+```bash
+./gradlew test --tests 'onnx.*' --tests SourceTreeHygieneTest
+```
+
+Optional hardware-specific gates:
+
+```bash
+./gradlew metalTest
+./gradlew cudaTest
+```
 
 ## The Main Lifecycle
 

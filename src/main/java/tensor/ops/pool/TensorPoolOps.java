@@ -30,8 +30,8 @@ public final class TensorPoolOps {
     public static Tensor maxPool2d(Tensor input, Pool2dOptions options) {
         PoolSupport.validateInput(input, options, "maxPool2d");
         int[] inputShape = input.getShapeUnsafe();
-        int outH = PoolSupport.inferOutputSize(inputShape[2], options.kernelH(), options.padH(), options.strideH(), "height");
-        int outW = PoolSupport.inferOutputSize(inputShape[3], options.kernelW(), options.padW(), options.strideW(), "width");
+        int outH = PoolSupport.inferOutputSize(inputShape[2], options.kernelH(), options.padH(), options.strideH(), options.ceilMode(), "height");
+        int outW = PoolSupport.inferOutputSize(inputShape[3], options.kernelW(), options.padW(), options.strideW(), options.ceilMode(), "width");
         PoolSupport.validateWindowCoverage(inputShape[2], options.kernelH(), options.padH(), options.strideH(), outH, "height");
         PoolSupport.validateWindowCoverage(inputShape[3], options.kernelW(), options.padW(), options.strideW(), outW, "width");
 
@@ -73,8 +73,8 @@ public final class TensorPoolOps {
     public static Tensor avgPool2d(Tensor input, Pool2dOptions options) {
         PoolSupport.validateInput(input, options, "avgPool2d");
         int[] inputShape = input.getShapeUnsafe();
-        int outH = PoolSupport.inferOutputSize(inputShape[2], options.kernelH(), options.padH(), options.strideH(), "height");
-        int outW = PoolSupport.inferOutputSize(inputShape[3], options.kernelW(), options.padW(), options.strideW(), "width");
+        int outH = PoolSupport.inferOutputSize(inputShape[2], options.kernelH(), options.padH(), options.strideH(), options.ceilMode(), "height");
+        int outW = PoolSupport.inferOutputSize(inputShape[3], options.kernelW(), options.padW(), options.strideW(), options.ceilMode(), "width");
         PoolSupport.validateWindowCoverage(inputShape[2], options.kernelH(), options.padH(), options.strideH(), outH, "height");
         PoolSupport.validateWindowCoverage(inputShape[3], options.kernelW(), options.padW(), options.strideW(), outW, "width");
 

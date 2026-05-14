@@ -47,7 +47,7 @@ public final class ElementwiseLoops {
                         context
                 );
             }
-            case INT32, BOOL -> throw unsupported(out.getDataType(), "binary elementwise kernel");
+            case INT32, INT64, BOOL -> throw unsupported(out.getDataType(), "binary elementwise kernel");
         }
     }
 
@@ -67,7 +67,7 @@ public final class ElementwiseLoops {
                         context
                 );
             }
-            case INT32, BOOL -> throw unsupported(out.getDataType(), "unary elementwise kernel");
+            case INT32, INT64, BOOL -> throw unsupported(out.getDataType(), "unary elementwise kernel");
         }
     }
 
@@ -95,7 +95,7 @@ public final class ElementwiseLoops {
                         context
                 );
             }
-            case INT32, BOOL -> throw unsupported(out.getDataType(), "scalar unary elementwise kernel");
+            case INT32, INT64, BOOL -> throw unsupported(out.getDataType(), "scalar unary elementwise kernel");
         }
     }
 
@@ -106,7 +106,7 @@ public final class ElementwiseLoops {
             case FLOAT64 -> runCompareF64(kernel, left.getFloat64Data(), right.getFloat64Data(), out.getBoolData(), plan, hints);
             case FLOAT32 -> runCompareF32(kernel, left.getFloat32Data(), right.getFloat32Data(), out.getBoolData(), plan, hints);
             case BFLOAT16 -> runCompareBF16(kernel, left.getBFloat16Data(), right.getBFloat16Data(), out.getBoolData(), plan, hints);
-            case INT32, BOOL -> throw unsupported(left.getDataType(), "compare elementwise kernel");
+            case INT32, INT64, BOOL -> throw unsupported(left.getDataType(), "compare elementwise kernel");
         }
     }
 
@@ -150,7 +150,7 @@ public final class ElementwiseLoops {
                     hints,
                     context
             );
-            case INT32, BOOL -> throw unsupported(out.getDataType(), "where elementwise kernel");
+            case INT32, INT64, BOOL -> throw unsupported(out.getDataType(), "where elementwise kernel");
         }
     }
 

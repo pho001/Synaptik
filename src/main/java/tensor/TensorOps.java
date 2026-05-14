@@ -104,6 +104,10 @@ public final class TensorOps {
         return TensorBinaryOps.max(first, second);
     }
 
+    public static Tensor pow(Tensor first, Tensor second) {
+        return TensorBinaryOps.pow(first, second);
+    }
+
     public static Tensor greaterThan(Tensor first, Tensor second) {
         return TensorCompareOps.greaterThan(first, second);
     }
@@ -362,6 +366,10 @@ public final class TensorOps {
 
     public static Tensor argMax(Tensor input, int dimension, boolean keepDims) {
         return TensorReduceOps.argMax(input, dimension, keepDims);
+    }
+
+    public static Tensor argMax(Tensor input, int dimension, boolean keepDims, operations.reduction.ArgMaxTiePolicy tiePolicy) {
+        return TensorReduceOps.argMax(input, dimension, keepDims, tiePolicy);
     }
 
     public static Tensor cumSum(Tensor input, int axis) {

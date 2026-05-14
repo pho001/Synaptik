@@ -1,16 +1,17 @@
 <!-- generated-by: gsd-doc-writer -->
 # Documentation Index
 
-Navigation: [README](../README.md#reading-guide) | [Architecture](architecture.md#system-overview) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Adding Tensor Operation](adding-tensor-operation.md#implementation-checklist) | [Compute Flow](compute-flow.md#lifecycle-map) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-regions.md#backend-planning-and-regions) | [ONNX](onnx.md#onnx-import-and-export) | [CPU BF16](cpu-bf16.md#cpu-bf16-runtime) | [Native Bridges & BLAS](native-bridges-and-blas.md#term-map-at-a-glance) | [Metal Backend](metal-backend.md#end-to-end-flow) | [Calibration & Autotune](calibration-autotune.md#core-distinction) | [Public API](public-api.md#stability-map) | [Examples](examples.md#running-examples)
+Navigation: [README](../README.md#reading-guide) | [Quickstart](quickstart.md#what-synaptik-is) | [Architecture](architecture.md#system-overview) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Adding Tensor Operation](adding-tensor-operation.md#implementation-checklist) | [Compute Flow](compute-flow.md#lifecycle-map) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-regions.md#backend-planning-and-regions) | [ONNX](onnx.md#onnx-import-and-export) | [CPU BF16](cpu-bf16.md#cpu-bf16-runtime) | [Native Bridges & BLAS](native-bridges-and-blas.md#term-map-at-a-glance) | [Metal Backend](metal-backend.md#end-to-end-flow) | [Calibration & Autotune](calibration-autotune.md#core-distinction) | [Public API](public-api.md#stability-map) | [Examples](examples.md#running-examples) | [Docs Audit](documentation-audit.md#audit-scope)
 
-Chapters: [Recommended Reading Paths](#recommended-reading-paths) | [Document Map](#document-map) | [Source Documentation](#source-documentation) | [Verification Notes](#verification-notes)
+Chapters: [Recommended Reading Paths](#recommended-reading-paths) | [Document Map](#document-map) | [Release Notes](#release-notes) | [Source Documentation](#source-documentation) | [Verification Notes](#verification-notes)
 
-This directory is the implementation-grounded documentation set for Synaptik. It is written for maintainers and technically strong readers who want to understand both how to use the framework and how this kind of compiled tensor runtime works internally.
+This directory is the implementation-grounded documentation set for Synaptik. It is written for maintainers and technically strong readers who want to understand both how to use the autograd engine and how this kind of compiled tensor runtime works internally.
 
 ## Table Of Contents
 
 - [Recommended Reading Paths](#recommended-reading-paths)
 - [Document Map](#document-map)
+- [Release Notes](#release-notes)
 - [Source Documentation](#source-documentation)
 - [Verification Notes](#verification-notes)
 
@@ -18,22 +19,24 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 
 ### New maintainer path
 
-1. [Architecture: System Overview](architecture.md#system-overview) - the layered system model, package boundaries, and lifecycle artifacts.
-2. [Framework Concepts: Tensors As Graph Nodes](framework-concepts.md#tensors-as-graph-nodes) - core vocabulary and the mental model behind compiled tensor execution.
-3. [Compute Flow: Lifecycle Map](compute-flow.md#lifecycle-map) - the detailed journey from `Tensor` graph construction through compile, prepare, execution, memory binding, and traces.
-4. [Graph Optimizer](graph-optimizer.md#graph-optimizer) - backend-neutral graph cleanup and lowering: `AR`, `CF`, `CSE`, `DCE`, and optional `LOWER`.
-5. [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions) - backend ownership planning, CPU natural regions, accelerator regions, region optimization, memory planning, and publication.
-6. [Native Bridges & BLAS: Term Map At A Glance](native-bridges-and-blas.md#term-map-at-a-glance) - what BLAS/GEMM are, how Java FFM calls native libraries, and how OpenBLAS is selected.
-7. [Modules: Package Map](modules.md#package-map) - package-by-package responsibilities, dependencies, invariants, and failure modes.
+1. [Quickstart: What Synaptik Is](quickstart.md#what-synaptik-is) - the guided first path through build, tensor graphs, autodiff, explicit execution, ONNX, and troubleshooting.
+2. [Architecture: System Overview](architecture.md#system-overview) - the layered system model, package boundaries, and lifecycle artifacts.
+3. [Framework Concepts: Tensors As Graph Nodes](framework-concepts.md#tensors-as-graph-nodes) - core vocabulary and the mental model behind compiled tensor execution.
+4. [Compute Flow: Lifecycle Map](compute-flow.md#lifecycle-map) - the detailed journey from `Tensor` graph construction through compile, prepare, execution, memory binding, and traces.
+5. [Graph Optimizer](graph-optimizer.md#graph-optimizer) - backend-neutral graph cleanup and lowering: `AR`, `CF`, `CSE`, `DCE`, and optional `LOWER`.
+6. [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions) - backend ownership planning, CPU natural regions, accelerator regions, region optimization, memory planning, and publication.
+7. [Native Bridges & BLAS: Term Map At A Glance](native-bridges-and-blas.md#term-map-at-a-glance) - what BLAS/GEMM are, how Java FFM calls native libraries, and how OpenBLAS is selected.
+8. [Modules: Package Map](modules.md#package-map) - package-by-package responsibilities, dependencies, invariants, and failure modes.
 
 ### Tensor API user path
 
-1. [Tensor API Guide: API Surface And Conventions](tensor-api.md#api-surface-and-conventions) - operation-level API explanations with concrete input/output examples and calculations.
-2. [Tensor API: Compute Convenience API](tensor-api.md#compute-convenience-api) - how to call `compute()`, `compute(CompileMode)`, `compute(ComputeOptions)`, `compute(ExecutionProfile)`, and prepared execution.
-3. [Compute Flow: Tensor Compute API](compute-flow.md#tensor-compute-api) - what happens internally when `compute(...)` resolves a profile, compiles, prepares, executes, and optionally runs generic graph autotune.
-4. [Public API: Stability Map](public-api.md#stability-map) - the externally usable Java surfaces and probably-internal implementation hooks.
-5. [Examples: Running Examples](examples.md#running-examples) - executable-style snippets for tensor operations, compile/prepare/execute, and tuning flows.
-6. [Troubleshooting: Performance Regressions](troubleshooting.md#performance-regressions) - common runtime, compile, dtype, backend, and tuning failures.
+1. [Quickstart: First Tensor Graph](quickstart.md#first-tensor-graph) - small runnable examples with exact shapes and values.
+2. [Tensor API Guide: API Surface And Conventions](tensor-api.md#api-surface-and-conventions) - operation-level API explanations with concrete input/output examples and calculations.
+3. [Tensor API: Compute Convenience API](tensor-api.md#compute-convenience-api) - how to call `compute()`, `compute(CompileMode)`, `compute(ComputeOptions)`, `compute(ExecutionProfile)`, and prepared execution.
+4. [Compute Flow: Tensor Compute API](compute-flow.md#tensor-compute-api) - what happens internally when `compute(...)` resolves a profile, compiles, prepares, executes, and optionally runs generic graph autotune.
+5. [Public API: Stability Map](public-api.md#stability-map) - the externally usable Java surfaces and probably-internal implementation hooks.
+6. [Examples: Running Examples](examples.md#running-examples) - executable-style snippets for tensor operations, compile/prepare/execute, and tuning flows.
+7. [Troubleshooting: Performance Regressions](troubleshooting.md#performance-regressions) - common runtime, compile, dtype, backend, and tuning failures.
 
 ### Tensor operation contributor path
 
@@ -78,6 +81,7 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 
 | Document | Purpose |
 |---|---|
+| [quickstart.md](quickstart.md#what-synaptik-is) | Detailed first path through build, tensors, broadcasting, autodiff, explicit compile/prepare/execute, publication, profiles, ONNX, accelerators, autotune, and troubleshooting. |
 | [architecture.md](architecture.md#system-overview) | High-level architecture, lifecycle boundaries, package responsibilities, backend dispatch, and extension points. |
 | [framework-concepts.md](framework-concepts.md#tensors-as-graph-nodes) | First-principles mental models for tensors, semantic graphs, compiled graphs, prepared execution, backend policy, and tuning. |
 | [compute-flow.md](compute-flow.md#lifecycle-map) | Deep end-to-end walkthrough from graph building to `Tensor.compute(...)`, compile, prepare, execution, traces, and reuse rules. |
@@ -99,6 +103,15 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 | [testing.md](testing.md#test-framework-and-setup) | Test structure, focused test commands, expensive tests, and test failure interpretation. |
 | [troubleshooting.md](troubleshooting.md#java-heap-space) | Symptom-driven debugging guide for compile, runtime, backend, tuning, and performance issues. |
 | [glossary.md](glossary.md#a) | Project-specific terminology with source references. |
+| [release.md](release.md#release-process) | Public-preview versioning, required release files, verification gates, artifact hygiene, tagging, and license boundary. |
+| [documentation-audit.md](documentation-audit.md#audit-scope) | Documentation inventory, source-of-truth map, terminology baseline, stale-risk areas, example policy, and verification procedure. |
+
+## Release Notes
+
+- Current version source of truth: [`VERSION`](../VERSION).
+- Current changelog: [`CHANGELOG.md`](../CHANGELOG.md).
+- Release process: [release.md](release.md#release-process).
+- License status: [`LICENSE.md`](../LICENSE.md).
 
 ## Source Documentation
 

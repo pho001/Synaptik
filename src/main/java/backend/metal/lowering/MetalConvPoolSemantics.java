@@ -270,6 +270,9 @@ final class MetalConvPoolSemantics {
         if (opType == Operation.OpType.AVG_POOL2D && options.countIncludePad()) {
             return "CAPABILITY_MISSING: GPU_METAL AVG_POOL2D countIncludePad=true native divisor semantics are not implemented; family=CONV_POOL";
         }
+        if (options.ceilMode()) {
+            return "CAPABILITY_MISSING: GPU_METAL " + opName + " ceilMode=true native output-shape semantics are not implemented; family=CONV_POOL";
+        }
         String metadataReason = poolMetadataReason(opName, options);
         if (!metadataReason.isBlank()) {
             return metadataReason;

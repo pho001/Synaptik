@@ -25,12 +25,12 @@ final class PoolSupport {
         }
     }
 
-    static int inferOutputSize(int inputSize, int kernelSize, int pad, int stride, String axisName) {
+    static int inferOutputSize(int inputSize, int kernelSize, int pad, int stride, boolean ceilMode, String axisName) {
         int numerator = inputSize + 2 * pad - kernelSize;
         if (numerator < 0) {
             throw new IllegalArgumentException("pool2d kernel does not fit input " + axisName + ".");
         }
-        return numerator / stride + 1;
+        return (ceilMode ? (numerator + stride - 1) / stride : numerator / stride) + 1;
     }
 
     static void validateWindowCoverage(

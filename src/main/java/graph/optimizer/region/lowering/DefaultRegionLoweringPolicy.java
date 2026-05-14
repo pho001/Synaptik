@@ -35,7 +35,7 @@ public final class DefaultRegionLoweringPolicy implements RegionLoweringPolicy {
         return switch (opType) {
             case GATHER_AXIS, GATHER_AXIS_GRAD, GATHER_ND, GATHER_ND_GRAD, SLICE_GRAD ->
                     RegionLoweringDecision.reject(level, "CPU-only shape/index primitive");
-            case ADD, SUB, MUL, DIV, MIN, MAX, WHERE,
+            case ADD, SUB, MUL, DIV, MIN, MAX, POW_TENSOR, WHERE,
                  NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH,
                  POW, SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID ->
                     RegionLoweringDecision.fuse(level, RegionLoweringForm.FUSED_ELEMENTWISE, "GPU region-internal elementwise fusion candidate");

@@ -16,6 +16,7 @@ import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -242,6 +243,10 @@ class OnnxExportImportTest {
         assertEquals("Pow", pow.proto().getGraph().getNode(0).getOpType());
         assertEquals(2, pow.proto().getGraph().getNode(0).getInputCount());
         assertEquals(1, pow.proto().getGraph().getInitializerCount());
+        OnnxModel tensorPow = exportInputs(a.pow(b));
+        assertEquals("Pow", tensorPow.proto().getGraph().getNode(0).getOpType());
+        assertEquals(2, tensorPow.proto().getGraph().getNode(0).getInputCount());
+        assertEquals(0, tensorPow.proto().getGraph().getInitializerCount());
 
         OnnxModel clampMin = exportInputs(a.clampMin(0.25));
         assertEquals("Clip", clampMin.proto().getGraph().getNode(0).getOpType());
@@ -281,6 +286,29 @@ class OnnxExportImportTest {
 
         execute(imported, "out");
         assertArrayEquals(new double[]{0.0, 3.0, 8.0, 8.0}, imported.output("out").toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void importVariadicMinMaxLowerToBinaryChains() {
+        OnnxProto.ModelProto model = model("variadic_min_max", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("a", DataType.FLOAT32, new int[]{3}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("b", DataType.FLOAT32, new int[]{3}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("c", DataType.FLOAT32, new int[]{3}))
+                .addNode(node("min", "Min", "min_y", "a", "b", "c"))
+                .addNode(node("max", "Max", "max_y", "a", "b", "c"))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("min_y", DataType.FLOAT32, new int[]{3}))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("max_y", DataType.FLOAT32, new int[]{3})));
+
+        ImportedOnnxModel imported = Onnx.importModel(model);
+        imported.input("a").setData(new float[]{3f, -1f, 8f});
+        imported.input("b").setData(new float[]{2f, 4f, 7f});
+        imported.input("c").setData(new float[]{5f, -3f, 9f});
+
+        execute(imported, "min_y");
+        execute(imported, "max_y");
+
+        assertArrayEquals(new double[]{2.0, -3.0, 7.0}, imported.output("min_y").toDoubleArrayCopy(), 1e-6);
+        assertArrayEquals(new double[]{5.0, 4.0, 9.0}, imported.output("max_y").toDoubleArrayCopy(), 1e-6);
     }
 
     @Test
@@ -341,15 +369,20 @@ class OnnxExportImportTest {
     }
 
     @Test
-    void importRejectsNonConstantPowExponent() {
+    void importTensorPowExponentExecutes() {
         OnnxProto.ModelProto model = model("dynamic_pow", graph -> graph
                 .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2}))
                 .addInput(OnnxTensorProtoUtil.valueInfo("exponent", DataType.FLOAT32, new int[]{2}))
                 .addNode(node("pow", "Pow", "y", "x", "exponent"))
                 .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2})));
 
-        OnnxUnsupportedException ex = assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(model));
-        assertTrue(ex.getMessage().contains("scalar initializer or Constant node"));
+        ImportedOnnxModel imported = Onnx.importModel(model);
+        imported.input("x").setData(new float[]{2f, 9f});
+        imported.input("exponent").setData(new float[]{3f, 0.5f});
+
+        execute(imported, "y");
+
+        assertArrayEquals(new double[]{8.0, 3.0}, imported.output("y").toDoubleArrayCopy(), 1e-6);
     }
 
     @Test
@@ -460,6 +493,9 @@ class OnnxExportImportTest {
         assertEquals("ArgMax", argMax.getOpType());
         assertTrue(argMax.getAttributeList().stream()
                 .anyMatch(attr -> attr.getName().equals("select_last_index") && attr.getI() == 0));
+        OnnxProto.NodeProto argMaxLast = singleNode(x.argMax(1, false, operations.reduction.ArgMaxTiePolicy.LAST_INDEX));
+        assertTrue(argMaxLast.getAttributeList().stream()
+                .anyMatch(attr -> attr.getName().equals("select_last_index") && attr.getI() == 1));
         assertEquals("Expand", singleNode(new Tensor(new float[]{1f, 2f, 3f}, new int[]{1, 3}, null, "row", DataType.FLOAT32)
                 .expand(2, 3)).getOpType());
         assertEquals("Gather", singleNode(x.gatherAxis(new Tensor(new int[]{2, 0}, new int[]{2}, null, "idx", DataType.INT32), 1)).getOpType());
@@ -498,6 +534,50 @@ class OnnxExportImportTest {
         assertEquals("add", scatterNd.getAttribute(0).getS().toStringUtf8());
         assertThrows(OnnxUnsupportedException.class,
                 () -> exportInputs(x.gather(new Tensor(new int[]{2, 0}, new int[]{2}, null, "old_idx", DataType.INT32), 1)));
+    }
+
+    @Test
+    void importArgMaxSelectLastIndexUsesLastTie() {
+        OnnxProto.ModelProto model = model("argmax_last_tie", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2, 3}))
+                .addNode(nodeBuilder("argmax", "ArgMax", "y", "x")
+                        .addAttribute(intAttr("axis", 1))
+                        .addAttribute(intAttr("keepdims", 0))
+                        .addAttribute(intAttr("select_last_index", 1))
+                        .build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.INT64, new int[]{2})));
+
+        ImportedOnnxModel imported = Onnx.importModel(model);
+        imported.input("x").setData(new float[]{1f, 5f, 5f, 7f, 7f, 3f});
+
+        execute(imported, "y");
+
+        assertArrayEquals(new double[]{2.0, 1.0}, imported.output("y").toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void importLayerNormalizationAxisBreadthUsesTrailingDims() {
+        Tensor scale = new Tensor(new float[]{1.0f, 0.5f, 2.0f}, new int[]{3}, null, "scale", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.0f, 1.0f, -1.0f}, new int[]{3}, null, "bias", DataType.FLOAT32);
+        OnnxProto.ModelProto model = model("layernorm_axis2", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2, 2, 3}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("scale", scale))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("bias", bias))
+                .addNode(nodeBuilder("layernorm", "LayerNormalization", "y", "x", "scale", "bias")
+                        .addAttribute(intAttr("axis", 2))
+                        .addAttribute(floatAttr("epsilon", 1.0e-5f))
+                        .build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2, 2, 3})));
+
+        float[] data = new float[]{1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f, 11f, 12f};
+        ImportedOnnxModel imported = Onnx.importModel(model);
+        imported.input("x").setData(data);
+        execute(imported, "y");
+
+        Tensor expected = new Tensor(data, new int[]{2, 2, 3}, null, "expectedInput", DataType.FLOAT32)
+                .layerNorm(scale, bias, 1.0e-5);
+        expected.compute();
+        assertArrayEquals(expected.toDoubleArrayCopy(), imported.output("y").toDoubleArrayCopy(), 1e-5);
     }
 
     @Test
@@ -591,6 +671,56 @@ class OnnxExportImportTest {
 
         assertArrayEquals(new double[]{1, 2, 7, 8}, imported.output("left").toDoubleArrayCopy(), 1e-6);
         assertArrayEquals(new double[]{3, 4, 5, 6, 9, 10, 11, 12}, imported.output("right").toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void importSplitSupportsNegativeAxisAndUnevenSizes() {
+        OnnxProto.ModelProto model = model("split_negative_axis", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2, 4}))
+                .addInitializer(OnnxTensorProtoUtil.int64Initializer("split_sizes", new long[]{1, 3}))
+                .addNode(nodeBuilder("split", "Split", "left", "x", "split_sizes")
+                        .addOutput("right")
+                        .addAttribute(intAttr("axis", -1))
+                        .build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("left", DataType.FLOAT32, new int[]{2, 1}))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("right", DataType.FLOAT32, new int[]{2, 3})));
+
+        ImportedOnnxModel imported = Onnx.importModel(model);
+        imported.input("x").setData(new float[]{1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f});
+        execute(imported, "left");
+        execute(imported, "right");
+
+        assertArrayEquals(new double[]{1.0, 5.0}, imported.output("left").toDoubleArrayCopy(), 1e-6);
+        assertArrayEquals(new double[]{2.0, 3.0, 4.0, 6.0, 7.0, 8.0}, imported.output("right").toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void splitExportRecognizerRejectsGapOverlapAndConsumedSlices() {
+        Tensor input = new Tensor(new float[12], new int[]{2, 6}, null, "splitInput", DataType.FLOAT32);
+        Tensor gapLeft = input.slice(new int[]{0, 0}, new int[]{2, 2}, new int[]{0, 1}, new int[]{1, 1});
+        Tensor gapRight = input.slice(new int[]{0, 3}, new int[]{2, 6}, new int[]{0, 1}, new int[]{1, 1});
+        OnnxProto.GraphProto gapGraph = Onnx.exportModel(
+                List.of(gapLeft, gapRight),
+                OnnxExportOptions.defaults().withLeafTensorPolicy(OnnxLeafTensorPolicy.INPUTS)
+        ).proto().getGraph();
+        assertFalse(gapGraph.getNodeList().stream().anyMatch(node -> node.getOpType().equals("Split")));
+
+        Tensor overlapLeft = input.slice(new int[]{0, 0}, new int[]{2, 3}, new int[]{0, 1}, new int[]{1, 1});
+        Tensor overlapRight = input.slice(new int[]{0, 2}, new int[]{2, 6}, new int[]{0, 1}, new int[]{1, 1});
+        OnnxProto.GraphProto overlapGraph = Onnx.exportModel(
+                List.of(overlapLeft, overlapRight),
+                OnnxExportOptions.defaults().withLeafTensorPolicy(OnnxLeafTensorPolicy.INPUTS)
+        ).proto().getGraph();
+        assertFalse(overlapGraph.getNodeList().stream().anyMatch(node -> node.getOpType().equals("Split")));
+
+        Tensor left = input.slice(new int[]{0, 0}, new int[]{2, 2}, new int[]{0, 1}, new int[]{1, 1});
+        Tensor right = input.slice(new int[]{0, 2}, new int[]{2, 6}, new int[]{0, 1}, new int[]{1, 1});
+        Tensor consumer = left.add(Tensor.scalar(1.0d, DataType.FLOAT32));
+        OnnxProto.GraphProto consumedGraph = Onnx.exportModel(
+                List.of(left, right, consumer),
+                OnnxExportOptions.defaults().withLeafTensorPolicy(OnnxLeafTensorPolicy.INPUTS)
+        ).proto().getGraph();
+        assertFalse(consumedGraph.getNodeList().stream().anyMatch(node -> node.getOpType().equals("Split")));
     }
 
     @Test
@@ -718,22 +848,65 @@ class OnnxExportImportTest {
     }
 
     @Test
-    void importNnInferenceSubsetRejectsUnsupportedAttributes() {
+    void importNnInferenceSubsetSupportsStaticPadAndCeilVariants() {
         OnnxProto.ModelProto asymmetricConv = model("bad_conv", graph -> graph
                 .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{1, 1, 3, 3}))
                 .addInitializer(OnnxTensorProtoUtil.tensorInitializer("w",
-                        new Tensor(new float[4], new int[]{1, 1, 2, 2}, null, "w", DataType.FLOAT32)))
+                        new Tensor(new float[]{1f, 1f, 1f, 1f}, new int[]{1, 1, 2, 2}, null, "w", DataType.FLOAT32)))
                 .addNode(nodeBuilder("conv", "Conv", "y", "x", "w")
                         .addAttribute(intsAttr("pads", 1, 0, 0, 0))
                         .build())
                 .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{1, 1, 3, 2})));
         OnnxProto.ModelProto ceilPool = model("bad_pool", graph -> graph
-                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{1, 1, 4, 4}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{1, 1, 5, 5}))
                 .addNode(nodeBuilder("pool", "MaxPool", "y", "x")
                         .addAttribute(intsAttr("kernel_shape", 2, 2))
+                        .addAttribute(intsAttr("strides", 2, 2))
                         .addAttribute(intAttr("ceil_mode", 1))
                         .build())
-                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{1, 1, 2, 2})));
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{1, 1, 3, 3})));
+        OnnxProto.ModelProto ceilAveragePool = model("avg_pool_ceil", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{1, 1, 5, 5}))
+                .addNode(nodeBuilder("pool", "AveragePool", "y", "x")
+                        .addAttribute(intsAttr("kernel_shape", 2, 2))
+                        .addAttribute(intsAttr("strides", 2, 2))
+                        .addAttribute(intAttr("ceil_mode", 1))
+                        .build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{1, 1, 3, 3})));
+
+        ImportedOnnxModel importedConv = Onnx.importModel(asymmetricConv);
+        importedConv.input("x").setData(new float[]{1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f});
+        execute(importedConv, "y");
+        assertArrayEquals(new double[]{3.0, 5.0, 12.0, 16.0, 24.0, 28.0},
+                importedConv.output("y").toDoubleArrayCopy(), 1e-6);
+
+        ImportedOnnxModel importedPool = Onnx.importModel(ceilPool);
+        importedPool.input("x").setData(new float[]{
+                1f, 2f, 3f, 4f, 5f,
+                6f, 7f, 8f, 9f, 10f,
+                11f, 12f, 13f, 14f, 15f,
+                16f, 17f, 18f, 19f, 20f,
+                21f, 22f, 23f, 24f, 25f
+        });
+        execute(importedPool, "y");
+        assertArrayEquals(new double[]{7.0, 9.0, 10.0, 17.0, 19.0, 20.0, 22.0, 24.0, 25.0},
+                importedPool.output("y").toDoubleArrayCopy(), 1e-6);
+
+        ImportedOnnxModel importedAvgPool = Onnx.importModel(ceilAveragePool);
+        importedAvgPool.input("x").setData(new float[]{
+                1f, 2f, 3f, 4f, 5f,
+                6f, 7f, 8f, 9f, 10f,
+                11f, 12f, 13f, 14f, 15f,
+                16f, 17f, 18f, 19f, 20f,
+                21f, 22f, 23f, 24f, 25f
+        });
+        execute(importedAvgPool, "y");
+        assertArrayEquals(new double[]{4.0, 6.0, 7.5, 14.0, 16.0, 17.5, 21.5, 23.5, 25.0},
+                importedAvgPool.output("y").toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void importNnInferenceSubsetRejectsUnsupportedAttributes() {
         OnnxProto.ModelProto trainingBatchNorm = model("bad_bn", graph -> graph
                 .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{1, 1, 1, 1}))
                 .addInitializer(OnnxTensorProtoUtil.tensorInitializer("scale", Tensor.scalar(1.0, DataType.FLOAT32)))
@@ -744,13 +917,33 @@ class OnnxExportImportTest {
                         .addAttribute(intAttr("training_mode", 1))
                         .build())
                 .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{1, 1, 1, 1})));
+        OnnxProto.ModelProto multiOutputLayerNorm = model("bad_layernorm_outputs", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{1, 2}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("scale", new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "scale", DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("bias", new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "bias", DataType.FLOAT32)))
+                .addNode(nodeBuilder("layernorm", "LayerNormalization", "y", "x", "scale", "bias")
+                        .addOutput("mean")
+                        .build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{1, 2}))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("mean", DataType.FLOAT32, new int[]{1, 1})));
+        OnnxProto.ModelProto multiOutputBatchNorm = model("bad_bn_outputs", graph -> graph
+                .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{1, 1, 1, 1}))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("scale", Tensor.scalar(1.0, DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("bias", Tensor.scalar(0.0, DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("mean", Tensor.scalar(0.0, DataType.FLOAT32)))
+                .addInitializer(OnnxTensorProtoUtil.tensorInitializer("var", Tensor.scalar(1.0, DataType.FLOAT32)))
+                .addNode(nodeBuilder("batch_norm", "BatchNormalization", "y", "x", "scale", "bias", "mean", "var")
+                        .addOutput("saved_mean")
+                        .build())
+                .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{1, 1, 1, 1}))
+                .addOutput(OnnxTensorProtoUtil.valueInfo("saved_mean", DataType.FLOAT32, new int[]{1})));
 
-        assertTrue(assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(asymmetricConv))
-                .getMessage().contains("symmetric"));
-        assertTrue(assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(ceilPool))
-                .getMessage().contains("ceil_mode"));
         assertTrue(assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(trainingBatchNorm))
                 .getMessage().contains("training_mode"));
+        assertTrue(assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(multiOutputLayerNorm))
+                .getMessage().contains("single-output"));
+        assertTrue(assertThrows(OnnxUnsupportedException.class, () -> Onnx.importModel(multiOutputBatchNorm))
+                .getMessage().contains("single-output"));
     }
 
     @Test

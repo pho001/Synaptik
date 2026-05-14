@@ -2,6 +2,7 @@ package tensor.ops.reduction;
 
 import graph.optimizer.intent.BackendIntentPropagator;
 import operations.Operation;
+import operations.reduction.ArgMaxTiePolicy;
 import operations.reduction.cumSum;
 import operations.reduction.mean;
 import operations.reduction.reduceAll;
@@ -183,6 +184,10 @@ public final class TensorReduceOps {
     }
 
     public static Tensor argMax(Tensor input, int dimension, boolean keepDims) {
+        return argMax(input, dimension, keepDims, ArgMaxTiePolicy.FIRST_INDEX);
+    }
+
+    public static Tensor argMax(Tensor input, int dimension, boolean keepDims, ArgMaxTiePolicy tiePolicy) {
         if (input == null) {
             throw new IllegalArgumentException("argMax input cannot be null");
         }
@@ -193,7 +198,7 @@ public final class TensorReduceOps {
         return TensorPrimitiveBuilder.unaryNoGrad(
                 input,
                 ReductionSupport.reduceShape(input.getShape(), normalizedDimension, keepDims),
-                new argMax(normalizedDimension, keepDims),
+                new argMax(normalizedDimension, keepDims, tiePolicy),
                 "argmax",
                 DataType.INT64
         );

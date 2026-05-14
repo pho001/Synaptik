@@ -36,6 +36,15 @@ public final class OnnxCoverageMatrix {
         NOT_APPLICABLE
     }
 
+    public enum LimitationCategory {
+        NONE,
+        STATIC_SEMANTIC_LIMIT,
+        STATIC_ATTRIBUTE_LIMIT,
+        MULTI_OUTPUT_LIMIT,
+        RUNTIME_SHAPE_LIMIT,
+        DATA_DEPENDENT_SHAPE_LIMIT
+    }
+
     public record Entry(
             String onnxOp,
             String synaptikMapping,
@@ -45,6 +54,7 @@ public final class OnnxCoverageMatrix {
             CoverageStatus metalStatus,
             CoverageStatus cudaStatus,
             RoundTripEvidence roundTripEvidence,
+            LimitationCategory limitationCategory,
             String limitations,
             List<Operation.OpType> mappedOpTypes
     ) {
@@ -57,6 +67,7 @@ public final class OnnxCoverageMatrix {
             Objects.requireNonNull(metalStatus, "metalStatus cannot be null");
             Objects.requireNonNull(cudaStatus, "cudaStatus cannot be null");
             Objects.requireNonNull(roundTripEvidence, "roundTripEvidence cannot be null");
+            Objects.requireNonNull(limitationCategory, "limitationCategory cannot be null");
             limitations = limitations == null ? "" : limitations;
             mappedOpTypes = List.copyOf(mappedOpTypes == null ? List.of() : mappedOpTypes);
         }
@@ -81,11 +92,11 @@ public final class OnnxCoverageMatrix {
         addBinary(out, "Sub", Operation.OpType.SUB);
         addBinary(out, "Mul", Operation.OpType.MUL);
         addBinary(out, "Div", Operation.OpType.DIV);
-        addBinary(out, "Min", Operation.OpType.MIN, "binary form only");
-        addBinary(out, "Max", Operation.OpType.MAX, "binary form only");
-        add(out, "Pow", "scalar-exponent pow", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
+        addBinary(out, "Min", Operation.OpType.MIN, "variadic import lowers to a left-associated binary chain");
+        addBinary(out, "Max", Operation.OpType.MAX, "variadic import lowers to a left-associated binary chain");
+        add(out, "Pow", "scalar or tensor-exponent pow", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.POW),
-                gpu(ComputeBackend.GPU_CUDA, Operation.OpType.POW), "tensor exponent is unsupported", Operation.OpType.POW);
+                gpu(ComputeBackend.GPU_CUDA, Operation.OpType.POW), "tensor exponent maps to CPU POW_TENSOR; accelerator native coverage remains scalar-pow scoped", Operation.OpType.POW, Operation.OpType.POW_TENSOR);
         addUnary(out, "Neg", Operation.OpType.NEG);
         addUnary(out, "Abs", Operation.OpType.ABS);
         addUnary(out, "Relu", Operation.OpType.RELU);
@@ -142,15 +153,15 @@ public final class OnnxCoverageMatrix {
         add(out, "Conv", "conv2d", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.CONV2D),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.CONV2D),
-                "rank-4 NCHW/OIHW, symmetric spatial pads, static attributes", Operation.OpType.CONV2D);
+                "rank-4 NCHW/OIHW, static attributes; asymmetric pads import as explicit Pad + Conv", Operation.OpType.PAD, Operation.OpType.CONV2D);
         add(out, "MaxPool", "maxPool2d", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.MAX_POOL2D),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.MAX_POOL2D),
-                "rank-4 NCHW, static attributes, ceil_mode=0", Operation.OpType.MAX_POOL2D);
+                "rank-4 NCHW, static attributes; ceil_mode=1 is CPU/import supported and accelerator-native unsupported", Operation.OpType.MAX_POOL2D);
         add(out, "AveragePool", "avgPool2d", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.AVG_POOL2D),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.AVG_POOL2D),
-                "rank-4 NCHW, static attributes, ceil_mode=0; Metal native row is scoped to count_include_pad=false", Operation.OpType.AVG_POOL2D);
+                "rank-4 NCHW, static attributes; ceil_mode=1 is CPU/import supported; Metal native row is scoped to count_include_pad=false and ceil_mode=false", Operation.OpType.AVG_POOL2D);
         add(out, "LayerNormalization", "layerNorm", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.LAYER_NORM),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.LAYER_NORM),
@@ -224,7 +235,7 @@ public final class OnnxCoverageMatrix {
         add(out, "ArgMax", "argMax", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.ARGMAX),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.ARGMAX),
-                "output is INT64; select_last_index=0 only; Metal produces public INT64 index outputs; CUDA remains unsupported", Operation.OpType.ARGMAX);
+                "output is INT64; select_last_index=0/1 supported on CPU/import/export; accelerator native rows remain first-index scoped unless backend tie policy is proven", Operation.OpType.ARGMAX);
         add(out, "CumSum", "cumSum", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.CUMSUM),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.CUMSUM),
@@ -301,9 +312,26 @@ public final class OnnxCoverageMatrix {
                 metalStatus,
                 cudaStatus,
                 roundTripEvidence(onnxOp, importStatus, exportStatus),
+                limitationCategory(onnxOp, limitations),
                 limitations,
                 List.of(mappedOps)
         ));
+    }
+
+    private static LimitationCategory limitationCategory(String onnxOp, String limitations) {
+        if (limitations == null || limitations.isBlank()) {
+            return LimitationCategory.NONE;
+        }
+        return switch (onnxOp) {
+            case "ConstantOfShape", "Range", "Shape", "Size" -> LimitationCategory.RUNTIME_SHAPE_LIMIT;
+            case "NonZero" -> LimitationCategory.DATA_DEPENDENT_SHAPE_LIMIT;
+            case "BatchNormalization", "Split" -> LimitationCategory.MULTI_OUTPUT_LIMIT;
+            case "Conv", "MaxPool", "AveragePool", "LayerNormalization",
+                 "Gemm", "Reshape", "Flatten", "Expand", "Pad", "Tile",
+                 "Squeeze", "Unsqueeze", "Slice", "Concat", "Gather", "GatherElements",
+                 "GatherND", "ScatterElements", "ScatterND", "CumSum" -> LimitationCategory.STATIC_ATTRIBUTE_LIMIT;
+            default -> LimitationCategory.STATIC_SEMANTIC_LIMIT;
+        };
     }
 
     private static RoundTripEvidence roundTripEvidence(String onnxOp, CoverageStatus importStatus, CoverageStatus exportStatus) {

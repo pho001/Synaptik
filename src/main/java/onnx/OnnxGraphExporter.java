@@ -30,6 +30,7 @@ import operations.normalization.layerNorm;
 import operations.reduction.logSoftmax;
 import operations.reduction.mean;
 import operations.reduction.argMax;
+import operations.reduction.ArgMaxTiePolicy;
 import operations.reduction.reduceMax;
 import operations.reduction.reduceMin;
 import operations.reduction.reduceProd;
@@ -85,7 +86,7 @@ final class OnnxGraphExporter {
         OnnxExportPatternContext patternContext = new OnnxExportPatternContext(graphOutputs, consumerCounts, ids, names);
         IdentityHashMap<Tensor, OnnxExportPatternMatch> patternMatches = new IdentityHashMap<>();
         Set<Tensor> patternConsumed = Collections.newSetFromMap(new IdentityHashMap<>());
-        addSplitOutputPatterns(outputs, ids, names, patternMatches, patternConsumed);
+        addSplitOutputPatterns(outputs, ids, names, consumerCounts, patternMatches, patternConsumed);
         for (Tensor tensor : graph) {
             if (tensor.getOperation() == null) {
                 continue;
@@ -213,6 +214,7 @@ final class OnnxGraphExporter {
             List<Tensor> outputs,
             IdentityHashMap<Tensor, Integer> ids,
             OnnxNameRegistry names,
+            IdentityHashMap<Tensor, Integer> consumerCounts,
             IdentityHashMap<Tensor, OnnxExportPatternMatch> patternMatches,
             Set<Tensor> patternConsumed
     ) {
@@ -223,6 +225,9 @@ final class OnnxGraphExporter {
             }
             SplitPart part = splitPart(output, sliceOp);
             if (part == null) {
+                continue;
+            }
+            if (consumerCounts.getOrDefault(output, 0) != 0) {
                 continue;
             }
             groups.computeIfAbsent(new SplitGroupKey(output.getPrevTensors().get(0), part.axis()), ignored -> new ArrayList<>())
@@ -346,6 +351,7 @@ final class OnnxGraphExporter {
             case CEIL -> node.setOpType("Ceil");
             case SIGN -> node.setOpType("Sign");
             case POW -> exportPow(node, op, tensor, names, graphBuilder);
+            case POW_TENSOR -> node.setOpType("Pow");
             case CLAMP_MIN -> exportClampMin(node, op, tensor, names, graphBuilder);
             case CLAMP_MAX -> exportClampMax(node, op, tensor, names, graphBuilder);
             case EQ -> node.setOpType("Equal");
@@ -447,6 +453,9 @@ final class OnnxGraphExporter {
         node.addAttribute(intsAttr("kernel_shape", new int[]{options.kernelH(), options.kernelW()}))
                 .addAttribute(intsAttr("strides", new int[]{options.strideH(), options.strideW()}))
                 .addAttribute(intsAttr("pads", new int[]{options.padH(), options.padW(), options.padH(), options.padW()}));
+        if (options.ceilMode()) {
+            node.addAttribute(intAttr("ceil_mode", 1));
+        }
     }
 
     private static void exportLayerNormalization(OnnxProto.NodeProto.Builder node, Operation op, Tensor tensor) {
@@ -678,7 +687,7 @@ final class OnnxGraphExporter {
         node.setOpType("ArgMax")
                 .addAttribute(intAttr("axis", argMax.getDimension()))
                 .addAttribute(intAttr("keepdims", argMax.keepDims() ? 1 : 0))
-                .addAttribute(intAttr("select_last_index", 0));
+                .addAttribute(intAttr("select_last_index", argMax.tiePolicy() == ArgMaxTiePolicy.LAST_INDEX ? 1 : 0));
     }
 
     private static void exportCumSum(

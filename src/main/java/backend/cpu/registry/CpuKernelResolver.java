@@ -88,6 +88,7 @@ public final class CpuKernelResolver {
     private static final CpuTanhKernel TANH = new CpuTanhKernel();
     private static final CpuFastTanhKernel FAST_TANH = new CpuFastTanhKernel();
     private static final CpuPowKernel POW = new CpuPowKernel();
+    private static final CpuPowTensorKernel POW_TENSOR = new CpuPowTensorKernel();
     private static final CpuSqrtKernel SQRT = new CpuSqrtKernel();
     private static final CpuAbsKernel ABS = new CpuAbsKernel();
     private static final CpuFloorKernel FLOOR = new CpuFloorKernel();
@@ -192,6 +193,7 @@ public final class CpuKernelResolver {
             case TANH -> TANH;
             case FAST_TANH -> FAST_TANH;
             case POW -> POW;
+            case POW_TENSOR -> POW_TENSOR;
             case SQRT -> SQRT;
             case ABS -> ABS;
             case FLOOR -> FLOOR;

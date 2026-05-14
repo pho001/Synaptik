@@ -85,7 +85,7 @@ public final class BackendIntentPropagator {
                     propagateBackwardIntent(inputs.getFirst(), backend, seen);
                 }
             }
-            case ADD, SUB, MUL, DIV, MIN, MAX, GT, GE, LT, LE, EQ, NE,
+            case ADD, SUB, MUL, DIV, MIN, MAX, POW_TENSOR, GT, GE, LT, LE, EQ, NE,
                     LOGICAL_AND, LOGICAL_OR, WHERE, MUL_SCALAR,
                     GATHER, GATHER_AXIS, GATHER_ND, GATHER_ND_GRAD, TAKE_ALONG_AXIS,
                     SCATTER_ADD, SCATTER_AXIS_ADD, SCATTER_ELEMENTS, SCATTER_ND,

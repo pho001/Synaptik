@@ -120,6 +120,11 @@ public final class FusedVectorMethodEmitter {
     }
 
     private static boolean supportsVector(FusedGenerationContext context, FusedExpressionPlan plan) {
+        for (FusedNodePlan node : plan.nodes()) {
+            if (node.opType() == operations.Operation.OpType.POW_TENSOR) {
+                return false;
+            }
+        }
         return true;
     }
 

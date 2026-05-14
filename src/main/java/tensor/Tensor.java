@@ -1485,6 +1485,16 @@ public class Tensor {
     }
 
     /**
+     * Raises this tensor to an elementwise tensor exponent with broadcasting.
+     *
+     * @param exponent exponent tensor; must be floating and broadcast-compatible
+     * @return broadcasted power tensor
+     */
+    public Tensor pow(Tensor exponent) {
+        return TensorOps.pow(this, exponent);
+    }
+
+    /**
      * Compares whether this tensor is elementwise greater than another tensor.
      *
      * @param second right operand; must be floating and broadcast-compatible
@@ -2141,6 +2151,10 @@ public class Tensor {
 
     public Tensor argMax(int dimension, boolean keepDims) {
         return TensorOps.argMax(this, dimension, keepDims);
+    }
+
+    public Tensor argMax(int dimension, boolean keepDims, operations.reduction.ArgMaxTiePolicy tiePolicy) {
+        return TensorOps.argMax(this, dimension, keepDims, tiePolicy);
     }
 
     /**

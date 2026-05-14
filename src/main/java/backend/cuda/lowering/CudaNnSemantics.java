@@ -261,6 +261,9 @@ final class CudaNnSemantics {
             return "CAPABILITY_MISSING: operation AVG_POOL2D is not supported by GPU_CUDA lowering; "
                     + "countIncludePad=true native divisor semantics are not implemented; family=CONV_POOL";
         }
+        if (options.ceilMode()) {
+            return "CAPABILITY_MISSING: GPU_CUDA " + opName + " ceilMode=true native output-shape semantics are not implemented; family=CONV_POOL";
+        }
         int outH = inferPoolOutput(input.shape()[2], options.kernelH(), options.padH(), options.strideH());
         int outW = inferPoolOutput(input.shape()[3], options.kernelW(), options.padW(), options.strideW());
         if (outH < 0 || outW < 0) {

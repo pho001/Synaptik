@@ -1,9 +1,9 @@
 <!-- generated-by: gsd-doc-writer -->
 # Public API
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Examples](examples.md#running-examples) | [Configuration](configuration.md#runtimeconfig) | [Compute Flow](compute-flow.md#tensor-compute-api) | [Native Bridges & BLAS](native-bridges-and-blas.md#configuration-and-library-lookup) | [Metal Backend](metal-backend.md#buffer-residency-and-materialization) | [Troubleshooting](troubleshooting.md#unsupported-dtype-in-a-kernel)
+Navigation: [Index](index.md#recommended-reading-paths) | [Quickstart](quickstart.md#what-synaptik-is) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Examples](examples.md#running-examples) | [Configuration](configuration.md#runtimeconfig) | [Compute Flow](compute-flow.md#tensor-compute-api) | [ONNX](onnx.md#onnx-import-and-export) | [Native Bridges & BLAS](native-bridges-and-blas.md#configuration-and-library-lookup) | [Metal Backend](metal-backend.md#buffer-residency-and-materialization) | [Troubleshooting](troubleshooting.md#unsupported-dtype-in-a-kernel)
 
-Chapters: [Stability Map](#stability-map) | [Tensor](#tensor) | [ComputeOptions, CompileMode, And AutotunePolicy](#computeoptions-compilemode-and-autotunepolicy) | [CompiledGraph](#compiledgraph) | [PreparedExecution](#preparedexecution) | [Configuration APIs](#configuration-apis) | [Tuning Fluent API](#tuning-fluent-api) | [CLI Entry Point](#cli-entry-point) | [Probably Internal APIs](#probably-internal-apis) | [Verification Notes](#verification-notes)
+Chapters: [Stability Map](#stability-map) | [Tensor](#tensor) | [ComputeOptions, CompileMode, And AutotunePolicy](#computeoptions-compilemode-and-autotunepolicy) | [CompiledGraph](#compiledgraph) | [PreparedExecution](#preparedexecution) | [PublicationPolicy](#publicationpolicy) | [Configuration APIs](#configuration-apis) | [ONNX APIs](#onnx-apis) | [Tuning Fluent API](#tuning-fluent-api) | [CLI Entry Point](#cli-entry-point) | [Probably Internal APIs](#probably-internal-apis) | [Verification Notes](#verification-notes)
 
 This document describes the Java API surfaces that are usable from application code today and separates them from public Java types that are probably internal implementation hooks.
 
@@ -14,7 +14,9 @@ This document describes the Java API surfaces that are usable from application c
 - [ComputeOptions, CompileMode, And AutotunePolicy](#computeoptions-compilemode-and-autotunepolicy)
 - [CompiledGraph](#compiledgraph)
 - [PreparedExecution](#preparedexecution)
+- [PublicationPolicy](#publicationpolicy)
 - [Configuration APIs](#configuration-apis)
+- [ONNX APIs](#onnx-apis)
 - [Tuning Fluent API](#tuning-fluent-api)
 - [CLI Entry Point](#cli-entry-point)
 - [Probably Internal APIs](#probably-internal-apis)
@@ -30,13 +32,16 @@ This document describes the Java API surfaces that are usable from application c
 | Public | `tensor.AutotunePolicy` | `src/main/java/tensor/AutotunePolicy.java` | Autotune behavior for `ComputeOptions`. |
 | Public | `graph.CompiledGraph` | `src/main/java/graph/CompiledGraph.java` | Compiled graph artifact and explicit prepare/execute entry point. |
 | Public | `graph.execution.PreparedExecution` | `src/main/java/graph/execution/PreparedExecution.java` | Prepared runtime plan that can be executed repeatedly. |
-| Public | `config.optimizer.*` | `src/main/java/config/optimizer/*.java` | Optimizer stage and rewrite/fusion/memory/partition configuration records. |
+| Public | `graph.execution.PublicationPolicy` | `src/main/java/graph/execution/PublicationPolicy.java` | Execution side-effect policy for output/intermediate/gradient publication. |
+| Public | `config.compile.*` | `src/main/java/config/compile/*.java` | Compile-time semantic, graph optimization, backend planning, region optimization, and memory planning records. |
 | Public | `config.runtime.*` | `src/main/java/config/runtime/*.java` | Runtime backend, BLAS, approximation, fused, and accelerator configuration records. |
 | Public | `config.profile.*` | `src/main/java/config/profile/*.java` | Persistable execution and platform runtime profile records plus profile IO. |
+| Public | `onnx.Onnx`, `OnnxModel`, `ImportedOnnxModel`, ONNX option records | `src/main/java/onnx/*.java` | Static dense ONNX import/export facade, in-memory model wrapper, imported model wrapper, and interchange policies. |
 | Public | `tuning.api.*` | `src/main/java/tuning/api/*.java` | Fluent Java API for calibration, execution-profile construction, benchmark workflows, and report policy configuration. |
 | Public | `synaptik.app.TuningCli` | `src/main/java/synaptik/app/TuningCli.java` | Gradle application CLI entry point for tuning workflows. |
 | Public | `synaptik.app.Main` | `src/main/java/synaptik/app/Main.java` | Programmatic calibration and benchmark entry point using regular Java calls. |
 | Probably internal | `tensor.TensorOps`, `tensor.TensorPrimitiveBuilder`, `tensor.TensorStorage*`, `tensor.TensorInternalAccess` | `src/main/java/tensor/*.java` | Public or package-visible support for operation construction and storage plumbing; prefer `Tensor` methods. |
+| Probably internal | `config.optimizer.*` | `src/main/java/config/optimizer/*.java` | Legacy and implementation-adjacent optimizer/region helper records that are currently composed through `config.compile.*`; prefer `CompileConfig` for application code. |
 | Probably internal | `backend.ComputeEngine`, backend kernel classes, backend bridge classes | `src/main/java/backend/**/*.java` | Runtime dispatch and kernel implementation details. |
 | Probably internal | Most `tuning.*` candidate/search/measurement classes | `src/main/java/tuning/**/*.java` | Useful for extending the tuning system, but not the shortest supported application API. Prefer CLI/profile APIs first. |
 
@@ -55,6 +60,7 @@ new Tensor(double[] data, int[] shape, List<Tensor> previous, String label, Data
 new Tensor(float[] data, int[] shape, List<Tensor> previous, String label, DataType dataType)
 new Tensor(short[] data, int[] shape, List<Tensor> previous, String label, DataType dataType)
 new Tensor(int[] data, int[] shape, List<Tensor> previous, String label, DataType dataType)
+new Tensor(long[] data, int[] shape, List<Tensor> previous, String label, DataType dataType)
 new Tensor(byte[] data, int[] shape, List<Tensor> previous, String label, DataType dataType)
 new Tensor(int[] dimensions, List<Tensor> previous, String label, DataType dataType)
 new Tensor(Object multiDimArray, List<Tensor> previous, String label, DataType dataType)
@@ -70,19 +76,19 @@ Parameters:
 - `shape` or `dimensions`: logical tensor dimensions.
 - `previous`: predecessor tensors when constructing graph nodes manually; application code usually passes `null` for leaves.
 - `label`: optional debug label.
-- `dataType`: one of `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, or `BOOL`.
+- `dataType`: one of `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, or `BOOL`.
 
 Returns: a `Tensor` with shape, dtype, strides, and storage initialized.
 
 Failures:
 
 - Shape/data length mismatch throws `IllegalArgumentException`.
-- Implicit numeric conversion to `BOOL` or `INT32` storage throws `UnsupportedOperationException`.
+- Implicit numeric conversion to `BOOL`, `INT32`, or `INT64` storage throws `UnsupportedOperationException`.
 - Invalid multidimensional array shape can fail during shape inference.
 
 Side effects:
 
-- Most matching-dtype primitive array constructors keep the supplied array as storage. This applies to `double[]`/`FLOAT64`, `float[]`/`FLOAT32`, `short[]`/`BFLOAT16`, and `int[]`/`INT32`.
+- Most matching-dtype primitive array constructors keep the supplied array as storage. This applies to `double[]`/`FLOAT64`, `float[]`/`FLOAT32`, `short[]`/`BFLOAT16`, `int[]`/`INT32`, and `long[]`/`INT64`.
 - `byte[]` boolean input is copied and normalized to `0` or `1`; mutating the original byte array after construction does not update the tensor.
 - Mutating an aliased numeric input array or the typed storage getter result can change the tensor. Use `toDoubleArrayCopy()` when a detached snapshot is needed.
 
@@ -211,6 +217,7 @@ float[] getFloat32Data()
 double[] getFloat64Data()
 short[] getBFloat16Data()
 int[] getInt32Data()
+long[] getInt64Data()
 byte[] getBoolData()
 Tensor getGradient()
 boolean getRequiresGrad()
@@ -484,7 +491,13 @@ List<PreparedNodeExecution> backwardSteps()
 List<PreparedNodeExecution> executionSteps()
 PrepareTrace prepareTrace()
 void execute(ExecutionMode mode)
+void execute(ExecutionMode mode, PublicationPolicy publicationPolicy)
 RunTrace executeTraced(ExecutionMode mode)
+RunTrace executeTraced(ExecutionMode mode, PublicationPolicy publicationPolicy)
+void executeOptimizerStep(TrainingOptimizer optimizer)
+void executeOptimizerStep(TrainingOptimizer optimizer, PublicationPolicy publicationPolicy)
+RunTrace executeOptimizerStepTraced(TrainingOptimizer optimizer)
+RunTrace executeOptimizerStepTraced(TrainingOptimizer optimizer, PublicationPolicy publicationPolicy)
 void backward()
 ```
 
@@ -506,12 +519,56 @@ Failures:
 
 Side effects:
 
-- Execution binds runtime memory, executes backend kernels, syncs root output data, and may publish gradients.
+- Execution binds runtime memory, executes backend kernels, and publishes values according to `PublicationPolicy`.
 
 Performance and concurrency notes:
 
 - A prepared execution avoids repeating compile and prepare work.
 - Prepared execution instances reference mutable tensors and runtime memory state during execution; do not execute the same instance concurrently unless the call sites coordinate access.
+
+## PublicationPolicy
+
+**Source:** `src/main/java/graph/execution/PublicationPolicy.java`
+
+Purpose: control which run-scoped values are synchronized back to user-visible tensors after execution.
+
+Publication is an execution side-effect policy. It is not graph optimization, backend planning, memory planning, or runtime dispatch. The graph has already executed; publication only decides which computed values are copied back to public `Tensor` storage and gradient fields.
+
+Values:
+
+```java
+PublicationPolicy.ALL
+PublicationPolicy.OUTPUT_AND_GRADIENTS
+PublicationPolicy.OUTPUT_ONLY
+PublicationPolicy.NONE
+```
+
+Semantics:
+
+| Policy | Publishes all forward values | Publishes root output | Publishes gradients |
+|---|---:|---:|---:|
+| `ALL` | yes | yes | yes |
+| `OUTPUT_AND_GRADIENTS` | no | yes | yes |
+| `OUTPUT_ONLY` | no | yes | no |
+| `NONE` | no | no | no |
+
+Defaults:
+
+```java
+PublicationPolicy.defaultExecution()      // OUTPUT_AND_GRADIENTS
+PublicationPolicy.defaultOptimizerStep()  // OUTPUT_ONLY
+```
+
+Example:
+
+```java
+PreparedExecution prepared = CompiledGraph.compile(loss, CompileConfig.training())
+        .prepare(RuntimeConfig.trainingDefaults());
+
+prepared.execute(ExecutionMode.FORWARD_BACKWARD, PublicationPolicy.OUTPUT_AND_GRADIENTS);
+```
+
+Use `ALL` when a test or debug session needs intermediate tensor values. Use `OUTPUT_AND_GRADIENTS` for normal training-style execution. Use `OUTPUT_ONLY` when the output is needed but gradients should not be eagerly attached to public tensors. Use `NONE` for measurements where publication overhead would distort the thing being measured.
 
 ## Configuration APIs
 
@@ -626,6 +683,77 @@ Performance notes:
 
 - `PlatformRuntimeProfile.toRuntimeConfig()` maps persisted thresholds and backend choices back into runtime config for prepared execution.
 - `MatmulPlatformProfile` and `BlasConfig` currently normalize `blasThreads` to `0`.
+
+## ONNX APIs
+
+**Sources:**
+
+- `src/main/java/onnx/Onnx.java`
+- `src/main/java/onnx/OnnxModel.java`
+- `src/main/java/onnx/ImportedOnnxModel.java`
+- `src/main/java/onnx/OnnxExportOptions.java`
+- `src/main/java/onnx/OnnxImportOptions.java`
+
+Purpose: import and export the supported static dense ONNX inference subset.
+
+Primary facade signatures:
+
+```java
+static OnnxModel Onnx.exportModel(Tensor output)
+static OnnxModel Onnx.exportModel(Tensor output, OnnxExportOptions options)
+static OnnxModel Onnx.exportModel(List<Tensor> outputs)
+static OnnxModel Onnx.exportModel(List<Tensor> outputs, OnnxExportOptions options)
+static void Onnx.write(Tensor output, Path path)
+static void Onnx.write(Tensor output, Path path, OnnxExportOptions options)
+static ImportedOnnxModel Onnx.read(Path path)
+static ImportedOnnxModel Onnx.read(Path path, OnnxImportOptions options)
+static ImportedOnnxModel Onnx.importModel(OnnxProto.ModelProto model)
+static ImportedOnnxModel Onnx.importModel(OnnxProto.ModelProto model, OnnxImportOptions options)
+```
+
+Model wrapper signatures:
+
+```java
+void OnnxModel.write(Path path)
+byte[] OnnxModel.toByteArray()
+
+Map<String, Tensor> ImportedOnnxModel.inputs()
+Map<String, Tensor> ImportedOnnxModel.outputs()
+Tensor ImportedOnnxModel.input(String name)
+Tensor ImportedOnnxModel.output(String name)
+CompiledGraph ImportedOnnxModel.compile(CompileConfig config)
+CompiledGraph ImportedOnnxModel.compile(String outputName, CompileConfig config)
+```
+
+Example:
+
+```java
+Tensor y = a.add(b).relu();
+y.setLabel("y");
+
+OnnxModel model = Onnx.exportModel(
+        y,
+        OnnxExportOptions.defaults()
+                .withLeafTensorPolicy(OnnxLeafTensorPolicy.INPUTS)
+);
+model.write(Path.of("build/quickstart/model.onnx"));
+
+ImportedOnnxModel imported = Onnx.read(Path.of("build/quickstart/model.onnx"));
+imported.input("a").setData(new float[]{1f, 2f, 3f, 4f});
+imported.input("b").setData(new float[]{10f, 20f});
+imported.compile("y", CompileConfig.inference())
+        .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+```
+
+Failure modes:
+
+- Unsupported ONNX ops, custom domains, dynamic-shape runtime forms, unsupported dtypes, and unsupported attributes throw `OnnxUnsupportedException`.
+- File IO failures are wrapped in `OnnxException`.
+- `ImportedOnnxModel.compile(config)` requires exactly one ONNX output. Use `compile(outputName, config)` for multi-output imported models.
+
+Boundary:
+
+ONNX import/export support is not the same as accelerator-native support. A model can be importable, exportable, and CPU-executable while still falling back or being unsupported on a specific GPU backend. See [ONNX](onnx.md) and [ONNX Coverage](onnx-coverage.md).
 
 ## Tuning Fluent API
 

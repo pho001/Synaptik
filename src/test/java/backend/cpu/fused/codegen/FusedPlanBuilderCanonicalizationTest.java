@@ -2,6 +2,7 @@ package backend.cpu.fused.codegen;
 
 import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.pow;
+import operations.elementwise.binary.powTensor;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -62,6 +63,20 @@ class FusedPlanBuilderCanonicalizationTest {
         FusedNodePlan node = plan.nodes().getFirst();
         assertEquals(operations.Operation.OpType.INV, node.opType());
         assertEquals(List.of(0), node.inputRefs());
+        assertTrue(node.attributes() instanceof NoAttributes);
+    }
+
+    @Test
+    void tensorPowIsKeptAsBinaryPowTensorInsideFusedPlan() {
+        Tensor base = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "base", DataType.FLOAT64);
+        Tensor exponent = new Tensor(new double[]{3.0, 4.0}, new int[]{2}, null, "exponent", DataType.FLOAT64);
+        Tensor root = new Tensor(new int[]{2}, List.of(base, exponent), new powTensor(), "powTensor", DataType.FLOAT64);
+
+        FusedExpressionPlan plan = FusedPlanBuilder.build(List.of(root), List.of(base, exponent), root);
+
+        FusedNodePlan node = plan.nodes().getFirst();
+        assertEquals(operations.Operation.OpType.POW_TENSOR, node.opType());
+        assertEquals(List.of(0, 1), node.inputRefs());
         assertTrue(node.attributes() instanceof NoAttributes);
     }
 

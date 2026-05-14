@@ -132,6 +132,10 @@ public final class GpuLoweringCoverageMatrix {
                     Operation.OpType.FLOOR,
                     Operation.OpType.CEIL,
                     Operation.OpType.SIGN);
+            add(entries, backend, Operation.OpType.POW_TENSOR, GpuLoweringOperationFamily.ELEMENTWISE_CHAIN,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
+                    "Metal tensor-exponent POW_TENSOR remains unsupported until native accelerator DAG execution maps binary power semantics");
         } else {
             add(entries, backend, Operation.OpType.MIN, GpuLoweringOperationFamily.ELEMENTWISE_CHAIN,
                     GpuLoweringCoverageStatus.UNSUPPORTED,
@@ -145,6 +149,10 @@ public final class GpuLoweringCoverageMatrix {
                     GpuLoweringCoverageStatus.UNSUPPORTED,
                     GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
                     "CUDA POW remains unsupported until scalar exponent power is mapped in native accelerator DAG execution");
+            add(entries, backend, Operation.OpType.POW_TENSOR, GpuLoweringOperationFamily.ELEMENTWISE_CHAIN,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
+                    "CUDA POW_TENSOR remains unsupported until native accelerator DAG execution maps binary power semantics");
             for (Operation.OpType opType : List.of(Operation.OpType.ERF, Operation.OpType.FLOOR, Operation.OpType.CEIL, Operation.OpType.SIGN)) {
                 add(entries, backend, opType, GpuLoweringOperationFamily.ELEMENTWISE_CHAIN,
                         GpuLoweringCoverageStatus.UNSUPPORTED,

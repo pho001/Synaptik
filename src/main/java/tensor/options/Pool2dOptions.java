@@ -10,6 +10,7 @@ package tensor.options;
  * @param padH zero-padding applied to both top and bottom; must be non-negative
  * @param padW zero-padding applied to both left and right; must be non-negative
  * @param countIncludePad whether average pooling includes padded cells in the divisor
+ * @param ceilMode whether output spatial dimensions use ceil instead of floor
  */
 public record Pool2dOptions(
         int kernelH,
@@ -18,8 +19,13 @@ public record Pool2dOptions(
         int strideW,
         int padH,
         int padW,
-        boolean countIncludePad
+        boolean countIncludePad,
+        boolean ceilMode
 ) {
+    public Pool2dOptions(int kernelH, int kernelW, int strideH, int strideW, int padH, int padW, boolean countIncludePad) {
+        this(kernelH, kernelW, strideH, strideW, padH, padW, countIncludePad, false);
+    }
+
     /**
      * Validates pooling option invariants.
      *
@@ -46,7 +52,7 @@ public record Pool2dOptions(
      * @return pooling options with no padding and {@code countIncludePad=false}
      */
     public static Pool2dOptions of(int kernelH, int kernelW) {
-        return new Pool2dOptions(kernelH, kernelW, kernelH, kernelW, 0, 0, false);
+        return new Pool2dOptions(kernelH, kernelW, kernelH, kernelW, 0, 0, false, false);
     }
 
     /**
@@ -67,7 +73,7 @@ public record Pool2dOptions(
      * @return new immutable options instance
      */
     public Pool2dOptions withStride(int strideH, int strideW) {
-        return new Pool2dOptions(kernelH, kernelW, strideH, strideW, padH, padW, countIncludePad);
+        return new Pool2dOptions(kernelH, kernelW, strideH, strideW, padH, padW, countIncludePad, ceilMode);
     }
 
     /**
@@ -78,7 +84,7 @@ public record Pool2dOptions(
      * @return new immutable options instance
      */
     public Pool2dOptions withPadding(int padH, int padW) {
-        return new Pool2dOptions(kernelH, kernelW, strideH, strideW, padH, padW, countIncludePad);
+        return new Pool2dOptions(kernelH, kernelW, strideH, strideW, padH, padW, countIncludePad, ceilMode);
     }
 
     /**
@@ -88,6 +94,16 @@ public record Pool2dOptions(
      * @return new immutable options instance
      */
     public Pool2dOptions withCountIncludePad(boolean countIncludePad) {
-        return new Pool2dOptions(kernelH, kernelW, strideH, strideW, padH, padW, countIncludePad);
+        return new Pool2dOptions(kernelH, kernelW, strideH, strideW, padH, padW, countIncludePad, ceilMode);
+    }
+
+    /**
+     * Returns a copy with updated ceil-mode output shape behavior.
+     *
+     * @param ceilMode true to use ceil output spatial dimensions
+     * @return new immutable options instance
+     */
+    public Pool2dOptions withCeilMode(boolean ceilMode) {
+        return new Pool2dOptions(kernelH, kernelW, strideH, strideW, padH, padW, countIncludePad, ceilMode);
     }
 }

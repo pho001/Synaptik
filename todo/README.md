@@ -174,3 +174,12 @@ Pouzivane hodnoty:
 
 - [67-onnx-evidence-and-export-policy-closure.md](./67-onnx-evidence-and-export-policy-closure.md)
   - Status: `IMPLEMENTED`. ONNX evidence closure bez GPU scope: `ROUND_TRIP_TESTED` rows narostly na 70, `EXPLICITLY_CLASSIFIED` zustal jen `Constant`, canonical `Flatten` export je zpresneny pro reshape pattern a `OnnxLeafTensorPolicy` ma explicitni kontrakt testy.
+
+- [73-onnx-static-inference-semantics-closure.md](./73-onnx-static-inference-semantics-closure.md)
+  - Status: `IMPLEMENTED`. ONNX static dense inference closure: tensor exponent `Pow`, variadic `Min/Max`, static Conv asym pad lowering, Pool `ceil_mode`, `LayerNormalization` axis breadth evidence, `ArgMax` tie policy, jasne `Split`/BatchNorm multi-output boundary a runtime shape helpery bez ad hoc dynamic-shape implementace.
+
+- [74-onnx-runtime-shape-and-multi-output-architecture.md](./74-onnx-runtime-shape-and-multi-output-architecture.md)
+  - Status: `PLANNED`. Navazny architektonicky plan pro runtime `Shape`/`Size`/`ConstantOfShape`/`Range`, data-dependent `NonZero`, execute-time allocation a obecny multi-output operation model.
+
+- [75-nn-layer-api-and-layer-aware-onnx-interchange.md](./75-nn-layer-api-and-layer-aware-onnx-interchange.md)
+  - Status: `PLANNED`. Navazny plan pro vyssi NN layer API a layer-aware ONNX import/export nad primitive Tensor DAGem, vcetne `BatchNormLayer`, `DropoutLayer` a `RnnLayer`/`LstmLayer` smeru.

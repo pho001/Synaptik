@@ -53,7 +53,7 @@ public final class OnnxCompatibilityFixtureModels {
         add(out, rejectedNonZeroDynamicShape());
         add(out, rejectedDynamicReduceAxes());
         add(out, rejectedDynamicSliceParameters());
-        add(out, rejectedRuntimePowExponent());
+        add(out, runtimePowExponentTiny());
         return out;
     }
 
@@ -462,19 +462,17 @@ public final class OnnxCompatibilityFixtureModels {
         );
     }
 
-    private static Fixture rejectedRuntimePowExponent() {
-        OnnxModel model = model("rejected_runtime_pow_exponent", graph -> graph
+    private static Fixture runtimePowExponentTiny() {
+        OnnxModel model = model("runtime_pow_exponent_tiny", graph -> graph
                 .addInput(OnnxTensorProtoUtil.valueInfo("x", DataType.FLOAT32, new int[]{2}))
-                .addInput(OnnxTensorProtoUtil.valueInfo("exponent", DataType.FLOAT32, new int[]{1}))
+                .addInput(OnnxTensorProtoUtil.valueInfo("exponent", DataType.FLOAT32, new int[]{2}))
                 .addNode(nodeBuilder("pow", "Pow", "y", "x", "exponent").build())
                 .addOutput(OnnxTensorProtoUtil.valueInfo("y", DataType.FLOAT32, new int[]{2})));
-        return new Fixture(
-                "rejected_runtime_pow_exponent.onnx",
+        return executable(
+                "runtime_pow_exponent_tiny.onnx",
                 model,
-                ExpectedStatus.REJECTED_WITH_REASON,
-                "scalar initializer or Constant node",
-                Map.of(),
-                Map.of("x", new float[]{2f, 3f})
+                Map.of("y", expected(new int[]{2}, DataType.FLOAT32, 8.0, 4.0)),
+                Map.of("x", new float[]{2f, 16f}, "exponent", new float[]{3f, 0.5f})
         );
     }
 

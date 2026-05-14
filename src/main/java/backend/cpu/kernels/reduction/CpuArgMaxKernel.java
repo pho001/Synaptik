@@ -3,6 +3,7 @@ package backend.cpu.kernels.reduction;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuKernelContext;
 import operations.Operation;
+import operations.reduction.ArgMaxTiePolicy;
 import operations.reduction.argMax;
 import tensor.Tensor;
 import tensor.TensorMetadata;
@@ -44,6 +45,7 @@ public final class CpuArgMaxKernel implements CpuKernel {
         int[] inputDenseStrides = TensorMetadata.computeStrides(shape);
         int[] outShape = node.getShapeUnsafe();
         int[] outDenseStrides = TensorMetadata.computeStrides(outShape);
+        boolean lastIndexWins = reduction.tiePolicy() == ArgMaxTiePolicy.LAST_INDEX;
         for (int logical = 0; logical < input.getFlatDataSize(); logical++) {
             int tmp = logical;
             int outLogical = 0;
@@ -61,7 +63,8 @@ public final class CpuArgMaxKernel implements CpuKernel {
                 }
             }
             double value = input.getByFlatIndex(logical);
-            if (!seen[outLogical] || value > bestValues[outLogical]) {
+            if (!seen[outLogical] || value > bestValues[outLogical]
+                    || (lastIndexWins && Double.compare(value, bestValues[outLogical]) == 0)) {
                 seen[outLogical] = true;
                 bestValues[outLogical] = value;
                 int offset = node.getStorageOffsetUnsafe() + outLogical;

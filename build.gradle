@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'computationalgraph'
-version = '0.1.0'
+version = file('VERSION').text.trim()
 
 repositories {
     mavenCentral()

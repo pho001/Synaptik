@@ -247,6 +247,27 @@ public class FusedExecutionModesTest {
     }
 
     @Test
+    void fusedTensorPowExecutesThroughScalarPathWhenVectorRequested() {
+        Tensor baseBaseline = new Tensor(new float[]{2f, 4f, 9f, 16f}, new int[]{4}, null, "baseBaseline", DataType.FLOAT32);
+        Tensor exponentBaseline = new Tensor(new float[]{3f, 0.5f, 2f, -1f}, new int[]{4}, null, "exponentBaseline", DataType.FLOAT32);
+        Tensor baseline = baseBaseline.pow(exponentBaseline).add(baseBaseline);
+        CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
+                .execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, 1)), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor base = new Tensor(new float[]{2f, 4f, 9f, 16f}, new int[]{4}, null, "base", DataType.FLOAT32);
+        Tensor exponent = new Tensor(new float[]{3f, 0.5f, 2f, -1f}, new int[]{4}, null, "exponent", DataType.FLOAT32);
+        Tensor out = base.pow(exponent).add(base);
+        PreparedExecution prepared = CompiledGraph.compile(out, fuseOnlyInferenceConfig())
+                .prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, 1)));
+
+        assertHasPreparedFusedStep(prepared);
+        prepared.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
     void fusedGraphSupportsCompareAndLogicalBoolOutput() {
         Tensor aBase = new Tensor(new double[]{1, 5, 3, 8}, new int[]{4}, null, "aBase", DataType.FLOAT64);
         Tensor bBase = new Tensor(new double[]{2, 4, 3, 1}, new int[]{4}, null, "bBase", DataType.FLOAT64);

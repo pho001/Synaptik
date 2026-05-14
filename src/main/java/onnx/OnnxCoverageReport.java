@@ -24,8 +24,8 @@ public final class OnnxCoverageReport {
         out.append("Generated from `OnnxCoverageMatrix`; do not hand-edit status rows.\n\n");
         appendSummary(out);
         out.append("## Matrix\n\n");
-        out.append("| ONNX op | Synaptik mapping | Import | Export | CPU | Metal | CUDA | Round-trip evidence | Mapped op types | Limitations |\n");
-        out.append("|---|---|---|---|---|---|---|---|---|---|\n");
+        out.append("| ONNX op | Synaptik mapping | Import | Export | CPU | Metal | CUDA | Round-trip evidence | Mapped op types | Limitation category | Limitations |\n");
+        out.append("|---|---|---|---|---|---|---|---|---|---|---|\n");
         for (OnnxCoverageMatrix.Entry entry : OnnxCoverageMatrix.entries()) {
             out.append("| ")
                     .append(escape(entry.onnxOp()))
@@ -45,6 +45,8 @@ public final class OnnxCoverageReport {
                     .append(evidence(entry.roundTripEvidence()))
                     .append(" | ")
                     .append(escape(mappedOps(entry)))
+                    .append(" | ")
+                    .append(limitationCategory(entry.limitationCategory()))
                     .append(" | ")
                     .append(escape(entry.limitations()))
                     .append(" |\n");
@@ -84,6 +86,7 @@ public final class OnnxCoverageReport {
         appendStatusSummary(out, "Metal", OnnxCoverageMatrix.Entry::metalStatus);
         appendStatusSummary(out, "CUDA", OnnxCoverageMatrix.Entry::cudaStatus);
         appendEvidenceSummary(out);
+        appendLimitationCategorySummary(out);
         out.append('\n');
     }
 
@@ -131,6 +134,29 @@ public final class OnnxCoverageReport {
                 .append('\n');
     }
 
+    private static void appendLimitationCategorySummary(StringBuilder out) {
+        EnumMap<OnnxCoverageMatrix.LimitationCategory, Integer> counts = new EnumMap<>(OnnxCoverageMatrix.LimitationCategory.class);
+        for (OnnxCoverageMatrix.LimitationCategory category : OnnxCoverageMatrix.LimitationCategory.values()) {
+            counts.put(category, 0);
+        }
+        for (OnnxCoverageMatrix.Entry entry : OnnxCoverageMatrix.entries()) {
+            counts.compute(entry.limitationCategory(), (ignored, value) -> value == null ? 1 : value + 1);
+        }
+        out.append("- Limitation categories: none=")
+                .append(counts.get(OnnxCoverageMatrix.LimitationCategory.NONE))
+                .append(", static_semantic_limit=")
+                .append(counts.get(OnnxCoverageMatrix.LimitationCategory.STATIC_SEMANTIC_LIMIT))
+                .append(", static_attribute_limit=")
+                .append(counts.get(OnnxCoverageMatrix.LimitationCategory.STATIC_ATTRIBUTE_LIMIT))
+                .append(", multi_output_limit=")
+                .append(counts.get(OnnxCoverageMatrix.LimitationCategory.MULTI_OUTPUT_LIMIT))
+                .append(", runtime_shape_limit=")
+                .append(counts.get(OnnxCoverageMatrix.LimitationCategory.RUNTIME_SHAPE_LIMIT))
+                .append(", data_dependent_shape_limit=")
+                .append(counts.get(OnnxCoverageMatrix.LimitationCategory.DATA_DEPENDENT_SHAPE_LIMIT))
+                .append('\n');
+    }
+
     private static String mappedOps(OnnxCoverageMatrix.Entry entry) {
         if (entry.mappedOpTypes().isEmpty()) {
             return "";
@@ -146,6 +172,10 @@ public final class OnnxCoverageReport {
 
     private static String evidence(OnnxCoverageMatrix.RoundTripEvidence evidence) {
         return evidence.name().toLowerCase(Locale.ROOT);
+    }
+
+    private static String limitationCategory(OnnxCoverageMatrix.LimitationCategory category) {
+        return category.name().toLowerCase(Locale.ROOT);
     }
 
     private static String escape(String text) {

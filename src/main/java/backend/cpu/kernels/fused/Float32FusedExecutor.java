@@ -281,6 +281,7 @@ public final class Float32FusedExecutor {
                     default -> throw new UnsupportedOperationException("Unsupported F32 fused vector pow exponent: " + exponent);
                 };
             }
+            case POW_TENSOR -> throw new UnsupportedOperationException("F32 fused vector tensor pow is intentionally disabled.");
             case NOOP -> a;
             default -> throw new UnsupportedOperationException("Unsupported F32 fused vector op: " + node.opType());
         };
@@ -315,6 +316,7 @@ public final class Float32FusedExecutor {
             case TANH -> options.useFastTanhApprox() ? backend.cpu.fused.codegen.FusedScalarOps.fastTanhF32(in[0]) : backend.cpu.fused.codegen.FusedScalarOps.tanhF32(in[0], false);
             case FAST_TANH -> backend.cpu.fused.codegen.FusedScalarOps.fastTanhF32(in[0]);
             case POW -> backend.cpu.fused.codegen.FusedScalarOps.powF32(in[0], (float) ((ScalarDoubleAttribute) attrs).value());
+            case POW_TENSOR -> backend.cpu.fused.codegen.FusedScalarOps.powF32(in[0], in[1]);
             case SQRT -> (float) Math.sqrt(in[0]);
             case ABS -> Math.abs(in[0]);
             case CONST_SCALAR -> (float) ((ScalarDoubleAttribute) attrs).value();
@@ -366,6 +368,7 @@ public final class Float32FusedExecutor {
             case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH,
                     SQRT, ABS, CONST_SCALAR, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID, POW, NOOP,
                     GT, GE, LT, LE, EQ, NE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT, WHERE -> true;
+            case POW_TENSOR -> false;
             default -> false;
         };
     }

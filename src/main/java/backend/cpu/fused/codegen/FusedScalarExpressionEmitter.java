@@ -121,6 +121,13 @@ public final class FusedScalarExpressionEmitter {
             case POW:
                 FusedAsmSupport.handlePow(mv, ((ScalarDoubleAttribute) current.attributes()).value(), sm, precisionMode);
                 break;
+            case POW_TENSOR:
+                if (precisionMode == backend.cpu.fused.codegen.FusedDTypeOps.MODE_F32) {
+                    mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/codegen/FusedScalarOps", "powF32", "(FF)F", false);
+                } else {
+                    mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/codegen/FusedScalarOps", "powF64", "(DD)D", false);
+                }
+                break;
             case SQRT:
                 if (precisionMode == backend.cpu.fused.codegen.FusedDTypeOps.MODE_F32) {
                     mv.visitInsn(F2D);

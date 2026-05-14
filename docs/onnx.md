@@ -92,8 +92,8 @@ Supported node families:
 
 | ONNX op | Synaptik mapping |
 |---|---|
-| `Add`, `Sub`, `Mul`, `Div`, `Min`, `Max` | Binary floating tensor ops with existing broadcasting rules. ONNX variadic `Min`/`Max` forms are not expanded; the supported form has exactly two inputs. |
-| `Pow` | Scalar-exponent power. The exponent must be a scalar initializer or scalar `Constant` node because Synaptik's graph op is `pow(Tensor, double)`, not tensor-by-tensor exponentiation. |
+| `Add`, `Sub`, `Mul`, `Div`, `Min`, `Max` | Floating tensor ops with existing broadcasting rules. ONNX variadic `Min`/`Max` import is lowered to a left-associated binary chain such as `Min(Min(a, b), c)`. Export currently writes the Synaptik binary DAG rather than re-packing chains into a single variadic ONNX node. |
+| `Pow` | Scalar-exponent and tensor-exponent power. Scalar Synaptik `pow(Tensor, double)` exports as ONNX `Pow` with a scalar initializer. Tensor exponent `pow(base, exponent)` imports and exports as binary ONNX `Pow` with normal broadcasting. Accelerator native coverage remains scalar-pow scoped unless a backend explicitly proves binary power support. |
 | `Neg`, `Abs`, `Relu`, `Tanh`, `Sigmoid`, `Exp`, `Log`, `Sqrt`, `Reciprocal`, `Erf`, `Floor`, `Ceil`, `Sign` | Unary floating tensor ops. `Reciprocal` maps to Synaptik `inv`. `Erf` uses a scalar CPU approximation because Java has no standard `Math.erf`. `Floor`, `Ceil`, and `Sign` are inference-friendly non-smooth unary ops and currently do not define useful gradients. |
 | `LeakyRelu`, `Elu`, `HardSigmoid`, `Softplus` | Composed activation lowerings. `LeakyRelu` lowers to `Where(x >= 0, x, alpha * x)`, `Elu` lowers to `Where(x >= 0, x, alpha * (Exp(x) - 1))`, `HardSigmoid` lowers to `Clip(alpha * x + beta, 0, 1)`, and `Softplus` lowers to `Log(Exp(x) + 1)`. Export has conservative canonical recognizers for those exact Synaptik compositions; near-miss graphs remain primitive ONNX nodes. |
 | `Equal`, `Greater`, `GreaterOrEqual`, `Less`, `LessOrEqual` | Binary floating comparisons with boolean output. |
@@ -104,9 +104,9 @@ Supported node families:
 | `Cast` | Explicit graph dtype conversion for supported Synaptik dtypes, including runtime `INT64` on CPU. Shape-only `INT64`/`INT32` casts are evaluated during import. Accelerator casts remain backend-scoped; Metal currently does not support `INT64` cast pairs. |
 | `MatMul` | `Tensor.matmul`. |
 | `Gemm` | `matmul` plus optional bias and scalar `alpha`/`beta`; rank-2 transpose flags are supported. |
-| `Conv` | Rank-4 NCHW convolution mapped to `Tensor.conv2d`. Weights must be OIHW, bias is optional rank-1, attributes are static, and pads must be symmetric spatial NCHW pads. |
-| `MaxPool` | Rank-4 NCHW max pooling mapped to `Tensor.maxPool2d`. `kernel_shape` is required, `strides` and symmetric `pads` are supported, and `ceil_mode=1` is rejected. |
-| `AveragePool` | Rank-4 NCHW average pooling mapped to `Tensor.avgPool2d`. `count_include_pad` is preserved in the Synaptik pool options, but backend-native support remains backend-specific. |
+| `Conv` | Rank-4 NCHW convolution mapped to `Tensor.conv2d`. Weights must be OIHW, bias is optional rank-1, and attributes are static. Symmetric spatial pads stay in `Conv2dOptions`; asymmetric ONNX pads import as an explicit static `Pad -> Conv` DAG. |
+| `MaxPool` | Rank-4 NCHW max pooling mapped to `Tensor.maxPool2d`. `kernel_shape`, `strides`, symmetric `pads`, and static `ceil_mode` are represented in `Pool2dOptions`. Accelerator-native pool rows may still reject `ceil_mode=true`. |
+| `AveragePool` | Rank-4 NCHW average pooling mapped to `Tensor.avgPool2d`. `count_include_pad` and static `ceil_mode` are preserved in `Pool2dOptions`, but backend-native support remains backend-specific. |
 | `LayerNormalization` | Single-output inference form mapped to `Tensor.layerNorm`. The ONNX `axis` must select trailing normalized dimensions so it matches Synaptik's tail-parameter contract. Missing bias is imported as a zero tensor matching scale. |
 | `BatchNormalization` | Single-output inference form mapped to external-statistics `Tensor.batchNorm` with channel axis 1. `training_mode=1` and multi-output training forms are rejected. Export recognizes the canonical external-statistics Synaptik batch-norm DAG and writes a single ONNX `BatchNormalization` node. |
 | `Transpose` | `Tensor.permute`. |
@@ -131,7 +131,7 @@ Supported node families:
 | `ReduceL2` | Composed lowering: square with `Mul`, reduce with `ReduceSum`, then apply `Sqrt` after all axes have been reduced. Applying `Sqrt` once at the end is required for correct multi-axis import math. Export recognizes the exact single-axis `sqrt(sum(x * x, axis, keepDims))` pattern. |
 | `ReduceLogSum` | Composed lowering: `ReduceSum` followed by `Log` after all axes have been reduced. Export recognizes the exact single-axis `log(sum(x, axis, keepDims))` pattern. |
 | `ReduceLogSumExp` | Composed lowering: `Exp`, then `ReduceSum`, then `Log`. This is the direct ONNX formula, not the numerically stabilized max-shift variant. Export recognizes the exact single-axis `log(sum(exp(x), axis, keepDims))` pattern. |
-| `ArgMax` | Axis argmax with first-index tie behavior. Export and import support `select_last_index=0`; `select_last_index=1` is rejected. Output is `INT64`, matching ONNX's usual index dtype. Metal supports dense `FLOAT32/BFLOAT16` inputs and produces public `INT64` index outputs; CUDA remains unsupported. |
+| `ArgMax` | Axis argmax with explicit tie policy. `select_last_index=0` maps to `FIRST_INDEX`; `select_last_index=1` maps to `LAST_INDEX`. Output is `INT64`, matching ONNX's usual index dtype. Accelerator-native rows remain backend-scoped; a backend may support only first-index ties until last-index behavior is proven. |
 | `CumSum` | First-class `Tensor.cumSum(axis, exclusive, reverse)` with shape-preserving output. The ONNX axis input must be a static scalar `INT64`/`INT32` constant. Floating dtypes and `INT32` are supported; `BOOL` is rejected. CPU execution is layout-aware. Metal supports dense `FLOAT32/BFLOAT16` inputs; CUDA remains unsupported. |
 | `GlobalAveragePool` | Lowering to repeated `Tensor.mean(axis, keepDims=true)` over spatial axes. Import supports static rank >= 3. Export recognizes the rank-4 NCHW spatial mean chain and writes canonical `GlobalAveragePool`. |
 | `Softmax`, `LogSoftmax` | Axis normalization ops. |
@@ -190,16 +190,24 @@ Static helper terminology in this importer:
 - **Constant tensor leaf** means a normal Synaptik `Tensor` with storage materialized during import. It can feed runtime graph ops or be a graph output.
 - **Runtime tensor op** means a Synaptik graph node executed by CPU/Metal/CUDA after compile. `ConstantOfShape` and `Range` are not runtime tensor ops in this implementation; only their static subsets are folded during ONNX import.
 
+Coverage limitation categories in `docs/onnx-coverage.md`:
+
+- **static_semantic_limit**: the ONNX meaning is represented by the current primitive algebra, but only through a scoped semantic form, composed pattern, or conservative export recognizer.
+- **static_attribute_limit**: the op is static and executable, but only for specific ranks, axes, layouts, attributes, dtypes, or backend-native scopes.
+- **multi_output_limit**: the ONNX op crosses the current single-output core graph boundary. `Split` remains a narrow static boundary adapter; training `BatchNormalization` and general multi-output ops need a real multi-output model.
+- **runtime_shape_limit**: the op needs runtime shape tensor values or execute-time allocation to support the full ONNX form. Current support is importer-time/static only.
+- **data_dependent_shape_limit**: the output shape depends on runtime data values, as with `NonZero`.
+
 Explicit non-goals in the current algebra subset:
 
-- Tensor-by-tensor `Pow` is rejected. It needs either a first-class Synaptik tensor exponent op or a documented lowering strategy before import/export can claim support.
-- Variadic ONNX `Min`/`Max` are rejected unless represented as binary nodes. A future importer can lower a variadic ONNX node into a left-associated chain if that behavior is intentionally added.
+- Variadic ONNX `Min`/`Max` export packing is not implemented. Import accepts variadic nodes, but export preserves the explicit binary Synaptik DAG because that keeps graph structure and intermediate consumer semantics unambiguous.
 - `Softplus` currently uses the direct mathematical lowering `Log(Exp(x) + 1)`. It is correct for the small/static compatibility fixtures, but it is not the numerically stabilized thresholded implementation used by some inference runtimes for very large positive inputs.
 - Canonical export recognizers are intentionally conservative. A Synaptik graph must match the supported composed activation or reduction pattern exactly and all internal nodes must have a single consumer; otherwise export writes primitive ONNX nodes.
 - Runtime ONNX `Gather` is supported through the dedicated `gatherAxis` graph op, not the older Synaptik `gather` helper with reduced output shape. Runtime ONNX `GatherElements` is supported through `takeAlongAxis`, which preserves rank and uses the index tensor shape as the output shape. `GatherND` supports ONNX `batch_dims`; the leading batch dimensions select matching slices and are not part of the coordinate tuple stored in the final index dimension.
 - General multi-output runtime graph support is still not part of the importer. `Split` is a named exception because it can be lowered immediately to independent `Slice` tensors with static shapes and no shared mutable output state; export can write canonical `Split` only when those slices are graph outputs.
 - Dynamic shape, slice, reshape, and expand parameters are rejected; the current importer remains static dense inference.
 - Runtime `NonZero` is rejected because its output shape depends on input data. ONNX defines the second output dimension as the number of non-zero values, which is unknown until execution. Supporting it as a normal runtime op would require a dynamic-shape graph/execution model, not just another CPU kernel.
+- Runtime shape tensors and general multi-output ops are tracked separately in `todo/74-onnx-runtime-shape-and-multi-output-architecture.md`. Higher-level layer-aware import/export belongs in `todo/75-nn-layer-api-and-layer-aware-onnx-interchange.md`, not in the primitive core ONNX importer.
 
 Unsupported by design in the first subset:
 

@@ -98,6 +98,7 @@ public interface Operation {
         TANH(OpArityClass.ELEMENT_WISE, true),
         FAST_TANH(OpArityClass.ELEMENT_WISE, true),
         POW(OpArityClass.ELEMENT_WISE, true),
+        POW_TENSOR(OpArityClass.ELEMENT_WISE, true),
         SQRT(OpArityClass.ELEMENT_WISE, true),
         ABS(OpArityClass.ELEMENT_WISE, true),
         FLOOR(OpArityClass.ELEMENT_WISE, false),

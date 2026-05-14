@@ -263,7 +263,11 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
                     ((cumSum) op).isExclusive() ? 1 : 0,
                     ((cumSum) op).isReverse() ? 1 : 0
             });
-            case ARGMAX -> new ReductionSignature(((argMax) op).getDimension(), ((argMax) op).keepDims());
+            case ARGMAX -> IntArrayValue.copyOf(new int[]{
+                    ((argMax) op).getDimension(),
+                    ((argMax) op).keepDims() ? 1 : 0,
+                    ((argMax) op).tiePolicy().ordinal()
+            });
             case MIN_GRAD -> new InputSelectorSignature(((minGrad) op).isForFirstInput());
             case MAX_GRAD -> new InputSelectorSignature(((maxGrad) op).isForFirstInput());
             case REDUCE_MIN_GRAD -> new AxisSignature(((reduceMinGrad) op).getDimension());
@@ -470,6 +474,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
                 options.strideH(), options.strideW(),
                 options.padH(), options.padW(),
                 options.countIncludePad() ? 1 : 0,
+                options.ceilMode() ? 1 : 0,
                 kind
         });
     }
@@ -481,6 +486,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
                 options.strideH(), options.strideW(),
                 options.padH(), options.padW(),
                 options.countIncludePad() ? 1 : 0,
+                options.ceilMode() ? 1 : 0,
                 kind
         });
     }

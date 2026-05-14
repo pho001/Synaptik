@@ -108,6 +108,10 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
                     numericRef(node.inputRefs().get(0), inputs, numericValues, boolValues, index),
                     ((ScalarDoubleAttribute) node.attributes()).value()
             );
+            case POW_TENSOR -> Math.pow(
+                    numericRef(node.inputRefs().get(0), inputs, numericValues, boolValues, index),
+                    numericRef(node.inputRefs().get(1), inputs, numericValues, boolValues, index)
+            );
             case SQRT -> Math.sqrt(numericRef(node.inputRefs().get(0), inputs, numericValues, boolValues, index));
             case ABS -> Math.abs(numericRef(node.inputRefs().get(0), inputs, numericValues, boolValues, index));
             case CONST_SCALAR -> ((ScalarDoubleAttribute) node.attributes()).value();

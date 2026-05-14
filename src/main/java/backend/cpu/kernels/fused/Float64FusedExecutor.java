@@ -279,6 +279,7 @@ public final class Float64FusedExecutor {
                 if (exponent == -1.0d) yield ONE.div((DoubleVector) a);
                 throw new UnsupportedOperationException("Unsupported F64 fused vector pow exponent: " + exponent);
             }
+            case POW_TENSOR -> throw new UnsupportedOperationException("F64 fused vector tensor pow is intentionally disabled.");
             case NOOP -> a;
             default -> throw new UnsupportedOperationException("Unsupported F64 fused vector op: " + node.opType());
         };
@@ -313,6 +314,7 @@ public final class Float64FusedExecutor {
             case TANH -> options.useFastTanhApprox() ? backend.cpu.fused.codegen.FusedScalarOps.fastTanhF64(in[0]) : backend.cpu.fused.codegen.FusedScalarOps.tanhF64(in[0], false);
             case FAST_TANH -> backend.cpu.fused.codegen.FusedScalarOps.fastTanhF64(in[0]);
             case POW -> FusedScalarOps.powF64(in[0], ((ScalarDoubleAttribute) attrs).value());
+            case POW_TENSOR -> FusedScalarOps.powF64(in[0], in[1]);
             case SQRT -> Math.sqrt(in[0]);
             case ABS -> Math.abs(in[0]);
             case CONST_SCALAR -> ((ScalarDoubleAttribute) attrs).value();
@@ -364,6 +366,7 @@ public final class Float64FusedExecutor {
             case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH,
                     SQRT, ABS, CONST_SCALAR, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID, POW, NOOP,
                     GT, GE, LT, LE, EQ, NE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT, WHERE -> true;
+            case POW_TENSOR -> false;
             default -> false;
         };
     }

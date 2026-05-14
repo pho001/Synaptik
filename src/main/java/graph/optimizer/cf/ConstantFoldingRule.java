@@ -33,7 +33,7 @@ public final class ConstantFoldingRule extends AbstractRewriteRule {
             return tensor;
         }
         return switch (operation.opType()) {
-            case ADD, SUB, MUL, DIV, MIN, MAX,
+            case ADD, SUB, MUL, DIV, MIN, MAX, POW_TENSOR,
                  GT, GE, LT, LE, EQ, NE,
                  LOGICAL_AND, LOGICAL_OR,
                  NEG, INV, LOG, EXP, FAST_EXP, ERF, TANH, FAST_TANH, SQRT, ABS,
@@ -99,6 +99,7 @@ public final class ConstantFoldingRule extends AbstractRewriteRule {
             case DIV -> numeric(inputs.get(0), outShape, outFlatIndex) / numeric(inputs.get(1), outShape, outFlatIndex);
             case MIN -> Math.min(numeric(inputs.get(0), outShape, outFlatIndex), numeric(inputs.get(1), outShape, outFlatIndex));
             case MAX -> Math.max(numeric(inputs.get(0), outShape, outFlatIndex), numeric(inputs.get(1), outShape, outFlatIndex));
+            case POW_TENSOR -> Math.pow(numeric(inputs.get(0), outShape, outFlatIndex), numeric(inputs.get(1), outShape, outFlatIndex));
             case NEG -> -numeric(inputs.get(0), outShape, outFlatIndex);
             case INV -> 1.0d / numeric(inputs.get(0), outShape, outFlatIndex);
             case LOG -> Math.log(numeric(inputs.get(0), outShape, outFlatIndex));

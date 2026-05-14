@@ -2725,7 +2725,8 @@ public final class AcceleratorSubgraphLowerer {
                 | ((strideW & 0xF) << 12)
                 | ((padH & 0xF) << 16)
                 | ((padW & 0xF) << 20)
-                | (options.countIncludePad() ? 1 << 24 : 0);
+                | (options.countIncludePad() ? 1 << 24 : 0)
+                | (options.ceilMode() ? 1 << 25 : 0);
     }
 
     private int encodeCrossEntropyLossIndicesMode(crossEntropyLossIndices op) {
