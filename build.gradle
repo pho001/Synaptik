@@ -17,6 +17,7 @@ dependencies {
     api 'com.google.protobuf:protobuf-java:4.29.3'
 
     implementation 'org.ow2.asm:asm-commons:9.6'
+    implementation 'org.bytedeco:openblas-platform:0.3.31-1.5.13'
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

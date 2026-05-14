@@ -154,10 +154,14 @@ Lookup order in `src/main/java/backend/blas/OpenBlasFfmBridge.java`:
 ```text
 -Dopenblas.lib=<path>
 OPENBLAS_LIB
+bundled org.bytedeco:openblas-platform
 openblas
 ```
 
 Fix:
+
+Usually no native path configuration is needed because Synaptik publishes a bundled OpenBLAS runtime dependency.
+Use an explicit path only when you want to override that bundled library with a locally installed OpenBLAS build:
 
 ```bash
 ./gradlew test --no-daemon --tests MatMulTest -Dopenblas.lib=/absolute/path/to/libopenblas.dylib
@@ -170,6 +174,10 @@ OPENBLAS_LIB=/absolute/path/to/libopenblas.dylib ./gradlew test --no-daemon --te
 ```
 
 If OpenBLAS is not part of the change, run the Java fallback path with `BlasConfig.disabled()` in the test or choose tests that do not force `BlasProvider.OPENBLAS_FFM`.
+
+Bundled OpenBLAS enables FLOAT32/FLOAT64 GEMM automatically. It also enables BF16 native `cblas_sbgemm` when that symbol
+is present. BF16 correctness should be checked against Synaptik's Java BF16 reference path, not a FLOAT64 reference,
+because BF16 storage intentionally quantizes inputs and outputs.
 
 Important distinction: selecting `OPENBLAS_FFM` only makes BLAS eligible. A specific matmul still needs to pass dtype,
 work, contiguity, and shape gates, and matmul falls back to Java if the native bridge is unavailable or throws. A

@@ -127,18 +127,18 @@ public class LinearExecutionTest {
 
     @Test
     void bfloat16LinearWithBiasMatchesBaselineWhenBlasIsEnabled() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), "OpenBLAS FFM is unavailable");
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16GemmAvailable(), "OpenBLAS BF16 GEMM is unavailable");
 
         double[] inputValues = random(32 * 64, 11);
         double[] weightValues = random(64 * 96, 17);
         double[] biasValues = random(96, 23);
 
-        Tensor inputBase = new Tensor(inputValues.clone(), new int[]{32, 64}, null, "inputBase", DataType.FLOAT64);
-        Tensor weightBase = new Tensor(weightValues.clone(), new int[]{64, 96}, null, "weightBase", DataType.FLOAT64);
-        Tensor biasBase = new Tensor(biasValues.clone(), new int[]{96}, null, "biasBase", DataType.FLOAT64);
+        Tensor inputBase = new Tensor(inputValues.clone(), new int[]{32, 64}, null, "inputBase", DataType.BFLOAT16);
+        Tensor weightBase = new Tensor(weightValues.clone(), new int[]{64, 96}, null, "weightBase", DataType.BFLOAT16);
+        Tensor biasBase = new Tensor(biasValues.clone(), new int[]{96}, null, "biasBase", DataType.BFLOAT16);
         Tensor baseline = inputBase.linear(weightBase, biasBase);
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor input = new Tensor(inputValues.clone(), new int[]{32, 64}, null, "input", DataType.BFLOAT16);
@@ -148,23 +148,25 @@ public class LinearExecutionTest {
         CompiledGraph.compile(out, CompileConfig.inference())
                 .execute(bfloat16BlasRuntime(), ExecutionMode.FORWARD);
 
-        assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
+        // BF16 BLAS and Java fallback both use BF16 inputs with F32 accumulation, but the BLAS
+        // kernel may accumulate in a different order before the final BF16 publication.
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 3e-2);
     }
 
     @Test
     void bfloat16LinearThenReluMatchesBaselineWhenBlasContinuationIsEnabled() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), "OpenBLAS FFM is unavailable");
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16GemmAvailable(), "OpenBLAS BF16 GEMM is unavailable");
 
         double[] inputValues = random(32 * 64, 31);
         double[] weightValues = random(64 * 96, 37);
         double[] biasValues = random(96, 41);
 
-        Tensor inputBase = new Tensor(inputValues.clone(), new int[]{32, 64}, null, "inputBase", DataType.FLOAT64);
-        Tensor weightBase = new Tensor(weightValues.clone(), new int[]{64, 96}, null, "weightBase", DataType.FLOAT64);
-        Tensor biasBase = new Tensor(biasValues.clone(), new int[]{96}, null, "biasBase", DataType.FLOAT64);
+        Tensor inputBase = new Tensor(inputValues.clone(), new int[]{32, 64}, null, "inputBase", DataType.BFLOAT16);
+        Tensor weightBase = new Tensor(weightValues.clone(), new int[]{64, 96}, null, "weightBase", DataType.BFLOAT16);
+        Tensor biasBase = new Tensor(biasValues.clone(), new int[]{96}, null, "biasBase", DataType.BFLOAT16);
         Tensor baseline = inputBase.linear(weightBase, biasBase).relu();
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor input = new Tensor(inputValues.clone(), new int[]{32, 64}, null, "input", DataType.BFLOAT16);
@@ -174,7 +176,7 @@ public class LinearExecutionTest {
         CompiledGraph.compile(out, CompileConfig.inference())
                 .execute(bfloat16BlasRuntime(), ExecutionMode.FORWARD);
 
-        assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
     }
 
     @Test

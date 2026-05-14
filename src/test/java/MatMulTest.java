@@ -93,16 +93,16 @@ public class MatMulTest {
 
     @Test
     void bfloat16MatmulThenReluMatchesBaselineWhenBlasContinuationIsEnabled() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), "OpenBLAS FFM is unavailable");
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16GemmAvailable(), "OpenBLAS BF16 GEMM is unavailable");
 
         double[] aValues = random(64 * 64, 71);
         double[] bValues = random(64 * 96, 73);
 
-        Tensor aBase = new Tensor(aValues.clone(), new int[]{64, 64}, null, "aBase", DataType.FLOAT64);
-        Tensor bBase = new Tensor(bValues.clone(), new int[]{64, 96}, null, "bBase", DataType.FLOAT64);
+        Tensor aBase = new Tensor(aValues.clone(), new int[]{64, 64}, null, "aBase", DataType.BFLOAT16);
+        Tensor bBase = new Tensor(bValues.clone(), new int[]{64, 96}, null, "bBase", DataType.BFLOAT16);
         Tensor baseline = aBase.matmul(bBase).relu();
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(aValues.clone(), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
@@ -111,23 +111,23 @@ public class MatMulTest {
         CompiledGraph.compile(out, CompileConfig.inference())
                 .execute(bfloat16BlasRuntime(), ExecutionMode.FORWARD);
 
-        assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
     }
 
     @Test
     void bfloat16MatmulThenAddMatchesBaselineWhenBlasContinuationIsEnabled() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), "OpenBLAS FFM is unavailable");
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16GemmAvailable(), "OpenBLAS BF16 GEMM is unavailable");
 
         double[] aValues = random(64 * 64, 81);
         double[] bValues = random(64 * 96, 83);
         double[] cValues = random(64 * 96, 89);
 
-        Tensor aBase = new Tensor(aValues.clone(), new int[]{64, 64}, null, "aBase", DataType.FLOAT64);
-        Tensor bBase = new Tensor(bValues.clone(), new int[]{64, 96}, null, "bBase", DataType.FLOAT64);
-        Tensor cBase = new Tensor(cValues.clone(), new int[]{64, 96}, null, "cBase", DataType.FLOAT64);
+        Tensor aBase = new Tensor(aValues.clone(), new int[]{64, 64}, null, "aBase", DataType.BFLOAT16);
+        Tensor bBase = new Tensor(bValues.clone(), new int[]{64, 96}, null, "bBase", DataType.BFLOAT16);
+        Tensor cBase = new Tensor(cValues.clone(), new int[]{64, 96}, null, "cBase", DataType.BFLOAT16);
         Tensor baseline = aBase.matmul(bBase).add(cBase);
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(aValues.clone(), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
@@ -137,21 +137,21 @@ public class MatMulTest {
         CompiledGraph.compile(out, CompileConfig.inference())
                 .execute(bfloat16BlasRuntime(), ExecutionMode.FORWARD);
 
-        assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
     }
 
     @Test
     void bfloat16MatmulThenFusedNumericChainMatchesBaselineWhenBlasContinuationIsEnabled() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), "OpenBLAS FFM is unavailable");
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16GemmAvailable(), "OpenBLAS BF16 GEMM is unavailable");
 
         double[] aValues = random(64 * 64, 91);
         double[] bValues = random(64 * 96, 97);
 
-        Tensor aBase = new Tensor(aValues.clone(), new int[]{64, 64}, null, "aBase", DataType.FLOAT64);
-        Tensor bBase = new Tensor(bValues.clone(), new int[]{64, 96}, null, "bBase", DataType.FLOAT64);
+        Tensor aBase = new Tensor(aValues.clone(), new int[]{64, 64}, null, "aBase", DataType.BFLOAT16);
+        Tensor bBase = new Tensor(bValues.clone(), new int[]{64, 96}, null, "bBase", DataType.BFLOAT16);
         Tensor baseline = aBase.matmul(bBase).relu().abs().clampMax(1.0);
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(aValues.clone(), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
@@ -160,7 +160,7 @@ public class MatMulTest {
         CompiledGraph.compile(out, CompileConfig.inference())
                 .execute(bfloat16BlasRuntime(), ExecutionMode.FORWARD);
 
-        assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
     }
 
     @Test

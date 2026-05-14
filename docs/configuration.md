@@ -570,7 +570,7 @@ This section covers build, core runtime, optimizer, native bridge, diagnostic, a
 | `cg.cpu.blas.debug` | `false` | Enables BLAS debug behavior where used. | `backend/blas/BlasRuntime.java` |
 | `cg.cpu.blas.f32RequireMgeK` | `true` | F32 BLAS shape guard. | `backend/blas/BlasRuntime.java` |
 | `cg.cpu.blas.f32MaxNOverK` | `3.0` | F32 BLAS shape ratio guard. | `backend/blas/BlasRuntime.java` |
-| `openblas.lib` | library name `openblas` | Explicit OpenBLAS library path/name for FFM lookup. | `backend/blas/OpenBlasFfmBridge.java` |
+| `openblas.lib` | bundled JavaCPP OpenBLAS, then library name `openblas` | Explicit OpenBLAS library path/name for FFM lookup. When unset, Synaptik tries the bundled `org.bytedeco:openblas-platform` dependency before the platform loader name. | `backend/blas/OpenBlasFfmBridge.java` |
 | `synaptik.metal.mps.lib` | library name `synaptik_apple_mps` | Explicit Metal MPS shim library path/name for FFM lookup. | `backend/metal/bridge/MetalMpsFfmBridge.java` |
 | `synaptik.cuda.graph.lib` | library name `synaptik_cuda_graph` | Explicit CUDA graph bridge library path/name for FFM lookup. | `backend/cuda/bridge/CudaFfmBridge.java` |
 | `cg.cpu.fused.profile` | `false` | Enables fused execution profiler collection. | `backend/cpu/kernels/fused/FusedExecutionProfiler.java` |
@@ -635,7 +635,7 @@ This section covers build, core runtime, optimizer, native bridge, diagnostic, a
 
 | Variable | Effect | Source |
 |---|---|---|
-| `OPENBLAS_LIB` | Fallback OpenBLAS library path/name when `openblas.lib` is unset. | `backend/blas/OpenBlasFfmBridge.java` |
+| `OPENBLAS_LIB` | OpenBLAS library path/name used when `openblas.lib` is unset; it wins over bundled JavaCPP lookup. | `backend/blas/OpenBlasFfmBridge.java` |
 | `SYNAPTIK_METAL_MPS_LIB` | Fallback Metal MPS shim library path/name when `synaptik.metal.mps.lib` is unset. | `backend/metal/bridge/MetalMpsFfmBridge.java` |
 | `SYNAPTIK_CUDA_GRAPH_LIB` | Fallback CUDA graph bridge library path/name when `synaptik.cuda.graph.lib` is unset. | `backend/cuda/bridge/CudaFfmBridge.java` |
 

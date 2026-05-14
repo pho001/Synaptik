@@ -103,7 +103,7 @@ public final class MatMulBlasBackend {
     }
 
     public static boolean tryBlasBF16ToFloat(short[] ad, short[] bd, float[] out, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isAvailable()) {
+        if (!OpenBlasFfmBridge.isBFloat16GemmAvailable()) {
             maybeLogBlasUnavailable();
             return false;
         }
@@ -122,7 +122,7 @@ public final class MatMulBlasBackend {
     }
 
     public static boolean tryBatchedBlasBF16ToFloat(short[] ad, int[] as, short[] bd, int[] bs, float[] out, int[] outShape, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isAvailable()) {
+        if (!OpenBlasFfmBridge.isBFloat16GemmAvailable()) {
             maybeLogBlasUnavailable();
             return false;
         }

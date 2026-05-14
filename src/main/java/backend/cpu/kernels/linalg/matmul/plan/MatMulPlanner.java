@@ -1,6 +1,7 @@
 package backend.cpu.kernels.linalg.matmul.plan;
 
 import backend.blas.BlasProvider;
+import backend.blas.OpenBlasFfmBridge;
 import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
 import backend.cpu.kernels.plan.CpuPlanningPolicy;
 import config.backend.CpuMatMulMicroKernel;
@@ -183,6 +184,9 @@ public final class MatMulPlanner {
         if (blasConfig.provider() != BlasProvider.OPENBLAS_FFM) {
             return false;
         }
+        if (outDataType == DataType.BFLOAT16 && !OpenBlasFfmBridge.isBFloat16GemmAvailable()) {
+            return false;
+        }
         long work = (long) m * n * k;
         if (work < blasConfig.matmulMinWork()) {
             return false;
@@ -226,6 +230,9 @@ public final class MatMulPlanner {
             return false;
         }
         if (blasConfig.provider() != BlasProvider.OPENBLAS_FFM) {
+            return false;
+        }
+        if (outDataType == DataType.BFLOAT16 && !OpenBlasFfmBridge.isBFloat16GemmAvailable()) {
             return false;
         }
         if (work < blasConfig.matmulMinWork()) {

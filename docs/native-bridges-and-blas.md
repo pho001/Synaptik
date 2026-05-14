@@ -75,7 +75,7 @@ Java, C, BLAS, and accelerator code, so the table is intentionally concrete.
 | Symbol | Exported native function or data name found in a native library. | `cblas_sgemm`, `cblas_dgemm`, `cblas_sbgemm`. |
 | Downcall | Java calling into native code. | `MethodHandle.invokeExact(...)` calls the CBLAS function. |
 | Upcall | Native code calling back into Java. | Not used by the OpenBLAS bridge documented here. |
-| Memory segment | Java FFM view of a memory region. | `MemorySegment.ofArray(float[])` wraps a Java tensor array for a CBLAS call. |
+| Memory segment | Java FFM view of a memory region. | The OpenBLAS bridge allocates temporary native segments for CBLAS calls and copies results back into Java tensor arrays. |
 | Arena | Lifetime scope for FFM allocations and symbol lookup resources. | `Arena.ofShared()` keeps the library lookup state alive for the OpenBLAS bridge. |
 | Provider | Runtime choice of implementation family. | `BlasProvider.NONE` or `BlasProvider.OPENBLAS_FFM`. |
 | Fallback | Alternative execution path when a faster/specialized path is unavailable or illegal. | Matmul can fall back from OpenBLAS to Java CPU kernels. Metal can fall back to CPU replay. |
@@ -352,14 +352,19 @@ MethodHandle dgemm = linker.downcallHandle(
 );
 ```
 
-Then an array can be wrapped as a memory segment and passed to the native function:
+Then Java array contents are copied into a native memory segment before being passed to the native function:
 
 ```java
 double[] a = {1.0, 2.0, 3.0, 4.0};
-MemorySegment aSegment = MemorySegment.ofArray(a);
+try (Arena callArena = Arena.ofConfined()) {
+    MemorySegment aSegment = callArena.allocateFrom(JAVA_DOUBLE, a);
+}
 ```
 
-For OpenBLAS, the source code creates `MemorySegment` views over Java arrays with `MemorySegment.ofArray(...)` and `asSlice(...)`. The bridge does not allocate explicit temporary native copies for normal `sgemm` and `dgemm` calls. That is still different from long-lived device-owned tensor storage: the values are ordinary Java tensor arrays, and the native function is called only for the duration of that CPU kernel.
+For OpenBLAS, the source code creates short-lived native `MemorySegment` buffers for each CBLAS call, copies Java tensor
+array contents into those buffers, invokes the native function, and copies the output buffer back to the Java tensor
+array. That is still different from long-lived device-owned tensor storage: the values remain ordinary Java tensor
+arrays between calls, and the native buffer exists only for the duration of that CPU kernel.
 
 ## Java FFM Step-By-Step
 
@@ -379,6 +384,11 @@ String envLib = System.getenv("OPENBLAS_LIB");
 if (envLib != null && !envLib.isBlank()) {
     return SymbolLookup.libraryLookup(envLib.trim(), arena);
 }
+try {
+    return SymbolLookup.libraryLookup(Loader.load(openblas.class), arena);
+} catch (Throwable bundledFailure) {
+    // fall through to the platform loader name
+}
 return SymbolLookup.libraryLookup("openblas", arena);
 ```
 
@@ -388,8 +398,9 @@ Term explanations:
 |---|---|
 | System property | JVM-level key/value passed with `-Dkey=value`, for example `-Dopenblas.lib=/opt/lib/libopenblas.dylib`. |
 | Environment variable | Process environment key/value, for example `OPENBLAS_LIB=/opt/lib/libopenblas.dylib`. |
+| Bundled JavaCPP preset | The transitive `org.bytedeco:openblas-platform` dependency packaged with Synaptik. This lets consumer projects use OpenBLAS without setting a native library path. |
 | Library name | Platform loader name. `"openblas"` lets the operating system search configured library paths. |
-| Lookup order | Priority rule. Explicit JVM property wins over environment variable; environment variable wins over default name. |
+| Lookup order | Priority rule. Explicit JVM property wins over environment variable; environment variable wins over bundled JavaCPP; bundled JavaCPP wins over the platform loader name. |
 
 ### 2. Find native symbols
 
@@ -456,13 +467,16 @@ MethodHandle dgemm = linker.downcallHandle(symbol, descriptor);
 "Downcall" means Java calling down into native code. The returned `MethodHandle` is strongly tied to the declared
 descriptor. `invokeExact(...)` must use the exact Java argument types expected by that method handle.
 
-### 5. Wrap Java arrays as memory segments
+### 5. Copy Java arrays into call-local native segments
 
-The bridge wraps Java arrays without spelling raw pointers in Java code:
+The bridge uses call-local native segments because CBLAS receives raw address parameters. Java heap segments are not
+passed directly as `ADDRESS` downcall arguments.
 
 ```java
-MemorySegment heap = MemorySegment.ofArray(src);
-MemorySegment slice = heap.asSlice(byteOffset, byteLength);
+try (Arena callArena = Arena.ofConfined()) {
+    MemorySegment aSeg = callArena.allocateFrom(JAVA_FLOAT, aSlice);
+    MemorySegment cSeg = callArena.allocateFrom(JAVA_FLOAT, cSlice);
+}
 ```
 
 For an offset call:
@@ -475,8 +489,8 @@ byteOffset = 200 * 4 = 800
 byteLength = 128 * 4 = 512
 ```
 
-The native routine receives the sliced segment as an address. The Java-side type still carries bounds and lifetime
-information from FFM.
+The native routine receives the call-local segment as an address. After the call, Synaptik copies the destination
+segment back into the Java tensor array at the requested offset.
 
 ### 6. Invoke the native routine
 
@@ -501,8 +515,8 @@ STATE.dgemm.invokeExact(
 );
 ```
 
-After the native call returns, the destination Java array has been written by OpenBLAS. There is no extra Java
-copy-back step for normal OpenBLAS matmul because `cSeg` views the destination Java array.
+After the native call returns, Synaptik copies the destination native segment back into the destination Java array.
+This keeps the public tensor storage model Java-owned while still allowing the native GEMM implementation to run.
 
 ## OpenBLAS In Synaptik
 
@@ -533,7 +547,7 @@ Availability is discovered once at class initialization:
 private static final State STATE = init();
 ```
 
-`OpenBlasFfmBridge.isAvailable()` means the library was loadable and the required `sgemm`/`dgemm` symbols were found. Optional BF16 support still depends on `cblas_sbgemm` being present.
+`OpenBlasFfmBridge.isAvailable()` means the library was loadable and the required `sgemm`/`dgemm` symbols were found. Optional BF16 support is reported separately by `OpenBlasFfmBridge.isBFloat16GemmAvailable()`.
 
 ## OpenBLAS Bridge Lifecycle
 
@@ -572,6 +586,7 @@ sequenceDiagram
 |---|---|
 | `available` | Whether required symbols were found and handles were created. |
 | `reason` | Failure reason when unavailable. |
+| `source` | Which lookup source won: explicit property, environment variable, bundled JavaCPP preset, or system library name. |
 | `arenaRef` | Shared arena kept alive so library lookup resources remain valid. |
 | `sgemm` | Downcall handle for `cblas_sgemm`. |
 | `dgemm` | Downcall handle for `cblas_dgemm`. |
@@ -616,8 +631,12 @@ OpenBLAS library also has sbgemm:
   BF16 BLAS path can try native sbgemm
 
 OpenBLAS library lacks sbgemm:
-  BF16 BLAS calls throw from sbgemm bridge methods and MatMulBlasBackend falls back
+  BF16 matmul planning stays on the Java CPU BF16 path
 ```
+
+Bundled JavaCPP OpenBLAS enables `FLOAT32`, `FLOAT64`, and `BFLOAT16` GEMM automatically when the required symbols are
+present. Tests compare bundled BF16 GEMM against Synaptik's Java BF16 reference path, not against a FLOAT64 reference,
+because BF16 inputs and outputs intentionally lose precision before and after the matrix multiply.
 
 ## Matmul Dispatch Flow
 
@@ -886,7 +905,8 @@ OpenBLAS library lookup order:
 ```text
 1. JVM property: -Dopenblas.lib=/absolute/path/to/libopenblas.dylib
 2. Environment variable: OPENBLAS_LIB=/absolute/path/to/libopenblas.dylib
-3. Library name: openblas
+3. Bundled JavaCPP OpenBLAS from the Synaptik runtime classpath
+4. Library name: openblas
 ```
 
 Example explicit runtime config:
