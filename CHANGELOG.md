@@ -6,6 +6,20 @@ This project uses public-preview semantic versioning while the API is still
 pre-1.0. Until `1.0.0`, minor releases may include source or binary breaking
 changes when they cleanly advance the graph/runtime architecture.
 
+## 0.1.0-alpha.2 - 2026-05-14
+
+### Added
+
+- Gradle publication metadata for GitHub/JitPack consumption.
+- Source JAR publication through the `maven-publish` Gradle plugin.
+- JitPack build configuration that publishes the library to Maven Local during
+  the JitPack install step.
+
+### Changed
+
+- Public dependency coordinates for GitHub consumption are now documented as
+  `com.github.pho001:Synaptik:v0.1.0-alpha.2`.
+
 ## 0.1.0-alpha.1 - 2026-05-14
 
 ### Release Status

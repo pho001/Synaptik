@@ -1,6 +1,7 @@
 plugins {
-    id 'java'
+    id 'java-library'
     id 'application'
+    id 'maven-publish'
     id 'com.google.protobuf' version '0.9.5'
 }
 
@@ -12,9 +13,10 @@ repositories {
 }
 
 dependencies {
-    implementation 'org.ow2.asm:asm:9.6'
+    api 'org.ow2.asm:asm:9.6'
+    api 'com.google.protobuf:protobuf-java:4.29.3'
+
     implementation 'org.ow2.asm:asm-commons:9.6'
-    implementation 'com.google.protobuf:protobuf-java:4.29.3'
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -27,6 +29,8 @@ protobuf {
 }
 
 java {
+    withSourcesJar()
+
     toolchain {
         languageVersion = JavaLanguageVersion.of(25)
     }
@@ -64,6 +68,33 @@ tasks.withType(JavaExec).configureEach {
 application {
     mainClass = 'synaptik.app.TuningCli'
     applicationDefaultJvmArgs = runtimeJvmArgs
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            groupId = 'com.github.pho001'
+            artifactId = 'Synaptik'
+            version = project.version
+
+            pom {
+                name = 'Synaptik'
+                description = 'Java autograd engine and compiled tensor runtime.'
+                url = 'https://github.com/pho001/Synaptik'
+                scm {
+                    url = 'https://github.com/pho001/Synaptik'
+                    connection = 'scm:git:https://github.com/pho001/Synaptik.git'
+                    developerConnection = 'scm:git:https://github.com/pho001/Synaptik.git'
+                }
+                developers {
+                    developer {
+                        id = 'pho001'
+                    }
+                }
+            }
+        }
+    }
 }
 
 def sourceArtifactRoots = [layout.projectDirectory.dir('src'), layout.projectDirectory.dir('test')]

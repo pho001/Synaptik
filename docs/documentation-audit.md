@@ -390,5 +390,5 @@ The docs are now navigable, but these improvements would make them even stronger
 2. Add a generated docs coverage check that fails when `OnnxCoverageMatrix` and `docs/onnx-coverage.md` diverge.
 3. Add a small "higher-level framework above Synaptik" design note once the layer API discussion becomes active.
 4. Split very large docs only when a section becomes independently maintained. `calibration-autotune.md` is intentionally comprehensive today, but it may eventually deserve separate user, internals, and CLI guides.
-5. Add a short release-readiness checklist that maps `0.1.0-alpha.1` claims directly to tests.
+5. Add a short release-readiness checklist that maps the current alpha release claims directly to tests.
 6. Add a doc snippet style guide so future examples consistently explain shapes, dtypes, lifecycle stage, expected values, and fallback behavior.

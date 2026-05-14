@@ -10,7 +10,7 @@ preview line.
 Current version:
 
 ```text
-0.1.0-alpha.1
+0.1.0-alpha.2
 ```
 
 The version source of truth is the repository-root `VERSION` file. `build.gradle`
@@ -18,7 +18,7 @@ reads that file for `project.version`.
 
 ## Release Meaning
 
-`0.1.0-alpha.1` means:
+`0.1.0-alpha.2` means:
 
 - public technical preview;
 - APIs are allowed to change before `1.0.0`;
@@ -80,7 +80,9 @@ profiles/platform/<platform-id>/tuning/abc/*-best-profile.json
 profiles/platform/<platform-id>/tuning/abc/*-history.jsonl
 profiles/platform/<platform-id>/tuning/<local-workload>/
 build/
-.planning/tmp/
+.plan
+.planning/
+todo/
 ```
 
 Checked-in fixtures are acceptable only when they are deterministic, documented,
@@ -91,8 +93,8 @@ and consumed by tests.
 Recommended tag format:
 
 ```bash
-git tag -a v0.1.0-alpha.1 -m "Synaptik 0.1.0-alpha.1"
-git push origin v0.1.0-alpha.1
+git tag -a v0.1.0-alpha.2 -m "Synaptik 0.1.0-alpha.2"
+git push origin v0.1.0-alpha.2
 ```
 
 Before tagging, ensure `CHANGELOG.md` names the exact version and date, CI is

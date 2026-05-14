@@ -3,7 +3,7 @@
 
 Documentation: [docs/index.md](docs/index.md) | [Quickstart](docs/quickstart.md) | [Tensor API](docs/tensor-api.md) | [Compute Flow](docs/compute-flow.md) | [Graph Optimizer](docs/graph-optimizer.md) | [Calibration & Autotune](docs/calibration-autotune.md) | [Public API](docs/public-api.md)
 
-Current version: `0.1.0-alpha.1`
+Current version: `0.1.0-alpha.2`
 
 Synaptik is a Java autograd engine and compiled tensor runtime built around an explicit graph lifecycle:
 
@@ -19,7 +19,7 @@ Today the CPU backend is the broadest and most complete backend. Metal and CUDA 
 
 ## Public Preview Status
 
-`0.1.0-alpha.1` is a public technical preview baseline. It is suitable for
+`0.1.0-alpha.2` is a public technical preview baseline. It is suitable for
 architecture review, local experimentation, ONNX static dense inference trials,
 CPU correctness work, and accelerator coverage investigation.
 
@@ -39,6 +39,43 @@ Release notes live in [CHANGELOG.md](CHANGELOG.md). The release checklist is in
 ## Quickstart
 
 For the full guided path with terms, shapes, exact values, explicit compile/prepare/execute examples, publication policy, ONNX import/export, accelerator expectations, and troubleshooting, start with [docs/quickstart.md](docs/quickstart.md).
+
+Use Synaptik from another Gradle project through JitPack:
+
+```groovy
+repositories {
+    mavenCentral()
+    maven { url = uri("https://jitpack.io") }
+}
+
+dependencies {
+    implementation "com.github.pho001:Synaptik:v0.1.0-alpha.2"
+}
+```
+
+The consuming project must run on JDK 25 and enable the incubating Vector API module for compilation and execution:
+
+```groovy
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['--add-modules', 'jdk.incubator.vector']
+}
+
+tasks.withType(JavaExec).configureEach {
+    jvmArgs '--add-modules=jdk.incubator.vector'
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+}
+
+tasks.withType(Test).configureEach {
+    jvmArgs '--add-modules=jdk.incubator.vector'
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+}
+```
 
 Build and run the focused public-preview verification set:
 
