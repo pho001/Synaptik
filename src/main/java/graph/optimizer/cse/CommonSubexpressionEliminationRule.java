@@ -70,6 +70,7 @@ import operations.reduction.sum;
 import operations.layout.tile;
 import operations.reduction.softmax;
 import operations.reduction.softmaxGrad;
+import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 
@@ -221,11 +222,20 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
         }
 
         if (t.getOperation() == null && !t.getRequiresGrad() && t.getFlatDataSize() == 1) {
-            long bits = Double.doubleToLongBits(t.scalarAsDouble());
-            return new ScalarLeafSignature(bits, IntArrayValue.copyOf(t.getShape()));
+            return scalarLeafSignature(t);
         }
 
         return new IdentityLeafSignature(System.identityHashCode(t));
+    }
+
+    private SignatureComponent scalarLeafSignature(Tensor t) {
+        DataType dtype = t.getDataType();
+        long valueBits = switch (dtype) {
+            case BOOL -> t.toBooleanArrayCopy()[0] ? 1L : 0L;
+            case INT32, INT64 -> t.getIntegralByFlatIndex(0);
+            case FLOAT64, FLOAT32, BFLOAT16 -> Double.doubleToLongBits(t.scalarAsDouble());
+        };
+        return new ScalarLeafSignature(dtype, valueBits, IntArrayValue.copyOf(t.getShape()));
     }
 
     private boolean isCommutative(Operation.OpType opType) {
@@ -521,10 +531,10 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
         }
     }
 
-    private record ScalarLeafSignature(long bits, IntArrayValue shape) implements SignatureComponent {
+    private record ScalarLeafSignature(DataType dtype, long bits, IntArrayValue shape) implements SignatureComponent {
         @Override
         public String sortKey() {
-            return "scalar:" + bits + ":" + shape;
+            return "scalar:" + dtype + ":" + bits + ":" + shape;
         }
     }
 

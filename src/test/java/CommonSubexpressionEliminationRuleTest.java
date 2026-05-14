@@ -3,6 +3,7 @@ import graph.optimizer.cse.CommonSubexpressionEliminationRule;
 import operations.Operation;
 import operations.layout.noop;
 import org.junit.jupiter.api.Test;
+import tensor.DataType;
 import tensor.Tensor;
 
 import java.util.List;
@@ -57,6 +58,35 @@ public class CommonSubexpressionEliminationRuleTest {
                 .apply(root.topologicalSort());
 
         assertEquals(2, countOps(optimized, Operation.OpType.PERMUTE));
+    }
+
+    @Test
+    void handlesBoolScalarLeafInWhereGraph() {
+        Tensor mask = new Tensor(new byte[]{1}, new int[]{1}, null, "mask");
+        Tensor x = new Tensor(new double[]{2.0}, new int[]{1}, null, "x");
+        Tensor masked = Tensor.where(mask, x, Tensor.zerosLike(x));
+        Tensor root = new Tensor(new int[]{1}, List.of(masked), new noop(), "root");
+
+        List<Tensor> optimized = new CommonSubexpressionEliminationRule(CseConfig.aggressiveDefaults())
+                .apply(root.topologicalSort());
+
+        assertEquals(1, countOps(optimized, Operation.OpType.WHERE));
+    }
+
+    @Test
+    void keepsScalarLeafSignaturesDtypeAware() {
+        Tensor x = new Tensor(new double[]{2.0}, new int[]{1}, null, "x");
+        Tensor floatOne = new Tensor(new float[]{1.0f}, new int[]{1}, null, "floatOne", DataType.FLOAT32);
+        Tensor doubleOne = Tensor.scalar(1.0d, DataType.FLOAT64);
+
+        Tensor floatBranch = x.add(floatOne);
+        Tensor doubleBranch = x.add(doubleOne);
+        Tensor root = new Tensor(new int[]{1}, List.of(floatBranch, doubleBranch), new noop(), "root");
+
+        List<Tensor> optimized = new CommonSubexpressionEliminationRule(CseConfig.aggressiveDefaults())
+                .apply(root.topologicalSort());
+
+        assertEquals(2, countOps(optimized, Operation.OpType.ADD));
     }
 
     private static long countOps(List<Tensor> graph, Operation.OpType opType) {
