@@ -224,9 +224,19 @@ public final class TensorLayoutOps {
     /**
      * Stacks tensors by inserting one new axis and concatenating along it.
      *
+     * <p>All inputs must have identical logical shape and dtype. The inserted
+     * axis has size {@code inputs.size()}. For example, stacking three tensors
+     * shaped {@code [batch, features]} at axis {@code 0} produces
+     * {@code [3, batch, features]}, while stacking them at axis {@code 1}
+     * produces {@code [batch, 3, features]}.</p>
+     *
+     * <p>The result is built from {@code expandDims} plus {@code concat}, so
+     * gradients split back into every original input tensor.</p>
+     *
      * @param axis insertion position in {@code [0, rank]}; negative axes are normalized
-     * @param inputs same-shaped tensors to stack
+     * @param inputs non-empty same-shaped, same-dtype tensors to stack
      * @return tensor with one additional dimension of size {@code inputs.size()}
+     * @throws IllegalArgumentException if inputs are null, empty, null-containing, shape-mismatched, or dtype-mismatched
      */
     public static Tensor stack(int axis, List<Tensor> inputs) {
         if (inputs == null || inputs.isEmpty()) {
@@ -266,9 +276,15 @@ public final class TensorLayoutOps {
     /**
      * Splits a tensor along one axis and removes that axis from each output.
      *
-     * @param input source tensor
+     * <p>For input shape {@code [batch, time, features]}, {@code unstack(input, 1)}
+     * returns {@code time} tensors shaped {@code [batch, features]}. Each output is
+     * a {@code select} view, so gradients accumulate back into the selected source
+     * positions.</p>
+     *
+     * @param input source tensor; must be non-null
      * @param axis axis to unstack; negative axes are normalized
      * @return one tensor view per position on {@code axis}
+     * @throws IllegalArgumentException if input is null or axis is invalid
      */
     public static Tensor[] unstack(Tensor input, int axis) {
         if (input == null) {

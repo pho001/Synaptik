@@ -79,7 +79,15 @@ public final class TensorReduceOps {
      * <p>The mask must be BOOL and broadcastable to the input. For sequence tensors,
      * a mask shaped {@code [batch, time]} can be used with data shaped
      * {@code [batch, time, features]}; it is interpreted as
-     * {@code [batch, time, 1]} and broadcast across features.</p>
+     * {@code [batch, time, 1]} and broadcast across features. Masked-out values
+     * contribute zero to the sum.</p>
+     *
+     * @param input floating tensor; must be non-null
+     * @param dimension axis to reduce; negative axes are normalized
+     * @param mask BOOL mask broadcastable to {@code input}
+     * @return masked sum tensor with {@code dimension} removed
+     * @throws IllegalArgumentException if input is non-floating, mask is null/non-BOOL,
+     *                                  mask cannot broadcast to input, or axis is invalid
      */
     public static Tensor sum(Tensor input, int dimension, Tensor mask) {
         ReductionSupport.requireFloatingInput(input, "masked sum");
@@ -157,7 +165,16 @@ public final class TensorReduceOps {
      *
      * <p>The denominator is the number of valid positions, not the padded axis size.
      * If all positions for an output element are masked out, the denominator is
-     * clamped to 1 so the result is 0 instead of NaN/Inf.</p>
+     * clamped to 1 so the result is 0 instead of NaN/Inf. For sequence tensors,
+     * a mask shaped {@code [batch, time]} can be broadcast over feature vectors
+     * shaped {@code [batch, time, features]}.</p>
+     *
+     * @param input floating tensor; must be non-null
+     * @param dimension axis to reduce; negative axes are normalized
+     * @param mask BOOL mask broadcastable to {@code input}
+     * @return masked mean tensor with {@code dimension} removed
+     * @throws IllegalArgumentException if input is non-floating, mask is null/non-BOOL,
+     *                                  mask cannot broadcast to input, or axis is invalid
      */
     public static Tensor mean(Tensor input, int dimension, Tensor mask) {
         ReductionSupport.requireFloatingInput(input, "masked mean");

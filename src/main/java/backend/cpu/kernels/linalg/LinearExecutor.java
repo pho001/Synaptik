@@ -17,6 +17,16 @@ import tensor.Tensor;
 
 import java.util.Arrays;
 
+/**
+ * CPU implementation for the semantic linear projection {@code [..., in] x [in, out]}.
+ *
+ * <p>The executor treats every leading input dimension as a flattened row prefix.
+ * That means the same kernels cover both rank-2 matrices such as
+ * {@code [batch, inFeatures]} and sequence-shaped tensors such as
+ * {@code [batch, time, inFeatures]}. Bias handling is likewise last-dimension
+ * based: {@code [outFeatures]} and {@code [1, outFeatures]} both add one value
+ * per output feature to every flattened row.</p>
+ */
 final class LinearExecutor {
     private static final VectorSpecies<Double> F64 = DoubleVector.SPECIES_PREFERRED;
     private static final VectorSpecies<Float> F32 = FloatVector.SPECIES_PREFERRED;
@@ -285,6 +295,13 @@ final class LinearExecutor {
         }
     }
 
+    /**
+     * Returns the feature width used for row-wise bias broadcasting.
+     *
+     * <p>Validation in {@code LinearSpec} restricts bias to {@code [outFeatures]}
+     * or {@code [1, outFeatures]}, so the last dimension is the only value the
+     * executor needs when it walks the flattened output buffer.</p>
+     */
     private static int biasFeatureCount(Tensor bias) {
         int[] shape = bias.getShapeUnsafe();
         return shape[shape.length - 1];

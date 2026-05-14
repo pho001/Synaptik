@@ -143,7 +143,17 @@ public final class TensorLossOps {
      *
      * <p>The mask is applied after reducing the class axis, so for logits shaped
      * {@code [batch, time, classes]} the natural mask shape is {@code [batch, time]}.
-     * The returned mean is divided by the number of true mask positions.</p>
+     * The returned mean is divided by the number of true mask positions. If every
+     * position is masked out, the denominator is clamped to {@code 1} and the loss
+     * evaluates to zero.</p>
+     *
+     * @param logits floating logits tensor; must be non-null
+     * @param targets floating dense target tensor with the same shape as {@code logits}
+     * @param classDimension class axis; negative axes are normalized
+     * @param mask BOOL mask broadcastable to the per-sample loss shape
+     * @return shape {@code [1]} mean loss normalized by valid mask count
+     * @throws IllegalArgumentException if inputs are null, non-floating, shape-mismatched,
+     *                                  mask-incompatible, or the class axis is invalid
      */
     public static Tensor crossEntropyLoss(Tensor logits, Tensor targets, int classDimension, Tensor mask) {
         validateDenseCrossEntropyInputs(logits, targets);
@@ -334,6 +344,21 @@ public final class TensorLossOps {
 
     /**
      * Computes index-target cross-entropy loss while ignoring masked-out samples.
+     *
+     * <p>The unmasked per-sample loss shape is {@code logits.shape} with
+     * {@code classDimension} removed. The mask is broadcast against that shape,
+     * which makes shapes such as {@code [batch, time]} natural for logits shaped
+     * {@code [batch, time, classes]}. The returned mean is divided by the number
+     * of true mask positions; an all-false mask returns zero instead of NaN/Inf.</p>
+     *
+     * @param logits floating logits tensor; must be non-null
+     * @param targetIndices numeric integral target indices shaped like {@code logits}
+     *                      without {@code classDimension}
+     * @param classDimension class axis; negative axes are normalized
+     * @param mask BOOL mask broadcastable to the per-sample loss shape
+     * @return shape {@code [1]} mean loss normalized by valid mask count
+     * @throws IllegalArgumentException if inputs are null, dtypes/shapes are invalid,
+     *                                  mask is not BOOL/broadcastable, or axis is invalid
      */
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, Tensor mask) {
         Tensor perSampleLoss = crossEntropyLossFromIndices(logits, targetIndices, classDimension, LossReduction.NONE);

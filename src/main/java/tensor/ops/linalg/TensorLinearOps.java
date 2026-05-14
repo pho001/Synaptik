@@ -7,10 +7,13 @@ import tensor.TensorInternalAccess;
 import tensor.TensorPrimitiveBuilder;
 
 /**
- * Fully connected layer operations.
+ * Last-dimension linear projection operations.
  *
- * <p>These methods build differentiable graph tensors for {@code input * weight}
- * with an optional broadcast-compatible bias. Inputs are not mutated.</p>
+ * <p>These methods build differentiable graph tensors for the generic tensor
+ * operation {@code input[..., inFeatures] * weight[inFeatures, outFeatures]}.
+ * They intentionally do not model a neural-network layer: ownership of parameter
+ * initialization, layer state, and model structure belongs in a consumer framework.
+ * Inputs are not mutated.</p>
  */
 public final class TensorLinearOps {
     private TensorLinearOps() {
@@ -19,9 +22,14 @@ public final class TensorLinearOps {
     /**
      * Applies a linear projection without bias.
      *
-     * @param input input activations; must be non-null and floating numeric
-     * @param weight weight matrix or batched weights accepted by {@link LinearSpec}
-     * @return projected tensor
+     * <p>The input may have any rank {@code >= 2}. All leading dimensions are
+     * treated as batch-like prefix dimensions and are preserved. The output shape
+     * equals {@code input.shape} with the final dimension replaced by
+     * {@code weight.shape[1]}.</p>
+     *
+     * @param input floating tensor shaped {@code [..., inFeatures]}; must be non-null
+     * @param weight floating rank-2 tensor shaped {@code [inFeatures, outFeatures]}
+     * @return projected tensor shaped {@code [..., outFeatures]}
      * @throws IllegalArgumentException if ranks, dimensions, or dtypes are invalid
      */
     public static Tensor linear(Tensor input, Tensor weight) {
@@ -51,10 +59,16 @@ public final class TensorLinearOps {
     /**
      * Applies a linear projection with bias.
      *
-     * @param input input activations; must be non-null and floating numeric
-     * @param weight weight matrix or batched weights accepted by {@link LinearSpec}
-     * @param bias bias tensor broadcast-compatible with the output; must be non-null
-     * @return projected tensor plus bias
+     * <p>Bias is broadcast over every leading input dimension and must be shaped
+     * either {@code [outFeatures]} or {@code [1, outFeatures]}. For example,
+     * input {@code [batch, time, inFeatures]} and weight
+     * {@code [inFeatures, outFeatures]} produce output
+     * {@code [batch, time, outFeatures]}.</p>
+     *
+     * @param input floating tensor shaped {@code [..., inFeatures]}; must be non-null
+     * @param weight floating rank-2 tensor shaped {@code [inFeatures, outFeatures]}
+     * @param bias floating tensor shaped {@code [outFeatures]} or {@code [1, outFeatures]}
+     * @return projected tensor plus bias shaped {@code [..., outFeatures]}
      * @throws IllegalArgumentException if ranks, dimensions, dtypes, or bias shape are invalid
      */
     public static Tensor linear(Tensor input, Tensor weight, Tensor bias) {

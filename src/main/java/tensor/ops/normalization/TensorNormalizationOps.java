@@ -9,11 +9,12 @@ import tensor.TensorLayoutTransform;
 import tensor.TensorPrimitiveBuilder;
 
 /**
- * Differentiable normalization layers for floating tensors.
+ * Differentiable normalization primitives for floating tensors.
  *
  * <p>All public operations require floating numeric inputs and positive
  * epsilon values. Parameter tensors are not mutated; gradients are accumulated
- * through the generated tensor graph when required.</p>
+ * through the generated tensor graph when required. These are tensor operations,
+ * not stateful neural-network layer objects.</p>
  */
 public final class TensorNormalizationOps {
     private TensorNormalizationOps() {

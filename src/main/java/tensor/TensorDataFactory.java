@@ -13,6 +13,10 @@ public final class TensorDataFactory {
     /**
      * Creates a tensor filled with zeros.
      *
+     * <p>All public dtypes are supported. Numeric dtypes receive exact zero;
+     * {@link DataType#BOOL} receives {@code false}. The supplied shape is
+     * defensively copied before the tensor is constructed.</p>
+     *
      * @param shape output shape; must be non-null and contain positive dimensions
      * @param dataType dtype of the returned tensor; must be non-null
      * @param label tensor label, may be null
@@ -33,6 +37,10 @@ public final class TensorDataFactory {
 
     /**
      * Creates a tensor filled with ones.
+     *
+     * <p>All public dtypes are supported. Numeric dtypes receive exact one;
+     * {@link DataType#BOOL} receives {@code true}. The supplied shape is
+     * defensively copied before the tensor is constructed.</p>
      *
      * @param shape output shape; must be non-null and contain positive dimensions
      * @param dataType dtype of the returned tensor; must be non-null
@@ -79,12 +87,17 @@ public final class TensorDataFactory {
     /**
      * Creates a floating tensor with normally distributed values.
      *
+     * <p>The generator samples {@code mean + Random.nextGaussian() * stdDev}.
+     * Integer and boolean dtypes are rejected because they would require an
+     * additional rounding/truthiness policy that this factory does not own.</p>
+     *
      * @param shape output shape
      * @param mean normal distribution mean
      * @param stdDev normal distribution standard deviation; must be non-negative
      * @param dataType floating dtype of the returned tensor
      * @param label tensor label, may be null
      * @return newly allocated tensor
+     * @throws IllegalArgumentException if {@code stdDev} is negative/non-finite or {@code dataType} is non-floating
      */
     public static Tensor randn(int[] shape, double mean, double stdDev, DataType dataType, String label) {
         if (stdDev < 0.0d || !Double.isFinite(stdDev)) {
@@ -106,11 +119,17 @@ public final class TensorDataFactory {
     /**
      * Creates a rank-1 tensor containing an arithmetic integer range.
      *
+     * <p>The output values are {@code start, start + step, ...} up to but not
+     * including {@code end}. Positive and negative steps are supported when they
+     * can reach {@code end}; empty ranges are rejected.</p>
+     *
      * @param start inclusive start
      * @param end exclusive end
      * @param step non-zero step
      * @param dataType output dtype; supports numeric non-BOOL dtypes
      * @return rank-1 range tensor
+     * @throws IllegalArgumentException if step is zero, direction cannot reach end,
+     *                                  the range is empty, or dtype is BOOL
      */
     public static Tensor arange(int start, int end, int step, DataType dataType) {
         if (step == 0) {
@@ -179,6 +198,9 @@ public final class TensorDataFactory {
     /**
      * Creates a tensor filled with ones matching another tensor's shape and dtype.
      *
+     * <p>The returned tensor is independent leaf storage. For BOOL tensors, one
+     * means {@code true}; for INT64 tensors, one is stored as {@code 1L}.</p>
+     *
      * @param other tensor whose shape and dtype are copied; must be non-null
      * @return new tensor labeled {@code ones_like}
      */
@@ -207,6 +229,9 @@ public final class TensorDataFactory {
 
     /**
      * Creates a tensor filled with zeros matching another tensor's shape and dtype.
+     *
+     * <p>The returned tensor is independent leaf storage. For BOOL tensors, zero
+     * means {@code false}; for INT64 tensors, zero is stored as {@code 0L}.</p>
      *
      * @param other tensor whose shape and dtype are copied; must be non-null
      * @return new tensor labeled {@code zeros_like}

@@ -492,10 +492,10 @@ public class Tensor {
     /**
      * Creates a shape {@code [1]} scalar tensor using the requested dtype.
      *
-     * @param value scalar value; must be integral for {@link DataType#INT32}
+     * @param value scalar value; must be integral for {@link DataType#INT32} or {@link DataType#INT64}
      * @param dataType requested dtype; must be non-null
      * @return new scalar tensor
-     * @throws IllegalArgumentException if an INT32 scalar is requested with a non-integral value
+     * @throws IllegalArgumentException if an INT32/INT64 scalar is requested with a non-integral value
      */
     public static Tensor scalar(double value, DataType dataType) {
         return TensorDataFactory.scalar(value, dataType);
@@ -514,8 +514,12 @@ public class Tensor {
     /**
      * Creates a tensor filled with zeros.
      *
-     * @param shape output shape
-     * @param dataType output dtype
+     * <p>All current public dtypes are supported, including {@link DataType#BOOL},
+     * {@link DataType#INT32}, and {@link DataType#INT64}. The returned tensor is a
+     * leaf tensor with no graph predecessors.</p>
+     *
+     * @param shape output shape; must be non-null and contain positive dimensions
+     * @param dataType output dtype; must be non-null
      * @return newly allocated tensor
      */
     public static Tensor zeros(int[] shape, DataType dataType) {
@@ -525,8 +529,12 @@ public class Tensor {
     /**
      * Creates a labeled tensor filled with zeros.
      *
-     * @param shape output shape
-     * @param dataType output dtype
+     * <p>All current public dtypes are supported, including {@link DataType#BOOL},
+     * {@link DataType#INT32}, and {@link DataType#INT64}. The returned tensor is a
+     * leaf tensor with no graph predecessors.</p>
+     *
+     * @param shape output shape; must be non-null and contain positive dimensions
+     * @param dataType output dtype; must be non-null
      * @param label tensor label
      * @return newly allocated tensor
      */
@@ -547,8 +555,12 @@ public class Tensor {
     /**
      * Creates a tensor filled with ones.
      *
-     * @param shape output shape
-     * @param dataType output dtype
+     * <p>For {@link DataType#BOOL}, one means {@code true}. For integer dtypes,
+     * one is stored as {@code 1} or {@code 1L}. The returned tensor is a leaf tensor
+     * with no graph predecessors.</p>
+     *
+     * @param shape output shape; must be non-null and contain positive dimensions
+     * @param dataType output dtype; must be non-null
      * @return newly allocated tensor
      */
     public static Tensor ones(int[] shape, DataType dataType) {
@@ -558,8 +570,12 @@ public class Tensor {
     /**
      * Creates a labeled tensor filled with ones.
      *
-     * @param shape output shape
-     * @param dataType output dtype
+     * <p>For {@link DataType#BOOL}, one means {@code true}. For integer dtypes,
+     * one is stored as {@code 1} or {@code 1L}. The returned tensor is a leaf tensor
+     * with no graph predecessors.</p>
+     *
+     * @param shape output shape; must be non-null and contain positive dimensions
+     * @param dataType output dtype; must be non-null
      * @param label tensor label
      * @return newly allocated tensor
      */
@@ -580,12 +596,17 @@ public class Tensor {
     /**
      * Creates a labeled floating tensor filled from a normal distribution.
      *
-     * @param shape output shape
+     * <p>The sampled values follow {@code mean + gaussian * stdDev}. This factory
+     * supports only floating dtypes because random normal values do not have a
+     * well-defined integer or boolean storage contract.</p>
+     *
+     * @param shape output shape; must be non-null and contain positive dimensions
      * @param mean distribution mean
-     * @param stdDev distribution standard deviation
-     * @param dataType floating output dtype
+     * @param stdDev finite non-negative distribution standard deviation
+     * @param dataType floating output dtype; must be FLOAT64, FLOAT32, or BFLOAT16
      * @param label tensor label
      * @return newly allocated tensor
+     * @throws IllegalArgumentException if {@code stdDev} is negative/non-finite or dtype is non-floating
      */
     public static Tensor randn(int[] shape, double mean, double stdDev, DataType dataType, String label) {
         return TensorDataFactory.randn(shape, mean, stdDev, dataType, label);
@@ -594,11 +615,16 @@ public class Tensor {
     /**
      * Creates a rank-1 tensor containing an arithmetic integer range.
      *
+     * <p>The range includes {@code start}, excludes {@code end}, and advances by
+     * {@code step}. Empty ranges are rejected so the public tensor shape remains
+     * non-empty. {@link DataType#BOOL} is not supported.</p>
+     *
      * @param start inclusive start
      * @param end exclusive end
      * @param step non-zero step
-     * @param dataType output dtype
+     * @param dataType output dtype; must be numeric and non-BOOL
      * @return rank-1 range tensor
+     * @throws IllegalArgumentException if step is zero, cannot reach end, produces an empty range, or dtype is BOOL
      */
     public static Tensor arange(int start, int end, int step, DataType dataType) {
         return TensorDataFactory.arange(start, end, step, dataType);
@@ -617,6 +643,9 @@ public class Tensor {
     /**
      * Returns this tensor's rank.
      *
+     * <p>Rank is the number of logical axes in the tensor shape. For example,
+     * shape {@code [batch, time, features]} has rank {@code 3}.</p>
+     *
      * @return number of dimensions in the logical shape
      */
     public int rank() {
@@ -626,6 +655,9 @@ public class Tensor {
     /**
      * Returns this tensor's logical element count.
      *
+     * <p>This is equivalent to {@link #getFlatDataSize()} and is named for
+     * ergonomic public code.</p>
+     *
      * @return product of shape dimensions
      */
     public int size() {
@@ -634,6 +666,10 @@ public class Tensor {
 
     /**
      * Returns the final logical dimension size.
+     *
+     * <p>This is useful for operations whose contract is based on the last axis,
+     * such as N-D {@link #linear(Tensor, Tensor)} where input shape is
+     * {@code [..., inFeatures]}.</p>
      *
      * @return last shape dimension
      * @throws IllegalStateException if this tensor has no dimensions
@@ -649,7 +685,7 @@ public class Tensor {
     /**
      * Compares this tensor's logical shape with an expected shape.
      *
-     * @param shape expected shape
+     * @param shape expected shape; varargs are not retained
      * @return true when shapes match exactly
      */
     public boolean shapeEquals(int... shape) {
@@ -658,6 +694,9 @@ public class Tensor {
 
     /**
      * Returns a defensive copy of this tensor's shape.
+     *
+     * <p>This is the explicit safe alternative to {@link #getShapeUnsafe()} for
+     * application or framework code that may store or mutate the returned array.</p>
      *
      * @return copied shape array
      */
@@ -1560,6 +1599,9 @@ public class Tensor {
     /**
      * Slices one axis with positive step 1.
      *
+     * <p>This is the one-axis ergonomic form of {@link #slice(int[], int[], int[], int[])}.
+     * The rank is preserved and only the selected axis length changes.</p>
+     *
      * @param axis axis to slice; negative axes are normalized
      * @param fromInclusive inclusive start index
      * @param toExclusive exclusive end index
@@ -1591,9 +1633,15 @@ public class Tensor {
     /**
      * Stacks tensors by inserting a new axis.
      *
+     * <p>All inputs must have the same shape and dtype. The inserted axis has
+     * length {@code inputs.length}. For example, stacking three tensors shaped
+     * {@code [batch, features]} at axis {@code 1} produces
+     * {@code [batch, 3, features]}.</p>
+     *
      * @param axis insertion position in {@code [0, rank]}; negative axes are normalized
      * @param inputs same-shaped tensors to stack
      * @return tensor with one additional dimension
+     * @throws IllegalArgumentException if inputs are null, empty, null-containing, shape-mismatched, or dtype-mismatched
      */
     public static Tensor stack(int axis, Tensor... inputs) {
         if (inputs == null) {
@@ -1843,6 +1891,9 @@ public class Tensor {
     /**
      * Gathers values from one axis using ONNX Gather-style shape semantics.
      *
+     * <p>The index tensor shape is inserted at {@code axis}. Result shape is
+     * {@code dataShape[:axis] + indicesShape + dataShape[axis + 1:]}.</p>
+     *
      * @param axis source axis; negative axes are normalized
      * @param indices numeric integral index tensor
      * @return gathered tensor
@@ -1854,8 +1905,11 @@ public class Tensor {
     /**
      * Gathers values from one axis using a Java index list.
      *
+     * <p>The Java array is copied into an INT32 index tensor and then interpreted
+     * with the same shape semantics as {@link #take(int, Tensor)}.</p>
+     *
      * @param axis source axis; negative axes are normalized
-     * @param indices integer indices
+     * @param indices integer indices; must be non-null and non-empty
      * @return gathered tensor
      */
     public Tensor take(int axis, int[] indices) {
@@ -1864,6 +1918,10 @@ public class Tensor {
 
     /**
      * Splits this tensor along one axis and removes that axis from each output.
+     *
+     * <p>For input shape {@code [2, 3, 4]}, {@code unstack(1)} returns three
+     * tensors shaped {@code [2, 4]}. The outputs are graph tensors built from
+     * {@code select} operations, so gradients scatter back into the source tensor.</p>
      *
      * @param axis axis to unstack; negative axes are normalized
      * @return one tensor per position along {@code axis}
@@ -2024,8 +2082,13 @@ public class Tensor {
     /**
      * Applies a linear projection without bias.
      *
-     * @param weight projection weight tensor
-     * @return projected tensor
+     * <p>The receiver may have any rank greater than or equal to 2. The last
+     * dimension is treated as {@code inFeatures}. The weight shape must be
+     * {@code [inFeatures, outFeatures]}. The output shape equals the input shape
+     * with the last dimension replaced by {@code outFeatures}.</p>
+     *
+     * @param weight projection weight tensor shaped {@code [inFeatures, outFeatures]}
+     * @return projected tensor shaped {@code [..., outFeatures]}
      */
     public Tensor linear(Tensor weight) {
         return TensorOps.linear(this, weight);
@@ -2034,9 +2097,14 @@ public class Tensor {
     /**
      * Applies a linear projection with bias.
      *
-     * @param weight projection weight tensor
-     * @param bias bias tensor broadcast-compatible with output
-     * @return projected tensor plus bias
+     * <p>The receiver may have any rank greater than or equal to 2. The last
+     * dimension is treated as {@code inFeatures}. Bias is broadcast over every
+     * leading dimension and may be shaped {@code [outFeatures]} or
+     * {@code [1, outFeatures]}.</p>
+     *
+     * @param weight projection weight tensor shaped {@code [inFeatures, outFeatures]}
+     * @param bias bias tensor shaped {@code [outFeatures]} or {@code [1, outFeatures]}
+     * @return projected tensor plus bias shaped {@code [..., outFeatures]}
      */
     public Tensor linear(Tensor weight, Tensor bias) {
         return TensorOps.linear(this, weight, bias);
@@ -2309,6 +2377,11 @@ public class Tensor {
     /**
      * Sums along one dimension while ignoring positions where {@code mask} is false.
      *
+     * <p>The mask must have dtype {@link DataType#BOOL} and be broadcastable to
+     * this tensor. Masked-out values contribute zero to the sum. This method
+     * removes {@code dimension}; use explicit composition when a keep-dims masked
+     * reduction is needed.</p>
+     *
      * @param dimension axis to reduce; negative axes are normalized
      * @param mask BOOL mask broadcastable to this tensor
      * @return masked sum tensor
@@ -2349,6 +2422,11 @@ public class Tensor {
 
     /**
      * Averages along one dimension while ignoring positions where {@code mask} is false.
+     *
+     * <p>The mask must have dtype {@link DataType#BOOL} and be broadcastable to
+     * this tensor. The denominator is the number of true mask entries for each
+     * output element, not the full reduced-axis length. All-masked positions
+     * return zero instead of NaN or infinity.</p>
      *
      * @param dimension axis to reduce; negative axes are normalized
      * @param mask BOOL mask broadcastable to this tensor
@@ -2509,6 +2587,11 @@ public class Tensor {
     /**
      * Computes dense-target cross-entropy loss while ignoring masked-out samples.
      *
+     * <p>The mask is applied after reducing {@code classDimension}. For logits
+     * shaped {@code [batch, time, classes]} and {@code classDimension = 2}, the
+     * natural mask shape is {@code [batch, time]}. The mean denominator is the
+     * number of true mask entries.</p>
+     *
      * @param targets dense target tensor with the same shape as this tensor
      * @param classDimension class axis; negative axes are normalized
      * @param mask BOOL mask broadcastable to this tensor with the class axis removed
@@ -2624,6 +2707,10 @@ public class Tensor {
 
     /**
      * Computes index-target cross-entropy loss while ignoring masked-out samples.
+     *
+     * <p>The mask is broadcast against the per-sample loss shape, which is the
+     * logits shape with {@code classDimension} removed. The mean denominator is
+     * the number of true mask entries.</p>
      *
      * @param targetIndices class indices shaped like this tensor without {@code classDimension}
      * @param classDimension class axis; negative axes are normalized

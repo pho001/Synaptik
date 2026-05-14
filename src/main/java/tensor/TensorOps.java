@@ -64,6 +64,19 @@ public final class TensorOps {
         return TensorLayoutOps.slice(input, starts, ends, axes, steps);
     }
 
+    /**
+     * Slices one axis with positive step {@code 1}.
+     *
+     * <p>This is the static counterpart of {@link Tensor#sliceAxis(int, int, int)}.
+     * The output rank is the same as the input rank and only {@code axis} changes
+     * length.</p>
+     *
+     * @param input source tensor
+     * @param axis axis to slice; negative axes are normalized
+     * @param fromInclusive inclusive start index
+     * @param toExclusive exclusive end index
+     * @return sliced tensor view
+     */
     public static Tensor sliceAxis(Tensor input, int axis, int fromInclusive, int toExclusive) {
         return TensorLayoutOps.slice(
                 input,
@@ -78,10 +91,28 @@ public final class TensorOps {
         return TensorLayoutOps.concat(axis, inputs);
     }
 
+    /**
+     * Inserts a new axis and concatenates same-shaped tensors along it.
+     *
+     * <p>For example, stacking tensors shaped {@code [batch, features]} at axis
+     * {@code 1} produces one tensor shaped {@code [batch, time, features]} where
+     * {@code time = inputs.size()}.</p>
+     *
+     * @param axis insertion axis in {@code [0, rank]}; negative axes are normalized
+     * @param inputs non-empty same-shaped, same-dtype input tensors
+     * @return tensor with one additional axis
+     */
     public static Tensor stack(int axis, List<Tensor> inputs) {
         return TensorLayoutOps.stack(axis, inputs);
     }
 
+    /**
+     * Splits a tensor along an axis and removes that axis from each output.
+     *
+     * @param input source tensor
+     * @param axis existing axis to split; negative axes are normalized
+     * @return one tensor per position along {@code axis}
+     */
     public static Tensor[] unstack(Tensor input, int axis) {
         return TensorLayoutOps.unstack(input, axis);
     }
@@ -186,10 +217,29 @@ public final class TensorOps {
         return TensorIndexOps.gatherAxis(input, indices, axis);
     }
 
+    /**
+     * ONNX Gather-style axis take.
+     *
+     * <p>Result shape is {@code input.shape[:axis] + indices.shape +
+     * input.shape[axis + 1:]}.</p>
+     *
+     * @param input source tensor
+     * @param axis source axis; negative axes are normalized
+     * @param indices numeric integral index tensor
+     * @return gathered tensor
+     */
     public static Tensor take(Tensor input, int axis, Tensor indices) {
         return TensorIndexOps.take(input, axis, indices);
     }
 
+    /**
+     * ONNX Gather-style axis take using a copied Java INT32 index vector.
+     *
+     * @param input source tensor
+     * @param axis source axis; negative axes are normalized
+     * @param indices integer index list; must be non-null and non-empty
+     * @return gathered tensor
+     */
     public static Tensor take(Tensor input, int axis, int[] indices) {
         return TensorIndexOps.take(input, axis, indices);
     }
@@ -242,10 +292,34 @@ public final class TensorOps {
         return TensorMatMulOps.matmul(first, second);
     }
 
+    /**
+     * Applies an N-D last-dimension linear projection without bias.
+     *
+     * <p>Input shape is {@code [..., inFeatures]}, weight shape is
+     * {@code [inFeatures, outFeatures]}, and output shape is
+     * {@code [..., outFeatures]}.</p>
+     *
+     * @param input floating input tensor with rank at least 2
+     * @param weight floating rank-2 weight tensor
+     * @return projected tensor
+     */
     public static Tensor linear(Tensor input, Tensor weight) {
         return TensorLinearOps.linear(input, weight);
     }
 
+    /**
+     * Applies an N-D last-dimension linear projection with bias.
+     *
+     * <p>Input shape is {@code [..., inFeatures]}, weight shape is
+     * {@code [inFeatures, outFeatures]}, optional bias shape is
+     * {@code [outFeatures]} or {@code [1, outFeatures]}, and output shape is
+     * {@code [..., outFeatures]}.</p>
+     *
+     * @param input floating input tensor with rank at least 2
+     * @param weight floating rank-2 weight tensor
+     * @param bias floating bias tensor
+     * @return projected tensor plus broadcast bias
+     */
     public static Tensor linear(Tensor input, Tensor weight, Tensor bias) {
         return TensorLinearOps.linear(input, weight, bias);
     }
@@ -358,6 +432,14 @@ public final class TensorOps {
         return TensorReduceOps.sum(input, dimension, keepDims);
     }
 
+    /**
+     * Sums along one dimension while ignoring positions where {@code mask} is false.
+     *
+     * @param input floating input tensor
+     * @param dimension axis to reduce; negative axes are normalized
+     * @param mask BOOL mask broadcastable to {@code input}
+     * @return masked sum with {@code dimension} removed
+     */
     public static Tensor sum(Tensor input, int dimension, Tensor mask) {
         return TensorReduceOps.sum(input, dimension, mask);
     }
@@ -374,6 +456,17 @@ public final class TensorOps {
         return TensorReduceOps.mean(input, dimension, keepDims);
     }
 
+    /**
+     * Averages along one dimension while ignoring positions where {@code mask} is false.
+     *
+     * <p>The denominator is the valid mask count, not the full reduced-axis size.
+     * All-masked output positions evaluate to zero.</p>
+     *
+     * @param input floating input tensor
+     * @param dimension axis to reduce; negative axes are normalized
+     * @param mask BOOL mask broadcastable to {@code input}
+     * @return masked mean with {@code dimension} removed
+     */
     public static Tensor mean(Tensor input, int dimension, Tensor mask) {
         return TensorReduceOps.mean(input, dimension, mask);
     }
@@ -470,6 +563,20 @@ public final class TensorOps {
         return TensorReduceOps.anyAll(input);
     }
 
+    /**
+     * Applies batch-normalization arithmetic using statistics computed from input.
+     *
+     * <p>This is a stateless tensor primitive: it does not own running statistics
+     * or layer state. Mean and variance are computed over every axis except
+     * {@code channelDimension}.</p>
+     *
+     * @param input floating input tensor with at least two axes
+     * @param gamma rank-1 scale tensor shaped {@code [channels]}
+     * @param beta rank-1 bias tensor shaped {@code [channels]}
+     * @param channelDimension channel axis; negative axes are normalized
+     * @param epsilon positive stability constant
+     * @return normalized tensor with the same shape as {@code input}
+     */
     public static Tensor batchNorm(
             Tensor input,
             Tensor gamma,
@@ -480,6 +587,22 @@ public final class TensorOps {
         return TensorNormalizationOps.batchNorm(input, gamma, beta, channelDimension, epsilon);
     }
 
+    /**
+     * Applies batch-normalization arithmetic using caller-supplied statistics.
+     *
+     * <p>This inference-style form expects {@code mean} and {@code variance} to be
+     * rank-1 tensors shaped {@code [channels]}. No running-statistics state is
+     * updated by this method.</p>
+     *
+     * @param input floating input tensor
+     * @param gamma rank-1 scale tensor shaped {@code [channels]}
+     * @param beta rank-1 bias tensor shaped {@code [channels]}
+     * @param mean rank-1 mean tensor shaped {@code [channels]}
+     * @param variance rank-1 variance tensor shaped {@code [channels]}
+     * @param channelDimension channel axis; negative axes are normalized
+     * @param epsilon positive stability constant
+     * @return normalized tensor with the same shape as {@code input}
+     */
     public static Tensor batchNorm(
             Tensor input,
             Tensor gamma,
@@ -492,6 +615,19 @@ public final class TensorOps {
         return TensorNormalizationOps.batchNorm(input, gamma, beta, mean, variance, channelDimension, epsilon);
     }
 
+    /**
+     * Applies layer-normalization arithmetic over trailing dimensions.
+     *
+     * <p>The shape of {@code gamma} and {@code beta} defines the normalized tail
+     * of {@code input}. For example, input {@code [batch, time, features]} with
+     * parameters {@code [features]} normalizes each feature vector independently.</p>
+     *
+     * @param input floating input tensor
+     * @param gamma scale tensor matching the normalized input tail
+     * @param beta bias tensor with the same shape as {@code gamma}
+     * @param epsilon positive stability constant
+     * @return normalized tensor with the same shape as {@code input}
+     */
     public static Tensor layerNorm(
             Tensor input,
             Tensor gamma,
@@ -501,6 +637,17 @@ public final class TensorOps {
         return TensorNormalizationOps.layerNorm(input, gamma, beta, epsilon);
     }
 
+    /**
+     * Applies RMS-normalization arithmetic over trailing dimensions.
+     *
+     * <p>The shape of {@code gamma} defines the normalized tail of {@code input}.
+     * The operation is stateless and does not represent a model layer object.</p>
+     *
+     * @param input floating input tensor
+     * @param gamma scale tensor matching the normalized input tail
+     * @param epsilon positive stability constant
+     * @return normalized tensor with the same shape as {@code input}
+     */
     public static Tensor rmsNorm(
             Tensor input,
             Tensor gamma,
@@ -517,6 +664,15 @@ public final class TensorOps {
         return TensorLossOps.crossEntropyLoss(logits, targets, classDimension);
     }
 
+    /**
+     * Computes dense-target cross entropy while ignoring masked-out samples.
+     *
+     * @param logits floating logits tensor
+     * @param targets dense floating targets with the same shape as {@code logits}
+     * @param classDimension class axis; negative axes are normalized
+     * @param mask BOOL mask broadcastable to the per-sample loss shape
+     * @return shape {@code [1]} mean loss normalized by valid mask count
+     */
     public static Tensor crossEntropyLoss(Tensor logits, Tensor targets, int classDimension, Tensor mask) {
         return TensorLossOps.crossEntropyLoss(logits, targets, classDimension, mask);
     }
@@ -553,6 +709,15 @@ public final class TensorOps {
         return TensorLossOps.crossEntropyLossFromIndices(logits, targetIndices, classDimension, reduction);
     }
 
+    /**
+     * Computes index-target cross entropy while ignoring masked-out samples.
+     *
+     * @param logits floating logits tensor
+     * @param targetIndices numeric integral target indices shaped like logits without the class axis
+     * @param classDimension class axis; negative axes are normalized
+     * @param mask BOOL mask broadcastable to {@code targetIndices}
+     * @return shape {@code [1]} mean loss normalized by valid mask count
+     */
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, Tensor mask) {
         return TensorLossOps.crossEntropyLossFromIndices(logits, targetIndices, classDimension, mask);
     }

@@ -155,6 +155,17 @@ public final class TensorIndexOps {
 
     /**
      * Ergonomic alias for {@link #gatherAxis(Tensor, Tensor, int)}.
+     *
+     * <p>The result shape follows ONNX Gather semantics:
+     * {@code input.shape[:axis] + indices.shape + input.shape[axis + 1:]}.
+     * This is useful for sequence/time indexing because an index vector can
+     * replace the selected axis with exactly the requested index shape.</p>
+     *
+     * @param input source tensor; must be non-null
+     * @param axis source axis; negative axes are normalized
+     * @param indices numeric integral index tensor; must be non-null and non-BOOL
+     * @return gathered tensor with dtype matching {@code input}
+     * @throws IllegalArgumentException if inputs are null, indices are BOOL, or axis is invalid
      */
     public static Tensor take(Tensor input, int axis, Tensor indices) {
         return gatherAxis(input, indices, axis);
@@ -162,6 +173,16 @@ public final class TensorIndexOps {
 
     /**
      * Ergonomic axis gather from a Java int index list.
+     *
+     * <p>The Java array is copied into a rank-1 {@link DataType#INT32} tensor and
+     * then delegated to {@link #take(Tensor, int, Tensor)}. Negative index values
+     * are interpreted by the same backend gather implementation as tensor indices.</p>
+     *
+     * @param input source tensor; must be non-null
+     * @param axis source axis; negative axes are normalized
+     * @param indices non-empty Java index list
+     * @return gathered tensor with the selected axis replaced by {@code indices.length}
+     * @throws IllegalArgumentException if indices are null/empty, input is null, or axis is invalid
      */
     public static Tensor take(Tensor input, int axis, int[] indices) {
         if (indices == null || indices.length == 0) {

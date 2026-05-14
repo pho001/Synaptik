@@ -5,6 +5,16 @@ import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorDataTypeUtil;
 
+/**
+ * Validated execution contract for the public N-D linear projection.
+ *
+ * <p>The semantic operation is deliberately narrow: input shape is
+ * {@code [..., inFeatures]}, weight shape is {@code [inFeatures, outFeatures]},
+ * optional bias shape is {@code [outFeatures]} or {@code [1, outFeatures]}, and
+ * output shape is {@code [..., outFeatures]}. The executor may later flatten the
+ * prefix dimensions into rows, but this record keeps that implementation detail
+ * out of the public API.</p>
+ */
 record LinearSpec(
         int[] outShape,
         DataType outputType,
