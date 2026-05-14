@@ -19,6 +19,7 @@ import tensor.TensorLayoutTransform;
 import tensor.TensorMetadata;
 import tensor.TensorPrimitiveBuilder;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -217,6 +218,68 @@ public final class TensorLayoutOps {
                 offset += axisSize;
             }
         });
+        return out;
+    }
+
+    /**
+     * Stacks tensors by inserting one new axis and concatenating along it.
+     *
+     * @param axis insertion position in {@code [0, rank]}; negative axes are normalized
+     * @param inputs same-shaped tensors to stack
+     * @return tensor with one additional dimension of size {@code inputs.size()}
+     */
+    public static Tensor stack(int axis, List<Tensor> inputs) {
+        if (inputs == null || inputs.isEmpty()) {
+            throw new IllegalArgumentException("stack requires at least one input tensor.");
+        }
+        Tensor first = inputs.getFirst();
+        if (first == null) {
+            throw new IllegalArgumentException("stack inputs cannot contain null tensors.");
+        }
+        int rank = first.getShapeUnsafe().length;
+        int normalizedAxis = TensorLayoutTransform.normalizeInsertAxis(axis, rank);
+        int[] expectedShape = first.getShapeUnsafe();
+        for (Tensor input : inputs) {
+            if (input == null) {
+                throw new IllegalArgumentException("stack inputs cannot contain null tensors.");
+            }
+            if (input.getDataType() != first.getDataType()) {
+                throw new IllegalArgumentException("stack inputs must have matching dtypes.");
+            }
+            int[] shape = input.getShapeUnsafe();
+            if (shape.length != expectedShape.length) {
+                throw new IllegalArgumentException("stack inputs must have matching ranks.");
+            }
+            for (int d = 0; d < shape.length; d++) {
+                if (shape[d] != expectedShape[d]) {
+                    throw new IllegalArgumentException("stack inputs must have identical shapes.");
+                }
+            }
+        }
+        List<Tensor> expanded = new ArrayList<>(inputs.size());
+        for (Tensor input : inputs) {
+            expanded.add(input.expandDims(normalizedAxis));
+        }
+        return concat(normalizedAxis, expanded);
+    }
+
+    /**
+     * Splits a tensor along one axis and removes that axis from each output.
+     *
+     * @param input source tensor
+     * @param axis axis to unstack; negative axes are normalized
+     * @return one tensor view per position on {@code axis}
+     */
+    public static Tensor[] unstack(Tensor input, int axis) {
+        if (input == null) {
+            throw new IllegalArgumentException("unstack input cannot be null");
+        }
+        int normalizedAxis = TensorLayoutTransform.normalizeAxis(axis, input.getShapeUnsafe().length);
+        int count = input.getShapeUnsafe()[normalizedAxis];
+        Tensor[] out = new Tensor[count];
+        for (int i = 0; i < count; i++) {
+            out[i] = input.select(normalizedAxis, i);
+        }
         return out;
     }
 

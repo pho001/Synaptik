@@ -99,6 +99,15 @@ new Tensor(int[] shape, int[] strides, int storageOffset, List<Tensor> previous,
 // Factories
 Tensor.scalar(double value)
 Tensor.scalar(double value, DataType dataType)
+Tensor.zeros(int[] shape)
+Tensor.zeros(int[] shape, DataType dataType)
+Tensor.zeros(int[] shape, DataType dataType, String label)
+Tensor.ones(int[] shape)
+Tensor.ones(int[] shape, DataType dataType)
+Tensor.ones(int[] shape, DataType dataType, String label)
+Tensor.randn(int[] shape)
+Tensor.randn(int[] shape, double mean, double stdDev, DataType dataType, String label)
+Tensor.arange(int start, int end, int step, DataType dataType)
 Tensor.onesLike(Tensor other)
 Tensor.zerosLike(Tensor other)
 ```
@@ -112,7 +121,10 @@ Tensor.zerosLike(Tensor other)
 - Constructors that omit `DataType` mostly use `TensorMetadata.DEFAULT_DATA_TYPE`, currently `FLOAT32`: object, dimension, `double[]`, `float[]`, and `short[]` overloads all default this way. The two intentional exceptions are `byte[]`, which defaults to `BOOL`, and `int[]`, which defaults to `INT32`.
 - Passing `dataType = null` normalizes metadata to `FLOAT32`. That is valid for floating/numeric source arrays that can be represented as floating storage, but it is not a compatibility conversion for every storage kind: `byte[]` with `null` becomes a failed BOOL-to-numeric conversion, and `int[]` with `null` becomes a failed INT32-to-floating conversion.
 - `Tensor.scalar(value, DataType.INT32)` and `Tensor.scalar(value, DataType.INT64)` accept integral values only and return shape `[1]`.
-- `onesLike` and `zerosLike` preserve shape and preserve `INT32`, `INT64`, or floating storage. They do not support `BOOL` inputs because numeric factory conversion to `BOOL` is rejected.
+- `zeros` and `ones` allocate new tensors and support floating, integer, and BOOL dtypes.
+- `randn` supports floating dtypes only.
+- `arange` returns a rank-1 numeric non-BOOL tensor and rejects empty ranges.
+- `onesLike` and `zerosLike` preserve shape and dtype, including `BOOL`.
 
 ### Example
 
@@ -164,6 +176,11 @@ int[] getStrides()
 int[] getStridesUnsafe()
 int getStorageOffsetUnsafe()
 int getFlatDataSize()
+int rank()
+int size()
+int lastDim()
+boolean shapeEquals(int... shape)
+int[] shapeCopy()
 int getFlatIndex(int[] indices)
 int[] getSpatialIndex(int index)
 boolean isContiguous()
@@ -183,6 +200,7 @@ void setData(float[] data)
 void setData(short[] data)
 void setData(byte[] data)
 void setData(int[] data)
+void setData(long[] data)
 void copyDataFrom(Tensor source)
 double[] toDoubleArrayCopy()
 boolean[] toBooleanArrayCopy()
@@ -192,6 +210,7 @@ float[] getFloat32Data()
 double[] getFloat64Data()
 short[] getBFloat16Data()
 int[] getInt32Data()
+long[] getInt64Data()
 byte[] getBoolData()
 
 boolean getRequiresGrad()
@@ -202,11 +221,16 @@ Tensor getGradient()
 ### Behavior And Edge Cases
 
 - `getShape()` and `getStrides()` return copies. `getShapeUnsafe()` and `getStridesUnsafe()` expose internal arrays for runtime code.
+- `rank()` returns `getShape().length`, but without allocating a shape copy.
+- `size()` returns the logical element count and is equivalent to `getFlatDataSize()`.
+- `lastDim()` returns the final logical dimension. It is the helper most consumer code wants before validating `[..., features]` APIs.
+- `shapeEquals(...)` compares a tensor shape with an expected literal shape.
+- `shapeCopy()` is the clear public spelling for "give me a defensive shape copy" and is equivalent to `getShape()`.
 - `getByFlatIndex` and `setDataAt` use logical row-major flat indices.
 - `setDataAt` rejects writes through broadcast views.
 - `copyDataFrom` requires matching shape and dtype and remaps data according to source and target strides.
 - `getData()` is only supported for `FLOAT64`; use typed storage getters or `toDoubleArrayCopy()` for other dtypes.
-- `setDataType` allows floating-to-floating conversion, but rejects implicit conversion to/from `INT32` and between `BOOL` and numeric dtypes.
+- `setDataType` allows floating-to-floating conversion, but rejects implicit conversion to/from `INT32`/`INT64` and between `BOOL` and numeric dtypes.
 
 ### Example
 
@@ -228,6 +252,13 @@ int[] spatial = x.getSpatialIndex(2);
 
 double[] copy = x.toDoubleArrayCopy();
 // copy = [1.0, 2.0, 30.0, 4.0]
+
+Tensor seq = Tensor.randn(new int[]{2, 3, 4}, 0.0, 1.0, DataType.FLOAT64, "seq");
+// seq.rank() = 3
+// seq.size() = 24
+// seq.lastDim() = 4
+// seq.shapeEquals(2, 3, 4) = true
+// seq.shapeCopy() returns a defensive int[] copy
 ```
 
 ## Graph Lifecycle And Execution
@@ -970,6 +1001,34 @@ Tensor y = x.squeeze(0);
 // if g shape is [3], dL/dx = g.expandDims(0)
 ```
 
+### `sliceAxis`, `stack`, And `unstack`
+
+```java
+Tensor sliceAxis(int axis, int fromInclusive, int toExclusive)
+static Tensor Tensor.stack(int axis, Tensor... tensors)
+Tensor[] unstack(int axis)
+```
+
+`sliceAxis` is the ergonomic one-axis form of static positive-step slicing. `stack` inserts a new axis and concatenates same-shaped tensors along it. `unstack` splits one tensor along an axis and removes that axis from each output.
+
+Sequence example:
+
+```java
+Tensor t0 = Tensor.randn(new int[]{2, 4}, 0.0, 1.0, DataType.FLOAT64, "t0");
+Tensor t1 = Tensor.randn(new int[]{2, 4}, 0.0, 1.0, DataType.FLOAT64, "t1");
+Tensor t2 = Tensor.randn(new int[]{2, 4}, 0.0, 1.0, DataType.FLOAT64, "t2");
+
+Tensor sequence = Tensor.stack(1, t0, t1, t2);
+// sequence shape = [batch, time, features] = [2, 3, 4]
+
+Tensor firstTwo = sequence.sliceAxis(1, 0, 2);
+// firstTwo shape = [2, 2, 4]
+
+Tensor[] timesteps = sequence.unstack(1);
+// timesteps.length = 3
+// each timestep shape = [2, 4]
+```
+
 ### `select`
 
 ```java
@@ -1649,6 +1708,38 @@ Tensor y = data.scatterNd(indices, updates);
 // ]
 ```
 
+### `gatherAxis` And `take`
+
+```java
+Tensor gatherAxis(Tensor indices, int axis)
+Tensor take(int axis, Tensor indices)
+Tensor take(int axis, int[] indices)
+```
+
+`gatherAxis` follows ONNX Gather shape semantics: the index tensor shape is inserted at the gathered axis. `take` is the same operation with a shorter name and a Java `int[]` convenience overload.
+
+Shape rule:
+
+```text
+output = dataShape[:axis] + indicesShape + dataShape[axis + 1:]
+```
+
+Example:
+
+```java
+Tensor x = new Tensor(new double[]{
+        1, 2, 3, 4,
+        5, 6, 7, 8
+}, new int[]{2, 4}, null, "x", DataType.FLOAT64);
+
+Tensor y = x.take(1, new int[]{3, 1});
+// y shape = [2, 2]
+// y = [
+//   [4, 2],
+//   [8, 6]
+// ]
+```
+
 ### `takeAlongAxis`
 
 ```java
@@ -2314,7 +2405,7 @@ static Tensor TensorOps.linear(Tensor input, Tensor weight)
 static Tensor TensorOps.linear(Tensor input, Tensor weight, Tensor bias)
 ```
 
-Requires `input.rank >= 2`, `weight.shape = [inFeatures, outFeatures]`, and optional `bias.shape = [outFeatures]`. Output shape equals `input.shape` with the last dimension replaced by `outFeatures`.
+Requires `input.rank >= 2`, `weight.shape = [inFeatures, outFeatures]`, and optional `bias.shape = [outFeatures]` or `[1, outFeatures]`. Output shape equals `input.shape` with the last dimension replaced by `outFeatures`. This is intentionally N-D over the leading dimensions, so `[batch, time, inFeatures]` projects to `[batch, time, outFeatures]`.
 
 Gradient: `dL/dinput = g @ weight^T`, `dL/dweight = input^T @ g` summed to `weight.shape`, and `dL/dbias = sumToShape(g, bias.shape)`.
 
@@ -2340,6 +2431,18 @@ Tensor y = input.linear(weight, bias);
 //   [71, 102],
 //   [151, 222]
 // ]
+```
+
+Sequence-shaped example:
+
+```java
+Tensor x = Tensor.randn(new int[]{2, 3, 4}, 0.0, 1.0, DataType.FLOAT64, "x");
+Tensor w = Tensor.randn(new int[]{4, 5}, 0.0, 0.02, DataType.FLOAT64, "w");
+Tensor b = Tensor.zeros(new int[]{5}, DataType.FLOAT64, "b");
+
+Tensor y = x.linear(w, b);
+// x shape = [batch, time, inFeatures] = [2, 3, 4]
+// y shape = [batch, time, outFeatures] = [2, 3, 5]
 ```
 
 ### `scaledDotProductAttention`
@@ -2635,7 +2738,9 @@ Tensor loss = logProbs.nllLoss(targets, 0);
 
 ```java
 Tensor crossEntropyLoss(Tensor targets, int classDimension)
+Tensor crossEntropyLoss(Tensor targets, int classDimension, Tensor mask)
 static Tensor TensorOps.crossEntropyLoss(Tensor logits, Tensor targets, int classDimension)
+static Tensor TensorOps.crossEntropyLoss(Tensor logits, Tensor targets, int classDimension, Tensor mask)
 ```
 
 Requires floating logits and floating targets with matching shape.
@@ -2657,6 +2762,21 @@ Tensor loss = logits.crossEntropyLoss(targets, 0);
 // logSoftmax(logits) approximately = [-0.126928, -2.126928]
 // loss approximately = [0.126928]
 // if g = [1], dL/dlogits approximately = [-0.119203, 0.119203]
+```
+
+Masked sequence loss:
+
+```java
+Tensor logits = Tensor.randn(new int[]{2, 3, 10}, 0.0, 1.0, DataType.FLOAT64, "logits");
+Tensor targets = Tensor.zeros(new int[]{2, 3, 10}, DataType.FLOAT64, "targets");
+Tensor mask = new Tensor(new byte[]{
+        1, 1, 0,
+        1, 0, 0
+}, new int[]{2, 3}, null, "mask", DataType.BOOL);
+
+Tensor loss = logits.crossEntropyLoss(targets, 2, mask);
+// class axis = 2, sample shape = [2, 3]
+// mask false positions are excluded from the numerator and denominator
 ```
 
 ### `nllLossFromIndices`
@@ -2743,15 +2863,16 @@ Tensor loss = logits.crossEntropyLossFromIndices(target, 1);
 
 | Area | Public methods | Primary implementation | Runtime/tests |
 |---|---|---|---|
-| Constructors/storage/dtype | constructors, `scalar`, `onesLike`, `zerosLike`, `TensorDataFactory.*` | `src/main/java/tensor/Tensor.java`, `src/main/java/tensor/TensorDataFactory.java`, `src/main/java/tensor/TensorStorageSupport.java` | `src/test/java/TensorConstructorDataTypeTest.java`, `src/test/java/TensorStorageDataTypeTest.java`, `src/test/java/TensorDataFactoryTest.java` |
+| Constructors/storage/dtype | constructors, `scalar`, `zeros`, `ones`, `randn`, `arange`, `onesLike`, `zerosLike`, `TensorDataFactory.*` | `src/main/java/tensor/Tensor.java`, `src/main/java/tensor/TensorDataFactory.java`, `src/main/java/tensor/TensorStorageSupport.java` | `src/test/java/TensorConstructorDataTypeTest.java`, `src/test/java/TensorStorageDataTypeTest.java`, `src/test/java/TensorDataFactoryTest.java`, `src/test/java/NdTensorSequencePrimitivesTest.java` |
+| Shape helpers | `rank`, `size`, `lastDim`, `shapeEquals`, `shapeCopy` | `src/main/java/tensor/Tensor.java` | `src/test/java/NdTensorSequencePrimitivesTest.java` |
 | Graph lifecycle | `compile`, `prepare`, `compute`, `topologicalSort`, `forwardOutput` | `src/main/java/tensor/TensorExecutionSupport.java`, `src/main/java/graph/CompiledGraph.java`, `src/main/java/graph/execution/PreparedExecution.java` | `src/test/java/TensorComputeConvenienceApiTest.java`, `src/test/java/PreparedExecutionBuildTest.java`, `src/test/java/PreparedExecutionTrainingCapabilityTest.java` |
-| Layout/views | `contiguous`, `reshape`, `expand`, `permute`, `transpose`, `expandDims`, `squeeze`, `select` | `src/main/java/tensor/ops/layout/TensorLayoutOps.java`, `src/main/java/tensor/ops/index/TensorIndexOps.java` | `src/test/java/TransformOpsTest.java`, `src/test/java/NonContiguousExecutionTest.java`, `src/test/java/SelectExecutionTest.java` |
+| Layout/views | `contiguous`, `reshape`, `expand`, `permute`, `transpose`, `expandDims`, `squeeze`, `sliceAxis`, `stack`, `unstack`, `select` | `src/main/java/tensor/ops/layout/TensorLayoutOps.java`, `src/main/java/tensor/ops/index/TensorIndexOps.java` | `src/test/java/TransformOpsTest.java`, `src/test/java/NonContiguousExecutionTest.java`, `src/test/java/SelectExecutionTest.java`, `src/test/java/NdTensorSequencePrimitivesTest.java` |
 | Binary broadcasting | `add`, `sub`, `mul`, `div`, `min`, `max`, `minimum`, `maximum`, `mul(double)` | `src/main/java/tensor/ops/binary/TensorBinaryOps.java`, `src/main/java/tensor/TensorBroadcastOps.java`, `src/main/java/tensor/TensorPiecewiseOps.java` | `src/test/java/BroadcastBinaryOpsTest.java`, `src/test/java/AddBroadcastTest.java`, `src/test/java/BroadcastContractMatrixTest.java`, `src/test/java/CompareSelectExecutionTest.java` |
 | Comparisons/logic/select | `greaterThan`, `lessThan`, `greaterOrEqual`, `lessOrEqual`, `equalTo`, `notEqualTo`, `logicalAnd`, `logicalOr`, `logicalNot`, `where` | `src/main/java/tensor/ops/compare/TensorCompareOps.java`, `src/main/java/tensor/ops/bool/TensorBoolOps.java`, `src/main/java/tensor/ops/select/TensorSelectOps.java` | `src/test/java/CompareSelectExecutionTest.java`, `src/test/java/BoolTensorInfrastructureTest.java`, `src/test/java/SelectExecutionTest.java` |
-| Indexing | `gather`, `scatterAdd`, `takeAlongAxis` | `src/main/java/tensor/ops/index/TensorIndexOps.java`, `src/main/java/operations/index/*.java` | `src/test/java/GatherExecutionTest.java`, `src/test/java/ScatterAddExecutionTest.java`, `src/test/java/TakeAlongAxisExecutionTest.java` |
+| Indexing | `gather`, `gatherAxis`, `gatherNd`, `take`, `takeAlongAxis`, `scatterAdd`, `scatterElements`, `scatterNd` | `src/main/java/tensor/ops/index/TensorIndexOps.java`, `src/main/java/operations/index/*.java` | `src/test/java/GatherExecutionTest.java`, `src/test/java/GatherAxisExecutionTest.java`, `src/test/java/GatherNdExecutionTest.java`, `src/test/java/ScatterAddExecutionTest.java`, `src/test/java/ScatterElementsExecutionTest.java`, `src/test/java/ScatterNdExecutionTest.java`, `src/test/java/TakeAlongAxisExecutionTest.java`, `src/test/java/NdTensorSequencePrimitivesTest.java` |
 | Unary math | `neg`, `abs`, `log`, `exp`, `fastExp`, `pow`, `inv`, `sqrt`, `sigmoid`, `tanh`, `fastTanh`, `relu`, `clamp*` | `src/main/java/tensor/ops/unary/TensorUnaryOps.java`, `src/main/java/operations/elementwise/unary/*.java` | `src/test/java/AbsExecutionTest.java`, `src/test/java/ClampExecutionTest.java`, `src/test/java/FastExpTest.java`, `src/test/java/FastTanhTest.java` |
-| Reductions/softmax | `sum`, `mean`, `min`, `max`, `all`, `any`, `softmax`, `logSoftmax` | `src/main/java/tensor/ops/reduction/TensorReduceOps.java`, `src/main/java/operations/reduction/*.java` | `src/test/java/SumExecutionModesTest.java`, `src/test/java/MeanPrimitiveTest.java`, `src/test/java/ReductionBroadcastContractTest.java`, `src/test/java/SoftmaxExecutionTest.java`, `src/test/java/LogSoftmaxExecutionTest.java`, `src/test/java/MinMaxReductionExecutionTest.java` |
-| Matrix/linear/attention | `matmul`, `linear`, `scaledDotProductAttention` | `src/main/java/tensor/ops/linalg/*.java`, `src/main/java/operations/linalg/*.java` | `src/test/java/MatMulTest.java`, `src/test/java/LinearExecutionTest.java`, `src/test/java/AttentionExecutionTest.java` |
+| Reductions/softmax | `sum`, masked `sum`, `mean`, masked `mean`, `min`, `max`, `all`, `any`, `softmax`, `logSoftmax` | `src/main/java/tensor/ops/reduction/TensorReduceOps.java`, `src/main/java/operations/reduction/*.java` | `src/test/java/SumExecutionModesTest.java`, `src/test/java/MeanPrimitiveTest.java`, `src/test/java/ReductionBroadcastContractTest.java`, `src/test/java/SoftmaxExecutionTest.java`, `src/test/java/LogSoftmaxExecutionTest.java`, `src/test/java/MinMaxReductionExecutionTest.java`, `src/test/java/NdTensorSequencePrimitivesTest.java` |
+| Matrix/linear/attention | `matmul`, N-D last-dimension `linear`, `scaledDotProductAttention` | `src/main/java/tensor/ops/linalg/*.java`, `src/main/java/operations/linalg/*.java` | `src/test/java/MatMulTest.java`, `src/test/java/LinearExecutionTest.java`, `src/test/java/AttentionExecutionTest.java`, `src/test/java/NdTensorSequencePrimitivesTest.java` |
 | Conv/pool | `conv2d`, `maxPool2d`, `avgPool2d` | `src/main/java/tensor/ops/conv/*.java`, `src/main/java/tensor/ops/pool/*.java`, `src/main/java/tensor/options/*.java` | `src/test/java/Conv2dExecutionTest.java`, `src/test/java/Conv2dLoweringRuleTest.java`, `src/test/java/Pool2dExecutionTest.java` |
 | Normalization | `batchNorm`, `layerNorm`, `rmsNorm` | `src/main/java/tensor/ops/normalization/*.java`, `src/main/java/operations/normalization/*.java` | `src/test/java/NormalizationExecutionTest.java` |
-| Losses | `nllLoss`, `crossEntropyLoss`, `nllLossFromIndices`, `crossEntropyLossFromIndices` | `src/main/java/tensor/ops/loss/*.java`, `src/main/java/operations/loss/*.java`, `src/main/java/tensor/loss/LossReduction.java` | `src/test/java/NllLossExecutionTest.java`, `src/test/java/CrossEntropyLossExecutionTest.java`, `src/test/java/IndexTargetNllLossExecutionTest.java`, `src/test/java/IndexTargetCrossEntropyLossExecutionTest.java`, `src/test/java/IndexLossReductionExecutionTest.java`, `src/test/java/IgnoreIndexLossExecutionTest.java`, `src/test/java/WeightedIndexLossExecutionTest.java` |
+| Losses | `nllLoss`, `crossEntropyLoss`, masked `crossEntropyLoss`, `nllLossFromIndices`, `crossEntropyLossFromIndices`, masked `crossEntropyLossFromIndices` | `src/main/java/tensor/ops/loss/*.java`, `src/main/java/operations/loss/*.java`, `src/main/java/tensor/loss/LossReduction.java` | `src/test/java/NllLossExecutionTest.java`, `src/test/java/CrossEntropyLossExecutionTest.java`, `src/test/java/IndexTargetNllLossExecutionTest.java`, `src/test/java/IndexTargetCrossEntropyLossExecutionTest.java`, `src/test/java/IndexLossReductionExecutionTest.java`, `src/test/java/IgnoreIndexLossExecutionTest.java`, `src/test/java/WeightedIndexLossExecutionTest.java`, `src/test/java/NdTensorSequencePrimitivesTest.java` |

@@ -326,8 +326,9 @@ The current Metal path is intentionally narrower than the full tensor dtype mode
 - `BFLOAT16` is native only for scoped matmul/linear, elementwise, softmax, reduction, and normalization families.
 - `BOOL` is native only for scoped compare/logical/reduction outputs and predicate-style consumers such as `WHERE`.
 - `INT32` is legal as an external index input for supported forward `GATHER` / `TAKE_ALONG_AXIS`, not generic INT32 compute/output.
+- `INT64` is legal only for scoped public index outputs such as `ARGMAX`, not generic INT64 compute/output.
 - Dense `FLOAT32` `CONV2D`, `CONV2D_GEMM`, `MAX_POOL2D`, and `AVG_POOL2D` forward paths are supported through MPSGraph when their operation-specific rank, layout, stride/padding, group/dilation, and divisor gates pass.
-- `FLOAT64`, generic `INT32` compute/output, unsupported `BOOL` consumers, grouped/dilated conv, dtype-mismatched floating inputs, and `AVG_POOL2D countIncludePad=true` remain explicit rejection/fallback cases.
+- `FLOAT64`, generic `INT32`/`INT64` compute/output, unsupported `BOOL` consumers, grouped/dilated conv, dtype-mismatched floating inputs, and `AVG_POOL2D countIncludePad=true` remain explicit rejection/fallback cases.
 
 That boundary is checked in two places for different reasons. `MetalRegionLegalityAdapter` and `MetalPartitionSupport` reject illegal candidates during partition planning so traces do not claim a Metal region for a dtype the bridge cannot execute. `PreparedMetalExecutable` repeats cheap runtime checks for contiguity, storage offset, and direct Java array availability because legal compile-time dtype does not guarantee that a particular runtime tensor layout can be handed to the FFM bridge.
 

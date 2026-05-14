@@ -73,6 +73,9 @@ When adding new tensor semantics:
   - [`compute(PreparedExecution execution, ExecutionMode mode)`](#computepreparedexecution-execution-executionmode-mode)
 - [Static Factories](#static-factories)
   - [`scalar(double value)` / `scalar(double value, DataType dataType)`](#scalardouble-value)
+  - [`zeros(...)` / `ones(...)`](#zeros--ones)
+  - [`randn(...)`](#randn)
+  - [`arange(...)`](#arange)
   - [`onesLike(Tensor other)`](#onesliketensor-other)
   - [`zerosLike(Tensor other)`](#zerosliketensor-other)
 - [Broadcasting Contract](#broadcasting-contract)
@@ -86,6 +89,8 @@ When adding new tensor semantics:
   - [`transpose()`](#transpose)
   - [`expandDims(int axis)`](#expanddimsint-axis)
   - [`squeeze(int axis)`](#squeezeint-axis)
+  - [`sliceAxis(int axis, int fromInclusive, int toExclusive)`](#sliceaxisint-axis-int-frominclusive-int-toexclusive)
+  - [`stack(int axis, Tensor... inputs)` / `unstack(int axis)`](#stackint-axis-tensor-inputs--unstackint-axis)
 - [Binary Arithmetic Operations](#binary-arithmetic-operations)
   - [`add(Tensor second)`](#addtensor-second)
   - [`sub(Tensor second)`](#subtensor-second)
@@ -123,6 +128,7 @@ When adding new tensor semantics:
 - [Indexing Operations](#indexing-operations)
   - [`select(int dimension, int index)`](#selectint-dimension-int-index)
   - [`gather(Tensor indices, int dimension)`](#gathertensor-indices-int-dimension)
+  - [`gatherAxis(Tensor indices, int axis)` / `take(int axis, ...)`](#gatheraxistensor-indices-int-axis--takeint-axis-)
   - [`gatherNd(Tensor indices[, int batchDims])`](#gatherndtensor-indices-int-batchdims)
   - [`takeAlongAxis(Tensor indices, int dimension)`](#takealongaxistensor-indices-int-dimension)
   - [`scatterAdd(Tensor indices, Tensor src, int dimension)`](#scatteraddtensor-indices-tensor-src-int-dimension)
@@ -189,6 +195,11 @@ When adding new tensor semantics:
   - [`forwardOutput()`](#forwardoutput)
 - [Metadata and Data Access](#metadata-and-data-access)
   - [Shape / layout accessors](#shape--layout)
+  - [`rank()`](#rank)
+  - [`size()`](#size)
+  - [`lastDim()`](#lastdim)
+  - [`shapeEquals(int... shape)`](#shapeequalsint-shape)
+  - [`shapeCopy()`](#shapecopy)
   - [Data / dtype / storage accessors](#data--dtype--storage)
   - [Labels / grad / graph wiring](#labels--grad--graph-wiring)
 - [Backend Selection](#backend-selection)
@@ -221,6 +232,10 @@ That is intentional:
 For ordinary modeling code, prefer these paths:
 
 - `Tensor.scalar(...)`
+- `Tensor.zeros(...)`
+- `Tensor.ones(...)`
+- `Tensor.randn(...)`
+- `Tensor.arange(...)`
 - `Tensor.onesLike(...)`
 - `Tensor.zerosLike(...)`
 - array-backed leaf constructors such as:
@@ -229,6 +244,7 @@ For ordinary modeling code, prefer these paths:
   - `new Tensor(short[] data, int[] shape, List<Tensor> previous, String label, DataType dataType)`
   - `new Tensor(byte[] data, int[] shape, List<Tensor> previous, String label, DataType dataType)`
   - `new Tensor(int[] data, int[] shape, List<Tensor> previous, String label, DataType dataType)`
+  - `new Tensor(long[] data, int[] shape, List<Tensor> previous, String label, DataType dataType)`
 - multidimensional Java-array construction:
   - `new Tensor(Object multiDimArray, List<Tensor> previous, String label, DataType dataType)`
 
@@ -250,7 +266,13 @@ Tensor x = new Tensor(
 );
 
 Tensor y = Tensor.scalar(2.0, DataType.FLOAT64);
+
+Tensor zeros = Tensor.zeros(new int[]{2, 3}, DataType.FLOAT64, "zeros");
+Tensor valid = Tensor.ones(new int[]{2, 3}, DataType.BOOL, "valid");
+Tensor ids = Tensor.arange(0, 3, 1, DataType.INT32);
 ```
+
+The factory helpers avoid constructor boilerplate when all values follow a simple pattern. They still create ordinary leaf tensors: `valid` is a `[2, 3]` BOOL mask, and `ids` is a rank-1 INT32 tensor with logical values `[0, 1, 2]`.
 
 ### Low-level public constructors
 
@@ -268,6 +290,7 @@ The following constructor families are public, but they are primarily infrastruc
   - `Tensor(short[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType)`
   - `Tensor(byte[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType)`
   - `Tensor(int[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType)`
+  - `Tensor(long[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType)`
 
 These constructors are mainly for:
 
@@ -719,6 +742,77 @@ Tensor b = Tensor.scalar(1.5, DataType.FLOAT64);
 // Returns: scalar tensors.
 ```
 
+### `zeros(...)` / `ones(...)`
+
+Creates a dense tensor filled with a constant.
+
+Signatures:
+```java
+Tensor.zeros(int[] shape)
+Tensor.zeros(int[] shape, DataType dataType)
+Tensor.zeros(int[] shape, DataType dataType, String label)
+Tensor.ones(int[] shape)
+Tensor.ones(int[] shape, DataType dataType)
+Tensor.ones(int[] shape, DataType dataType, String label)
+```
+
+Parameters:
+- `shape`: output shape
+- `dataType`: optional output dtype
+- `label`: optional graph/debug label
+
+Returns:
+- newly allocated tensor with the requested shape and dtype
+
+Example:
+```java
+Tensor weights = Tensor.zeros(new int[]{4, 8}, DataType.FLOAT64, "weights");
+Tensor mask = Tensor.ones(new int[]{2, 3}, DataType.BOOL, "validMask");
+// Returns: constant tensors with explicit shape and dtype.
+```
+
+### `randn(...)`
+
+Creates a floating tensor filled with normally distributed values.
+
+Signatures:
+```java
+Tensor.randn(int[] shape)
+Tensor.randn(int[] shape, double mean, double stdDev, DataType dataType, String label)
+```
+
+Contract:
+- supports floating dtypes only: `FLOAT64`, `FLOAT32`, and `BFLOAT16`
+- `stdDev` must be finite and non-negative
+
+Example:
+```java
+Tensor x = Tensor.randn(new int[]{2, 3, 4}, 0.0, 1.0, DataType.FLOAT64, "x");
+// Returns: shape [2, 3, 4].
+```
+
+### `arange(...)`
+
+Creates a rank-1 numeric tensor from an integer range.
+
+Signature:
+```java
+Tensor.arange(int start, int end, int step, DataType dataType)
+```
+
+Contract:
+- `start` is inclusive
+- `end` is exclusive
+- `step` cannot be zero
+- empty ranges are rejected
+- `BOOL` dtype is rejected
+
+Example:
+```java
+Tensor indices = Tensor.arange(0, 6, 2, DataType.INT32);
+// indices values = [0, 2, 4]
+```
+
 ### `onesLike(Tensor other)`
 
 Creates a dense tensor of ones matching `other.shape` and `other.dtype`.
@@ -993,6 +1087,53 @@ Tensor z = expanded.squeeze(2);
 // Returns: alias-view tensors with one fewer size-1 axis.
 ```
 
+### `sliceAxis(int axis, int fromInclusive, int toExclusive)`
+
+Slices one axis with positive step `1`.
+
+Parameters:
+- `axis`: axis to slice
+- `fromInclusive`: first included index
+- `toExclusive`: first excluded index
+
+Returns:
+- tensor with the same rank as the input and a shorter selected axis
+
+Example:
+```java
+Tensor x = new Tensor(new double[]{
+        1, 2, 3, 4,
+        5, 6, 7, 8
+}, new int[]{2, 4}, null, "x");
+
+Tensor y = x.sliceAxis(1, 1, 3);
+// y shape = [2, 2]
+// y values = [[2, 3], [6, 7]]
+```
+
+### `stack(int axis, Tensor... inputs)` / `unstack(int axis)`
+
+`Tensor.stack(axis, inputs...)` inserts a new dimension and concatenates same-shaped tensors along that new dimension. `unstack(axis)` splits one tensor along an axis and removes that axis from each returned tensor.
+
+Contract:
+- all stacked inputs must have the same shape and dtype
+- `axis` for `stack` is an insertion axis in `[0, rank]`
+- `axis` for `unstack` is an existing axis in `[0, rank)`
+- both operations are gradient-safe compositions of layout/index primitives
+
+Example:
+```java
+Tensor t0 = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2}, null, "t0");
+Tensor t1 = new Tensor(new double[]{5, 6, 7, 8}, new int[]{2, 2}, null, "t1");
+
+Tensor seq = Tensor.stack(1, t0, t1);
+// seq shape = [2, 2, 2]
+
+Tensor[] timesteps = seq.unstack(1);
+// timesteps.length = 2
+// timesteps[0].shape = [2, 2]
+```
+
 ## Binary Arithmetic Operations
 
 These operations:
@@ -1256,7 +1397,7 @@ Applies a linear projection with bias.
 
 Parameters:
 - `weight`: rank-2 tensor with shape `[inFeatures, outFeatures]`
-- `bias`: rank-1 tensor with shape `[outFeatures]`
+- `bias`: tensor with shape `[outFeatures]` or `[1, outFeatures]`
 
 Returns:
 - tensor with the same leading dimensions as the input and last dimension `outFeatures`
@@ -1264,7 +1405,7 @@ Returns:
 Contract:
 - receiver tensor must have shape `[..., inFeatures]`
 - `weight` must have shape `[inFeatures, outFeatures]`
-- `bias` must have shape `[outFeatures]`
+- `bias` must have shape `[outFeatures]` or `[1, outFeatures]`
 - bias is broadcast across all leading dimensions
 
 Example:
@@ -2000,6 +2141,36 @@ Tensor y = x.gather(indices, 1);
 // Returns: a gathered tensor with one selected value per row.
 ```
 
+### `gatherAxis(Tensor indices, int axis)` / `take(int axis, ...)`
+
+ONNX-style axis gather. The index tensor shape is inserted at the gathered axis.
+
+Signatures:
+```java
+Tensor gatherAxis(Tensor indices, int axis)
+Tensor take(int axis, Tensor indices)
+Tensor take(int axis, int[] indices)
+```
+
+Parameters:
+- `indices`: numeric integral indices
+- `axis`: source axis
+
+Returns:
+- tensor with shape `dataShape[:axis] + indicesShape + dataShape[axis + 1:]`
+
+Example:
+```java
+Tensor x = new Tensor(new double[]{
+        1, 2, 3, 4,
+        5, 6, 7, 8
+}, new int[]{2, 4}, null, "x");
+
+Tensor y = x.take(1, new int[]{3, 1});
+// y shape = [2, 2]
+// y values = [[4, 2], [8, 6]]
+```
+
 ### `takeAlongAxis(Tensor indices, int dimension)`
 
 Gathers values along one axis while preserving rank.
@@ -2675,6 +2846,44 @@ Tensor y = x.mean(1, true);
 // Returns: a reduced mean tensor.
 ```
 
+### `sum(int dimension, Tensor mask)` / `mean(int dimension, Tensor mask)`
+
+Masked reductions ignore positions where a BOOL mask is false.
+
+Parameters:
+- `dimension`: axis to reduce
+- `mask`: BOOL mask broadcastable to the input tensor
+
+Returns:
+- reduced tensor with masked-out positions excluded
+
+Behavior:
+- `sum` treats masked-out values as zero
+- `mean` divides by the number of valid positions, not by the full padded axis length
+- if every position for an output element is masked out, the denominator is clamped to `1`, so the result is `0`
+
+Example:
+```java
+Tensor x = new Tensor(new double[]{
+        1, 2,
+        3, 4,
+        5, 6,
+        7, 8,
+        9, 10,
+        11, 12
+}, new int[]{2, 3, 2}, null, "x");
+Tensor mask = new Tensor(new byte[]{
+        1, 1, 0,
+        1, 0, 0
+}, new int[]{2, 3}, null, "mask", DataType.BOOL);
+
+Tensor mean = x.mean(1, mask);
+// x shape = [batch, time, features] = [2, 3, 2]
+// mask shape = [batch, time] = [2, 3]
+// mean shape = [2, 2]
+// mean values = [[2, 3], [7, 8]]
+```
+
 ### `softmax(int dimension)`
 
 Applies numerically stable softmax along one axis.
@@ -3022,6 +3231,31 @@ Tensor loss = logits.crossEntropyLoss(targets, 1);
 // Returns: a scalar mean cross-entropy loss tensor.
 ```
 
+### `crossEntropyLoss(Tensor targets, int classDimension, Tensor mask)`
+
+Computes dense-target cross-entropy from logits while ignoring masked-out samples.
+
+Parameters:
+- `targets`: tensor with the same shape as `logits`
+- `classDimension`: axis containing class logits
+- `mask`: BOOL mask broadcastable to `logits.shape` with the class axis removed
+
+Returns:
+- scalar-shaped mean loss normalized by the number of valid mask positions
+
+Example:
+```java
+Tensor logits = Tensor.randn(new int[]{2, 3, 10}, 0.0, 1.0, DataType.FLOAT64, "logits");
+Tensor targets = Tensor.zeros(new int[]{2, 3, 10}, DataType.FLOAT64, "targets");
+Tensor mask = new Tensor(new byte[]{
+        1, 1, 0,
+        1, 0, 0
+}, new int[]{2, 3}, null, "mask", DataType.BOOL);
+
+Tensor loss = logits.crossEntropyLoss(targets, 2, mask);
+// classDimension = 2, so mask shape [2, 3] matches the sample shape.
+```
+
 ### `nllLossFromIndices(Tensor targetIndices, int classDimension)`
 
 Computes mean negative log-likelihood from log-probabilities and class-id targets.
@@ -3310,6 +3544,61 @@ If you are implementing execution, layout, or rewrite infrastructure, the rest o
 
 ### Shape / layout inspection
 
+#### `rank()`
+Returns the number of logical axes.
+
+Example:
+```java
+Tensor x = Tensor.randn(new int[]{2, 3, 4}, 0.0, 1.0, DataType.FLOAT64, "x");
+int rank = x.rank();
+// rank = 3
+```
+
+#### `size()`
+Returns the logical element count. This is the product of all shape dimensions and is equivalent to `getFlatDataSize()`.
+
+Example:
+```java
+Tensor x = Tensor.randn(new int[]{2, 3, 4}, 0.0, 1.0, DataType.FLOAT64, "x");
+int elements = x.size();
+// elements = 24
+```
+
+#### `lastDim()`
+Returns the final logical dimension.
+
+This is the common helper for last-dimension APIs such as N-D `linear`, where an input shape `[..., inFeatures]` must match weight shape `[inFeatures, outFeatures]`.
+
+Example:
+```java
+Tensor x = Tensor.randn(new int[]{2, 3, 4}, 0.0, 1.0, DataType.FLOAT64, "x");
+int features = x.lastDim();
+// features = 4
+```
+
+#### `shapeEquals(int... shape)`
+Compares this tensor's logical shape with an expected shape exactly.
+
+Example:
+```java
+Tensor x = Tensor.randn(new int[]{2, 3, 4}, 0.0, 1.0, DataType.FLOAT64, "x");
+boolean ok = x.shapeEquals(2, 3, 4);
+// ok = true
+```
+
+#### `shapeCopy()`
+Returns a defensive copy of the logical shape.
+
+Use this in public or consumer code when the caller may store or mutate the array. Use `getShapeUnsafe()` only in low-level infrastructure that already owns layout invariants.
+
+Example:
+```java
+Tensor x = Tensor.randn(new int[]{2, 3, 4}, 0.0, 1.0, DataType.FLOAT64, "x");
+int[] copy = x.shapeCopy();
+copy[0] = 99;
+// x.shapeEquals(2, 3, 4) is still true
+```
+
 #### `getShape()`
 Returns a defensive copy of the logical shape.
 
@@ -3403,6 +3692,9 @@ Returns raw `short[]` backing storage when dtype is `BFLOAT16`, otherwise `null`
 #### `getInt32Data()`
 Returns raw `int[]` backing storage when dtype is `INT32`, otherwise `null`.
 
+#### `getInt64Data()`
+Returns raw `long[]` backing storage when dtype is `INT64`, otherwise `null`.
+
 #### `getBoolData()`
 Returns raw `byte[]` backing storage when dtype is `BOOL`, otherwise `null`.
 
@@ -3426,6 +3718,9 @@ Replaces tensor contents using raw `BOOL` storage values.
 
 #### `setData(int[] data)`
 Replaces tensor contents using raw `INT32` storage values.
+
+#### `setData(long[] data)`
+Replaces tensor contents using raw `INT64` storage values.
 
 #### `setFloat32Data(float[] data)`
 `FLOAT32`-only convenience setter.

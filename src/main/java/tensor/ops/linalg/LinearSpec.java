@@ -56,8 +56,10 @@ record LinearSpec(
         LinalgSupport.requireFloating(bias, "linear bias");
         int outFeatures = weight.getShapeUnsafe()[1];
         int[] biasShape = bias.getShapeUnsafe();
-        if (biasShape.length != 1 || biasShape[0] != outFeatures) {
-            throw new IllegalArgumentException("linear bias must have shape [outFeatures].");
+        boolean vectorBias = biasShape.length == 1 && biasShape[0] == outFeatures;
+        boolean rowBias = biasShape.length == 2 && biasShape[0] == 1 && biasShape[1] == outFeatures;
+        if (!vectorBias && !rowBias) {
+            throw new IllegalArgumentException("linear bias must have shape [outFeatures] or [1, outFeatures].");
         }
     }
 }

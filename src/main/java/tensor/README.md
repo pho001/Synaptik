@@ -134,6 +134,10 @@ The public `Tensor` surface includes both:
 For ordinary modeling code prefer:
 
 - `Tensor.scalar(...)`
+- `Tensor.zeros(...)`
+- `Tensor.ones(...)`
+- `Tensor.randn(...)`
+- `Tensor.arange(...)`
 - `Tensor.onesLike(...)`
 - `Tensor.zerosLike(...)`
 - typed flat-array constructors
@@ -159,6 +163,67 @@ Values:
 - `x` = `[[1, 2], [3, 4]]`
 - `bias` = `10`
 - `y` = `[[11, 12], [13, 14]]`
+
+Sequence-shaped tensors are represented by ordinary N-D tensors, not by a separate sequence abstraction:
+
+```java
+Tensor x = Tensor.randn(new int[]{2, 3, 4}, 0.0, 1.0, DataType.FLOAT64, "x");
+Tensor w = Tensor.randn(new int[]{4, 5}, 0.0, 0.02, DataType.FLOAT64, "w");
+Tensor b = Tensor.zeros(new int[]{5}, DataType.FLOAT64, "b");
+
+Tensor y = x.linear(w, b);
+```
+
+Here `x` has shape `[batch, time, inFeatures]`, and `y` has shape `[batch, time, outFeatures]`. Higher-level layer concepts such as RNNs or LSTMs belong in consumer frameworks above this package.
+
+The same package also owns the sequence-friendly layout and indexing helpers:
+
+```java
+Tensor t0 = Tensor.randn(new int[]{2, 4}, 0.0, 1.0, DataType.FLOAT64, "t0");
+Tensor t1 = Tensor.randn(new int[]{2, 4}, 0.0, 1.0, DataType.FLOAT64, "t1");
+Tensor t2 = Tensor.randn(new int[]{2, 4}, 0.0, 1.0, DataType.FLOAT64, "t2");
+
+Tensor seq = Tensor.stack(1, t0, t1, t2);
+// seq shape = [batch, time, features] = [2, 3, 4]
+
+Tensor firstTwo = seq.sliceAxis(1, 0, 2);
+// firstTwo shape = [2, 2, 4]
+
+Tensor selected = seq.take(1, new int[]{2, 0});
+// selected shape = [2, 2, 4]
+
+Tensor[] backToArray = seq.unstack(1);
+// backToArray.length = 3
+// each tensor shape = [2, 4]
+```
+
+For padded sequence-like data, masks are regular `BOOL` tensors. `true` means "include this position"; `false` means "ignore this padding position":
+
+```java
+Tensor mask = new Tensor(new byte[]{
+        1, 1, 0,
+        1, 0, 0
+}, new int[]{2, 3}, null, "valid", DataType.BOOL);
+
+Tensor pooled = y.mean(1, mask);
+// y shape      = [2, 3, 5]
+// mask shape   = [2, 3]
+// pooled shape = [2, 5]
+```
+
+The mask denominator is the valid count, not the padded time length. This keeps a short sequence from being numerically diluted just because it was stored in a fixed-size batch.
+
+Small shape helpers keep consumer code readable without introducing wrapper classes:
+
+```java
+int rank = seq.rank();                // 3
+int elements = seq.size();            // 24
+int features = seq.lastDim();         // 4
+boolean isBtf = seq.shapeEquals(2, 3, 4);
+int[] copy = seq.shapeCopy();         // defensive shape copy
+```
+
+For the full public contract, examples, and autograd notes, see [API.md](./API.md) and [../../../../docs/sequence-tensor-primitives.md](../../../../docs/sequence-tensor-primitives.md).
 
 ### Why low-level constructors are still public
 

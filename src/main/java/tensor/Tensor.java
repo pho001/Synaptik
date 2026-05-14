@@ -502,6 +502,109 @@ public class Tensor {
     }
 
     /**
+     * Creates a tensor filled with zeros using the default dtype.
+     *
+     * @param shape output shape
+     * @return newly allocated tensor
+     */
+    public static Tensor zeros(int[] shape) {
+        return zeros(shape, TensorMetadata.DEFAULT_DATA_TYPE);
+    }
+
+    /**
+     * Creates a tensor filled with zeros.
+     *
+     * @param shape output shape
+     * @param dataType output dtype
+     * @return newly allocated tensor
+     */
+    public static Tensor zeros(int[] shape, DataType dataType) {
+        return zeros(shape, dataType, "zeros");
+    }
+
+    /**
+     * Creates a labeled tensor filled with zeros.
+     *
+     * @param shape output shape
+     * @param dataType output dtype
+     * @param label tensor label
+     * @return newly allocated tensor
+     */
+    public static Tensor zeros(int[] shape, DataType dataType, String label) {
+        return TensorDataFactory.zeros(shape, dataType, label);
+    }
+
+    /**
+     * Creates a tensor filled with ones using the default dtype.
+     *
+     * @param shape output shape
+     * @return newly allocated tensor
+     */
+    public static Tensor ones(int[] shape) {
+        return ones(shape, TensorMetadata.DEFAULT_DATA_TYPE);
+    }
+
+    /**
+     * Creates a tensor filled with ones.
+     *
+     * @param shape output shape
+     * @param dataType output dtype
+     * @return newly allocated tensor
+     */
+    public static Tensor ones(int[] shape, DataType dataType) {
+        return ones(shape, dataType, "ones");
+    }
+
+    /**
+     * Creates a labeled tensor filled with ones.
+     *
+     * @param shape output shape
+     * @param dataType output dtype
+     * @param label tensor label
+     * @return newly allocated tensor
+     */
+    public static Tensor ones(int[] shape, DataType dataType, String label) {
+        return TensorDataFactory.ones(shape, dataType, label);
+    }
+
+    /**
+     * Creates a tensor filled from a standard normal distribution using the default dtype.
+     *
+     * @param shape output shape
+     * @return newly allocated tensor
+     */
+    public static Tensor randn(int[] shape) {
+        return randn(shape, 0.0d, 1.0d, TensorMetadata.DEFAULT_DATA_TYPE, "randn");
+    }
+
+    /**
+     * Creates a labeled floating tensor filled from a normal distribution.
+     *
+     * @param shape output shape
+     * @param mean distribution mean
+     * @param stdDev distribution standard deviation
+     * @param dataType floating output dtype
+     * @param label tensor label
+     * @return newly allocated tensor
+     */
+    public static Tensor randn(int[] shape, double mean, double stdDev, DataType dataType, String label) {
+        return TensorDataFactory.randn(shape, mean, stdDev, dataType, label);
+    }
+
+    /**
+     * Creates a rank-1 tensor containing an arithmetic integer range.
+     *
+     * @param start inclusive start
+     * @param end exclusive end
+     * @param step non-zero step
+     * @param dataType output dtype
+     * @return rank-1 range tensor
+     */
+    public static Tensor arange(int start, int end, int step, DataType dataType) {
+        return TensorDataFactory.arange(start, end, step, dataType);
+    }
+
+    /**
      * Returns the product of dimensions in a shape array.
      *
      * @param dimensions dimensions to multiply; must be non-null
@@ -509,6 +612,57 @@ public class Tensor {
      */
     public int calculateSize(int[] dimensions) {
         return Arrays.stream(dimensions).reduce(1, (a, b) -> a * b);
+    }
+
+    /**
+     * Returns this tensor's rank.
+     *
+     * @return number of dimensions in the logical shape
+     */
+    public int rank() {
+        return metadata.shapeRef().length;
+    }
+
+    /**
+     * Returns this tensor's logical element count.
+     *
+     * @return product of shape dimensions
+     */
+    public int size() {
+        return getFlatDataSize();
+    }
+
+    /**
+     * Returns the final logical dimension size.
+     *
+     * @return last shape dimension
+     * @throws IllegalStateException if this tensor has no dimensions
+     */
+    public int lastDim() {
+        int[] shape = metadata.shapeRef();
+        if (shape.length == 0) {
+            throw new IllegalStateException("lastDim() requires rank >= 1.");
+        }
+        return shape[shape.length - 1];
+    }
+
+    /**
+     * Compares this tensor's logical shape with an expected shape.
+     *
+     * @param shape expected shape
+     * @return true when shapes match exactly
+     */
+    public boolean shapeEquals(int... shape) {
+        return Arrays.equals(metadata.shapeRef(), shape);
+    }
+
+    /**
+     * Returns a defensive copy of this tensor's shape.
+     *
+     * @return copied shape array
+     */
+    public int[] shapeCopy() {
+        return getShape();
     }
 
     /**
@@ -1403,6 +1557,18 @@ public class Tensor {
         return TensorOps.slice(this, starts, ends, axes, steps);
     }
 
+    /**
+     * Slices one axis with positive step 1.
+     *
+     * @param axis axis to slice; negative axes are normalized
+     * @param fromInclusive inclusive start index
+     * @param toExclusive exclusive end index
+     * @return sliced tensor view
+     */
+    public Tensor sliceAxis(int axis, int fromInclusive, int toExclusive) {
+        return TensorOps.sliceAxis(this, axis, fromInclusive, toExclusive);
+    }
+
     public Tensor pad(int[] before, int[] after, double constantValue) {
         return TensorOps.pad(this, before, after, constantValue);
     }
@@ -1420,6 +1586,20 @@ public class Tensor {
             throw new IllegalArgumentException("concat inputs cannot be null");
         }
         return TensorOps.concat(axis, List.of(inputs));
+    }
+
+    /**
+     * Stacks tensors by inserting a new axis.
+     *
+     * @param axis insertion position in {@code [0, rank]}; negative axes are normalized
+     * @param inputs same-shaped tensors to stack
+     * @return tensor with one additional dimension
+     */
+    public static Tensor stack(int axis, Tensor... inputs) {
+        if (inputs == null) {
+            throw new IllegalArgumentException("stack inputs cannot be null");
+        }
+        return TensorOps.stack(axis, Arrays.asList(inputs));
     }
 
     /**
@@ -1658,6 +1838,38 @@ public class Tensor {
      */
     public Tensor gatherAxis(Tensor indices, int axis) {
         return TensorOps.gatherAxis(this, indices, axis);
+    }
+
+    /**
+     * Gathers values from one axis using ONNX Gather-style shape semantics.
+     *
+     * @param axis source axis; negative axes are normalized
+     * @param indices numeric integral index tensor
+     * @return gathered tensor
+     */
+    public Tensor take(int axis, Tensor indices) {
+        return TensorOps.take(this, axis, indices);
+    }
+
+    /**
+     * Gathers values from one axis using a Java index list.
+     *
+     * @param axis source axis; negative axes are normalized
+     * @param indices integer indices
+     * @return gathered tensor
+     */
+    public Tensor take(int axis, int[] indices) {
+        return TensorOps.take(this, axis, indices);
+    }
+
+    /**
+     * Splits this tensor along one axis and removes that axis from each output.
+     *
+     * @param axis axis to unstack; negative axes are normalized
+     * @return one tensor per position along {@code axis}
+     */
+    public Tensor[] unstack(int axis) {
+        return TensorOps.unstack(this, axis);
     }
 
     /**
@@ -2095,6 +2307,17 @@ public class Tensor {
     }
 
     /**
+     * Sums along one dimension while ignoring positions where {@code mask} is false.
+     *
+     * @param dimension axis to reduce; negative axes are normalized
+     * @param mask BOOL mask broadcastable to this tensor
+     * @return masked sum tensor
+     */
+    public Tensor sum(int dimension, Tensor mask) {
+        return TensorOps.sum(this, dimension, mask);
+    }
+
+    /**
      * Sums all elements into a shape {@code [1]} tensor.
      *
      * @return scalar-like sum tensor
@@ -2122,6 +2345,17 @@ public class Tensor {
      */
     public Tensor mean(int dimension, boolean keepDims) {
         return TensorOps.mean(this, dimension, keepDims);
+    }
+
+    /**
+     * Averages along one dimension while ignoring positions where {@code mask} is false.
+     *
+     * @param dimension axis to reduce; negative axes are normalized
+     * @param mask BOOL mask broadcastable to this tensor
+     * @return masked mean tensor
+     */
+    public Tensor mean(int dimension, Tensor mask) {
+        return TensorOps.mean(this, dimension, mask);
     }
 
     /**
@@ -2273,6 +2507,18 @@ public class Tensor {
     }
 
     /**
+     * Computes dense-target cross-entropy loss while ignoring masked-out samples.
+     *
+     * @param targets dense target tensor with the same shape as this tensor
+     * @param classDimension class axis; negative axes are normalized
+     * @param mask BOOL mask broadcastable to this tensor with the class axis removed
+     * @return shape {@code [1]} mean loss normalized by valid sample count
+     */
+    public Tensor crossEntropyLoss(Tensor targets, int classDimension, Tensor mask) {
+        return TensorOps.crossEntropyLoss(this, targets, classDimension, mask);
+    }
+
+    /**
      * Computes mean negative log-likelihood loss from integer-like target indices.
      *
      * <pre>{@code
@@ -2374,6 +2620,18 @@ public class Tensor {
      */
     public Tensor crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, LossReduction reduction) {
         return TensorOps.crossEntropyLossFromIndices(this, targetIndices, classDimension, reduction);
+    }
+
+    /**
+     * Computes index-target cross-entropy loss while ignoring masked-out samples.
+     *
+     * @param targetIndices class indices shaped like this tensor without {@code classDimension}
+     * @param classDimension class axis; negative axes are normalized
+     * @param mask BOOL mask broadcastable to {@code targetIndices}
+     * @return shape {@code [1]} mean loss normalized by valid sample count
+     */
+    public Tensor crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, Tensor mask) {
+        return TensorOps.crossEntropyLossFromIndices(this, targetIndices, classDimension, mask);
     }
 
     /**

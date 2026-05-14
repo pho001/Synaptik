@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Public API
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Quickstart](quickstart.md#what-synaptik-is) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Examples](examples.md#running-examples) | [Configuration](configuration.md#runtimeconfig) | [Compute Flow](compute-flow.md#tensor-compute-api) | [ONNX](onnx.md#onnx-import-and-export) | [Native Bridges & BLAS](native-bridges-and-blas.md#configuration-and-library-lookup) | [Metal Backend](metal-backend.md#buffer-residency-and-materialization) | [Troubleshooting](troubleshooting.md#unsupported-dtype-in-a-kernel)
+Navigation: [Index](index.md#recommended-reading-paths) | [Quickstart](quickstart.md#what-synaptik-is) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Sequence Tensor Primitives](sequence-tensor-primitives.md#scope) | [Examples](examples.md#running-examples) | [Configuration](configuration.md#runtimeconfig) | [Compute Flow](compute-flow.md#tensor-compute-api) | [ONNX](onnx.md#onnx-import-and-export) | [Native Bridges & BLAS](native-bridges-and-blas.md#configuration-and-library-lookup) | [Metal Backend](metal-backend.md#buffer-residency-and-materialization) | [Troubleshooting](troubleshooting.md#unsupported-dtype-in-a-kernel)
 
 Chapters: [Stability Map](#stability-map) | [Tensor](#tensor) | [ComputeOptions, CompileMode, And AutotunePolicy](#computeoptions-compilemode-and-autotunepolicy) | [CompiledGraph](#compiledgraph) | [PreparedExecution](#preparedexecution) | [PublicationPolicy](#publicationpolicy) | [Configuration APIs](#configuration-apis) | [ONNX APIs](#onnx-apis) | [Tuning Fluent API](#tuning-fluent-api) | [CLI Entry Point](#cli-entry-point) | [Probably Internal APIs](#probably-internal-apis) | [Verification Notes](#verification-notes)
 
@@ -66,6 +66,15 @@ new Tensor(int[] dimensions, List<Tensor> previous, String label, DataType dataT
 new Tensor(Object multiDimArray, List<Tensor> previous, String label, DataType dataType)
 Tensor.scalar(double value)
 Tensor.scalar(double value, DataType dataType)
+Tensor.zeros(int[] shape)
+Tensor.zeros(int[] shape, DataType dataType)
+Tensor.zeros(int[] shape, DataType dataType, String label)
+Tensor.ones(int[] shape)
+Tensor.ones(int[] shape, DataType dataType)
+Tensor.ones(int[] shape, DataType dataType, String label)
+Tensor.randn(int[] shape)
+Tensor.randn(int[] shape, double mean, double stdDev, DataType dataType, String label)
+Tensor.arange(int start, int end, int step, DataType dataType)
 Tensor.onesLike(Tensor other)
 Tensor.zerosLike(Tensor other)
 ```
@@ -79,6 +88,13 @@ Parameters:
 - `dataType`: one of `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, or `BOOL`.
 
 Returns: a `Tensor` with shape, dtype, strides, and storage initialized.
+
+Factory rules:
+
+- `zeros` and `ones` support floating, integer, and `BOOL` dtypes.
+- `randn` supports floating dtypes only because a normal distribution is not meaningful for `BOOL` or integer storage.
+- `arange` returns a rank-1 integer-like or floating numeric tensor and rejects `BOOL`.
+- `onesLike` and `zerosLike` preserve both shape and dtype, including `BOOL`.
 
 Failures:
 
@@ -106,6 +122,9 @@ import tensor.Tensor;
 Tensor x = new Tensor(new double[]{1.0, 2.0, 3.0, 4.0}, new int[]{2, 2}, null, "x", DataType.FLOAT64);
 System.out.println(java.util.Arrays.toString(x.getShape()));
 System.out.println(java.util.Arrays.toString(x.toDoubleArrayCopy()));
+
+Tensor mask = Tensor.ones(new int[]{2, 3}, DataType.BOOL, "validMask");
+Tensor time = Tensor.arange(0, 3, 1, DataType.INT32);
 ```
 
 Expected output:
@@ -113,6 +132,13 @@ Expected output:
 ```text
 [2, 2]
 [1.0, 2.0, 3.0, 4.0]
+```
+
+The two factory tensors in the example are ordinary leaf tensors:
+
+```text
+mask shape = [2, 3], dtype = BOOL, values = true everywhere
+time shape = [3], dtype = INT32, values = [0, 1, 2]
 ```
 
 ### Graph Operations
@@ -138,6 +164,11 @@ Tensor reshape(int... newShape)
 Tensor expand(int... newShape)
 Tensor permute(int... axes)
 Tensor transpose()
+Tensor sliceAxis(int axis, int fromInclusive, int toExclusive)
+static Tensor stack(int axis, Tensor... inputs)
+Tensor[] unstack(int axis)
+Tensor take(int axis, Tensor indices)
+Tensor take(int axis, int[] indices)
 Tensor matmul(Tensor second)
 Tensor linear(Tensor weight)
 Tensor linear(Tensor weight, Tensor bias)
@@ -149,10 +180,14 @@ Tensor scaledDotProductAttention(Tensor key, Tensor value, AttentionOptions opti
 Tensor sum()
 Tensor sum(int dimension)
 Tensor sum(int dimension, boolean keepDims)
+Tensor sum(int dimension, Tensor mask)
 Tensor mean()
+Tensor mean(int dimension, Tensor mask)
 Tensor softmax(int dimension)
 Tensor logSoftmax(int dimension)
+Tensor crossEntropyLoss(Tensor targets, int classDimension, Tensor mask)
 Tensor crossEntropyLossFromIndices(Tensor targetIndices, int classDimension)
+Tensor crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, Tensor mask)
 Tensor nllLossFromIndices(Tensor targetIndices, int classDimension)
 static Tensor where(Tensor condition, Tensor ifTrue, Tensor ifFalse)
 ```
@@ -206,6 +241,11 @@ int[] getShapeUnsafe()
 int[] getStrides()
 int[] getStridesUnsafe()
 int getFlatDataSize()
+int rank()
+int size()
+int lastDim()
+boolean shapeEquals(int... shape)
+int[] shapeCopy()
 DataType getDataType()
 void setDataType(DataType dataType)
 double getByFlatIndex(int index)
@@ -229,18 +269,91 @@ Returns:
 - `toDoubleArrayCopy()` and `toBooleanArrayCopy()` return logical-order copies.
 - Typed storage getters return the backing array for matching storage types or `null` otherwise.
 - `getGradient()` returns the gradient tensor after backward execution, or `null` if no gradient has been produced.
+- `rank()` returns the number of logical axes.
+- `size()` returns the logical element count and is equivalent to `getFlatDataSize()`.
+- `lastDim()` returns the final dimension, which is useful for last-dimension projection helpers such as `linear`.
+- `shapeEquals(...)` is a concise exact-shape check for public API validation in consumer code.
+- `shapeCopy()` is the safe public alias for `getShape()`.
 
 Failures:
 
 - `getByFlatIndex` throws `IndexOutOfBoundsException` for invalid logical indices.
 - `setDataAt` rejects broadcast views with `UnsupportedOperationException`.
 - `getData()` only supports `FLOAT64`; for other dtypes use typed storage getters or `toDoubleArrayCopy()`.
-- `setDataType` rejects implicit `INT32` and `BOOL` conversions.
+- `setDataType` rejects implicit `INT32`, `INT64`, and `BOOL` conversions.
+- `lastDim()` throws if called on an empty-rank tensor. Public scalar-like tensors normally use shape `[1]`, so this is mostly a guard for low-level infrastructure shapes.
 
 Side effects:
 
 - `setDataAt`, `setData(...)`, `copyDataFrom(...)`, `setDataType(...)`, and `setRequiresGrad(...)` mutate the tensor.
 - Direct edits through typed backing arrays are possible; call `markStorageModified()` if downstream cache invalidation depends on the storage version.
+
+Example:
+
+```java
+Tensor seq = Tensor.randn(new int[]{2, 3, 4}, 0.0, 1.0, DataType.FLOAT64, "seq");
+
+System.out.println(seq.rank());                  // 3
+System.out.println(seq.size());                  // 24
+System.out.println(seq.lastDim());               // 4
+System.out.println(seq.shapeEquals(2, 3, 4));    // true
+
+int[] safe = seq.shapeCopy();
+safe[0] = 999;                                   // does not mutate seq
+System.out.println(seq.shapeEquals(2, 3, 4));    // still true
+```
+
+### Sequence-Friendly Tensor Surface
+
+The public `Tensor` API includes general N-D primitives that let consumer frameworks keep sequence data in one tensor instead of in `Tensor[]`.
+
+Common signatures:
+
+```java
+Tensor linear(Tensor weight)
+Tensor linear(Tensor weight, Tensor bias)
+Tensor sliceAxis(int axis, int fromInclusive, int toExclusive)
+static Tensor stack(int axis, Tensor... inputs)
+Tensor[] unstack(int axis)
+Tensor take(int axis, Tensor indices)
+Tensor take(int axis, int[] indices)
+Tensor sum(int dimension, Tensor mask)
+Tensor mean(int dimension, Tensor mask)
+Tensor crossEntropyLoss(Tensor targets, int classDimension, Tensor mask)
+Tensor crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, Tensor mask)
+```
+
+Shape model:
+
+- `linear` treats the last axis as features: input shape `[..., inFeatures]`, weight shape `[inFeatures, outFeatures]`, output shape `[..., outFeatures]`.
+- `stack(axis, ...)` inserts a new axis, so three `[batch, features]` tensors can become `[batch, time, features]`.
+- `unstack(axis)` removes one axis and returns one tensor per position on that axis.
+- `sliceAxis` is a one-axis positive-step slice helper for contiguous ranges.
+- `take` is the ergonomic ONNX Gather-style helper for explicit positions along one axis.
+- Masked reductions and masked losses use `BOOL` masks where `true` means valid data and `false` means padding or ignored data.
+
+Example:
+
+```java
+Tensor x = Tensor.randn(new int[]{2, 3, 4}, 0.0, 1.0, DataType.FLOAT64, "x");
+Tensor w = Tensor.randn(new int[]{4, 5}, 0.0, 0.02, DataType.FLOAT64, "w");
+Tensor b = Tensor.zeros(new int[]{5}, DataType.FLOAT64, "b");
+
+Tensor projected = x.linear(w, b);
+// x shape         = [batch, time, inFeatures]  = [2, 3, 4]
+// projected shape = [batch, time, outFeatures] = [2, 3, 5]
+
+Tensor mask = new Tensor(new byte[]{
+        1, 1, 0,
+        1, 0, 0
+}, new int[]{2, 3}, null, "valid", DataType.BOOL);
+
+Tensor pooled = projected.mean(1, mask);
+// pooled shape = [2, 5]
+// denominator is the number of true mask entries per batch, not the padded length 3
+```
+
+These methods are still tensor primitives. They do not add `Layer`, `Model`, `RNN`, `LSTM`, `GRU`, or any Neurotik-specific abstraction to Synaptik core. For the full contract with value examples and gradient notes, see [Sequence Tensor Primitives](sequence-tensor-primitives.md#scope).
 
 ### Compile And Execute From Tensor
 

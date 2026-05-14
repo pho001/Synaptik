@@ -64,8 +64,26 @@ public final class TensorOps {
         return TensorLayoutOps.slice(input, starts, ends, axes, steps);
     }
 
+    public static Tensor sliceAxis(Tensor input, int axis, int fromInclusive, int toExclusive) {
+        return TensorLayoutOps.slice(
+                input,
+                new int[]{fromInclusive},
+                new int[]{toExclusive},
+                new int[]{axis},
+                new int[]{1}
+        );
+    }
+
     public static Tensor concat(int axis, List<Tensor> inputs) {
         return TensorLayoutOps.concat(axis, inputs);
+    }
+
+    public static Tensor stack(int axis, List<Tensor> inputs) {
+        return TensorLayoutOps.stack(axis, inputs);
+    }
+
+    public static Tensor[] unstack(Tensor input, int axis) {
+        return TensorLayoutOps.unstack(input, axis);
     }
 
     public static Tensor pad(Tensor input, int[] before, int[] after, double constantValue) {
@@ -166,6 +184,14 @@ public final class TensorOps {
 
     public static Tensor gatherAxis(Tensor input, Tensor indices, int axis) {
         return TensorIndexOps.gatherAxis(input, indices, axis);
+    }
+
+    public static Tensor take(Tensor input, int axis, Tensor indices) {
+        return TensorIndexOps.take(input, axis, indices);
+    }
+
+    public static Tensor take(Tensor input, int axis, int[] indices) {
+        return TensorIndexOps.take(input, axis, indices);
     }
 
     public static Tensor gatherNd(Tensor input, Tensor indices) {
@@ -332,6 +358,10 @@ public final class TensorOps {
         return TensorReduceOps.sum(input, dimension, keepDims);
     }
 
+    public static Tensor sum(Tensor input, int dimension, Tensor mask) {
+        return TensorReduceOps.sum(input, dimension, mask);
+    }
+
     public static Tensor sumAll(Tensor input) {
         return TensorReduceOps.sumAll(input);
     }
@@ -342,6 +372,10 @@ public final class TensorOps {
 
     public static Tensor mean(Tensor input, int dimension, boolean keepDims) {
         return TensorReduceOps.mean(input, dimension, keepDims);
+    }
+
+    public static Tensor mean(Tensor input, int dimension, Tensor mask) {
+        return TensorReduceOps.mean(input, dimension, mask);
     }
 
     public static Tensor meanAll(Tensor input) {
@@ -483,6 +517,10 @@ public final class TensorOps {
         return TensorLossOps.crossEntropyLoss(logits, targets, classDimension);
     }
 
+    public static Tensor crossEntropyLoss(Tensor logits, Tensor targets, int classDimension, Tensor mask) {
+        return TensorLossOps.crossEntropyLoss(logits, targets, classDimension, mask);
+    }
+
     public static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension) {
         return TensorLossOps.nllLossFromIndices(logProbs, targetIndices, classDimension);
     }
@@ -513,6 +551,10 @@ public final class TensorOps {
 
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, LossReduction reduction) {
         return TensorLossOps.crossEntropyLossFromIndices(logits, targetIndices, classDimension, reduction);
+    }
+
+    public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, Tensor mask) {
+        return TensorLossOps.crossEntropyLossFromIndices(logits, targetIndices, classDimension, mask);
     }
 
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, Tensor classWeights, LossReduction reduction) {

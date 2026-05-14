@@ -3,7 +3,7 @@
 
 Navigation: [Index](index.md#recommended-reading-paths) | [README](../README.md#quickstart) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Compute Flow](compute-flow.md#lifecycle-map) | [Public API](public-api.md#stability-map) | [ONNX](onnx.md#onnx-import-and-export) | [Troubleshooting](troubleshooting.md#java-heap-space)
 
-Chapters: [What Synaptik Is](#what-synaptik-is) | [Prerequisites](#prerequisites) | [Build And Verify](#build-and-verify) | [Mental Model](#mental-model) | [First Tensor Graph](#first-tensor-graph) | [Broadcasting](#broadcasting) | [Reverse-Mode Autodiff](#reverse-mode-autodiff) | [Compile Prepare Execute](#compile-prepare-execute) | [Publication Policy](#publication-policy) | [Execution Profiles](#execution-profiles) | [ONNX Import And Export](#onnx-import-and-export) | [Accelerator Expectations](#accelerator-expectations) | [Autotune And Calibration](#autotune-and-calibration) | [Troubleshooting Checklist](#troubleshooting-checklist) | [What To Read Next](#what-to-read-next)
+Chapters: [What Synaptik Is](#what-synaptik-is) | [Prerequisites](#prerequisites) | [Build And Verify](#build-and-verify) | [Mental Model](#mental-model) | [First Tensor Graph](#first-tensor-graph) | [Broadcasting](#broadcasting) | [Sequence-Shaped Tensors](#sequence-shaped-tensors) | [Reverse-Mode Autodiff](#reverse-mode-autodiff) | [Compile Prepare Execute](#compile-prepare-execute) | [Publication Policy](#publication-policy) | [Execution Profiles](#execution-profiles) | [ONNX Import And Export](#onnx-import-and-export) | [Accelerator Expectations](#accelerator-expectations) | [Autotune And Calibration](#autotune-and-calibration) | [Troubleshooting Checklist](#troubleshooting-checklist) | [What To Read Next](#what-to-read-next)
 
 This guide is intentionally explicit. It explains the terms it uses, shows small value-level examples, and points to the deeper documentation when a topic grows beyond a quickstart.
 
@@ -261,6 +261,120 @@ out shape   = [2, 3, 4]
 ```
 
 Broadcasting is also part of autodiff. If a broadcasted input receives a gradient with shape `[2, 3, 4]`, Synaptik reduces that gradient back to the original input shape. That is why a bias vector can receive a vector-shaped gradient even though it was used across many rows or batches.
+
+## Sequence-Shaped Tensors
+
+Synaptik does not provide RNN, LSTM, GRU, `Layer`, or `Model` abstractions. A neural-network framework built above Synaptik can own those concepts. The core tensor layer provides the N-D operations needed to represent a sequence as one tensor instead of as `Tensor[]`.
+
+A common sequence layout is:
+
+```text
+[batch, time, features]
+```
+
+For example, two batches, three timesteps, and four input features is shape `[2, 3, 4]`. For the complete reference, including autograd contracts and implementation source mapping, see [Sequence Tensor Primitives](sequence-tensor-primitives.md#scope).
+
+### N-D Linear Over The Last Dimension
+
+`linear(weight, bias)` projects only the last dimension and preserves every leading dimension:
+
+```text
+input  shape [..., inFeatures]
+weight shape [inFeatures, outFeatures]
+bias   shape [outFeatures] or [1, outFeatures]
+output shape [..., outFeatures]
+```
+
+Concrete example:
+
+```java
+Tensor x = Tensor.randn(new int[]{2, 3, 4}, 0.0, 1.0, DataType.FLOAT64, "x");
+Tensor w = Tensor.randn(new int[]{4, 5}, 0.0, 0.02, DataType.FLOAT64, "w");
+Tensor b = Tensor.zeros(new int[]{5}, DataType.FLOAT64, "b");
+
+Tensor y = x.linear(w, b).compute();
+```
+
+Shapes:
+
+```text
+x = [2, 3, 4]
+w = [4, 5]
+b = [5]
+y = [2, 3, 5]
+```
+
+### Stack And Unstack
+
+`Tensor.stack(axis, ...)` inserts a new dimension. This is useful when legacy code still has one tensor per timestep:
+
+```java
+Tensor t0 = Tensor.randn(new int[]{2, 4}, 0.0, 1.0, DataType.FLOAT64, "t0");
+Tensor t1 = Tensor.randn(new int[]{2, 4}, 0.0, 1.0, DataType.FLOAT64, "t1");
+Tensor t2 = Tensor.randn(new int[]{2, 4}, 0.0, 1.0, DataType.FLOAT64, "t2");
+
+Tensor byTime = Tensor.stack(1, t0, t1, t2);
+```
+
+Shape:
+
+```text
+t0, t1, t2 = [batch, features] = [2, 4]
+byTime     = [batch, time, features] = [2, 3, 4]
+```
+
+`unstack(axis)` reverses that shape transformation and returns one tensor per position on the selected axis:
+
+```java
+Tensor[] timesteps = byTime.unstack(1);
+```
+
+Each entry has shape `[2, 4]`. Gradients flow through both `stack` and `unstack` because they are composed from existing differentiable layout/index primitives.
+
+### Indexing A Time Axis
+
+Use `sliceAxis` for a contiguous range and `take` for explicit positions:
+
+```java
+Tensor firstTwoSteps = byTime.sliceAxis(1, 0, 2); // shape [2, 2, 4]
+Tensor endpoints = byTime.take(1, new int[]{0, 2}); // shape [2, 2, 4]
+```
+
+`take(axis, int[])` is a convenience wrapper over ONNX-style `gatherAxis`: the index list shape is inserted at the gathered axis.
+
+### Masked Reductions And Masked Loss
+
+Padded sequences usually need a BOOL validity mask. `true` means the timestep is valid, `false` means it is padding:
+
+```java
+Tensor values = Tensor.randn(new int[]{2, 3, 4}, 0.0, 1.0, DataType.FLOAT64, "values");
+Tensor mask = new Tensor(new byte[]{
+        1, 1, 0,
+        1, 0, 0
+}, new int[]{2, 3}, null, "mask", DataType.BOOL);
+
+Tensor meanOverTime = values.mean(1, mask); // shape [2, 4]
+```
+
+The mask `[2, 3]` is interpreted as `[2, 3, 1]` and broadcast over `features`. The denominator is the number of valid timesteps, not the padded sequence length.
+
+For per-timestep classification:
+
+```java
+Tensor logits = Tensor.randn(new int[]{2, 3, 10}, 0.0, 1.0, DataType.FLOAT64, "logits");
+Tensor targets = new Tensor(new double[]{
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 1, 0, 0, 0, 0, 0, 0, 0
+}, new int[]{2, 3, 10}, null, "oneHotTargets", DataType.FLOAT64);
+Tensor loss = logits.crossEntropyLoss(targets, 2, mask);
+```
+
+Here `classDimension = 2`, so the mask shape is the logits shape with the class axis removed: `[2, 3]`. The loss is normalized by valid mask positions, not by all padded `[batch * time]` positions.
 
 ## Reverse-Mode Autodiff
 

@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Documentation Index
 
-Navigation: [README](../README.md#reading-guide) | [Quickstart](quickstart.md#what-synaptik-is) | [Architecture](architecture.md#system-overview) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Adding Tensor Operation](adding-tensor-operation.md#implementation-checklist) | [Compute Flow](compute-flow.md#lifecycle-map) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-regions.md#backend-planning-and-regions) | [ONNX](onnx.md#onnx-import-and-export) | [CPU BF16](cpu-bf16.md#cpu-bf16-runtime) | [Native Bridges & BLAS](native-bridges-and-blas.md#term-map-at-a-glance) | [Metal Backend](metal-backend.md#end-to-end-flow) | [Calibration & Autotune](calibration-autotune.md#core-distinction) | [Public API](public-api.md#stability-map) | [Examples](examples.md#running-examples) | [Docs Audit](documentation-audit.md#audit-scope)
+Navigation: [README](../README.md#reading-guide) | [Quickstart](quickstart.md#what-synaptik-is) | [Architecture](architecture.md#system-overview) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Sequence Tensor Primitives](sequence-tensor-primitives.md#scope) | [Adding Tensor Operation](adding-tensor-operation.md#implementation-checklist) | [Compute Flow](compute-flow.md#lifecycle-map) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-regions.md#backend-planning-and-regions) | [ONNX](onnx.md#onnx-import-and-export) | [CPU BF16](cpu-bf16.md#cpu-bf16-runtime) | [Native Bridges & BLAS](native-bridges-and-blas.md#term-map-at-a-glance) | [Metal Backend](metal-backend.md#end-to-end-flow) | [Calibration & Autotune](calibration-autotune.md#core-distinction) | [Public API](public-api.md#stability-map) | [Examples](examples.md#running-examples) | [Docs Audit](documentation-audit.md#audit-scope)
 
 Chapters: [Recommended Reading Paths](#recommended-reading-paths) | [Document Map](#document-map) | [Release Notes](#release-notes) | [Source Documentation](#source-documentation) | [Verification Notes](#verification-notes)
 
@@ -32,11 +32,12 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 
 1. [Quickstart: First Tensor Graph](quickstart.md#first-tensor-graph) - small runnable examples with exact shapes and values.
 2. [Tensor API Guide: API Surface And Conventions](tensor-api.md#api-surface-and-conventions) - operation-level API explanations with concrete input/output examples and calculations.
-3. [Tensor API: Compute Convenience API](tensor-api.md#compute-convenience-api) - how to call `compute()`, `compute(CompileMode)`, `compute(ComputeOptions)`, `compute(ExecutionProfile)`, and prepared execution.
-4. [Compute Flow: Tensor Compute API](compute-flow.md#tensor-compute-api) - what happens internally when `compute(...)` resolves a profile, compiles, prepares, executes, and optionally runs generic graph autotune.
-5. [Public API: Stability Map](public-api.md#stability-map) - the externally usable Java surfaces and probably-internal implementation hooks.
-6. [Examples: Running Examples](examples.md#running-examples) - executable-style snippets for tensor operations, compile/prepare/execute, and tuning flows.
-7. [Troubleshooting: Performance Regressions](troubleshooting.md#performance-regressions) - common runtime, compile, dtype, backend, and tuning failures.
+3. [Sequence Tensor Primitives](sequence-tensor-primitives.md#scope) - N-D linear, stack/unstack, axis indexing, masked reductions, masked cross entropy, and factory helpers for sequence-shaped consumer frameworks.
+4. [Tensor API: Compute Convenience API](tensor-api.md#compute-convenience-api) - how to call `compute()`, `compute(CompileMode)`, `compute(ComputeOptions)`, `compute(ExecutionProfile)`, and prepared execution.
+5. [Compute Flow: Tensor Compute API](compute-flow.md#tensor-compute-api) - what happens internally when `compute(...)` resolves a profile, compiles, prepares, executes, and optionally runs generic graph autotune.
+6. [Public API: Stability Map](public-api.md#stability-map) - the externally usable Java surfaces and probably-internal implementation hooks.
+7. [Examples: Running Examples](examples.md#running-examples) - executable-style snippets for tensor operations, compile/prepare/execute, and tuning flows.
+8. [Troubleshooting: Performance Regressions](troubleshooting.md#performance-regressions) - common runtime, compile, dtype, backend, and tuning failures.
 
 ### Tensor operation contributor path
 
@@ -93,6 +94,7 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 | [metal-backend.md](metal-backend.md#end-to-end-flow) | Detailed Metal backend guide covering planner legality, Java FFM, Objective-C MPS shim, native buffer ABI, residency, traces, and fallbacks. |
 | [adding-tensor-operation.md](adding-tensor-operation.md#implementation-checklist) | Contributor guide for adding a new tensor operation through descriptors, builders, public API, CPU kernels, autograd, optimizer/fusion integration, docs, and tests. |
 | [tensor-api.md](tensor-api.md#api-surface-and-conventions) | Detailed public Tensor API guide with signatures, `compute(...)` options, edge cases, and value-level operation examples. |
+| [sequence-tensor-primitives.md](sequence-tensor-primitives.md#scope) | Detailed guide to N-D sequence-friendly primitives: factories, shape helpers, last-dimension linear, stack/unstack, axis take/slice, masked reductions, and masked cross entropy. |
 | [calibration-autotune.md](calibration-autotune.md#core-distinction) | Deep calibration/autotune guide covering families, parameters, candidate values, persistence, progress, and reports. |
 | [mechanisms.md](mechanisms.md#graph-construction) | Mechanism-oriented guide using a repeated problem/mental-model/walkthrough/example format. |
 | [modules.md](modules.md#package-map) | Source module map with responsibilities, inputs, outputs, dependencies, invariants, and failure modes. |

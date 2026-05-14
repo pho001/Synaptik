@@ -1349,7 +1349,7 @@ Calibration configuration catalog:
 
 | Fluent method | Accepted values | Default | Maps to | Notes |
 |---|---|---:|---|---|
-| `.dtype(DataType.FLOAT64)` | `FLOAT64`, `FLOAT32`, `BFLOAT16` | none | `dataTypes=List.of(dtype)` | Reject `INT32` and `BOOL`, matching current calibration support. |
+| `.dtype(DataType.FLOAT64)` | `FLOAT64`, `FLOAT32`, `BFLOAT16` | none | `dataTypes=List.of(dtype)` | Reject `INT32`, `INT64`, and `BOOL`, matching current calibration support. |
 | `.dtype("f64")` | `f64`, `f32`, `bf16` | none | `dataTypes=List.of(parsed)` | String convenience should use the same aliases as CLI. |
 | `.allDTypes()` | no args | none | `dataTypes=[FLOAT64, FLOAT32, BFLOAT16]` | Equivalent to CLI `--dtypes all`. |
 | `.family(CalibrationFamilyId.MATMUL)` | Any registry family | none | `family=id`, `scope=SINGLE_FAMILY` | Should validate dtype support before running. |
@@ -1380,7 +1380,7 @@ Validation rules:
 - `.run()` must not be visible before dtype and family scope are selected.
 - `.dtype(...)` and `.allDTypes()` are mutually exclusive by construction.
 - `.family(...)` and `.allFamilies()` are mutually exclusive by construction.
-- `INT32` and `BOOL` should fail at builder validation time, before constructing `CalibrationCommand`.
+- `INT32`, `INT64`, and `BOOL` should fail at builder validation time, before constructing `CalibrationCommand`.
 - `metal-selection` should fail for `FLOAT64` and `BFLOAT16`, matching `CalibrationFamilyRegistry.supportsDType(...)`.
 - All-family `QUICK` runs one pass; all-family `BALANCED` and `THOROUGH` run two passes; single-family calibration runs one pass.
 

@@ -806,7 +806,7 @@ flowchart TD
 - Respects `runtimeBindingPolicyOf(...).regionBindingAllowed()`.
 - Preserves alias-view ops such as `NOOP`, `EXPAND`, `SELECT`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and contiguous `RESHAPE`.
 - Reuses typed storage slots only when the region slot is used at least twice and the slot size matches the runtime tensor flat size.
-- Binds reusable slots for `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, and `BOOL` without changing public tensor semantics.
+- Binds reusable slots for `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL` without changing public tensor semantics.
 
 `ComputeEngine.compute(...)` is the final dispatcher. It ignores partition-interior metadata and otherwise calls:
 
@@ -829,7 +829,7 @@ The important implementation detail is that tracking is split between `PreparedE
 
 ### DType residency and materialization boundaries
 
-`BFLOAT16`, `INT32`, and `BOOL` can be represented in runtime storage residency through typed runtime slots and accelerator-visible residency diagnostics. That means a prepared GPU region can carry dtype residency evidence for inputs, internal values, and outputs without requiring the public `Tensor` API to become a device tensor API.
+`BFLOAT16`, `INT32`, `INT64`, and `BOOL` can be represented in runtime storage residency through typed runtime slots and accelerator-visible residency diagnostics. That means a prepared GPU region can carry dtype residency evidence for inputs, internal values, and outputs without requiring the public `Tensor` API to become a device tensor API.
 
 This is still a runtime ownership contract, not a promise that every dtype has native arithmetic on every backend. True CPU consumers, graph outputs, gradient publication, validation snapshots, and explicit CPU-readable APIs can still materialize values back to host storage. Those boundaries must remain visible as `CpuMaterializationTrace` entries or benchmark coverage fields instead of being hidden behind a selected GPU region.
 
@@ -1491,7 +1491,7 @@ The binder walks compiled nodes and decides whether a runtime tensor can share a
 8. Require a slot id.
 9. Require slot use count >= 2.
 10. Require slot size to match the runtime tensor flat size.
-11. Bind `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, and `BOOL` buffers through dtype-specific runtime slots.
+11. Bind `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL` buffers through dtype-specific runtime slots.
 
 Illustrative example:
 
@@ -2075,7 +2075,7 @@ Phase 25 applies the same rule to forward SDPA. Metal direct unmasked `SCALED_DO
 | Failure mode | Where it appears | Typical symptom | Response |
 |---|---|---|---|
 | Shape mismatch | Operation builders, `copyDataFrom`, layout planners | `IllegalArgumentException`, for example `copyDataFrom requires matching shapes.` | Fix the graph construction inputs and recompile. |
-| Dtype mismatch | Operation builders, CPU type contract resolver, tensor copy/conversion | `IllegalArgumentException` or `UnsupportedOperationException`, especially for unsupported implicit `INT32`/`BOOL` conversions | Use compatible dtypes or explicit tensor construction. Recompile after dtype changes. |
+| Dtype mismatch | Operation builders, CPU type contract resolver, tensor copy/conversion | `IllegalArgumentException` or `UnsupportedOperationException`, especially for unsupported implicit `INT32`/`INT64`/`BOOL` conversions | Use compatible dtypes or explicit tensor construction. Recompile after dtype changes. |
 | Backward requested for forward-only prepared execution | `PreparedExecution.executeInternal(...)` | `IllegalStateException: Prepared execution does not support backward execution.` | Compile with `CompileMode.TRAINING` or `CompileMode.AUTO` and ensure trainable leaf inputs exist. |
 | Unsupported training root dtype | `GraphCompiler.Session.compile()` | `UnsupportedOperationException: BOOL/INT32 root tensors do not support backward execution.` | Use floating root tensors for backward execution. |
 | Stale prepared assumptions | No single public stale-check guard found | Wrong schedule or metadata if graph contract changes after prepare | Needs verification: compile/prepare again after topology, shape, dtype, layout, backend intent, or runtime-policy changes. |

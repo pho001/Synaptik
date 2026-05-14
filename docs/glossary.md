@@ -3,7 +3,7 @@
 
 Navigation: [Index](index.md#recommended-reading-paths) | [Framework Concepts](framework-concepts.md#tensors-as-graph-nodes) | [Architecture](architecture.md#core-artifact-boundaries) | [Compute Flow](compute-flow.md#primary-artifacts) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Native Bridges & BLAS](native-bridges-and-blas.md#term-map-at-a-glance) | [Metal Backend](metal-backend.md#native-buffer-abi) | [Calibration & Autotune](calibration-autotune.md#core-distinction)
 
-Chapters: [A](#a) | [B](#b) | [C](#c) | [D](#d) | [E](#e) | [F](#f) | [G](#g) | [J](#j) | [L](#l) | [M](#m) | [N](#n) | [O](#o) | [P](#p) | [R](#r) | [S](#s) | [T](#t) | [W](#w)
+Chapters: [A](#a) | [B](#b) | [C](#c) | [D](#d) | [E](#e) | [F](#f) | [G](#g) | [J](#j) | [L](#l) | [M](#m) | [N](#n) | [O](#o) | [P](#p) | [R](#r) | [S](#s) | [T](#t) | [U](#u) | [W](#w)
 
 Project-specific terms used in Synaptik, with source references.
 
@@ -25,6 +25,7 @@ Project-specific terms used in Synaptik, with source references.
 - [R](#r)
 - [S](#s)
 - [T](#t)
+- [U](#u)
 - [W](#w)
 
 ## A
@@ -137,6 +138,8 @@ Project-specific terms used in Synaptik, with source references.
 
 ## L
 
+**Last dimension**: The final logical axis of a tensor shape. For shape `[batch, time, features]`, the last dimension is `features`. Synaptik's N-D `linear` treats this axis as `inFeatures` and preserves all leading dimensions. Source: [`Tensor.java`](../src/main/java/tensor/Tensor.java), [`TensorLinearOps.java`](../src/main/java/tensor/ops/linalg/TensorLinearOps.java), [Sequence Tensor Primitives: N-D Linear](sequence-tensor-primitives.md#n-d-linear).
+
 **Leaf tensor**: Tensor with no operation descriptor, usually user input or parameter data. Source: [`CompiledNode.java`](../src/main/java/graph/CompiledNode.java), [`Tensor.java`](../src/main/java/tensor/Tensor.java).
 
 **Leading dimension**: BLAS stride parameter describing the distance between adjacent logical rows for row-major CBLAS calls. For dense row-major `[M,K]` input `A`, Synaptik passes `lda = K`; for dense `[K,N]` input `B`, it passes `ldb = N`. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [Native Bridges & BLAS: Matrix Storage Terms](native-bridges-and-blas.md#matrix-storage-terms).
@@ -144,6 +147,8 @@ Project-specific terms used in Synaptik, with source references.
 **Lowering**: Conversion from higher-level graph/region structure into backend-executable units or primitive descriptors. Source: [`LoweringPipeline.java`](../src/main/java/backend/lowering/LoweringPipeline.java), [`PreparedExecutionBuilder.java`](../src/main/java/backend/prepare/PreparedExecutionBuilder.java).
 
 ## M
+
+**Mask**: A `BOOL` tensor used to include or exclude positions. In sequence-shaped examples, `true` means the timestep is valid and contributes to masked reductions or masked cross entropy; `false` means padding and contributes zero. Source: [`TensorReduceOps.java`](../src/main/java/tensor/ops/reduction/TensorReduceOps.java), [`TensorLossOps.java`](../src/main/java/tensor/ops/loss/TensorLossOps.java), [Sequence Tensor Primitives: Masked Reductions](sequence-tensor-primitives.md#masked-reductions).
 
 **Memory planning**: Compile phase that builds `MemoryPlan` artifacts, including lifetimes, reusable intervals, slots, region-value bindings, and runtime binding policy. Source: [`MemoryPlanner.java`](../src/main/java/graph/optimizer/memory/MemoryPlanner.java), [`MemoryPlanningConfig.java`](../src/main/java/config/compile/MemoryPlanningConfig.java).
 
@@ -215,11 +220,15 @@ Project-specific terms used in Synaptik, with source references.
 
 **Semantic canonicalization**: Pre-autograd forward graph rebuilding into canonical semantic forms. Source: [`SemanticForwardCanonicalizer.java`](../src/main/java/graph/SemanticForwardCanonicalizer.java).
 
+**Sequence-shaped tensor**: An ordinary N-D tensor whose axes are interpreted by a consumer as sequence data, commonly `[batch, time, features]` or `[time, batch, features]`. Synaptik does not add a separate sequence object; public helpers such as `stack`, `unstack`, `take`, masked reductions, masked cross entropy, and N-D `linear` operate on normal tensors. Source: [`Tensor.java`](../src/main/java/tensor/Tensor.java), [Sequence Tensor Primitives](sequence-tensor-primitives.md#scope).
+
 **Source tensor mapping**: Mapping from canonicalized/optimized tensors back to original semantic tensors for publication and gradient binding. Source: [`GraphCompiler.java`](../src/main/java/graph/compile/GraphCompiler.java), [`CompiledNode.java`](../src/main/java/graph/CompiledNode.java).
 
 **Storage offset**: Offset into backing storage for view tensors. Source: [`TensorMetadata.java`](../src/main/java/tensor/TensorMetadata.java).
 
 **Storage residency**: Physical residency class for a runtime tensor value, distinct from semantic tensor dtype/layout. `CPU_ARRAY` means Java typed storage is current; `HOST_SHARED_DEVICE_BUFFER` and `DEVICE_OWNED` are explicit states for shared-buffer or GPU-owned execution paths. Source: [`StorageResidency.java`](../src/main/java/backend/memory/StorageResidency.java).
+
+**Stack / unstack**: `stack(axis, tensors...)` inserts a new axis and combines same-shaped tensors along it; `unstack(axis)` splits one tensor along an axis and removes that axis from each output. Example: three `[batch, features]` tensors stacked at axis `1` become one `[batch, time, features]` tensor. Source: [`TensorLayoutOps.java`](../src/main/java/tensor/ops/layout/TensorLayoutOps.java), [Sequence Tensor Primitives: Stack And Unstack](sequence-tensor-primitives.md#stack-and-unstack).
 
 **Stride**: Per-axis step used to translate logical indices to storage positions. Source: [`TensorMetadata.java`](../src/main/java/tensor/TensorMetadata.java).
 
@@ -232,6 +241,10 @@ Project-specific terms used in Synaptik, with source references.
 **Tensor storage**: Dtype-specific backing storage with mutation versioning. Source: [`TensorStorage.java`](../src/main/java/tensor/TensorStorage.java).
 
 **Tuning history**: Persisted per-candidate measurement history for autotune. Source: [`TuningHistoryEntry.java`](../src/main/java/tuning/store/TuningHistoryEntry.java), [`JsonFileTuningHistoryStore.java`](../src/main/java/tuning/store/JsonFileTuningHistoryStore.java).
+
+## U
+
+**Unstack**: See [Stack / unstack](#stack--unstack). The important semantic detail is that the selected axis is removed from each returned tensor. Splitting shape `[2, 3, 4]` along axis `1` returns three tensors of shape `[2, 4]`, not three tensors of shape `[2, 1, 4]`.
 
 ## W
 

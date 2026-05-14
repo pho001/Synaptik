@@ -184,6 +184,7 @@ Use these after changing specific areas:
 | Change area | Commands |
 |---|---|
 | Tensor public API or basic ops | `./gradlew test --no-daemon --tests AllOpsTest --tests TensorAddTest --tests TensorUnaryCanonicalizationTest` |
+| Sequence-shaped tensor helpers | `./gradlew test --no-daemon --tests NdTensorSequencePrimitivesTest --tests LinearExecutionTest --tests TensorShapeIndexOpsExecutionTest --tests CrossEntropyLossExecutionTest --tests IndexTargetCrossEntropyLossExecutionTest` |
 | Broadcasting | `./gradlew test --no-daemon --tests BroadcastContractMatrixTest --tests BroadcastBinaryOpsTest --tests BroadcastPlannerTest` |
 | DType/storage behavior | `./gradlew test --no-daemon --tests DataTypeExecutionCoverageTest --tests TensorStorageDataTypeTest --tests Int32IndexDtypeTest` |
 | Matmul/linear | `./gradlew test --no-daemon --tests MatMulTest --tests LinearExecutionTest --tests LinearLoweringRuleTest` |

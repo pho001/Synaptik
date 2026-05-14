@@ -692,7 +692,7 @@ Forward `SLICE` and backward `SLICE_GRAD` are separate contracts. `SLICE` reads 
 
 Explicit `CAST` is governed by cast-pair legality, not by storage residency alone. `FLOAT32 -> BFLOAT16` and `BFLOAT16 -> FLOAT32` can stay Metal-owned through MPSGraph `castTensor`; identity casts are metadata/no-op legal for representable dtypes. `FLOAT32 -> INT32`, `INT32 -> FLOAT32`, `FLOAT32 -> BOOL`, `BOOL -> FLOAT32`, and any `FLOAT64` pair reject before native execution because they would otherwise imply rounding, truthiness, or generic integer compute semantics that the current Metal contract does not support.
 
-Unsupported BOOL families still reject with stable dtype or operation-family diagnostics. Dense loss-adjacent ops support dtype-matched `FLOAT32/BFLOAT16` paths for `NLL_LOSS` and dense `CROSS_ENTROPY_LOSS`. Index-target `CROSS_ENTROPY_LOSS_INDICES` and `CROSS_ENTROPY_LOSS_INDICES_GRAD` now stay device-owned for dense `FLOAT32/BFLOAT16` logits/sampleScale and dense static in-bounds `INT32` targets, including ignore-index masking and `NONE`/`SUM`/`MEAN` reductions. Remaining rejections are scoped capability decisions such as grouped/dilated conv variants, generic INT32 compute/output, arbitrary BOOL consumers, and non-dense/unsupported SDPA mask layouts.
+Unsupported BOOL families still reject with stable dtype or operation-family diagnostics. Dense loss-adjacent ops support dtype-matched `FLOAT32/BFLOAT16` paths for `NLL_LOSS` and dense `CROSS_ENTROPY_LOSS`. Index-target `CROSS_ENTROPY_LOSS_INDICES` and `CROSS_ENTROPY_LOSS_INDICES_GRAD` now stay device-owned for dense `FLOAT32/BFLOAT16` logits/sampleScale and dense static in-bounds `INT32` targets, including ignore-index masking and `NONE`/`SUM`/`MEAN` reductions. Remaining rejections are scoped capability decisions such as grouped/dilated conv variants, generic INT32/INT64 compute/output, arbitrary BOOL consumers, and non-dense/unsupported SDPA mask layouts.
 
 ### Planner allowlist
 
@@ -738,7 +738,7 @@ Notable current exclusions:
 
 - grouped/dilated Conv2D variants and dtype-mismatched Conv2D inputs
 - unsupported pooling variants such as `AVG_POOL2D countIncludePad=true`
-- `FLOAT64`, `INT32`, and unsupported `BOOL` compute/output graphs
+- `FLOAT64`, generic `INT32`, generic `INT64`, and unsupported `BOOL` compute/output graphs
 - forward support does not imply backward support; backward target truth is tracked per op in `GpuTargetCoverageTruth`
 
 ## Fallbacks And Failure Modes
@@ -747,7 +747,7 @@ Notable current exclusions:
 |---|---|---|
 | Native library missing | `MetalMpsFfmBridge.init()` | Bridge unavailable; selected Metal region falls back to CPU. |
 | Older `.dylib` without buffer symbols | `supportsBufferBindings()` | Legacy tensor-array path may still run; no `BUFFER_BINDING` claim. |
-| Illegal dtype | `MetalPartitionSupport`, `MetalMpsCapabilities`, runtime checks | Planner rejects or runtime falls back with unsupported dtype reason. FLOAT64, generic INT32 compute/output, dtype-mismatched floating inputs, and BOOL outside scoped operation families remain illegal. |
+| Illegal dtype | `MetalPartitionSupport`, `MetalMpsCapabilities`, runtime checks | Planner rejects or runtime falls back with unsupported dtype reason. FLOAT64, generic INT32/INT64 compute/output, dtype-mismatched floating inputs, and BOOL outside scoped operation families remain illegal. |
 | Illegal external `BOOL` role | `MetalMpsCapabilities.supportsExternalInputRole(...)` | Planner rejects candidate. |
 | Missing BOOL residency evidence | Coverage regression gate | Supported `bool_compare_where_small` fails if traces do not show native buffer execution and non-rejected `dtype=BOOL` residency evidence. |
 | Illegal or unproven index input | `MetalPartitionSupport`, `MetalMpsCapabilities.supportsExternalInputRole(...)` | Forward gather/take rejects non-`INT32`, non-dense, non-static, or out-of-bounds indices with stable `UNSUPPORTED_DTYPE`, `UNSUPPORTED_LAYOUT`, or `UNSUPPORTED_BOUNDS_CHECK` details. |

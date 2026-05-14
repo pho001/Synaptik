@@ -138,7 +138,7 @@ Phase 30 introduced native Metal BF16 compute/output, and the current contract e
   `reduction_chain_small_bf16` require Metal native buffer evidence, dtype residency evidence, zero CPU
   materializations, zero CPU fallback, and zero tensor-array fallback.
 
-Unsupported BF16 and BOOL families must remain visible. BF16 now follows the existing Metal `FLOAT32` operation-family coverage and keeps the same shape/layout/semantic limits; arbitrary BOOL consumers, non-dense/unsupported SDPA mask layouts, generic INT32 compute/output, grouped/dilated conv, and unsupported pooling variants remain rejected or fallback rows until their own semantic, native execution, parity, trace, and regression-gate evidence exists.
+Unsupported BF16 and BOOL families must remain visible. BF16 now follows the existing Metal `FLOAT32` operation-family coverage and keeps the same shape/layout/semantic limits; arbitrary BOOL consumers, non-dense/unsupported SDPA mask layouts, generic INT32/INT64 compute/output, grouped/dilated conv, and unsupported pooling variants remain rejected or fallback rows until their own semantic, native execution, parity, trace, and regression-gate evidence exists.
 
 ## Phase 17 normalization, reduction, and loss-adjacent contract
 

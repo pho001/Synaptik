@@ -89,12 +89,12 @@ The package intentionally delegates operation-family logic out of `Tensor.java`:
 | unary | `tensor/ops/unary/TensorUnaryOps.java` | `relu`, `exp`, `log`, `tanh`, `sqrt`, `abs` |
 | binary | `tensor/ops/binary/TensorBinaryOps.java` | `add`, `sub`, `mul`, `div`, `min`, `max` |
 | compare/bool/select | `tensor/ops/compare`, `tensor/ops/bool`, `tensor/ops/select` | comparison masks, logical ops, `where` |
-| layout/index | `tensor/ops/layout`, `tensor/ops/index` | reshape, permute, expand, gather, scatter-add |
-| reduction | `tensor/ops/reduction/TensorReduceOps.java` | sum, mean, reduce min/max, softmax, log-softmax |
-| linalg | `tensor/ops/linalg/*` | matmul, linear, scaled dot-product attention |
+| layout/index | `tensor/ops/layout`, `tensor/ops/index` | reshape, permute, expand, `sliceAxis`, `stack`, `unstack`, `take`, gather, gatherNd, scatter-add, scatterElements, scatterNd |
+| reduction | `tensor/ops/reduction/TensorReduceOps.java` | sum, masked sum, mean, masked mean, reduce min/max, softmax, log-softmax |
+| linalg | `tensor/ops/linalg/*` | matmul, N-D last-dimension linear, scaled dot-product attention |
 | neural-network families | `tensor/ops/conv`, `tensor/ops/pool`, `tensor/ops/normalization`, `tensor/ops/loss` | conv2d, pool2d, layer norm, RMS norm, cross entropy |
 
-Storage is dtype-specific. `DataType.java` defines `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, and `BOOL`; storage implementations include `Float64Storage`, `Float32Storage`, `BFloat16Storage`, `Int32Storage`, and `BoolStorage`.
+Storage is dtype-specific. `DataType.java` defines `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL`; storage implementations include `Float64Storage`, `Float32Storage`, `BFloat16Storage`, `Int32Storage`, `Int64Storage`, and `BoolStorage`.
 
 Example:
 
@@ -107,6 +107,8 @@ y.compute();
 ```
 
 `TensorExecutionSupport` is the bridge from public convenience calls to compile/prepare/execute. It chooses default compile and runtime configs from `CompileMode`, and it can run generic tensor autotune when `ComputeOptions.autotune(AutotunePolicy.IF_MISSING)` is used.
+
+Sequence-shaped workloads remain ordinary tensor workloads in this package. The public helpers `Tensor.stack`, `Tensor.unstack`, `Tensor.sliceAxis`, `Tensor.take`, masked `sum`/`mean`, masked cross entropy, and N-D `linear` are implemented through `tensor.ops.*` families rather than through a separate `sequence` module. That keeps Synaptik as the primitive tensor/autograd engine and leaves high-level concepts such as layers, recurrent cells, models, and dataloaders to consumer frameworks.
 
 When adding a new public operation, follow [Adding A Tensor Operation: Implementation Checklist](adding-tensor-operation.md#implementation-checklist). A complete operation
 normally crosses `operations.*`, `tensor.ops.*`, public facades, CPU kernels, optimizer signatures, documentation, and

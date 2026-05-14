@@ -11,6 +11,146 @@ public final class TensorDataFactory {
     }
 
     /**
+     * Creates a tensor filled with zeros.
+     *
+     * @param shape output shape; must be non-null and contain positive dimensions
+     * @param dataType dtype of the returned tensor; must be non-null
+     * @param label tensor label, may be null
+     * @return newly allocated tensor
+     */
+    public static Tensor zeros(int[] shape, DataType dataType, String label) {
+        int size = flatSize(label, shape);
+        int[] copiedShape = shape.clone();
+        return switch (requireDataType(dataType)) {
+            case FLOAT64 -> new Tensor(new double[size], copiedShape, null, label, DataType.FLOAT64);
+            case FLOAT32 -> new Tensor(new float[size], copiedShape, null, label, DataType.FLOAT32);
+            case BFLOAT16 -> new Tensor(new short[size], copiedShape, null, label, DataType.BFLOAT16);
+            case INT32 -> new Tensor(new int[size], copiedShape, null, label, DataType.INT32);
+            case INT64 -> new Tensor(new long[size], copiedShape, null, label, DataType.INT64);
+            case BOOL -> new Tensor(new byte[size], copiedShape, null, label, DataType.BOOL);
+        };
+    }
+
+    /**
+     * Creates a tensor filled with ones.
+     *
+     * @param shape output shape; must be non-null and contain positive dimensions
+     * @param dataType dtype of the returned tensor; must be non-null
+     * @param label tensor label, may be null
+     * @return newly allocated tensor
+     */
+    public static Tensor ones(int[] shape, DataType dataType, String label) {
+        int size = flatSize(label, shape);
+        int[] copiedShape = shape.clone();
+        return switch (requireDataType(dataType)) {
+            case FLOAT64 -> {
+                double[] data = new double[size];
+                java.util.Arrays.fill(data, 1.0d);
+                yield new Tensor(data, copiedShape, null, label, DataType.FLOAT64);
+            }
+            case FLOAT32 -> {
+                float[] data = new float[size];
+                java.util.Arrays.fill(data, 1.0f);
+                yield new Tensor(data, copiedShape, null, label, DataType.FLOAT32);
+            }
+            case BFLOAT16 -> {
+                double[] data = new double[size];
+                java.util.Arrays.fill(data, 1.0d);
+                yield new Tensor(data, copiedShape, null, label, DataType.BFLOAT16);
+            }
+            case INT32 -> {
+                int[] data = new int[size];
+                java.util.Arrays.fill(data, 1);
+                yield new Tensor(data, copiedShape, null, label, DataType.INT32);
+            }
+            case INT64 -> {
+                long[] data = new long[size];
+                java.util.Arrays.fill(data, 1L);
+                yield new Tensor(data, copiedShape, null, label, DataType.INT64);
+            }
+            case BOOL -> {
+                byte[] data = new byte[size];
+                java.util.Arrays.fill(data, (byte) 1);
+                yield new Tensor(data, copiedShape, null, label, DataType.BOOL);
+            }
+        };
+    }
+
+    /**
+     * Creates a floating tensor with normally distributed values.
+     *
+     * @param shape output shape
+     * @param mean normal distribution mean
+     * @param stdDev normal distribution standard deviation; must be non-negative
+     * @param dataType floating dtype of the returned tensor
+     * @param label tensor label, may be null
+     * @return newly allocated tensor
+     */
+    public static Tensor randn(int[] shape, double mean, double stdDev, DataType dataType, String label) {
+        if (stdDev < 0.0d || !Double.isFinite(stdDev)) {
+            throw new IllegalArgumentException("randn stdDev must be finite and non-negative.");
+        }
+        DataType type = requireDataType(dataType);
+        if (type == DataType.BOOL || type == DataType.INT32 || type == DataType.INT64) {
+            throw new IllegalArgumentException("randn requires a floating dtype.");
+        }
+        int size = flatSize(label, shape);
+        double[] data = new double[size];
+        java.util.Random random = new java.util.Random();
+        for (int i = 0; i < size; i++) {
+            data[i] = mean + random.nextGaussian() * stdDev;
+        }
+        return new Tensor(data, shape.clone(), null, label, type);
+    }
+
+    /**
+     * Creates a rank-1 tensor containing an arithmetic integer range.
+     *
+     * @param start inclusive start
+     * @param end exclusive end
+     * @param step non-zero step
+     * @param dataType output dtype; supports numeric non-BOOL dtypes
+     * @return rank-1 range tensor
+     */
+    public static Tensor arange(int start, int end, int step, DataType dataType) {
+        if (step == 0) {
+            throw new IllegalArgumentException("arange step cannot be zero.");
+        }
+        long distance = (long) end - start;
+        if ((step > 0 && distance < 0) || (step < 0 && distance > 0)) {
+            throw new IllegalArgumentException("arange step direction cannot reach end.");
+        }
+        int size = (int) Math.max(0L, (Math.abs(distance) + Math.abs((long) step) - 1L) / Math.abs((long) step));
+        if (size == 0) {
+            throw new IllegalArgumentException("arange cannot produce an empty tensor.");
+        }
+        DataType type = requireDataType(dataType);
+        if (type == DataType.BOOL) {
+            throw new IllegalArgumentException("arange does not support BOOL dtype.");
+        }
+        int[] shape = new int[]{size};
+        if (type == DataType.INT32) {
+            int[] data = new int[shape[0]];
+            for (int i = 0, value = start; i < size; i++, value += step) {
+                data[i] = value;
+            }
+            return new Tensor(data, shape, null, "arange", DataType.INT32);
+        }
+        if (type == DataType.INT64) {
+            long[] data = new long[shape[0]];
+            for (int i = 0, value = start; i < size; i++, value += step) {
+                data[i] = value;
+            }
+            return new Tensor(data, shape, null, "arange", DataType.INT64);
+        }
+        double[] data = new double[shape[0]];
+        for (int i = 0, value = start; i < size; i++, value += step) {
+            data[i] = value;
+        }
+        return new Tensor(data, shape, null, "arange", type);
+    }
+
+    /**
      * Creates a rank-1 scalar tensor with one element.
      *
      * @param value scalar value; must be integral when {@code dataType} is {@link DataType#INT32} or {@link DataType#INT64}
@@ -45,6 +185,11 @@ public final class TensorDataFactory {
     public static Tensor onesLike(Tensor other) {
         int size = other.getFlatDataSize();
         int[] shape = other.getShape().clone();
+        if (other.getDataType() == DataType.BOOL) {
+            byte[] data = new byte[size];
+            java.util.Arrays.fill(data, (byte) 1);
+            return new Tensor(data, shape, null, "ones_like", DataType.BOOL);
+        }
         if (other.getDataType() == DataType.INT32) {
             int[] data = new int[size];
             java.util.Arrays.fill(data, 1);
@@ -69,6 +214,9 @@ public final class TensorDataFactory {
     public static Tensor zerosLike(Tensor other) {
         int size = other.getFlatDataSize();
         int[] shape = other.getShape().clone();
+        if (other.getDataType() == DataType.BOOL) {
+            return new Tensor(new byte[size], shape, null, "zeros_like", DataType.BOOL);
+        }
         if (other.getDataType() == DataType.INT32) {
             return new Tensor(new int[size], shape, null, "zeros_like", DataType.INT32);
         }
@@ -194,5 +342,12 @@ public final class TensorDataFactory {
             throw new IllegalArgumentException("Invalid shape size for " + label);
         }
         return size;
+    }
+
+    private static DataType requireDataType(DataType dataType) {
+        if (dataType == null) {
+            throw new IllegalArgumentException("dataType cannot be null");
+        }
+        return dataType;
     }
 }

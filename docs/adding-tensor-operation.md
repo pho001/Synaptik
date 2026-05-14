@@ -77,6 +77,18 @@ Before adding files, classify the operation. This controls where it belongs and 
 
 Use the existing family closest to the operation. Do not create a new top-level package unless the operation family is genuinely new.
 
+There is one important exception to the "new operation" flow: some public methods are ergonomic compositions, not primitive operations. In that case the right implementation is a method in `Tensor`, a static facade in `TensorOps`, a builder/helper in `tensor.ops.*`, tests, and docs, but no new `Operation.OpType`.
+
+Current examples:
+
+- `Tensor.stack(axis, ...)` composes `expandDims` and `concat`.
+- `Tensor.unstack(axis)` composes `select` across the selected axis.
+- `Tensor.take(axis, int[])` builds an index tensor and delegates to `gatherAxis` semantics.
+- masked `sum` and masked `mean` compose `where`, reductions, valid-count handling, and division.
+- masked cross entropy composes log-softmax, target selection/reduction, masking, and valid-count normalization.
+
+This composition-first path keeps the semantic graph clean. It avoids creating a specialized kernel just because a higher-level consumer framework wants a convenient public method.
+
 ## Source Map
 
 | Responsibility | Source |

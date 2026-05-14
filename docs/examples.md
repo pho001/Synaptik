@@ -3,7 +3,7 @@
 
 Navigation: [Index](index.md#recommended-reading-paths) | [Tensor API](tensor-api.md#operation-catalog) | [Compute Flow](compute-flow.md#worked-example) | [Public API](public-api.md#tensor) | [Calibration & Autotune](calibration-autotune.md#ergonomic-fluent-api) | [Testing](testing.md#exact-commands)
 
-Chapters: [Running Examples](#running-examples) | [Broadcast Add And ReLU](#broadcast-add-and-relu) | [Reverse-Mode Autodiff](#reverse-mode-autodiff) | [Matrix Multiplication](#matrix-multiplication) | [Boolean Mask With `where`](#boolean-mask-with-where) | [Softmax](#softmax) | [Explicit Compile And Runtime Config](#explicit-compile-and-runtime-config) | [Reusing PreparedExecution](#reusing-preparedexecution) | [ComputeOptions With Explicit Defaults](#computeoptions-with-explicit-defaults) | [Programmatic Tuning API](#programmatic-tuning-api) | [CLI Examples](#cli-examples) | [Verification Notes](#verification-notes)
+Chapters: [Running Examples](#running-examples) | [Broadcast Add And ReLU](#broadcast-add-and-relu) | [Reverse-Mode Autodiff](#reverse-mode-autodiff) | [Matrix Multiplication](#matrix-multiplication) | [Sequence-Shaped Tensor](#sequence-shaped-tensor) | [Boolean Mask With `where`](#boolean-mask-with-where) | [Softmax](#softmax) | [Explicit Compile And Runtime Config](#explicit-compile-and-runtime-config) | [Reusing PreparedExecution](#reusing-preparedexecution) | [ComputeOptions With Explicit Defaults](#computeoptions-with-explicit-defaults) | [Programmatic Tuning API](#programmatic-tuning-api) | [CLI Examples](#cli-examples) | [Verification Notes](#verification-notes)
 
 These examples are small Java snippets using the public `Tensor`, compile, and configuration APIs. They are written to be pasted into a small class in this repository or adapted into a test.
 
@@ -13,6 +13,7 @@ These examples are small Java snippets using the public `Tensor`, compile, and c
 - [Broadcast Add And ReLU](#broadcast-add-and-relu)
 - [Reverse-Mode Autodiff](#reverse-mode-autodiff)
 - [Matrix Multiplication](#matrix-multiplication)
+- [Sequence-Shaped Tensor](#sequence-shaped-tensor)
 - [Boolean Mask With `where`](#boolean-mask-with-where)
 - [Softmax](#softmax)
 - [Explicit Compile And Runtime Config](#explicit-compile-and-runtime-config)
@@ -153,6 +154,85 @@ Expected output:
 [2, 2]
 [58.0, 64.0, 139.0, 154.0]
 ```
+
+## Sequence-Shaped Tensor
+
+This example keeps a sequence as one tensor with shape `[batch, time, features]`. It demonstrates three public APIs together:
+
+- `linear(weight, bias)` projects the last dimension and preserves `[batch, time]`.
+- `mean(axis, mask)` ignores padded timesteps.
+- `take(axis, int[])` selects explicit positions from the time axis.
+
+```java
+import tensor.DataType;
+import tensor.Tensor;
+
+import java.util.Arrays;
+
+public class SequenceTensorExample {
+    public static void main(String[] args) {
+        Tensor x = new Tensor(
+                new double[]{
+                        1, 2, 3,
+                        4, 5, 6,
+                        7, 8, 9,
+                        10, 11, 12
+                },
+                new int[]{2, 2, 3},
+                null,
+                "x",
+                DataType.FLOAT64
+        );
+        Tensor weight = new Tensor(
+                new double[]{
+                        1, 10,
+                        2, 20,
+                        3, 30
+                },
+                new int[]{3, 2},
+                null,
+                "weight",
+                DataType.FLOAT64
+        );
+        Tensor bias = new Tensor(new double[]{0.5, -0.5}, new int[]{1, 2}, null, "bias", DataType.FLOAT64);
+        Tensor mask = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{2, 2}, null, "mask", DataType.BOOL);
+
+        Tensor projected = x.linear(weight, bias).compute();
+        Tensor meanOverValidTime = projected.mean(1, mask).compute();
+        Tensor endpoints = projected.take(1, new int[]{0, 1}).compute();
+
+        System.out.println(Arrays.toString(projected.getShape()));
+        System.out.println(Arrays.toString(projected.toDoubleArrayCopy()));
+        System.out.println(Arrays.toString(meanOverValidTime.getShape()));
+        System.out.println(Arrays.toString(meanOverValidTime.toDoubleArrayCopy()));
+        System.out.println(Arrays.toString(endpoints.getShape()));
+    }
+}
+```
+
+Expected output:
+
+```text
+[2, 2, 2]
+[14.5, 139.5, 32.5, 319.5, 50.5, 499.5, 68.5, 679.5]
+[2, 2]
+[14.5, 139.5, 59.5, 589.5]
+[2, 2, 2]
+```
+
+Why the masked mean is `[14.5, 139.5, 59.5, 589.5]`:
+
+```text
+batch 0 mask = [true, false]
+  mean = projected[0, 0, :] = [14.5, 139.5]
+
+batch 1 mask = [true, true]
+  mean = (projected[1, 0, :] + projected[1, 1, :]) / 2
+       = ([50.5, 499.5] + [68.5, 679.5]) / 2
+       = [59.5, 589.5]
+```
+
+See [Sequence Tensor Primitives](sequence-tensor-primitives.md#scope) for the full shape and autograd contract.
 
 ## Boolean Mask With `where`
 

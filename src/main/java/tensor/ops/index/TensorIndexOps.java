@@ -154,6 +154,24 @@ public final class TensorIndexOps {
     }
 
     /**
+     * Ergonomic alias for {@link #gatherAxis(Tensor, Tensor, int)}.
+     */
+    public static Tensor take(Tensor input, int axis, Tensor indices) {
+        return gatherAxis(input, indices, axis);
+    }
+
+    /**
+     * Ergonomic axis gather from a Java int index list.
+     */
+    public static Tensor take(Tensor input, int axis, int[] indices) {
+        if (indices == null || indices.length == 0) {
+            throw new IllegalArgumentException("take indices cannot be null/empty.");
+        }
+        Tensor indexTensor = new Tensor(indices.clone(), new int[]{indices.length}, null, "take_indices", DataType.INT32);
+        return take(input, axis, indexTensor);
+    }
+
+    /**
      * ONNX GatherND with batch_dims=0: tuple-index read with slice-preserving suffix.
      */
     public static Tensor gatherNd(Tensor input, Tensor indices) {

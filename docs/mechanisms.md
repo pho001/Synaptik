@@ -565,7 +565,7 @@ If `t1` is no longer needed after `t2`, its buffer may become reusable. A strict
 
 **Internals**
 
-`MemoryOptimizerRule` can be disabled with system property `cg.optimizer.enableMemoryReuse=false`. `MemoryPlanner` skips region binding for workspace-sensitive operations such as `MAX_POOL2D` and `MAX_POOL2D_BACKWARD_INPUT`. `RuntimeMemoryBinder` only binds `FLOAT64` and `FLOAT32` slot arrays today; `BFLOAT16`, `INT32`, and `BOOL` are no-ops for typed slot binding.
+`MemoryOptimizerRule` can be disabled with system property `cg.optimizer.enableMemoryReuse=false`. `MemoryPlanner` skips region binding for workspace-sensitive operations such as `MAX_POOL2D` and `MAX_POOL2D_BACKWARD_INPUT`. `RuntimeMemoryBinder` binds dtype-specific slot arrays for `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL`; the binding remains a runtime storage optimization and does not change semantic tensor shapes, dtypes, or graph edges.
 
 **Edge Cases**
 

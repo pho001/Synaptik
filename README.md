@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Synaptik
 
-Documentation: [docs/index.md](docs/index.md) | [Quickstart](docs/quickstart.md) | [Tensor API](docs/tensor-api.md) | [Compute Flow](docs/compute-flow.md) | [Graph Optimizer](docs/graph-optimizer.md) | [Calibration & Autotune](docs/calibration-autotune.md) | [Public API](docs/public-api.md)
+Documentation: [docs/index.md](docs/index.md) | [Quickstart](docs/quickstart.md) | [Tensor API](docs/tensor-api.md) | [Sequence Tensor Primitives](docs/sequence-tensor-primitives.md) | [Compute Flow](docs/compute-flow.md) | [Graph Optimizer](docs/graph-optimizer.md) | [Calibration & Autotune](docs/calibration-autotune.md) | [Public API](docs/public-api.md)
 
 Current version: `0.1.0-alpha.2`
 
@@ -128,6 +128,7 @@ double[] grad = x.getGradient().toDoubleArrayCopy();
 ## What Works In 0.1
 
 - Dense tensor graph construction through the public `Tensor` API.
+- N-D sequence-friendly tensor primitives such as last-dimension `linear`, `stack`/`unstack`, axis `take`, axis slicing, masked reductions, masked cross-entropy, and ergonomic factories.
 - Forward compute and reverse-mode autodiff for the supported primitive set.
 - CPU execution as the broad correctness backend.
 - Compile-time graph optimization, backend planning, region optimization, and memory planning.
@@ -174,14 +175,15 @@ Top-level docs:
 1. [docs/index.md](docs/index.md) - the main documentation index and recommended reading paths.
 2. [docs/quickstart.md](docs/quickstart.md) - detailed first path through build, tensors, broadcasting, autodiff, compile/prepare/execute, publication, profiles, ONNX, accelerators, tuning, and troubleshooting.
 3. [docs/tensor-api.md](docs/tensor-api.md) - detailed operation-level Tensor API guide with signatures, edge cases, examples, and concrete calculations.
-4. [docs/compute-flow.md](docs/compute-flow.md) - deep walkthrough from graph construction through compile, prepare, execution, memory binding, and traces.
-5. [docs/graph-optimizer.md](docs/graph-optimizer.md) - backend-neutral graph optimization: `AR`, `CF`, `CSE`, `DCE`, and optional `LOWER`.
-6. [docs/backend-planning-and-regions.md](docs/backend-planning-and-regions.md) - backend ownership planning, CPU natural regions, accelerator regions, region optimization, memory planning, and publication policy.
-7. [docs/cpu-bf16.md](docs/cpu-bf16.md) - current CPU BF16 storage/compute contract and why BF16 is not automatically faster than F32 on CPU.
-8. [docs/calibration-autotune.md](docs/calibration-autotune.md) - calibration families, owned knobs, candidate values, graph autotune parameters, persistence, and progress.
-9. [docs/architecture.md](docs/architecture.md) - implementation-grounded lifecycle, backend dispatch, module boundaries, tuning, and diagrams.
-10. [docs/modules.md](docs/modules.md) - package-by-package map for tensor, operations, graph, optimizer, backend, CPU kernels, accelerators, config, tuning, CLI, numerics, and utilities.
-11. [docs/documentation-audit.md](docs/documentation-audit.md) - documentation inventory, source-of-truth map, terminology baseline, stale-risk areas, and verification procedure.
+4. [docs/sequence-tensor-primitives.md](docs/sequence-tensor-primitives.md) - N-D sequence-friendly primitives for consumer frameworks: factories, shape helpers, `linear`, `stack`/`unstack`, axis indexing, masked reductions, and masked cross entropy.
+5. [docs/compute-flow.md](docs/compute-flow.md) - deep walkthrough from graph construction through compile, prepare, execution, memory binding, and traces.
+6. [docs/graph-optimizer.md](docs/graph-optimizer.md) - backend-neutral graph optimization: `AR`, `CF`, `CSE`, `DCE`, and optional `LOWER`.
+7. [docs/backend-planning-and-regions.md](docs/backend-planning-and-regions.md) - backend ownership planning, CPU natural regions, accelerator regions, region optimization, memory planning, and publication policy.
+8. [docs/cpu-bf16.md](docs/cpu-bf16.md) - current CPU BF16 storage/compute contract and why BF16 is not automatically faster than F32 on CPU.
+9. [docs/calibration-autotune.md](docs/calibration-autotune.md) - calibration families, owned knobs, candidate values, graph autotune parameters, persistence, and progress.
+10. [docs/architecture.md](docs/architecture.md) - implementation-grounded lifecycle, backend dispatch, module boundaries, tuning, and diagrams.
+11. [docs/modules.md](docs/modules.md) - package-by-package map for tensor, operations, graph, optimizer, backend, CPU kernels, accelerators, config, tuning, CLI, numerics, and utilities.
+12. [docs/documentation-audit.md](docs/documentation-audit.md) - documentation inventory, source-of-truth map, terminology baseline, stale-risk areas, and verification procedure.
 
 If you want the shortest reliable path through the codebase:
 
@@ -193,7 +195,7 @@ If you want the shortest reliable path through the codebase:
 
 If you are solving a specific problem:
 
-- public tensor API: [docs/tensor-api.md](docs/tensor-api.md), then [src/main/java/tensor/API.md](src/main/java/tensor/API.md)
+- public tensor API: [docs/tensor-api.md](docs/tensor-api.md), [docs/sequence-tensor-primitives.md](docs/sequence-tensor-primitives.md), then [src/main/java/tensor/API.md](src/main/java/tensor/API.md)
 - compile/prepare/execute behavior: [docs/compute-flow.md](docs/compute-flow.md)
 - graph optimizer internals: [docs/graph-optimizer.md](docs/graph-optimizer.md)
 - backend planning, regions, memory planning, and publication: [docs/backend-planning-and-regions.md](docs/backend-planning-and-regions.md)

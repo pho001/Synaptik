@@ -139,6 +139,26 @@ public final class TensorLossOps {
     }
 
     /**
+     * Computes dense-target cross-entropy loss while ignoring masked-out samples.
+     *
+     * <p>The mask is applied after reducing the class axis, so for logits shaped
+     * {@code [batch, time, classes]} the natural mask shape is {@code [batch, time]}.
+     * The returned mean is divided by the number of true mask positions.</p>
+     */
+    public static Tensor crossEntropyLoss(Tensor logits, Tensor targets, int classDimension, Tensor mask) {
+        validateDenseCrossEntropyInputs(logits, targets);
+        int normalizedClassDimension = TensorLayoutTransform.normalizeAxis(classDimension, logits.getShapeUnsafe().length);
+        Tensor perSampleLoss = logits.logSoftmax(normalizedClassDimension)
+                .mul(targets)
+                .sum(normalizedClassDimension)
+                .neg();
+        Tensor alignedMask = alignSampleMask(mask, perSampleLoss.getShapeUnsafe(), "crossEntropyLoss");
+        Tensor maskedLoss = Tensor.where(alignedMask, perSampleLoss, Tensor.zerosLike(perSampleLoss));
+        Tensor valid = Tensor.where(alignedMask, Tensor.onesLike(perSampleLoss), Tensor.zerosLike(perSampleLoss));
+        return maskedLoss.sum().div(valid.sum().clampMin(1.0d));
+    }
+
+    /**
      * Computes mean NLL loss from integer-like class indices.
      *
      * @param logProbs floating log-probability tensor
@@ -310,6 +330,17 @@ public final class TensorLossOps {
         int[] expectedIndexShape = LossSupport.reduceShape(logitsShape, normalizedClassDimension);
         LossSupport.validateShape(targetIndices.getShape(), expectedIndexShape, "crossEntropyLossFromIndices targetIndices shape must equal logits shape without class axis.");
         return crossEntropyLossFromIndicesPrimitive(logits, targetIndices, normalizedClassDimension, reduction, null);
+    }
+
+    /**
+     * Computes index-target cross-entropy loss while ignoring masked-out samples.
+     */
+    public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, Tensor mask) {
+        Tensor perSampleLoss = crossEntropyLossFromIndices(logits, targetIndices, classDimension, LossReduction.NONE);
+        Tensor alignedMask = alignSampleMask(mask, perSampleLoss.getShapeUnsafe(), "crossEntropyLossFromIndices");
+        Tensor maskedLoss = Tensor.where(alignedMask, perSampleLoss, Tensor.zerosLike(perSampleLoss));
+        Tensor valid = Tensor.where(alignedMask, Tensor.onesLike(perSampleLoss), Tensor.zerosLike(perSampleLoss));
+        return maskedLoss.sum().div(valid.sum().clampMin(1.0d));
     }
 
     /**
@@ -528,5 +559,58 @@ public final class TensorLossOps {
         }
         Tensor validMask = LossSupport.buildIgnoreMask(targetIndices, ignoreIndexOrNull);
         return Tensor.where(validMask, baseScale, Tensor.zerosLike(baseScale));
+    }
+
+    private static void validateDenseCrossEntropyInputs(Tensor logits, Tensor targets) {
+        if (logits == null || targets == null) {
+            throw new IllegalArgumentException("crossEntropyLoss inputs cannot be null");
+        }
+        if (logits.getDataType() == DataType.BOOL || targets.getDataType() == DataType.BOOL
+                || logits.getDataType() == DataType.INT32 || targets.getDataType() == DataType.INT32
+                || logits.getDataType() == DataType.INT64 || targets.getDataType() == DataType.INT64) {
+            throw new IllegalArgumentException("crossEntropyLoss requires floating numeric inputs.");
+        }
+        LossSupport.validateShape(
+                targets.getShape(),
+                logits.getShape(),
+                "crossEntropyLoss targets shape must match logits shape."
+        );
+    }
+
+    private static Tensor alignSampleMask(Tensor mask, int[] sampleShape, String opName) {
+        if (mask == null) {
+            throw new IllegalArgumentException(opName + " mask cannot be null");
+        }
+        if (mask.getDataType() != DataType.BOOL) {
+            throw new IllegalArgumentException(opName + " mask must have BOOL dtype.");
+        }
+        int[] maskShape = mask.getShapeUnsafe();
+        if (maskShape.length > sampleShape.length) {
+            throw new IllegalArgumentException(opName + " mask rank cannot exceed sample rank.");
+        }
+        for (int[] candidate : sampleMaskCandidates(maskShape, sampleShape.length)) {
+            try {
+                Tensor reshaped = Arrays.equals(candidate, maskShape) ? mask : mask.reshape(candidate);
+                return reshaped.expand(sampleShape);
+            } catch (IllegalArgumentException ignored) {
+                // Try the next placement candidate.
+            }
+        }
+        throw new IllegalArgumentException(opName + " mask shape " + Arrays.toString(maskShape)
+                + " is not broadcastable to sample shape " + Arrays.toString(sampleShape) + ".");
+    }
+
+    private static int[][] sampleMaskCandidates(int[] maskShape, int targetRank) {
+        if (maskShape.length == targetRank) {
+            return new int[][]{maskShape.clone()};
+        }
+        int[] append = new int[targetRank];
+        Arrays.fill(append, 1);
+        System.arraycopy(maskShape, 0, append, 0, maskShape.length);
+
+        int[] prepend = new int[targetRank];
+        Arrays.fill(prepend, 1);
+        System.arraycopy(maskShape, 0, prepend, targetRank - maskShape.length, maskShape.length);
+        return new int[][]{append, prepend};
     }
 }

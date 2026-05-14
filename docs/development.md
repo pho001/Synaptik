@@ -133,6 +133,23 @@ Two extra rules are easy to miss:
 - If the operation descriptor has semantic parameters, update `CommonSubexpressionEliminationRule.parameterKey(...)`.
 - If `Operation.OpType(..., true)` marks the op fusable, the interpreted and ASM fused paths must support it before the flag is safe.
 
+Not every public API addition needs a new primitive descriptor. If the requested behavior is an ergonomic composition of existing primitives, prefer a composition-first helper under the relevant `tensor.ops.*` family.
+
+Examples:
+
+- `Tensor.stack(axis, ...)` is implemented as `expandDims` plus `concat`; the new public surface is useful, but the math does not require a `STACK` operation descriptor.
+- Masked `mean(axis, mask)` composes mask broadcasting, `where`, `sum`, valid-count reduction, and division; it does not need a separate masked-reduction kernel before performance evidence says otherwise.
+- `Tensor.take(axis, int[])` is an ergonomic wrapper over `gatherAxis` semantics; the Java array overload constructs an index tensor and delegates.
+
+Use this rule of thumb:
+
+```text
+If the graph semantics are naturally expressed as a small, readable DAG of existing primitives,
+add a public helper and tests before adding a new operation id.
+```
+
+When you choose the composition path, still document it and test it like public API. For sequence-shaped tensor helpers, `NdTensorSequencePrimitivesTest` is the reference test class: it covers factories, shape helpers, N-D `linear`, stack/unstack, axis indexing, masked reductions, masked cross entropy, and gradients through these composed helpers.
+
 ## Adding Backend Kernels
 
 The CPU backend is the complete execution backend. New CPU kernels should live under `src/main/java/backend/cpu/kernels/<family>/`, not under old root paths.
@@ -341,7 +358,7 @@ Use this focused Phase 16 gate after changing runtime typed slot binding, Metal/
 ./gradlew test --tests graph.execution.RuntimeMemoryBinderTest --tests backend.accelerator.residency.AcceleratorDTypeResidencyPolicyTest --tests GpuCoverageSummaryTest
 ```
 
-`dtype residency is not native dtype compute`: `BFLOAT16`, `INT32`, and `BOOL` may be represented in runtime storage residency or trace evidence while Metal/CUDA still reject unsupported native compute/output roles with `UNSUPPORTED_DTYPE`. Metal BF16 is now native only for scoped Phase 30 operation families; INT32, BOOL-producing compute, FLOAT64, and unsupported BF16 families remain explicit fallback/rejection cases.
+`dtype residency is not native dtype compute`: `BFLOAT16`, `INT32`, `INT64`, and `BOOL` may be represented in runtime storage residency or trace evidence while Metal/CUDA still reject unsupported native compute/output roles with `UNSUPPORTED_DTYPE`. Metal BF16 is now native only for scoped operation families; generic INT32/INT64 compute, BOOL-producing compute outside scoped BOOL families, FLOAT64, and unsupported BF16 families remain explicit fallback/rejection cases.
 
 ## Adding Graph Optimization Or Planning Rules
 

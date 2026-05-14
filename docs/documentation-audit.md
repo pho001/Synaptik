@@ -83,6 +83,7 @@ Current top-level guides under `docs/`:
 | [configuration.md](configuration.md) | Build, runtime, profile, CLI, native lookup, tuning persistence. | Strong; update whenever config records move. |
 | [public-api.md](public-api.md) | Public and probably-internal Java API surfaces. | Updated in this pass. |
 | [tensor-api.md](tensor-api.md) | Detailed operation-level Tensor API. | Strong; large and high stale risk. |
+| [sequence-tensor-primitives.md](sequence-tensor-primitives.md) | Detailed guide to N-D sequence-friendly tensor primitives: factories, shape helpers, last-dimension linear, stack/unstack, axis indexing, masked reductions, and masked cross entropy. | New public API guide; keep synchronized with `Tensor.java`, `TensorOps.java`, `tensor.ops.*`, and `NdTensorSequencePrimitivesTest`. |
 | [adding-tensor-operation.md](adding-tensor-operation.md) | Contributor checklist for adding operations. | Strong; update for new operation families. |
 | [examples.md](examples.md) | Executable-style snippets and usage flows. | Useful; should defer deeper onboarding to quickstart. |
 | [onnx.md](onnx.md) | ONNX import/export boundary and semantics. | Strong; must track every ONNX wave. |
@@ -123,6 +124,7 @@ Use this table when updating docs.
 | Documentation claim | Source of truth |
 |---|---|
 | Tensor constructors, methods, storage accessors | `src/main/java/tensor/Tensor.java`, `tensor/ops/**`, `TensorOps.java` |
+| Sequence-friendly public tensor helpers | `Tensor.java`, `TensorOps.java`, `TensorDataFactory.java`, `TensorLayoutOps.java`, `TensorIndexOps.java`, `TensorReduceOps.java`, `TensorLinearOps.java`, `TensorLossOps.java`, `NdTensorSequencePrimitivesTest.java` |
 | DType support | `tensor/DataType.java`, storage classes, CPU dtype resolver, backend coverage matrices |
 | Compile config presets | `src/main/java/config/compile/CompileConfig.java` and sibling records |
 | Runtime config presets | `src/main/java/config/runtime/RuntimeConfig.java` and sibling records |
@@ -169,6 +171,26 @@ Synaptik is a full neural-network framework.
 ```
 
 Why risky: a full NN framework implies high-level layer/module APIs, dataloaders, optimizers, checkpointing, training loops, and model interchange at the layer level. The core repository intentionally keeps those above the primitive tensor/autograd layer.
+
+### Sequence-Shaped Tensor API
+
+The sequence-related API should be documented as general N-D tensor mechanics, not as a neural-network layer system.
+
+Good wording:
+
+```text
+`Tensor.linear` projects the last dimension of an N-D tensor.
+`Tensor.stack` can convert several `[batch, features]` timestep tensors into one `[batch, time, features]` tensor.
+Masked reductions ignore padded positions where a BOOL mask is false.
+```
+
+Risky wording:
+
+```text
+Synaptik provides RNN/LSTM/GRU sequence layers.
+```
+
+Why risky: the core repository provides primitives for a consumer framework to build layers above it. It does not own recurrent cell state management, layer parameter containers, packed sequence abstractions, training loops, or model-level serialization. The source-of-truth test for this boundary is `NdTensorSequencePrimitivesTest`: it verifies factory helpers, N-D linear, stack/unstack, axis indexing, masked reductions, and masked loss without introducing layer types.
 
 ### Compile And Runtime Configuration
 
