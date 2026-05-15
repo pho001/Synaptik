@@ -446,6 +446,21 @@ public class CompiledGraphTraceTest {
         assertEquals("CPU_FALLBACK", cpuFallbackAttrs.get("acceleratorBufferExecutionPath"));
         assertEquals("NATIVE_BUFFER_ABI_UNAVAILABLE", tensorArrayAttrs.get("acceleratorBufferReasonCode"));
         assertEquals("NATIVE_BUFFER_EXECUTION_FAILED", cpuFallbackAttrs.get("acceleratorBufferReasonCode"));
+        assertFalse(bufferAttrs.containsKey("fallbackOccurred"));
+        assertEquals(true, tensorArrayAttrs.get("fallbackOccurred"));
+        assertEquals("ACCELERATOR_TENSOR_ARRAY_FALLBACK", tensorArrayAttrs.get("fallbackKind"));
+        assertEquals(List.of("ACCELERATOR_TENSOR_ARRAY_FALLBACK"), tensorArrayAttrs.get("fallbackKinds"));
+        assertEquals("NATIVE_BUFFER_ABI_UNAVAILABLE", tensorArrayAttrs.get("fallbackReasonCode"));
+        assertEquals(List.of("NATIVE_BUFFER_ABI_UNAVAILABLE"), tensorArrayAttrs.get("fallbackReasonCodes"));
+        assertEquals("synthetic accelerator buffer trace", tensorArrayAttrs.get("fallbackReason"));
+        assertEquals(List.of("synthetic accelerator buffer trace"), tensorArrayAttrs.get("fallbackReasons"));
+        assertEquals(true, cpuFallbackAttrs.get("fallbackOccurred"));
+        assertEquals("ACCELERATOR_CPU_FALLBACK", cpuFallbackAttrs.get("fallbackKind"));
+        assertEquals(List.of("ACCELERATOR_CPU_FALLBACK"), cpuFallbackAttrs.get("fallbackKinds"));
+        assertEquals("NATIVE_BUFFER_EXECUTION_FAILED", cpuFallbackAttrs.get("fallbackReasonCode"));
+        assertEquals(List.of("NATIVE_BUFFER_EXECUTION_FAILED"), cpuFallbackAttrs.get("fallbackReasonCodes"));
+        assertEquals("synthetic accelerator buffer trace", cpuFallbackAttrs.get("fallbackReason"));
+        assertEquals(List.of("synthetic accelerator buffer trace"), cpuFallbackAttrs.get("fallbackReasons"));
     }
 
     @Test

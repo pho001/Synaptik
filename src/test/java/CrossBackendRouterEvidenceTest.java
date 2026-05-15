@@ -114,6 +114,8 @@ public class CrossBackendRouterEvidenceTest {
                         "acceleratorBufferExecutionPath", "CPU_FALLBACK",
                         "acceleratorBufferReasonCode", "CAPABILITY_MISSING",
                         "acceleratorBufferReason", "CAPABILITY_MISSING: CUDA SDPA native route unavailable",
+                        "fallbackReasonCodes", List.of("CAPABILITY_MISSING"),
+                        "fallbackReasons", List.of("CAPABILITY_MISSING: CUDA SDPA native route unavailable"),
                         "cudaExecutionPath", "CPU_FALLBACK",
                         "cudaFallbackReason", "CAPABILITY_MISSING: CUDA SDPA native route unavailable"
                 ),
@@ -143,6 +145,11 @@ public class CrossBackendRouterEvidenceTest {
 
         assertTrue(result.passed(), result.failures().toString());
         assertFalse(result.evidence().hasSupportClaim());
+        assertEquals(Map.of("CAPABILITY_MISSING", 1), result.evidence().reasonCodeCounts());
+        assertEquals(
+                Map.of("CAPABILITY_MISSING: CUDA SDPA native route unavailable", 1),
+                result.evidence().fallbackReasonCounts()
+        );
     }
 
     @Test

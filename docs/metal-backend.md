@@ -630,6 +630,7 @@ Metal trace fields are emitted through `PreparedExecution` run traces. The most 
 | `metalOutputBufferWriteStatus` | Stable report label: `PROVEN_TRUE_WRITE`, `COPY_REQUIRED`, or `UNKNOWN_OR_UNPROVEN`. |
 | `metalNativeDeviceCopyNs` | Native shim copy time from returned MPSGraph result storage into caller-provided output buffers. May be non-zero for the current buffer path. |
 | `storageResidency` | Final residency state for the step output, often `DEVICE_OWNED` for successful buffer execution. |
+| `fallbackOccurred`, `fallbackKind`, `fallbackReasonCode`, `fallbackReason` | Backend-neutral fallback summary emitted only when the step uses a fallback path. Prefer the list forms `fallbackKinds`, `fallbackReasonCodes`, and `fallbackReasons` when a step may contain both shared accelerator-buffer evidence and Metal-specific route evidence. |
 
 ### Device-owned flow and materialization boundaries
 
@@ -659,6 +660,11 @@ Healthy legacy fallback shape:
 backend = GPU_METAL
 metalSupportsBufferBindings = false
 metalExecutionPath = TENSOR_ARRAY_COPY
+fallbackOccurred = true
+fallbackKind = MULTIPLE or METAL_TENSOR_ARRAY_FALLBACK
+fallbackKinds = [ACCELERATOR_TENSOR_ARRAY_FALLBACK, METAL_TENSOR_ARRAY_FALLBACK]
+fallbackReasonCode = <stable Metal route or accelerator reason code>
+fallbackReason = <human-readable route or buffer-policy reason>
 metalJavaToNativeCopyNs = <input upload time>
 metalNativeToJavaCopyNs = <Java output copy time>
 storageResidency = CPU_ARRAY
@@ -670,6 +676,10 @@ CPU fallback shape:
 backend = GPU_METAL
 metalExecutionPath = CPU_FALLBACK
 metalFallbackReason = bridge unavailable: ...
+fallbackOccurred = true
+fallbackKind = MULTIPLE or METAL_CPU_FALLBACK
+fallbackKinds = [ACCELERATOR_CPU_FALLBACK, METAL_CPU_FALLBACK]
+fallbackReason = bridge unavailable: ...
 ```
 
 Do not infer execution path from `backend=GPU_METAL` alone. A prepared step can have a Metal backend label and still use CPU fallback if the native runtime or storage contract fails.

@@ -1939,6 +1939,24 @@ Common accelerator buffer attributes are emitted for every accelerator executabl
 | `acceleratorBufferPreparedInputUsed` | Whether at least one external input was resolved through a prepared/remapped tensor. |
 | `acceleratorBufferInputCount`, `acceleratorBufferOutputCount` | Number of inputs and outputs evaluated by buffer policy. |
 
+When an accelerator step falls back, `PreparedExecution` also emits a backend-neutral fallback summary so callers do not
+have to know whether the reason came from the shared accelerator buffer policy, Metal routing, or CUDA execution stats:
+
+| Attribute | Meaning |
+|---|---|
+| `fallbackOccurred` | Present and `true` when the step used a fallback path. Successful native/buffer steps omit the field. |
+| `fallbackKind` | Single fallback class, or `MULTIPLE` when more than one fallback layer contributed evidence. Examples: `ACCELERATOR_CPU_FALLBACK`, `ACCELERATOR_TENSOR_ARRAY_FALLBACK`, `ACCELERATOR_BUFFER_UNAVAILABLE`, `METAL_CPU_FALLBACK`, `METAL_TENSOR_ARRAY_FALLBACK`, `CUDA_CPU_FALLBACK`, and `CUDA_TENSOR_ARRAY_FALLBACK`. |
+| `fallbackKinds` | Ordered list of all fallback classes observed for the step. This is the lossless form to prefer in tooling. |
+| `fallbackReasonCode` | Single stable reason code, or reason codes joined with ` | ` when multiple fallback layers contributed evidence. |
+| `fallbackReasonCodes` | Ordered list of stable reason codes. Prefer this field when building reports or gates. |
+| `fallbackReason` | Single human-readable reason, or reasons joined with ` | ` when multiple fallback layers contributed evidence. |
+| `fallbackReasons` | Ordered list of human-readable reasons. Prefer this field when diagnosing multi-layer fallback. |
+
+For example, a tensor-array bridge replay caused by a missing native buffer ABI can report
+`fallbackKind=ACCELERATOR_TENSOR_ARRAY_FALLBACK`, `fallbackReasonCode=NATIVE_BUFFER_ABI_UNAVAILABLE`, and a
+human-readable `fallbackReason` copied from `acceleratorBufferReason`. A Metal CPU fallback can additionally include
+`METAL_CPU_FALLBACK` in `fallbackKinds` when the Metal route or bridge stats provide backend-specific evidence.
+
 When layout compatibility drives fallback, accelerator buffer diagnostics include `layoutClass`, `shape`, `strides`, and `storageOffset` details.
 Layout/view steps also expose backend-neutral GPU layout transform diagnostics:
 

@@ -96,11 +96,21 @@ public record CrossBackendRouterEvidence(Map<String, BackendEvidence> backends) 
             addCount(evidence.backendRouteCounts, attrs.get("cudaExecutionPath"));
             addListCounts(evidence.rejectedRouteReasonCounts, attrs.get("metalRouteRejectedReasonCodes"));
             addListCounts(evidence.rejectedRouteReasonCounts, attrs.get("cudaRouteRejectedReasonCodes"));
-            addCount(evidence.reasonCodeCounts, attrs.get("acceleratorBufferReasonCode"));
-            addCount(evidence.reasonCodeCounts, attrs.get("cudaReasonCode"));
-            addCount(evidence.fallbackReasonCounts, attrs.get("acceleratorBufferReason"));
-            addCount(evidence.fallbackReasonCounts, attrs.get("metalFallbackReason"));
-            addCount(evidence.fallbackReasonCounts, attrs.get("cudaFallbackReason"));
+            addDistinctCounts(
+                    evidence.reasonCodeCounts,
+                    attrs.get("acceleratorBufferReasonCode"),
+                    attrs.get("fallbackReasonCodes"),
+                    attrs.get("fallbackReasonCode"),
+                    attrs.get("cudaReasonCode")
+            );
+            addDistinctCounts(
+                    evidence.fallbackReasonCounts,
+                    attrs.get("acceleratorBufferReason"),
+                    attrs.get("metalFallbackReason"),
+                    attrs.get("cudaFallbackReason"),
+                    attrs.get("fallbackReasons"),
+                    attrs.get("fallbackReason")
+            );
             addCount(evidence.nativeCopyStrategyCounts, attrs.get("acceleratorNativeCopyStrategy"));
             addCount(evidence.nativeCopyStrategyCounts, attrs.get("metalNativeCopyStrategy"));
             addCount(evidence.nativeCopyStrategyCounts, attrs.get("cudaNativeCopyStrategy"));
@@ -155,6 +165,32 @@ public record CrossBackendRouterEvidence(Map<String, BackendEvidence> backends) 
             return;
         }
         addCount(target, value);
+    }
+
+    private static void addDistinctCounts(LinkedHashMap<String, Integer> target, Object... values) {
+        LinkedHashSet<String> distinct = new LinkedHashSet<>();
+        for (Object value : values) {
+            collectTextValues(distinct, value);
+        }
+        for (String value : distinct) {
+            addCount(target, value);
+        }
+    }
+
+    private static void collectTextValues(LinkedHashSet<String> target, Object value) {
+        if (value == null) {
+            return;
+        }
+        if (value instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                collectTextValues(target, item);
+            }
+            return;
+        }
+        String text = String.valueOf(value).trim();
+        if (!text.isBlank()) {
+            target.add(text);
+        }
     }
 
     private static <K, V> Map<K, V> orderedMap(Map<K, V> source) {

@@ -55,8 +55,16 @@ public record AcceleratorTraceSummary(Map<String, BackendSummary> backends) {
                 summary.preparedInputSteps++;
             }
             addNonBlank(summary.reasonCodes, attrs.get("acceleratorBufferReasonCode"));
+            addNonBlankItems(summary.reasonCodes, attrs.get("fallbackReasonCodes"));
+            if (!attrs.containsKey("fallbackReasonCodes")) {
+                addNonBlank(summary.reasonCodes, attrs.get("fallbackReasonCode"));
+            }
             addNonBlank(summary.fallbackReasons, attrs.get("acceleratorBufferReason"));
             addNonBlank(summary.fallbackReasons, attrs.get("metalFallbackReason"));
+            addNonBlankItems(summary.fallbackReasons, attrs.get("fallbackReasons"));
+            if (!attrs.containsKey("fallbackReasons")) {
+                addNonBlank(summary.fallbackReasons, attrs.get("fallbackReason"));
+            }
             summary.javaToNativeCopyNs += firstLongAttr(attrs, "acceleratorJavaToNativeCopyNs", "metalJavaToNativeCopyNs");
             summary.nativeToJavaCopyNs += firstLongAttr(attrs, "acceleratorNativeToJavaCopyNs", "metalNativeToJavaCopyNs");
             summary.nativeDeviceCopyNs += firstLongAttr(attrs, "acceleratorNativeDeviceCopyNs", "metalNativeDeviceCopyNs");
@@ -101,6 +109,16 @@ public record AcceleratorTraceSummary(Map<String, BackendSummary> backends) {
         if (!text.isBlank()) {
             target.add(text);
         }
+    }
+
+    private static void addNonBlankItems(LinkedHashSet<String> target, Object value) {
+        if (value instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                addNonBlank(target, item);
+            }
+            return;
+        }
+        addNonBlank(target, value);
     }
 
     private static void addCount(LinkedHashMap<String, Integer> target, Object value) {

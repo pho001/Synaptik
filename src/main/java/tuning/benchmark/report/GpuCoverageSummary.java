@@ -114,8 +114,16 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
                 }
             }
             addNonBlank(coverage.reasonCodes, attrs.get("acceleratorBufferReasonCode"));
+            addNonBlankItems(coverage.reasonCodes, attrs.get("fallbackReasonCodes"));
+            if (!attrs.containsKey("fallbackReasonCodes")) {
+                addNonBlank(coverage.reasonCodes, attrs.get("fallbackReasonCode"));
+            }
             addNonBlank(coverage.fallbackReasons, attrs.get("acceleratorBufferReason"));
             addNonBlank(coverage.fallbackReasons, attrs.get("metalFallbackReason"));
+            addNonBlankItems(coverage.fallbackReasons, attrs.get("fallbackReasons"));
+            if (!attrs.containsKey("fallbackReasons")) {
+                addNonBlank(coverage.fallbackReasons, attrs.get("fallbackReason"));
+            }
             addCount(coverage.storageResidencyCounts, stringAttr(attrs, "storageResidency"));
             long layoutMaterializationCount = longAttr(attrs.get("gpuLayoutMaterializationCount"));
             if (layoutMaterializationCount > 0L) {
@@ -316,6 +324,16 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
         if (!text.isBlank()) {
             target.add(text);
         }
+    }
+
+    private static void addNonBlankItems(LinkedHashSet<String> target, Object value) {
+        if (value instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                addNonBlank(target, item);
+            }
+            return;
+        }
+        addNonBlank(target, value);
     }
 
     /**

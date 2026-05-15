@@ -31,6 +31,7 @@ import tensor.TensorInternalAccess;
 import training.optimizer.OptimizerStepContext;
 import training.optimizer.TrainingOptimizer;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -704,7 +705,122 @@ public final class PreparedExecution {
             attrs.put("deviceBuffer", deviceBinding.describe());
         }
 
+        addFallbackSummary(attrs);
         return new StepExecutionMetadata("node", attrs, compute, layout, dispatch, reduction, matMul, conv, fusedMeta);
+    }
+
+    private static void addFallbackSummary(LinkedHashMap<String, Object> attrs) {
+        ArrayList<String> kinds = new ArrayList<>();
+        ArrayList<String> reasonCodes = new ArrayList<>();
+        ArrayList<String> reasons = new ArrayList<>();
+
+        String acceleratorPath = stringAttr(attrs, "acceleratorBufferExecutionPath");
+        if ("CPU_FALLBACK".equals(acceleratorPath)) {
+            addFallback(
+                    kinds,
+                    reasonCodes,
+                    reasons,
+                    "ACCELERATOR_CPU_FALLBACK",
+                    stringAttr(attrs, "acceleratorBufferReasonCode"),
+                    stringAttr(attrs, "acceleratorBufferReason")
+            );
+        } else if ("TENSOR_ARRAY".equals(acceleratorPath)) {
+            addFallback(
+                    kinds,
+                    reasonCodes,
+                    reasons,
+                    "ACCELERATOR_TENSOR_ARRAY_FALLBACK",
+                    stringAttr(attrs, "acceleratorBufferReasonCode"),
+                    stringAttr(attrs, "acceleratorBufferReason")
+            );
+        } else if ("UNAVAILABLE".equals(acceleratorPath)) {
+            addFallback(
+                    kinds,
+                    reasonCodes,
+                    reasons,
+                    "ACCELERATOR_BUFFER_UNAVAILABLE",
+                    stringAttr(attrs, "acceleratorBufferReasonCode"),
+                    stringAttr(attrs, "acceleratorBufferReason")
+            );
+        }
+
+        if (Boolean.TRUE.equals(attrs.get("metalUsedCpuFallback"))) {
+            addFallback(
+                    kinds,
+                    reasonCodes,
+                    reasons,
+                    "METAL_CPU_FALLBACK",
+                    stringAttr(attrs, "metalRouteReasonCode"),
+                    firstNonBlank(stringAttr(attrs, "metalFallbackReason"), stringAttr(attrs, "metalRouteReason"))
+            );
+        }
+        if ("TENSOR_ARRAY_COPY".equals(stringAttr(attrs, "metalExecutionPath"))
+                || "TENSOR_ARRAY".equals(stringAttr(attrs, "metalExecutionRoute"))) {
+            addFallback(
+                    kinds,
+                    reasonCodes,
+                    reasons,
+                    "METAL_TENSOR_ARRAY_FALLBACK",
+                    stringAttr(attrs, "metalRouteReasonCode"),
+                    firstNonBlank(stringAttr(attrs, "metalRouteReason"), stringAttr(attrs, "acceleratorBufferReason"))
+            );
+        }
+
+        if (Boolean.TRUE.equals(attrs.get("cudaUsedCpuFallback"))) {
+            addFallback(
+                    kinds,
+                    reasonCodes,
+                    reasons,
+                    "CUDA_CPU_FALLBACK",
+                    stringAttr(attrs, "acceleratorBufferReasonCode"),
+                    firstNonBlank(stringAttr(attrs, "cudaFallbackReason"), stringAttr(attrs, "acceleratorBufferReason"))
+            );
+        }
+        if ("TENSOR_ARRAY".equals(stringAttr(attrs, "cudaExecutionPath"))) {
+            addFallback(
+                    kinds,
+                    reasonCodes,
+                    reasons,
+                    "CUDA_TENSOR_ARRAY_FALLBACK",
+                    stringAttr(attrs, "acceleratorBufferReasonCode"),
+                    firstNonBlank(stringAttr(attrs, "cudaFallbackReason"), stringAttr(attrs, "acceleratorBufferReason"))
+            );
+        }
+
+        if (!kinds.isEmpty()) {
+            attrs.put("fallbackOccurred", true);
+            attrs.put("fallbackKind", kinds.size() == 1 ? kinds.getFirst() : "MULTIPLE");
+            attrs.put("fallbackKinds", List.copyOf(kinds));
+            attrs.put("fallbackReasonCode", reasonCodes.size() == 1 ? reasonCodes.getFirst() : String.join(" | ", reasonCodes));
+            attrs.put("fallbackReasonCodes", List.copyOf(reasonCodes));
+            attrs.put("fallbackReason", reasons.size() == 1 ? reasons.getFirst() : String.join(" | ", reasons));
+            attrs.put("fallbackReasons", List.copyOf(reasons));
+        }
+    }
+
+    private static void addFallback(
+            ArrayList<String> kinds,
+            ArrayList<String> reasonCodes,
+            ArrayList<String> reasons,
+            String kind,
+            String reasonCode,
+            String reason
+    ) {
+        if (kind == null || kind.isBlank() || kinds.contains(kind)) {
+            return;
+        }
+        kinds.add(kind);
+        reasonCodes.add(reasonCode == null || reasonCode.isBlank() ? "UNKNOWN" : reasonCode);
+        reasons.add(reason == null || reason.isBlank() ? kind : reason);
+    }
+
+    private static String stringAttr(Map<String, Object> attrs, String key) {
+        Object value = attrs.get(key);
+        return value == null ? "" : String.valueOf(value);
+    }
+
+    private static String firstNonBlank(String first, String second) {
+        return first == null || first.isBlank() ? (second == null ? "" : second) : first;
     }
 
     private static String costComponentSummary(CostComponent component) {

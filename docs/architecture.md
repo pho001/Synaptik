@@ -383,7 +383,7 @@ buckets around the bridge boundary:
 | `nativeCopyStrategy` | Stable classification of native-side output behavior: `MPSGRAPH_RESULT_COPY`, `TRUE_OUTPUT_BUFFER_WRITE`, or `UNKNOWN_OR_UNPROVEN`. |
 | `nativeDeviceCopyNs` | Native shim time spent copying MPSGraph result storage into caller-provided output buffers. The current conservative buffer path records this copy instead of assuming MPSGraph wrote directly into supplied output storage. |
 | `nativeToJavaCopyNs` | Java-side time spent copying native output memory back into Java tensor arrays. |
-| `usedCpuFallback`, `fallbackReason` | Whether `PreparedMetalExecutable` served the step through CPU fallback and the reason. |
+| `usedCpuFallback`, `fallbackReason` | Whether `PreparedMetalExecutable` served the step through CPU fallback and the backend-local reason. `PreparedExecution` also publishes backend-neutral trace fields such as `fallbackOccurred`, `fallbackKind`, `fallbackReasonCode`, and `fallbackReason` so tooling can read fallback evidence without knowing whether it originated in shared accelerator-buffer policy, Metal routing, or CUDA execution stats. |
 | `executionPath` | One of `CPU_FALLBACK`, `TENSOR_ARRAY_COPY`, or `BUFFER_BINDING`. Current buffer-capable FFM executions report `BUFFER_BINDING`; fallback paths remain explicit. |
 
 `PreparedMetalExecutable` publishes those stats into run trace attributes through
