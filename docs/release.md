@@ -10,7 +10,7 @@ preview line.
 Current version:
 
 ```text
-0.1.0-alpha.2
+0.1.0-alpha.3
 ```
 
 The version source of truth is the repository-root `VERSION` file. `build.gradle`
@@ -18,7 +18,7 @@ reads that file for `project.version`.
 
 ## Release Meaning
 
-`0.1.0-alpha.2` means:
+`0.1.0-alpha.3` means:
 
 - public technical preview;
 - APIs are allowed to change before `1.0.0`;
@@ -93,8 +93,8 @@ and consumed by tests.
 Recommended tag format:
 
 ```bash
-git tag -a v0.1.0-alpha.2 -m "Synaptik 0.1.0-alpha.2"
-git push origin v0.1.0-alpha.2
+git tag -a v0.1.0-alpha.3 -m "Synaptik 0.1.0-alpha.3"
+git push origin v0.1.0-alpha.3
 ```
 
 Before tagging, ensure `CHANGELOG.md` names the exact version and date, CI is

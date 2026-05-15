@@ -3,7 +3,7 @@
 
 Documentation: [docs/index.md](docs/index.md) | [Quickstart](docs/quickstart.md) | [Tensor API](docs/tensor-api.md) | [Sequence Tensor Primitives](docs/sequence-tensor-primitives.md) | [Compute Flow](docs/compute-flow.md) | [Graph Optimizer](docs/graph-optimizer.md) | [Calibration & Autotune](docs/calibration-autotune.md) | [Public API](docs/public-api.md)
 
-Current version: `0.1.0-alpha.2`
+Current version: `0.1.0-alpha.3`
 
 Synaptik is a Java autograd engine and compiled tensor runtime built around an explicit graph lifecycle:
 
@@ -19,7 +19,7 @@ Today the CPU backend is the broadest and most complete backend. Metal and CUDA 
 
 ## Public Preview Status
 
-`0.1.0-alpha.2` is a public technical preview baseline. It is suitable for
+`0.1.0-alpha.3` is a public technical preview baseline. It is suitable for
 architecture review, local experimentation, ONNX static dense inference trials,
 CPU correctness work, and accelerator coverage investigation.
 
@@ -49,7 +49,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.pho001:Synaptik:v0.1.0-alpha.2"
+    implementation "com.github.pho001:Synaptik:v0.1.0-alpha.3"
 }
 ```
 

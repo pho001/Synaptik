@@ -6,6 +6,16 @@ This project uses public-preview semantic versioning while the API is still
 pre-1.0. Until `1.0.0`, minor releases may include source or binary breaking
 changes when they cleanly advance the graph/runtime architecture.
 
+## 0.1.0-alpha.3 - 2026-05-15
+
+### Changed
+
+- Versioned the current public-preview baseline after the latest runtime,
+  accelerator trace, JitPack/native packaging, documentation, and planning
+  cleanup work.
+- Updated published Gradle coordinates to
+  `com.github.pho001:Synaptik:v0.1.0-alpha.3`.
+
 ## 0.1.0-alpha.2 - 2026-05-14
 
 ### Added
