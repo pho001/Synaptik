@@ -1,6 +1,7 @@
 package backend.metal.buffer;
 
 import backend.memory.CpuMaterializationReason;
+import backend.memory.DeviceToCpuMaterializer;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -12,6 +13,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MetalBufferAllocatorTest {
     @Test
@@ -54,6 +56,43 @@ class MetalBufferAllocatorTest {
         assertEquals(DataType.INT32, binding.layout().dataType());
         assertEquals(3L * Integer.BYTES, binding.logicalByteLength());
         assertEquals(3L * Integer.BYTES, binding.handle().byteLength());
+    }
+
+    @Test
+    void broadcastZeroStrideViewReadbackCopiesPhysicalSpanAndPreservesLogicalValues() {
+        FakeNativeAccess nativeAccess = new FakeNativeAccess();
+        MetalBufferAllocator allocator = MetalBufferAllocator.available(nativeAccess);
+        Tensor source = new Tensor(new float[]{1f, 2f, 3f}, new int[]{1, 3}, null, "source", DataType.FLOAT32);
+        Tensor expanded = source.expand(2, 3);
+        Tensor destination = new Tensor(
+                expanded.getShapeUnsafe().clone(),
+                expanded.getStridesUnsafe().clone(),
+                expanded.getStorageOffsetUnsafe(),
+                null,
+                null,
+                "expandedDestination",
+                DataType.FLOAT32
+        );
+
+        MetalBufferBinding sourceBinding = allocator.createInputBinding(3, source);
+        MetalBufferBinding viewBinding = MetalBufferBinding.viewOf(
+                4,
+                backend.accelerator.buffer.AcceleratorBufferLayout.fromTensor(expanded),
+                sourceBinding,
+                MetalBufferAccess.READ
+        );
+        DeviceToCpuMaterializer materializer = new MetalDeviceToCpuMaterializer(allocator);
+
+        assertEquals(3L * Float.BYTES, viewBinding.handle().byteLength());
+        assertEquals(6L * Float.BYTES, viewBinding.logicalByteLength());
+        assertEquals(backend.accelerator.buffer.AcceleratorBufferLayoutClass.BROADCAST_ZERO_STRIDE_VIEW,
+                viewBinding.layout().layoutClass());
+        assertTrue(materializer.supports(viewBinding, destination, CpuMaterializationReason.GRADIENT_PUBLICATION));
+
+        allocator.readToCpu(viewBinding, destination, CpuMaterializationReason.GRADIENT_PUBLICATION);
+
+        assertArrayEquals(new float[]{1f, 2f, 3f, 0f, 0f, 0f}, destination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new double[]{1d, 2d, 3d, 1d, 2d, 3d}, destination.toDoubleArrayCopy(), 0.0d);
     }
 
     private static final class FakeNativeAccess implements MetalBufferAllocator.NativeAccess {

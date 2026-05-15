@@ -44,21 +44,24 @@ public final class MetalDeviceToCpuMaterializer implements DeviceToCpuMaterializ
         boolean denseRepairedLogicalLayout = bindingLayout.layoutClass() == AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS
                 && bindingLayout.storageOffset() == 0
                 && bindingLayout.logicalElementCount() == targetLayout.logicalElementCount();
+        boolean broadcastReadbackView = layoutClass == AcceleratorBufferLayoutClass.BROADCAST_ZERO_STRIDE_VIEW
+                && exactLayout;
         return metalBinding.available()
                 && supportsReadbackDType(bindingLayout.dataType())
                 && bindingLayout.dataType() == target.getDataType()
                 && Arrays.equals(bindingLayout.shape(), targetLayout.shape())
                 && (exactLayout || denseRepairedLogicalLayout)
                 && bindingLayout.logicalElementCount() == targetLayout.logicalElementCount()
-                && layoutDecision.accepted()
-                && layoutClass != AcceleratorBufferLayoutClass.BROADCAST_ZERO_STRIDE_VIEW
+                && (layoutDecision.accepted() || broadcastReadbackView)
                 && layoutClass != AcceleratorBufferLayoutClass.UNSUPPORTED;
     }
 
     private static boolean supportsReadbackDType(DataType dataType) {
         return dataType == DataType.FLOAT32
                 || dataType == DataType.BFLOAT16
-                || dataType == DataType.BOOL;
+                || dataType == DataType.BOOL
+                || dataType == DataType.INT32
+                || dataType == DataType.INT64;
     }
 
     /**

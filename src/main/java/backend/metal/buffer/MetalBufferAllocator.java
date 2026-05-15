@@ -2,6 +2,7 @@ package backend.metal.buffer;
 
 import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
+import backend.accelerator.buffer.AcceleratorLayoutAbiV2Descriptor;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.CpuMaterializationResult;
 import tensor.DataType;
@@ -244,7 +245,9 @@ public final class MetalBufferAllocator {
                     + " does not match destination elementCount " + destinationLayout.logicalElementCount() + ".");
         }
         long start = System.nanoTime();
-        if (binding.layout().dataType() == DataType.FLOAT32) {
+        if (binding.layout().layoutClass() == AcceleratorBufferLayoutClass.BROADCAST_ZERO_STRIDE_VIEW) {
+            materializePhysicalViewStorage(binding, destination);
+        } else if (binding.layout().dataType() == DataType.FLOAT32) {
             float[] data = destination.getFloat32Data();
             if (data == null) {
                 throw new UnsupportedOperationException("Destination FLOAT32 tensor has no direct float[] storage.");
@@ -317,6 +320,117 @@ public final class MetalBufferAllocator {
             case DENSE_CONTIGUOUS, ZERO_OFFSET_VIEW, NON_ZERO_OFFSET_VIEW, PERMUTED_OR_STRIDED_VIEW -> true;
             case BROADCAST_ZERO_STRIDE_VIEW, UNSUPPORTED -> false;
         };
+    }
+
+    private void materializePhysicalViewStorage(MetalBufferBinding binding, Tensor destination) {
+        long physicalBytes = AcceleratorLayoutAbiV2Descriptor.physicalByteSpan(binding.layout());
+        int physicalElements = checkedPhysicalElementCount(binding.layout(), physicalBytes);
+        switch (binding.layout().dataType()) {
+            case FLOAT32 -> {
+                float[] data = destination.getFloat32Data();
+                if (data == null) {
+                    throw new UnsupportedOperationException("Destination FLOAT32 tensor has no direct float[] storage.");
+                }
+                requireStorageCapacity(data.length, physicalElements, binding);
+                try (Arena arena = Arena.ofConfined()) {
+                    MemorySegment nativeDestination = arena.allocate(JAVA_FLOAT, physicalElements);
+                    nativeAccess.readBuffer(binding.handle(), nativeDestination, physicalBytes);
+                    float[] physical = new float[physicalElements];
+                    MemorySegment.ofArray(physical).copyFrom(nativeDestination.reinterpret(physicalBytes));
+                    System.arraycopy(physical, 0, data, 0, physicalElements);
+                }
+            }
+            case BFLOAT16 -> {
+                short[] data = destination.getBFloat16Data();
+                if (data == null) {
+                    throw new UnsupportedOperationException("Destination BFLOAT16 tensor has no direct short[] storage.");
+                }
+                requireStorageCapacity(data.length, physicalElements, binding);
+                try (Arena arena = Arena.ofConfined()) {
+                    MemorySegment nativeDestination = arena.allocate(JAVA_SHORT, physicalElements);
+                    nativeAccess.readBuffer(binding.handle(), nativeDestination, physicalBytes);
+                    short[] physical = new short[physicalElements];
+                    MemorySegment.ofArray(physical).copyFrom(nativeDestination.reinterpret(physicalBytes));
+                    System.arraycopy(physical, 0, data, 0, physicalElements);
+                }
+            }
+            case BOOL -> {
+                byte[] data = destination.getBoolData();
+                if (data == null) {
+                    throw new UnsupportedOperationException("Destination BOOL tensor has no direct byte[] storage.");
+                }
+                requireStorageCapacity(data.length, physicalElements, binding);
+                try (Arena arena = Arena.ofConfined()) {
+                    MemorySegment nativeDestination = arena.allocate(JAVA_BYTE, physicalElements);
+                    nativeAccess.readBuffer(binding.handle(), nativeDestination, physicalBytes);
+                    byte[] physical = new byte[physicalElements];
+                    MemorySegment.ofArray(physical).copyFrom(nativeDestination.reinterpret(physicalBytes));
+                    System.arraycopy(physical, 0, data, 0, physicalElements);
+                }
+            }
+            case INT32 -> {
+                int[] data = destination.getInt32Data();
+                if (data == null) {
+                    throw new UnsupportedOperationException("Destination INT32 tensor has no direct int[] storage.");
+                }
+                requireStorageCapacity(data.length, physicalElements, binding);
+                try (Arena arena = Arena.ofConfined()) {
+                    MemorySegment nativeDestination = arena.allocate(JAVA_INT, physicalElements);
+                    nativeAccess.readBuffer(binding.handle(), nativeDestination, physicalBytes);
+                    int[] physical = new int[physicalElements];
+                    MemorySegment.ofArray(physical).copyFrom(nativeDestination.reinterpret(physicalBytes));
+                    System.arraycopy(physical, 0, data, 0, physicalElements);
+                }
+            }
+            case INT64 -> {
+                long[] data = destination.getInt64Data();
+                if (data == null) {
+                    throw new UnsupportedOperationException("Destination INT64 tensor has no direct long[] storage.");
+                }
+                requireStorageCapacity(data.length, physicalElements, binding);
+                try (Arena arena = Arena.ofConfined()) {
+                    MemorySegment nativeDestination = arena.allocate(JAVA_LONG, physicalElements);
+                    nativeAccess.readBuffer(binding.handle(), nativeDestination, physicalBytes);
+                    long[] physical = new long[physicalElements];
+                    MemorySegment.ofArray(physical).copyFrom(nativeDestination.reinterpret(physicalBytes));
+                    System.arraycopy(physical, 0, data, 0, physicalElements);
+                }
+            }
+            case FLOAT64 -> throw new UnsupportedOperationException("Metal readback does not support FLOAT64 buffers.");
+        }
+    }
+
+    private static int checkedPhysicalElementCount(AcceleratorBufferLayout layout, long physicalBytes) {
+        int bytesPerElement = bytesPerElement(layout.dataType());
+        if (physicalBytes % bytesPerElement != 0L) {
+            throw new IllegalArgumentException("Physical byte span " + physicalBytes
+                    + " is not divisible by dtype byte width " + bytesPerElement + ".");
+        }
+        long elements = physicalBytes / bytesPerElement;
+        if (elements > Integer.MAX_VALUE) {
+            throw new UnsupportedOperationException("Metal physical-view materialization supports at most "
+                    + Integer.MAX_VALUE + " physical elements.");
+        }
+        return (int) elements;
+    }
+
+    private static int bytesPerElement(DataType dataType) {
+        return switch (dataType) {
+            case FLOAT64 -> Double.BYTES;
+            case FLOAT32 -> Float.BYTES;
+            case BFLOAT16 -> Short.BYTES;
+            case INT32 -> Integer.BYTES;
+            case INT64 -> Long.BYTES;
+            case BOOL -> Byte.BYTES;
+        };
+    }
+
+    private static void requireStorageCapacity(int actualLength, int requiredElements, MetalBufferBinding binding) {
+        if (actualLength < requiredElements) {
+            throw new IllegalArgumentException("Destination storage length " + actualLength
+                    + " cannot hold Metal physical-view readback span " + requiredElements
+                    + " for " + binding.describe() + ".");
+        }
     }
 
     private static boolean denseRepairedLogicalLayout(

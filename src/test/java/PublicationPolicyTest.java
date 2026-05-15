@@ -44,7 +44,7 @@ class PublicationPolicyTest {
         Tensor x = new Tensor(new double[]{2.0}, new int[]{1}, null, "x", DataType.FLOAT64);
         Tensor intermediate = x.mul(3.0);
         Tensor out = intermediate.mul(2.0);
-        PreparedExecution prepared = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
+        PreparedExecution prepared = CompiledGraph.compile(out, CompileConfig.cpuOnlyBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
 
         prepared.execute(ExecutionMode.FORWARD, PublicationPolicy.ALL);
