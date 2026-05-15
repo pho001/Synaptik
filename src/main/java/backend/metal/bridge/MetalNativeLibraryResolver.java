@@ -146,10 +146,10 @@ public final class MetalNativeLibraryResolver {
     private static String normalizeArch(String osArch) {
         String arch = osArch == null ? "" : osArch.toLowerCase(Locale.ROOT);
         if (arch.equals("aarch64") || arch.equals("arm64")) {
-            return "aarch64";
+            return "arm64";
         }
         if (arch.equals("x86_64") || arch.equals("amd64")) {
-            return "x86_64";
+            return "x64";
         }
         return sanitize(arch);
     }

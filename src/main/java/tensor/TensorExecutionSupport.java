@@ -223,9 +223,11 @@ final class TensorExecutionSupport {
 
     private static RuntimeConfig defaultRuntime(Tensor tensor, CompileMode compileMode) {
         return switch (compileMode == null ? CompileMode.INFERENCE_ONLY : compileMode) {
-            case INFERENCE_ONLY -> RuntimeConfig.inferenceDefaults();
-            case TRAINING -> RuntimeConfig.trainingDefaults();
-            case AUTO -> hasTrainableLeafInputs(tensor) ? RuntimeConfig.trainingDefaults() : RuntimeConfig.inferenceDefaults();
+            case INFERENCE_ONLY -> RuntimeConfig.inferenceDefaults(tensor.getDataType());
+            case TRAINING -> RuntimeConfig.trainingDefaults(tensor.getDataType());
+            case AUTO -> hasTrainableLeafInputs(tensor)
+                    ? RuntimeConfig.trainingDefaults(tensor.getDataType())
+                    : RuntimeConfig.inferenceDefaults(tensor.getDataType());
         };
     }
 

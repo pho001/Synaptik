@@ -188,20 +188,20 @@ reason, but later execution must use real `ExecutionProfile` /
 
 Suppose:
 
-- platform id = `macos-aarch64-temurin-25`
+- platform id = `macos-arm64`
 - dtype = `f64`
-- mode = `forward_backward`
+- mode = `forward-backward`
 
 Then the preferred calibration profile path is:
 
 ```text
-profiles/platform/macos-aarch64-temurin-25/calibration/f64-forward_backward.json
+profiles/platform/macos-arm64/calibration/schema-v2/latest/f64/forward-backward/profile.json
 ```
 
 and the `abc` best profile path is:
 
 ```text
-profiles/platform/macos-aarch64-temurin-25/tuning/abc/f64-best-profile.json
+profiles/platform/macos-arm64/tuning/abc/f64-best-profile.json
 ```
 
 Those two artifacts have different meanings:

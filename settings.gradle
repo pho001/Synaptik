@@ -3,3 +3,5 @@ plugins {
 }
 
 rootProject.name = 'Synaptik'
+
+include 'synaptik-metal-macos-arm64'

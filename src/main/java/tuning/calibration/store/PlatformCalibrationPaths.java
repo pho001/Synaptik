@@ -56,10 +56,47 @@ public final class PlatformCalibrationPaths {
 
     public static String platformId(HardwareFingerprint hardware) {
         HardwareFingerprint safeHardware = hardware == null ? HardwareFingerprint.capture() : hardware;
+        return canonicalOs(safeHardware.os()) + "-" + canonicalArch(safeHardware.arch());
+    }
+
+    /**
+     * Returns the pre-canonicalization id used by older local profile artifacts.
+     *
+     * <p>New calibration and tuning writes must use {@link #platformId(HardwareFingerprint)}. This helper exists only
+     * so runtime/profile resolvers can read already-created local profiles while users regenerate them under the new
+     * shorter platform id.</p>
+     */
+    public static String legacyPlatformId(HardwareFingerprint hardware) {
+        HardwareFingerprint safeHardware = hardware == null ? HardwareFingerprint.capture() : hardware;
         return safeHardware.os() + "-"
                 + safeHardware.arch() + "-"
                 + safeHardware.vendor() + "-"
                 + safeHardware.cores() + "c";
+    }
+
+    public static String canonicalOs(String os) {
+        String normalized = os == null ? "" : os.toLowerCase(Locale.ROOT).replace(' ', '_').replace('\t', '_');
+        if (normalized.contains("mac")) {
+            return "macos";
+        }
+        if (normalized.contains("windows")) {
+            return "windows";
+        }
+        if (normalized.contains("linux")) {
+            return "linux";
+        }
+        return normalized.isBlank() ? "unknown" : normalized.replaceAll("[^a-z0-9_]+", "_");
+    }
+
+    public static String canonicalArch(String arch) {
+        String normalized = arch == null ? "" : arch.toLowerCase(Locale.ROOT).replace(' ', '_').replace('\t', '_');
+        if (normalized.equals("aarch64") || normalized.equals("arm64")) {
+            return "arm64";
+        }
+        if (normalized.equals("x86_64") || normalized.equals("amd64") || normalized.equals("x64")) {
+            return "x64";
+        }
+        return normalized.isBlank() ? "unknown" : normalized.replaceAll("[^a-z0-9_]+", "_");
     }
 
     public static String variantId(ExecutionProfile profile) {

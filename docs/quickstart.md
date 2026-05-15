@@ -726,6 +726,11 @@ profiles/platform/<platform-id>/calibration/schema-v2/...
 profiles/platform/<platform-id>/tuning/abc/...
 ```
 
+`<platform-id>` is a short current-platform key such as `macos-arm64`. For ordinary `Tensor.compute(...)` calls,
+Synaptik first tries to load a compatible calibrated runtime profile from the configured profile roots and then falls
+back to built-in runtime defaults if none exists. Consumer projects can point at an external profile root with
+`-Dsynaptik.profiles.root=/path/to/profiles` or `SYNAPTIK_PROFILES_ROOT=/path/to/profiles`.
+
 Do not commit local benchmark/calibration artifacts unless the plan explicitly promotes them as canonical fixtures or release evidence.
 
 ## Troubleshooting Checklist

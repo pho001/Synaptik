@@ -796,7 +796,8 @@ profiles/platform/<platform-id>/calibration/schema-v2/
 
 - Persistence is disabled by default unless paths and flags are provided.
 - Legacy seed-profile adapters exist but are marked deprecated in `AutotuneRequest`.
-- Platform id comes from captured hardware fingerprint fields: OS, architecture, vendor, and core count.
+- New platform ids use only canonical OS and architecture, for example `macos-arm64`.
+- Older local platform directories that include JVM vendor and core count are read only as compatibility fallback.
 
 **Misconceptions**
 

@@ -1,9 +1,12 @@
 package config.runtime;
 
 import backend.ApproxMode;
+import backend.runtime.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.backend.KernelTuningConfig;
 import config.backend.SumAccuracyMode;
+import config.profile.PlatformRuntimeProfileResolver;
+import tensor.DataType;
 
 import java.util.Objects;
 
@@ -190,6 +193,25 @@ public record RuntimeConfig(
     }
 
     /**
+     * Returns training defaults, preferring a compatible calibrated platform runtime profile when one is available.
+     *
+     * <p>Lookup is dtype-aware because calibration thresholds, BLAS policy, and materialization thresholds can differ
+     * by storage/compute type. If no compatible profile exists under the configured profile roots or bundled resources,
+     * this method returns {@link #trainingDefaults()}.</p>
+     *
+     * @param dataType graph root dtype
+     * @return calibrated training runtime when present, otherwise hardcoded training defaults
+     */
+    public static RuntimeConfig trainingDefaults(DataType dataType) {
+        RuntimeConfig fallback = trainingDefaults();
+        return PlatformRuntimeProfileResolver.resolveRuntimeConfig(
+                dataType,
+                ExecutionMode.FORWARD_BACKWARD,
+                fallback
+        );
+    }
+
+    /**
      * Returns the default runtime policy for forward-only inference execution.
      *
      * @return runtime defaults for inference mode
@@ -202,6 +224,21 @@ public record RuntimeConfig(
                 Conv2dConfig.disabled(),
                 FusedExecutionPolicy.defaultsInference(),
                 AcceleratorConfig.defaultsInference()
+        );
+    }
+
+    /**
+     * Returns inference defaults, preferring a compatible calibrated platform runtime profile when one is available.
+     *
+     * @param dataType graph root dtype
+     * @return calibrated inference runtime when present, otherwise hardcoded inference defaults
+     */
+    public static RuntimeConfig inferenceDefaults(DataType dataType) {
+        RuntimeConfig fallback = inferenceDefaults();
+        return PlatformRuntimeProfileResolver.resolveRuntimeConfig(
+                dataType,
+                ExecutionMode.FORWARD,
+                fallback
         );
     }
 

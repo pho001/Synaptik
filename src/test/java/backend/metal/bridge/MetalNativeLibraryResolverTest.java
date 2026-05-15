@@ -16,10 +16,10 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 class MetalNativeLibraryResolverTest {
     @Test
     void normalizesMacPlatformResourceIds() {
-        assertEquals("macos-aarch64", MetalNativeLibraryResolver.platformId("Mac OS X", "aarch64"));
-        assertEquals("macos-aarch64", MetalNativeLibraryResolver.platformId("macOS", "arm64"));
-        assertEquals("macos-x86_64", MetalNativeLibraryResolver.platformId("Mac OS X", "x86_64"));
-        assertEquals("macos-x86_64", MetalNativeLibraryResolver.platformId("Mac OS X", "amd64"));
+        assertEquals("macos-arm64", MetalNativeLibraryResolver.platformId("Mac OS X", "aarch64"));
+        assertEquals("macos-arm64", MetalNativeLibraryResolver.platformId("macOS", "arm64"));
+        assertEquals("macos-x64", MetalNativeLibraryResolver.platformId("Mac OS X", "x86_64"));
+        assertEquals("macos-x64", MetalNativeLibraryResolver.platformId("Mac OS X", "amd64"));
     }
 
     @Test

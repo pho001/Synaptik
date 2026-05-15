@@ -53,6 +53,11 @@ dependencies {
 }
 ```
 
+The main Synaptik artifact declares the macOS ARM64 Metal native runtime artifact as a runtime dependency. On Apple
+Silicon, the Metal loader looks for `native/macos-arm64/libsynaptik_apple_mps.dylib` on the runtime classpath, extracts it
+to `~/.synaptik/native/metal-mps/...`, and loads it through Java FFM. Explicit `-Dsynaptik.metal.mps.lib=<path>` or
+`SYNAPTIK_METAL_MPS_LIB` still wins when testing a local native build.
+
 The consuming project must run on JDK 25 and enable the incubating Vector API module for compilation and execution:
 
 ```groovy
@@ -535,7 +540,11 @@ Typical files:
 - workload-specific autotune history:
   - `profiles/platform/<platform-id>/tuning/abc/<dtype>-history.jsonl`
 
-Legacy `build/...` calibration locations are no longer used as runtime fallbacks.
+New platform ids use a short OS/architecture form such as `macos-arm64`; JVM vendor and CPU count remain in metadata
+instead of the directory name. `Tensor.compute(...)` and `CompiledGraph.prepare()` try to load a compatible calibrated
+runtime profile from `-Dsynaptik.profiles.root`, `SYNAPTIK_PROFILES_ROOT`, `./profiles`, `~/.synaptik/profiles`, or
+bundled resources before falling back to hardcoded runtime defaults. Legacy `build/...` calibration locations are no
+longer used as runtime fallbacks.
 
 ## Numerics Harness
 

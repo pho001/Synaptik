@@ -194,7 +194,9 @@ public class CompiledGraph {
      */
     public PreparedExecution prepare(config.runtime.RuntimeConfig runtimeConfig) {
         config.runtime.RuntimeConfig effectiveConfig = runtimeConfig == null
-                ? (supportsBackward() ? config.runtime.RuntimeConfig.trainingDefaults() : config.runtime.RuntimeConfig.inferenceDefaults())
+                ? (supportsBackward()
+                ? config.runtime.RuntimeConfig.trainingDefaults(rootTensor.getDataType())
+                : config.runtime.RuntimeConfig.inferenceDefaults(rootTensor.getDataType()))
                 : runtimeConfig;
         return PreparedExecutionBuilder.prepare(compileArtifacts(), effectiveConfig);
     }

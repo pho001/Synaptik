@@ -48,7 +48,11 @@ Optional native Metal commands:
 
 `buildMetalMpsShim` is the low-level macOS shim builder. `nativeBuild` is the explicit optional-native lifecycle task. `metalTest` builds the Metal shim and runs the Metal/MPS test slice with `synaptik.metal.mps.lib` set to `build/native/apple/libsynaptik_apple_mps.dylib`.
 
-On macOS, `processResources`, `jar`, and publication tasks also build the Metal shim and bundle it into the Synaptik artifact as `native/<platform>/libsynaptik_apple_mps.dylib`. A consumer that depends on a macOS-built Synaptik JAR does not need to set `synaptik.metal.mps.lib`; the runtime extracts the bundled shim into `~/.synaptik/native/metal-mps/...` and loads it from there. Explicit property/env configuration still wins when you want to test a local native build.
+The published Metal shim is a separate native artifact, `synaptik-metal-macos-arm64`, with the resource
+`native/macos-arm64/libsynaptik_apple_mps.dylib`. The main Synaptik publication declares that artifact as a runtime
+dependency, so a normal consumer dependency on Synaptik still gets the macOS ARM64 shim transitively. This avoids relying
+on the machine that builds the core JAR being macOS. Explicit property/env configuration still wins when you want to test
+a local native build.
 
 The `test` task defaults to `maxHeapSize = 2g`. Override it with:
 
@@ -466,6 +470,18 @@ RuntimeConfig runtime = platformRuntimeProfile.toRuntimeConfig();
 
 This maps profile thresholds and backend choices into `RuntimeConfig`; CUDA/OpenCL kernel tuning still uses training defaults in this conversion.
 
+Default runtime resolution is dtype-aware:
+
+```java
+RuntimeConfig runtime = RuntimeConfig.trainingDefaults(DataType.FLOAT32);
+RuntimeConfig inference = RuntimeConfig.inferenceDefaults(DataType.FLOAT64);
+```
+
+Those overloads first ask `PlatformRuntimeProfileResolver` for a compatible calibrated profile for the current
+platform, dtype, and execution mode. If no profile is found, they return the hardcoded defaults from
+`RuntimeConfig.trainingDefaults()` or `RuntimeConfig.inferenceDefaults()`. `Tensor.compute(...)` and
+`CompiledGraph.prepare()` use the dtype-aware overloads when the caller does not pass an explicit runtime config.
+
 ## Tuning And Calibration Persistence
 
 ### CLI Calibration Layout
@@ -502,13 +518,23 @@ profiles/
                     candidates.jsonl
 ```
 
-The platform id is produced from normalized hardware properties as:
+The platform id is intentionally short and portable. New calibration and tuning artifacts use:
 
 ```text
-<normalized-os.name>-<normalized-os.arch>-<normalized-java.vendor>-<cores>c
+<normalized-os>-<normalized-arch>
 ```
 
-Normalization lowercases values, trims surrounding whitespace, and replaces spaces or tabs with underscores.
+Examples: `macos-arm64`, `macos-x64`, `linux-x64`. JVM vendor and CPU count are still recorded in
+`HardwareFingerprint` metadata, but they are no longer part of the directory name. Runtime profile resolution can still
+read older local directories such as `mac_os_x-aarch64-oracle_corporation-16c` as a compatibility fallback.
+
+Runtime profile lookup order:
+
+1. Roots from `-Dsynaptik.profiles.root=<path>`; multiple roots can be separated with the platform path separator.
+2. Roots from `SYNAPTIK_PROFILES_ROOT`.
+3. `./profiles`.
+4. `~/.synaptik/profiles`.
+5. Bundled classpath resources under `profiles/platform/...`.
 
 ### CLI Autotune Layout
 

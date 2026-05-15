@@ -182,7 +182,11 @@ Platform calibration writes to a different tree:
 profiles/platform/<platform-id>/calibration/schema-v2/latest/<dtype>/<mode>/profile.json
 ```
 
-That path belongs to calibration and graph autotune workflows, not the default `Tensor.compute()` path. The default `compute()` path uses built-in inference/training defaults unless the caller passes explicit `ComputeOptions`, an `ExecutionProfile`, or a prepared artifact.
+That path belongs to platform calibration. The default `Tensor.compute()` path now consults it before falling back to
+built-in runtime defaults: Synaptik detects the current platform id, root tensor dtype, and execution mode, then looks
+for a compatible `PlatformRuntimeProfile`. If none exists, execution continues with the hardcoded inference/training
+runtime defaults. Passing explicit `ComputeOptions`, an `ExecutionProfile`, or a prepared artifact still wins over this
+automatic default resolution.
 
 ### Why the runtime copies state into ExecutionState
 
@@ -522,7 +526,7 @@ build/tuning/tensor/<platform-id>/<graph-signature>/<seed-signature>/<dtype>-<mo
 
 Where:
 
-- `<platform-id>` comes from `HardwareFingerprint.capture()` and `PlatformCalibrationPaths.platformId(...)`.
+- `<platform-id>` comes from `HardwareFingerprint.capture()` and `PlatformCalibrationPaths.platformId(...)`, for example `macos-arm64`.
 - `<graph-signature>` is a 24-character SHA-256 prefix derived from node order, op type, operation class, expression, dtype, shape, and input ids.
 - `<seed-signature>` is a 16-character SHA-256 prefix derived from the seed `ExecutionProfile` JSON.
 - `<dtype>-<mode>` is a variant such as `f64-forward` or `f64-forward-backward`.

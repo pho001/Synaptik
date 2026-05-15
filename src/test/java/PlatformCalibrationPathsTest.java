@@ -38,9 +38,10 @@ public class PlatformCalibrationPathsTest {
                 hardware
         );
 
-        assertEquals("macos-arm64-apple-10c", layout.platformId());
-        assertTrue(layout.profilePath().toString().endsWith("profiles/platform/macos-arm64-apple-10c/f64-forward-backward.json"));
-        assertTrue(layout.jsonReportPath().toString().endsWith("reports/platform/macos-arm64-apple-10c/calibration-f64-forward-backward.json"));
-        assertTrue(layout.textReportPath().toString().endsWith("reports/platform/macos-arm64-apple-10c/calibration-f64-forward-backward.txt"));
+        assertEquals("macos-arm64", layout.platformId());
+        assertEquals("macos-arm64-apple-10c", PlatformCalibrationPaths.legacyPlatformId(hardware));
+        assertTrue(layout.profilePath().toString().endsWith("profiles/platform/macos-arm64/f64-forward-backward.json"));
+        assertTrue(layout.jsonReportPath().toString().endsWith("reports/platform/macos-arm64/calibration-f64-forward-backward.json"));
+        assertTrue(layout.textReportPath().toString().endsWith("reports/platform/macos-arm64/calibration-f64-forward-backward.txt"));
     }
 }

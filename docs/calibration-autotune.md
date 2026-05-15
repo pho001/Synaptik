@@ -497,7 +497,10 @@ Prerequisite:
 profiles/platform/<platform-id>/calibration/schema-v2/latest/f64/forward-backward/profile.json
 ```
 
-The exact `<platform-id>` is derived from `HardwareFingerprint.capture()` and `PlatformCalibrationPaths.platformId(...)`. If the profile is missing, `TuningCli.loadCalibrationProfile(...)` throws an `IllegalStateException` telling the user to run calibration first.
+The exact `<platform-id>` is derived from `HardwareFingerprint.capture()` and `PlatformCalibrationPaths.platformId(...)`.
+New artifacts use the short form `<normalized-os>-<normalized-arch>`, for example `macos-arm64`. If the profile is
+missing, `TuningCli.loadCalibrationProfile(...)` throws an `IllegalStateException` telling the user to run calibration
+first.
 
 ```bash
 # Compare no-optimization baseline with the persisted ABC winner.
@@ -3172,8 +3175,12 @@ profiles/platform/<platform-id>/calibration/schema-v2/latest/<dtype>/<mode>/prof
 The platform id is derived from `HardwareFingerprint` as:
 
 ```text
-<normalized-os>-<normalized-arch>-<normalized-vendor>-<cores>c
+<normalized-os>-<normalized-arch>
 ```
+
+JVM vendor and CPU count remain in the hardware fingerprint and profile metadata, but they no longer make the directory
+name unstable. The runtime resolver still reads older local profile directories with vendor/core suffixes when the new
+short path is missing.
 
 Why schema-v2 separates `runs`, `history`, and `latest`:
 
@@ -3248,7 +3255,7 @@ medianMs=7.9
 score=7.9
 candidateKind=GRAPH_RESEARCH
 productionEligible=false
-runtimeProfileId=macos-aarch64-apple-10c/f64/forward-backward
+runtimeProfileId=macos-arm64/f64/forward-backward
 ```
 
 This entry is useful research evidence but should not be used as a production prior because `productionEligible=false`.

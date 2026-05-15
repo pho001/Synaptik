@@ -169,7 +169,7 @@ For elementwise kernels, use `CpuAddKernel` as the reference shape: scalar appli
 For native or accelerator-adjacent paths:
 
 - OpenBLAS FFM lookup checks `-Dopenblas.lib=<path>`, then `OPENBLAS_LIB`, then bundled JavaCPP OpenBLAS, then library name `openblas`.
-- Metal MPS lookup checks `-Dsynaptik.metal.mps.lib=<path>`, then `SYNAPTIK_METAL_MPS_LIB`, then the bundled JAR resource `native/<platform>/libsynaptik_apple_mps.dylib`, then library name `synaptik_apple_mps`.
+- Metal MPS lookup checks `-Dsynaptik.metal.mps.lib=<path>`, then `SYNAPTIK_METAL_MPS_LIB`, then the bundled classpath resource `native/<platform>/libsynaptik_apple_mps.dylib`, then library name `synaptik_apple_mps`.
 - CUDA lookup checks `-Dsynaptik.cuda.graph.lib=<path>`, then `SYNAPTIK_CUDA_GRAPH_LIB`, then library name `synaptik_cuda_graph`.
 - macOS Metal shim build commands:
 
@@ -192,9 +192,9 @@ The general native-bridge model, including BLAS/GEMM terminology and Java FFM sy
 [Native Bridges & BLAS: Java FFM Step-By-Step](native-bridges-and-blas.md#java-ffm-step-by-step). Read it before changing `backend.blas`, `OpenBlasFfmBridge`,
 or native dispatch thresholds.
 
-`buildMetalMpsShim` is the low-level task that calls `scripts/build-metal-mps-shim.sh` and writes `build/native/apple/libsynaptik_apple_mps.dylib`. `bundleMetalMpsShimResource` copies that file into generated resources under `native/<platform>/libsynaptik_apple_mps.dylib`, so macOS-built JARs contain the compiled Metal shim. `nativeBuild` is the user-facing optional-native lifecycle task. `metalTest` builds the shim, sets `-Dsynaptik.metal.mps.lib` to the freshly built dylib, and runs only Metal/MPS-focused tests.
+`buildMetalMpsShim` is the low-level task that calls `scripts/build-metal-mps-shim.sh` and writes `build/native/apple/libsynaptik_apple_mps.dylib`. `refreshMetalMacosArm64Resource` rebuilds that shim on Apple Silicon and refreshes the committed native resource in `synaptik-metal-macos-arm64/src/main/resources/native/macos-arm64/`. `nativeBuild` is the user-facing optional-native lifecycle task. `metalTest` builds the shim, sets `-Dsynaptik.metal.mps.lib` to the freshly built dylib, and runs only Metal/MPS-focused tests.
 
-On macOS, `processResources`, `jar`, and publication tasks depend on `bundleMetalMpsShimResource`, because the published Synaptik artifact is expected to carry the compiled Metal shim for the platform that built it. Use `nativeBuild` or `metalTest` when a change touches `src/main/native/apple`, `src/main/java/backend/metal`, or Metal partition/lowering behavior and you want an explicit native verification command. The native ABI and Objective-C call path are documented in [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi) and [Metal Backend: Objective-C Native Shim](metal-backend.md#objective-c-native-shim).
+The core Synaptik JAR does not compile or embed the Metal shim during `processResources`. The macOS ARM64 binary is published by the separate `synaptik-metal-macos-arm64` artifact and is a runtime dependency of the main artifact. This keeps JitPack/Linux core builds portable while still giving Apple Silicon consumers a classpath resource that `MetalNativeLibraryResolver` can extract. Use `nativeBuild` or `metalTest` when a change touches `src/main/native/apple`, `src/main/java/backend/metal`, or Metal partition/lowering behavior and you want an explicit native verification command. The native ABI and Objective-C call path are documented in [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi) and [Metal Backend: Objective-C Native Shim](metal-backend.md#objective-c-native-shim).
 
 Layout ABI v2 capability checks are optional-symbol gated for both Metal and CUDA. Portable bridge tests cover
 missing-symbol behavior without requiring hardware; native tasks such as `./gradlew metalTest` and

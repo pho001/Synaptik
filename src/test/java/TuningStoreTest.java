@@ -153,7 +153,7 @@ public class TuningStoreTest {
                 new BlasConfig(BlasProvider.OPENBLAS_FFM, 4_000_000L, true, 1.5d, false)
         );
         PlatformRuntimeProfile currentRuntimeProfile = PlatformRuntimeProfile.fromExecutionProfile(
-                "mac_os_x-aarch64-oracle_corporation-16c",
+                "macos-arm64",
                 "hardware",
                 "TEST",
                 new ExecutionProfile(
@@ -194,7 +194,7 @@ public class TuningStoreTest {
         assertEquals(4_000_000L, rebound.runtime().blas().matmulMinWork());
 
         PlatformRuntimeProfile wrongDtypeProfile = PlatformRuntimeProfile.fromExecutionProfile(
-                "mac_os_x-aarch64-oracle_corporation-16c-f64",
+                "macos-arm64-f64",
                 "hardware",
                 "TEST",
                 new ExecutionProfile(
@@ -208,7 +208,7 @@ public class TuningStoreTest {
                 )
         );
         PlatformRuntimeProfile wrongModeProfile = PlatformRuntimeProfile.fromExecutionProfile(
-                "mac_os_x-aarch64-oracle_corporation-16c-forward",
+                "macos-arm64-forward",
                 "hardware",
                 "TEST",
                 new ExecutionProfile(

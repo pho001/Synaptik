@@ -198,11 +198,12 @@ Lookup order in `src/main/java/backend/metal/bridge/MetalMpsFfmBridge.java`:
 ```text
 -Dsynaptik.metal.mps.lib=<path>
 SYNAPTIK_METAL_MPS_LIB
-bundled native/<platform>/libsynaptik_apple_mps.dylib resource
+bundled classpath native/<platform>/libsynaptik_apple_mps.dylib resource
 synaptik_apple_mps
 ```
 
-When the bundled resource is present, Synaptik extracts it to:
+For Apple Silicon, the runtime resource is normally supplied by the `synaptik-metal-macos-arm64` artifact at
+`native/macos-arm64/libsynaptik_apple_mps.dylib`. When the bundled resource is present, Synaptik extracts it to:
 
 ```text
 ~/.synaptik/native/metal-mps/<platform>/<sha256>/libsynaptik_apple_mps.dylib
@@ -686,4 +687,8 @@ For all dtypes:
 ./gradlew run --args="calibrate --dtypes all --families all --preset quick --progress lines --color never"
 ```
 
-Profile paths are platform-dependent because `PlatformCalibrationPaths.platformId(HardwareFingerprint.capture())` includes OS, architecture, vendor, and CPU count information.
+Profile paths are platform-dependent because `PlatformCalibrationPaths.platformId(HardwareFingerprint.capture())`
+includes normalized OS and architecture, for example `macos-arm64`. Vendor and CPU count remain in
+`HardwareFingerprint` metadata but are no longer part of new platform directory names. If a consumer project cannot find
+profiles from a Synaptik dependency, point it at a profile root with `-Dsynaptik.profiles.root=<path>` or
+`SYNAPTIK_PROFILES_ROOT=<path>`.
