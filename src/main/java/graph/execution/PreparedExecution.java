@@ -13,6 +13,7 @@ import backend.cpu.nativecpu.NativeCpuMemoryPool;
 import backend.cpu.nativecpu.NativeCpuTraceState;
 import backend.cpu.nativecpu.PreparedNativeCpuInputPolicy;
 import backend.cpu.nativecpu.PreparedNativeCpuPlan;
+import backend.cpu.nativecpu.PreparedNativeCpuRoute;
 import backend.lowering.region.CpuNativeRegionPayload;
 import backend.lowering.region.RegionRole;
 import backend.memory.CpuMaterializationReason;
@@ -636,6 +637,8 @@ public final class PreparedExecution implements AutoCloseable {
             }
         }
 
+        addNativeCpuRegionRejectionAttrs(attrs, node, metadata, context);
+
         if (metadata.cpuRegionExecutable() != null) {
             var regionPlan = metadata.cpuRegionExecutable().regionExecutionPlan();
             if (regionPlan != null) {
@@ -912,6 +915,69 @@ public final class PreparedExecution implements AutoCloseable {
                 .map(group -> group.storageContract().name())
                 .distinct()
                 .toList());
+    }
+
+    private static void addNativeCpuRegionRejectionAttrs(
+            LinkedHashMap<String, Object> attrs,
+            CompiledNode node,
+            CompiledNodeExecutionMetadata metadata,
+            ExecutionContext context
+    ) {
+        if (node == null || metadata == null || context == null || context.runtimeConfig() == null) {
+            return;
+        }
+        RuntimeConfig runtimeConfig = context.runtimeConfig();
+        if (metadata.backend() != ComputeBackend.CPU
+                || metadata.cpuRegionExecutable() != null
+                || metadata.acceleratorExecutable() != null
+                || runtimeConfig.cpuStorageProfile() == CpuStorageProfile.CPU_ARRAY
+                || metadata.cpuPlan() == null) {
+            return;
+        }
+        PreparedNativeCpuPlan nativePlan = metadata.cpuPlan().nativeCpuPlan();
+        if (nativePlan != null && nativePlan.route() == PreparedNativeCpuRoute.NATIVE_EXECUTABLE) {
+            return;
+        }
+        String reason = nativeRegionRejectionReason(node, nativePlan, runtimeConfig);
+        attrs.put("nativeCpuRegionDecision", "REJECTED");
+        attrs.put("nativeCpuRegionReason", reason);
+        attrs.put("nativeCpuRegionRoute", "CPU_ARRAY");
+        attrs.put("nativeCpuRegionFallbackReason", reason);
+        attrs.put("nativeCpuRegionNodeCount", 1);
+        attrs.put("nativeCpuRegionInputs", node.inputIds());
+        attrs.put("nativeCpuRegionOutputs", List.of(node.id()));
+        attrs.put("nativeCpuRegionRejectedNode", node.id());
+        attrs.put("nativeCpuRegionRejectedOp", node.operation() == null
+                ? "UNKNOWN"
+                : node.operation().opType().name());
+    }
+
+    private static String nativeRegionRejectionReason(
+            CompiledNode node,
+            PreparedNativeCpuPlan nativePlan,
+            RuntimeConfig runtimeConfig
+    ) {
+        String opLabel = node == null || node.operation() == null
+                ? "unknown"
+                : node.operation().opType().name().toLowerCase(Locale.ROOT);
+        boolean providerOp = node != null
+                && node.operation() != null
+                && (node.operation().opType() == operations.Operation.OpType.MATMUL
+                || node.operation().opType() == operations.Operation.OpType.LINEAR);
+        if (providerOp && runtimeConfig.blas().provider() == backend.blas.BlasProvider.NONE) {
+            return "native-cpu-region-provider-unavailable:" + opLabel;
+        }
+        String planReason = nativePlan == null ? "" : nativePlan.fallbackReason();
+        if (runtimeConfig.cpuStorageProfile() == CpuStorageProfile.AUTO
+                && (planReason.isBlank() || planReason.startsWith("cpu-storage-profile-not-native"))) {
+            return "native-cpu-region-auto-rejected:no-region-selected";
+        }
+        if (!planReason.isBlank()) {
+            return planReason.startsWith("native-cpu-region-")
+                    ? planReason
+                    : "native-cpu-region-rejected:" + planReason;
+        }
+        return "native-cpu-region-rejected:no-region-selected";
     }
 
     private static Tensor safeRuntimeTensor(ExecutionContext context, int nodeId) {

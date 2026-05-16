@@ -1257,6 +1257,110 @@ public class BenchmarkSessionTest {
     }
 
     @Test
+    void renderersAggregateNativeCpuRegionEvidenceFromStepAttributes() {
+        var profile = new ExecutionProfile(
+                "native-cpu-region-profile",
+                "native-cpu-region",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        var selectedAttrs = Map.<String, Object>ofEntries(
+                Map.entry("nativeCpuRegionDecision", "SELECTED"),
+                Map.entry("nativeCpuRegionRoute", "NATIVE"),
+                Map.entry("nativeCpuRegionReason", "selected"),
+                Map.entry("nativeCpuRegionFallbackReason", ""),
+                Map.entry("nativeCpuRegionProviderNodes", List.of(2)),
+                Map.entry("nativeCpuRegionLocalKernelNodes", List.of(3)),
+                Map.entry("nativeCpuRegionOutputs", List.of(3))
+        );
+        var rejectedAttrs = Map.<String, Object>ofEntries(
+                Map.entry("nativeCpuRegionDecision", "REJECTED"),
+                Map.entry("nativeCpuRegionRoute", "CPU_ARRAY"),
+                Map.entry("nativeCpuRegionReason", "native-cpu-region-provider-unavailable:matmul"),
+                Map.entry("nativeCpuRegionFallbackReason", "native-cpu-region-provider-unavailable:matmul"),
+                Map.entry("nativeCpuRegionOutputs", List.of(4))
+        );
+        var selectedStep = new graph.execution.trace.ExecutionStepTrace(
+                0,
+                "native_region",
+                "MATMUL",
+                List.of(2, 2),
+                DataType.FLOAT32,
+                "CPU",
+                "PreparedNativeCpuRegionExecutable",
+                100L,
+                new graph.execution.trace.StepExecutionMetadata(
+                        "node",
+                        selectedAttrs,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+        var rejectedStep = new graph.execution.trace.ExecutionStepTrace(
+                1,
+                "array_matmul",
+                "MATMUL",
+                List.of(2, 2),
+                DataType.FLOAT32,
+                "CPU",
+                "CpuMatMulKernel",
+                200L,
+                new graph.execution.trace.StepExecutionMetadata(
+                        "node",
+                        rejectedAttrs,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+        BenchmarkReport report = BenchmarkReport.of(
+                "native_cpu_region_report",
+                List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
+                        BenchmarkEntry.candidate("native-cpu-region", profile),
+                        tuning.validate.ValidationResult.skipped(),
+                        new tuning.measure.MeasurementResult(
+                                tuning.measure.MeasurementPolicy.defaults(),
+                                new graph.execution.trace.ExecutionTrace(
+                                        graph.execution.trace.CompileTrace.skipped(),
+                                        graph.execution.trace.PrepareTrace.skipped(),
+                                        new graph.execution.trace.RunTrace(
+                                                ExecutionMode.FORWARD,
+                                                100L,
+                                                List.of(selectedStep, rejectedStep)
+                                        )
+                                ),
+                                new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
+                        )
+                ))
+        );
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        assertTrue(text.contains("nativeCpuRegionSummary=selectedRegionCount=1 rejectedRegionCount=1 nativeRouteCount=1 fallbackCount=1"));
+        assertTrue(text.contains("providerNodeCount=1 localKernelNodeCount=1 boundaryOutputCount=2"));
+        assertTrue(text.contains("fallbackReasons=[native-cpu-region-provider-unavailable:matmul]"));
+        assertTrue(text.contains("rejectionReasons=[native-cpu-region-provider-unavailable:matmul]"));
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+        assertTrue(json.contains("\"nativeCpuRegion\": {\"selectedRegionCount\": 1, \"rejectedRegionCount\": 1, \"nativeRouteCount\": 1, \"fallbackCount\": 1"));
+        assertTrue(json.contains("\"providerNodeCount\": 1"));
+        assertTrue(json.contains("\"localKernelNodeCount\": 1"));
+        assertTrue(json.contains("\"boundaryOutputCount\": 2"));
+        assertTrue(json.contains("\"rejectionReasons\": [\"native-cpu-region-provider-unavailable:matmul\"]"));
+    }
+
+    @Test
     void renderersAggregateRuntimeCopyEvidenceFromMaterializationsAndMatmulMetadata() {
         var profile = new ExecutionProfile(
                 "runtime-copy-evidence-profile",

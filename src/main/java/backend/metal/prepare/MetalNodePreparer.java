@@ -13,6 +13,7 @@ import backend.metal.lowering.MetalPartitionPlan;
 import backend.lowering.LoweredRegion;
 import backend.lowering.LoweringFamily;
 import backend.prepare.BackendPrepareContext;
+import backend.prepare.RegionPlanValidator;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.optimizer.partition.PartitionPlan;
@@ -77,6 +78,7 @@ public final class MetalNodePreparer {
                 LoweringFamily.METAL_GRAPH_REGION
         );
         var regionPlan = loweredRegion.units().getFirst().requireRegionPlan();
+        RegionPlanValidator.requireBoundaryCoverage(regionPlan, context);
 
         PartitionPlan genericPlan = context.backendPlanForAnchor(node.id());
         MetalPartitionPlan plan = GpuAcceleratorPrepareSupport.requirePlan(

@@ -11,6 +11,7 @@ import backend.cuda.lowering.CudaGpuPartitionPlan;
 import backend.lowering.LoweredRegion;
 import backend.lowering.LoweringFamily;
 import backend.prepare.BackendPrepareContext;
+import backend.prepare.RegionPlanValidator;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.optimizer.partition.PartitionPlan;
@@ -62,6 +63,7 @@ public final class CudaGpuNodePreparer {
                 LoweringFamily.CUDA_GRAPH_REGION
         );
         var regionPlan = loweredRegion.units().getFirst().requireRegionPlan();
+        RegionPlanValidator.requireBoundaryCoverage(regionPlan, context);
         PartitionPlan genericPlan = context.backendPlanForAnchor(node.id());
         CudaGpuPartitionPlan plan = GpuAcceleratorPrepareSupport.requirePlan(
                 genericPlan,

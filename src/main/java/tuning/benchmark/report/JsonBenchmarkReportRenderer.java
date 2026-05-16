@@ -68,6 +68,9 @@ public final class JsonBenchmarkReportRenderer {
                 sb.append("        \"nativeCpu\": ").append(nativeCpuTraceSummaryJson(
                         NativeCpuTraceSummary.fromSteps(trace.run().steps())
                 )).append(",\n");
+                sb.append("        \"nativeCpuRegion\": ").append(nativeCpuRegionTraceSummaryJson(
+                        NativeCpuRegionTraceSummary.fromSteps(trace.run().steps())
+                )).append(",\n");
                 sb.append("        \"runtimeCopy\": ").append(runtimeCopyTraceSummaryJson(
                         RuntimeCopyTraceSummary.fromRun(trace.run())
                 )).append(",\n");
@@ -174,6 +177,23 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"nativeKernelCount\": " + summary.nativeKernelCount() + ", "
                 + "\"arrayKernelCount\": " + summary.arrayKernelCount() + ", "
                 + "\"fallbackCount\": " + summary.fallbackCount()
+                + "}";
+    }
+
+    private static String nativeCpuRegionTraceSummaryJson(NativeCpuRegionTraceSummary summary) {
+        if (summary == null || !summary.present()) {
+            return "null";
+        }
+        return "{"
+                + "\"selectedRegionCount\": " + summary.selectedRegionCount() + ", "
+                + "\"rejectedRegionCount\": " + summary.rejectedRegionCount() + ", "
+                + "\"nativeRouteCount\": " + summary.nativeRouteCount() + ", "
+                + "\"fallbackCount\": " + summary.fallbackCount() + ", "
+                + "\"providerNodeCount\": " + summary.providerNodeCount() + ", "
+                + "\"localKernelNodeCount\": " + summary.localKernelNodeCount() + ", "
+                + "\"boundaryOutputCount\": " + summary.boundaryOutputCount() + ", "
+                + "\"fallbackReasons\": " + stringListJson(summary.fallbackReasons()) + ", "
+                + "\"rejectionReasons\": " + stringListJson(summary.rejectionReasons())
                 + "}";
     }
 
@@ -326,6 +346,83 @@ public final class JsonBenchmarkReportRenderer {
                 }
             }
             return new NativeCpuTraceSummary(nativeKernels, arrayKernels, fallbacks, sawNativeAttrs);
+        }
+    }
+
+    private record NativeCpuRegionTraceSummary(
+            int selectedRegionCount,
+            int rejectedRegionCount,
+            int nativeRouteCount,
+            int fallbackCount,
+            int providerNodeCount,
+            int localKernelNodeCount,
+            int boundaryOutputCount,
+            java.util.List<String> fallbackReasons,
+            java.util.List<String> rejectionReasons,
+            boolean present
+    ) {
+        static NativeCpuRegionTraceSummary fromSteps(java.util.List<graph.execution.trace.ExecutionStepTrace> steps) {
+            if (steps == null || steps.isEmpty()) {
+                return empty(false);
+            }
+            int selected = 0;
+            int rejected = 0;
+            int nativeRoutes = 0;
+            int fallbacks = 0;
+            int providers = 0;
+            int localKernels = 0;
+            int boundaries = 0;
+            java.util.LinkedHashSet<String> fallbackReasons = new java.util.LinkedHashSet<>();
+            java.util.LinkedHashSet<String> rejectionReasons = new java.util.LinkedHashSet<>();
+            boolean present = false;
+            for (var step : steps) {
+                if (step == null || step.metadata() == null || step.metadata().attributes() == null) {
+                    continue;
+                }
+                Map<String, Object> attrs = step.metadata().attributes();
+                if (!attrs.containsKey("nativeCpuRegionDecision")) {
+                    continue;
+                }
+                present = true;
+                String decision = String.valueOf(attrs.getOrDefault("nativeCpuRegionDecision", ""));
+                String route = String.valueOf(attrs.getOrDefault("nativeCpuRegionRoute", ""));
+                String reason = String.valueOf(attrs.getOrDefault("nativeCpuRegionReason", ""));
+                String fallbackReason = String.valueOf(attrs.getOrDefault("nativeCpuRegionFallbackReason", ""));
+                if ("SELECTED".equals(decision)) {
+                    selected++;
+                } else if ("REJECTED".equals(decision)) {
+                    rejected++;
+                    if (!reason.isBlank()) {
+                        rejectionReasons.add(reason);
+                    }
+                }
+                if ("NATIVE".equals(route)) {
+                    nativeRoutes++;
+                }
+                if (!fallbackReason.isBlank()) {
+                    fallbacks++;
+                    fallbackReasons.add(fallbackReason);
+                }
+                providers += listSize(attrs.get("nativeCpuRegionProviderNodes"));
+                localKernels += listSize(attrs.get("nativeCpuRegionLocalKernelNodes"));
+                boundaries += listSize(attrs.get("nativeCpuRegionOutputs"));
+            }
+            return new NativeCpuRegionTraceSummary(
+                    selected,
+                    rejected,
+                    nativeRoutes,
+                    fallbacks,
+                    providers,
+                    localKernels,
+                    boundaries,
+                    java.util.List.copyOf(fallbackReasons),
+                    java.util.List.copyOf(rejectionReasons),
+                    present
+            );
+        }
+
+        private static NativeCpuRegionTraceSummary empty(boolean present) {
+            return new NativeCpuRegionTraceSummary(0, 0, 0, 0, 0, 0, 0, java.util.List.of(), java.util.List.of(), present);
         }
     }
 
@@ -996,6 +1093,13 @@ public final class JsonBenchmarkReportRenderer {
 
     private static boolean isVectorMode(String mode) {
         return "VECTOR".equals(mode) || "PARALLEL_VECTOR".equals(mode);
+    }
+
+    private static int listSize(Object value) {
+        if (value instanceof java.util.Collection<?> collection) {
+            return collection.size();
+        }
+        return 0;
     }
 
     private static void appendCpuMaterializationJson(

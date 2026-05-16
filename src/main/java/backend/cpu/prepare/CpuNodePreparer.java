@@ -16,6 +16,7 @@ import backend.lowering.LoweringFamily;
 import backend.lowering.region.CpuFusedRegionPayload;
 import backend.lowering.region.RegionExecutionPlan;
 import backend.prepare.BackendPrepareContext;
+import backend.prepare.RegionPlanValidator;
 import backend.cpu.registry.CpuKernelResolver;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
@@ -70,6 +71,7 @@ public final class CpuNodePreparer {
             BackendPrepareContext context
     ) {
         RegionExecutionPlan regionPlan = loweredUnit.requireRegionPlan();
+        RegionPlanValidator.requireBoundaryCoverage(regionPlan, context);
         List<PreparedNodeExecution> nativeSteps = regionPlan.orderedNodeIds().stream()
                 .map(context::compiledNode)
                 .map(node -> {

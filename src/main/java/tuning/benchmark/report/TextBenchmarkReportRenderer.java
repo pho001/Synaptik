@@ -104,6 +104,7 @@ public final class TextBenchmarkReportRenderer {
                         sb.append("  cpuMaterializationCount=").append(trace.run().cpuMaterializations().size()).append('\n');
                         sb.append("  hostDeviceTransferCount=").append(trace.run().hostDeviceTransfers().size()).append('\n');
                         appendNativeCpuSummary(sb, NativeCpuTraceSummary.fromSteps(trace.run().steps()));
+                        appendNativeCpuRegionSummary(sb, NativeCpuRegionTraceSummary.fromSteps(trace.run().steps()));
                         appendRuntimeCopySummary(sb, RuntimeCopyTraceSummary.fromRun(trace.run()));
                         appendBf16PerformanceSummary(sb, Bf16PerformanceSummary.fromTrace(trace));
                         appendHostDeviceTransferSummary(sb, HostDeviceTransferSummary.fromRun(trace.run()));
@@ -138,6 +139,23 @@ public final class TextBenchmarkReportRenderer {
                 .append("nativeKernelCount=").append(summary.nativeKernelCount())
                 .append(" arrayKernelCount=").append(summary.arrayKernelCount())
                 .append(" fallbackCount=").append(summary.fallbackCount())
+                .append('\n');
+    }
+
+    private static void appendNativeCpuRegionSummary(StringBuilder sb, NativeCpuRegionTraceSummary summary) {
+        if (summary == null || !summary.present()) {
+            return;
+        }
+        sb.append("  nativeCpuRegionSummary=")
+                .append("selectedRegionCount=").append(summary.selectedRegionCount())
+                .append(" rejectedRegionCount=").append(summary.rejectedRegionCount())
+                .append(" nativeRouteCount=").append(summary.nativeRouteCount())
+                .append(" fallbackCount=").append(summary.fallbackCount())
+                .append(" providerNodeCount=").append(summary.providerNodeCount())
+                .append(" localKernelNodeCount=").append(summary.localKernelNodeCount())
+                .append(" boundaryOutputCount=").append(summary.boundaryOutputCount())
+                .append(" fallbackReasons=").append(summary.fallbackReasons())
+                .append(" rejectionReasons=").append(summary.rejectionReasons())
                 .append('\n');
     }
 
@@ -308,6 +326,83 @@ public final class TextBenchmarkReportRenderer {
                 }
             }
             return new NativeCpuTraceSummary(nativeKernels, arrayKernels, fallbacks, sawNativeAttrs);
+        }
+    }
+
+    private record NativeCpuRegionTraceSummary(
+            int selectedRegionCount,
+            int rejectedRegionCount,
+            int nativeRouteCount,
+            int fallbackCount,
+            int providerNodeCount,
+            int localKernelNodeCount,
+            int boundaryOutputCount,
+            java.util.List<String> fallbackReasons,
+            java.util.List<String> rejectionReasons,
+            boolean present
+    ) {
+        static NativeCpuRegionTraceSummary fromSteps(java.util.List<graph.execution.trace.ExecutionStepTrace> steps) {
+            if (steps == null || steps.isEmpty()) {
+                return empty(false);
+            }
+            int selected = 0;
+            int rejected = 0;
+            int nativeRoutes = 0;
+            int fallbacks = 0;
+            int providers = 0;
+            int localKernels = 0;
+            int boundaries = 0;
+            java.util.LinkedHashSet<String> fallbackReasons = new java.util.LinkedHashSet<>();
+            java.util.LinkedHashSet<String> rejectionReasons = new java.util.LinkedHashSet<>();
+            boolean present = false;
+            for (var step : steps) {
+                if (step == null || step.metadata() == null || step.metadata().attributes() == null) {
+                    continue;
+                }
+                Map<String, Object> attrs = step.metadata().attributes();
+                if (!attrs.containsKey("nativeCpuRegionDecision")) {
+                    continue;
+                }
+                present = true;
+                String decision = String.valueOf(attrs.getOrDefault("nativeCpuRegionDecision", ""));
+                String route = String.valueOf(attrs.getOrDefault("nativeCpuRegionRoute", ""));
+                String reason = String.valueOf(attrs.getOrDefault("nativeCpuRegionReason", ""));
+                String fallbackReason = String.valueOf(attrs.getOrDefault("nativeCpuRegionFallbackReason", ""));
+                if ("SELECTED".equals(decision)) {
+                    selected++;
+                } else if ("REJECTED".equals(decision)) {
+                    rejected++;
+                    if (!reason.isBlank()) {
+                        rejectionReasons.add(reason);
+                    }
+                }
+                if ("NATIVE".equals(route)) {
+                    nativeRoutes++;
+                }
+                if (!fallbackReason.isBlank()) {
+                    fallbacks++;
+                    fallbackReasons.add(fallbackReason);
+                }
+                providers += listSize(attrs.get("nativeCpuRegionProviderNodes"));
+                localKernels += listSize(attrs.get("nativeCpuRegionLocalKernelNodes"));
+                boundaries += listSize(attrs.get("nativeCpuRegionOutputs"));
+            }
+            return new NativeCpuRegionTraceSummary(
+                    selected,
+                    rejected,
+                    nativeRoutes,
+                    fallbacks,
+                    providers,
+                    localKernels,
+                    boundaries,
+                    java.util.List.copyOf(fallbackReasons),
+                    java.util.List.copyOf(rejectionReasons),
+                    present
+            );
+        }
+
+        private static NativeCpuRegionTraceSummary empty(boolean present) {
+            return new NativeCpuRegionTraceSummary(0, 0, 0, 0, 0, 0, 0, java.util.List.of(), java.util.List.of(), present);
         }
     }
 
@@ -1019,6 +1114,13 @@ public final class TextBenchmarkReportRenderer {
         }
         sb.append('}');
         return sb.toString();
+    }
+
+    private static int listSize(Object value) {
+        if (value instanceof java.util.Collection<?> collection) {
+            return collection.size();
+        }
+        return 0;
     }
 
     private static void appendMetalRouteCostSummary(StringBuilder sb, graph.execution.trace.ExecutionStepTrace step) {
