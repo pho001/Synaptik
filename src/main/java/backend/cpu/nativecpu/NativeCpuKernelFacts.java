@@ -63,13 +63,13 @@ public final class NativeCpuKernelFacts {
                             : "requires-dense-contiguous"
             );
         }
-        if (dataType == DataType.FLOAT32 && supportsF32AllReduction(opType)) {
+        if (dataType == DataType.FLOAT32 && supportsF32Reduction(opType)) {
             return new NativeCpuKernelFact(
                     opType,
                     dataType,
                     NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW,
                     NativeCpuKernelFamily.SEGMENT_SCALAR,
-                    "requires-dense-contiguous-all-reduction"
+                    "requires-dense-contiguous-reduction"
             );
         }
         if (METADATA_VIEW_OPS.contains(opType)) {
@@ -125,7 +125,7 @@ public final class NativeCpuKernelFacts {
                 || opType == Operation.OpType.WHERE;
     }
 
-    private static boolean supportsF32AllReduction(Operation.OpType opType) {
+    private static boolean supportsF32Reduction(Operation.OpType opType) {
         return opType == Operation.OpType.SUM
                 || opType == Operation.OpType.MEAN;
     }

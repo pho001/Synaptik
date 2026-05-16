@@ -91,8 +91,8 @@ class NativeCpuKernelFactsTest {
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, mean.status());
         assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, sum.family());
         assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, mean.family());
-        assertEquals("requires-dense-contiguous-all-reduction", sum.reason());
-        assertEquals("requires-dense-contiguous-all-reduction", mean.reason());
+        assertEquals("requires-dense-contiguous-reduction", sum.reason());
+        assertEquals("requires-dense-contiguous-reduction", mean.reason());
         assertTrue(sum.nativeComputeEligible());
         assertTrue(mean.preservesNativeStorage());
     }

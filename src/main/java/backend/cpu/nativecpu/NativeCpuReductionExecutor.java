@@ -15,7 +15,7 @@ import tensor.NativeTensorStorage;
 import tensor.Tensor;
 
 /**
- * Native CPU reduction slice for dense all-axis F32 reductions.
+ * Native CPU reduction slice for dense F32 reductions.
  */
 public final class NativeCpuReductionExecutor {
     private NativeCpuReductionExecutor() {
@@ -26,7 +26,7 @@ public final class NativeCpuReductionExecutor {
             return false;
         }
         Operation.OpType opType = op.opType();
-        return (opType == Operation.OpType.SUM || opType == Operation.OpType.MEAN) && reductionDimension(op) == -1;
+        return (opType == Operation.OpType.SUM || opType == Operation.OpType.MEAN) && reductionDimension(op) >= -1;
     }
 
     public static boolean tryRunSumLike(
@@ -49,17 +49,24 @@ public final class NativeCpuReductionExecutor {
         if (context.nodePlan().stridedPath()) {
             return fallback(context, fact, opType, "native-kernel-ineligible:" + opLabel(opType) + "-strided");
         }
-        if (dimension != -1) {
+        if (!input.isContiguous() || input.hasStorageOffset()) {
+            return fallback(context, fact, opType, "native-kernel-ineligible:" + opLabel(opType) + "-strided");
+        }
+        int[] shape = input.getShapeUnsafe();
+        if (shape == null || shape.length == 0 || dimension < -1 || dimension >= shape.length) {
             return fallback(context, fact, opType, "native-kernel-ineligible:" + opLabel(opType) + "-axis");
         }
-        if (node.getFlatDataSize() != 1 || input.getFlatDataSize() <= 0) {
+        if (input.getFlatDataSize() <= 0 || expectedOutputSize(shape, dimension) != node.getFlatDataSize()) {
             return fallback(context, fact, opType, "native-kernel-ineligible:" + opLabel(opType) + "-shape");
         }
         try {
             NativeFloat32Storage in = requireF32NativeInput(context, opLabel(opType).toUpperCase());
             NativeFloat32Storage out = allocateF32(node, context, opLabel(opType));
-            float value = reduceAllF32(opType, in, input.getFlatDataSize());
-            out.setFloat32At(0, value);
+            if (dimension == -1) {
+                out.setFloat32At(0, reduceAllF32(opType, in, input.getFlatDataSize()));
+            } else {
+                reduceAxisF32(opType, in, out, shape, dimension);
+            }
             context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU " + opLabel(opType).toUpperCase() + " wrote FLOAT32 output");
             publishTrace(context, fact, "CPU_NATIVE", "");
             return true;
@@ -77,6 +84,80 @@ public final class NativeCpuReductionExecutor {
             sum /= size;
         }
         return (float) sum;
+    }
+
+    private static void reduceAxisF32(
+            Operation.OpType opType,
+            NativeFloat32Storage input,
+            NativeFloat32Storage out,
+            int[] shape,
+            int dimension
+    ) {
+        int reducedSize = shape[dimension];
+        int axisStride = denseStride(shape, dimension);
+        int outSize = expectedOutputSize(shape, dimension);
+        int[] outDenseStrides = denseStridesExcludingDim(shape, dimension);
+        for (int outIndex = 0; outIndex < outSize; outIndex++) {
+            int inputBase = inputBaseOffset(outIndex, shape, outDenseStrides, dimension);
+            double sum = 0.0d;
+            for (int k = 0; k < reducedSize; k++) {
+                sum += input.getFloat32At(inputBase + k * axisStride);
+            }
+            if (opType == Operation.OpType.MEAN) {
+                sum /= reducedSize;
+            }
+            out.setFloat32At(outIndex, (float) sum);
+        }
+    }
+
+    private static int inputBaseOffset(int outIndex, int[] shape, int[] outDenseStrides, int dimension) {
+        int rem = outIndex;
+        int base = 0;
+        int outAxis = 0;
+        for (int dim = 0; dim < shape.length; dim++) {
+            if (dim == dimension) {
+                continue;
+            }
+            int coord = rem / outDenseStrides[outAxis];
+            rem %= outDenseStrides[outAxis];
+            base += coord * denseStride(shape, dim);
+            outAxis++;
+        }
+        return base;
+    }
+
+    private static int[] denseStridesExcludingDim(int[] shape, int dimension) {
+        int[] strides = new int[Math.max(0, shape.length - 1)];
+        int stride = 1;
+        for (int dim = shape.length - 1; dim >= 0; dim--) {
+            if (dim == dimension) {
+                continue;
+            }
+            strides[dim < dimension ? dim : dim - 1] = stride;
+            stride *= shape[dim];
+        }
+        return strides;
+    }
+
+    private static int denseStride(int[] shape, int dimension) {
+        int stride = 1;
+        for (int dim = dimension + 1; dim < shape.length; dim++) {
+            stride *= shape[dim];
+        }
+        return stride;
+    }
+
+    private static int expectedOutputSize(int[] shape, int dimension) {
+        if (dimension == -1) {
+            return 1;
+        }
+        int size = 1;
+        for (int dim = 0; dim < shape.length; dim++) {
+            if (dim != dimension) {
+                size *= shape[dim];
+            }
+        }
+        return size;
     }
 
     private static boolean fallback(CpuKernelContext context, NativeCpuKernelFact fact, Operation.OpType opType, String reason) {

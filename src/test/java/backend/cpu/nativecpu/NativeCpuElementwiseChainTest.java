@@ -24,6 +24,7 @@ import tensor.Tensor;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -317,6 +318,72 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void cpuNativeMatmulSumAxisKeepsSumOutputNativeAndPublishesValues() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor sumColumns = a().matmul(b()).sum(0);
+        Tensor sumRows = a().matmul(b()).sum(1);
+        Tensor sumRowsKeepDims = a().matmul(b()).sum(1, true);
+
+        var columnsTrace = CompiledGraph.compile(sumColumns, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+        var rowsTrace = CompiledGraph.compile(sumRows, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+        var keepDimsTrace = CompiledGraph.compile(sumRowsKeepDims, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new float[]{62.0f, 72.0f}, sumColumns.getFloat32Data(), 1.0e-5f);
+        assertArrayEquals(new float[]{41.0f, 93.0f}, sumRows.getFloat32Data(), 1.0e-5f);
+        assertArrayEquals(new int[]{2, 1}, sumRowsKeepDims.getShape());
+        assertArrayEquals(new float[]{41.0f, 93.0f}, sumRowsKeepDims.getFloat32Data(), 1.0e-5f);
+        assertNativeReduction(columnsTrace.steps().stream()
+                .filter(step -> "SUM".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeReduction(rowsTrace.steps().stream()
+                .filter(step -> "SUM".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeReduction(keepDimsTrace.steps().stream()
+                .filter(step -> "SUM".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+    }
+
+    @Test
+    void cpuNativeMatmulMeanAxisKeepsMeanOutputNativeAndPublishesValues() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor meanColumns = a().matmul(b()).mean(0);
+        Tensor meanRows = a().matmul(b()).mean(1);
+        Tensor meanRowsKeepDims = a().matmul(b()).mean(1, true);
+
+        var columnsTrace = CompiledGraph.compile(meanColumns, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+        var rowsTrace = CompiledGraph.compile(meanRows, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+        var keepDimsTrace = CompiledGraph.compile(meanRowsKeepDims, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new float[]{31.0f, 36.0f}, meanColumns.getFloat32Data(), 1.0e-5f);
+        assertArrayEquals(new float[]{20.5f, 46.5f}, meanRows.getFloat32Data(), 1.0e-5f);
+        assertArrayEquals(new int[]{2, 1}, meanRowsKeepDims.getShape());
+        assertArrayEquals(new float[]{20.5f, 46.5f}, meanRowsKeepDims.getFloat32Data(), 1.0e-5f);
+        assertNativeReduction(columnsTrace.steps().stream()
+                .filter(step -> "MEAN".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeReduction(rowsTrace.steps().stream()
+                .filter(step -> "MEAN".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeReduction(keepDimsTrace.steps().stream()
+                .filter(step -> "MEAN".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+    }
+
+    @Test
     void unsupportedCpuNativeBroadcastMulFallsBackToArrayWithTraceReason() {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 
@@ -454,10 +521,10 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
-    void unsupportedCpuNativeAxisSumFallsBackToArrayWithTraceReason() {
+    void unsupportedCpuNativeStridedSumFallsBackToArrayWithTraceReason() {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 
-        Tensor out = a().matmul(b()).sum(1);
+        Tensor out = a().matmul(b()).transpose().sum(1);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
                 .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
@@ -469,15 +536,15 @@ class NativeCpuElementwiseChainTest {
 
         assertEquals("CPU_NATIVE", sum.get("requestedCpuStorage"));
         assertEquals("CPU_ARRAY", sum.get("actualCpuStorage"));
-        assertEquals("native-kernel-ineligible:sum-axis", sum.get("nativeCpuFallbackReason"));
+        assertEquals("native-kernel-ineligible:sum-strided", sum.get("nativeCpuFallbackReason"));
         assertEquals("CPU_ARRAY", sum.get("storageResidency"));
     }
 
     @Test
-    void requireNativeRejectsUnsupportedCpuNativeAxisSum() {
+    void requireNativeRejectsUnsupportedCpuNativeStridedSum() {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 
-        Tensor out = a().matmul(b()).sum(1);
+        Tensor out = a().matmul(b()).transpose().sum(1);
 
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class,
@@ -486,7 +553,7 @@ class NativeCpuElementwiseChainTest {
         );
 
         assertTrue(failure.getMessage().contains("Native CPU execution required"));
-        assertTrue(failure.getMessage().contains("native-kernel-ineligible:sum-axis"));
+        assertTrue(failure.getMessage().contains("native-kernel-ineligible:sum-strided"));
     }
 
     @Test
@@ -716,6 +783,15 @@ class NativeCpuElementwiseChainTest {
 
     private static Tensor boolTensor(byte[] values, int[] shape, String label) {
         return new Tensor(values, shape, null, label, DataType.BOOL);
+    }
+
+    private static void assertNativeReduction(ExecutionStepTrace step) {
+        Map<String, Object> reduction = attrs(step);
+        assertEquals("CPU_NATIVE", reduction.get("actualCpuStorage"));
+        assertEquals("NATIVE_CORRECT_BUT_SLOW", reduction.get("nativeCpuKernelStatus"));
+        assertEquals("SEGMENT_SCALAR", reduction.get("nativeCpuKernelFamily"));
+        assertEquals("", reduction.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", reduction.get("storageResidency"));
     }
 
     private static Map<String, Object> attrs(ExecutionStepTrace step) {
