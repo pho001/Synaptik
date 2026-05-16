@@ -9,14 +9,10 @@ import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
-import backend.cpu.nativecpu.NativeCpuCastExecutor;
-import backend.cpu.nativecpu.NativeCpuCompareExecutor;
-import backend.cpu.nativecpu.NativeCpuContiguousExecutor;
-import backend.cpu.nativecpu.NativeCpuElementwiseExecutor;
 import backend.cpu.nativecpu.NativeCpuMemoryPool;
-import backend.cpu.nativecpu.NativeCpuReductionExecutor;
 import backend.cpu.nativecpu.NativeCpuTraceState;
-import backend.cpu.nativecpu.NativeCpuViewExecutor;
+import backend.cpu.nativecpu.PreparedNativeCpuInputPolicy;
+import backend.cpu.nativecpu.PreparedNativeCpuPlan;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
@@ -459,80 +455,31 @@ public final class PreparedExecution implements AutoCloseable {
         if (step.metadata().backend() != ComputeBackend.CPU) {
             return;
         }
-        PreparedMatMulExecutable matMulExecutable = step.metadata().cpuPlan() == null
+        PreparedNativeCpuPlan nativeCpuPlan = step.metadata().cpuPlan() == null
                 ? null
-                : step.metadata().cpuPlan().matMulExecutable();
-        if (matMulExecutable != null && matMulExecutable.acceptsNativeInputs()) {
-            return;
-        }
-        if (NativeCpuElementwiseExecutor.requiresCpuReadableConditionOnly(
-                step.executionOperation(),
-                step.compiledNode().dataType(),
-                step.metadata().cpuPlan(),
-                context.runtimeConfig()
-        )) {
-            List<Integer> inputIds = step.metadata().executionInputNodeIds().isEmpty()
-                    ? step.compiledNode().inputIds()
-                    : step.metadata().executionInputNodeIds();
-            if (!inputIds.isEmpty()) {
-                context.requireCpuReadable(inputIds.get(0), CpuMaterializationReason.CPU_CONSUMER);
+                : step.metadata().cpuPlan().nativeCpuPlan();
+        if (nativeCpuPlan != null) {
+            if (nativeCpuPlan.inputPolicy() == PreparedNativeCpuInputPolicy.ALL_NATIVE) {
+                return;
             }
-            return;
+            if (nativeCpuPlan.inputPolicy() == PreparedNativeCpuInputPolicy.CONDITION_CPU_VALUES_NATIVE) {
+                List<Integer> inputIds = inputIds(step);
+                if (!inputIds.isEmpty()) {
+                    context.requireCpuReadable(inputIds.get(0), CpuMaterializationReason.CPU_CONSUMER);
+                }
+                return;
+            }
         }
-        if (NativeCpuElementwiseExecutor.acceptsNativeInputs(
-                step.executionOperation(),
-                step.compiledNode().dataType(),
-                step.metadata().cpuPlan(),
-                context.runtimeConfig()
-        )) {
-            return;
-        }
-        if (NativeCpuReductionExecutor.acceptsNativeInputs(
-                step.executionOperation(),
-                step.compiledNode().dataType(),
-                step.metadata().cpuPlan(),
-                context.runtimeConfig()
-        )) {
-            return;
-        }
-        if (NativeCpuCastExecutor.acceptsNativeInputs(
-                step.executionOperation(),
-                step.compiledNode().dataType(),
-                step.metadata().cpuPlan(),
-                context.runtimeConfig()
-        )) {
-            return;
-        }
-        if (NativeCpuContiguousExecutor.acceptsNativeInputs(
-                step.executionOperation(),
-                step.compiledNode().dataType(),
-                step.metadata().cpuPlan(),
-                context.runtimeConfig()
-        )) {
-            return;
-        }
-        if (NativeCpuCompareExecutor.acceptsNativeInputs(
-                step.executionOperation(),
-                step.compiledNode().dataType(),
-                step.metadata().cpuPlan(),
-                context.runtimeConfig()
-        )) {
-            return;
-        }
-        if (NativeCpuViewExecutor.acceptsNativeInputs(
-                step.executionOperation(),
-                step.compiledNode().dataType(),
-                step.metadata().cpuPlan(),
-                context.runtimeConfig()
-        )) {
-            return;
-        }
-        List<Integer> inputIds = step.metadata().executionInputNodeIds().isEmpty()
-                ? step.compiledNode().inputIds()
-                : step.metadata().executionInputNodeIds();
+        List<Integer> inputIds = inputIds(step);
         for (int inputId : inputIds) {
             context.requireCpuReadable(inputId, CpuMaterializationReason.CPU_CONSUMER);
         }
+    }
+
+    private static List<Integer> inputIds(PreparedNodeExecution step) {
+        return step.metadata().executionInputNodeIds().isEmpty()
+                ? step.compiledNode().inputIds()
+                : step.metadata().executionInputNodeIds();
     }
 
     private static String residencyReason(PreparedNodeExecution step) {

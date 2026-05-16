@@ -10,6 +10,7 @@ import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
 import backend.cpu.kernels.nn.conv2d.plan.ResolvedConv2dHints;
 import backend.cpu.kernels.reduction.plan.ResolvedReductionHints;
+import backend.cpu.nativecpu.PreparedNativeCpuPlan;
 import tensor.DataType;
 import tensor.Tensor;
 
@@ -27,7 +28,8 @@ public record CpuNodeExecutionPlan(
         ResolvedMatMulHints matMulHints,
         PreparedMatMulExecutable matMulExecutable,
         ResolvedConv2dHints conv2dHints,
-        ResolvedScaledDotProductAttentionPlan attentionPlan
+        ResolvedScaledDotProductAttentionPlan attentionPlan,
+        PreparedNativeCpuPlan nativeCpuPlan
 ) {
     public CpuNodeExecutionPlan {
         Objects.requireNonNull(layoutPlan, "layoutPlan cannot be null");
@@ -36,6 +38,35 @@ public record CpuNodeExecutionPlan(
         computeContract = computeContract == null
                 ? new ResolvedCpuComputeContract(layoutPlan.targetType(), CpuComputeDType.F64, CpuExecutionBackend.CPU_GENERIC, CpuAccumulateDType.NONE)
                 : computeContract;
+    }
+
+    public CpuNodeExecutionPlan(
+            CpuLayoutPlan layoutPlan,
+            ResolvedCpuComputeContract computeContract,
+            boolean publishFloatContinuation,
+            int plannedWorkers,
+            int contiguousMaterializeThreshold,
+            ResolvedDispatchHints dispatchHints,
+            ResolvedReductionHints reductionHints,
+            ResolvedMatMulHints matMulHints,
+            PreparedMatMulExecutable matMulExecutable,
+            ResolvedConv2dHints conv2dHints,
+            ResolvedScaledDotProductAttentionPlan attentionPlan
+    ) {
+        this(
+                layoutPlan,
+                computeContract,
+                publishFloatContinuation,
+                plannedWorkers,
+                contiguousMaterializeThreshold,
+                dispatchHints,
+                reductionHints,
+                matMulHints,
+                matMulExecutable,
+                conv2dHints,
+                attentionPlan,
+                null
+        );
     }
 
     public List<Tensor> apply(int nodeId, List<Tensor> originalInputs, ExecutionContext executionContext) {
