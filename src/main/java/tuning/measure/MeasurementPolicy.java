@@ -19,6 +19,7 @@ import graph.execution.PublicationPolicy;
  * @param measureSteadyState whether steady-state latency samples are collected
  * @param captureStepTrace whether run traces should include per-step detail
  * @param publicationPolicy values to publish back to user-visible tensors during measured runs
+ * @param executionMode executable action to measure
  */
 public record MeasurementPolicy(
         int warmupIters,
@@ -29,7 +30,8 @@ public record MeasurementPolicy(
         boolean measureColdRun,
         boolean measureSteadyState,
         boolean captureStepTrace,
-        PublicationPolicy publicationPolicy
+        PublicationPolicy publicationPolicy,
+        MeasurementExecutionMode executionMode
 ) {
     public MeasurementPolicy {
         if (warmupIters < 0) {
@@ -42,6 +44,35 @@ public record MeasurementPolicy(
             throw new IllegalArgumentException("repeats must be >= 1");
         }
         publicationPolicy = publicationPolicy == null ? PublicationPolicy.defaultExecution() : publicationPolicy;
+        executionMode = executionMode == null ? MeasurementExecutionMode.GRAPH_EXECUTION : executionMode;
+    }
+
+    /**
+     * Creates a graph-execution measurement policy.
+     */
+    public MeasurementPolicy(
+            int warmupIters,
+            int measureIters,
+            int repeats,
+            boolean measureCompile,
+            boolean measurePrepare,
+            boolean measureColdRun,
+            boolean measureSteadyState,
+            boolean captureStepTrace,
+            PublicationPolicy publicationPolicy
+    ) {
+        this(
+                warmupIters,
+                measureIters,
+                repeats,
+                measureCompile,
+                measurePrepare,
+                measureColdRun,
+                measureSteadyState,
+                captureStepTrace,
+                publicationPolicy,
+                MeasurementExecutionMode.GRAPH_EXECUTION
+        );
     }
 
     /**
@@ -66,7 +97,8 @@ public record MeasurementPolicy(
                 measureColdRun,
                 measureSteadyState,
                 captureStepTrace,
-                PublicationPolicy.defaultExecution()
+                PublicationPolicy.defaultExecution(),
+                MeasurementExecutionMode.GRAPH_EXECUTION
         );
     }
 
@@ -84,7 +116,8 @@ public record MeasurementPolicy(
                 true,
                 true,
                 false,
-                PublicationPolicy.defaultExecution()
+                PublicationPolicy.defaultExecution(),
+                MeasurementExecutionMode.GRAPH_EXECUTION
         );
     }
 }

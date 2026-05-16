@@ -39,6 +39,7 @@ import tuning.workload.WorkloadKind;
 import tuning.workload.WorkloadMetadata;
 import graph.execution.PublicationPolicy;
 import graph.execution.trace.NativeCpuMemoryTrace;
+import tuning.measure.MeasurementExecutionMode;
 
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
@@ -187,6 +188,99 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"poolHitCount\": " + perPrepared.poolHitCount()));
         assertTrue(json.contains("\"peakLiveBytes\": " + perPrepared.peakLiveBytes()));
         assertTrue(json.contains("\"retainedBytes\": 0"));
+    }
+
+    @Test
+    void benchmarkSessionMeasuresNativeTrainingOptimizerStepEvidence() {
+        TensorRootWorkloadSpec workload = trainingOptimizerWorkload("native_training_optimizer_evidence");
+
+        BenchmarkReport report = BenchmarkSession.create(new BenchmarkRequest(
+                workload,
+                List.of(
+                        BenchmarkEntry.baseline(
+                                "cpu-array-training-sgd",
+                                trainingOptimizerProfile("cpu-array-training-sgd", CpuStorageProfile.CPU_ARRAY)
+                        ),
+                        BenchmarkEntry.candidate(
+                                "cpu-native-training-sgd",
+                                trainingOptimizerProfile("cpu-native-training-sgd", CpuStorageProfile.CPU_NATIVE)
+                        )
+                ),
+                new tuning.measure.MeasurementPolicy(
+                        0,
+                        1,
+                        1,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true,
+                        PublicationPolicy.OUTPUT_ONLY,
+                        MeasurementExecutionMode.OPTIMIZER_STEP_SGD
+                ),
+                tuning.validate.ValidationPolicy.disabled(),
+                tuning.reporting.ReportPolicy.defaults()
+        )).run();
+
+        assertTrue(report.candidates().stream().allMatch(BenchmarkCandidateReport::success));
+        var arrayTrace = findReport(report, "cpu-array-training-sgd").measurement().trace().run().nativeOptimizers();
+        var nativeTrace = findReport(report, "cpu-native-training-sgd").measurement().trace().run().nativeOptimizers();
+        assertTrue(arrayTrace.stream().anyMatch(trace -> "CPU_ARRAY".equals(trace.route())));
+        assertTrue(nativeTrace.stream().anyMatch(trace -> "CPU_NATIVE".equals(trace.route())));
+        assertTrue(nativeTrace.stream().allMatch(trace -> "SKIPPED".equals(trace.gradientPublication())));
+        assertTrue(nativeTrace.stream().allMatch(trace -> "publication-policy-output-only".equals(trace.publicationSkippedReason())));
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        assertTrue(text.contains("optimizerUpdate=optimizer=SgdOptimizer route=CPU_NATIVE"));
+        assertTrue(text.contains("gradientPublication=SKIPPED"));
+        assertTrue(text.contains("publicationSkippedReason=publication-policy-output-only"));
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+        assertTrue(json.contains("\"optimizer\": \"SgdOptimizer\""));
+        assertTrue(json.contains("\"route\": \"CPU_NATIVE\""));
+        assertTrue(json.contains("\"gradientPublication\": \"SKIPPED\""));
+        assertTrue(json.contains("\"publicationSkippedReason\": \"publication-policy-output-only\""));
+    }
+
+    @Test
+    void benchmarkSessionMeasuresNativeAdamOptimizerStepEvidence() {
+        TensorRootWorkloadSpec workload = trainingOptimizerWorkload("native_training_adam_evidence");
+
+        BenchmarkReport report = BenchmarkSession.create(new BenchmarkRequest(
+                workload,
+                List.of(BenchmarkEntry.candidate(
+                        "cpu-native-training-adam",
+                        trainingOptimizerProfile("cpu-native-training-adam", CpuStorageProfile.CPU_NATIVE)
+                )),
+                new tuning.measure.MeasurementPolicy(
+                        0,
+                        1,
+                        1,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true,
+                        PublicationPolicy.OUTPUT_ONLY,
+                        MeasurementExecutionMode.OPTIMIZER_STEP_ADAM
+                ),
+                tuning.validate.ValidationPolicy.disabled(),
+                tuning.reporting.ReportPolicy.defaults()
+        )).run();
+
+        assertTrue(report.candidates().stream().allMatch(BenchmarkCandidateReport::success));
+        var nativeTrace = findReport(report, "cpu-native-training-adam").measurement().trace().run().nativeOptimizers();
+        assertTrue(nativeTrace.stream().anyMatch(trace -> "AdamOptimizer".equals(trace.optimizer())
+                && "CPU_NATIVE".equals(trace.route())
+                && "CPU_NATIVE".equals(trace.optimizerStateStorage())));
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        assertTrue(text.contains("optimizerUpdate=optimizer=AdamOptimizer route=CPU_NATIVE"));
+        assertTrue(text.contains("optimizerStateStorage=CPU_NATIVE"));
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+        assertTrue(json.contains("\"optimizer\": \"AdamOptimizer\""));
+        assertTrue(json.contains("\"optimizerStateStorage\": \"CPU_NATIVE\""));
     }
 
     @Test
@@ -1813,6 +1907,95 @@ public class BenchmarkSessionTest {
                         .withRegionOptimization(config.compile.RegionOptimizationConfig.disabled()),
                 runtime,
                 WorkloadProfile.none()
+        );
+    }
+
+    private static ExecutionProfile trainingOptimizerProfile(String name, CpuStorageProfile cpuStorageProfile) {
+        RuntimeConfig runtime = RuntimeConfig.trainingDefaults()
+                .withCpuStorageProfile(cpuStorageProfile)
+                .withNativeCpuFailurePolicy(NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)
+                .withNativeCpuMemory(NativeCpuMemoryConfig.perPreparedExecution(8192L));
+        return new ExecutionProfile(
+                name + "-profile",
+                name,
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD_BACKWARD,
+                config.compile.CompileConfig.training(),
+                runtime,
+                WorkloadProfile.none()
+        );
+    }
+
+    private static TensorRootWorkloadSpec trainingOptimizerWorkload(String name) {
+        return new TensorRootWorkloadSpec(
+                name,
+                WorkloadKind.MLP_CLASSIFICATION,
+                environment -> {
+                    Tensor input = new Tensor(
+                            new float[]{
+                                    0.10f, -0.20f, 0.30f,
+                                    0.40f, 0.50f, -0.60f
+                            },
+                            new int[]{2, 3},
+                            null,
+                            "TRAIN_X",
+                            DataType.FLOAT32
+                    );
+                    Tensor w1 = new Tensor(
+                            new float[]{
+                                    0.10f, -0.20f, 0.30f, -0.40f,
+                                    0.50f, 0.60f, -0.70f, 0.80f,
+                                    -0.10f, 0.20f, 0.30f, -0.50f
+                            },
+                            new int[]{3, 4},
+                            null,
+                            "TRAIN_W1",
+                            DataType.FLOAT32
+                    );
+                    Tensor b1 = new Tensor(
+                            new float[]{0.01f, -0.02f, 0.03f, -0.04f},
+                            new int[]{4},
+                            null,
+                            "TRAIN_B1",
+                            DataType.FLOAT32
+                    );
+                    Tensor w2 = new Tensor(
+                            new float[]{
+                                    0.20f, -0.30f,
+                                    0.40f, 0.10f,
+                                    -0.50f, 0.60f,
+                                    0.70f, -0.20f
+                            },
+                            new int[]{4, 2},
+                            null,
+                            "TRAIN_W2",
+                            DataType.FLOAT32
+                    );
+                    Tensor b2 = new Tensor(
+                            new float[]{0.05f, -0.06f},
+                            new int[]{2},
+                            null,
+                            "TRAIN_B2",
+                            DataType.FLOAT32
+                    );
+                    w1.setTrainableParameter(true);
+                    b1.setTrainableParameter(true);
+                    w2.setTrainableParameter(true);
+                    b2.setTrainableParameter(true);
+                    return input.linear(w1, b1).relu().linear(w2, b2).sum();
+                },
+                environment -> tuning.validate.ValidationReference.none(),
+                environment -> new WorkloadMetadata(
+                        name,
+                        WorkloadKind.MLP_CLASSIFICATION,
+                        Map.of(
+                                "batch", 2,
+                                "inputFeatures", 3,
+                                "hidden", 4,
+                                "classes", 2,
+                                "optimizerEvidence", true
+                        )
+                )
         );
     }
 

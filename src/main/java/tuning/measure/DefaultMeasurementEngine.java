@@ -6,6 +6,9 @@ import graph.execution.trace.ExecutionTrace;
 import graph.execution.trace.RunTrace;
 import tuning.candidate.Candidate;
 import tuning.workload.WorkloadInstance;
+import training.optimizer.AdamOptimizer;
+import training.optimizer.SgdOptimizer;
+import training.optimizer.TrainingOptimizer;
 
 import java.util.Arrays;
 
@@ -43,31 +46,32 @@ public final class DefaultMeasurementEngine implements MeasurementEngine {
         CompiledGraph compiled = CompiledGraph.compile(
                 workload.root(),
                 candidate.profile().compile(),
-                compileModeFor(candidate.profile().mode())
+                compileModeFor(candidate.profile().mode(), policy.executionMode())
         );
 
         PreparedExecution prepared = compiled.prepare(candidate.profile().runtime());
+        TrainingOptimizer optimizer = optimizerFor(policy.executionMode());
         try {
             RunTrace reportRunTrace = RunTrace.empty(candidate.profile().mode());
             boolean needsTrace = policy.measureColdRun() || policy.captureStepTrace();
 
             if (needsTrace && !policy.measureSteadyState()) {
-                reportRunTrace = prepared.executeTraced(candidate.profile().mode(), policy.publicationPolicy());
+                reportRunTrace = executeTraced(prepared, candidate, policy, optimizer);
             }
 
             MeasurementStatistics stats = MeasurementStatistics.zero();
             if (policy.measureSteadyState()) {
                 for (int i = 0; i < policy.warmupIters(); i++) {
-                    prepared.execute(candidate.profile().mode(), policy.publicationPolicy());
+                    execute(prepared, candidate, policy, optimizer);
                 }
                 if (needsTrace) {
-                    reportRunTrace = prepared.executeTraced(candidate.profile().mode(), policy.publicationPolicy());
+                    reportRunTrace = executeTraced(prepared, candidate, policy, optimizer);
                 }
                 double[] samples = new double[policy.repeats()];
                 for (int r = 0; r < policy.repeats(); r++) {
                     long start = System.nanoTime();
                     for (int i = 0; i < policy.measureIters(); i++) {
-                        prepared.execute(candidate.profile().mode(), policy.publicationPolicy());
+                        execute(prepared, candidate, policy, optimizer);
                     }
                     long end = System.nanoTime();
                     samples[r] = (end - start) / 1_000_000.0d / policy.measureIters();
@@ -82,7 +86,52 @@ public final class DefaultMeasurementEngine implements MeasurementEngine {
             );
             return new MeasurementResult(policy, trace, stats);
         } finally {
+            if (optimizer != null) {
+                optimizer.close();
+            }
             prepared.close();
+        }
+    }
+
+    private static void execute(
+            PreparedExecution prepared,
+            Candidate candidate,
+            MeasurementPolicy policy,
+            TrainingOptimizer optimizer
+    ) {
+        if (!policy.executionMode().optimizerStep()) {
+            prepared.execute(candidate.profile().mode(), policy.publicationPolicy());
+            return;
+        }
+        requireTrainingProfile(candidate, policy);
+        prepared.executeOptimizerStep(optimizer, policy.publicationPolicy());
+    }
+
+    private static RunTrace executeTraced(
+            PreparedExecution prepared,
+            Candidate candidate,
+            MeasurementPolicy policy,
+            TrainingOptimizer optimizer
+    ) {
+        if (!policy.executionMode().optimizerStep()) {
+            return prepared.executeTraced(candidate.profile().mode(), policy.publicationPolicy());
+        }
+        requireTrainingProfile(candidate, policy);
+        return prepared.executeOptimizerStepTraced(optimizer, policy.publicationPolicy());
+    }
+
+    private static TrainingOptimizer optimizerFor(MeasurementExecutionMode mode) {
+        return switch (mode) {
+            case GRAPH_EXECUTION -> null;
+            case OPTIMIZER_STEP_SGD -> new SgdOptimizer(0.01f);
+            case OPTIMIZER_STEP_ADAM -> new AdamOptimizer(0.01f);
+        };
+    }
+
+    private static void requireTrainingProfile(Candidate candidate, MeasurementPolicy policy) {
+        if (candidate.profile().mode() != backend.runtime.ExecutionMode.FORWARD_BACKWARD) {
+            throw new IllegalArgumentException(policy.executionMode()
+                    + " measurement requires an execution profile with FORWARD_BACKWARD mode.");
         }
     }
 
@@ -98,8 +147,11 @@ public final class DefaultMeasurementEngine implements MeasurementEngine {
         return new MeasurementStatistics(mean, median, p90);
     }
 
-    private static tensor.CompileMode compileModeFor(backend.runtime.ExecutionMode mode) {
-        return mode == backend.runtime.ExecutionMode.FORWARD_BACKWARD
+    private static tensor.CompileMode compileModeFor(
+            backend.runtime.ExecutionMode mode,
+            MeasurementExecutionMode measurementMode
+    ) {
+        return measurementMode.optimizerStep() || mode == backend.runtime.ExecutionMode.FORWARD_BACKWARD
                 ? tensor.CompileMode.TRAINING
                 : tensor.CompileMode.INFERENCE_ONLY;
     }
