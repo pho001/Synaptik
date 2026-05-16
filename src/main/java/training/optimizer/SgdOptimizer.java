@@ -1,20 +1,34 @@
 package training.optimizer;
 
+import backend.cpu.nativecpu.NativeCpuAllocator;
+import backend.cpu.nativecpu.NativeCpuMaterializer;
+import backend.cpu.nativecpu.NativeCpuStorageFactory;
+import backend.memory.CpuMaterializationReason;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.buffer.MetalBufferAllocator;
 import backend.metal.buffer.MetalBufferBinding;
+import config.runtime.CpuStorageProfile;
 import graph.CompiledNode;
 import backend.cpu.kernels.CpuDTypeOps;
 import tensor.DataType;
+import tensor.NativeFloat32Storage;
+import tensor.NativeTensorStorage;
 import tensor.Tensor;
 
+import java.lang.foreign.MemorySegment;
 import java.util.Collection;
+import java.util.IdentityHashMap;
+import java.util.List;
+
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 
 /**
  * Stochastic gradient descent optimizer for trainable parameters.
  */
 public final class SgdOptimizer extends AbstractTrainableOptimizer {
     private final float learningRate;
+    private final NativeCpuStorageFactory nativeStorageFactory;
+    private final IdentityHashMap<Tensor, OwnedNativeParameter> nativeParameters = new IdentityHashMap<>();
 
     public SgdOptimizer(float learningRate) {
         this(null, learningRate);
@@ -26,10 +40,30 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
             throw new IllegalArgumentException("learningRate must be a finite positive value.");
         }
         this.learningRate = learningRate;
+        this.nativeStorageFactory = new NativeCpuStorageFactory(new NativeCpuAllocator());
     }
 
     public float learningRate() {
         return learningRate;
+    }
+
+    @Override
+    public void beforeExecute(OptimizerStepContext context) {
+        super.beforeExecute(context);
+        if (context.runtimeConfig().cpuStorageProfile() != CpuStorageProfile.CPU_NATIVE) {
+            return;
+        }
+        for (TrainableParameterRef ref : selectedParameters(context)) {
+            if (ref.parameterNode().dataType() != DataType.FLOAT32) {
+                continue;
+            }
+            OwnedNativeParameter owned = nativeParameterFor(ref.parameterNode());
+            context.executionContext().attachNativeStorage(
+                    ref.parameterNode().id(),
+                    owned.view(),
+                    "optimizer-owned native F32 parameter"
+            );
+        }
     }
 
     @Override
@@ -60,6 +94,74 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
         parameter.markStorageModified();
         ref.parameterNode().sourceTensor().markStorageModified();
         context.executionContext().markCpuCurrent(ref.parameterNode().id(), "optimizer CPU SGD update");
+    }
+
+    @Override
+    protected boolean nativeCpuStep(OptimizerStepContext context, TrainableParameterRef ref, int gradientNodeId) {
+        if (!nativeEligible(context, ref, gradientNodeId)) {
+            return false;
+        }
+        try {
+            NativeTensorStorage parameter = context.executionContext().nativeStorageForNodeId(ref.parameterNode().id());
+            NativeTensorStorage gradient = context.executionContext().requireNativeReadable(
+                    gradientNodeId,
+                    CpuMaterializationReason.OPTIMIZER_STEP
+            );
+            if (!(parameter instanceof NativeFloat32Storage parameterF32)
+                    || !(gradient instanceof NativeFloat32Storage gradientF32)
+                    || parameterF32.getSize() != gradientF32.getSize()) {
+                return false;
+            }
+            updateNativeF32(parameterF32, gradientF32, learningRate);
+            parameterF32.markModified();
+            context.executionContext().attachNativeStorage(
+                    ref.parameterNode().id(),
+                    parameterF32,
+                    "optimizer native CPU SGD update"
+            );
+            recordOptimizerTrace(context, ref, gradientNodeId, "CPU_NATIVE", "");
+            return true;
+        } catch (RuntimeException ex) {
+            return false;
+        }
+    }
+
+    @Override
+    protected String nativeCpuFallbackReason(OptimizerStepContext context, TrainableParameterRef ref, int gradientNodeId) {
+        if (context.runtimeConfig().cpuStorageProfile() != CpuStorageProfile.CPU_NATIVE) {
+            return "native-sgd-ineligible:cpu-storage-profile-" + context.runtimeConfig().cpuStorageProfile().name();
+        }
+        if (ref.parameterNode().dataType() != DataType.FLOAT32) {
+            return "native-sgd-ineligible:dtype-" + ref.parameterNode().dataType().name();
+        }
+        Tensor gradient = context.executionContext().runtimeTensorForNodeId(gradientNodeId);
+        if (gradient.getDataType() != DataType.FLOAT32) {
+            return "native-sgd-ineligible:gradient-dtype-" + gradient.getDataType().name();
+        }
+        if (!java.util.Arrays.equals(ref.parameterNode().shape(), gradient.getShapeUnsafe())) {
+            return "native-sgd-ineligible:shape";
+        }
+        if (context.executionContext().nativeStorageForNodeId(ref.parameterNode().id()) == null) {
+            return "native-sgd-ineligible:parameter-storage";
+        }
+        return "native-sgd-ineligible:storage";
+    }
+
+    @Override
+    public void syncParametersToCpu() {
+        super.syncParametersToCpu();
+        for (OwnedNativeParameter owned : List.copyOf(nativeParameters.values())) {
+            NativeCpuMaterializer.nativeToArray(owned.storage(), owned.source());
+        }
+    }
+
+    @Override
+    public void close() {
+        for (OwnedNativeParameter owned : List.copyOf(nativeParameters.values())) {
+            owned.storage().close();
+        }
+        nativeParameters.clear();
+        super.close();
     }
 
     private static void updateCpu(Tensor parameter, Tensor gradient, float learningRate, CompiledNode node) {
@@ -93,6 +195,66 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
             case INT32, BOOL -> throw new UnsupportedOperationException(
                     "SGD supports floating trainable parameters only; got " + parameter.getDataType()
             );
+        }
+    }
+
+    private boolean nativeEligible(OptimizerStepContext context, TrainableParameterRef ref, int gradientNodeId) {
+        if (context.runtimeConfig().cpuStorageProfile() != CpuStorageProfile.CPU_NATIVE
+                || ref.parameterNode().dataType() != DataType.FLOAT32) {
+            return false;
+        }
+        Tensor gradient = context.executionContext().runtimeTensorForNodeId(gradientNodeId);
+        return gradient.getDataType() == DataType.FLOAT32
+                && java.util.Arrays.equals(ref.parameterNode().shape(), gradient.getShapeUnsafe());
+    }
+
+    private OwnedNativeParameter nativeParameterFor(CompiledNode node) {
+        Tensor source = node.sourceTensor();
+        OwnedNativeParameter owned = nativeParameters.get(source);
+        if (owned == null || owned.storage().closed() || owned.storage().getSize() != source.getFlatDataSize()) {
+            if (owned != null) {
+                owned.storage().close();
+            }
+            NativeFloat32Storage storage = (NativeFloat32Storage) nativeStorageFactory.allocate(
+                    DataType.FLOAT32,
+                    source.getFlatDataSize(),
+                    "optimizer-sgd-f32:" + source.getLabel()
+            );
+            NativeCpuMaterializer.arrayToNative(source, storage);
+            owned = new OwnedNativeParameter(source, storage);
+            nativeParameters.put(source, owned);
+        }
+        return owned;
+    }
+
+    private static void updateNativeF32(NativeFloat32Storage parameter, NativeFloat32Storage gradient, float learningRate) {
+        MemorySegment p = parameter.segment();
+        MemorySegment g = gradient.segment();
+        for (int i = 0; i < parameter.getSize(); i++) {
+            long offset = (long) i * Float.BYTES;
+            p.set(JAVA_FLOAT, offset, p.get(JAVA_FLOAT, offset) - learningRate * g.get(JAVA_FLOAT, offset));
+        }
+    }
+
+    private static final class OwnedNativeParameter {
+        private final Tensor source;
+        private final NativeFloat32Storage storage;
+
+        private OwnedNativeParameter(Tensor source, NativeFloat32Storage storage) {
+            this.source = source;
+            this.storage = storage;
+        }
+
+        private Tensor source() {
+            return source;
+        }
+
+        private NativeFloat32Storage storage() {
+            return storage;
+        }
+
+        private NativeFloat32Storage view() {
+            return new NativeFloat32Storage(storage.getSize(), storage.allocation(), storage.byteOffset(), false);
         }
     }
 }

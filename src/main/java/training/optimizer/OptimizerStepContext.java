@@ -4,8 +4,10 @@ import backend.runtime.ExecutionContext;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGradientBinding;
 import graph.CompiledNode;
+import graph.execution.trace.NativeOptimizerTrace;
 import tensor.Tensor;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -18,6 +20,7 @@ public final class OptimizerStepContext {
     private final ExecutionContext executionContext;
     private final List<CompiledNode> allNodes;
     private final Map<Tensor, CompiledGradientBinding> gradientBindings;
+    private final List<NativeOptimizerTrace> nativeOptimizerTraces;
 
     public OptimizerStepContext(
             RuntimeConfig runtimeConfig,
@@ -29,6 +32,7 @@ public final class OptimizerStepContext {
         this.executionContext = Objects.requireNonNull(executionContext, "executionContext cannot be null");
         this.allNodes = List.copyOf(allNodes == null ? List.of() : allNodes);
         this.gradientBindings = Map.copyOf(gradientBindings == null ? Map.of() : gradientBindings);
+        this.nativeOptimizerTraces = new ArrayList<>();
     }
 
     public RuntimeConfig runtimeConfig() {
@@ -57,5 +61,15 @@ public final class OptimizerStepContext {
                 })
                 .filter(Objects::nonNull)
                 .toList();
+    }
+
+    public void recordNativeOptimizerTrace(NativeOptimizerTrace trace) {
+        if (trace != null) {
+            nativeOptimizerTraces.add(trace);
+        }
+    }
+
+    public List<NativeOptimizerTrace> nativeOptimizerTraces() {
+        return List.copyOf(nativeOptimizerTraces);
     }
 }

@@ -382,6 +382,58 @@ public class BenchmarkSessionTest {
     }
 
     @Test
+    void renderersExposeNativeOptimizerTrace() {
+        var profile = new ExecutionProfile(
+                "native-optimizer-profile",
+                "native-optimizer",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD_BACKWARD,
+                config.compile.CompileConfig.training(),
+                config.runtime.RuntimeConfig.trainingDefaults(),
+                WorkloadProfile.none()
+        );
+        var report = BenchmarkReport.of(
+                "native_optimizer_report",
+                List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
+                        BenchmarkEntry.candidate("native-optimizer", profile),
+                        tuning.validate.ValidationResult.skipped(),
+                        new tuning.measure.MeasurementResult(
+                                tuning.measure.MeasurementPolicy.defaults(),
+                                new graph.execution.trace.ExecutionTrace(
+                                        graph.execution.trace.CompileTrace.skipped(),
+                                        graph.execution.trace.PrepareTrace.skipped(),
+                                        new graph.execution.trace.RunTrace(
+                                                ExecutionMode.FORWARD_BACKWARD,
+                                                1L,
+                                                List.of(),
+                                                List.of(),
+                                                graph.execution.trace.NativeCpuMemoryTrace.empty(),
+                                                List.of(new graph.execution.trace.NativeOptimizerTrace(
+                                                        "SgdOptimizer",
+                                                        "CPU_NATIVE",
+                                                        DataType.FLOAT32,
+                                                        7,
+                                                        9,
+                                                        128,
+                                                        ""
+                                                ))
+                                        )
+                                ),
+                                new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
+                        )
+                ))
+        );
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        assertTrue(text.contains("nativeOptimizerSummary=updateCount=1 nativeCount=1"));
+        assertTrue(text.contains("optimizerUpdate=optimizer=SgdOptimizer route=CPU_NATIVE"));
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+        assertTrue(json.contains("\"nativeOptimizers\": [{\"optimizer\": \"SgdOptimizer\", \"route\": \"CPU_NATIVE\""));
+        assertTrue(json.contains("\"elementCount\": 128"));
+    }
+
+    @Test
     void renderersExposeBackendSelectionCostDiagnostics() {
         var profile = new ExecutionProfile(
                 "cost-candidate-profile",

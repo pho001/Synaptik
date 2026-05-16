@@ -74,6 +74,9 @@ public final class JsonBenchmarkReportRenderer {
                 sb.append("        \"nativeCpuMemory\": ")
                         .append(nativeCpuMemoryTraceJson(trace.run().nativeCpuMemory()))
                         .append(",\n");
+                sb.append("        \"nativeOptimizers\": ")
+                        .append(nativeOptimizerTracesJson(trace.run().nativeOptimizers()))
+                        .append(",\n");
                 sb.append("        \"accelerator\": ").append(acceleratorSummaryJson(
                         AcceleratorTraceSummary.fromSteps(trace.run().steps())
                 )).append(",\n");
@@ -195,6 +198,30 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"discardedBytes\": " + trace.discardedBytes() + ", "
                 + "\"wastedBytes\": " + trace.wastedBytes()
                 + "}";
+    }
+
+    private static String nativeOptimizerTracesJson(java.util.List<graph.execution.trace.NativeOptimizerTrace> traces) {
+        if (traces == null || traces.isEmpty()) {
+            return "[]";
+        }
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < traces.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            graph.execution.trace.NativeOptimizerTrace trace = traces.get(i);
+            sb.append("{")
+                    .append("\"optimizer\": \"").append(escape(trace.optimizer())).append("\", ")
+                    .append("\"route\": \"").append(escape(trace.route())).append("\", ")
+                    .append("\"dataType\": \"").append(trace.dataType() == null ? "" : escape(trace.dataType().name())).append("\", ")
+                    .append("\"parameterNodeId\": ").append(trace.parameterNodeId()).append(", ")
+                    .append("\"gradientNodeId\": ").append(trace.gradientNodeId()).append(", ")
+                    .append("\"elementCount\": ").append(trace.elementCount()).append(", ")
+                    .append("\"fallbackReason\": \"").append(escape(trace.fallbackReason())).append("\"")
+                    .append("}");
+        }
+        sb.append("]");
+        return sb.toString();
     }
 
     private record NativeCpuTraceSummary(

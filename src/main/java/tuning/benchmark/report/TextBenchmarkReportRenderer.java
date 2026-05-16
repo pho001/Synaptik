@@ -105,6 +105,7 @@ public final class TextBenchmarkReportRenderer {
                         appendNativeCpuSummary(sb, NativeCpuTraceSummary.fromSteps(trace.run().steps()));
                         appendRuntimeCopySummary(sb, RuntimeCopyTraceSummary.fromRun(trace.run()));
                         appendNativeCpuMemorySummary(sb, trace.run().nativeCpuMemory());
+                        appendNativeOptimizerSummary(sb, trace.run().nativeOptimizers());
                         appendAcceleratorSummary(sb, AcceleratorTraceSummary.fromSteps(trace.run().steps()));
                         appendGpuCoverageSummary(sb, GpuCoverageSummary.fromTrace(trace));
                         appendCrossBackendRouterEvidence(sb, CrossBackendRouterEvidence.fromTrace(trace));
@@ -175,6 +176,37 @@ public final class TextBenchmarkReportRenderer {
                 .append(" discardedBytes=").append(trace.discardedBytes())
                 .append(" wastedBytes=").append(trace.wastedBytes())
                 .append('\n');
+    }
+
+    private static void appendNativeOptimizerSummary(
+            StringBuilder sb,
+            java.util.List<graph.execution.trace.NativeOptimizerTrace> traces
+    ) {
+        if (traces == null || traces.isEmpty()) {
+            return;
+        }
+        long nativeCount = traces.stream().filter(trace -> "CPU_NATIVE".equals(trace.route())).count();
+        long arrayCount = traces.stream().filter(trace -> "CPU_ARRAY".equals(trace.route())).count();
+        long metalCount = traces.stream().filter(trace -> "GPU_METAL".equals(trace.route())).count();
+        long elements = traces.stream().mapToLong(graph.execution.trace.NativeOptimizerTrace::elementCount).sum();
+        sb.append("  nativeOptimizerSummary=")
+                .append("updateCount=").append(traces.size())
+                .append(" nativeCount=").append(nativeCount)
+                .append(" arrayCount=").append(arrayCount)
+                .append(" metalCount=").append(metalCount)
+                .append(" elementCount=").append(elements)
+                .append('\n');
+        for (graph.execution.trace.NativeOptimizerTrace trace : traces) {
+            sb.append("  optimizerUpdate=")
+                    .append("optimizer=").append(trace.optimizer())
+                    .append(" route=").append(trace.route())
+                    .append(" dtype=").append(trace.dataType())
+                    .append(" parameterNodeId=").append(trace.parameterNodeId())
+                    .append(" gradientNodeId=").append(trace.gradientNodeId())
+                    .append(" elementCount=").append(trace.elementCount())
+                    .append(" fallbackReason=").append(trace.fallbackReason())
+                    .append('\n');
+        }
     }
 
     private static String formatMs(long durationNs) {

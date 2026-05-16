@@ -13,6 +13,7 @@ import backend.metal.buffer.MetalDeviceToCpuMaterializer;
 import backend.runtime.ExecutionContext;
 import graph.CompiledGradientBinding;
 import graph.CompiledNode;
+import graph.execution.trace.NativeOptimizerTrace;
 import tensor.DataType;
 import tensor.Tensor;
 
@@ -68,9 +69,15 @@ abstract class AbstractTrainableOptimizer implements TrainingOptimizer {
                 continue;
             }
             if (tryMetalStep(context, ref, nodeBinding.nodeId())) {
+                recordOptimizerTrace(context, ref, nodeBinding.nodeId(), "GPU_METAL", "");
+                continue;
+            }
+            if (nativeCpuStep(context, ref, nodeBinding.nodeId())) {
+                clearMetalParameter(ref.parameterNode().sourceTensor());
                 continue;
             }
             cpuStep(context, ref, nodeBinding.nodeId());
+            recordOptimizerTrace(context, ref, nodeBinding.nodeId(), "CPU_ARRAY", nativeCpuFallbackReason(context, ref, nodeBinding.nodeId()));
             clearMetalParameter(ref.parameterNode().sourceTensor());
         }
     }
@@ -107,6 +114,36 @@ abstract class AbstractTrainableOptimizer implements TrainingOptimizer {
     );
 
     protected abstract void cpuStep(OptimizerStepContext context, TrainableParameterRef ref, int gradientNodeId);
+
+    protected boolean nativeCpuStep(OptimizerStepContext context, TrainableParameterRef ref, int gradientNodeId) {
+        return false;
+    }
+
+    protected String nativeCpuFallbackReason(OptimizerStepContext context, TrainableParameterRef ref, int gradientNodeId) {
+        return "native-cpu-optimizer-not-implemented";
+    }
+
+    protected void recordOptimizerTrace(
+            OptimizerStepContext context,
+            TrainableParameterRef ref,
+            int gradientNodeId,
+            String route,
+            String fallbackReason
+    ) {
+        context.recordNativeOptimizerTrace(new NativeOptimizerTrace(
+                optimizerName(),
+                route,
+                ref.parameterNode().dataType(),
+                ref.parameterNode().id(),
+                gradientNodeId,
+                context.executionContext().runtimeTensorForNodeId(ref.parameterNode().id()).getFlatDataSize(),
+                fallbackReason
+        ));
+    }
+
+    protected String optimizerName() {
+        return getClass().getSimpleName();
+    }
 
     protected List<TrainableParameterRef> selectedParameters(OptimizerStepContext context) {
         return context.trainableParameters().stream()
