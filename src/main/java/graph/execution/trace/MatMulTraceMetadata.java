@@ -9,6 +9,14 @@ package graph.execution.trace;
  * @param blasSymbol native BLAS symbol used or targeted by the route
  * @param blasRoute stable BLAS route label
  * @param route concrete runtime route selected for the step
+ * @param openblasSgemmAvailable whether {@code cblas_sgemm} is available from the selected OpenBLAS FFM bridge
+ * @param openblasDgemmAvailable whether {@code cblas_dgemm} is available from the selected OpenBLAS FFM bridge
+ * @param openblasSbgemmAvailable whether {@code cblas_sbgemm} is available from the selected OpenBLAS FFM bridge
+ * @param openblasBgemmAvailable whether {@code cblas_bgemm} is available from the selected OpenBLAS FFM bridge
+ * @param bf16ContinuationRoute BF16 continuation route, for example {@code SBGEMM} or {@code JAVA}
+ * @param bf16OutputRoute BF16 public-output route, for example {@code BGEMM}, {@code PROMOTED_F32}, or {@code JAVA}
+ * @param bf16ComputePrecision BF16 compute precision contract for the selected route
+ * @param bf16OutputPrecision BF16 output precision contract for the selected route
  * @param copyInBytes estimated bytes copied into a native library boundary, or {@code -1} when unknown
  * @param copyOutBytes estimated bytes copied out of a native library boundary, or {@code -1} when unknown
  * @param nativeTempBytes native temporary bytes allocated by the route, or {@code -1} when unknown
@@ -29,6 +37,14 @@ public record MatMulTraceMetadata(
         String blasSymbol,
         String blasRoute,
         String route,
+        boolean openblasSgemmAvailable,
+        boolean openblasDgemmAvailable,
+        boolean openblasSbgemmAvailable,
+        boolean openblasBgemmAvailable,
+        String bf16ContinuationRoute,
+        String bf16OutputRoute,
+        String bf16ComputePrecision,
+        String bf16OutputPrecision,
         long copyInBytes,
         long copyOutBytes,
         long nativeTempBytes,
@@ -47,6 +63,10 @@ public record MatMulTraceMetadata(
         blasSymbol = blasSymbol == null ? "" : blasSymbol;
         blasRoute = blasRoute == null ? "" : blasRoute;
         route = route == null ? "" : route;
+        bf16ContinuationRoute = bf16ContinuationRoute == null ? "" : bf16ContinuationRoute;
+        bf16OutputRoute = bf16OutputRoute == null ? "" : bf16OutputRoute;
+        bf16ComputePrecision = bf16ComputePrecision == null ? "" : bf16ComputePrecision;
+        bf16OutputPrecision = bf16OutputPrecision == null ? "" : bf16OutputPrecision;
         copyInBytes = Math.max(-1L, copyInBytes);
         copyOutBytes = Math.max(-1L, copyOutBytes);
         nativeTempBytes = Math.max(-1L, nativeTempBytes);

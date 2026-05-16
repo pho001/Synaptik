@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -40,7 +41,12 @@ public class BFloat16BlasDispatchTest {
         assertNotNull(matmul);
         assertNotNull(matmul.metadata().matMul());
         assertTrue(matmul.metadata().matMul().useBlas());
-        assertTrue("cblas_bgemm".equals(matmul.metadata().matMul().blasSymbol()));
+        assertEquals("cblas_bgemm", matmul.metadata().matMul().blasSymbol());
+        assertEquals("BGEMM", matmul.metadata().matMul().bf16OutputRoute());
+        assertEquals("", matmul.metadata().matMul().bf16ContinuationRoute());
+        assertEquals("BF16_OUTPUT", matmul.metadata().matMul().bf16ComputePrecision());
+        assertEquals("BF16", matmul.metadata().matMul().bf16OutputPrecision());
+        assertEquals(true, matmul.metadata().matMul().openblasBgemmAvailable());
     }
 
     @Test
@@ -50,9 +56,9 @@ public class BFloat16BlasDispatchTest {
         Tensor x = new Tensor(random(32 * 64), new int[]{32, 64}, null, "x", DataType.BFLOAT16);
         Tensor w = new Tensor(random(64 * 96), new int[]{64, 96}, null, "w", DataType.BFLOAT16);
         Tensor b = new Tensor(random(96), new int[]{96}, null, "b", DataType.BFLOAT16);
-        Tensor out = x.linear(w, b).sum();
+        Tensor out = x.linear(w, b).relu().sum();
 
-        var trace = CompiledGraph.compile(out, CompileConfig.inference())
+        var trace = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .executeTraced(blasRuntime(1L), ExecutionMode.FORWARD);
 
         ExecutionStepTrace linear = trace.steps().stream()
@@ -62,6 +68,42 @@ public class BFloat16BlasDispatchTest {
         assertNotNull(linear);
         assertNotNull(linear.metadata().matMul());
         assertTrue(linear.metadata().matMul().useBlas());
+        assertEquals("cblas_sbgemm", linear.metadata().matMul().blasSymbol());
+        assertEquals("SBGEMM", linear.metadata().matMul().bf16ContinuationRoute());
+        assertEquals("PROMOTED_F32", linear.metadata().matMul().bf16OutputRoute());
+        assertEquals("F32_PROMOTED", linear.metadata().matMul().bf16ComputePrecision());
+        assertEquals("F32", linear.metadata().matMul().bf16OutputPrecision());
+        assertEquals(true, linear.metadata().matMul().openblasSbgemmAvailable());
+    }
+
+    @Test
+    void bfloat16MatmulTraceReportsJavaRouteWhenBlasIsDisabled() {
+        Tensor a = new Tensor(random(16 * 16), new int[]{16, 16}, null, "a", DataType.BFLOAT16);
+        Tensor b = new Tensor(random(16 * 16), new int[]{16, 16}, null, "b", DataType.BFLOAT16);
+        Tensor out = a.matmul(b);
+
+        RuntimeConfig runtime = new RuntimeConfig(
+                KernelTuningConfig.defaultsInference(),
+                config.runtime.ApproximationConfig.defaults(),
+                BlasConfig.disabled()
+        );
+
+        var trace = CompiledGraph.compile(out, CompileConfig.inference())
+                .executeTraced(runtime, ExecutionMode.FORWARD);
+
+        ExecutionStepTrace matmul = trace.steps().stream()
+                .filter(step -> "MATMUL".equals(step.opType()))
+                .findFirst()
+                .orElse(null);
+        assertNotNull(matmul);
+        assertNotNull(matmul.metadata().matMul());
+        assertEquals("JAVA_DIRECT", matmul.metadata().matMul().route());
+        assertEquals("JAVA", matmul.metadata().matMul().bf16ContinuationRoute());
+        assertEquals("JAVA", matmul.metadata().matMul().bf16OutputRoute());
+        assertEquals("F32_PROMOTED", matmul.metadata().matMul().bf16ComputePrecision());
+        assertEquals("BF16", matmul.metadata().matMul().bf16OutputPrecision());
+        assertEquals(false, matmul.metadata().matMul().openblasSbgemmAvailable());
+        assertEquals(false, matmul.metadata().matMul().openblasBgemmAvailable());
     }
 
     @Test

@@ -71,6 +71,13 @@ public class ComputeModeTraceTest {
         assertEquals("CPU_MATMUL_BLAS", matmul.metadata().compute().backend());
         assertNotNull(matmul.metadata().matMul());
         assertEquals(true, matmul.metadata().matMul().useBlas());
+        assertEquals(true, matmul.metadata().matMul().openblasBgemmAvailable());
+        assertEquals("BGEMM", matmul.metadata().matMul().bf16OutputRoute());
+        assertEquals("", matmul.metadata().matMul().bf16ContinuationRoute());
+        assertEquals("BF16_OUTPUT", matmul.metadata().matMul().bf16ComputePrecision());
+        assertEquals("BF16", matmul.metadata().matMul().bf16OutputPrecision());
+        assertEquals(true, matmul.metadata().attributes().get("openblasBgemmAvailable"));
+        assertEquals("BGEMM", matmul.metadata().attributes().get("bf16OutputRoute"));
     }
 
     private static config.runtime.RuntimeConfig bfloat16BlasRuntime() {

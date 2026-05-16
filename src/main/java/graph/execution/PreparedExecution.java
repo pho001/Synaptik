@@ -6,6 +6,7 @@ import backend.accelerator.lowering.GpuCompoundPatternType;
 import backend.blas.OpenBlasFfmBridge;
 import backend.cpu.fused.plan.FusedOperation;
 import backend.cpu.kernels.CpuDTypeOps;
+import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
 import backend.memory.CpuMaterializationReason;
@@ -509,13 +510,24 @@ public final class PreparedExecution {
                 MatMulExecutionRoute route = executable == null || executable.lastExecutionRoute() == null
                         ? plan.matMulHints().route()
                         : executable.lastExecutionRoute();
+                String blasProvider = matMulBlasProvider(context);
+                String blasSymbol = matMulBlasSymbol(node, route, executable, plan);
+                boolean openblasProvider = "OPENBLAS_FFM".equals(blasProvider);
                 matMul = new MatMulTraceMetadata(
                         plan.matMulHints().useBlas(),
                         plan.matMulHints().useBatchedBlas(),
-                        matMulBlasProvider(context),
-                        matMulBlasSymbol(node, route, executable),
+                        blasProvider,
+                        blasSymbol,
                         route.name(),
                         route.name(),
+                        openblasProvider && OpenBlasFfmBridge.isFloat32GemmAvailable(),
+                        openblasProvider && OpenBlasFfmBridge.isFloat64GemmAvailable(),
+                        openblasProvider && OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable(),
+                        openblasProvider && OpenBlasFfmBridge.isBFloat16OutputGemmAvailable(),
+                        matMulBf16ContinuationRoute(node, route, blasSymbol),
+                        matMulBf16OutputRoute(node, route, blasSymbol),
+                        matMulBf16ComputePrecision(node, route, blasSymbol),
+                        matMulBf16OutputPrecision(node, route, blasSymbol),
                         matMulCopyInBytes(node, step, context, executable, route),
                         matMulCopyOutBytes(node, executable, route),
                         matMulNativeTempBytes(route),
@@ -533,12 +545,16 @@ public final class PreparedExecution {
                 attrs.put("blasProvider", matMul.blasProvider());
                 attrs.put("blasSymbol", matMul.blasSymbol());
                 attrs.put("blasRoute", matMul.blasRoute());
+                attrs.put("openblasSgemmAvailable", matMul.openblasSgemmAvailable());
+                attrs.put("openblasDgemmAvailable", matMul.openblasDgemmAvailable());
+                attrs.put("openblasSbgemmAvailable", matMul.openblasSbgemmAvailable());
+                attrs.put("openblasBgemmAvailable", matMul.openblasBgemmAvailable());
+                attrs.put("bf16ContinuationRoute", matMul.bf16ContinuationRoute());
+                attrs.put("bf16OutputRoute", matMul.bf16OutputRoute());
+                attrs.put("bf16ComputePrecision", matMul.bf16ComputePrecision());
+                attrs.put("bf16OutputPrecision", matMul.bf16OutputPrecision());
                 if ("OPENBLAS_FFM".equals(matMul.blasProvider())) {
                     attrs.put("openblasLookupSource", OpenBlasFfmBridge.lookupSource());
-                    attrs.put("openblasSgemmAvailable", OpenBlasFfmBridge.isFloat32GemmAvailable());
-                    attrs.put("openblasDgemmAvailable", OpenBlasFfmBridge.isFloat64GemmAvailable());
-                    attrs.put("openblasSbgemmAvailable", OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable());
-                    attrs.put("openblasBgemmAvailable", OpenBlasFfmBridge.isBFloat16OutputGemmAvailable());
                 }
                 attrs.put("matMulCopyInBytes", matMul.copyInBytes());
                 attrs.put("matMulCopyOutBytes", matMul.copyOutBytes());
@@ -815,11 +831,23 @@ public final class PreparedExecution {
     }
 
     private static String matMulBlasSymbol(CompiledNode node, MatMulExecutionRoute route, PreparedMatMulExecutable executable) {
+        return matMulBlasSymbol(node, route, executable, null);
+    }
+
+    private static String matMulBlasSymbol(
+            CompiledNode node,
+            MatMulExecutionRoute route,
+            PreparedMatMulExecutable executable,
+            CpuNodeExecutionPlan plan
+    ) {
         if (executable != null && !executable.lastBlasSymbol().isBlank()) {
             return executable.lastBlasSymbol();
         }
         if (route == MatMulExecutionRoute.JAVA_DIRECT) {
             return "";
+        }
+        if (isBFloat16LinearSbgemmRoute(node, plan)) {
+            return "cblas_sbgemm";
         }
         return switch (node.dataType()) {
             case FLOAT32 -> "cblas_sgemm";
@@ -827,6 +855,76 @@ public final class PreparedExecution {
             case BFLOAT16 -> "cblas_bgemm";
             default -> "";
         };
+    }
+
+    private static boolean isBFloat16LinearSbgemmRoute(CompiledNode node, CpuNodeExecutionPlan plan) {
+        if (node.dataType() != tensor.DataType.BFLOAT16
+                || !(node.operation() instanceof operations.linalg.linear linearOp)
+                || plan == null
+                || plan.matMulHints() == null
+                || (!plan.matMulHints().useBlas() && !plan.matMulHints().useBatchedBlas())) {
+            return false;
+        }
+        return OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable()
+                && (plan.publishFloatContinuation() || linearOp.hasBias());
+    }
+
+    private static String matMulBf16ContinuationRoute(CompiledNode node, MatMulExecutionRoute route, String blasSymbol) {
+        if (node.dataType() != tensor.DataType.BFLOAT16) {
+            return "";
+        }
+        if ("cblas_sbgemm".equals(blasSymbol)) {
+            return "SBGEMM";
+        }
+        if (route == MatMulExecutionRoute.JAVA_DIRECT) {
+            return "JAVA";
+        }
+        if ("cblas_bgemm".equals(blasSymbol)) {
+            return "";
+        }
+        return "UNAVAILABLE";
+    }
+
+    private static String matMulBf16OutputRoute(CompiledNode node, MatMulExecutionRoute route, String blasSymbol) {
+        if (node.dataType() != tensor.DataType.BFLOAT16) {
+            return "";
+        }
+        if ("cblas_bgemm".equals(blasSymbol)) {
+            return "BGEMM";
+        }
+        if ("cblas_sbgemm".equals(blasSymbol)) {
+            return "PROMOTED_F32";
+        }
+        if (route == MatMulExecutionRoute.JAVA_DIRECT) {
+            return "JAVA";
+        }
+        return "UNAVAILABLE";
+    }
+
+    private static String matMulBf16ComputePrecision(CompiledNode node, MatMulExecutionRoute route, String blasSymbol) {
+        if (node.dataType() != tensor.DataType.BFLOAT16) {
+            return "";
+        }
+        if ("cblas_bgemm".equals(blasSymbol)) {
+            return "BF16_OUTPUT";
+        }
+        if ("cblas_sbgemm".equals(blasSymbol) || route == MatMulExecutionRoute.JAVA_DIRECT) {
+            return "F32_PROMOTED";
+        }
+        return "UNAVAILABLE";
+    }
+
+    private static String matMulBf16OutputPrecision(CompiledNode node, MatMulExecutionRoute route, String blasSymbol) {
+        if (node.dataType() != tensor.DataType.BFLOAT16) {
+            return "";
+        }
+        if ("cblas_sbgemm".equals(blasSymbol)) {
+            return "F32";
+        }
+        if ("cblas_bgemm".equals(blasSymbol) || route == MatMulExecutionRoute.JAVA_DIRECT) {
+            return "BF16";
+        }
+        return "UNAVAILABLE";
     }
 
     private static long logicalByteLength(Tensor tensor) {

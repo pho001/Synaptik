@@ -525,6 +525,101 @@ public class BenchmarkSessionTest {
     }
 
     @Test
+    void renderersExposeMatmulBfloat16OpenBlasRouteEvidence() {
+        var profile = new ExecutionProfile(
+                "bf16-openblas-route-profile",
+                "bf16-openblas-route",
+                DataType.BFLOAT16,
+                ExecutionMode.FORWARD,
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        var matMul = new graph.execution.trace.MatMulTraceMetadata(
+                true,
+                false,
+                "OPENBLAS_FFM",
+                "cblas_sbgemm",
+                "OPENBLAS_ARRAY_COPYING",
+                "OPENBLAS_ARRAY_COPYING",
+                true,
+                true,
+                true,
+                false,
+                "SBGEMM",
+                "PROMOTED_F32",
+                "F32_PROMOTED",
+                "F32",
+                4096L,
+                8192L,
+                -1L,
+                "AUTO_UNCONTROLLED",
+                "",
+                true,
+                8,
+                8,
+                4,
+                4,
+                8192L,
+                "F32_4X2"
+        );
+        var step = new graph.execution.trace.ExecutionStepTrace(
+                0,
+                "bf16_matmul",
+                "MATMUL",
+                List.of(32, 32),
+                DataType.BFLOAT16,
+                "CPU",
+                "BF16BlasMatMulExecutable",
+                100L,
+                new graph.execution.trace.StepExecutionMetadata(
+                        "node",
+                        Map.of(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        matMul,
+                        null,
+                        null
+                )
+        );
+
+        BenchmarkReport report = BenchmarkReport.of(
+                "bf16_openblas_route_report",
+                List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
+                        BenchmarkEntry.candidate("bf16-openblas-route", profile),
+                        tuning.validate.ValidationResult.skipped(),
+                        new tuning.measure.MeasurementResult(
+                                tuning.measure.MeasurementPolicy.defaults(),
+                                new graph.execution.trace.ExecutionTrace(
+                                        graph.execution.trace.CompileTrace.skipped(),
+                                        graph.execution.trace.PrepareTrace.skipped(),
+                                        new graph.execution.trace.RunTrace(ExecutionMode.FORWARD, 100L, List.of(step))
+                                ),
+                                new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
+                        )
+                ))
+        );
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        assertTrue(text.contains("openblasSbgemmAvailable=true"));
+        assertTrue(text.contains("openblasBgemmAvailable=false"));
+        assertTrue(text.contains("bf16ContinuationRoute=SBGEMM"));
+        assertTrue(text.contains("bf16OutputRoute=PROMOTED_F32"));
+        assertTrue(text.contains("bf16ComputePrecision=F32_PROMOTED"));
+        assertTrue(text.contains("bf16OutputPrecision=F32"));
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+        assertTrue(json.contains("\"openblasSbgemmAvailable\": true"));
+        assertTrue(json.contains("\"openblasBgemmAvailable\": false"));
+        assertTrue(json.contains("\"bf16ContinuationRoute\": \"SBGEMM\""));
+        assertTrue(json.contains("\"bf16OutputRoute\": \"PROMOTED_F32\""));
+        assertTrue(json.contains("\"bf16ComputePrecision\": \"F32_PROMOTED\""));
+        assertTrue(json.contains("\"bf16OutputPrecision\": \"F32\""));
+    }
+
+    @Test
     void benchmarkTextReportRendersGpuLoweredRegionManifest() {
         BenchmarkReport report = reportWithGpuLoweredRegionManifest();
 
