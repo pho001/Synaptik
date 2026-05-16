@@ -309,6 +309,37 @@ public final class ExecutionState {
     }
 
     /**
+     * Attaches the current native CPU storage from one node to another view-only node without allocating.
+     *
+     * <p>The source native storage must already be current and registered with this execution state. The
+     * target node gets a runtime alias to the same native storage, while its CPU array representation remains
+     * stale until an explicit CPU materialization request writes into the target runtime tensor.</p>
+     *
+     * @param targetNodeId view-only target node id
+     * @param sourceNodeId source node id whose native storage is current
+     * @param reason diagnostic transition reason
+     */
+    public void aliasNativeStorage(int targetNodeId, int sourceNodeId, String reason) {
+        Tensor target = runtimeTensorForNodeId(targetNodeId);
+        Tensor source = runtimeTensorForNodeId(sourceNodeId);
+        if (target.getDataType() != source.getDataType()) {
+            throw new IllegalArgumentException("Native view alias dtype mismatch. targetNodeId=" + targetNodeId
+                    + ", sourceNodeId=" + sourceNodeId + ", targetType=" + target.getDataType()
+                    + ", sourceType=" + source.getDataType());
+        }
+        if (target.getFlatDataSize() != source.getFlatDataSize()) {
+            throw new IllegalArgumentException("Native view alias size mismatch. targetNodeId=" + targetNodeId
+                    + ", sourceNodeId=" + sourceNodeId + ", targetElements=" + target.getFlatDataSize()
+                    + ", sourceElements=" + source.getFlatDataSize());
+        }
+        NativeTensorStorage storage = requireNativeReadable(sourceNodeId, CpuMaterializationReason.CPU_CONSUMER);
+        nativeStorageByNodeId.put(targetNodeId, storage);
+        deviceBufferBindingByNodeId.remove(targetNodeId);
+        reservedDeviceBufferBindingByNodeId.remove(targetNodeId);
+        residencyForNodeId(targetNodeId).markNativeCurrent(reason);
+    }
+
+    /**
      * Returns native CPU storage attached to a node.
      *
      * @param nodeId compiled node id

@@ -434,6 +434,73 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void cpuNativeMatmulReshapeReluKeepsViewAndReluOutputsNative() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor out = a().matmul(b()).reshape(4).relu();
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        assertNativeView(trace.steps().stream()
+                .filter(step -> "RESHAPE".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "RELU".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+    }
+
+    @Test
+    void cpuNativeMatmulSqueezeExpandDimsAddKeepsViewOutputsNative() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor bias = vector(new float[]{1f, -100f}, "bias");
+        Tensor out = a().matmul(b())
+                .expandDims(0)
+                .squeeze(0)
+                .add(bias);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        assertNativeView(trace.steps().stream()
+                .filter(step -> "EXPAND_DIMS".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeView(trace.steps().stream()
+                .filter(step -> "SQUEEZE".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "ADD".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+    }
+
+    @Test
+    void cpuNativeBf16CastReshapeCastReadsNativeViewInput() {
+        Tensor out = tensor(new float[]{1f, -2f, 3.5f, -4.5f}, "cast_input")
+                .cast(DataType.BFLOAT16)
+                .reshape(4)
+                .cast(DataType.FLOAT32);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new float[]{1f, -2f, 3.5f, -4.5f}, out.getFloat32Data(), 1.0e-3f);
+        assertNativeView(trace.steps().stream()
+                .filter(step -> "RESHAPE".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeCast(trace.steps().stream()
+                .filter(step -> "CAST".equals(step.opType()) && step.dataType() == DataType.FLOAT32)
+                .findFirst()
+                .orElseThrow());
+    }
+
+    @Test
     void cpuNativeF64AddMulNegChainKeepsOutputsNativeAndPublishesValues() {
         Tensor out = f64(new double[]{1.0d, -2.0d, 3.0d, -4.0d}, "f64_a")
                 .add(f64(new double[]{0.5d, 2.0d, -1.0d, 8.0d}, "f64_b"))
@@ -1108,6 +1175,53 @@ class NativeCpuElementwiseChainTest {
         assertEquals("CPU_ARRAY", sum.get("storageResidency"));
     }
 
+    @Test
+    void autoStorageDoesNotUseNativeViewSlice() {
+        Tensor out = tensor(new float[]{1f, 2f, 3f, 4f}, "view_input")
+                .reshape(4)
+                .relu();
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> reshape = attrs(trace.steps().stream()
+                .filter(step -> "RESHAPE".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertFalse(reshape.containsKey("nativeCpuKernelStatus"));
+        assertEquals("CPU_ARRAY", reshape.get("storageResidency"));
+    }
+
+    @Test
+    void selectAndSliceStayOutsideNativeViewSlice() {
+        Tensor selected = tensor(new float[]{1f, 2f, 3f, 4f}, "select_input")
+                .select(0, 1)
+                .relu();
+        Tensor sliced = tensor(new float[]{1f, 2f, 3f, 4f}, "slice_input")
+                .slice(new int[]{0, 0}, new int[]{1, 2}, new int[]{0, 1}, new int[]{1, 1})
+                .relu();
+
+        var selectTrace = CompiledGraph.compile(selected, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+        var sliceTrace = CompiledGraph.compile(sliced, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> select = attrs(selectTrace.steps().stream()
+                .filter(step -> "SELECT".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        Map<String, Object> slice = attrs(sliceTrace.steps().stream()
+                .filter(step -> "SLICE".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertFalse(select.containsKey("nativeCpuKernelStatus"));
+        assertEquals("CPU_ARRAY", select.get("storageResidency"));
+        assertFalse(slice.containsKey("nativeCpuKernelStatus"));
+        assertEquals("CPU_ARRAY", slice.get("storageResidency"));
+    }
+
     private static RuntimeConfig runtime(CpuStorageProfile storageProfile, NativeCpuFailurePolicy failurePolicy) {
         return new RuntimeConfig(
                 KernelTuningConfig.defaultsInference(),
@@ -1211,6 +1325,17 @@ class NativeCpuElementwiseChainTest {
         assertEquals("SEGMENT_SCALAR", cast.get("nativeCpuKernelFamily"));
         assertEquals("", cast.get("nativeCpuFallbackReason"));
         assertEquals("CPU_NATIVE", cast.get("storageResidency"));
+    }
+
+    private static void assertNativeView(ExecutionStepTrace step) {
+        Map<String, Object> view = attrs(step);
+        assertEquals("CPU_NATIVE", view.get("cpuStorageProfile"));
+        assertEquals("CPU_NATIVE", view.get("requestedCpuStorage"));
+        assertEquals("CPU_NATIVE", view.get("actualCpuStorage"));
+        assertEquals("VIEW_ONLY", view.get("nativeCpuKernelStatus"));
+        assertEquals("VIEW_ONLY", view.get("nativeCpuKernelFamily"));
+        assertEquals("", view.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", view.get("storageResidency"));
     }
 
     private static Map<String, Object> attrs(ExecutionStepTrace step) {

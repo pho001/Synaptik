@@ -231,6 +231,20 @@ public final class ExecutionContext {
     }
 
     /**
+     * Attaches a target node to the current native CPU storage of a source node for view-only aliases.
+     *
+     * @param targetNodeId target compiled node id
+     * @param sourceNodeId source compiled node id
+     * @param reason diagnostic transition reason
+     */
+    public void aliasNativeStorage(int targetNodeId, int sourceNodeId, String reason) {
+        if (executionState == null) {
+            throw new IllegalStateException("ExecutionContext does not carry per-run ExecutionState.");
+        }
+        executionState.aliasNativeStorage(targetNodeId, sourceNodeId, reason);
+    }
+
+    /**
      * Returns native CPU storage attached to a runtime tensor.
      *
      * @param nodeId compiled node id

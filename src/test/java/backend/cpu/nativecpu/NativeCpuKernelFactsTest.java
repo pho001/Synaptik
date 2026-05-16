@@ -190,14 +190,42 @@ class NativeCpuKernelFactsTest {
 
     @Test
     void metadataOnlyViewsCanPreserveNativeStorageWithoutClaimingCompute() {
+        NativeCpuKernelFact noop = NativeCpuKernelFacts.factFor(Operation.OpType.NOOP, DataType.FLOAT64);
         NativeCpuKernelFact reshape = NativeCpuKernelFacts.factFor(Operation.OpType.RESHAPE, DataType.FLOAT32);
+        NativeCpuKernelFact expandDims = NativeCpuKernelFacts.factFor(Operation.OpType.EXPAND_DIMS, DataType.FLOAT32);
         NativeCpuKernelFact squeeze = NativeCpuKernelFacts.factFor(Operation.OpType.SQUEEZE, DataType.BFLOAT16);
 
+        assertEquals(NativeCpuKernelPerformanceStatus.VIEW_ONLY, noop.status());
+        assertEquals(NativeCpuKernelFamily.VIEW_ONLY, noop.family());
         assertEquals(NativeCpuKernelPerformanceStatus.VIEW_ONLY, reshape.status());
         assertEquals(NativeCpuKernelFamily.VIEW_ONLY, reshape.family());
+        assertEquals(NativeCpuKernelPerformanceStatus.VIEW_ONLY, expandDims.status());
+        assertEquals(NativeCpuKernelFamily.VIEW_ONLY, expandDims.family());
         assertTrue(reshape.preservesNativeStorage());
+        assertTrue(expandDims.preservesNativeStorage());
         assertFalse(reshape.nativeComputeEligible());
         assertEquals("metadata-only-native-view", squeeze.reason());
+    }
+
+    @Test
+    void nonShapeOnlyViewsAreNotNativeViewOnlyFactsYet() {
+        NativeCpuKernelFact select = NativeCpuKernelFacts.factFor(Operation.OpType.SELECT, DataType.FLOAT32);
+        NativeCpuKernelFact slice = NativeCpuKernelFacts.factFor(Operation.OpType.SLICE, DataType.FLOAT32);
+        NativeCpuKernelFact permute = NativeCpuKernelFacts.factFor(Operation.OpType.PERMUTE, DataType.FLOAT32);
+        NativeCpuKernelFact expand = NativeCpuKernelFacts.factFor(Operation.OpType.EXPAND, DataType.FLOAT32);
+
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_UNSUPPORTED, select.status());
+        assertEquals(NativeCpuKernelFamily.ARRAY_ONLY, select.family());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_UNSUPPORTED, slice.status());
+        assertEquals(NativeCpuKernelFamily.ARRAY_ONLY, slice.family());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_UNSUPPORTED, permute.status());
+        assertEquals(NativeCpuKernelFamily.ARRAY_ONLY, permute.family());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_UNSUPPORTED, expand.status());
+        assertEquals(NativeCpuKernelFamily.ARRAY_ONLY, expand.family());
+        assertFalse(select.preservesNativeStorage());
+        assertFalse(slice.preservesNativeStorage());
+        assertFalse(permute.preservesNativeStorage());
+        assertFalse(expand.preservesNativeStorage());
     }
 
     @Test

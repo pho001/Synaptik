@@ -14,6 +14,7 @@ import backend.cpu.nativecpu.NativeCpuCompareExecutor;
 import backend.cpu.nativecpu.NativeCpuElementwiseExecutor;
 import backend.cpu.nativecpu.NativeCpuReductionExecutor;
 import backend.cpu.nativecpu.NativeCpuTraceState;
+import backend.cpu.nativecpu.NativeCpuViewExecutor;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
@@ -466,6 +467,14 @@ public final class PreparedExecution {
             return;
         }
         if (NativeCpuCompareExecutor.acceptsNativeInputs(
+                step.executionOperation(),
+                step.compiledNode().dataType(),
+                step.metadata().cpuPlan(),
+                context.runtimeConfig()
+        )) {
+            return;
+        }
+        if (NativeCpuViewExecutor.acceptsNativeInputs(
                 step.executionOperation(),
                 step.compiledNode().dataType(),
                 step.metadata().cpuPlan(),
