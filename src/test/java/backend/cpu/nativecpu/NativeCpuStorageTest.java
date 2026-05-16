@@ -10,6 +10,7 @@ import tensor.NativeFloat64Storage;
 import tensor.NativeTensorStorage;
 import tensor.Tensor;
 
+import java.lang.foreign.ValueLayout;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -345,6 +346,32 @@ class NativeCpuStorageTest {
         assertEquals(0L, budgetStats.poolHitCount());
         assertEquals(2L, budgetStats.poolMissCount());
         assertEquals(0L, budgetStats.pooledBytes());
+    }
+
+    @Test
+    void debugPoisonReleasedBuffersMarksReleasedAndReusedPoolBlocks() {
+        NativeCpuMemoryConfig debugConfig = new NativeCpuMemoryConfig(
+                NativeMemoryPoolPolicy.PER_EXECUTION,
+                1024L,
+                64,
+                true,
+                false
+        );
+        NativeCpuAllocator allocator = new NativeCpuAllocator(debugConfig);
+        NativeCpuAllocation first = allocator.allocate(8L, "poison-first");
+        var firstSegment = first.segment();
+
+        assertEquals((byte) 0xAB, firstSegment.get(ValueLayout.JAVA_BYTE, 0L));
+        firstSegment.set(ValueLayout.JAVA_BYTE, 0L, (byte) 0x11);
+        first.release();
+
+        assertEquals((byte) 0xCD, firstSegment.get(ValueLayout.JAVA_BYTE, 0L));
+
+        NativeCpuAllocation second = allocator.allocate(8L, "poison-second");
+        assertSame(firstSegment, second.segment());
+        assertEquals((byte) 0xAB, second.segment().get(ValueLayout.JAVA_BYTE, 0L));
+        second.release();
+        allocator.drainPool();
     }
 
     @Test

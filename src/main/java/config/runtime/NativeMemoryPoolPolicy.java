@@ -15,7 +15,7 @@ public enum NativeMemoryPoolPolicy {
     PER_EXECUTION,
 
     /**
-     * Reserved for a later wave; accepted in config but not pooled yet.
+     * Reuse released native CPU blocks across executions of one prepared plan.
      */
     PER_PREPARED_EXECUTION
 }

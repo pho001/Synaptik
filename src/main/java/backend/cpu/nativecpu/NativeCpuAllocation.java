@@ -24,12 +24,13 @@ public final class NativeCpuAllocation implements ExecutionResource {
     private final long alignment;
     private final String label;
     private final NativeCpuMemoryStats stats;
+    private final boolean poisonReleasedBuffers;
     private final AtomicBoolean released = new AtomicBoolean();
     private final AtomicBoolean retained = new AtomicBoolean();
     private volatile String retainedReason;
 
     NativeCpuAllocation(Arena arena, MemorySegment segment, long byteSize, long alignment, String label) {
-        this(arena, segment, byteSize, Math.max(byteSize, 1L), alignment, label, new NativeCpuMemoryStats());
+        this(arena, segment, byteSize, Math.max(byteSize, 1L), alignment, label, new NativeCpuMemoryStats(), false);
     }
 
     NativeCpuAllocation(
@@ -39,7 +40,8 @@ public final class NativeCpuAllocation implements ExecutionResource {
             long allocatedBytes,
             long alignment,
             String label,
-            NativeCpuMemoryStats stats
+            NativeCpuMemoryStats stats,
+            boolean poisonReleasedBuffers
     ) {
         this.arena = Objects.requireNonNull(arena, "arena cannot be null");
         this.segment = Objects.requireNonNull(segment, "segment cannot be null");
@@ -50,6 +52,7 @@ public final class NativeCpuAllocation implements ExecutionResource {
         this.alignment = alignment;
         this.label = label == null ? "" : label;
         this.stats = stats == null ? new NativeCpuMemoryStats() : stats;
+        this.poisonReleasedBuffers = poisonReleasedBuffers;
     }
 
     NativeCpuAllocation(
@@ -57,7 +60,8 @@ public final class NativeCpuAllocation implements ExecutionResource {
             NativeCpuMemoryPool pool,
             long byteSize,
             String label,
-            NativeCpuMemoryStats stats
+            NativeCpuMemoryStats stats,
+            boolean poisonReleasedBuffers
     ) {
         this.arena = null;
         this.segment = Objects.requireNonNull(poolBlock, "poolBlock cannot be null").segment();
@@ -68,6 +72,7 @@ public final class NativeCpuAllocation implements ExecutionResource {
         this.alignment = poolBlock.alignment();
         this.label = label == null ? "" : label;
         this.stats = stats == null ? new NativeCpuMemoryStats() : stats;
+        this.poisonReleasedBuffers = poisonReleasedBuffers;
     }
 
     public MemorySegment segment() {
@@ -125,6 +130,7 @@ public final class NativeCpuAllocation implements ExecutionResource {
         if (released.compareAndSet(false, true)) {
             boolean wasRetained = retained.get();
             try {
+                poisonReleased();
                 if (poolBlock != null && !wasRetained && pool.release(poolBlock)) {
                     stats.recordPooledRelease(allocatedBytes);
                 } else {
@@ -144,5 +150,11 @@ public final class NativeCpuAllocation implements ExecutionResource {
     @Override
     public void close() {
         release();
+    }
+
+    private void poisonReleased() {
+        if (poisonReleasedBuffers) {
+            segment.fill((byte) 0xCD);
+        }
     }
 }

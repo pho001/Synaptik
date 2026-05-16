@@ -78,8 +78,18 @@ public final class NativeCpuAllocator {
         try {
             long allocatedBytes = Math.max(byteSize, 1L);
             MemorySegment segment = arena.allocate(allocatedBytes, alignment);
+            poisonAllocated(segment);
             stats.recordAllocation(byteSize, allocatedBytes);
-            return new NativeCpuAllocation(arena, segment, byteSize, allocatedBytes, alignment, label, stats);
+            return new NativeCpuAllocation(
+                    arena,
+                    segment,
+                    byteSize,
+                    allocatedBytes,
+                    alignment,
+                    label,
+                    stats,
+                    config.debugPoisonReleasedBuffers()
+            );
         } catch (RuntimeException ex) {
             stats.recordAllocationFailure();
             arena.close();
@@ -91,13 +101,15 @@ public final class NativeCpuAllocator {
         long allocatedBytes = sizeClass(byteSize);
         NativeCpuMemoryPool.Block block = pool.acquire(allocatedBytes, alignment);
         if (block != null) {
+            poisonAllocated(block.segment());
             stats.recordAllocation(byteSize, allocatedBytes);
             stats.recordPoolHit(allocatedBytes);
-            return new NativeCpuAllocation(block, pool, byteSize, label, stats);
+            return new NativeCpuAllocation(block, pool, byteSize, label, stats, config.debugPoisonReleasedBuffers());
         }
         Arena arena = Arena.ofShared();
         try {
             MemorySegment segment = arena.allocate(allocatedBytes, alignment);
+            poisonAllocated(segment);
             stats.recordAllocation(byteSize, allocatedBytes);
             stats.recordPoolMiss();
             return new NativeCpuAllocation(
@@ -105,7 +117,8 @@ public final class NativeCpuAllocator {
                     pool,
                     byteSize,
                     label,
-                    stats
+                    stats,
+                    config.debugPoisonReleasedBuffers()
             );
         } catch (RuntimeException ex) {
             stats.recordAllocationFailure();
@@ -149,5 +162,11 @@ public final class NativeCpuAllocator {
             rounded <<= 1;
         }
         return Math.max(rounded, size);
+    }
+
+    private void poisonAllocated(MemorySegment segment) {
+        if (config.debugPoisonReleasedBuffers() && segment != null) {
+            segment.fill((byte) 0xAB);
+        }
     }
 }
