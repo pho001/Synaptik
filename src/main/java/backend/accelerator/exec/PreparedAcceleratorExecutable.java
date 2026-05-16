@@ -4,6 +4,7 @@ import backend.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferDecision;
 import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
+import backend.lowering.region.RegionExecutionPlan;
 import backend.runtime.ExecutionContext;
 
 import java.util.List;
@@ -66,6 +67,10 @@ public interface PreparedAcceleratorExecutable {
      * @return lowered-region manifest, or {@code null} when absent
      */
     default GpuLoweredRegionManifest gpuLoweredRegionManifest() {
+        return null;
+    }
+
+    default RegionExecutionPlan regionExecutionPlan() {
         return null;
     }
 }

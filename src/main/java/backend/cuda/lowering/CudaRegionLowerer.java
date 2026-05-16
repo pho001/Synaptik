@@ -11,9 +11,20 @@ import backend.lowering.LoweringFamily;
 import backend.lowering.LoweringRequest;
 import backend.lowering.LoweringResult;
 import backend.lowering.RegionLowerer;
+import backend.lowering.region.CudaRegionPayload;
+import backend.lowering.region.RegionCost;
+import backend.lowering.region.RegionDecision;
+import backend.lowering.region.RegionExecutionGroup;
+import backend.lowering.region.RegionExecutionKind;
+import backend.lowering.region.RegionExecutionPlan;
+import backend.lowering.region.RegionLegalityStatus;
+import backend.lowering.region.RegionNodePlan;
+import backend.lowering.region.RegionRole;
+import backend.lowering.region.RegionStorageContract;
 import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.region.ExecutionUnit;
 import graph.optimizer.region.ExecutionUnitKind;
+import operations.Operation;
 
 import java.util.List;
 
@@ -38,6 +49,8 @@ public final class CudaRegionLowerer implements RegionLowerer {
         }
         LoweringFamily loweringFamily = resolveLoweringFamily(request.region().executionUnits());
         GpuCompoundRegionSummary summary = cudaPlan.compoundSummary();
+        GpuCompoundLoweringArtifact compoundArtifact = regionArtifact(summary, request.region().executionUnits());
+        RegionExecutionPlan regionPlan = regionPlan(request, cudaPlan, loweringFamily, compoundArtifact);
         return new LoweringResult(
                 new LoweredRegion(
                         request.region().regionId(),
@@ -47,10 +60,71 @@ public final class CudaRegionLowerer implements RegionLowerer {
                                 loweringFamily,
                                 request.region().sourcePartition().orderedNodeIds(),
                                 cudaPlan.externalInputNodeIds(),
-                                regionArtifact(summary, request.region().executionUnits())
+                                regionPlan
                         ))
                 ),
                 List.of()
+        );
+    }
+
+    private static RegionExecutionPlan regionPlan(
+            LoweringRequest request,
+            CudaGpuPartitionPlan plan,
+            LoweringFamily loweringFamily,
+            GpuCompoundLoweringArtifact compoundArtifact
+    ) {
+        List<Integer> orderedNodeIds = request.region().sourcePartition().orderedNodeIds();
+        List<Integer> outputs = plan.producedOutputNodeIds();
+        List<RegionNodePlan> nodePlans = orderedNodeIds.stream()
+                .map(nodeId -> nodePlan(request, nodeId, outputs, loweringFamily))
+                .toList();
+        RegionExecutionGroup group = new RegionExecutionGroup(
+                request.region().regionId() + "-cuda-graph-group-0",
+                orderedNodeIds,
+                RegionExecutionKind.GRAPH_EXECUTABLE,
+                loweringFamily == LoweringFamily.CUDA_FUSED_ELEMENTWISE_GRAPH ? "CUDA_FUSED_ELEMENTWISE_GRAPH" : "CUDA_GRAPH",
+                plan.externalInputNodeIds(),
+                outputs,
+                List.of(),
+                RegionStorageContract.DEVICE_BUFFER,
+                "cuda-graph-region"
+        );
+        return new RegionExecutionPlan(
+                request.region().regionId(),
+                PartitionTarget.GPU_CUDA,
+                loweringFamily,
+                plan.anchorNodeId(),
+                orderedNodeIds,
+                plan.externalInputNodeIds(),
+                outputs,
+                nodePlans,
+                List.of(group),
+                RegionCost.ofWork(plan.estimatedWork()),
+                RegionDecision.selected(loweringFamily.id(), "cuda-graph-region"),
+                new CudaRegionPayload(compoundArtifact, plan.manifest())
+        );
+    }
+
+    private static RegionNodePlan nodePlan(
+            LoweringRequest request,
+            int nodeId,
+            List<Integer> outputs,
+            LoweringFamily loweringFamily
+    ) {
+        var node = request.context().compiledNode(nodeId);
+        Operation op = node == null ? null : node.operation();
+        return new RegionNodePlan(
+                nodeId,
+                op == null ? Operation.OpType.UNKNOWN : op.opType(),
+                node == null ? tensor.DataType.FLOAT64 : node.dataType(),
+                outputs.contains(nodeId) ? RegionRole.BOUNDARY_OUTPUT : RegionRole.LOCAL_KERNEL,
+                RegionExecutionKind.GRAPH_EXECUTABLE,
+                loweringFamily == LoweringFamily.CUDA_FUSED_ELEMENTWISE_GRAPH ? "CUDA_FUSED_ELEMENTWISE_GRAPH" : "CUDA_GRAPH",
+                RegionStorageContract.DEVICE_BUFFER,
+                node == null ? List.of() : node.inputIds(),
+                List.of(nodeId),
+                RegionLegalityStatus.SELECTED,
+                "cuda-graph-region"
         );
     }
 

@@ -11,9 +11,20 @@ import backend.lowering.LoweringFamily;
 import backend.lowering.LoweringRequest;
 import backend.lowering.LoweringResult;
 import backend.lowering.RegionLowerer;
+import backend.lowering.region.MetalRegionPayload;
+import backend.lowering.region.RegionCost;
+import backend.lowering.region.RegionDecision;
+import backend.lowering.region.RegionExecutionGroup;
+import backend.lowering.region.RegionExecutionKind;
+import backend.lowering.region.RegionExecutionPlan;
+import backend.lowering.region.RegionLegalityStatus;
+import backend.lowering.region.RegionNodePlan;
+import backend.lowering.region.RegionRole;
+import backend.lowering.region.RegionStorageContract;
 import graph.optimizer.partition.PartitionPlan;
 import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.region.ExecutionUnit;
+import operations.Operation;
 
 import java.util.List;
 
@@ -37,12 +48,14 @@ public final class MetalRegionLowerer implements RegionLowerer {
             return null;
         }
         GpuCompoundRegionSummary summary = metalPlan.lowering().compoundSummary();
+        GpuCompoundLoweringArtifact compoundArtifact = regionArtifact(summary, request.region().executionUnits());
+        RegionExecutionPlan regionPlan = regionPlan(request, metalPlan, compoundArtifact);
         LoweredExecutionUnit unit = new LoweredExecutionUnit(
                 request.region().regionId() + "-metal-graph",
                 LoweringFamily.METAL_GRAPH_REGION,
                 request.region().sourcePartition().orderedNodeIds(),
                 metalPlan.externalInputNodeIds(),
-                regionArtifact(summary, request.region().executionUnits())
+                regionPlan
         );
         return new LoweringResult(
                 new LoweredRegion(
@@ -51,6 +64,61 @@ public final class MetalRegionLowerer implements RegionLowerer {
                         List.of(unit)
                 ),
                 List.of()
+        );
+    }
+
+    private static RegionExecutionPlan regionPlan(
+            LoweringRequest request,
+            MetalPartitionPlan plan,
+            GpuCompoundLoweringArtifact compoundArtifact
+    ) {
+        List<Integer> orderedNodeIds = request.region().sourcePartition().orderedNodeIds();
+        List<Integer> outputs = plan.producedOutputNodeIds();
+        List<RegionNodePlan> nodePlans = orderedNodeIds.stream()
+                .map(nodeId -> nodePlan(request, nodeId, outputs))
+                .toList();
+        RegionExecutionGroup group = new RegionExecutionGroup(
+                request.region().regionId() + "-metal-graph-group-0",
+                orderedNodeIds,
+                RegionExecutionKind.GRAPH_EXECUTABLE,
+                "METAL_GRAPH",
+                plan.externalInputNodeIds(),
+                outputs,
+                List.of(),
+                RegionStorageContract.DEVICE_BUFFER,
+                "metal-graph-region"
+        );
+        return new RegionExecutionPlan(
+                request.region().regionId(),
+                PartitionTarget.GPU_METAL,
+                LoweringFamily.METAL_GRAPH_REGION,
+                plan.anchorNodeId(),
+                orderedNodeIds,
+                plan.externalInputNodeIds(),
+                outputs,
+                nodePlans,
+                List.of(group),
+                RegionCost.ofWork(plan.estimatedWork()),
+                RegionDecision.selected(LoweringFamily.METAL_GRAPH_REGION.id(), "metal-graph-region"),
+                new MetalRegionPayload(compoundArtifact, plan.manifest())
+        );
+    }
+
+    private static RegionNodePlan nodePlan(LoweringRequest request, int nodeId, List<Integer> outputs) {
+        var node = request.context().compiledNode(nodeId);
+        Operation op = node == null ? null : node.operation();
+        return new RegionNodePlan(
+                nodeId,
+                op == null ? Operation.OpType.UNKNOWN : op.opType(),
+                node == null ? tensor.DataType.FLOAT64 : node.dataType(),
+                outputs.contains(nodeId) ? RegionRole.BOUNDARY_OUTPUT : RegionRole.LOCAL_KERNEL,
+                RegionExecutionKind.GRAPH_EXECUTABLE,
+                "METAL_GRAPH",
+                RegionStorageContract.DEVICE_BUFFER,
+                node == null ? List.of() : node.inputIds(),
+                List.of(nodeId),
+                RegionLegalityStatus.SELECTED,
+                "metal-graph-region"
         );
     }
 

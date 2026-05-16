@@ -3,6 +3,7 @@ package graph.execution;
 import backend.ComputeBackend;
 import backend.accelerator.exec.PartitionExecutionRole;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
+import backend.cpu.region.PreparedCpuRegionExecutable;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.CpuNodeWorkspace;
@@ -24,6 +25,7 @@ import java.util.Objects;
  * @param executionOperation operation to execute instead of the compiled semantic operation, when present
  * @param executionInputNodeIds node ids to use as execution inputs
  * @param partitionRole role of this node in partitioned execution
+ * @param cpuRegionExecutable prepared CPU region executable, when applicable
  */
 public record CompiledNodeExecutionMetadata(
         ComputeBackend backend,
@@ -34,7 +36,8 @@ public record CompiledNodeExecutionMetadata(
         PreparedAcceleratorExecutable acceleratorExecutable,
         Operation executionOperation,
         List<Integer> executionInputNodeIds,
-        PartitionExecutionRole partitionRole
+        PartitionExecutionRole partitionRole,
+        PreparedCpuRegionExecutable cpuRegionExecutable
 ) {
     public CompiledNodeExecutionMetadata {
         Objects.requireNonNull(backend, "backend cannot be null");
@@ -60,8 +63,41 @@ public record CompiledNodeExecutionMetadata(
             PreparedFusedExecutable fusedExecutable,
             CpuNodeWorkspace cpuWorkspace,
             PreparedAcceleratorExecutable acceleratorExecutable,
+            Operation executionOperation,
+            List<Integer> executionInputNodeIds,
             PartitionExecutionRole partitionRole
     ) {
-        this(backend, cpuKernel, cpuPlan, fusedExecutable, cpuWorkspace, acceleratorExecutable, null, List.of(), partitionRole);
+        this(
+                backend,
+                cpuKernel,
+                cpuPlan,
+                fusedExecutable,
+                cpuWorkspace,
+                acceleratorExecutable,
+                executionOperation,
+                executionInputNodeIds,
+                partitionRole,
+                null
+        );
+    }
+
+    public CompiledNodeExecutionMetadata(
+            ComputeBackend backend,
+            CpuKernel cpuKernel,
+            CpuNodeExecutionPlan cpuPlan,
+            PreparedFusedExecutable fusedExecutable,
+            CpuNodeWorkspace cpuWorkspace,
+            PreparedAcceleratorExecutable acceleratorExecutable,
+            PartitionExecutionRole partitionRole
+    ) {
+        this(backend, cpuKernel, cpuPlan, fusedExecutable, cpuWorkspace, acceleratorExecutable, null, List.of(), partitionRole, null);
+    }
+
+    public CompiledNodeExecutionMetadata(
+            ComputeBackend backend,
+            PreparedCpuRegionExecutable cpuRegionExecutable,
+            PartitionExecutionRole partitionRole
+    ) {
+        this(backend, null, null, null, null, null, null, List.of(), partitionRole, cpuRegionExecutable);
     }
 }

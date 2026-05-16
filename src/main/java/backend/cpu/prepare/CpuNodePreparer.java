@@ -10,12 +10,16 @@ import backend.cpu.kernels.ResolvedCpuComputeContract;
 import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
 import backend.cpu.kernels.fused.plan.PreparedFusedDispatch;
 import backend.cpu.kernels.plan.CpuExecutionPlanner;
+import backend.cpu.nativecpu.PreparedNativeCpuRegionExecutable;
 import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweringFamily;
+import backend.lowering.region.CpuFusedRegionPayload;
+import backend.lowering.region.RegionExecutionPlan;
 import backend.prepare.BackendPrepareContext;
 import backend.cpu.registry.CpuKernelResolver;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
+import graph.execution.PreparedNodeExecution;
 import backend.cpu.fused.exec.FusedExecutionBackendResolver;
 import backend.cpu.fused.plan.FusedExecutionPlan;
 import backend.cpu.fused.plan.FusedOperationPreparation;
@@ -26,6 +30,7 @@ import tensor.BroadcastPlanner;
 import tensor.DataType;
 import tensor.Tensor;
 
+import config.runtime.CpuStorageProfile;
 import java.util.List;
 
 public final class CpuNodePreparer {
@@ -53,8 +58,51 @@ public final class CpuNodePreparer {
             if (loweredUnit != null && loweredUnit.loweringFamily() == LoweringFamily.FUSED_NATIVE) {
                 return prepareLoweredFusedAnchor(node, loweredUnit, context);
             }
+            if (loweredUnit != null && loweredUnit.loweringFamily() == LoweringFamily.CPU_NATIVE_REGION) {
+                return prepareNativeCpuRegionAnchor(loweredUnit, context);
+            }
         }
         return prepareAsCpu(node, context);
+    }
+
+    private CompiledNodeExecutionMetadata prepareNativeCpuRegionAnchor(
+            LoweredExecutionUnit loweredUnit,
+            BackendPrepareContext context
+    ) {
+        RegionExecutionPlan regionPlan = loweredUnit.requireRegionPlan();
+        List<PreparedNodeExecution> nativeSteps = regionPlan.orderedNodeIds().stream()
+                .map(context::compiledNode)
+                .map(node -> {
+                    if (node == null) {
+                        throw new IllegalStateException("Missing compiled node for CPU native region " + regionPlan.regionId());
+                    }
+                    return new PreparedNodeExecution(node, prepareAsCpu(node, context));
+                })
+                .toList();
+
+        CpuNodePreparer fallbackPreparer = new CpuNodePreparer(
+                runtimeConfig.withCpuStorageProfile(CpuStorageProfile.CPU_ARRAY)
+        );
+        List<PreparedNodeExecution> fallbackSteps = regionPlan.orderedNodeIds().stream()
+                .map(context::compiledNode)
+                .map(node -> {
+                    if (node == null) {
+                        throw new IllegalStateException("Missing compiled node for CPU native region fallback " + regionPlan.regionId());
+                    }
+                    return new PreparedNodeExecution(node, fallbackPreparer.prepareAsCpu(node, context));
+                })
+                .toList();
+
+        PreparedNativeCpuRegionExecutable executable = new PreparedNativeCpuRegionExecutable(
+                regionPlan,
+                nativeSteps,
+                fallbackSteps
+        );
+        return new CompiledNodeExecutionMetadata(
+                ComputeBackend.CPU,
+                executable,
+                PartitionExecutionRole.ANCHOR
+        );
     }
 
     private CompiledNodeExecutionMetadata prepareLoweredFusedAnchor(
@@ -62,7 +110,7 @@ public final class CpuNodePreparer {
             LoweredExecutionUnit loweredUnit,
             BackendPrepareContext context
     ) {
-        FusedOperationPreparation fusedPreparation = loweredUnit.requireArtifact(FusedOperationPreparation.class);
+        FusedOperationPreparation fusedPreparation = fusedPreparation(loweredUnit);
         Operation operation = fusedPreparation.operation();
         CpuKernel kernel = CpuKernelResolver.resolve(operation.opType());
         boolean publishFloatContinuation = shouldPublishFloatContinuation(anchorNode, operation, context);
@@ -114,6 +162,14 @@ public final class CpuNodePreparer {
                 loweredUnit.inputNodeIds(),
                 PartitionExecutionRole.ANCHOR
         );
+    }
+
+    private FusedOperationPreparation fusedPreparation(LoweredExecutionUnit loweredUnit) {
+        if (loweredUnit.artifact() instanceof RegionExecutionPlan plan
+                && plan.backendPayload() instanceof CpuFusedRegionPayload payload) {
+            return payload.preparation();
+        }
+        return loweredUnit.requireArtifact(FusedOperationPreparation.class);
     }
 
     public CompiledNodeExecutionMetadata prepareAsCpu(CompiledNode node, BackendPrepareContext context) {

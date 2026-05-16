@@ -3,6 +3,12 @@ package backend.cpu.lowering;
 import backend.ComputeBackend;
 import backend.blas.BlasProvider;
 import backend.cpu.fused.plan.LoweredFusedOperationBuilder;
+import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
+import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
+import backend.cpu.kernels.plan.CpuExecutionPlanner;
+import backend.cpu.nativecpu.NativeCpuCoverageEntry;
+import backend.cpu.nativecpu.NativeCpuCoverageMatrix;
+import backend.cpu.nativecpu.NativeCpuKernelPerformanceStatus;
 import backend.lowering.BackendWorkspaceRequirement;
 import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweredUnitArtifact;
@@ -11,14 +17,38 @@ import backend.lowering.LoweringFamily;
 import backend.lowering.LoweringRequest;
 import backend.lowering.LoweringResult;
 import backend.lowering.RegionLowerer;
+import backend.lowering.region.CpuFusedRegionPayload;
+import backend.lowering.region.CpuNativeRegionPayload;
+import backend.lowering.region.EmptyRegionPayload;
+import backend.lowering.region.RegionBackendPayload;
+import backend.lowering.region.RegionCost;
+import backend.lowering.region.RegionDecision;
+import backend.lowering.region.RegionExecutionGroup;
+import backend.lowering.region.RegionExecutionKind;
+import backend.lowering.region.RegionFallbackPlan;
+import backend.lowering.region.RegionExecutionPlan;
+import backend.lowering.region.RegionLegalityStatus;
+import backend.lowering.region.RegionNodePlan;
+import backend.lowering.region.RegionRole;
+import backend.lowering.region.RegionStorageContract;
+import config.runtime.CpuStorageProfile;
+import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.optimizer.region.ExecutionUnit;
 import graph.optimizer.region.ExecutionUnitKind;
+import graph.optimizer.region.RegionOptimizationTrace;
+import graph.optimizer.partition.PartitionValueRef;
 import graph.optimizer.region.RegionValueRef;
+import operations.Operation;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public final class CpuRegionLowerer implements RegionLowerer {
     @Override
@@ -29,6 +59,21 @@ public final class CpuRegionLowerer implements RegionLowerer {
         if (!request.capabilities().supports(ComputeBackend.CPU)) {
             return null;
         }
+        LoweredExecutionUnit nativeRegion = tryLowerNativeRegion(request);
+        if (nativeRegion != null) {
+            return new LoweringResult(
+                    new LoweredRegion(request.region().regionId(), request.region().target(), List.of(nativeRegion)),
+                    List.of()
+            );
+        }
+        List<LoweredExecutionUnit> nativeSubregions = tryLowerNativeSubregions(request);
+        if (!nativeSubregions.isEmpty()) {
+            return new LoweringResult(
+                    new LoweredRegion(request.region().regionId(), request.region().target(),
+                            mergeNativeSubregionsWithCpuUnits(request, nativeSubregions)),
+                    List.of()
+            );
+        }
         List<LoweredExecutionUnit> loweredUnits = new ArrayList<>(request.region().executionUnits().size());
         for (ExecutionUnit unit : request.region().executionUnits()) {
             loweredUnits.add(lowerUnit(unit, request));
@@ -36,6 +81,537 @@ public final class CpuRegionLowerer implements RegionLowerer {
         return new LoweringResult(
                 new LoweredRegion(request.region().regionId(), request.region().target(), loweredUnits),
                 List.of()
+        );
+    }
+
+    private LoweredExecutionUnit tryLowerNativeRegion(LoweringRequest request) {
+        RuntimeConfig runtimeConfig = request.context().runtimeConfig();
+        if (runtimeConfig == null || runtimeConfig.cpuStorageProfile() == CpuStorageProfile.CPU_ARRAY) {
+            return null;
+        }
+        List<Integer> orderedNodeIds = request.region().sourcePartition().orderedNodeIds();
+        if (orderedNodeIds == null || orderedNodeIds.size() < 2) {
+            return null;
+        }
+        NativeRegionLegality legality = nativeRegionLegality(request, orderedNodeIds, runtimeConfig);
+        if (!legality.selected()) {
+            return null;
+        }
+        List<Integer> externalInputNodeIds = request.region().sourcePartition().externalInputNodeIds();
+        List<Integer> boundaryOutputNodeIds = request.region().sourcePartition().outputValueRefs().stream()
+                .map(CpuRegionLowerer::nodeIdFromPartitionRef)
+                .filter(id -> id >= 0)
+                .distinct()
+                .toList();
+        int anchorNodeId = boundaryOutputNodeIds.isEmpty()
+                ? orderedNodeIds.getLast()
+                : boundaryOutputNodeIds.getLast();
+        if (!orderedNodeIds.contains(anchorNodeId)) {
+            anchorNodeId = orderedNodeIds.getLast();
+        }
+        RegionExecutionPlan regionPlan = nativeRegionPlan(
+                request,
+                orderedNodeIds,
+                externalInputNodeIds,
+                boundaryOutputNodeIds.isEmpty() ? List.of(anchorNodeId) : boundaryOutputNodeIds,
+                anchorNodeId,
+                legality,
+                request.region().regionId() + "-cpu-native"
+        );
+        return new LoweredExecutionUnit(
+                request.region().regionId() + "-cpu-native",
+                LoweringFamily.CPU_NATIVE_REGION,
+                orderedNodeIds,
+                externalInputNodeIds,
+                regionPlan
+        );
+    }
+
+    private List<LoweredExecutionUnit> tryLowerNativeSubregions(LoweringRequest request) {
+        RuntimeConfig runtimeConfig = request.context().runtimeConfig();
+        if (runtimeConfig == null || runtimeConfig.cpuStorageProfile() == CpuStorageProfile.CPU_ARRAY) {
+            return List.of();
+        }
+        List<Integer> orderedNodeIds = request.region().sourcePartition().orderedNodeIds();
+        if (orderedNodeIds == null || orderedNodeIds.size() < 2) {
+            return List.of();
+        }
+        ArrayList<LoweredExecutionUnit> out = new ArrayList<>();
+        int index = 0;
+        while (index < orderedNodeIds.size()) {
+            LoweredExecutionUnit selected = null;
+            int selectedEndExclusive = -1;
+            for (int end = orderedNodeIds.size(); end >= index + 2; end--) {
+                List<Integer> candidateNodeIds = List.copyOf(orderedNodeIds.subList(index, end));
+                NativeRegionLegality legality = nativeRegionLegality(request, candidateNodeIds, runtimeConfig);
+                if (!legality.selected()) {
+                    continue;
+                }
+                selected = nativeSubregionUnit(request, candidateNodeIds, legality);
+                selectedEndExclusive = end;
+                break;
+            }
+            if (selected == null) {
+                index++;
+                continue;
+            }
+            out.add(selected);
+            index = selectedEndExclusive;
+        }
+        return List.copyOf(out);
+    }
+
+    private LoweredExecutionUnit nativeSubregionUnit(
+            LoweringRequest request,
+            List<Integer> orderedNodeIds,
+            NativeRegionLegality legality
+    ) {
+        List<Integer> externalInputNodeIds = externalInputNodeIdsForNativeSubregion(request, orderedNodeIds);
+        List<Integer> boundaryOutputNodeIds = boundaryOutputNodeIdsForNativeSubregion(request, orderedNodeIds);
+        int anchorNodeId = boundaryOutputNodeIds.isEmpty()
+                ? orderedNodeIds.getLast()
+                : boundaryOutputNodeIds.getLast();
+        String unitId = request.region().regionId()
+                + "-cpu-native-" + orderedNodeIds.getFirst() + "-" + orderedNodeIds.getLast();
+        RegionExecutionPlan regionPlan = nativeRegionPlan(
+                request,
+                orderedNodeIds,
+                externalInputNodeIds,
+                boundaryOutputNodeIds.isEmpty() ? List.of(anchorNodeId) : boundaryOutputNodeIds,
+                anchorNodeId,
+                legality,
+                unitId
+        );
+        return new LoweredExecutionUnit(
+                unitId,
+                LoweringFamily.CPU_NATIVE_REGION,
+                orderedNodeIds,
+                externalInputNodeIds,
+                regionPlan
+        );
+    }
+
+    private List<LoweredExecutionUnit> mergeNativeSubregionsWithCpuUnits(
+            LoweringRequest request,
+            List<LoweredExecutionUnit> nativeSubregions
+    ) {
+        Map<Integer, LoweredExecutionUnit> nativeByFirstNode = nativeSubregions.stream()
+                .collect(Collectors.toMap(unit -> unit.orderedNodeIds().getFirst(), unit -> unit));
+        Set<Integer> nativeCoveredNodeIds = nativeSubregions.stream()
+                .flatMap(unit -> unit.orderedNodeIds().stream())
+                .collect(Collectors.toCollection(HashSet::new));
+        Map<Integer, ExecutionUnit> executionUnitByFirstNode = request.region().executionUnits().stream()
+                .filter(unit -> !unit.orderedNodeIds().isEmpty())
+                .collect(Collectors.toMap(unit -> unit.orderedNodeIds().getFirst(), unit -> unit, (left, ignored) -> left));
+        Set<String> emittedCpuUnitIds = new HashSet<>();
+        ArrayList<LoweredExecutionUnit> out = new ArrayList<>();
+        List<Integer> orderedNodeIds = request.region().sourcePartition().orderedNodeIds();
+        int index = 0;
+        while (index < orderedNodeIds.size()) {
+            int nodeId = orderedNodeIds.get(index);
+            LoweredExecutionUnit nativeUnit = nativeByFirstNode.get(nodeId);
+            if (nativeUnit != null) {
+                out.add(nativeUnit);
+                index += nativeUnit.orderedNodeIds().size();
+                continue;
+            }
+            ExecutionUnit cpuUnit = executionUnitByFirstNode.get(nodeId);
+            if (cpuUnit != null
+                    && emittedCpuUnitIds.add(cpuUnit.unitId())
+                    && java.util.Collections.disjoint(cpuUnit.orderedNodeIds(), nativeCoveredNodeIds)) {
+                out.add(lowerUnit(cpuUnit, request));
+                index += cpuUnit.orderedNodeIds().size();
+                continue;
+            }
+            if (!nativeCoveredNodeIds.contains(nodeId)) {
+                out.add(lowerUnit(singleNodeUnit(request, nodeId), request));
+            }
+            index++;
+        }
+        return List.copyOf(out);
+    }
+
+    private ExecutionUnit singleNodeUnit(LoweringRequest request, int nodeId) {
+        CompiledNode node = request.context().compiledNode(nodeId);
+        List<RegionValueRef> inputRefs = node == null
+                ? List.of()
+                : node.inputIds().stream().map(RegionValueRef::ofNode).toList();
+        return new ExecutionUnit(
+                request.region().regionId() + "-unit-" + nodeId + "-native-split",
+                ExecutionUnitKind.UNIT_KERNEL,
+                request.region().target(),
+                inputRefs,
+                List.of(RegionValueRef.ofNode(nodeId)),
+                List.of(),
+                List.of(),
+                List.of(nodeId),
+                node == null ? 1L : Math.max(1L, node.flatDataSize()),
+                node == null ? List.of() : node.inputIds(),
+                new RegionOptimizationTrace(List.of("cpu-native-split-single-op:" + nodeId))
+        );
+    }
+
+    private List<Integer> externalInputNodeIdsForNativeSubregion(
+            LoweringRequest request,
+            List<Integer> orderedNodeIds
+    ) {
+        Set<Integer> selected = Set.copyOf(orderedNodeIds);
+        LinkedHashSet<Integer> externalInputs = new LinkedHashSet<>();
+        for (int nodeId : orderedNodeIds) {
+            CompiledNode node = request.context().compiledNode(nodeId);
+            if (node == null) {
+                continue;
+            }
+            for (int inputId : node.inputIds()) {
+                if (!selected.contains(inputId)) {
+                    externalInputs.add(inputId);
+                }
+            }
+        }
+        return List.copyOf(externalInputs);
+    }
+
+    private List<Integer> boundaryOutputNodeIdsForNativeSubregion(
+            LoweringRequest request,
+            List<Integer> orderedNodeIds
+    ) {
+        Set<Integer> selected = Set.copyOf(orderedNodeIds);
+        LinkedHashSet<Integer> outputs = new LinkedHashSet<>();
+        for (int nodeId : orderedNodeIds) {
+            List<CompiledNode> consumers = consumersFor(request, nodeId);
+            boolean hasSelectedConsumer = false;
+            boolean hasExternalConsumer = false;
+            for (CompiledNode consumer : consumers) {
+                if (consumer != null && selected.contains(consumer.id())) {
+                    hasSelectedConsumer = true;
+                } else if (consumer != null) {
+                    hasExternalConsumer = true;
+                }
+            }
+            if (!hasSelectedConsumer || hasExternalConsumer) {
+                outputs.add(nodeId);
+            }
+        }
+        if (outputs.isEmpty()) {
+            outputs.add(orderedNodeIds.getLast());
+        }
+        return List.copyOf(outputs);
+    }
+
+    private List<CompiledNode> consumersFor(LoweringRequest request, int producerNodeId) {
+        ArrayList<CompiledNode> consumers = new ArrayList<>();
+        for (CompiledNode candidate : request.context().compiledNodes()) {
+            if (candidate != null && candidate.inputIds().contains(producerNodeId)) {
+                consumers.add(candidate);
+            }
+        }
+        return List.copyOf(consumers);
+    }
+
+    private NativeRegionLegality nativeRegionLegality(
+            LoweringRequest request,
+            List<Integer> orderedNodeIds,
+            RuntimeConfig runtimeConfig
+    ) {
+        boolean provider = false;
+        ArrayList<Integer> providerNodeIds = new ArrayList<>();
+        ArrayList<Integer> localKernelNodeIds = new ArrayList<>();
+        String rejection = "";
+        for (int nodeId : orderedNodeIds) {
+            CompiledNode node = request.context().compiledNode(nodeId);
+            if (node == null || node.operation() == null) {
+                return NativeRegionLegality.rejected("native-cpu-region-unsupported:missing-node");
+            }
+            NativeCpuCoverageEntry coverage = NativeCpuCoverageMatrix.entryFor(node.operation().opType(), node.dataType());
+            if (!coverage.nativeSupported()) {
+                return NativeRegionLegality.rejected(nonBlank(
+                        coverage.fallbackReason(),
+                        "native-cpu-region-unsupported:" + node.operation().opType().name().toLowerCase()
+                ));
+            }
+            if (runtimeConfig.cpuStorageProfile() == CpuStorageProfile.AUTO && !coverage.autoFastEligible()) {
+                return NativeRegionLegality.rejected("native-cpu-region-auto-rejected-slow-op:"
+                        + node.operation().opType().name().toLowerCase());
+            }
+            if (coverage.status() == NativeCpuKernelPerformanceStatus.LIBRARY_PROVIDER) {
+                if (!nativeProviderEligible(node, runtimeConfig)) {
+                    rejection = "native-cpu-region-provider-unavailable:" + node.operation().opType().name().toLowerCase();
+                    return NativeRegionLegality.rejected(rejection);
+                }
+                provider = true;
+                providerNodeIds.add(nodeId);
+            } else {
+                localKernelNodeIds.add(nodeId);
+            }
+        }
+        if (!provider) {
+            return NativeRegionLegality.rejected("native-cpu-region-rejected:no-provider-kernel");
+        }
+        return NativeRegionLegality.selected(providerNodeIds, localKernelNodeIds, "provider-backed-native-cpu-region");
+    }
+
+    private boolean nativeProviderEligible(CompiledNode node, RuntimeConfig runtimeConfig) {
+        if (node == null || node.operation() == null
+                || (node.operation().opType() != Operation.OpType.MATMUL
+                && node.operation().opType() != Operation.OpType.LINEAR)) {
+            return false;
+        }
+        if (runtimeConfig.blas().provider() != BlasProvider.OPENBLAS_FFM) {
+            return false;
+        }
+        if (node.inputTensors().size() < 2) {
+            return false;
+        }
+        CpuExecutionPlanner planner = CpuExecutionPlanner.from(runtimeConfig.cpuKernelConfig());
+        ResolvedMatMulHints hints = planner.resolveMatMulHints(
+                node.inputTensors().get(0),
+                node.inputTensors().get(1),
+                node.semanticTensor(),
+                runtimeConfig.blas(),
+                runtimeConfig.cpuStorageProfile(),
+                false
+        );
+        return hints.route() == MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT;
+    }
+
+    private RegionExecutionPlan nativeRegionPlan(
+            LoweringRequest request,
+            List<Integer> orderedNodeIds,
+            List<Integer> externalInputNodeIds,
+            List<Integer> boundaryOutputNodeIds,
+            int anchorNodeId,
+            NativeRegionLegality legality,
+            String regionKey
+    ) {
+        List<RegionNodePlan> nodePlans = orderedNodeIds.stream()
+                .map(nodeId -> nativeNodePlan(nodeId, request, boundaryOutputNodeIds))
+                .toList();
+        List<RegionExecutionGroup> executionGroups = nativeExecutionGroups(
+                request,
+                orderedNodeIds,
+                externalInputNodeIds,
+                boundaryOutputNodeIds,
+                regionKey
+        );
+        CpuNativeRegionPayload payload = new CpuNativeRegionPayload(
+                "OPENBLAS_FFM",
+                legality.providerNodeIds(),
+                legality.localKernelNodeIds(),
+                List.of(),
+                List.of(new RegionFallbackPlan(
+                        orderedNodeIds,
+                        boundaryOutputNodeIds,
+                        "CPU_ARRAY",
+                        "native-cpu-region-array-fallback",
+                        externalInputNodeIds
+                ))
+        );
+        return new RegionExecutionPlan(
+                regionKey + "/plan",
+                graph.optimizer.partition.PartitionTarget.CPU,
+                LoweringFamily.CPU_NATIVE_REGION,
+                anchorNodeId,
+                orderedNodeIds,
+                externalInputNodeIds,
+                boundaryOutputNodeIds,
+                nodePlans,
+                executionGroups,
+                RegionCost.ofWork(request.region().sourcePartition().estimatedWork()),
+                RegionDecision.selected(LoweringFamily.CPU_NATIVE_REGION.id(), legality.reason()),
+                payload
+        );
+    }
+
+    private List<RegionExecutionGroup> nativeExecutionGroups(
+            LoweringRequest request,
+            List<Integer> orderedNodeIds,
+            List<Integer> externalInputNodeIds,
+            List<Integer> boundaryOutputNodeIds,
+            String regionKey
+    ) {
+        ArrayList<RegionExecutionGroup> groups = new ArrayList<>();
+        ArrayList<Integer> currentLocalKernels = new ArrayList<>();
+        int groupIndex = 0;
+        for (int nodeId : orderedNodeIds) {
+            RegionExecutionKind kind = nativeExecutionKind(nodeId, request);
+            if (kind == RegionExecutionKind.PROVIDER_CALL || kind == RegionExecutionKind.VIEW) {
+                if (!currentLocalKernels.isEmpty()) {
+                    groups.add(nativeExecutionGroup(
+                            request,
+                            regionKey,
+                            groupIndex++,
+                            currentLocalKernels,
+                            RegionExecutionKind.DIRECT_KERNEL,
+                            "SEGMENT_SCALAR",
+                            externalInputNodeIds,
+                            boundaryOutputNodeIds,
+                            "native-cpu-local-kernel"
+                    ));
+                    currentLocalKernels = new ArrayList<>();
+                }
+                groups.add(nativeExecutionGroup(
+                        request,
+                        regionKey,
+                        groupIndex++,
+                        List.of(nodeId),
+                        kind,
+                        nativePhysicalKernel(nodeId, request),
+                        externalInputNodeIds,
+                        boundaryOutputNodeIds,
+                        kind == RegionExecutionKind.PROVIDER_CALL ? "native-cpu-provider" : "native-cpu-view"
+                ));
+                continue;
+            }
+            currentLocalKernels.add(nodeId);
+        }
+        if (!currentLocalKernels.isEmpty()) {
+            groups.add(nativeExecutionGroup(
+                    request,
+                    regionKey,
+                    groupIndex,
+                    currentLocalKernels,
+                    RegionExecutionKind.DIRECT_KERNEL,
+                    "SEGMENT_SCALAR",
+                    externalInputNodeIds,
+                    boundaryOutputNodeIds,
+                    "native-cpu-local-kernel"
+            ));
+        }
+        return List.copyOf(groups);
+    }
+
+    private RegionExecutionGroup nativeExecutionGroup(
+            LoweringRequest request,
+            String regionKey,
+            int groupIndex,
+            List<Integer> groupNodeIds,
+            RegionExecutionKind executionKind,
+            String physicalKernel,
+            List<Integer> externalInputNodeIds,
+            List<Integer> boundaryOutputNodeIds,
+            String reason
+    ) {
+        java.util.LinkedHashSet<Integer> groupSet = new java.util.LinkedHashSet<>(groupNodeIds);
+        java.util.LinkedHashSet<Integer> inputs = new java.util.LinkedHashSet<>();
+        for (int nodeId : groupNodeIds) {
+            CompiledNode node = request.context().compiledNode(nodeId);
+            if (node == null) {
+                continue;
+            }
+            for (int inputId : node.inputIds()) {
+                if (!groupSet.contains(inputId)) {
+                    inputs.add(inputId);
+                }
+            }
+        }
+        java.util.LinkedHashSet<Integer> outputs = new java.util.LinkedHashSet<>();
+        for (int i = 0; i < groupNodeIds.size(); i++) {
+            int nodeId = groupNodeIds.get(i);
+            boolean lastInGroup = i == groupNodeIds.size() - 1;
+            if (lastInGroup || boundaryOutputNodeIds.contains(nodeId)) {
+                outputs.add(nodeId);
+            }
+        }
+        return new RegionExecutionGroup(
+                regionKey + "-group-" + groupIndex,
+                groupNodeIds,
+                executionKind,
+                physicalKernel,
+                inputs.isEmpty() ? externalInputNodeIds : List.copyOf(inputs),
+                List.copyOf(outputs),
+                List.of(),
+                nativeGroupStorageContract(request, groupNodeIds, executionKind),
+                reason
+        );
+    }
+
+    private RegionStorageContract nativeGroupStorageContract(
+            LoweringRequest request,
+            List<Integer> groupNodeIds,
+            RegionExecutionKind executionKind
+    ) {
+        if (executionKind == RegionExecutionKind.VIEW) {
+            return RegionStorageContract.VIEW_ALIAS;
+        }
+        boolean hasCpuArrayOutput = groupNodeIds.stream()
+                .map(nodeId -> request.context().compiledNode(nodeId))
+                .anyMatch(node -> {
+                    Operation op = node == null ? null : node.operation();
+                    NativeCpuCoverageEntry coverage = NativeCpuCoverageMatrix.entryFor(
+                            op == null ? Operation.OpType.UNKNOWN : op.opType(),
+                            node == null ? tensor.DataType.FLOAT64 : node.dataType()
+                    );
+                    return !coverage.preservesNativeStorage();
+                });
+        return hasCpuArrayOutput ? RegionStorageContract.MIXED_BOUNDARY : RegionStorageContract.CPU_NATIVE;
+    }
+
+    private RegionExecutionKind nativeExecutionKind(int nodeId, LoweringRequest request) {
+        CompiledNode node = request.context().compiledNode(nodeId);
+        Operation op = node == null ? null : node.operation();
+        NativeCpuCoverageEntry coverage = NativeCpuCoverageMatrix.entryFor(
+                op == null ? Operation.OpType.UNKNOWN : op.opType(),
+                node == null ? tensor.DataType.FLOAT64 : node.dataType()
+        );
+        return switch (coverage.status()) {
+            case LIBRARY_PROVIDER -> RegionExecutionKind.PROVIDER_CALL;
+            case VIEW_ONLY -> RegionExecutionKind.VIEW;
+            default -> RegionExecutionKind.DIRECT_KERNEL;
+        };
+    }
+
+    private String nativePhysicalKernel(int nodeId, LoweringRequest request) {
+        CompiledNode node = request.context().compiledNode(nodeId);
+        Operation op = node == null ? null : node.operation();
+        NativeCpuCoverageEntry coverage = NativeCpuCoverageMatrix.entryFor(
+                op == null ? Operation.OpType.UNKNOWN : op.opType(),
+                node == null ? tensor.DataType.FLOAT64 : node.dataType()
+        );
+        return coverage.family().name();
+    }
+
+    private RegionNodePlan nativeNodePlan(
+            int nodeId,
+            LoweringRequest request,
+            List<Integer> boundaryOutputNodeIds
+    ) {
+        CompiledNode node = request.context().compiledNode(nodeId);
+        Operation op = node == null ? null : node.operation();
+        NativeCpuCoverageEntry coverage = NativeCpuCoverageMatrix.entryFor(
+                op == null ? Operation.OpType.UNKNOWN : op.opType(),
+                node == null ? tensor.DataType.FLOAT64 : node.dataType()
+        );
+        RegionExecutionKind executionKind = switch (coverage.status()) {
+            case LIBRARY_PROVIDER -> RegionExecutionKind.PROVIDER_CALL;
+            case VIEW_ONLY -> RegionExecutionKind.VIEW;
+            default -> RegionExecutionKind.DIRECT_KERNEL;
+        };
+        RegionRole role = boundaryOutputNodeIds.contains(nodeId)
+                ? RegionRole.BOUNDARY_OUTPUT
+                : coverage.status() == NativeCpuKernelPerformanceStatus.LIBRARY_PROVIDER
+                        ? RegionRole.PROVIDER
+                        : !coverage.preservesNativeStorage()
+                                ? RegionRole.CONTROL
+                                : coverage.status() == NativeCpuKernelPerformanceStatus.VIEW_ONLY
+                                ? RegionRole.VIEW_ALIAS
+                                : RegionRole.LOCAL_KERNEL;
+        RegionStorageContract storageContract = !coverage.preservesNativeStorage()
+                ? RegionStorageContract.CPU_ARRAY
+                : coverage.status() == NativeCpuKernelPerformanceStatus.VIEW_ONLY
+                        ? RegionStorageContract.VIEW_ALIAS
+                        : RegionStorageContract.CPU_NATIVE;
+        return new RegionNodePlan(
+                nodeId,
+                op == null ? Operation.OpType.UNKNOWN : op.opType(),
+                node == null ? tensor.DataType.FLOAT64 : node.dataType(),
+                role,
+                executionKind,
+                coverage.family().name(),
+                storageContract,
+                node == null ? List.of() : node.inputIds(),
+                List.of(nodeId),
+                RegionLegalityStatus.SELECTED,
+                coverage.status().name().toLowerCase()
         );
     }
 
@@ -59,13 +635,14 @@ public final class CpuRegionLowerer implements RegionLowerer {
 
     private LoweredExecutionUnit lowerUnit(ExecutionUnit unit, LoweringRequest request) {
         LoweringFamily family;
-        LoweredUnitArtifact artifact = null;
+        LoweredUnitArtifact legacyArtifact = null;
         if (unit.kind() == ExecutionUnitKind.FUSED_ELEMENTWISE) {
             family = LoweringFamily.FUSED_NATIVE;
-            artifact = LoweredFusedOperationBuilder.build(unit.orderedNodeIds(), request.context()::compiledNode);
+            legacyArtifact = LoweredFusedOperationBuilder.build(unit.orderedNodeIds(), request.context()::compiledNode);
         } else {
             family = chooseSingleOpFamily(unit, request);
         }
+        RegionExecutionPlan regionPlan = regionPlan(unit, request, family, legacyArtifact);
         return new LoweredExecutionUnit(
                 unit.unitId(),
                 family,
@@ -76,7 +653,95 @@ public final class CpuRegionLowerer implements RegionLowerer {
                         .filter(id -> id >= 0)
                         .distinct()
                         .toList(),
-                artifact
+                regionPlan
+        );
+    }
+
+    private RegionExecutionPlan regionPlan(
+            ExecutionUnit unit,
+            LoweringRequest request,
+            LoweringFamily family,
+            LoweredUnitArtifact legacyArtifact
+    ) {
+        List<Integer> orderedNodeIds = unit.orderedNodeIds();
+        int anchorNodeId = orderedNodeIds.getLast();
+        List<Integer> externalInputNodeIds = unit.inputValueRefs().stream()
+                .map(CpuRegionLowerer::nodeIdFromRef)
+                .map(nodeId -> resolveExecutionInputNodeId(nodeId, request))
+                .filter(id -> id >= 0)
+                .distinct()
+                .toList();
+        List<Integer> boundaryOutputNodeIds = unit.outputValueRefs().stream()
+                .map(CpuRegionLowerer::nodeIdFromRef)
+                .filter(id -> id >= 0)
+                .distinct()
+                .toList();
+        RegionBackendPayload payload = legacyArtifact instanceof backend.cpu.fused.plan.FusedOperationPreparation fused
+                ? new CpuFusedRegionPayload(fused)
+                : EmptyRegionPayload.INSTANCE;
+        RegionExecutionKind executionKind = switch (family) {
+            case FUSED_NATIVE -> RegionExecutionKind.FUSED_KERNEL;
+            case BLAS -> RegionExecutionKind.PROVIDER_CALL;
+            default -> RegionExecutionKind.DIRECT_KERNEL;
+        };
+        RegionStorageContract storageContract = RegionStorageContract.CPU_ARRAY;
+        String physicalKernel = family.id();
+        List<RegionNodePlan> nodePlans = orderedNodeIds.stream()
+                .map(nodeId -> nodePlan(nodeId, request, family, executionKind, physicalKernel, storageContract, boundaryOutputNodeIds))
+                .toList();
+        RegionExecutionGroup group = new RegionExecutionGroup(
+                unit.unitId() + "-group-0",
+                orderedNodeIds,
+                executionKind,
+                physicalKernel,
+                externalInputNodeIds,
+                boundaryOutputNodeIds.isEmpty() ? List.of(anchorNodeId) : boundaryOutputNodeIds,
+                List.of(),
+                storageContract,
+                "cpu-lowered-unit"
+        );
+        return new RegionExecutionPlan(
+                request.region().regionId() + "/" + unit.unitId(),
+                graph.optimizer.partition.PartitionTarget.CPU,
+                family,
+                anchorNodeId,
+                orderedNodeIds,
+                externalInputNodeIds,
+                boundaryOutputNodeIds.isEmpty() ? List.of(anchorNodeId) : boundaryOutputNodeIds,
+                nodePlans,
+                List.of(group),
+                RegionCost.ofWork(unit.estimatedWork()),
+                RegionDecision.selected(family.id(), "cpu-lowered-unit"),
+                payload
+        );
+    }
+
+    private RegionNodePlan nodePlan(
+            int nodeId,
+            LoweringRequest request,
+            LoweringFamily family,
+            RegionExecutionKind executionKind,
+            String physicalKernel,
+            RegionStorageContract storageContract,
+            List<Integer> boundaryOutputNodeIds
+    ) {
+        CompiledNode node = request.context().compiledNode(nodeId);
+        Operation op = node == null ? null : node.operation();
+        RegionRole role = boundaryOutputNodeIds.contains(nodeId)
+                ? RegionRole.BOUNDARY_OUTPUT
+                : family == LoweringFamily.BLAS ? RegionRole.PROVIDER : RegionRole.LOCAL_KERNEL;
+        return new RegionNodePlan(
+                nodeId,
+                op == null ? Operation.OpType.UNKNOWN : op.opType(),
+                node == null ? tensor.DataType.FLOAT64 : node.dataType(),
+                role,
+                executionKind,
+                physicalKernel,
+                storageContract,
+                node == null ? List.of() : node.inputIds(),
+                List.of(nodeId),
+                RegionLegalityStatus.SELECTED,
+                "cpu-lowered-unit"
         );
     }
 
@@ -89,6 +754,14 @@ public final class CpuRegionLowerer implements RegionLowerer {
         } catch (NumberFormatException ignored) {
             return -1;
         }
+    }
+
+    private static int nodeIdFromPartitionRef(PartitionValueRef ref) {
+        return ref == null ? -1 : ref.producerNodeId();
+    }
+
+    private static String nonBlank(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 
     private int resolveExecutionInputNodeId(int nodeId, LoweringRequest request) {
@@ -114,4 +787,24 @@ public final class CpuRegionLowerer implements RegionLowerer {
         return nodeId;
     }
 
+    private record NativeRegionLegality(
+            boolean selected,
+            List<Integer> providerNodeIds,
+            List<Integer> localKernelNodeIds,
+            String reason
+    ) {
+        private NativeRegionLegality {
+            providerNodeIds = List.copyOf(providerNodeIds == null ? List.of() : providerNodeIds);
+            localKernelNodeIds = List.copyOf(localKernelNodeIds == null ? List.of() : localKernelNodeIds);
+            reason = reason == null ? "" : reason;
+        }
+
+        static NativeRegionLegality selected(List<Integer> providerNodeIds, List<Integer> localKernelNodeIds, String reason) {
+            return new NativeRegionLegality(true, providerNodeIds, localKernelNodeIds, reason);
+        }
+
+        static NativeRegionLegality rejected(String reason) {
+            return new NativeRegionLegality(false, List.of(), List.of(), reason);
+        }
+    }
 }

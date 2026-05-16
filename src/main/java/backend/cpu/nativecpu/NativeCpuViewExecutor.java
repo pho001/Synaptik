@@ -37,7 +37,7 @@ public final class NativeCpuViewExecutor {
         }
         NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(op.opType(), node.getDataType());
         if (!supportsViewDType(node.getDataType())) {
-            return fallback(context, fact, op, "native-storage-dtype-unsupported:" + node.getDataType().name().toLowerCase());
+            return false;
         }
         if (inputs == null || inputs.size() != 1 || context.inputNodeIds().size() != 1) {
             return fallback(context, fact, op, "native-kernel-ineligible:" + opLabel(op) + "-input-count");

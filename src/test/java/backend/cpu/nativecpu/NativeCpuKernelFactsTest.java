@@ -121,7 +121,11 @@ class NativeCpuKernelFactsTest {
         NativeCpuKernelFact where = NativeCpuKernelFacts.factFor(Operation.OpType.WHERE, DataType.FLOAT64);
         NativeCpuKernelFact log = NativeCpuKernelFacts.factFor(Operation.OpType.LOG, DataType.FLOAT64);
         NativeCpuKernelFact exp = NativeCpuKernelFacts.factFor(Operation.OpType.EXP, DataType.FLOAT64);
+        NativeCpuKernelFact sqrt = NativeCpuKernelFacts.factFor(Operation.OpType.SQRT, DataType.FLOAT64);
+        NativeCpuKernelFact abs = NativeCpuKernelFacts.factFor(Operation.OpType.ABS, DataType.FLOAT64);
+        NativeCpuKernelFact tanh = NativeCpuKernelFacts.factFor(Operation.OpType.TANH, DataType.FLOAT64);
         NativeCpuKernelFact sigmoid = NativeCpuKernelFacts.factFor(Operation.OpType.SIGMOID, DataType.FLOAT64);
+        NativeCpuKernelFact inv = NativeCpuKernelFacts.factFor(Operation.OpType.INV, DataType.FLOAT64);
 
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, add.status());
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, sub.status());
@@ -129,22 +133,30 @@ class NativeCpuKernelFactsTest {
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, div.status());
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, mulScalar.status());
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, neg.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, relu.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, log.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, sigmoid.status());
         assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, add.family());
         assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, neg.family());
+        assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, sigmoid.family());
         assertEquals("requires-dense-contiguous-same-shape", div.reason());
         assertEquals("requires-dense-contiguous", mulScalar.reason());
+        assertEquals("requires-dense-contiguous", relu.reason());
+        assertEquals("requires-dense-contiguous", log.reason());
+        assertEquals("requires-dense-contiguous", exp.reason());
+        assertEquals("requires-dense-contiguous", sigmoid.reason());
         assertTrue(add.nativeComputeEligible());
         assertTrue(neg.preservesNativeStorage());
-        assertEquals("native-kernel-unsupported:relu", relu.reason());
         assertEquals("native-kernel-unsupported:where", where.reason());
-        assertEquals("native-kernel-unsupported:log", log.reason());
-        assertEquals("native-kernel-unsupported:exp", exp.reason());
-        assertEquals("native-kernel-unsupported:sigmoid", sigmoid.reason());
-        assertFalse(relu.nativeComputeEligible());
+        assertTrue(relu.nativeComputeEligible());
         assertFalse(where.preservesNativeStorage());
-        assertFalse(log.nativeComputeEligible());
-        assertFalse(exp.nativeComputeEligible());
-        assertFalse(sigmoid.preservesNativeStorage());
+        assertTrue(log.nativeComputeEligible());
+        assertTrue(exp.nativeComputeEligible());
+        assertTrue(sqrt.nativeComputeEligible());
+        assertTrue(abs.nativeComputeEligible());
+        assertTrue(tanh.nativeComputeEligible());
+        assertTrue(sigmoid.preservesNativeStorage());
+        assertTrue(inv.preservesNativeStorage());
     }
 
     @Test

@@ -10,6 +10,7 @@ import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.RuntimeConfig;
 import operations.Operation;
 import tensor.DataType;
+import tensor.NativeBFloat16Storage;
 import tensor.NativeFloat32Storage;
 import tensor.NativeFloat64Storage;
 import tensor.NativeTensorStorage;
@@ -19,6 +20,7 @@ import java.util.List;
 
 import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
+import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
 /**
  * Native CPU compare slice for dense contiguous F32/F64 inputs with BOOL array output.
@@ -74,6 +76,9 @@ public final class NativeCpuCompareExecutor {
             if (left.getDataType() == DataType.FLOAT64) {
                 runCompareF64(kernel, requireF64NativeInput(context, 0, opLabel(op).toUpperCase()),
                         requireF64NativeInput(context, 1, opLabel(op).toUpperCase()), out, node.getFlatDataSize());
+            } else if (left.getDataType() == DataType.BFLOAT16) {
+                runCompareBF16(kernel, requireBF16NativeInput(context, 0, opLabel(op).toUpperCase()),
+                        requireBF16NativeInput(context, 1, opLabel(op).toUpperCase()), out, node.getFlatDataSize());
             } else {
                 runCompareF32(kernel, requireF32NativeInput(context, 0, opLabel(op).toUpperCase()),
                         requireF32NativeInput(context, 1, opLabel(op).toUpperCase()), out, node.getFlatDataSize());
@@ -116,6 +121,21 @@ public final class NativeCpuCompareExecutor {
         }
     }
 
+    private static void runCompareBF16(
+            CompareElementwiseKernel kernel,
+            NativeBFloat16Storage left,
+            NativeBFloat16Storage right,
+            byte[] out,
+            int size
+    ) {
+        for (int i = 0; i < size; i++) {
+            long offset = (long) i * Short.BYTES;
+            float leftValue = backend.cpu.kernels.CpuDTypeOps.fromBFloat16Bits(left.segment().get(JAVA_SHORT, offset));
+            float rightValue = backend.cpu.kernels.CpuDTypeOps.fromBFloat16Bits(right.segment().get(JAVA_SHORT, offset));
+            out[i] = kernel.testF32(leftValue, rightValue) ? (byte) 1 : (byte) 0;
+        }
+    }
+
     private static boolean fallback(CpuKernelContext context, NativeCpuKernelFact fact, String reason) {
         handleRequireNative(context, "compare elementwise", reason);
         requireCpuReadableInputs(context);
@@ -153,6 +173,15 @@ public final class NativeCpuCompareExecutor {
         throw new IllegalStateException("native " + op + " compare requires FLOAT64 native input storage");
     }
 
+    private static NativeBFloat16Storage requireBF16NativeInput(CpuKernelContext context, int inputIndex, String op) {
+        int inputNodeId = context.inputNodeIds().get(inputIndex);
+        NativeTensorStorage storage = context.executionContext().requireNativeReadable(inputNodeId, CpuMaterializationReason.CPU_CONSUMER);
+        if (storage instanceof NativeBFloat16Storage bf16) {
+            return bf16;
+        }
+        throw new IllegalStateException("native " + op + " compare requires BFLOAT16 native input storage");
+    }
+
     private static void publishTrace(CpuKernelContext context, NativeCpuKernelFact fact, String actualCpuStorage, String fallbackReason) {
         var runtime = context.executionContext().runtimeConfig();
         context.putRuntimeState(
@@ -170,7 +199,7 @@ public final class NativeCpuCompareExecutor {
     }
 
     private static boolean supportsInputDType(DataType dataType) {
-        return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64;
+        return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64 || dataType == DataType.BFLOAT16;
     }
 
     private static boolean isCompareOp(Operation.OpType opType) {

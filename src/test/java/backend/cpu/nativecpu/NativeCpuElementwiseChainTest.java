@@ -894,6 +894,41 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void cpuNativeF64ActivationChainKeepsOutputsNativeAndPublishesValues() {
+        Tensor out = f64(new double[]{-1.0d, 0.0d, 4.0d, 9.0d}, "f64_activation")
+                .relu()
+                .sqrt()
+                .tanh()
+                .sigmoid();
+        double[] expected = new double[4];
+        double[] input = new double[]{-1.0d, 0.0d, 4.0d, 9.0d};
+        for (int i = 0; i < input.length; i++) {
+            expected[i] = 1.0d / (1.0d + Math.exp(-Math.tanh(Math.sqrt(Math.max(0.0d, input[i])))));
+        }
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(expected, out.getFloat64Data(), 1.0e-12d);
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "RELU".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "SQRT".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "TANH".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "SIGMOID".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+    }
+
+    @Test
     void cpuNativeF64SumAndMeanKeepOutputsNativeAndPublishValues() {
         Tensor sumAll = f64Matrix(new double[]{1.0d, 2.0d, 3.0d, 4.0d}, new int[]{2, 2}, "f64_sum_all").sum();
         Tensor meanAll = f64Matrix(new double[]{1.0d, 2.0d, 3.0d, 4.0d}, new int[]{2, 2}, "f64_mean_all").mean();

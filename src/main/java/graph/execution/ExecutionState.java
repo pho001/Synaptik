@@ -197,8 +197,33 @@ public final class ExecutionState {
                     allocatePreparedInputs(fallbackStep.node().id(), fallbackStep.metadata().cpuPlan(), preparedInputs);
                 }
             }
+            if (entry.getValue().cpuRegionExecutable() != null) {
+                for (PreparedNodeExecution regionStep : entry.getValue().cpuRegionExecutable().nativeSteps()) {
+                    allocateCpuRegionStepRuntimeState(regionStep, runtimeWorkspaceByTemplate, workspaces, preparedInputs);
+                }
+                for (PreparedNodeExecution regionStep : entry.getValue().cpuRegionExecutable().fallbackSteps()) {
+                    allocateCpuRegionStepRuntimeState(regionStep, runtimeWorkspaceByTemplate, workspaces, preparedInputs);
+                }
+            }
         }
         return new ExecutionState(runtimeTensors, workspaces, preparedInputs, runtimeNodeIds, residency, Map.of());
+    }
+
+    private static void allocateCpuRegionStepRuntimeState(
+            PreparedNodeExecution step,
+            Map<CpuNodeWorkspace, CpuNodeWorkspace> runtimeWorkspaceByTemplate,
+            Map<Integer, CpuNodeWorkspace> workspaces,
+            Map<PreparedInputKey, Tensor> preparedInputs
+    ) {
+        if (step == null || step.metadata() == null) {
+            return;
+        }
+        CpuNodeWorkspace workspace = step.metadata().cpuWorkspace();
+        if (workspace != null) {
+            CpuNodeWorkspace runtimeWorkspace = runtimeWorkspaceByTemplate.computeIfAbsent(workspace, ignored -> workspace.fork());
+            workspaces.put(step.compiledNode().id(), runtimeWorkspace);
+        }
+        allocatePreparedInputs(step.compiledNode().id(), step.metadata().cpuPlan(), preparedInputs);
     }
 
     private static void allocatePreparedInputs(

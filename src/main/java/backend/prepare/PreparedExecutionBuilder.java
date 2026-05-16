@@ -7,7 +7,6 @@ import backend.lowering.BackendCapabilities;
 import backend.lowering.LoweringContext;
 import backend.lowering.LoweringPipeline;
 import backend.partition.BackendPartitionDescriptorRegistry;
-import backend.cpu.nativecpu.NativeCpuChainPlanner;
 import graph.CompiledNode;
 import graph.compile.CompileArtifacts;
 import graph.execution.CompiledNodeExecutionMetadata;
@@ -72,17 +71,6 @@ public final class PreparedExecutionBuilder {
                 backwardSteps.add(step);
             }
         }
-        executionSteps = new ArrayList<>(NativeCpuChainPlanner.annotate(executionSteps, runtimeConfig));
-        forwardSteps = new ArrayList<>();
-        backwardSteps = new ArrayList<>();
-        for (PreparedNodeExecution step : executionSteps) {
-            if (step.compiledNode().id() <= artifacts.forwardBoundaryNodeId()) {
-                forwardSteps.add(step);
-            } else {
-                backwardSteps.add(step);
-            }
-        }
-
         return new PreparedExecution(
                 runtimeConfig,
                 artifacts.supportsBackward(),

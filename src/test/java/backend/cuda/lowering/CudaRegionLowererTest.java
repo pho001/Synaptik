@@ -11,6 +11,9 @@ import backend.lowering.BackendCapabilities;
 import backend.lowering.LoweringContext;
 import backend.lowering.LoweringRequest;
 import backend.lowering.LoweringResult;
+import backend.lowering.region.CudaRegionPayload;
+import backend.lowering.region.RegionExecutionKind;
+import backend.lowering.region.RegionExecutionPlan;
 import config.optimizer.FuseConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
@@ -119,6 +122,13 @@ class CudaRegionLowererTest {
         ));
 
         assertNotNull(result);
+        RegionExecutionPlan regionPlan = result.loweredRegion().units().getFirst().requireRegionPlan();
+        assertEquals(backend.lowering.LoweringFamily.CUDA_GRAPH_REGION, regionPlan.loweringFamily());
+        assertTrue(regionPlan.backendPayload() instanceof CudaRegionPayload);
+        assertEquals(List.of(RegionExecutionKind.GRAPH_EXECUTABLE), regionPlan.executionGroups().stream()
+                .map(group -> group.executionKind())
+                .distinct()
+                .toList());
         GpuCompoundLoweringArtifact artifact = result.loweredRegion().units().getFirst().requireArtifact(GpuCompoundLoweringArtifact.class);
         assertEquals(GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION, artifact.summary().patternType());
         assertTrue(artifact.summary().orderedNodeIds().containsAll(List.of(linearNodeId, reluNodeId)));

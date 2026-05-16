@@ -12,19 +12,13 @@ public record PreparedNativeCpuPlan(
         PreparedNativeCpuInputPolicy inputPolicy,
         NativeCpuCoverageEntry coverageEntry,
         CpuStorageProfile requestedStorage,
-        String fallbackReason,
-        int chainSegmentId,
-        NativeCpuChainDecision chainDecision,
-        String chainReason
+        String fallbackReason
 ) {
     public PreparedNativeCpuPlan {
         route = route == null ? PreparedNativeCpuRoute.NONE : route;
         inputPolicy = inputPolicy == null ? PreparedNativeCpuInputPolicy.ALL_CPU : inputPolicy;
         requestedStorage = requestedStorage == null ? CpuStorageProfile.CPU_ARRAY : requestedStorage;
         fallbackReason = fallbackReason == null ? "" : fallbackReason;
-        chainSegmentId = Math.max(-1, chainSegmentId);
-        chainDecision = chainDecision == null ? NativeCpuChainDecision.NONE : chainDecision;
-        chainReason = chainReason == null ? "" : chainReason;
         if (route != PreparedNativeCpuRoute.NONE && coverageEntry == null) {
             throw new IllegalArgumentException("coverageEntry is required for native CPU route " + route);
         }
@@ -35,26 +29,13 @@ public record PreparedNativeCpuPlan(
         Objects.requireNonNull(inputPolicy, "inputPolicy cannot be null");
     }
 
-    public PreparedNativeCpuPlan(
-            PreparedNativeCpuRoute route,
-            PreparedNativeCpuInputPolicy inputPolicy,
-            NativeCpuCoverageEntry coverageEntry,
-            CpuStorageProfile requestedStorage,
-            String fallbackReason
-    ) {
-        this(route, inputPolicy, coverageEntry, requestedStorage, fallbackReason, -1, NativeCpuChainDecision.NONE, "");
-    }
-
     public static PreparedNativeCpuPlan none(CpuStorageProfile requestedStorage, String reason) {
         return new PreparedNativeCpuPlan(
                 PreparedNativeCpuRoute.NONE,
                 PreparedNativeCpuInputPolicy.ALL_CPU,
                 null,
                 requestedStorage,
-                reason,
-                -1,
-                NativeCpuChainDecision.NONE,
-                ""
+                reason
         );
     }
 
@@ -68,10 +49,7 @@ public record PreparedNativeCpuPlan(
                 PreparedNativeCpuInputPolicy.ALL_CPU,
                 coverageEntry,
                 requestedStorage,
-                reason,
-                -1,
-                NativeCpuChainDecision.NONE,
-                ""
+                reason
         );
     }
 
@@ -84,9 +62,6 @@ public record PreparedNativeCpuPlan(
                 PreparedNativeCpuInputPolicy.ALL_NATIVE,
                 coverageEntry,
                 requestedStorage,
-                "",
-                -1,
-                NativeCpuChainDecision.NONE,
                 ""
         );
     }
@@ -100,9 +75,6 @@ public record PreparedNativeCpuPlan(
                 PreparedNativeCpuInputPolicy.CONDITION_CPU_VALUES_NATIVE,
                 coverageEntry,
                 requestedStorage,
-                "",
-                -1,
-                NativeCpuChainDecision.NONE,
                 ""
         );
     }
@@ -116,9 +88,6 @@ public record PreparedNativeCpuPlan(
                 PreparedNativeCpuInputPolicy.ALL_NATIVE,
                 coverageEntry,
                 requestedStorage,
-                "",
-                -1,
-                NativeCpuChainDecision.NONE,
                 ""
         );
     }
@@ -126,19 +95,6 @@ public record PreparedNativeCpuPlan(
     public boolean allowsNativeInputs() {
         return inputPolicy == PreparedNativeCpuInputPolicy.ALL_NATIVE
                 || inputPolicy == PreparedNativeCpuInputPolicy.CONDITION_CPU_VALUES_NATIVE;
-    }
-
-    public PreparedNativeCpuPlan withChain(int segmentId, NativeCpuChainDecision decision, String reason) {
-        return new PreparedNativeCpuPlan(
-                route,
-                inputPolicy,
-                coverageEntry,
-                requestedStorage,
-                fallbackReason,
-                segmentId,
-                decision,
-                reason
-        );
     }
 
     public PreparedNativeCpuPlan withRoute(
@@ -152,10 +108,7 @@ public record PreparedNativeCpuPlan(
                 newInputPolicy,
                 newCoverageEntry,
                 requestedStorage,
-                newFallbackReason,
-                chainSegmentId,
-                chainDecision,
-                chainReason
+                newFallbackReason
         );
     }
 }

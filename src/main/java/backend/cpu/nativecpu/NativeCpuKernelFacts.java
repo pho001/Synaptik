@@ -52,7 +52,7 @@ public final class NativeCpuKernelFacts {
                     "native-storage-dtype-unsupported:" + dataType.name().toLowerCase()
             );
         }
-        if (opType == Operation.OpType.MATMUL) {
+        if (opType == Operation.OpType.MATMUL || opType == Operation.OpType.LINEAR) {
             return new NativeCpuKernelFact(
                     opType,
                     dataType,
@@ -140,7 +140,17 @@ public final class NativeCpuKernelFacts {
                     || opType == Operation.OpType.MUL
                     || opType == Operation.OpType.DIV
                     || opType == Operation.OpType.MUL_SCALAR
-                    || opType == Operation.OpType.NEG;
+                    || opType == Operation.OpType.NEG
+                    || opType == Operation.OpType.RELU
+                    || opType == Operation.OpType.LOG
+                    || opType == Operation.OpType.EXP
+                    || opType == Operation.OpType.FAST_EXP
+                    || opType == Operation.OpType.SQRT
+                    || opType == Operation.OpType.ABS
+                    || opType == Operation.OpType.TANH
+                    || opType == Operation.OpType.FAST_TANH
+                    || opType == Operation.OpType.SIGMOID
+                    || opType == Operation.OpType.INV;
         }
         if (dataType == DataType.BFLOAT16) {
             return opType == Operation.OpType.ADD

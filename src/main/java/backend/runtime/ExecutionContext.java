@@ -74,14 +74,48 @@ public final class ExecutionContext {
             Map<Integer, CompiledNodeExecutionMetadata> metadataIndex,
             ExecutionState executionState
     ) {
+        this(
+                runtimeConfig,
+                mode,
+                useFastExpApprox,
+                useFastTanhApprox,
+                metadataIndex,
+                executionState,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
+    private ExecutionContext(
+            RuntimeConfig runtimeConfig,
+            ExecutionMode mode,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox,
+            Map<Integer, CompiledNodeExecutionMetadata> metadataIndex,
+            ExecutionState executionState,
+            Map<Tensor, Object> runtimeStateIndex,
+            Map<Integer, ConvTraceMetadata> convTraceIndex,
+            Map<Integer, AcceleratorLayoutTransformDecision> layoutTransformDecisionIndex,
+            Map<Class<?>, Object> runtimeServices
+    ) {
         this.runtimeConfig = runtimeConfig;
         this.mode = Objects.requireNonNull(mode, "mode cannot be null");
         this.metadataIndex = Map.copyOf(metadataIndex == null ? Map.of() : metadataIndex);
         this.executionState = executionState;
-        this.runtimeStateIndex = Collections.synchronizedMap(new IdentityHashMap<>());
-        this.convTraceIndex = Collections.synchronizedMap(new java.util.HashMap<>());
-        this.layoutTransformDecisionIndex = Collections.synchronizedMap(new java.util.HashMap<>());
-        this.runtimeServices = Collections.synchronizedMap(new java.util.HashMap<>());
+        this.runtimeStateIndex = runtimeStateIndex == null
+                ? Collections.synchronizedMap(new IdentityHashMap<>())
+                : runtimeStateIndex;
+        this.convTraceIndex = convTraceIndex == null
+                ? Collections.synchronizedMap(new java.util.HashMap<>())
+                : convTraceIndex;
+        this.layoutTransformDecisionIndex = layoutTransformDecisionIndex == null
+                ? Collections.synchronizedMap(new java.util.HashMap<>())
+                : layoutTransformDecisionIndex;
+        this.runtimeServices = runtimeServices == null
+                ? Collections.synchronizedMap(new java.util.HashMap<>())
+                : runtimeServices;
         this.useFastExpApprox = useFastExpApprox;
         this.useFastTanhApprox = useFastTanhApprox;
     }
@@ -132,6 +166,32 @@ public final class ExecutionContext {
      */
     public RuntimeConfig runtimeConfig() {
         return runtimeConfig;
+    }
+
+    /**
+     * Returns a context view with the same per-run state but a different runtime policy.
+     *
+     * <p>This is used for private fallback subplans that must override routing policy while still
+     * writing into the same runtime tensors, workspaces, traces, and services as the parent run.</p>
+     *
+     * @param newRuntimeConfig replacement runtime config
+     * @return context sharing this run's mutable state
+     */
+    public ExecutionContext withRuntimeConfig(RuntimeConfig newRuntimeConfig) {
+        Objects.requireNonNull(newRuntimeConfig, "newRuntimeConfig cannot be null");
+        boolean backwardEnabled = mode == ExecutionMode.FORWARD_BACKWARD;
+        return new ExecutionContext(
+                newRuntimeConfig,
+                mode,
+                newRuntimeConfig.approximation().useFastExp(backwardEnabled),
+                newRuntimeConfig.approximation().useFastTanh(backwardEnabled),
+                metadataIndex,
+                executionState,
+                runtimeStateIndex,
+                convTraceIndex,
+                layoutTransformDecisionIndex,
+                runtimeServices
+        );
     }
 
     /**

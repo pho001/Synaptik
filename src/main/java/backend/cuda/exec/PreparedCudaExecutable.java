@@ -24,6 +24,7 @@ import backend.cuda.bridge.CudaBridgeExecutionStats;
 import backend.cuda.bridge.CudaGraphBridge;
 import backend.cuda.buffer.CudaDeviceToCpuMaterializer;
 import backend.lowering.LoweringFamily;
+import backend.lowering.region.RegionExecutionPlan;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.StorageResidency;
 import backend.runtime.ExecutionContext;
@@ -50,6 +51,7 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
     private final GpuCompoundRegionSummary compoundSummary;
     private final GpuLoweredRegionManifest gpuLoweredRegionManifest;
     private final LoweringFamily loweringFamily;
+    private final RegionExecutionPlan regionExecutionPlan;
     private final CudaGraphBridge bridge;
     private final CudaBridgeContext bridgeContext;
     private final CudaBridgeExecutable bridgeExecutable;
@@ -117,12 +119,26 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
             GpuCompoundRegionSummary compoundSummary,
             GpuLoweredRegionManifest gpuLoweredRegionManifest
     ) {
+        this(dagSpec, loweringFamily, null, bridge, cpuFallbackSteps, backendConfig, compoundSummary, gpuLoweredRegionManifest);
+    }
+
+    public PreparedCudaExecutable(
+            AcceleratorDagSpec dagSpec,
+            LoweringFamily loweringFamily,
+            RegionExecutionPlan regionExecutionPlan,
+            CudaGraphBridge bridge,
+            List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps,
+            AcceleratorBackendConfig backendConfig,
+            GpuCompoundRegionSummary compoundSummary,
+            GpuLoweredRegionManifest gpuLoweredRegionManifest
+    ) {
         this.dagSpec = Objects.requireNonNull(dagSpec, "dagSpec cannot be null");
         this.compoundSummary = compoundSummary == null
                 ? GpuCompoundRegionSummary.none(ComputeBackend.GPU_CUDA, dagSpec.outputNodeIds())
                 : compoundSummary;
         this.gpuLoweredRegionManifest = gpuLoweredRegionManifest;
         this.loweringFamily = Objects.requireNonNull(loweringFamily, "loweringFamily cannot be null");
+        this.regionExecutionPlan = regionExecutionPlan;
         this.bridge = Objects.requireNonNull(bridge, "bridge cannot be null");
         this.bridgeContext = bridge.createContext();
         this.bridgeExecutable = bridge.compile(bridgeContext, dagSpec);
@@ -337,6 +353,11 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
     @Override
     public GpuLoweredRegionManifest gpuLoweredRegionManifest() {
         return gpuLoweredRegionManifest;
+    }
+
+    @Override
+    public RegionExecutionPlan regionExecutionPlan() {
+        return regionExecutionPlan;
     }
 
     /**

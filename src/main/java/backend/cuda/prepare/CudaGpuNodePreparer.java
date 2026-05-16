@@ -61,6 +61,7 @@ public final class CudaGpuNodePreparer {
                 loweredRegion,
                 LoweringFamily.CUDA_GRAPH_REGION
         );
+        var regionPlan = loweredRegion.units().getFirst().requireRegionPlan();
         PartitionPlan genericPlan = context.backendPlanForAnchor(node.id());
         CudaGpuPartitionPlan plan = GpuAcceleratorPrepareSupport.requirePlan(
                 genericPlan,
@@ -85,6 +86,7 @@ public final class CudaGpuNodePreparer {
                 new PreparedCudaExecutable(
                         plan.dagSpec(),
                         loweringFamily,
+                        regionPlan,
                         bridge,
                         fallback.preparedSteps(),
                         context.runtimeConfig().accelerator().cuda(),

@@ -28,6 +28,7 @@ import backend.metal.kernel.MetalCustomKernelBridge;
 import backend.metal.kernel.MetalCustomKernelExecutable;
 import backend.runtime.ExecutionContext;
 import backend.lowering.LoweringFamily;
+import backend.lowering.region.RegionExecutionPlan;
 import config.runtime.AcceleratorBackendConfig;
 import config.runtime.AcceleratorBufferBindingMode;
 import tensor.DataType;
@@ -47,6 +48,7 @@ import java.util.Objects;
 public final class PreparedMetalExecutable implements PreparedAcceleratorExecutable {
     private final MetalPartitionPlan plan;
     private final LoweringFamily loweringFamily;
+    private final RegionExecutionPlan regionExecutionPlan;
     private final MetalMpsGraphBridge bridge;
     private final MetalMpsBridgeContext bridgeContext;
     private final MetalMpsBridgeExecutable bridgeExecutable;
@@ -112,8 +114,21 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
             AcceleratorBackendConfig backendConfig,
             MetalCustomKernelBridge customKernelBridge
     ) {
+        this(plan, loweringFamily, null, bridge, cpuFallbackSteps, backendConfig, customKernelBridge);
+    }
+
+    public PreparedMetalExecutable(
+            MetalPartitionPlan plan,
+            LoweringFamily loweringFamily,
+            RegionExecutionPlan regionExecutionPlan,
+            MetalMpsGraphBridge bridge,
+            List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps,
+            AcceleratorBackendConfig backendConfig,
+            MetalCustomKernelBridge customKernelBridge
+    ) {
         this.plan = Objects.requireNonNull(plan, "plan cannot be null");
         this.loweringFamily = Objects.requireNonNull(loweringFamily, "loweringFamily cannot be null");
+        this.regionExecutionPlan = regionExecutionPlan;
         this.bridge = Objects.requireNonNull(bridge, "bridge cannot be null");
         this.customKernelBridge = customKernelBridge == null ? MetalCustomKernelBridge.unavailable() : customKernelBridge;
         this.bridgeContext = bridge.createContext();
@@ -578,6 +593,11 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
     @Override
     public GpuLoweredRegionManifest gpuLoweredRegionManifest() {
         return plan.manifest();
+    }
+
+    @Override
+    public RegionExecutionPlan regionExecutionPlan() {
+        return regionExecutionPlan;
     }
 
     /**

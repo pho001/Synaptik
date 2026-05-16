@@ -15,6 +15,14 @@ import backend.accelerator.lowering.GpuLoweredRegionRejection;
 import backend.accelerator.lowering.GpuLoweredRegionValueAssumption;
 import backend.accelerator.lowering.GpuLoweringUnsupportedReason;
 import backend.cuda.lowering.CudaGpuRegionLegalityAdapter;
+import backend.lowering.LoweringFamily;
+import backend.lowering.region.EmptyRegionPayload;
+import backend.lowering.region.RegionCost;
+import backend.lowering.region.RegionDecision;
+import backend.lowering.region.RegionExecutionGroup;
+import backend.lowering.region.RegionExecutionKind;
+import backend.lowering.region.RegionExecutionPlan;
+import backend.lowering.region.RegionStorageContract;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionMode;
 import backend.ComputeBackend;
@@ -393,6 +401,13 @@ public class CompiledGraphTraceTest {
 
         assertEquals(manifest.regionId(), attrs.get("gpuRegionId"));
         assertEquals(manifest.regionId(), attrs.get("gpuLoweredRegionId"));
+        assertEquals(manifest.regionId(), attrs.get("regionId"));
+        assertEquals("GPU_CUDA", attrs.get("regionTarget"));
+        assertEquals("CUDA_GRAPH_REGION", attrs.get("loweringFamily"));
+        assertEquals(outputNode.id(), attrs.get("anchorNodeId"));
+        assertEquals(List.of(outputNode.id()), attrs.get("boundaryOutputNodeIds"));
+        assertEquals(List.of("GRAPH_EXECUTABLE"), attrs.get("regionExecutionKindSummary"));
+        assertEquals(List.of("DEVICE_BUFFER"), attrs.get("regionStorageContractSummary"));
         assertEquals(2, attrs.get("selectedRegionLength"));
         assertEquals(2, attrs.get("loweredPrimitiveCount"));
         assertEquals(1, attrs.get("gpuFusedSubpatternCount"));
@@ -798,6 +813,7 @@ public class CompiledGraphTraceTest {
     private record SyntheticAcceleratorExecutable(
             int nodeId,
             GpuLoweredRegionManifest gpuLoweredRegionManifest,
+            RegionExecutionPlan regionExecutionPlan,
             AcceleratorBufferExecutionPath executionPath,
             AcceleratorBufferReasonCode reasonCode
     ) implements PreparedAcceleratorExecutable {
@@ -811,6 +827,21 @@ public class CompiledGraphTraceTest {
                     gpuLoweredRegionManifest,
                     AcceleratorBufferExecutionPath.BUFFER_BINDING,
                     AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE
+            );
+        }
+
+        private SyntheticAcceleratorExecutable(
+                int nodeId,
+                GpuLoweredRegionManifest gpuLoweredRegionManifest,
+                AcceleratorBufferExecutionPath executionPath,
+                AcceleratorBufferReasonCode reasonCode
+        ) {
+            this(
+                    nodeId,
+                    gpuLoweredRegionManifest,
+                    gpuLoweredRegionManifest == null ? null : sampleRegionPlan(gpuLoweredRegionManifest),
+                    executionPath,
+                    reasonCode
             );
         }
 
@@ -838,6 +869,35 @@ public class CompiledGraphTraceTest {
                     List.of()
             );
         }
+    }
+
+    private static RegionExecutionPlan sampleRegionPlan(GpuLoweredRegionManifest manifest) {
+        return new RegionExecutionPlan(
+                manifest.regionId(),
+                PartitionTarget.fromBackend(manifest.backend()),
+                manifest.backend() == ComputeBackend.GPU_METAL
+                        ? LoweringFamily.METAL_GRAPH_REGION
+                        : LoweringFamily.CUDA_GRAPH_REGION,
+                manifest.anchorNodeId(),
+                manifest.orderedNodeIds(),
+                manifest.externalInputNodeIds(),
+                manifest.outputNodeIds(),
+                List.of(),
+                List.of(new RegionExecutionGroup(
+                        manifest.regionId() + "-group-0",
+                        manifest.orderedNodeIds(),
+                        RegionExecutionKind.GRAPH_EXECUTABLE,
+                        manifest.backend().name() + "_GRAPH",
+                        manifest.externalInputNodeIds(),
+                        manifest.outputNodeIds(),
+                        List.of(),
+                        RegionStorageContract.DEVICE_BUFFER,
+                        "synthetic-region-plan"
+                )),
+                RegionCost.ofWork(manifest.selectedRegionLength()),
+                RegionDecision.selected("synthetic", "synthetic-region-plan"),
+                EmptyRegionPayload.INSTANCE
+        );
     }
 
     private static GpuLoweredRegionManifest sampleMultiOpFusedManifest(int nodeId) {

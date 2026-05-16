@@ -13,6 +13,8 @@ import backend.cpu.nativecpu.NativeCpuMemoryPool;
 import backend.cpu.nativecpu.NativeCpuTraceState;
 import backend.cpu.nativecpu.PreparedNativeCpuInputPolicy;
 import backend.cpu.nativecpu.PreparedNativeCpuPlan;
+import backend.lowering.region.CpuNativeRegionPayload;
+import backend.lowering.region.RegionRole;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
@@ -455,6 +457,9 @@ public final class PreparedExecution implements AutoCloseable {
         if (step.metadata().backend() != ComputeBackend.CPU) {
             return;
         }
+        if (step.metadata().cpuRegionExecutable() != null) {
+            return;
+        }
         PreparedNativeCpuPlan nativeCpuPlan = step.metadata().cpuPlan() == null
                 ? null
                 : step.metadata().cpuPlan().nativeCpuPlan();
@@ -629,13 +634,33 @@ public final class PreparedExecution implements AutoCloseable {
                     attrs.put("matMulFallbackReason", matMul.fallbackReason());
                 }
             }
-            PreparedNativeCpuPlan nativeCpuPlan = plan.nativeCpuPlan();
-            if (nativeCpuPlan != null
-                    && (nativeCpuPlan.chainSegmentId() >= 0
-                    || nativeCpuPlan.chainDecision() != backend.cpu.nativecpu.NativeCpuChainDecision.NONE)) {
-                attrs.put("nativeCpuChainSegmentId", nativeCpuPlan.chainSegmentId());
-                attrs.put("nativeCpuChainDecision", nativeCpuPlan.chainDecision().name());
-                attrs.put("nativeCpuChainReason", nativeCpuPlan.chainReason());
+        }
+
+        if (metadata.cpuRegionExecutable() != null) {
+            var regionPlan = metadata.cpuRegionExecutable().regionExecutionPlan();
+            if (regionPlan != null) {
+                addRegionPlanAttrs(attrs, regionPlan);
+                attrs.put("nativeCpuRegionId", regionPlan.regionId());
+                attrs.put("nativeCpuRegionNodeCount", regionPlan.orderedNodeIds().size());
+                attrs.put("nativeCpuRegionInputs", regionPlan.externalInputNodeIds());
+                attrs.put("nativeCpuRegionOutputs", regionPlan.boundaryOutputNodeIds());
+                attrs.put("nativeCpuRegionRoute", metadata.cpuRegionExecutable().lastRoute());
+                attrs.put("nativeCpuRegionDecision", regionPlan.decision().selected() ? "SELECTED" : "REJECTED");
+                attrs.put("nativeCpuRegionReason", regionPlan.decision().reason());
+                attrs.put("nativeCpuRegionFallbackReason", metadata.cpuRegionExecutable().lastFallbackReason());
+                attrs.put("nativeCpuRegionLocalKernelCount", metadata.cpuRegionExecutable().lastRegionLocalKernelCount());
+                attrs.put("nativeCpuRegionLocalViewCount", metadata.cpuRegionExecutable().lastRegionLocalViewCount());
+                attrs.put("nativeCpuRegionExecutedGroupCount", metadata.cpuRegionExecutable().lastExecutedGroupCount());
+                if (regionPlan.backendPayload() instanceof CpuNativeRegionPayload payload) {
+                    attrs.put("nativeCpuRegionProviderKind", payload.providerKind());
+                    attrs.put("nativeCpuRegionProviderNodes", payload.providerNodeIds());
+                    attrs.put("nativeCpuRegionLocalKernelNodes", payload.localKernelNodeIds());
+                    attrs.put("nativeCpuRegionViewNodes", regionPlan.nodePlans().stream()
+                            .filter(nodePlan -> nodePlan.regionRole() == RegionRole.VIEW_ALIAS)
+                            .map(backend.lowering.region.RegionNodePlan::nodeId)
+                            .toList());
+                    attrs.put("nativeCpuRegionFallbackPlanCount", payload.fallbackPlans().size());
+                }
             }
         }
 
@@ -696,6 +721,10 @@ public final class PreparedExecution implements AutoCloseable {
             attrs.put("acceleratorBufferOutputCount", decision.outputs().size());
             attrs.put("cpuMaterializationCount", context.cpuMaterializationTraceCount());
             attrs.put("deviceHandoffCount", deviceHandoffCount(decision));
+            var regionPlan = metadata.acceleratorExecutable().regionExecutionPlan();
+            if (regionPlan != null) {
+                addRegionPlanAttrs(attrs, regionPlan);
+            }
             var manifest = metadata.acceleratorExecutable().gpuLoweredRegionManifest();
             if (manifest != null && !manifest.regionId().isBlank()) {
                 attrs.put("gpuRegionId", manifest.regionId());
@@ -860,6 +889,29 @@ public final class PreparedExecution implements AutoCloseable {
 
         addFallbackSummary(attrs);
         return new StepExecutionMetadata("node", attrs, compute, layout, dispatch, reduction, matMul, conv, fusedMeta);
+    }
+
+    private static void addRegionPlanAttrs(
+            LinkedHashMap<String, Object> attrs,
+            backend.lowering.region.RegionExecutionPlan regionPlan
+    ) {
+        attrs.put("regionId", regionPlan.regionId());
+        attrs.put("regionTarget", regionPlan.target().name());
+        attrs.put("loweringFamily", regionPlan.loweringFamily().name());
+        attrs.put("anchorNodeId", regionPlan.anchorNodeId());
+        attrs.put("orderedNodeIds", regionPlan.orderedNodeIds());
+        attrs.put("boundaryOutputNodeIds", regionPlan.boundaryOutputNodeIds());
+        attrs.put("regionNodeCount", regionPlan.orderedNodeIds().size());
+        attrs.put("regionDecision", regionPlan.decision().selected() ? "SELECTED" : "REJECTED");
+        attrs.put("regionReason", regionPlan.decision().reason());
+        attrs.put("regionExecutionKindSummary", regionPlan.executionGroups().stream()
+                .map(group -> group.executionKind().name())
+                .distinct()
+                .toList());
+        attrs.put("regionStorageContractSummary", regionPlan.executionGroups().stream()
+                .map(group -> group.storageContract().name())
+                .distinct()
+                .toList());
     }
 
     private static Tensor safeRuntimeTensor(ExecutionContext context, int nodeId) {

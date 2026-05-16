@@ -26,6 +26,10 @@ public final class CpuBackend {
             CompiledNodeExecutionMetadata metadata,
             ExecutionContext executionContext
     ) {
+        if (metadata.cpuRegionExecutable() != null) {
+            metadata.cpuRegionExecutable().execute(executionContext);
+            return;
+        }
         Operation op = metadata.executionOperation() != null ? metadata.executionOperation() : node.operation();
         if (op == null) {
             return;

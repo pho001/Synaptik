@@ -76,6 +76,7 @@ public final class MetalNodePreparer {
                 loweredRegion,
                 LoweringFamily.METAL_GRAPH_REGION
         );
+        var regionPlan = loweredRegion.units().getFirst().requireRegionPlan();
 
         PartitionPlan genericPlan = context.backendPlanForAnchor(node.id());
         MetalPartitionPlan plan = GpuAcceleratorPrepareSupport.requirePlan(
@@ -101,6 +102,7 @@ public final class MetalNodePreparer {
                 new PreparedMetalExecutable(
                         plan,
                         loweringFamily,
+                        regionPlan,
                         bridge,
                         fallback.preparedSteps(),
                         context.runtimeConfig().accelerator().metal(),

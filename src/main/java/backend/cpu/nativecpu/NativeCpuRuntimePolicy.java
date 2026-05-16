@@ -19,10 +19,6 @@ final class NativeCpuRuntimePolicy {
         if (runtimeConfig.cpuStorageProfile() == CpuStorageProfile.CPU_NATIVE) {
             return true;
         }
-        if (runtimeConfig.cpuStorageProfile() != CpuStorageProfile.AUTO) {
-            return false;
-        }
-        PreparedNativeCpuPlan plan = context.nodePlan().nativeCpuPlan();
-        return plan != null && plan.allowsNativeInputs();
+        return false;
     }
 }

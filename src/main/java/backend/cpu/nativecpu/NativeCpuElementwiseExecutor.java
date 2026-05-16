@@ -111,7 +111,7 @@ public final class NativeCpuElementwiseExecutor {
             if (node.getDataType() == DataType.FLOAT64) {
                 NativeFloat64Storage input = requireF64NativeInput(context, 0, label.toUpperCase());
                 NativeFloat64Storage f64Out = allocateF64(node, context, label);
-                runDenseUnaryF64(op, input, f64Out, node.getFlatDataSize());
+                runDenseUnaryF64(op, input, f64Out, node.getFlatDataSize(), context.useFastExpApprox(), context.useFastTanhApprox());
                 f64Out.markModified();
                 out = f64Out;
             } else if (node.getDataType() == DataType.BFLOAT16) {
@@ -162,7 +162,7 @@ public final class NativeCpuElementwiseExecutor {
             if (node.getDataType() == DataType.FLOAT64) {
                 NativeFloat64Storage input = requireF64NativeInput(context, 0, label.toUpperCase());
                 NativeFloat64Storage f64Out = allocateF64(node, context, label);
-                runDenseUnaryF64(op, input, f64Out, node.getFlatDataSize());
+                runDenseUnaryF64(op, input, f64Out, node.getFlatDataSize(), context.useFastExpApprox(), context.useFastTanhApprox());
                 f64Out.markModified();
                 out = f64Out;
             } else if (node.getDataType() == DataType.BFLOAT16) {
@@ -370,12 +370,19 @@ public final class NativeCpuElementwiseExecutor {
         }
     }
 
-    private static void runDenseUnaryF64(Operation op, NativeFloat64Storage input, NativeFloat64Storage out, int size) {
+    private static void runDenseUnaryF64(
+            Operation op,
+            NativeFloat64Storage input,
+            NativeFloat64Storage out,
+            int size,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
         double scalar = scalarParameterF64(op);
         for (int i = 0; i < size; i++) {
             long offset = (long) i * Double.BYTES;
             double value = input.segment().get(JAVA_DOUBLE, offset);
-            out.segment().set(JAVA_DOUBLE, offset, applyUnary(op.opType(), value, scalar));
+            out.segment().set(JAVA_DOUBLE, offset, applyUnary(op.opType(), value, scalar, useFastExpApprox, useFastTanhApprox));
         }
     }
 
@@ -446,10 +453,26 @@ public final class NativeCpuElementwiseExecutor {
         };
     }
 
-    private static double applyUnary(Operation.OpType opType, double value, double scalar) {
+    private static double applyUnary(
+            Operation.OpType opType,
+            double value,
+            double scalar,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
         return switch (opType) {
             case MUL_SCALAR -> value * scalar;
             case NEG -> -value;
+            case RELU -> Math.max(0.0d, value);
+            case LOG -> Math.log(value);
+            case EXP -> useFastExpApprox ? FastTranscendentals.fastExpF64(value) : Math.exp(value);
+            case FAST_EXP -> FastTranscendentals.fastExpF64(value);
+            case SQRT -> Math.sqrt(value);
+            case ABS -> Math.abs(value);
+            case TANH -> useFastTanhApprox ? FastTranscendentals.fastTanhF64(value) : Math.tanh(value);
+            case FAST_TANH -> FastTranscendentals.fastTanhF64(value);
+            case SIGMOID -> 1.0d / (1.0d + Math.exp(-value));
+            case INV -> 1.0d / value;
             default -> throw new IllegalArgumentException("Unsupported native unary op: " + opType);
         };
     }
@@ -467,7 +490,17 @@ public final class NativeCpuElementwiseExecutor {
     private static boolean isNativeUnaryOp(Operation.OpType opType, DataType dataType) {
         if (dataType == DataType.FLOAT64) {
             return opType == Operation.OpType.MUL_SCALAR
-                    || opType == Operation.OpType.NEG;
+                    || opType == Operation.OpType.NEG
+                    || opType == Operation.OpType.RELU
+                    || opType == Operation.OpType.LOG
+                    || opType == Operation.OpType.EXP
+                    || opType == Operation.OpType.FAST_EXP
+                    || opType == Operation.OpType.SQRT
+                    || opType == Operation.OpType.ABS
+                    || opType == Operation.OpType.TANH
+                    || opType == Operation.OpType.FAST_TANH
+                    || opType == Operation.OpType.SIGMOID
+                    || opType == Operation.OpType.INV;
         }
         if (dataType == DataType.BFLOAT16) {
             return opType == Operation.OpType.MUL_SCALAR

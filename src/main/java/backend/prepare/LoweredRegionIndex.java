@@ -3,6 +3,7 @@ package backend.prepare;
 import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweredRegion;
 import backend.lowering.LoweringFamily;
+import backend.lowering.region.RegionExecutionPlan;
 
 import java.util.HashMap;
 import java.util.List;
@@ -59,12 +60,16 @@ final class LoweredRegionIndex {
 
     private void publishCpuRegion(LoweredRegion region, PartitionRoleIndex roleIndex) {
         for (LoweredExecutionUnit unit : region.units()) {
-            if (unit == null || unit.loweringFamily() != LoweringFamily.FUSED_NATIVE || unit.orderedNodeIds().isEmpty()) {
+            if (unit == null || unit.orderedNodeIds().isEmpty()) {
                 continue;
             }
-            int anchorNodeId = unit.orderedNodeIds().getLast();
+            RegionExecutionPlan plan = regionPlan(unit);
+            if (plan == null && unit.loweringFamily() != LoweringFamily.FUSED_NATIVE) {
+                continue;
+            }
+            int anchorNodeId = plan == null ? unit.orderedNodeIds().getLast() : plan.anchorNodeId();
             cpuUnitsByAnchor.put(anchorNodeId, unit);
-            roleIndex.publishRoles(anchorNodeId, unit.orderedNodeIds());
+            roleIndex.publishRoles(anchorNodeId, plan == null ? unit.orderedNodeIds() : plan.orderedNodeIds());
         }
     }
 
@@ -80,7 +85,8 @@ final class LoweredRegionIndex {
         regionsByAnchor.put(anchorNodeId, region);
         for (LoweredExecutionUnit unit : region.units()) {
             if (unit != null) {
-                roleIndex.publishRoles(anchorNodeId, unit.orderedNodeIds());
+                RegionExecutionPlan plan = regionPlan(unit);
+                roleIndex.publishRoles(anchorNodeId, plan == null ? unit.orderedNodeIds() : plan.orderedNodeIds());
             }
         }
     }
@@ -94,9 +100,14 @@ final class LoweredRegionIndex {
             if (unit == null || unit.orderedNodeIds().isEmpty()) {
                 continue;
             }
-            anchorNodeId = Math.max(anchorNodeId, unit.orderedNodeIds().getLast());
+            RegionExecutionPlan plan = regionPlan(unit);
+            anchorNodeId = Math.max(anchorNodeId, plan == null ? unit.orderedNodeIds().getLast() : plan.anchorNodeId());
         }
         return anchorNodeId;
+    }
+
+    private RegionExecutionPlan regionPlan(LoweredExecutionUnit unit) {
+        return unit != null && unit.artifact() instanceof RegionExecutionPlan plan ? plan : null;
     }
 
     LoweredExecutionUnit cpuUnitForAnchor(int nodeId) {

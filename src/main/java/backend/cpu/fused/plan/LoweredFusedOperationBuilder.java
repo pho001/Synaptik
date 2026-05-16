@@ -1,6 +1,8 @@
 package backend.cpu.fused.plan;
 
 import backend.lowering.LoweredExecutionUnit;
+import backend.lowering.region.CpuFusedRegionPayload;
+import backend.lowering.region.RegionExecutionPlan;
 import graph.CompiledNode;
 import tensor.Tensor;
 
@@ -27,6 +29,10 @@ public final class LoweredFusedOperationBuilder {
         Objects.requireNonNull(loweredUnit, "loweredUnit cannot be null");
         if (loweredUnit.artifact() instanceof FusedOperationPreparation preparation) {
             return preparation;
+        }
+        if (loweredUnit.artifact() instanceof RegionExecutionPlan plan
+                && plan.backendPayload() instanceof CpuFusedRegionPayload payload) {
+            return payload.preparation();
         }
         return build(loweredUnit.orderedNodeIds(), compiledNodeResolver);
     }

@@ -161,7 +161,18 @@ public final class NativeCpuPlanResolver {
 
     private static boolean isNativeUnaryOp(Operation.OpType opType, DataType dataType) {
         if (dataType == DataType.FLOAT64) {
-            return opType == Operation.OpType.NEG;
+            return opType == Operation.OpType.NEG
+                    || opType == Operation.OpType.MUL_SCALAR
+                    || opType == Operation.OpType.RELU
+                    || opType == Operation.OpType.LOG
+                    || opType == Operation.OpType.EXP
+                    || opType == Operation.OpType.FAST_EXP
+                    || opType == Operation.OpType.SQRT
+                    || opType == Operation.OpType.ABS
+                    || opType == Operation.OpType.TANH
+                    || opType == Operation.OpType.FAST_TANH
+                    || opType == Operation.OpType.SIGMOID
+                    || opType == Operation.OpType.INV;
         }
         if (dataType == DataType.BFLOAT16) {
             return opType == Operation.OpType.NEG
