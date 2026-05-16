@@ -72,10 +72,10 @@ Java, C, BLAS, and accelerator code, so the table is intentionally concrete.
 | Bridge | Java code that adapts Java objects and memory into a native call contract. | `OpenBlasFfmBridge`, `MetalMpsFfmBridge`, and `CudaFfmBridge`. |
 | API | Source-level interface used by code. | `Tensor.matmul(...)`, `BlasConfig`, `OpenBlasFfmBridge.sgemmRowMajorNoTrans(...)`. |
 | ABI | Binary/runtime contract: symbol name, argument order, primitive sizes, pointer meaning, ownership, and lifetime. | `cblas_dgemm` must receive exactly the argument layout described by the FFM `FunctionDescriptor`. |
-| Symbol | Exported native function or data name found in a native library. | `cblas_sgemm`, `cblas_dgemm`, `cblas_sbgemm`. |
+| Symbol | Exported native function or data name found in a native library. | `cblas_sgemm`, `cblas_dgemm`, `cblas_sbgemm`, `cblas_bgemm`. |
 | Downcall | Java calling into native code. | `MethodHandle.invokeExact(...)` calls the CBLAS function. |
 | Upcall | Native code calling back into Java. | Not used by the OpenBLAS bridge documented here. |
-| Memory segment | Java FFM view of a memory region. | The OpenBLAS bridge allocates temporary native segments for CBLAS calls and copies results back into Java tensor arrays. |
+| Memory segment | Java FFM view of a memory region. | Array-copy BLAS calls allocate temporary native segments; native CPU storage calls pass `MemorySegment` slices directly. |
 | Arena | Lifetime scope for FFM allocations and symbol lookup resources. | `Arena.ofShared()` keeps the library lookup state alive for the OpenBLAS bridge. |
 | Provider | Runtime choice of implementation family. | `BlasProvider.NONE` or `BlasProvider.OPENBLAS_FFM`. |
 | Fallback | Alternative execution path when a faster/specialized path is unavailable or illegal. | Matmul can fall back from OpenBLAS to Java CPU kernels. Metal can fall back to CPU replay. |
@@ -83,7 +83,7 @@ Java, C, BLAS, and accelerator code, so the table is intentionally concrete.
 | Work estimate | Cheap arithmetic proxy for cost. | Matmul uses `M * N * K`; BLAS is considered only when that is at least `matmulMinWork`. |
 | DType | Tensor element type. | BLAS path supports `FLOAT64`, `FLOAT32`, and `BFLOAT16` with different native routines. |
 | GEMM | General Matrix Multiply. | The BLAS operation behind large matmul, linear, attention matmul fragments, and GEMM-lowered conv2d. |
-| CBLAS | C interface to BLAS. | The bridge calls `cblas_sgemm`, `cblas_dgemm`, and optional `cblas_sbgemm`. |
+| CBLAS | C interface to BLAS. | The bridge calls `cblas_sgemm`, `cblas_dgemm`, optional `cblas_sbgemm`, and optional `cblas_bgemm`. |
 
 The most important separation is:
 
@@ -144,7 +144,8 @@ BLAS routine names encode dtype and operation:
 |---|---|---|---|
 | `sgemm` | `s` = single precision | GEMM | `float` / `FLOAT32` |
 | `dgemm` | `d` = double precision | GEMM | `double` / `FLOAT64` |
-| `sbgemm` | `sb` = BF16 inputs with single-precision accumulation in the OpenBLAS symbol used here | GEMM | `short` BF16 inputs, `float` accumulation/output buffer |
+| `sbgemm` | `s` output/accumulation with `b` BF16 inputs | GEMM | `short` BF16 inputs, `float` output buffer |
+| `bgemm` | `b` BF16 output with BF16 inputs | GEMM | `short` BF16 inputs, `short` BF16 output buffer |
 
 Synaptik calls the CBLAS entry points, so the actual symbols include the `cblas_` prefix:
 
@@ -152,6 +153,7 @@ Synaptik calls the CBLAS entry points, so the actual symbols include the `cblas_
 cblas_sgemm
 cblas_dgemm
 cblas_sbgemm
+cblas_bgemm
 ```
 
 The `cblas_` prefix matters because a BLAS library may expose Fortran-style symbols, CBLAS symbols, or both. This
@@ -404,15 +406,15 @@ Term explanations:
 
 ### 2. Find native symbols
 
-A symbol is the native function name. The bridge requires `cblas_sgemm` and `cblas_dgemm`; it treats `cblas_sbgemm` as
-optional.
+A symbol is the native function name. The bridge requires `cblas_sgemm` and `cblas_dgemm`; it treats `cblas_sbgemm`
+and `cblas_bgemm` as optional.
 
 ```java
 lookup.find("cblas_dgemm").orElseThrow()
 ```
 
 If the symbol is missing, Java cannot call that function even if the library itself loaded. That is why "OpenBLAS
-library found" and "BF16 `sbgemm` is available" are separate facts.
+library found", "BF16 `sbgemm` is available", and "BF16 `bgemm` is available" are separate facts.
 
 ### 3. Describe the native function signature
 
@@ -528,7 +530,8 @@ It discovers these symbols:
 |---|---:|---|
 | `cblas_sgemm` | Yes | `FLOAT32` matrix multiplication |
 | `cblas_dgemm` | Yes | `FLOAT64` matrix multiplication |
-| `cblas_sbgemm` | Optional | `BFLOAT16` matrix multiplication with `FLOAT32` accumulation |
+| `cblas_sbgemm` | Optional | `BFLOAT16` inputs with `FLOAT32` output/continuation |
+| `cblas_bgemm` | Optional | `BFLOAT16` inputs with `BFLOAT16` output |
 
 The bridge exposes Java methods that intentionally constrain the ABI to the subset Synaptik actually uses:
 
@@ -540,6 +543,12 @@ The bridge exposes Java methods that intentionally constrain the ABI to the subs
 | `dgemmRowMajorNoTransOffsets(...)` | `FLOAT64` | batched/offset call loop | `cblas_dgemm` |
 | `sbgemmRowMajorNoTrans(...)` | `BFLOAT16` input, `FLOAT32` output | rank-2 contiguous matrix | `cblas_sbgemm` |
 | `sbgemmRowMajorNoTransOffsets(...)` | `BFLOAT16` input, `FLOAT32` output | batched/offset call loop | `cblas_sbgemm` |
+| `bgemmRowMajorNoTrans(...)` | `BFLOAT16` input, `BFLOAT16` output | rank-2 contiguous matrix | `cblas_bgemm` |
+| `bgemmRowMajorNoTransOffsets(...)` | `BFLOAT16` input, `BFLOAT16` output | batched/offset call loop | `cblas_bgemm` |
+| `sgemmRowMajorNoTransSegment(...)` | `FLOAT32` native storage | rank-2 contiguous native segment | `cblas_sgemm` |
+| `dgemmRowMajorNoTransSegment(...)` | `FLOAT64` native storage | rank-2 contiguous native segment | `cblas_dgemm` |
+| `sbgemmRowMajorNoTransSegment(...)` | `BFLOAT16` native input, `FLOAT32` native output | rank-2 contiguous native segment | `cblas_sbgemm` |
+| `bgemmRowMajorNoTransSegment(...)` | `BFLOAT16` native input, `BFLOAT16` native output | rank-2 contiguous native segment | `cblas_bgemm` |
 
 Availability is discovered once at class initialization:
 
@@ -547,7 +556,13 @@ Availability is discovered once at class initialization:
 private static final State STATE = init();
 ```
 
-`OpenBlasFfmBridge.isAvailable()` means the library was loadable and the required `sgemm`/`dgemm` symbols were found. Optional BF16 support is reported separately by `OpenBlasFfmBridge.isBFloat16GemmAvailable()`.
+`OpenBlasFfmBridge.isAvailable()` means the library was loadable and the required `sgemm`/`dgemm` symbols were found. Optional BF16 support is reported separately:
+
+- `isBFloat16ToFloatGemmAvailable()` checks `cblas_sbgemm`.
+- `isBFloat16OutputGemmAvailable()` checks `cblas_bgemm`.
+- `isBFloat16GemmAvailable()` is a broad convenience check meaning at least one optional BF16 GEMM symbol exists.
+
+The distinction matters. `cblas_sbgemm` is useful for BF16 inputs feeding a `FLOAT32` continuation. It is not a BF16-output GEMM. A public BF16 matmul/linear output can be reported as OpenBLAS BF16-output only when `cblas_bgemm` is available and selected.
 
 ## OpenBLAS Bridge Lifecycle
 
@@ -569,11 +584,11 @@ sequenceDiagram
     Bridge->>Loader: load openblas library
     Loader-->>Bridge: library lookup or error
     Bridge->>Lookup: find cblas_sgemm and cblas_dgemm
-    Bridge->>Lookup: optionally find cblas_sbgemm
+    Bridge->>Lookup: optionally find cblas_sbgemm and cblas_bgemm
     Bridge->>Linker: create downcall MethodHandles
     Linker-->>Bridge: cached State
     Kernel->>Bridge: isAvailable()
-    Kernel->>Bridge: dgemm/sgemm/sbgemm call
+    Kernel->>Bridge: dgemm/sgemm/sbgemm/bgemm call
     Bridge->>BLAS: native GEMM
     BLAS-->>Kernel: output array mutated
 ```
@@ -590,7 +605,8 @@ sequenceDiagram
 | `arenaRef` | Shared arena kept alive so library lookup resources remain valid. |
 | `sgemm` | Downcall handle for `cblas_sgemm`. |
 | `dgemm` | Downcall handle for `cblas_dgemm`. |
-| `sbgemm` | Optional downcall handle for `cblas_sbgemm`. |
+| `sbgemm` | Optional downcall handle for `cblas_sbgemm`, BF16 inputs to F32 output. |
+| `bgemm` | Optional downcall handle for `cblas_bgemm`, BF16 inputs to BF16 output. |
 
 The field is static:
 
@@ -619,7 +635,7 @@ machine or shell can still lack `libopenblas`, in which case the bridge is unava
 ### Required versus optional symbols
 
 `cblas_sgemm` and `cblas_dgemm` are required because the bridge reports global OpenBLAS availability only when the main
-`FLOAT32` and `FLOAT64` GEMM paths exist. `cblas_sbgemm` is optional because not every OpenBLAS build exports BF16 GEMM.
+`FLOAT32` and `FLOAT64` GEMM paths exist. `cblas_sbgemm` and `cblas_bgemm` are optional because not every OpenBLAS build exports BF16 GEMM symbols, and some builds expose one but not the other.
 
 Practical effect:
 
@@ -628,15 +644,16 @@ OpenBLAS library has sgemm and dgemm:
   OpenBlasFfmBridge.isAvailable() == true
 
 OpenBLAS library also has sbgemm:
-  BF16 BLAS path can try native sbgemm
+  BF16 -> F32 continuation path can try native sbgemm
 
-OpenBLAS library lacks sbgemm:
-  BF16 matmul planning stays on the Java CPU BF16 path
+OpenBLAS library also has bgemm:
+  BF16 -> BF16 output path can try native bgemm
+
+OpenBLAS library lacks bgemm:
+  BF16-output matmul planning must not claim native OpenBLAS BF16-output
 ```
 
-Bundled JavaCPP OpenBLAS enables `FLOAT32`, `FLOAT64`, and `BFLOAT16` GEMM automatically when the required symbols are
-present. Tests compare bundled BF16 GEMM against Synaptik's Java BF16 reference path, not against a FLOAT64 reference,
-because BF16 inputs and outputs intentionally lose precision before and after the matrix multiply.
+Bundled JavaCPP OpenBLAS enables the symbols that its packaged native build actually exports. On a given machine that may include `cblas_sbgemm` but not `cblas_bgemm`. Tests therefore gate BF16 continuation and BF16-output coverage separately.
 
 ## Matmul Dispatch Flow
 
@@ -652,6 +669,18 @@ The decision starts in [`MatMulPlanner.java`](../src/main/java/backend/cpu/kerne
    - optionally require `M >= K`;
    - require `N / K <= maxNOverK`;
    - use the separate wide-shape guard when `N / K > 4.0`.
+6. For `BFLOAT16`, the required symbol matches the requested output contract:
+   - float continuation requires `cblas_sbgemm`;
+   - BF16 output requires `cblas_bgemm`;
+   - native segment BF16-output route is not selected when `cblas_bgemm` is missing.
+
+`BlasConfig.storageMode()` then determines whether an eligible dense rank-2 GEMM stays on the existing array-copy bridge or may use `MemorySegment`-backed native CPU storage:
+
+| Storage mode | Meaning |
+|---|---|
+| `CPU_ARRAY` | Existing Java-array BLAS route. The bridge allocates native call buffers and copies arrays in/out. |
+| `CPU_NATIVE` | Prefer the native segment route for legal dense rank-2 F32/F64 and legal BF16-output when `cblas_bgemm` exists. |
+| `AUTO` | Let the planner choose native segment route for supported large dense GEMM shapes. |
 
 The execution call then goes through [`MatMulBlasBackend.java`](../src/main/java/backend/cpu/kernels/linalg/matmul/blas/MatMulBlasBackend.java):
 
@@ -663,6 +692,19 @@ Prepared matmul metadata says "use BLAS"
   -> true means BLAS filled the output array
   -> false means the Java fallback kernel should run
 ```
+
+For the native segment route, the execution flow is different:
+
+```text
+Prepared matmul metadata says route=OPENBLAS_NATIVE_SEGMENT
+  -> dtype-specific native executable requests native-readable inputs
+  -> ExecutionState materializes CPU_NATIVE only if needed
+  -> OpenBlasFfmBridge.*Segment(...) receives MemorySegment slices
+  -> output is attached as CPU_NATIVE current
+  -> CPU array publication is delayed until PublicationPolicy or a CPU-array consumer requires it
+```
+
+This is the route that removes the Java array copy at the BLAS boundary. It is still a CPU backend route, not a Metal/CUDA accelerator route.
 
 ```mermaid
 flowchart TD
@@ -843,17 +885,30 @@ That work value passes the default work threshold, assuming provider, dtype, con
 `BFLOAT16` uses a different shape from `FLOAT32` and `FLOAT64`:
 
 1. Synaptik stores BF16 values as `short[]`.
-2. The OpenBLAS bridge optionally looks for `cblas_sbgemm`.
-3. `sbgemm` accumulates into a `float[]` output buffer.
-4. `MatMulBlasBackend.materializeBFloat16(...)` converts the `float[]` result back into BF16 storage when the destination tensor is BF16.
+2. The OpenBLAS bridge optionally looks for two BF16 symbols, `cblas_sbgemm` and `cblas_bgemm`.
+3. `sbgemm` consumes BF16 inputs and writes a `float[]` or F32 native output buffer.
+4. `bgemm` consumes BF16 inputs and writes a BF16 `short[]` or BF16 native output buffer.
 
-That means BF16 BLAS has an extra materialization step even when native multiplication succeeds.
+That means there are two different BF16 BLAS contracts:
+
+```text
+cblas_sbgemm:
+  BF16 A, BF16 B -> F32 C
+  good for float continuation and promoted compute
+  not a BF16-output route
+
+cblas_bgemm:
+  BF16 A, BF16 B -> BF16 C
+  required for true OpenBLAS BF16-output matmul/linear
+```
+
+If only `sbgemm` is available, Synaptik can accelerate BF16-to-F32 continuation paths, but it must not report a public BF16-output matmul as native OpenBLAS BF16-output. If `bgemm` is unavailable, BF16-output execution must stay on Java/native promoted fallback or another backend, with the route and fallback visible in trace.
 
 Batched BLAS in the current matmul backend is not a single strided-batched CBLAS call. `MatMulBlasBackend.tryBatchedBlasF32/F64/BF16(...)` computes per-batch offsets and calls the same row-major no-transpose GEMM in a Java loop:
 
 ```text
 for each batch:
-  call cblas_sgemm/cblas_dgemm/cblas_sbgemm with an input/output offset
+  call cblas_sgemm/cblas_dgemm/cblas_sbgemm/cblas_bgemm with an input/output offset
 ```
 
 This is still useful for attention-like batched shapes, but it is not the same ABI as a vendor-provided `gemm_strided_batched` routine.
@@ -890,6 +945,7 @@ Runtime BLAS policy is stored in [`BlasConfig.java`](../src/main/java/config/run
 | `f32MaxNOverK` | Maximum normal-shape `N / K` ratio. |
 | `f32WideRequireMgeK` | Separate `M >= K` rule for wide shapes where `N / K > 4.0`. |
 | `f32WideMaxNOverK` | Separate max `N / K` rule for wide shapes. |
+| `storageMode` | BLAS storage route policy: `CPU_ARRAY`, `CPU_NATIVE`, or `AUTO`. |
 | `debug` | Enables BLAS fallback diagnostics. |
 | `threads` | Normalized to `0` in the current implementation; calibration should not treat it as an active thread-count knob. |
 
@@ -922,6 +978,7 @@ RuntimeConfig runtime = new RuntimeConfig(
                 1.5d,       // f32MaxNOverK
                 true,       // f32WideRequireMgeK
                 12.0d,      // f32WideMaxNOverK
+                BlasStorageMode.CPU_NATIVE,
                 true        // debug
         )
 );
@@ -940,6 +997,15 @@ trace metadata classes under `graph.execution.trace`, but conceptually you shoul
 matMul:
   useBlas = true/false
   useBatchedBlas = true/false
+  blasProvider = OPENBLAS_FFM/NONE
+  blasSymbol = cblas_sgemm/cblas_dgemm/cblas_sbgemm/cblas_bgemm
+  blasRoute = JAVA_DIRECT/OPENBLAS_ARRAY_COPYING/OPENBLAS_NATIVE_SEGMENT
+  route = concrete runtime route selected for this execution
+  copyInBytes = estimated native-boundary input copy bytes
+  copyOutBytes = estimated native-boundary output copy bytes
+  nativeTempBytes = estimated temporary native bytes
+  threadPolicy = AUTO_UNCONTROLLED for current OpenBLAS integration
+  fallbackReason = dynamic fallback reason, when present
   parallel = true/false
   tileM/tileN/tileK = Java fallback tiling hints
   workers = planned worker count
@@ -958,6 +1024,12 @@ OpenBLAS bridge unavailable during execution
 
 Trace says provider=OPENBLAS_FFM elsewhere
   The runtime profile selected the provider; it does not prove every node used native BLAS.
+
+Trace says openblasSbgemmAvailable=true
+  cblas_sbgemm was discovered. BF16 -> F32 continuation can use it.
+
+Trace says openblasBgemmAvailable=false
+  cblas_bgemm was not discovered. BF16-output matmul must not be reported as native OpenBLAS BF16-output.
 ```
 
 ### Conv trace fields
@@ -1147,8 +1219,12 @@ the memory layout expected by the bridge. The current bridge wants dense row-maj
 
 ### "`BFLOAT16` BLAS is just the same as `FLOAT32` BLAS"
 
-No. BF16 is stored in `short[]`. The optional `cblas_sbgemm` path accumulates into `float[]`, and Synaptik converts the
-result back into BF16 storage when needed. That extra materialization is part of the performance and numerical contract.
+No. BF16 is stored in `short[]`. OpenBLAS exposes distinct BF16 contracts when the build supports them:
+
+- `cblas_sbgemm`: BF16 inputs and F32 output. This is a continuation/promoted-compute route, not BF16-output GEMM.
+- `cblas_bgemm`: BF16 inputs and BF16 output. This is the route needed for true OpenBLAS BF16-output matmul/linear.
+
+If the bundled or configured OpenBLAS has `sbgemm` but not `bgemm`, Synaptik can still use BF16-to-F32 continuation where legal, but it must not claim a BF16-output native BLAS route.
 
 ### "A native bridge failure means the graph is invalid"
 

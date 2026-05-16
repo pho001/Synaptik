@@ -285,6 +285,7 @@ Fields:
 | `f32MaxNOverK` | `3.0` |
 | `f32WideRequireMgeK` | same as `f32RequireMgeK` |
 | `f32WideMaxNOverK` | same as `f32MaxNOverK` |
+| `storageMode` | `BlasStorageMode.CPU_ARRAY` |
 | `debug` | `false` |
 | `threads` | normalized to `0` |
 
@@ -300,6 +301,23 @@ It does not force every matrix multiplication through BLAS. The CPU matmul plann
 contiguity, and `FLOAT32`/`BFLOAT16` shape guards before setting BLAS metadata. For the full explanation of BLAS,
 GEMM, Java FFM, lookup order, fallback behavior, and why `threads` is currently normalized to `0`, see
 [Native Bridges & BLAS: Configuration And Library Lookup](native-bridges-and-blas.md#configuration-and-library-lookup).
+
+`storageMode` controls the CPU BLAS storage route:
+
+| Mode | Meaning |
+|---|---|
+| `CPU_ARRAY` | Existing Java-array OpenBLAS bridge. It may copy Java arrays into native call buffers and copy output back. This is the compatibility default. |
+| `CPU_NATIVE` | Prefer `MemorySegment`-backed native CPU storage for legal dense rank-2 GEMM. |
+| `AUTO` | Let the planner choose native segment route for supported large dense GEMM shapes. |
+
+BF16 symbol availability is more specific than `OPENBLAS_FFM` availability:
+
+```text
+cblas_sbgemm: BF16 inputs -> F32 output/continuation
+cblas_bgemm:  BF16 inputs -> BF16 output
+```
+
+So a runtime can have OpenBLAS and `sbgemm` while still lacking `bgemm`. In that case BF16-to-F32 continuation may be accelerated, but BF16-output matmul/linear must not be reported as OpenBLAS BF16-output.
 
 ### Conv2dConfig
 

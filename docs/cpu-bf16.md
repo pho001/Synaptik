@@ -57,7 +57,7 @@ Current CPU BF16 behavior is best described as:
 ```text
 storage:      BF16 bits in short[]
 elementwise:  unpack BF16 -> float, compute in float, pack float -> BF16
-matmul:       BF16-aware paths exist; native acceleration depends on provider and shape gates
+matmul:       BF16-aware paths exist; native acceleration depends on provider, symbol availability, output contract, and shape gates
 reductions:   may accumulate wider than BF16, often F32 or F64 depending on operation contract
 publication:  controlled separately by PublicationPolicy
 ```
@@ -206,6 +206,8 @@ Current layers:
 - Java BF16 matmul executables exist.
 - BLAS routing can be enabled through `BlasProvider.OPENBLAS_FFM`.
 - Optional native BF16 GEMM support depends on the OpenBLAS build and exposed symbols.
+- OpenBLAS `cblas_sbgemm` means BF16 inputs and F32 output/continuation.
+- OpenBLAS `cblas_bgemm` means BF16 inputs and BF16 output.
 - Shape gates still decide whether BLAS is eligible.
 
 Important consequence:
@@ -214,11 +216,25 @@ Important consequence:
 BF16 matmul with BLAS disabled or unavailable:
   may be slower than expected
 
-BF16 matmul with native BF16 GEMM available and shape gates met:
-  can become meaningfully faster
+BF16 matmul feeding an F32 continuation:
+  can use sbgemm if cblas_sbgemm is available and shape gates pass
+
+BF16 matmul requiring BF16 output:
+  can use bgemm only if cblas_bgemm is available and shape gates pass
 ```
 
-Check the calibrated runtime profile for BF16 matmul-heavy workloads. If the BF16 profile records `blasProvider` as `NONE`, matmul-heavy BF16 benchmarks are not exercising an optimized native BF16 GEMM route.
+Check the calibrated runtime profile and trace for BF16 matmul-heavy workloads. If the BF16 profile records `blasProvider` as `NONE`, matmul-heavy BF16 benchmarks are not exercising an optimized native BF16 GEMM route. If trace says `openblasSbgemmAvailable=true` but `openblasBgemmAvailable=false`, only BF16-to-F32 continuation is available through OpenBLAS; public BF16-output matmul must use another route or an explicit fallback.
+
+This distinction prevents a common mistake:
+
+```text
+wrong interpretation:
+  sbgemm exists, therefore BF16-output BLAS exists
+
+actual interpretation:
+  sbgemm exists, therefore BF16-input/F32-output BLAS exists
+  bgemm must exist for BF16-input/BF16-output BLAS
+```
 
 ## Why ByteBuffer Or MemorySegment Does Not Solve BF16
 
@@ -251,7 +267,8 @@ BF16 can be slower on CPU when the workload is dominated by:
 - elementwise operations with little arithmetic per element
 - repeated execution-unit boundaries
 - reductions that accumulate in wider precision
-- missing native BF16 BLAS for matmul-heavy shapes
+- missing `cblas_sbgemm` for BF16-to-F32 continuation matmul-heavy shapes
+- missing `cblas_bgemm` for BF16-output matmul-heavy shapes
 - publication or materialization that forces CPU-visible BF16 storage after each run
 
 Example:
@@ -297,8 +314,8 @@ For benchmark comparisons:
 For implementation work:
 
 1. Improve fused BF16 elementwise chains before expecting broad CPU BF16 speedups.
-2. Treat native BF16 GEMM as the most promising matmul path.
-3. Use `MemorySegment` for native ABI clarity, not as a substitute for BF16 arithmetic.
+2. Treat native BF16 GEMM as two separate matmul paths: `sbgemm` for F32 continuation and `bgemm` for BF16 output.
+3. Use `MemorySegment` for native ABI clarity and no-copy BLAS handoff, not as a substitute for BF16 arithmetic.
 4. Keep public `Tensor` API logical; storage residency and native buffer ownership belong in runtime/prepare layers.
 
 ## See Also
