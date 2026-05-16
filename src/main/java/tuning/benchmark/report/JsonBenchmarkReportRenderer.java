@@ -217,6 +217,10 @@ public final class JsonBenchmarkReportRenderer {
                     .append("\"parameterNodeId\": ").append(trace.parameterNodeId()).append(", ")
                     .append("\"gradientNodeId\": ").append(trace.gradientNodeId()).append(", ")
                     .append("\"elementCount\": ").append(trace.elementCount()).append(", ")
+                    .append("\"publicationPolicy\": \"").append(escape(trace.publicationPolicy())).append("\", ")
+                    .append("\"gradientPublication\": \"").append(escape(trace.gradientPublication())).append("\", ")
+                    .append("\"optimizerStateStorage\": \"").append(escape(trace.optimizerStateStorage())).append("\", ")
+                    .append("\"bf16TrainingPolicy\": \"").append(escape(trace.bf16TrainingPolicy())).append("\", ")
                     .append("\"fallbackReason\": \"").append(escape(trace.fallbackReason())).append("\"")
                     .append("}");
         }

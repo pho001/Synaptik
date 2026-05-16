@@ -204,6 +204,10 @@ public final class TextBenchmarkReportRenderer {
                     .append(" parameterNodeId=").append(trace.parameterNodeId())
                     .append(" gradientNodeId=").append(trace.gradientNodeId())
                     .append(" elementCount=").append(trace.elementCount())
+                    .append(" publicationPolicy=").append(trace.publicationPolicy())
+                    .append(" gradientPublication=").append(trace.gradientPublication())
+                    .append(" optimizerStateStorage=").append(trace.optimizerStateStorage())
+                    .append(" bf16TrainingPolicy=").append(trace.bf16TrainingPolicy())
                     .append(" fallbackReason=").append(trace.fallbackReason())
                     .append('\n');
         }

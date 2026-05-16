@@ -328,7 +328,7 @@ public final class PreparedExecution implements AutoCloseable {
             ExecutionContext context = ExecutionContext.fromRuntimeConfig(runtimeConfig, mode, metadataIndex, executionState);
             OptimizerStepContext optimizerContext = optimizer == null
                     ? null
-                    : new OptimizerStepContext(runtimeConfig, context, allNodes, compiledGradients);
+                    : new OptimizerStepContext(runtimeConfig, context, publication, allNodes, compiledGradients);
             if (optimizer != null) {
                 optimizer.beforeExecute(optimizerContext);
             }

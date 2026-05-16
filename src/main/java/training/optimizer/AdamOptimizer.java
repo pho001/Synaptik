@@ -197,6 +197,16 @@ public final class AdamOptimizer extends AbstractTrainableOptimizer {
     }
 
     @Override
+    protected String optimizerStateStorage(String route) {
+        return switch (route) {
+            case "CPU_NATIVE" -> "CPU_NATIVE";
+            case "GPU_METAL" -> "DEVICE_OWNED";
+            case "CPU_ARRAY" -> "CPU_ARRAY";
+            default -> "NONE";
+        };
+    }
+
+    @Override
     public void syncParametersToCpu() {
         super.syncParametersToCpu();
         for (NativeAdamState state : List.copyOf(nativeStates.values())) {

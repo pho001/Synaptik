@@ -415,6 +415,10 @@ public class BenchmarkSessionTest {
                                                         7,
                                                         9,
                                                         128,
+                                                        "",
+                                                        "OUTPUT_ONLY",
+                                                        "SKIPPED",
+                                                        "NONE",
                                                         ""
                                                 ))
                                         )
@@ -427,10 +431,14 @@ public class BenchmarkSessionTest {
         String text = TextBenchmarkReportRenderer.render(report);
         assertTrue(text.contains("nativeOptimizerSummary=updateCount=1 nativeCount=1"));
         assertTrue(text.contains("optimizerUpdate=optimizer=SgdOptimizer route=CPU_NATIVE"));
+        assertTrue(text.contains("publicationPolicy=OUTPUT_ONLY"));
+        assertTrue(text.contains("gradientPublication=SKIPPED"));
 
         String json = JsonBenchmarkReportRenderer.render(report);
         assertTrue(json.contains("\"nativeOptimizers\": [{\"optimizer\": \"SgdOptimizer\", \"route\": \"CPU_NATIVE\""));
         assertTrue(json.contains("\"elementCount\": 128"));
+        assertTrue(json.contains("\"publicationPolicy\": \"OUTPUT_ONLY\""));
+        assertTrue(json.contains("\"gradientPublication\": \"SKIPPED\""));
     }
 
     @Test

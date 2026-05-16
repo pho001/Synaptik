@@ -13,6 +13,7 @@ import backend.metal.buffer.MetalDeviceToCpuMaterializer;
 import backend.runtime.ExecutionContext;
 import graph.CompiledGradientBinding;
 import graph.CompiledNode;
+import graph.execution.PublicationPolicy;
 import graph.execution.trace.NativeOptimizerTrace;
 import tensor.DataType;
 import tensor.Tensor;
@@ -137,8 +138,33 @@ abstract class AbstractTrainableOptimizer implements TrainingOptimizer {
                 ref.parameterNode().id(),
                 gradientNodeId,
                 context.executionContext().runtimeTensorForNodeId(ref.parameterNode().id()).getFlatDataSize(),
-                fallbackReason
+                fallbackReason,
+                context.publicationPolicy().name(),
+                gradientPublication(context.publicationPolicy()),
+                optimizerStateStorage(route),
+                bf16TrainingPolicy(ref, fallbackReason)
         ));
+    }
+
+    protected String optimizerStateStorage(String route) {
+        return "NONE";
+    }
+
+    protected String bf16TrainingPolicy(TrainableParameterRef ref, String fallbackReason) {
+        if (ref.parameterNode().dataType() != DataType.BFLOAT16) {
+            return "";
+        }
+        return "ACTIVATIONS_ONLY";
+    }
+
+    private static String gradientPublication(PublicationPolicy publicationPolicy) {
+        if (publicationPolicy == null) {
+            return "SKIPPED";
+        }
+        if (publicationPolicy.publishesGradients()) {
+            return "PUBLISHED";
+        }
+        return publicationPolicy == PublicationPolicy.NONE ? "NONE" : "SKIPPED";
     }
 
     protected String optimizerName() {

@@ -1,3 +1,4 @@
+import backend.cpu.kernels.CpuDTypeOps;
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.CpuStorageProfile;
@@ -83,6 +84,10 @@ class TrainingOptimizerTest {
         assertEquals(1, trace.nativeOptimizers().size());
         assertEquals("CPU_NATIVE", trace.nativeOptimizers().getFirst().route());
         assertEquals(DataType.FLOAT32, trace.nativeOptimizers().getFirst().dataType());
+        assertEquals("OUTPUT_ONLY", trace.nativeOptimizers().getFirst().publicationPolicy());
+        assertEquals("SKIPPED", trace.nativeOptimizers().getFirst().gradientPublication());
+        assertEquals("NONE", trace.nativeOptimizers().getFirst().optimizerStateStorage());
+        assertEquals("", trace.nativeOptimizers().getFirst().bf16TrainingPolicy());
 
         optimizer.syncParametersToCpu();
 
@@ -135,6 +140,28 @@ class TrainingOptimizerTest {
     }
 
     @Test
+    void nativeSgdTraceReportsBf16ConservativeFallbackPolicy() {
+        Tensor w = bf16Tensor(new float[]{1.0f, 2.0f}, "w");
+        Tensor x = bf16Tensor(new float[]{2.0f, 3.0f}, "x");
+        w.setTrainableParameter(true);
+        x.setRequiresGrad(true);
+        Tensor loss = w.mul(x).sum();
+        PreparedExecution prepared = CompiledGraph.compile(loss, CompileConfig.training())
+                .prepare(nativeTrainingRuntime());
+
+        var trace = prepared.executeOptimizerStepTraced(new SgdOptimizer(0.1f), PublicationPolicy.OUTPUT_ONLY);
+
+        assertEquals(1, trace.nativeOptimizers().size());
+        assertEquals("CPU_ARRAY", trace.nativeOptimizers().getFirst().route());
+        assertEquals(DataType.BFLOAT16, trace.nativeOptimizers().getFirst().dataType());
+        assertEquals("ACTIVATIONS_ONLY", trace.nativeOptimizers().getFirst().bf16TrainingPolicy());
+        assertEquals("SKIPPED", trace.nativeOptimizers().getFirst().gradientPublication());
+        assertTrue(trace.nativeOptimizers().getFirst().fallbackReason().contains("dtype-BFLOAT16"));
+        assertNull(w.getGradient());
+        assertNull(x.getGradient());
+    }
+
+    @Test
     void adamUpdatesOnlyTrainableParameters() {
         Tensor w = new Tensor(new float[]{1.0f, -2.0f}, new int[]{2}, null, "w", DataType.FLOAT32);
         Tensor x = new Tensor(new float[]{2.0f, -3.0f}, new int[]{2}, null, "x", DataType.FLOAT32);
@@ -181,6 +208,9 @@ class TrainingOptimizerTest {
         assertEquals("AdamOptimizer", trace.nativeOptimizers().getFirst().optimizer());
         assertEquals("CPU_NATIVE", trace.nativeOptimizers().getFirst().route());
         assertEquals(DataType.FLOAT32, trace.nativeOptimizers().getFirst().dataType());
+        assertEquals("OUTPUT_ONLY", trace.nativeOptimizers().getFirst().publicationPolicy());
+        assertEquals("SKIPPED", trace.nativeOptimizers().getFirst().gradientPublication());
+        assertEquals("CPU_NATIVE", trace.nativeOptimizers().getFirst().optimizerStateStorage());
 
         optimizer.syncParametersToCpu();
 
@@ -244,6 +274,54 @@ class TrainingOptimizerTest {
     }
 
     @Test
+    void nativeAdamTraceReportsBf16ConservativeFallbackPolicy() {
+        Tensor w = bf16Tensor(new float[]{1.0f, 2.0f}, "w");
+        Tensor x = bf16Tensor(new float[]{2.0f, 3.0f}, "x");
+        w.setTrainableParameter(true);
+        x.setRequiresGrad(true);
+        Tensor loss = w.mul(x).sum();
+        PreparedExecution prepared = CompiledGraph.compile(loss, CompileConfig.training())
+                .prepare(nativeTrainingRuntime());
+
+        var trace = prepared.executeOptimizerStepTraced(new AdamOptimizer(0.1f), PublicationPolicy.OUTPUT_ONLY);
+
+        assertEquals(1, trace.nativeOptimizers().size());
+        assertEquals("AdamOptimizer", trace.nativeOptimizers().getFirst().optimizer());
+        assertEquals("CPU_ARRAY", trace.nativeOptimizers().getFirst().route());
+        assertEquals(DataType.BFLOAT16, trace.nativeOptimizers().getFirst().dataType());
+        assertEquals("CPU_ARRAY", trace.nativeOptimizers().getFirst().optimizerStateStorage());
+        assertEquals("ACTIVATIONS_ONLY", trace.nativeOptimizers().getFirst().bf16TrainingPolicy());
+        assertTrue(trace.nativeOptimizers().getFirst().fallbackReason().contains("dtype-BFLOAT16"));
+        assertNull(w.getGradient());
+        assertNull(x.getGradient());
+    }
+
+    @Test
+    void nativeOptimizerStepWithPublicationNoneStillUpdatesWithoutPublishing() {
+        Tensor w = new Tensor(new float[]{1.0f, 2.0f}, new int[]{2}, null, "w", DataType.FLOAT32);
+        Tensor x = new Tensor(new float[]{2.0f, 3.0f}, new int[]{2}, null, "x", DataType.FLOAT32);
+        w.setTrainableParameter(true);
+        x.setRequiresGrad(true);
+        Tensor loss = w.mul(x).sum();
+        PreparedExecution prepared = CompiledGraph.compile(loss, CompileConfig.training())
+                .prepare(nativeTrainingRuntime());
+        SgdOptimizer optimizer = new SgdOptimizer(0.1f);
+
+        var trace = prepared.executeOptimizerStepTraced(optimizer, PublicationPolicy.NONE);
+
+        assertArrayEquals(new float[]{1.0f, 2.0f}, w.getFloat32Data(), 0.0f);
+        assertArrayEquals(new double[]{0.0}, loss.toDoubleArrayCopy(), 0.0);
+        assertEquals("NONE", trace.nativeOptimizers().getFirst().publicationPolicy());
+        assertEquals("NONE", trace.nativeOptimizers().getFirst().gradientPublication());
+        assertNull(w.getGradient());
+        assertNull(x.getGradient());
+
+        optimizer.syncParametersToCpu();
+
+        assertArrayEquals(new float[]{0.8f, 1.7f}, w.getFloat32Data(), 1.0e-6f);
+    }
+
+    @Test
     void explicitOptimizerParameterListCannotUpdateNonTrainableGradientTensors() {
         Tensor w = new Tensor(new float[]{1.0f, 2.0f}, new int[]{2}, null, "w", DataType.FLOAT32);
         Tensor x = new Tensor(new float[]{2.0f, 3.0f}, new int[]{2}, null, "x", DataType.FLOAT32);
@@ -283,5 +361,13 @@ class TrainingOptimizerTest {
                 .withCpuStorageProfile(CpuStorageProfile.CPU_NATIVE)
                 .withNativeCpuFailurePolicy(NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)
                 .withNativeCpuMemory(NativeCpuMemoryConfig.perPreparedExecution(4096L));
+    }
+
+    private static Tensor bf16Tensor(float[] values, String label) {
+        short[] bits = new short[values.length];
+        for (int i = 0; i < values.length; i++) {
+            bits[i] = CpuDTypeOps.toBFloat16Bits(values[i]);
+        }
+        return new Tensor(bits, new int[]{values.length}, null, label, DataType.BFLOAT16);
     }
 }
