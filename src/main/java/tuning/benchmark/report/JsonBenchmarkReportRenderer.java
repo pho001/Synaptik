@@ -71,6 +71,9 @@ public final class JsonBenchmarkReportRenderer {
                 sb.append("        \"runtimeCopy\": ").append(runtimeCopyTraceSummaryJson(
                         RuntimeCopyTraceSummary.fromRun(trace.run())
                 )).append(",\n");
+                sb.append("        \"bf16Performance\": ").append(bf16PerformanceSummaryJson(
+                        Bf16PerformanceSummary.fromTrace(trace)
+                )).append(",\n");
                 sb.append("        \"hostDeviceTransfer\": ").append(hostDeviceTransferSummaryJson(
                         HostDeviceTransferSummary.fromRun(trace.run())
                 )).append(",\n");
@@ -184,6 +187,31 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"matMulCopyInBytes\": " + summary.matMulCopyInBytes() + ", "
                 + "\"matMulCopyOutBytes\": " + summary.matMulCopyOutBytes() + ", "
                 + "\"matMulNativeTempBytes\": " + summary.matMulNativeTempBytes()
+                + "}";
+    }
+
+    private static String bf16PerformanceSummaryJson(Bf16PerformanceSummary summary) {
+        if (summary == null || !summary.present()) {
+            return "null";
+        }
+        return "{"
+                + "\"matMulStepCount\": " + summary.matMulStepCount() + ", "
+                + "\"bgemmOutputCount\": " + summary.bgemmOutputCount() + ", "
+                + "\"sbgemmContinuationCount\": " + summary.sbgemmContinuationCount() + ", "
+                + "\"promotedF32Count\": " + summary.promotedF32Count() + ", "
+                + "\"javaRouteCount\": " + summary.javaRouteCount() + ", "
+                + "\"unavailableRouteCount\": " + summary.unavailableRouteCount() + ", "
+                + "\"openblasSbgemmAvailable\": " + summary.openblasSbgemmAvailable() + ", "
+                + "\"openblasBgemmAvailable\": " + summary.openblasBgemmAvailable() + ", "
+                + "\"copyInBytes\": " + summary.copyInBytes() + ", "
+                + "\"copyOutBytes\": " + summary.copyOutBytes() + ", "
+                + "\"nativeTempBytes\": " + summary.nativeTempBytes() + ", "
+                + "\"optimizerTraceCount\": " + summary.optimizerTraceCount() + ", "
+                + "\"optimizerArrayFallbackCount\": " + summary.optimizerArrayFallbackCount() + ", "
+                + "\"optimizerNativeCount\": " + summary.optimizerNativeCount() + ", "
+                + "\"activationsOnlyPolicyCount\": " + summary.activationsOnlyPolicyCount() + ", "
+                + "\"experimentalPolicyCount\": " + summary.experimentalPolicyCount() + ", "
+                + "\"fallbackReasons\": " + stringListJson(summary.fallbackReasons())
                 + "}";
     }
 

@@ -32,8 +32,10 @@ import tuning.benchmark.report.GpuCoverageRegressionGate;
 import tuning.benchmark.report.GpuCoverageSummary;
 import tuning.benchmark.report.JsonBenchmarkReportRenderer;
 import tuning.benchmark.report.NativeDeviceBridgeBenchmarkGate;
+import tuning.benchmark.report.Bf16PerformanceBenchmarkGate;
 import tuning.benchmark.report.TextBenchmarkReportRenderer;
 import tuning.benchmark.BenchmarkEntry;
+import tuning.benchmark.Bf16PerformanceBenchmark;
 import tuning.benchmark.NativeDeviceBridgeBenchmark;
 import tuning.benchmark.BenchmarkRequest;
 import tuning.benchmark.BenchmarkSession;
@@ -59,6 +61,26 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class BenchmarkSessionTest {
+    @Test
+    void bf16PerformanceBenchmarkDefinesTruthEvidenceProfiles() {
+        List<BenchmarkEntry> entries = Bf16PerformanceBenchmark.entries();
+
+        assertEquals(5, entries.size());
+        assertEquals(Bf16PerformanceBenchmark.F32_MLP_BASELINE, entries.get(0).name());
+        assertEquals(Bf16PerformanceBenchmark.BF16_PROMOTED_MLP, entries.get(1).name());
+        assertEquals(Bf16PerformanceBenchmark.BF16_SBGEMM_CONTINUATION, entries.get(2).name());
+        assertEquals(Bf16PerformanceBenchmark.BF16_BGEMM_OUTPUT, entries.get(3).name());
+        assertEquals(Bf16PerformanceBenchmark.BF16_TRAINING_POLICY, entries.get(4).name());
+
+        assertEquals(DataType.FLOAT32, entries.get(0).profile().dataType());
+        assertEquals(DataType.BFLOAT16, entries.get(1).profile().dataType());
+        assertEquals(backend.blas.BlasProvider.NONE, entries.get(1).profile().runtime().blas().provider());
+        assertEquals(backend.blas.BlasProvider.OPENBLAS_FFM, entries.get(2).profile().runtime().blas().provider());
+        assertEquals(backend.blas.BlasProvider.OPENBLAS_FFM, entries.get(3).profile().runtime().blas().provider());
+        assertEquals(ExecutionMode.FORWARD_BACKWARD, entries.get(4).profile().mode());
+        assertEquals(CpuStorageProfile.CPU_NATIVE, entries.get(4).profile().runtime().cpuStorageProfile());
+    }
+
     @Test
     void nativeDeviceBridgeBenchmarkDefinesThreeTransferProfiles() {
         List<BenchmarkEntry> entries = NativeDeviceBridgeBenchmark.entries();
@@ -966,14 +988,47 @@ public class BenchmarkSessionTest {
                                 new graph.execution.trace.ExecutionTrace(
                                         graph.execution.trace.CompileTrace.skipped(),
                                         graph.execution.trace.PrepareTrace.skipped(),
-                                        new graph.execution.trace.RunTrace(ExecutionMode.FORWARD, 100L, List.of(step))
+                                        new graph.execution.trace.RunTrace(
+                                                ExecutionMode.FORWARD,
+                                                100L,
+                                                List.of(step),
+                                                List.of(),
+                                                List.of(),
+                                                graph.execution.trace.NativeCpuMemoryTrace.empty(),
+                                                List.of(new graph.execution.trace.NativeOptimizerTrace(
+                                                        "SgdOptimizer",
+                                                        "CPU_ARRAY",
+                                                        DataType.BFLOAT16,
+                                                        10,
+                                                        11,
+                                                        1024,
+                                                        "native optimizer unsupported dtype-BFLOAT16",
+                                                        "OUTPUT_ONLY",
+                                                        "SKIPPED",
+                                                        "NONE",
+                                                        "ACTIVATIONS_ONLY",
+                                                        "FALLBACK_TO_ARRAY",
+                                                        "CPU_ARRAY",
+                                                        "CPU_ARRAY",
+                                                        "CPU_ARRAY",
+                                                        "CPU_ARRAY",
+                                                        "publication-policy-output-only"
+                                                ))
+                                        )
                                 ),
                                 new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
                         )
                 ))
         );
 
+        Bf16PerformanceBenchmarkGate.requirePass(report);
+
         String text = TextBenchmarkReportRenderer.render(report);
+        assertTrue(text.contains("bf16PerformanceSummary=matMulStepCount=1"));
+        assertTrue(text.contains("sbgemmContinuationCount=1"));
+        assertTrue(text.contains("promotedF32Count=1"));
+        assertTrue(text.contains("optimizerArrayFallbackCount=1"));
+        assertTrue(text.contains("activationsOnlyPolicyCount=1"));
         assertTrue(text.contains("openblasSbgemmAvailable=true"));
         assertTrue(text.contains("openblasBgemmAvailable=false"));
         assertTrue(text.contains("bf16ContinuationRoute=SBGEMM"));
@@ -987,6 +1042,11 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("nativeCpuFallbackReason=forced native route unsupported shape"));
 
         String json = JsonBenchmarkReportRenderer.render(report);
+        assertTrue(json.contains("\"bf16Performance\": {\"matMulStepCount\": 1"));
+        assertTrue(json.contains("\"sbgemmContinuationCount\": 1"));
+        assertTrue(json.contains("\"promotedF32Count\": 1"));
+        assertTrue(json.contains("\"optimizerArrayFallbackCount\": 1"));
+        assertTrue(json.contains("\"activationsOnlyPolicyCount\": 1"));
         assertTrue(json.contains("\"openblasSbgemmAvailable\": true"));
         assertTrue(json.contains("\"openblasBgemmAvailable\": false"));
         assertTrue(json.contains("\"bf16ContinuationRoute\": \"SBGEMM\""));
@@ -998,6 +1058,95 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"requestedCpuStorage\": \"CPU_ARRAY\""));
         assertTrue(json.contains("\"actualCpuStorage\": \"CPU_ARRAY\""));
         assertTrue(json.contains("\"nativeCpuFallbackReason\": \"forced native route unsupported shape\""));
+    }
+
+    @Test
+    void bf16PerformanceGateRejectsSbgemmOverclaimedAsNativeBf16Output() {
+        var profile = new ExecutionProfile(
+                "bf16-overclaim-profile",
+                "bf16-overclaim",
+                DataType.BFLOAT16,
+                ExecutionMode.FORWARD,
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        var matMul = new graph.execution.trace.MatMulTraceMetadata(
+                true,
+                false,
+                "OPENBLAS_FFM",
+                "cblas_sbgemm",
+                "OPENBLAS_ARRAY_COPYING",
+                "OPENBLAS_ARRAY_COPYING",
+                "CPU_ARRAY",
+                "FALLBACK_TO_ARRAY",
+                "CPU_ARRAY",
+                "CPU_ARRAY",
+                "",
+                true,
+                true,
+                true,
+                false,
+                "SBGEMM",
+                "BGEMM",
+                "BF16_OUTPUT",
+                "BF16",
+                4096L,
+                4096L,
+                -1L,
+                "AUTO_UNCONTROLLED",
+                "",
+                true,
+                8,
+                8,
+                4,
+                4,
+                8192L,
+                "F32_4X2"
+        );
+        var step = new graph.execution.trace.ExecutionStepTrace(
+                0,
+                "bf16_overclaim",
+                "MATMUL",
+                List.of(32, 32),
+                DataType.BFLOAT16,
+                "CPU",
+                "BF16BlasMatMulExecutable",
+                100L,
+                new graph.execution.trace.StepExecutionMetadata(
+                        "node",
+                        Map.of(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        matMul,
+                        null,
+                        null
+                )
+        );
+        BenchmarkReport report = BenchmarkReport.of(
+                "bf16_overclaim_report",
+                List.of(BenchmarkCandidateReport.success(
+                        BenchmarkEntry.candidate("bf16-overclaim", profile),
+                        tuning.validate.ValidationResult.skipped(),
+                        new tuning.measure.MeasurementResult(
+                                tuning.measure.MeasurementPolicy.defaults(),
+                                new graph.execution.trace.ExecutionTrace(
+                                        graph.execution.trace.CompileTrace.skipped(),
+                                        graph.execution.trace.PrepareTrace.skipped(),
+                                        new graph.execution.trace.RunTrace(ExecutionMode.FORWARD, 100L, List.of(step))
+                                ),
+                                new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
+                        )
+                ))
+        );
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> Bf16PerformanceBenchmarkGate.requirePass(report)
+        );
+        assertTrue(failure.getMessage().contains("sbgemm overclaimed as BF16 output route"));
     }
 
     @Test

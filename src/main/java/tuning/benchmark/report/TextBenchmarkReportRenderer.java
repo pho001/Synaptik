@@ -105,6 +105,7 @@ public final class TextBenchmarkReportRenderer {
                         sb.append("  hostDeviceTransferCount=").append(trace.run().hostDeviceTransfers().size()).append('\n');
                         appendNativeCpuSummary(sb, NativeCpuTraceSummary.fromSteps(trace.run().steps()));
                         appendRuntimeCopySummary(sb, RuntimeCopyTraceSummary.fromRun(trace.run()));
+                        appendBf16PerformanceSummary(sb, Bf16PerformanceSummary.fromTrace(trace));
                         appendHostDeviceTransferSummary(sb, HostDeviceTransferSummary.fromRun(trace.run()));
                         appendNativeCpuMemorySummary(sb, trace.run().nativeCpuMemory());
                         appendNativeOptimizerSummary(sb, trace.run().nativeOptimizers());
@@ -150,6 +151,31 @@ public final class TextBenchmarkReportRenderer {
                 .append(" matMulCopyInBytes=").append(summary.matMulCopyInBytes())
                 .append(" matMulCopyOutBytes=").append(summary.matMulCopyOutBytes())
                 .append(" matMulNativeTempBytes=").append(summary.matMulNativeTempBytes())
+                .append('\n');
+    }
+
+    private static void appendBf16PerformanceSummary(StringBuilder sb, Bf16PerformanceSummary summary) {
+        if (summary == null || !summary.present()) {
+            return;
+        }
+        sb.append("  bf16PerformanceSummary=")
+                .append("matMulStepCount=").append(summary.matMulStepCount())
+                .append(" bgemmOutputCount=").append(summary.bgemmOutputCount())
+                .append(" sbgemmContinuationCount=").append(summary.sbgemmContinuationCount())
+                .append(" promotedF32Count=").append(summary.promotedF32Count())
+                .append(" javaRouteCount=").append(summary.javaRouteCount())
+                .append(" unavailableRouteCount=").append(summary.unavailableRouteCount())
+                .append(" openblasSbgemmAvailable=").append(summary.openblasSbgemmAvailable())
+                .append(" openblasBgemmAvailable=").append(summary.openblasBgemmAvailable())
+                .append(" copyInBytes=").append(summary.copyInBytes())
+                .append(" copyOutBytes=").append(summary.copyOutBytes())
+                .append(" nativeTempBytes=").append(summary.nativeTempBytes())
+                .append(" optimizerTraceCount=").append(summary.optimizerTraceCount())
+                .append(" optimizerArrayFallbackCount=").append(summary.optimizerArrayFallbackCount())
+                .append(" optimizerNativeCount=").append(summary.optimizerNativeCount())
+                .append(" activationsOnlyPolicyCount=").append(summary.activationsOnlyPolicyCount())
+                .append(" experimentalPolicyCount=").append(summary.experimentalPolicyCount())
+                .append(" fallbackReasons=").append(summary.fallbackReasons())
                 .append('\n');
     }
 
