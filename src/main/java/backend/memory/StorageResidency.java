@@ -16,6 +16,11 @@ public enum StorageResidency {
     CPU_ARRAY,
 
     /**
+     * The current value is represented as native CPU memory backed by a {@code MemorySegment}.
+     */
+    CPU_NATIVE,
+
+    /**
      * The value is represented by a host-visible buffer that can also be used by a device backend.
      */
     HOST_SHARED_DEVICE_BUFFER,

@@ -14,6 +14,7 @@ import java.util.Objects;
 public final class TensorResidencyState {
     private StorageResidency residency;
     private boolean cpuCurrent;
+    private boolean nativeCurrent;
     private boolean deviceCurrent;
     private String deviceBackend;
     private String lastTransitionReason;
@@ -21,12 +22,14 @@ public final class TensorResidencyState {
     private TensorResidencyState(
             StorageResidency residency,
             boolean cpuCurrent,
+            boolean nativeCurrent,
             boolean deviceCurrent,
             String deviceBackend,
             String lastTransitionReason
     ) {
         this.residency = Objects.requireNonNull(residency, "residency cannot be null");
         this.cpuCurrent = cpuCurrent;
+        this.nativeCurrent = nativeCurrent;
         this.deviceCurrent = deviceCurrent;
         this.deviceBackend = normalize(deviceBackend);
         this.lastTransitionReason = normalize(lastTransitionReason);
@@ -39,7 +42,7 @@ public final class TensorResidencyState {
      * @return CPU-current residency state
      */
     public static TensorResidencyState cpuArrayCurrent(String reason) {
-        return new TensorResidencyState(StorageResidency.CPU_ARRAY, true, false, "", reason);
+        return new TensorResidencyState(StorageResidency.CPU_ARRAY, true, false, false, "", reason);
     }
 
     /**
@@ -49,7 +52,7 @@ public final class TensorResidencyState {
      * @return CPU-array residency with no current value
      */
     public static TensorResidencyState cpuArrayStale(String reason) {
-        return new TensorResidencyState(StorageResidency.CPU_ARRAY, false, false, "", reason);
+        return new TensorResidencyState(StorageResidency.CPU_ARRAY, false, false, false, "", reason);
     }
 
     /**
@@ -60,6 +63,21 @@ public final class TensorResidencyState {
     public void markCpuCurrent(String reason) {
         residency = StorageResidency.CPU_ARRAY;
         cpuCurrent = true;
+        nativeCurrent = false;
+        deviceCurrent = false;
+        deviceBackend = "";
+        lastTransitionReason = normalize(reason);
+    }
+
+    /**
+     * Marks a native CPU storage write as the newest representation.
+     *
+     * @param reason diagnostic reason
+     */
+    public void markNativeCurrent(String reason) {
+        residency = StorageResidency.CPU_NATIVE;
+        cpuCurrent = false;
+        nativeCurrent = true;
         deviceCurrent = false;
         deviceBackend = "";
         lastTransitionReason = normalize(reason);
@@ -68,16 +86,18 @@ public final class TensorResidencyState {
     /**
      * Marks a device-side write as the newest representation.
      *
-     * @param residency new device residency; must not be {@link StorageResidency#CPU_ARRAY}
+     * @param residency new device residency; must not be {@link StorageResidency#CPU_ARRAY} or
+     *                  {@link StorageResidency#CPU_NATIVE}
      * @param deviceBackend backend id such as {@code GPU_METAL}
      * @param reason diagnostic reason
      */
     public void markDeviceCurrent(StorageResidency residency, String deviceBackend, String reason) {
-        if (residency == StorageResidency.CPU_ARRAY) {
+        if (residency == StorageResidency.CPU_ARRAY || residency == StorageResidency.CPU_NATIVE) {
             throw new IllegalArgumentException("device writes require a device residency.");
         }
         this.residency = Objects.requireNonNull(residency, "residency cannot be null");
         this.cpuCurrent = false;
+        this.nativeCurrent = false;
         this.deviceCurrent = true;
         this.deviceBackend = normalize(deviceBackend);
         this.lastTransitionReason = normalize(reason);
@@ -96,6 +116,7 @@ public final class TensorResidencyState {
     public void markSharedBufferCurrent(String deviceBackend, String reason) {
         residency = StorageResidency.HOST_SHARED_DEVICE_BUFFER;
         cpuCurrent = true;
+        nativeCurrent = false;
         deviceCurrent = true;
         this.deviceBackend = normalize(deviceBackend);
         lastTransitionReason = normalize(reason);
@@ -109,6 +130,7 @@ public final class TensorResidencyState {
     public void markMaterializedToCpu(String reason) {
         residency = StorageResidency.CPU_ARRAY;
         cpuCurrent = true;
+        nativeCurrent = false;
         deviceCurrent = false;
         deviceBackend = "";
         lastTransitionReason = normalize(reason);
@@ -120,7 +142,16 @@ public final class TensorResidencyState {
      * @return true when the CPU representation is stale and a device representation is current
      */
     public boolean requiresCpuMaterialization() {
-        return !cpuCurrent && deviceCurrent;
+        return !cpuCurrent && (nativeCurrent || deviceCurrent);
+    }
+
+    /**
+     * Returns whether native CPU storage must be materialized before a native CPU read.
+     *
+     * @return true when native storage is stale but CPU array storage is current
+     */
+    public boolean requiresNativeMaterialization() {
+        return !nativeCurrent && cpuCurrent;
     }
 
     public StorageResidency residency() {
@@ -129,6 +160,10 @@ public final class TensorResidencyState {
 
     public boolean cpuCurrent() {
         return cpuCurrent;
+    }
+
+    public boolean nativeCurrent() {
+        return nativeCurrent;
     }
 
     public boolean deviceCurrent() {

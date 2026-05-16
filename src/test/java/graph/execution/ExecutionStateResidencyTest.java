@@ -2,6 +2,7 @@ package graph.execution;
 
 import backend.accelerator.buffer.AcceleratorBufferAccessMode;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
+import backend.cpu.nativecpu.NativeCpuStorageFactory;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.CpuMaterializationResult;
 import backend.memory.DeviceBufferBinding;
@@ -16,6 +17,8 @@ import graph.CompiledGraph;
 import graph.CompiledNode;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
+import tensor.NativeFloat32Storage;
+import tensor.NativeTensorStorage;
 import tensor.Tensor;
 
 import java.util.HashMap;
@@ -24,6 +27,7 @@ import java.util.Map;
 import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -207,6 +211,73 @@ class ExecutionStateResidencyTest {
         assertEquals(StorageResidency.CPU_ARRAY, residency.residency());
         assertTrue(residency.cpuCurrent());
         assertFalse(residency.deviceCurrent());
+    }
+
+    @Test
+    void nativeCurrentMaterializesToCpuArrayForPublicRead() {
+        Fixture fixture = fixture();
+        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        NativeTensorStorage storage = new NativeCpuStorageFactory().allocate(DataType.FLOAT32, 2, "native-output");
+        NativeFloat32Storage f32 = (NativeFloat32Storage) storage;
+        f32.setFloat32At(0, 11f);
+        f32.setFloat32At(1, -7f);
+
+        fixture.state().attachNativeStorage(outputNodeId, storage, "native output");
+
+        assertTrue(fixture.state().requiresCpuMaterialization(outputNodeId));
+        assertEquals(StorageResidency.CPU_NATIVE, fixture.state().residencyForNodeId(outputNodeId).residency());
+
+        fixture.state().requireCpuReadable(outputNodeId, CpuMaterializationReason.GRAPH_OUTPUT);
+
+        assertArrayEquals(new float[]{11f, -7f}, fixture.state().runtimeTensorForNodeId(outputNodeId).getFloat32Data(), 0f);
+        var residency = fixture.state().residencyForNodeId(outputNodeId);
+        assertEquals(StorageResidency.CPU_ARRAY, residency.residency());
+        assertTrue(residency.cpuCurrent());
+        assertFalse(residency.nativeCurrent());
+        var trace = fixture.state().cpuMaterializationTraces().getFirst();
+        assertEquals(CpuMaterializationReason.GRAPH_OUTPUT, trace.reason());
+        assertEquals(StorageResidency.CPU_NATIVE, trace.sourceResidency());
+        assertTrue(trace.completed());
+        assertEquals("native_to_array", trace.detail());
+    }
+
+    @Test
+    void requireNativeReadableMaterializesCpuArrayToNative() {
+        Fixture fixture = fixture();
+        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        Tensor runtime = fixture.state().runtimeTensorForNodeId(outputNodeId);
+        runtime.setData(new float[]{5f, 6f});
+        fixture.state().markCpuCurrent(outputNodeId, "cpu test data");
+
+        NativeTensorStorage storage = fixture.state().requireNativeReadable(
+                outputNodeId,
+                CpuMaterializationReason.CPU_CONSUMER
+        );
+
+        assertTrue(storage instanceof NativeFloat32Storage);
+        NativeFloat32Storage f32 = (NativeFloat32Storage) storage;
+        assertEquals(5f, f32.getFloat32At(0), 0f);
+        assertEquals(6f, f32.getFloat32At(1), 0f);
+        var residency = fixture.state().residencyForNodeId(outputNodeId);
+        assertEquals(StorageResidency.CPU_NATIVE, residency.residency());
+        assertFalse(residency.cpuCurrent());
+        assertTrue(residency.nativeCurrent());
+        var trace = fixture.state().cpuMaterializationTraces().getFirst();
+        assertEquals(StorageResidency.CPU_ARRAY, trace.sourceResidency());
+        assertEquals("array_to_native", trace.detail());
+    }
+
+    @Test
+    void closeResourcesClosesAttachedNativeStorageAndClearsBinding() {
+        Fixture fixture = fixture();
+        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        NativeTensorStorage storage = new NativeCpuStorageFactory().allocate(DataType.FLOAT32, 2, "native-close");
+
+        fixture.state().attachNativeStorage(outputNodeId, storage, "native output");
+        fixture.state().closeResources();
+
+        assertTrue(storage.closed());
+        assertNull(fixture.state().nativeStorageForNodeId(outputNodeId));
     }
 
     @Test

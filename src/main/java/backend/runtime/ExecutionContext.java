@@ -11,6 +11,7 @@ import config.runtime.RuntimeConfig;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.execution.ExecutionState;
 import graph.execution.trace.ConvTraceMetadata;
+import tensor.NativeTensorStorage;
 import tensor.Tensor;
 
 import java.util.Collections;
@@ -217,6 +218,32 @@ public final class ExecutionContext {
     }
 
     /**
+     * Attaches native CPU storage as the current representation for a runtime tensor.
+     *
+     * @param nodeId compiled node id
+     * @param storage native CPU storage containing the current value
+     * @param reason diagnostic transition reason
+     */
+    public void attachNativeStorage(int nodeId, NativeTensorStorage storage, String reason) {
+        if (executionState != null) {
+            executionState.attachNativeStorage(nodeId, storage, reason);
+        }
+    }
+
+    /**
+     * Returns native CPU storage attached to a runtime tensor.
+     *
+     * @param nodeId compiled node id
+     * @return native storage, or {@code null} when no execution state or storage exists
+     */
+    public NativeTensorStorage nativeStorageForNodeId(int nodeId) {
+        if (executionState == null) {
+            return null;
+        }
+        return executionState.nativeStorageForNodeId(nodeId);
+    }
+
+    /**
      * Marks a node output as current only in a device-visible representation.
      *
      * @param nodeId compiled node id
@@ -345,6 +372,20 @@ public final class ExecutionContext {
         if (executionState != null) {
             executionState.requireCpuReadable(nodeId, reason);
         }
+    }
+
+    /**
+     * Verifies that native CPU storage is current before a native CPU read.
+     *
+     * @param nodeId compiled node id
+     * @param reason reason for the requested native access
+     * @return current native CPU storage
+     */
+    public NativeTensorStorage requireNativeReadable(int nodeId, CpuMaterializationReason reason) {
+        if (executionState == null) {
+            throw new IllegalStateException("ExecutionContext does not carry per-run ExecutionState.");
+        }
+        return executionState.requireNativeReadable(nodeId, reason);
     }
 
     /**

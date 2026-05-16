@@ -49,6 +49,14 @@ public final class CpuKernelContext {
         return nodePlan;
     }
 
+    public int nodeId() {
+        return nodeId;
+    }
+
+    public List<Integer> inputNodeIds() {
+        return inputNodeIds;
+    }
+
     public CpuLayoutPlan layoutPlan() {
         return nodePlan.layoutPlan();
     }

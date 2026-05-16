@@ -39,6 +39,7 @@ build/
 .oca/
 .plan
 .plan/
+.planning/tmp/
 .planning/
 todo/
 

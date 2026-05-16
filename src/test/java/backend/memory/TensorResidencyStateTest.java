@@ -38,6 +38,21 @@ class TensorResidencyStateTest {
     }
 
     @Test
+    void nativeWriteMakesCpuMaterializationRequiredWithoutDeviceResidency() {
+        TensorResidencyState state = TensorResidencyState.cpuArrayCurrent("input");
+
+        state.markNativeCurrent("native output");
+
+        assertEquals(StorageResidency.CPU_NATIVE, state.residency());
+        assertFalse(state.cpuCurrent());
+        assertTrue(state.nativeCurrent());
+        assertFalse(state.deviceCurrent());
+        assertTrue(state.requiresCpuMaterialization());
+        assertEquals("", state.deviceBackend());
+        assertEquals("native output", state.lastTransitionReason());
+    }
+
+    @Test
     void sharedBufferCanBeCurrentForCpuAndDevice() {
         TensorResidencyState state = TensorResidencyState.cpuArrayCurrent("input");
 
@@ -58,6 +73,16 @@ class TensorResidencyStateTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> state.markDeviceCurrent(StorageResidency.CPU_ARRAY, "GPU_METAL", "invalid")
+        );
+    }
+
+    @Test
+    void deviceWriteRejectsCpuNativeResidency() {
+        TensorResidencyState state = TensorResidencyState.cpuArrayCurrent("input");
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> state.markDeviceCurrent(StorageResidency.CPU_NATIVE, "GPU_METAL", "invalid")
         );
     }
 }
