@@ -9,6 +9,11 @@ package graph.execution.trace;
  * @param blasSymbol native BLAS symbol used or targeted by the route
  * @param blasRoute stable BLAS route label
  * @param route concrete runtime route selected for the step
+ * @param cpuStorageProfile runtime-level CPU storage policy
+ * @param nativeCpuFailurePolicy native CPU fallback policy
+ * @param requestedCpuStorage effective requested CPU storage after runtime/BLAS policy resolution
+ * @param actualCpuStorage storage route actually used for this matmul step
+ * @param nativeCpuFallbackReason native CPU route fallback reason, when present
  * @param openblasSgemmAvailable whether {@code cblas_sgemm} is available from the selected OpenBLAS FFM bridge
  * @param openblasDgemmAvailable whether {@code cblas_dgemm} is available from the selected OpenBLAS FFM bridge
  * @param openblasSbgemmAvailable whether {@code cblas_sbgemm} is available from the selected OpenBLAS FFM bridge
@@ -37,6 +42,11 @@ public record MatMulTraceMetadata(
         String blasSymbol,
         String blasRoute,
         String route,
+        String cpuStorageProfile,
+        String nativeCpuFailurePolicy,
+        String requestedCpuStorage,
+        String actualCpuStorage,
+        String nativeCpuFallbackReason,
         boolean openblasSgemmAvailable,
         boolean openblasDgemmAvailable,
         boolean openblasSbgemmAvailable,
@@ -63,6 +73,11 @@ public record MatMulTraceMetadata(
         blasSymbol = blasSymbol == null ? "" : blasSymbol;
         blasRoute = blasRoute == null ? "" : blasRoute;
         route = route == null ? "" : route;
+        cpuStorageProfile = cpuStorageProfile == null ? "" : cpuStorageProfile;
+        nativeCpuFailurePolicy = nativeCpuFailurePolicy == null ? "" : nativeCpuFailurePolicy;
+        requestedCpuStorage = requestedCpuStorage == null ? "" : requestedCpuStorage;
+        actualCpuStorage = actualCpuStorage == null ? "" : actualCpuStorage;
+        nativeCpuFallbackReason = nativeCpuFallbackReason == null ? "" : nativeCpuFallbackReason;
         bf16ContinuationRoute = bf16ContinuationRoute == null ? "" : bf16ContinuationRoute;
         bf16OutputRoute = bf16OutputRoute == null ? "" : bf16OutputRoute;
         bf16ComputePrecision = bf16ComputePrecision == null ? "" : bf16ComputePrecision;

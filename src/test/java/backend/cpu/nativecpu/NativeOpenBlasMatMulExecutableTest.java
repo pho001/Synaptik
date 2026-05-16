@@ -16,6 +16,7 @@ import backend.memory.StorageResidency;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
+import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.CompiledNode;
@@ -39,6 +40,7 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class NativeOpenBlasMatMulExecutableTest {
@@ -169,9 +171,69 @@ class NativeOpenBlasMatMulExecutableTest {
         assertEquals(2, fixture.state().cpuMaterializationTraces().size());
     }
 
+    @Test
+    void nativeSegmentFallbackPolicyAllowsJavaRouteAndRecordsReason() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{1, 2, 2}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{1, 2, 2}, null, "b", DataType.FLOAT32);
+        Tensor out = a.matmul(b);
+        Fixture fixture = fixture(out);
+        PreparedNodeExecution matmulStep = fixture.matmulStep();
+        PreparedMatMulExecutable executable = new F32NativeBlasMatMulExecutable(nativeHints(matmulStep));
+
+        executable.execute(
+                fixture.state().runtimeTensorForNodeId(matmulStep.compiledNode().inputIds().get(0)),
+                fixture.state().runtimeTensorForNodeId(matmulStep.compiledNode().inputIds().get(1)),
+                fixture.state().runtimeTensorForNodeId(matmulStep.compiledNode().id()),
+                context(fixture, matmulStep, executable)
+        );
+
+        assertEquals(MatMulExecutionRoute.JAVA_DIRECT, executable.lastExecutionRoute());
+        assertTrue(executable.lastFallbackReason().contains("rank-2 matmul"));
+        assertArrayEquals(
+                new float[]{19f, 22f, 43f, 50f},
+                fixture.state().runtimeTensorForNodeId(matmulStep.compiledNode().id()).getFloat32Data(),
+                1e-6f
+        );
+    }
+
+    @Test
+    void nativeSegmentRequireNativePolicyRejectsJavaFallback() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{1, 2, 2}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{1, 2, 2}, null, "b", DataType.FLOAT32);
+        Tensor out = a.matmul(b);
+        Fixture fixture = fixture(
+                out,
+                RuntimeConfig.inferenceDefaults().withNativeCpuFailurePolicy(NativeCpuFailurePolicy.REQUIRE_NATIVE)
+        );
+        PreparedNodeExecution matmulStep = fixture.matmulStep();
+        PreparedMatMulExecutable executable = new F32NativeBlasMatMulExecutable(nativeHints(matmulStep));
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> executable.execute(
+                        fixture.state().runtimeTensorForNodeId(matmulStep.compiledNode().inputIds().get(0)),
+                        fixture.state().runtimeTensorForNodeId(matmulStep.compiledNode().inputIds().get(1)),
+                        fixture.state().runtimeTensorForNodeId(matmulStep.compiledNode().id()),
+                        context(fixture, matmulStep, executable)
+                )
+        );
+
+        assertTrue(failure.getMessage().contains("Native CPU execution required"));
+        assertEquals(MatMulExecutionRoute.JAVA_DIRECT, executable.lastExecutionRoute());
+        assertTrue(executable.lastFallbackReason().contains("rank-2 matmul"));
+    }
+
     private static Fixture fixture(Tensor out) {
+        return fixture(out, RuntimeConfig.inferenceDefaults());
+    }
+
+    private static Fixture fixture(Tensor out, RuntimeConfig runtime) {
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
-        PreparedExecution prepared = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        PreparedExecution prepared = compiled.prepare(runtime);
         Map<Integer, CompiledNodeExecutionMetadata> metadataIndex = prepared.executionSteps().stream()
                 .collect(Collectors.toMap(step -> step.compiledNode().id(), PreparedNodeExecution::metadata));
         ExecutionState state = ExecutionState.create(

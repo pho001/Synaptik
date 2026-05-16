@@ -7,6 +7,7 @@ import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
 import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
 import backend.cpu.nativecpu.NativeCpuStorageFactory;
 import backend.memory.CpuMaterializationReason;
+import config.runtime.NativeCpuFailurePolicy;
 import tensor.NativeFloat32Storage;
 import tensor.NativeTensorStorage;
 import tensor.Tensor;
@@ -118,6 +119,9 @@ public final class F32NativeBlasMatMulExecutable implements PreparedMatMulExecut
         lastFallbackReason = reason == null ? "" : reason;
         lastCopyInBytes = -1L;
         lastCopyOutBytes = -1L;
+        if (requiresNative(context)) {
+            throw new IllegalStateException("Native CPU execution required but FLOAT32 matmul fell back to Java: " + lastFallbackReason);
+        }
         requireCpuReadableInputs(context);
         float[] out = node.getFloat32Data();
         Arrays.fill(out, 0.0f);
@@ -136,6 +140,12 @@ public final class F32NativeBlasMatMulExecutable implements PreparedMatMulExecut
         for (int inputNodeId : context.inputNodeIds()) {
             context.executionContext().requireCpuReadable(inputNodeId, CpuMaterializationReason.CPU_CONSUMER);
         }
+    }
+
+    private static boolean requiresNative(CpuKernelContext context) {
+        return context != null
+                && context.executionContext().runtimeConfig() != null
+                && context.executionContext().runtimeConfig().nativeCpuFailurePolicy() == NativeCpuFailurePolicy.REQUIRE_NATIVE;
     }
 
     private static long logicalByteLength(Tensor tensor) {

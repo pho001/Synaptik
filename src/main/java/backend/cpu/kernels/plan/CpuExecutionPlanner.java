@@ -21,6 +21,7 @@ import config.backend.CpuMatMulMicroKernel;
 import config.backend.SumAccuracyMode;
 import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
+import config.runtime.CpuStorageProfile;
 import backend.cpu.fused.plan.FusedOperation;
 import operations.Operation;
 import tensor.DataType;
@@ -342,6 +343,17 @@ public final class CpuExecutionPlanner {
 
     public ResolvedMatMulHints resolveMatMulHints(Tensor a, Tensor b, Tensor out, BlasConfig blasConfig, boolean publishFloatContinuation) {
         return matMulPlanner.resolve(a, b, out, blasConfig, publishFloatContinuation);
+    }
+
+    public ResolvedMatMulHints resolveMatMulHints(
+            Tensor a,
+            Tensor b,
+            Tensor out,
+            BlasConfig blasConfig,
+            CpuStorageProfile cpuStorageProfile,
+            boolean publishFloatContinuation
+    ) {
+        return matMulPlanner.resolve(a, b, out, blasConfig, cpuStorageProfile, publishFloatContinuation);
     }
 
     public ResolvedMatMulHints resolveJavaMatMulHints(int[] aShape, int[] bShape, int[] outShape, DataType outDataType) {

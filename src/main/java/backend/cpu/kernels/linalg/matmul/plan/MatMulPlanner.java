@@ -7,6 +7,7 @@ import backend.cpu.kernels.plan.CpuPlanningPolicy;
 import config.backend.CpuMatMulMicroKernel;
 import config.runtime.BlasConfig;
 import config.runtime.BlasStorageMode;
+import config.runtime.CpuStorageProfile;
 import tensor.DataType;
 import tensor.Tensor;
 
@@ -21,10 +22,21 @@ public final class MatMulPlanner {
     }
 
     public ResolvedMatMulHints resolve(Tensor a, Tensor b, Tensor out, BlasConfig blasConfig) {
-        return resolve(a, b, out, blasConfig, false);
+        return resolve(a, b, out, blasConfig, CpuStorageProfile.AUTO, false);
     }
 
     public ResolvedMatMulHints resolve(Tensor a, Tensor b, Tensor out, BlasConfig blasConfig, boolean publishFloatContinuation) {
+        return resolve(a, b, out, blasConfig, CpuStorageProfile.AUTO, publishFloatContinuation);
+    }
+
+    public ResolvedMatMulHints resolve(
+            Tensor a,
+            Tensor b,
+            Tensor out,
+            BlasConfig blasConfig,
+            CpuStorageProfile cpuStorageProfile,
+            boolean publishFloatContinuation
+    ) {
         Objects.requireNonNull(a, "a cannot be null");
         Objects.requireNonNull(b, "b cannot be null");
         Objects.requireNonNull(out, "out cannot be null");
@@ -39,6 +51,7 @@ public final class MatMulPlanner {
                 out.getDataType(),
                 out.isContiguous(),
                 blasConfig,
+                cpuStorageProfile,
                 publishFloatContinuation
         );
     }
@@ -53,7 +66,18 @@ public final class MatMulPlanner {
             boolean outContiguous,
             BlasConfig blasConfig
     ) {
-        return resolve(aShape, aContiguous, bShape, bContiguous, outShape, outDataType, outContiguous, blasConfig, false);
+        return resolve(
+                aShape,
+                aContiguous,
+                bShape,
+                bContiguous,
+                outShape,
+                outDataType,
+                outContiguous,
+                blasConfig,
+                CpuStorageProfile.AUTO,
+                false
+        );
     }
 
     public ResolvedMatMulHints resolve(
@@ -65,6 +89,32 @@ public final class MatMulPlanner {
             DataType outDataType,
             boolean outContiguous,
             BlasConfig blasConfig,
+            boolean publishFloatContinuation
+    ) {
+        return resolve(
+                aShape,
+                aContiguous,
+                bShape,
+                bContiguous,
+                outShape,
+                outDataType,
+                outContiguous,
+                blasConfig,
+                CpuStorageProfile.AUTO,
+                publishFloatContinuation
+        );
+    }
+
+    public ResolvedMatMulHints resolve(
+            int[] aShape,
+            boolean aContiguous,
+            int[] bShape,
+            boolean bContiguous,
+            int[] outShape,
+            DataType outDataType,
+            boolean outContiguous,
+            BlasConfig blasConfig,
+            CpuStorageProfile cpuStorageProfile,
             boolean publishFloatContinuation
     ) {
         Objects.requireNonNull(aShape, "aShape cannot be null");
@@ -104,6 +154,7 @@ public final class MatMulPlanner {
                 k,
                 work,
                 blasConfig,
+                cpuStorageProfile,
                 publishFloatContinuation,
                 useBlas,
                 useBatchedBlas
@@ -260,6 +311,7 @@ public final class MatMulPlanner {
             int k,
             long work,
             BlasConfig blasConfig,
+            CpuStorageProfile cpuStorageProfile,
             boolean publishFloatContinuation,
             boolean useBlas,
             boolean useBatchedBlas
@@ -270,7 +322,7 @@ public final class MatMulPlanner {
         if (blasConfig.provider() != BlasProvider.OPENBLAS_FFM) {
             return MatMulExecutionRoute.JAVA_DIRECT;
         }
-        BlasStorageMode storageMode = blasConfig.storageMode();
+        BlasStorageMode storageMode = effectiveStorageMode(blasConfig, cpuStorageProfile);
         if (storageMode == BlasStorageMode.CPU_ARRAY) {
             return useBlas ? MatMulExecutionRoute.OPENBLAS_ARRAY_COPYING : MatMulExecutionRoute.JAVA_DIRECT;
         }
@@ -293,6 +345,15 @@ public final class MatMulPlanner {
         return work >= blasConfig.matmulMinWork() && shapeWork >= blasConfig.matmulMinWork()
                 ? MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT
                 : (useBlas ? MatMulExecutionRoute.OPENBLAS_ARRAY_COPYING : MatMulExecutionRoute.JAVA_DIRECT);
+    }
+
+    private static BlasStorageMode effectiveStorageMode(BlasConfig blasConfig, CpuStorageProfile cpuStorageProfile) {
+        CpuStorageProfile profile = cpuStorageProfile == null ? CpuStorageProfile.AUTO : cpuStorageProfile;
+        return switch (profile) {
+            case CPU_ARRAY -> BlasStorageMode.CPU_ARRAY;
+            case CPU_NATIVE -> BlasStorageMode.CPU_NATIVE;
+            case AUTO -> blasConfig.storageMode();
+        };
     }
 
     private static boolean isNativeSegmentEligible(

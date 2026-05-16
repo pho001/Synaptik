@@ -7,6 +7,7 @@ import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
 import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
 import backend.cpu.nativecpu.NativeCpuStorageFactory;
 import backend.memory.CpuMaterializationReason;
+import config.runtime.NativeCpuFailurePolicy;
 import tensor.NativeBFloat16Storage;
 import tensor.NativeTensorStorage;
 import tensor.Tensor;
@@ -127,6 +128,9 @@ public final class BF16NativeBlasMatMulExecutable implements PreparedMatMulExecu
         lastCopyInBytes = -1L;
         lastCopyOutBytes = -1L;
         lastBlasSymbol = "";
+        if (requiresNative(context)) {
+            throw new IllegalStateException("Native CPU execution required but BFLOAT16 matmul fell back to Java: " + lastFallbackReason);
+        }
         requireCpuReadableInputs(context);
         BF16MatMulJavaBackend.run(
                 a.getBFloat16Data(),
@@ -143,6 +147,12 @@ public final class BF16NativeBlasMatMulExecutable implements PreparedMatMulExecu
         for (int inputNodeId : context.inputNodeIds()) {
             context.executionContext().requireCpuReadable(inputNodeId, CpuMaterializationReason.CPU_CONSUMER);
         }
+    }
+
+    private static boolean requiresNative(CpuKernelContext context) {
+        return context != null
+                && context.executionContext().runtimeConfig() != null
+                && context.executionContext().runtimeConfig().nativeCpuFailurePolicy() == NativeCpuFailurePolicy.REQUIRE_NATIVE;
     }
 
     private static long logicalByteLength(Tensor tensor) {

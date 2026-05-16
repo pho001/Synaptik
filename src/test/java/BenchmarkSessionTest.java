@@ -542,6 +542,11 @@ public class BenchmarkSessionTest {
                 "cblas_sbgemm",
                 "OPENBLAS_ARRAY_COPYING",
                 "OPENBLAS_ARRAY_COPYING",
+                "CPU_ARRAY",
+                "FALLBACK_TO_ARRAY",
+                "CPU_ARRAY",
+                "CPU_ARRAY",
+                "forced native route unsupported shape",
                 true,
                 true,
                 true,
@@ -609,6 +614,11 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("bf16OutputRoute=PROMOTED_F32"));
         assertTrue(text.contains("bf16ComputePrecision=F32_PROMOTED"));
         assertTrue(text.contains("bf16OutputPrecision=F32"));
+        assertTrue(text.contains("cpuStorageProfile=CPU_ARRAY"));
+        assertTrue(text.contains("nativeCpuFailurePolicy=FALLBACK_TO_ARRAY"));
+        assertTrue(text.contains("requestedCpuStorage=CPU_ARRAY"));
+        assertTrue(text.contains("actualCpuStorage=CPU_ARRAY"));
+        assertTrue(text.contains("nativeCpuFallbackReason=forced native route unsupported shape"));
 
         String json = JsonBenchmarkReportRenderer.render(report);
         assertTrue(json.contains("\"openblasSbgemmAvailable\": true"));
@@ -617,6 +627,11 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"bf16OutputRoute\": \"PROMOTED_F32\""));
         assertTrue(json.contains("\"bf16ComputePrecision\": \"F32_PROMOTED\""));
         assertTrue(json.contains("\"bf16OutputPrecision\": \"F32\""));
+        assertTrue(json.contains("\"cpuStorageProfile\": \"CPU_ARRAY\""));
+        assertTrue(json.contains("\"nativeCpuFailurePolicy\": \"FALLBACK_TO_ARRAY\""));
+        assertTrue(json.contains("\"requestedCpuStorage\": \"CPU_ARRAY\""));
+        assertTrue(json.contains("\"actualCpuStorage\": \"CPU_ARRAY\""));
+        assertTrue(json.contains("\"nativeCpuFallbackReason\": \"forced native route unsupported shape\""));
     }
 
     @Test

@@ -252,7 +252,7 @@ Preset methods:
 | Policy | Meaning |
 |---|---|
 | `FALLBACK_TO_ARRAY` | Unsupported native CPU operations may fall back to Java-array CPU execution. |
-| `REQUIRE_NATIVE` | Unsupported native CPU operations should fail instead of silently falling back. Wave 2 persists the policy; full enforcement belongs to the chain-aware native planner. |
+| `REQUIRE_NATIVE` | Native CPU matmul segment fallback fails instead of silently using the Java-array path. Broader chain-aware native planner enforcement remains future scope. |
 
 This is deliberately separate from `BlasStorageMode`. `CpuStorageProfile` describes the runtime CPU storage policy for the whole prepared execution. `BlasStorageMode` describes the storage route of an individual BLAS-capable kernel family.
 

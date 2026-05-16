@@ -12,6 +12,8 @@ import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
+import config.runtime.BlasStorageMode;
+import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
 import graph.CompiledGradientBinding;
@@ -512,6 +514,7 @@ public final class PreparedExecution {
                         : executable.lastExecutionRoute();
                 String blasProvider = matMulBlasProvider(context);
                 String blasSymbol = matMulBlasSymbol(node, route, executable, plan);
+                String nativeCpuFallbackReason = executable == null ? "" : executable.lastFallbackReason();
                 boolean openblasProvider = "OPENBLAS_FFM".equals(blasProvider);
                 matMul = new MatMulTraceMetadata(
                         plan.matMulHints().useBlas(),
@@ -520,6 +523,11 @@ public final class PreparedExecution {
                         blasSymbol,
                         route.name(),
                         route.name(),
+                        matMulCpuStorageProfile(context),
+                        matMulNativeCpuFailurePolicy(context),
+                        matMulRequestedCpuStorage(context),
+                        matMulActualCpuStorage(route),
+                        nativeCpuFallbackReason,
                         openblasProvider && OpenBlasFfmBridge.isFloat32GemmAvailable(),
                         openblasProvider && OpenBlasFfmBridge.isFloat64GemmAvailable(),
                         openblasProvider && OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable(),
@@ -532,7 +540,7 @@ public final class PreparedExecution {
                         matMulCopyOutBytes(node, executable, route),
                         matMulNativeTempBytes(route),
                         matMulThreadPolicy(context),
-                        executable == null ? "" : executable.lastFallbackReason(),
+                        nativeCpuFallbackReason,
                         plan.matMulHints().parallel(),
                         plan.matMulHints().tileM(),
                         plan.matMulHints().tileN(),
@@ -545,6 +553,11 @@ public final class PreparedExecution {
                 attrs.put("blasProvider", matMul.blasProvider());
                 attrs.put("blasSymbol", matMul.blasSymbol());
                 attrs.put("blasRoute", matMul.blasRoute());
+                attrs.put("cpuStorageProfile", matMul.cpuStorageProfile());
+                attrs.put("nativeCpuFailurePolicy", matMul.nativeCpuFailurePolicy());
+                attrs.put("requestedCpuStorage", matMul.requestedCpuStorage());
+                attrs.put("actualCpuStorage", matMul.actualCpuStorage());
+                attrs.put("nativeCpuFallbackReason", matMul.nativeCpuFallbackReason());
                 attrs.put("openblasSgemmAvailable", matMul.openblasSgemmAvailable());
                 attrs.put("openblasDgemmAvailable", matMul.openblasDgemmAvailable());
                 attrs.put("openblasSbgemmAvailable", matMul.openblasSbgemmAvailable());
@@ -824,6 +837,35 @@ public final class PreparedExecution {
             return "";
         }
         return OpenBlasFfmBridge.threadPolicy();
+    }
+
+    private static String matMulCpuStorageProfile(ExecutionContext context) {
+        return context.runtimeConfig() == null || context.runtimeConfig().cpuStorageProfile() == null
+                ? ""
+                : context.runtimeConfig().cpuStorageProfile().name();
+    }
+
+    private static String matMulNativeCpuFailurePolicy(ExecutionContext context) {
+        return context.runtimeConfig() == null || context.runtimeConfig().nativeCpuFailurePolicy() == null
+                ? ""
+                : context.runtimeConfig().nativeCpuFailurePolicy().name();
+    }
+
+    private static String matMulRequestedCpuStorage(ExecutionContext context) {
+        if (context.runtimeConfig() == null || context.runtimeConfig().blas() == null) {
+            return "";
+        }
+        CpuStorageProfile profile = context.runtimeConfig().cpuStorageProfile();
+        BlasStorageMode mode = switch (profile) {
+            case CPU_ARRAY -> BlasStorageMode.CPU_ARRAY;
+            case CPU_NATIVE -> BlasStorageMode.CPU_NATIVE;
+            case AUTO -> context.runtimeConfig().blas().storageMode();
+        };
+        return mode.name();
+    }
+
+    private static String matMulActualCpuStorage(MatMulExecutionRoute route) {
+        return route == MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT ? "CPU_NATIVE" : "CPU_ARRAY";
     }
 
     private static String matMulBlasSymbol(CompiledNode node, MatMulExecutionRoute route) {

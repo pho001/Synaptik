@@ -14,6 +14,7 @@ import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutableFactory;
 import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
+import config.runtime.CpuStorageProfile;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -32,6 +33,7 @@ public final class CpuPlanAssembler {
             CpuExecutionPlanner planner,
             BlasConfig blasConfig,
             Conv2dConfig conv2dConfig,
+            CpuStorageProfile cpuStorageProfile,
             boolean publishFloatContinuation,
             ResolvedDispatchHints dispatchHintsOverride
     ) {
@@ -67,6 +69,7 @@ public final class CpuPlanAssembler {
                 planner,
                 blasConfig,
                 conv2dConfig,
+                cpuStorageProfile,
                 publishFloatContinuation,
                 dispatchHintsOverride
         );

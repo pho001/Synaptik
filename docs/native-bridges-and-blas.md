@@ -682,7 +682,7 @@ The decision starts in [`MatMulPlanner.java`](../src/main/java/backend/cpu/kerne
 | `CPU_NATIVE` | Prefer `MemorySegment`-backed native CPU storage for supported operations. |
 | `AUTO` | Let the planner choose between array and native storage. |
 
-`RuntimeConfig.nativeCpuFailurePolicy()` is the companion diagnostic policy. `FALLBACK_TO_ARRAY` permits unsupported native operations to use the Java-array path; `REQUIRE_NATIVE` records that fallback should become an error once the chain-aware native planner enforces the policy.
+`RuntimeConfig.nativeCpuFailurePolicy()` is the companion diagnostic policy. `FALLBACK_TO_ARRAY` permits unsupported native CPU matmul segment routes to use the Java-array path; `REQUIRE_NATIVE` turns those selected-route fallbacks into errors. Broader chain-aware native planner enforcement remains future scope.
 
 `BlasConfig.storageMode()` is narrower. It determines whether an eligible dense rank-2 GEMM stays on the existing array-copy bridge or may use `MemorySegment`-backed native CPU storage:
 

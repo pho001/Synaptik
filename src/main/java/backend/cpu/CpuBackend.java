@@ -10,6 +10,7 @@ import backend.cpu.kernels.plan.CpuPlanAssembler;
 import backend.runtime.ExecutionContext;
 import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
+import config.runtime.CpuStorageProfile;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
 import operations.Operation;
@@ -82,6 +83,7 @@ public final class CpuBackend {
             CpuExecutionPlanner planner,
             BlasConfig blasConfig,
             Conv2dConfig conv2dConfig,
+            CpuStorageProfile cpuStorageProfile,
             boolean publishFloatContinuation,
             ResolvedDispatchHints dispatchHintsOverride
     ) {
@@ -92,6 +94,7 @@ public final class CpuBackend {
                 planner,
                 blasConfig,
                 conv2dConfig,
+                cpuStorageProfile,
                 publishFloatContinuation,
                 dispatchHintsOverride
         );

@@ -88,6 +88,7 @@ public final class CpuNodePreparer {
                 planner,
                 runtimeConfig.blas(),
                 runtimeConfig.conv2d(),
+                runtimeConfig.cpuStorageProfile(),
                 publishFloatContinuation,
                 dispatchHintsOverride
         );
@@ -157,6 +158,7 @@ public final class CpuNodePreparer {
                 planner,
                 runtimeConfig.blas(),
                 runtimeConfig.conv2d(),
+                runtimeConfig.cpuStorageProfile(),
                 publishFloatContinuation,
                 dispatchHintsOverride
         );

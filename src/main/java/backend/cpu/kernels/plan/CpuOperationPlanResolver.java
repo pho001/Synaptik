@@ -9,6 +9,7 @@ import backend.cpu.kernels.reduction.ReductionLogicalSize;
 import backend.cpu.kernels.reduction.plan.ResolvedReductionHints;
 import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
+import config.runtime.CpuStorageProfile;
 import operations.Operation;
 import tensor.Tensor;
 
@@ -25,12 +26,20 @@ final class CpuOperationPlanResolver {
             CpuExecutionPlanner planner,
             BlasConfig blasConfig,
             Conv2dConfig conv2dConfig,
+            CpuStorageProfile cpuStorageProfile,
             boolean publishFloatContinuation,
             ResolvedDispatchHints dispatchHintsOverride
     ) {
         ResolvedMatMulHints matMulHints =
                 (op != null && (op.opType() == Operation.OpType.MATMUL || op.opType() == Operation.OpType.LINEAR) && runtimeInputs.size() >= 2)
-                        ? planner.resolveMatMulHints(runtimeInputs.get(0), runtimeInputs.get(1), node, blasConfig, publishFloatContinuation)
+                        ? planner.resolveMatMulHints(
+                                runtimeInputs.get(0),
+                                runtimeInputs.get(1),
+                                node,
+                                blasConfig,
+                                cpuStorageProfile,
+                                publishFloatContinuation
+                        )
                         : null;
 
         ResolvedConv2dHints conv2dHints = planner.resolveConv2dHints(op, runtimeInputs, node, conv2dConfig);
