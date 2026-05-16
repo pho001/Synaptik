@@ -98,6 +98,37 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void cpuNativePreparedExecutionReusesPerPreparedPoolAcrossRuns() {
+        Tensor left = tensor(new float[]{1f, -2f, 3f, -4f}, "left");
+        Tensor right = tensor(new float[]{5f, 6f, -7f, -8f}, "right");
+        Tensor out = left.add(right);
+
+        RuntimeConfig runtime = runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)
+                .withNativeCpuMemory(NativeCpuMemoryConfig.perPreparedExecution(4096L));
+        var prepared = CompiledGraph.compile(out, nativeElementwiseCompileConfig()).prepare(runtime);
+        try {
+            var first = prepared.executeTraced(ExecutionMode.FORWARD);
+            assertArrayEquals(new double[]{6d, 4d, -4d, -12d}, out.toDoubleArrayCopy(), 0d);
+
+            var second = prepared.executeTraced(ExecutionMode.FORWARD);
+            assertArrayEquals(new double[]{6d, 4d, -4d, -12d}, out.toDoubleArrayCopy(), 0d);
+
+            assertEquals(NativeMemoryPoolPolicy.PER_PREPARED_EXECUTION.name(), first.nativeCpuMemory().requestedPoolPolicy());
+            assertEquals(NativeMemoryPoolPolicy.PER_PREPARED_EXECUTION.name(), first.nativeCpuMemory().effectivePoolPolicy());
+            assertTrue(first.nativeCpuMemory().poolMissCount() >= 1L);
+            assertEquals(0L, first.nativeCpuMemory().poolHitCount());
+            assertEquals(NativeMemoryPoolPolicy.PER_PREPARED_EXECUTION.name(), second.nativeCpuMemory().effectivePoolPolicy());
+            assertTrue(second.nativeCpuMemory().poolHitCount() >= 1L);
+
+            prepared.close();
+            prepared.close();
+            assertThrows(IllegalStateException.class, () -> prepared.executeTraced(ExecutionMode.FORWARD));
+        } finally {
+            prepared.close();
+        }
+    }
+
+    @Test
     void cpuNativeMatmulAddKeepsSameShapeAddOutputNative() {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 

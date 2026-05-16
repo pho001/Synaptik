@@ -41,4 +41,14 @@ public record NativeCpuMemoryConfig(
                 false
         );
     }
+
+    public static NativeCpuMemoryConfig perPreparedExecution(long maxPoolBytes) {
+        return new NativeCpuMemoryConfig(
+                NativeMemoryPoolPolicy.PER_PREPARED_EXECUTION,
+                maxPoolBytes,
+                (int) backend.cpu.nativecpu.NativeCpuAllocator.DEFAULT_ALIGNMENT_BYTES,
+                false,
+                false
+        );
+    }
 }

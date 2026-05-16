@@ -12,6 +12,7 @@ import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
 import backend.cpu.nativecpu.NativeCpuCastExecutor;
 import backend.cpu.nativecpu.NativeCpuCompareExecutor;
 import backend.cpu.nativecpu.NativeCpuElementwiseExecutor;
+import backend.cpu.nativecpu.NativeCpuMemoryPool;
 import backend.cpu.nativecpu.NativeCpuReductionExecutor;
 import backend.cpu.nativecpu.NativeCpuTraceState;
 import backend.cpu.nativecpu.NativeCpuViewExecutor;
@@ -20,6 +21,8 @@ import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
 import config.runtime.BlasStorageMode;
 import config.runtime.CpuStorageProfile;
+import config.runtime.NativeCpuMemoryConfig;
+import config.runtime.NativeMemoryPoolPolicy;
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
 import graph.CompiledGradientBinding;
@@ -51,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Runtime plan produced from {@link graph.compile.CompileArtifacts}.
@@ -64,7 +68,7 @@ import java.util.Locale;
  * execution; lower-publication policies can keep values in the run-scoped execution state for benchmark and device
  * residency diagnostics. Concurrent calls against shared source tensors or shared backend workspaces are not supported.
  */
-public final class PreparedExecution {
+public final class PreparedExecution implements AutoCloseable {
     private final RuntimeConfig runtimeConfig;
     private final boolean supportsBackward;
     private final List<PreparedNodeExecution> executionSteps;
@@ -79,6 +83,8 @@ public final class PreparedExecution {
     private final MemoryPlan memoryPlan;
     private final PrepareTrace prepareTrace;
     private final Map<Integer, CompiledNodeExecutionMetadata> metadataIndex;
+    private final NativeCpuMemoryPool nativeCpuMemoryPool;
+    private final AtomicBoolean closed;
 
     /**
      * Creates a prepared execution from already lowered step metadata.
@@ -126,6 +132,8 @@ public final class PreparedExecution {
         this.memoryPlan = memoryPlan;
         this.prepareTrace = prepareTrace == null ? PrepareTrace.skipped() : prepareTrace;
         this.metadataIndex = buildMetadataIndex(this.executionSteps);
+        this.nativeCpuMemoryPool = createNativeCpuMemoryPool(this.runtimeConfig.nativeCpuMemory());
+        this.closed = new AtomicBoolean();
     }
 
     /**
@@ -180,6 +188,16 @@ public final class PreparedExecution {
      */
     public PrepareTrace prepareTrace() {
         return prepareTrace;
+    }
+
+    /**
+     * Closes resources owned by this prepared plan.
+     */
+    @Override
+    public void close() {
+        if (closed.compareAndSet(false, true) && nativeCpuMemoryPool != null) {
+            nativeCpuMemoryPool.close();
+        }
     }
 
     /**
@@ -287,6 +305,7 @@ public final class PreparedExecution {
             TrainingOptimizer optimizer,
             PublicationPolicy publicationPolicy
     ) {
+        ensureOpen();
         Objects.requireNonNull(mode, "mode cannot be null");
         PublicationPolicy publication = publicationPolicy == null
                 ? (optimizer == null ? PublicationPolicy.defaultExecution() : PublicationPolicy.defaultOptimizerStep())
@@ -301,7 +320,7 @@ public final class PreparedExecution {
         long runStart = System.nanoTime();
         java.util.ArrayList<ExecutionStepTrace> steps = captureTrace ? new java.util.ArrayList<>() : null;
         ExecutionState executionState = ExecutionState.create(allNodes, descriptorIndex, metadataIndex, forwardOutputNode.id());
-        executionState.configureNativeCpuMemory(runtimeConfig.nativeCpuMemory());
+        executionState.configureNativeCpuMemory(runtimeConfig.nativeCpuMemory(), nativeCpuMemoryPool);
         RuntimeException executionFailure = null;
         Error executionError = null;
         try {
@@ -369,6 +388,19 @@ public final class PreparedExecution {
             return;
         }
         execute(ExecutionMode.FORWARD_BACKWARD);
+    }
+
+    private void ensureOpen() {
+        if (closed.get()) {
+            throw new IllegalStateException("Prepared execution is closed.");
+        }
+    }
+
+    private static NativeCpuMemoryPool createNativeCpuMemoryPool(NativeCpuMemoryConfig config) {
+        if (config != null && config.poolPolicy() == NativeMemoryPoolPolicy.PER_PREPARED_EXECUTION) {
+            return new NativeCpuMemoryPool(config.maxPoolBytes());
+        }
+        return null;
     }
 
     private static Map<Integer, CompiledNodeExecutionMetadata> buildMetadataIndex(List<PreparedNodeExecution> executionSteps) {

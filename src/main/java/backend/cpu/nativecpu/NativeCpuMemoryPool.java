@@ -7,9 +7,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Run-local native CPU block pool.
+ * Native CPU block pool keyed by size and alignment.
  */
-final class NativeCpuMemoryPool {
+public final class NativeCpuMemoryPool implements AutoCloseable {
     private record Key(long bytes, long alignment) {
     }
 
@@ -46,12 +46,16 @@ final class NativeCpuMemoryPool {
     private final long maxPoolBytes;
     private final Map<Key, ArrayDeque<Block>> available = new HashMap<>();
     private long pooledBytes;
+    private boolean closed;
 
-    NativeCpuMemoryPool(long maxPoolBytes) {
+    public NativeCpuMemoryPool(long maxPoolBytes) {
         this.maxPoolBytes = Math.max(0L, maxPoolBytes);
     }
 
     synchronized Block acquire(long allocatedBytes, long alignment) {
+        if (closed) {
+            return null;
+        }
         ArrayDeque<Block> blocks = available.get(new Key(allocatedBytes, alignment));
         if (blocks == null) {
             return null;
@@ -68,7 +72,7 @@ final class NativeCpuMemoryPool {
     }
 
     synchronized boolean release(Block block) {
-        if (block == null || maxPoolBytes <= 0L || block.allocatedBytes() > maxPoolBytes
+        if (closed || block == null || maxPoolBytes <= 0L || block.allocatedBytes() > maxPoolBytes
                 || pooledBytes + block.allocatedBytes() > maxPoolBytes) {
             return false;
         }
@@ -78,7 +82,7 @@ final class NativeCpuMemoryPool {
         return true;
     }
 
-    synchronized long drain() {
+    public synchronized long drain() {
         long drained = 0L;
         for (ArrayDeque<Block> blocks : available.values()) {
             while (!blocks.isEmpty()) {
@@ -90,5 +94,15 @@ final class NativeCpuMemoryPool {
         available.clear();
         pooledBytes = 0L;
         return drained;
+    }
+
+    public synchronized boolean closed() {
+        return closed;
+    }
+
+    @Override
+    public synchronized void close() {
+        closed = true;
+        drain();
     }
 }

@@ -13,6 +13,8 @@ import tensor.Tensor;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -142,24 +144,86 @@ class NativeCpuStorageTest {
     }
 
     @Test
-    void perPreparedPolicyIsAcceptedButNotPooledInThisWave() {
-        NativeCpuAllocator allocator = new NativeCpuAllocator(new NativeCpuMemoryConfig(
-                NativeMemoryPoolPolicy.PER_PREPARED_EXECUTION,
-                1024L,
-                64,
-                false,
-                false
-        ));
-        NativeCpuAllocation first = allocator.allocate(32L, "first");
+    void perPreparedAllocatorReusesSharedPreparedPoolBlock() {
+        NativeCpuMemoryPool pool = new NativeCpuMemoryPool(1024L);
+        NativeCpuAllocator firstRun = new NativeCpuAllocator(
+                NativeCpuMemoryConfig.perPreparedExecution(1024L),
+                new NativeCpuMemoryStats(),
+                pool
+        );
+        NativeCpuAllocation first = firstRun.allocate(32L, "first");
+        var firstSegment = first.segment();
         first.release();
-        NativeCpuAllocation second = allocator.allocate(32L, "second");
-        second.release();
 
-        var stats = allocator.statsSnapshot();
-        assertEquals(NativeMemoryPoolPolicy.PER_PREPARED_EXECUTION, allocator.requestedPoolPolicy());
-        assertEquals(NativeMemoryPoolPolicy.DISABLED, allocator.effectivePoolPolicy());
-        assertEquals(0L, stats.poolHitCount());
-        assertEquals(0L, stats.poolMissCount());
+        NativeCpuAllocator secondRun = new NativeCpuAllocator(
+                NativeCpuMemoryConfig.perPreparedExecution(1024L),
+                new NativeCpuMemoryStats(),
+                pool
+        );
+        NativeCpuAllocation second = secondRun.allocate(32L, "second");
+        assertSame(firstSegment, second.segment());
+        second.release();
+        pool.close();
+
+        var firstStats = firstRun.statsSnapshot();
+        assertEquals(NativeMemoryPoolPolicy.PER_PREPARED_EXECUTION, firstRun.requestedPoolPolicy());
+        assertEquals(NativeMemoryPoolPolicy.PER_PREPARED_EXECUTION, firstRun.effectivePoolPolicy());
+        assertEquals(0L, firstStats.poolHitCount());
+        assertEquals(1L, firstStats.poolMissCount());
+
+        var secondStats = secondRun.statsSnapshot();
+        assertEquals(NativeMemoryPoolPolicy.PER_PREPARED_EXECUTION, secondRun.effectivePoolPolicy());
+        assertEquals(1L, secondStats.poolHitCount());
+        assertEquals(0L, secondStats.poolMissCount());
+    }
+
+    @Test
+    void perPreparedPoolDoesNotReuseActiveRetainedOrClosedBlocks() {
+        NativeCpuMemoryPool pool = new NativeCpuMemoryPool(1024L);
+        NativeCpuAllocator firstRun = new NativeCpuAllocator(
+                NativeCpuMemoryConfig.perPreparedExecution(1024L),
+                new NativeCpuMemoryStats(),
+                pool
+        );
+        NativeCpuAllocator secondRun = new NativeCpuAllocator(
+                NativeCpuMemoryConfig.perPreparedExecution(1024L),
+                new NativeCpuMemoryStats(),
+                pool
+        );
+        NativeCpuAllocation active = firstRun.allocate(32L, "active");
+        NativeCpuAllocation concurrent = secondRun.allocate(32L, "concurrent");
+
+        assertNotSame(active.segment(), concurrent.segment());
+        active.release();
+        concurrent.release();
+        pool.drain();
+
+        NativeCpuAllocator retainedRun = new NativeCpuAllocator(
+                NativeCpuMemoryConfig.perPreparedExecution(1024L),
+                new NativeCpuMemoryStats(),
+                pool
+        );
+        NativeCpuAllocation retained = retainedRun.allocate(32L, "retained");
+        var retainedSegment = retained.segment();
+        retained.retain("publication");
+        retained.release();
+        NativeCpuAllocation afterRetained = retainedRun.allocate(32L, "after-retained");
+
+        assertNotSame(retainedSegment, afterRetained.segment());
+        afterRetained.release();
+        pool.close();
+
+        NativeCpuAllocator afterCloseRun = new NativeCpuAllocator(
+                NativeCpuMemoryConfig.perPreparedExecution(1024L),
+                new NativeCpuMemoryStats(),
+                pool
+        );
+        NativeCpuAllocation afterClose = afterCloseRun.allocate(32L, "after-close");
+        afterClose.release();
+
+        assertEquals(NativeMemoryPoolPolicy.PER_PREPARED_EXECUTION, afterCloseRun.effectivePoolPolicy());
+        assertEquals(0L, afterCloseRun.statsSnapshot().poolHitCount());
+        assertTrue(pool.closed());
     }
 
     @Test

@@ -4,6 +4,8 @@ import backend.cpu.kernels.CpuNodeWorkspace;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.nativecpu.NativeCpuAllocator;
 import backend.cpu.nativecpu.NativeCpuMaterializer;
+import backend.cpu.nativecpu.NativeCpuMemoryStats;
+import backend.cpu.nativecpu.NativeCpuMemoryPool;
 import backend.cpu.nativecpu.NativeCpuStorageFactory;
 import backend.cpu.plan.CpuPreparedInput;
 import backend.memory.CpuMaterializationReason;
@@ -84,7 +86,17 @@ public final class ExecutionState {
      * @param config native CPU memory policy; {@code null} disables pooling
      */
     public void configureNativeCpuMemory(NativeCpuMemoryConfig config) {
-        this.nativeCpuAllocator = new NativeCpuAllocator(config);
+        configureNativeCpuMemory(config, null);
+    }
+
+    /**
+     * Configures the run-owned native CPU allocator before execution starts.
+     *
+     * @param config native CPU memory policy; {@code null} disables pooling
+     * @param preparedPool shared prepared-execution pool for {@code PER_PREPARED_EXECUTION}
+     */
+    public void configureNativeCpuMemory(NativeCpuMemoryConfig config, NativeCpuMemoryPool preparedPool) {
+        this.nativeCpuAllocator = new NativeCpuAllocator(config, new NativeCpuMemoryStats(), preparedPool);
         this.nativeCpuStorageFactory = new NativeCpuStorageFactory(nativeCpuAllocator);
     }
 
@@ -583,7 +595,7 @@ public final class ExecutionState {
             }
         }
         executionResources.clear();
-        nativeCpuAllocator.drainPool();
+        nativeCpuAllocator.drainRunLocalPool();
         deviceBufferBindingByNodeId.clear();
         reservedDeviceBufferBindingByNodeId.clear();
         nativeStorageByNodeId.clear();

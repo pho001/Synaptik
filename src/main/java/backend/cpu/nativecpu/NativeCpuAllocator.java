@@ -30,14 +30,26 @@ public final class NativeCpuAllocator {
     }
 
     public NativeCpuAllocator(NativeCpuMemoryConfig config, NativeCpuMemoryStats stats) {
+        this(config, stats, null);
+    }
+
+    public NativeCpuAllocator(
+            NativeCpuMemoryConfig config,
+            NativeCpuMemoryStats stats,
+            NativeCpuMemoryPool preparedPool
+    ) {
         this.stats = stats == null ? new NativeCpuMemoryStats() : stats;
         this.config = config == null ? NativeCpuMemoryConfig.disabled() : config;
-        this.effectivePoolPolicy = this.config.poolPolicy() == NativeMemoryPoolPolicy.PER_EXECUTION
-                ? NativeMemoryPoolPolicy.PER_EXECUTION
-                : NativeMemoryPoolPolicy.DISABLED;
-        this.pool = effectivePoolPolicy == NativeMemoryPoolPolicy.PER_EXECUTION
-                ? new NativeCpuMemoryPool(this.config.maxPoolBytes())
-                : null;
+        if (this.config.poolPolicy() == NativeMemoryPoolPolicy.PER_EXECUTION) {
+            this.effectivePoolPolicy = NativeMemoryPoolPolicy.PER_EXECUTION;
+            this.pool = new NativeCpuMemoryPool(this.config.maxPoolBytes());
+        } else if (this.config.poolPolicy() == NativeMemoryPoolPolicy.PER_PREPARED_EXECUTION && preparedPool != null) {
+            this.effectivePoolPolicy = NativeMemoryPoolPolicy.PER_PREPARED_EXECUTION;
+            this.pool = preparedPool;
+        } else {
+            this.effectivePoolPolicy = NativeMemoryPoolPolicy.DISABLED;
+            this.pool = null;
+        }
     }
 
     public NativeCpuAllocation allocate(long byteSize, String label) {
@@ -54,7 +66,8 @@ public final class NativeCpuAllocator {
         long effectiveAlignment = config.alignmentBytes() > 0
                 ? Math.max(alignment, config.alignmentBytes())
                 : alignment;
-        if (effectivePoolPolicy == NativeMemoryPoolPolicy.PER_EXECUTION) {
+        if (effectivePoolPolicy == NativeMemoryPoolPolicy.PER_EXECUTION
+                || effectivePoolPolicy == NativeMemoryPoolPolicy.PER_PREPARED_EXECUTION) {
             return allocatePooled(byteSize, effectiveAlignment, label);
         }
         return allocateDirect(byteSize, effectiveAlignment, label);
@@ -108,6 +121,13 @@ public final class NativeCpuAllocator {
         long drained = pool.drain();
         stats.recordDrain(drained);
         return drained;
+    }
+
+    public long drainRunLocalPool() {
+        if (effectivePoolPolicy != NativeMemoryPoolPolicy.PER_EXECUTION) {
+            return 0L;
+        }
+        return drainPool();
     }
 
     public NativeCpuMemoryStats.Snapshot statsSnapshot() {
