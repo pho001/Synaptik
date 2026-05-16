@@ -64,6 +64,10 @@ public final class NativeCpuElementwiseExecutor {
             ResolvedBroadcastPlan broadcastPlan = plan.broadcastPlan();
             return broadcastPlan == null || broadcastPlan.isNoBroadcast() || isLastDimBiasBroadcast(broadcastPlan);
         }
+        if (opType == Operation.OpType.MUL) {
+            ResolvedBroadcastPlan broadcastPlan = plan.broadcastPlan();
+            return broadcastPlan == null || broadcastPlan.isNoBroadcast();
+        }
         return POLICY_HANDLED_OPS.contains(opType);
     }
 
@@ -104,17 +108,17 @@ public final class NativeCpuElementwiseExecutor {
         }
         Operation op = context.executionOperation();
         NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(opType(op), node.getDataType());
-        if (node.getDataType() != DataType.FLOAT32 || op == null || op.opType() != Operation.OpType.ADD || context.nodePlan().stridedPath()) {
+        if (node.getDataType() != DataType.FLOAT32 || op == null || !isNativeBinaryOp(op.opType()) || context.nodePlan().stridedPath()) {
             fallbackBinary(kernel, inputs, node, context, fact, ineligibleReason(op, node, context));
             return true;
         }
         ResolvedBroadcastPlan broadcastPlan = context.broadcastPlan();
-        if (broadcastPlan != null && !broadcastPlan.isNoBroadcast() && !isLastDimBiasBroadcast(broadcastPlan)) {
-            fallbackBinary(kernel, inputs, node, context, fact, "native-kernel-ineligible:add-broadcast");
+        if (broadcastPlan != null && !broadcastPlan.isNoBroadcast() && !supportsBroadcast(op.opType(), broadcastPlan)) {
+            fallbackBinary(kernel, inputs, node, context, fact, "native-kernel-ineligible:" + opLabel(op) + "-broadcast");
             return true;
         }
         if (inputs == null || inputs.size() != 2) {
-            fallbackBinary(kernel, inputs, node, context, fact, "native-kernel-ineligible:add-shape");
+            fallbackBinary(kernel, inputs, node, context, fact, "native-kernel-ineligible:" + opLabel(op) + "-shape");
             return true;
         }
         BiasBroadcastSpec biasSpec = null;
@@ -126,37 +130,54 @@ public final class NativeCpuElementwiseExecutor {
                     node.getFlatDataSize()
             );
             if (biasSpec == null) {
-                fallbackBinary(kernel, inputs, node, context, fact, "native-kernel-ineligible:add-broadcast");
+                fallbackBinary(kernel, inputs, node, context, fact, "native-kernel-ineligible:" + opLabel(op) + "-broadcast");
                 return true;
             }
         } else if (inputs.get(0).getFlatDataSize() != node.getFlatDataSize()
                 || inputs.get(1).getFlatDataSize() != node.getFlatDataSize()) {
-            fallbackBinary(kernel, inputs, node, context, fact, "native-kernel-ineligible:add-shape");
+            fallbackBinary(kernel, inputs, node, context, fact, "native-kernel-ineligible:" + opLabel(op) + "-shape");
             return true;
         }
         try {
-            NativeFloat32Storage left = requireF32NativeInput(context, 0, "ADD");
-            NativeFloat32Storage right = requireF32NativeInput(context, 1, "ADD");
-            NativeFloat32Storage out = allocateF32(node, context, "add");
+            String label = opLabel(op);
+            NativeFloat32Storage left = requireF32NativeInput(context, 0, label.toUpperCase());
+            NativeFloat32Storage right = requireF32NativeInput(context, 1, label.toUpperCase());
+            NativeFloat32Storage out = allocateF32(node, context, label);
             if (biasSpec == null) {
-                runDenseAdd(left, right, out, node.getFlatDataSize());
+                runDenseBinary(op.opType(), left, right, out, node.getFlatDataSize());
             } else {
                 runLastDimBiasAdd(left, right, out, node.getFlatDataSize(), biasSpec);
             }
             out.markModified();
-            context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU ADD wrote FLOAT32 output");
+            context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU " + label.toUpperCase() + " wrote FLOAT32 output");
             publishTrace(context, fact, "CPU_NATIVE", "");
         } catch (Throwable t) {
-            fallbackBinary(kernel, inputs, node, context, fact, "native-kernel-failed:add:" + safeMessage(t));
+            fallbackBinary(kernel, inputs, node, context, fact, "native-kernel-failed:" + opLabel(op) + ":" + safeMessage(t));
         }
         return true;
     }
 
-    private static void runDenseAdd(NativeFloat32Storage left, NativeFloat32Storage right, NativeFloat32Storage out, int size) {
+    private static void runDenseBinary(
+            Operation.OpType opType,
+            NativeFloat32Storage left,
+            NativeFloat32Storage right,
+            NativeFloat32Storage out,
+            int size
+    ) {
         for (int i = 0; i < size; i++) {
             long offset = (long) i * Float.BYTES;
-            out.segment().set(JAVA_FLOAT, offset, left.segment().get(JAVA_FLOAT, offset) + right.segment().get(JAVA_FLOAT, offset));
+            float leftValue = left.segment().get(JAVA_FLOAT, offset);
+            float rightValue = right.segment().get(JAVA_FLOAT, offset);
+            out.segment().set(JAVA_FLOAT, offset, opType == Operation.OpType.MUL ? leftValue * rightValue : leftValue + rightValue);
         }
+    }
+
+    private static boolean isNativeBinaryOp(Operation.OpType opType) {
+        return opType == Operation.OpType.ADD || opType == Operation.OpType.MUL;
+    }
+
+    private static boolean supportsBroadcast(Operation.OpType opType, ResolvedBroadcastPlan broadcastPlan) {
+        return opType == Operation.OpType.ADD && isLastDimBiasBroadcast(broadcastPlan);
     }
 
     private static void runLastDimBiasAdd(
@@ -299,6 +320,10 @@ public final class NativeCpuElementwiseExecutor {
 
     private static Operation.OpType opType(Operation op) {
         return op == null ? Operation.OpType.UNKNOWN : op.opType();
+    }
+
+    private static String opLabel(Operation op) {
+        return opType(op).name().toLowerCase();
     }
 
     private static String ineligibleReason(Operation op, Tensor node, CpuKernelContext context) {

@@ -125,6 +125,73 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void cpuNativeMatmulMulReluKeepsMulAndReluOutputNative() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor scale = tensor(new float[]{2f, 3f, 4f, 5f}, "scale");
+        Tensor out = a().matmul(b()).mul(scale).relu();
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> mul = attrs(trace.steps().stream()
+                .filter(step -> "MUL".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        Map<String, Object> relu = attrs(trace.steps().stream()
+                .filter(step -> "RELU".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals("CPU_NATIVE", mul.get("actualCpuStorage"));
+        assertEquals("NATIVE_CORRECT_BUT_SLOW", mul.get("nativeCpuKernelStatus"));
+        assertEquals("SEGMENT_SCALAR", mul.get("nativeCpuKernelFamily"));
+        assertEquals("", mul.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", mul.get("storageResidency"));
+        assertEquals("CPU_NATIVE", relu.get("actualCpuStorage"));
+        assertEquals("", relu.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", relu.get("storageResidency"));
+    }
+
+    @Test
+    void unsupportedCpuNativeBroadcastMulFallsBackToArrayWithTraceReason() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor scale = vector(new float[]{2f, 3f}, "scale");
+        Tensor out = a().matmul(b()).mul(scale);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> mul = attrs(trace.steps().stream()
+                .filter(step -> "MUL".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals("CPU_NATIVE", mul.get("requestedCpuStorage"));
+        assertEquals("CPU_ARRAY", mul.get("actualCpuStorage"));
+        assertEquals("native-kernel-ineligible:mul-broadcast", mul.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_ARRAY", mul.get("storageResidency"));
+    }
+
+    @Test
+    void requireNativeRejectsUnsupportedCpuNativeBroadcastMul() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor scale = vector(new float[]{2f, 3f}, "scale");
+        Tensor out = a().matmul(b()).mul(scale);
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+        );
+
+        assertTrue(failure.getMessage().contains("Native CPU execution required"));
+        assertTrue(failure.getMessage().contains("native-kernel-ineligible:mul-broadcast"));
+    }
+
+    @Test
     void unsupportedCpuNativeBroadcastAddFallsBackToArrayWithTraceReason() {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 
@@ -216,6 +283,24 @@ class NativeCpuElementwiseChainTest {
 
         assertFalse(add.containsKey("nativeCpuKernelStatus"));
         assertEquals("CPU_ARRAY", add.get("storageResidency"));
+    }
+
+    @Test
+    void autoStorageDoesNotUseNativeMulSlice() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor out = a().matmul(b()).mul(tensor(new float[]{2f, 3f, 4f, 5f}, "scale"));
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> mul = attrs(trace.steps().stream()
+                .filter(step -> "MUL".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertFalse(mul.containsKey("nativeCpuKernelStatus"));
+        assertEquals("CPU_ARRAY", mul.get("storageResidency"));
     }
 
     private static RuntimeConfig runtime(CpuStorageProfile storageProfile, NativeCpuFailurePolicy failurePolicy) {

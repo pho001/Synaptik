@@ -28,16 +28,21 @@ class NativeCpuKernelFactsTest {
     }
 
     @Test
-    void f32ReluAndSameShapeAddHaveNativeSegmentScalarFacts() {
+    void f32ReluSameShapeAddAndSameShapeMulHaveNativeSegmentScalarFacts() {
         NativeCpuKernelFact add = NativeCpuKernelFacts.factFor(Operation.OpType.ADD, DataType.FLOAT32);
+        NativeCpuKernelFact mul = NativeCpuKernelFacts.factFor(Operation.OpType.MUL, DataType.FLOAT32);
         NativeCpuKernelFact relu = NativeCpuKernelFacts.factFor(Operation.OpType.RELU, DataType.FLOAT32);
 
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, add.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, mul.status());
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, relu.status());
         assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, add.family());
+        assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, mul.family());
         assertEquals("requires-dense-contiguous-same-shape", add.reason());
+        assertEquals("requires-dense-contiguous-same-shape", mul.reason());
         assertEquals("requires-dense-contiguous", relu.reason());
         assertTrue(add.nativeComputeEligible());
+        assertTrue(mul.nativeComputeEligible());
         assertTrue(relu.preservesNativeStorage());
     }
 

@@ -52,13 +52,13 @@ public final class NativeCpuKernelFacts {
                     "requires-openblas-native-segment"
             );
         }
-        if (dataType == DataType.FLOAT32 && (opType == Operation.OpType.RELU || opType == Operation.OpType.ADD)) {
+        if (dataType == DataType.FLOAT32 && (opType == Operation.OpType.RELU || opType == Operation.OpType.ADD || opType == Operation.OpType.MUL)) {
             return new NativeCpuKernelFact(
                     opType,
                     dataType,
                     NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW,
                     NativeCpuKernelFamily.SEGMENT_SCALAR,
-                    opType == Operation.OpType.ADD
+                    opType == Operation.OpType.ADD || opType == Operation.OpType.MUL
                             ? "requires-dense-contiguous-same-shape"
                             : "requires-dense-contiguous"
             );
