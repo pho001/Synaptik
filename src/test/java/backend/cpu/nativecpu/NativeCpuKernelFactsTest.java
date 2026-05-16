@@ -72,6 +72,37 @@ class NativeCpuKernelFactsTest {
     }
 
     @Test
+    void f64DenseArithmeticMvpOpsHaveNativeSegmentScalarFacts() {
+        NativeCpuKernelFact add = NativeCpuKernelFacts.factFor(Operation.OpType.ADD, DataType.FLOAT64);
+        NativeCpuKernelFact sub = NativeCpuKernelFacts.factFor(Operation.OpType.SUB, DataType.FLOAT64);
+        NativeCpuKernelFact mul = NativeCpuKernelFacts.factFor(Operation.OpType.MUL, DataType.FLOAT64);
+        NativeCpuKernelFact div = NativeCpuKernelFacts.factFor(Operation.OpType.DIV, DataType.FLOAT64);
+        NativeCpuKernelFact mulScalar = NativeCpuKernelFacts.factFor(Operation.OpType.MUL_SCALAR, DataType.FLOAT64);
+        NativeCpuKernelFact neg = NativeCpuKernelFacts.factFor(Operation.OpType.NEG, DataType.FLOAT64);
+        NativeCpuKernelFact relu = NativeCpuKernelFacts.factFor(Operation.OpType.RELU, DataType.FLOAT64);
+        NativeCpuKernelFact where = NativeCpuKernelFacts.factFor(Operation.OpType.WHERE, DataType.FLOAT64);
+        NativeCpuKernelFact log = NativeCpuKernelFacts.factFor(Operation.OpType.LOG, DataType.FLOAT64);
+
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, add.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, sub.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, mul.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, div.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, mulScalar.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, neg.status());
+        assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, add.family());
+        assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, neg.family());
+        assertEquals("requires-dense-contiguous-same-shape", div.reason());
+        assertEquals("requires-dense-contiguous", mulScalar.reason());
+        assertTrue(add.nativeComputeEligible());
+        assertTrue(neg.preservesNativeStorage());
+        assertEquals("native-kernel-unsupported:relu", relu.reason());
+        assertEquals("native-kernel-unsupported:where", where.reason());
+        assertEquals("native-kernel-unsupported:log", log.reason());
+        assertFalse(relu.nativeComputeEligible());
+        assertFalse(where.preservesNativeStorage());
+    }
+
+    @Test
     void otherNonBlasElementwiseOpsRemainUnsupportedUntilSegmentKernelsExist() {
         NativeCpuKernelFact reduceMin = NativeCpuKernelFacts.factFor(Operation.OpType.REDUCE_MIN, DataType.FLOAT32);
         NativeCpuKernelFact log = NativeCpuKernelFacts.factFor(Operation.OpType.LOG, DataType.FLOAT32);
@@ -95,6 +126,24 @@ class NativeCpuKernelFactsTest {
         assertEquals("requires-dense-contiguous-reduction", mean.reason());
         assertTrue(sum.nativeComputeEligible());
         assertTrue(mean.preservesNativeStorage());
+    }
+
+    @Test
+    void f64ReductionMvpOpsHaveNativeSegmentScalarFacts() {
+        NativeCpuKernelFact sum = NativeCpuKernelFacts.factFor(Operation.OpType.SUM, DataType.FLOAT64);
+        NativeCpuKernelFact mean = NativeCpuKernelFacts.factFor(Operation.OpType.MEAN, DataType.FLOAT64);
+        NativeCpuKernelFact reduceMax = NativeCpuKernelFacts.factFor(Operation.OpType.REDUCE_MAX, DataType.FLOAT64);
+
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, sum.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, mean.status());
+        assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, sum.family());
+        assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, mean.family());
+        assertEquals("requires-dense-contiguous-reduction", sum.reason());
+        assertEquals("requires-dense-contiguous-reduction", mean.reason());
+        assertTrue(sum.nativeComputeEligible());
+        assertTrue(mean.preservesNativeStorage());
+        assertEquals("native-kernel-unsupported:reduce_max", reduceMax.reason());
+        assertFalse(reduceMax.nativeComputeEligible());
     }
 
     @Test

@@ -10,6 +10,9 @@ final class SumLikeReductionExecutor {
 
     static void executeF64(SumLikeReduction reduction, Tensor input, Tensor node, int dimension, CpuKernelContext context) {
         validate(reduction, input, node, context);
+        if (NativeCpuReductionExecutor.tryRunSumLike(opType(reduction), input, node, dimension, context)) {
+            return;
+        }
         SumLoops.execute(input, node, dimension, context);
         reduction.finalizeF64(node, input, dimension);
     }

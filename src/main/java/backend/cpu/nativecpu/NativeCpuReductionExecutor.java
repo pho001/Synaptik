@@ -11,18 +11,19 @@ import operations.reduction.mean;
 import operations.reduction.sum;
 import tensor.DataType;
 import tensor.NativeFloat32Storage;
+import tensor.NativeFloat64Storage;
 import tensor.NativeTensorStorage;
 import tensor.Tensor;
 
 /**
- * Native CPU reduction slice for dense F32 reductions.
+ * Native CPU reduction slice for dense F32/F64 reductions.
  */
 public final class NativeCpuReductionExecutor {
     private NativeCpuReductionExecutor() {
     }
 
     public static boolean acceptsNativeInputs(Operation op, DataType dataType, CpuNodeExecutionPlan plan, RuntimeConfig runtimeConfig) {
-        if (!nativeRequested(runtimeConfig) || op == null || dataType != DataType.FLOAT32 || plan == null || plan.stridedPath()) {
+        if (!nativeRequested(runtimeConfig) || op == null || !supportsNativeReductionDType(dataType) || plan == null || plan.stridedPath()) {
             return false;
         }
         Operation.OpType opType = op.opType();
@@ -43,7 +44,7 @@ public final class NativeCpuReductionExecutor {
         if (opType != Operation.OpType.SUM && opType != Operation.OpType.MEAN) {
             return fallback(context, fact, opType, "native-kernel-unsupported:" + opLabel(opType));
         }
-        if (node.getDataType() != DataType.FLOAT32 || input.getDataType() != DataType.FLOAT32) {
+        if (!supportsNativeReductionDType(node.getDataType()) || input.getDataType() != node.getDataType()) {
             return fallback(context, fact, opType, "native-storage-dtype-unsupported:" + node.getDataType().name().toLowerCase());
         }
         if (context.nodePlan().stridedPath()) {
@@ -60,14 +61,27 @@ public final class NativeCpuReductionExecutor {
             return fallback(context, fact, opType, "native-kernel-ineligible:" + opLabel(opType) + "-shape");
         }
         try {
-            NativeFloat32Storage in = requireF32NativeInput(context, opLabel(opType).toUpperCase());
-            NativeFloat32Storage out = allocateF32(node, context, opLabel(opType));
-            if (dimension == -1) {
-                out.setFloat32At(0, reduceAllF32(opType, in, input.getFlatDataSize()));
+            NativeTensorStorage out;
+            if (node.getDataType() == DataType.FLOAT64) {
+                NativeFloat64Storage in = requireF64NativeInput(context, opLabel(opType).toUpperCase());
+                NativeFloat64Storage f64Out = allocateF64(node, context, opLabel(opType));
+                if (dimension == -1) {
+                    f64Out.setFloat64At(0, reduceAllF64(opType, in, input.getFlatDataSize()));
+                } else {
+                    reduceAxisF64(opType, in, f64Out, shape, dimension);
+                }
+                out = f64Out;
             } else {
-                reduceAxisF32(opType, in, out, shape, dimension);
+                NativeFloat32Storage in = requireF32NativeInput(context, opLabel(opType).toUpperCase());
+                NativeFloat32Storage f32Out = allocateF32(node, context, opLabel(opType));
+                if (dimension == -1) {
+                    f32Out.setFloat32At(0, reduceAllF32(opType, in, input.getFlatDataSize()));
+                } else {
+                    reduceAxisF32(opType, in, f32Out, shape, dimension);
+                }
+                out = f32Out;
             }
-            context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU " + opLabel(opType).toUpperCase() + " wrote FLOAT32 output");
+            context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU " + opLabel(opType).toUpperCase() + " wrote " + node.getDataType() + " output");
             publishTrace(context, fact, "CPU_NATIVE", "");
             return true;
         } catch (Throwable t) {
@@ -84,6 +98,17 @@ public final class NativeCpuReductionExecutor {
             sum /= size;
         }
         return (float) sum;
+    }
+
+    private static double reduceAllF64(Operation.OpType opType, NativeFloat64Storage input, int size) {
+        double sum = 0.0d;
+        for (int i = 0; i < size; i++) {
+            sum += input.getFloat64At(i);
+        }
+        if (opType == Operation.OpType.MEAN) {
+            sum /= size;
+        }
+        return sum;
     }
 
     private static void reduceAxisF32(
@@ -107,6 +132,30 @@ public final class NativeCpuReductionExecutor {
                 sum /= reducedSize;
             }
             out.setFloat32At(outIndex, (float) sum);
+        }
+    }
+
+    private static void reduceAxisF64(
+            Operation.OpType opType,
+            NativeFloat64Storage input,
+            NativeFloat64Storage out,
+            int[] shape,
+            int dimension
+    ) {
+        int reducedSize = shape[dimension];
+        int axisStride = denseStride(shape, dimension);
+        int outSize = expectedOutputSize(shape, dimension);
+        int[] outDenseStrides = denseStridesExcludingDim(shape, dimension);
+        for (int outIndex = 0; outIndex < outSize; outIndex++) {
+            int inputBase = inputBaseOffset(outIndex, shape, outDenseStrides, dimension);
+            double sum = 0.0d;
+            for (int k = 0; k < reducedSize; k++) {
+                sum += input.getFloat64At(inputBase + k * axisStride);
+            }
+            if (opType == Operation.OpType.MEAN) {
+                sum /= reducedSize;
+            }
+            out.setFloat64At(outIndex, sum);
         }
     }
 
@@ -188,11 +237,28 @@ public final class NativeCpuReductionExecutor {
         throw new IllegalStateException("native " + op + " requires FLOAT32 native input storage");
     }
 
+    private static NativeFloat64Storage requireF64NativeInput(CpuKernelContext context, String op) {
+        int inputNodeId = context.inputNodeIds().getFirst();
+        NativeTensorStorage storage = context.executionContext().requireNativeReadable(inputNodeId, CpuMaterializationReason.CPU_CONSUMER);
+        if (storage instanceof NativeFloat64Storage f64) {
+            return f64;
+        }
+        throw new IllegalStateException("native " + op + " requires FLOAT64 native input storage");
+    }
+
     private static NativeFloat32Storage allocateF32(Tensor node, CpuKernelContext context, String label) {
         return (NativeFloat32Storage) new NativeCpuStorageFactory().allocate(
                 DataType.FLOAT32,
                 node.getFlatDataSize(),
                 "node-" + context.nodeId() + ":" + node.getLabel() + ":native-f32-" + label
+        );
+    }
+
+    private static NativeFloat64Storage allocateF64(Tensor node, CpuKernelContext context, String label) {
+        return (NativeFloat64Storage) new NativeCpuStorageFactory().allocate(
+                DataType.FLOAT64,
+                node.getFlatDataSize(),
+                "node-" + context.nodeId() + ":" + node.getLabel() + ":native-f64-" + label
         );
     }
 
@@ -218,6 +284,10 @@ public final class NativeCpuReductionExecutor {
 
     private static boolean nativeRequested(RuntimeConfig runtimeConfig) {
         return runtimeConfig != null && runtimeConfig.cpuStorageProfile() == CpuStorageProfile.CPU_NATIVE;
+    }
+
+    private static boolean supportsNativeReductionDType(DataType dataType) {
+        return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64;
     }
 
     private static int reductionDimension(Operation op) {

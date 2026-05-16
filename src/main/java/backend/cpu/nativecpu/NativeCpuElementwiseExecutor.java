@@ -15,6 +15,7 @@ import operations.Operation;
 import operations.elementwise.unary.mulScalar;
 import tensor.DataType;
 import tensor.NativeFloat32Storage;
+import tensor.NativeFloat64Storage;
 import tensor.NativeTensorStorage;
 import tensor.Tensor;
 
@@ -22,10 +23,11 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 
+import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 
 /**
- * First native CPU non-BLAS elementwise slice for dense contiguous F32 tensors.
+ * First native CPU non-BLAS elementwise slice for dense contiguous F32/F64 tensors.
  */
 public final class NativeCpuElementwiseExecutor {
     private static final EnumSet<Operation.OpType> POLICY_HANDLED_OPS = EnumSet.of(
@@ -58,26 +60,26 @@ public final class NativeCpuElementwiseExecutor {
     }
 
     public static boolean acceptsNativeInputs(Operation op, DataType dataType, backend.cpu.kernels.CpuNodeExecutionPlan plan, config.runtime.RuntimeConfig runtimeConfig) {
-        if (!nativeRequested(runtimeConfig) || op == null || dataType != DataType.FLOAT32 || plan == null || plan.stridedPath()) {
+        if (!nativeRequested(runtimeConfig) || op == null || !supportsNativeElementwiseDType(dataType) || plan == null || plan.stridedPath()) {
             return false;
         }
         Operation.OpType opType = op.opType();
-        if (isNativeUnaryOp(opType)) {
+        if (isNativeUnaryOp(opType, dataType)) {
             return true;
         }
-        if (opType == Operation.OpType.ADD) {
+        if (dataType == DataType.FLOAT32 && opType == Operation.OpType.ADD) {
             ResolvedBroadcastPlan broadcastPlan = plan.broadcastPlan();
             return broadcastPlan == null || broadcastPlan.isNoBroadcast() || isLastDimBiasBroadcast(broadcastPlan);
         }
-        if (isNativeSameShapeBinaryOp(opType)) {
+        if (isNativeBinaryOp(opType, dataType)) {
             ResolvedBroadcastPlan broadcastPlan = plan.broadcastPlan();
             return broadcastPlan == null || broadcastPlan.isNoBroadcast();
         }
-        if (opType == Operation.OpType.WHERE) {
+        if (dataType == DataType.FLOAT32 && opType == Operation.OpType.WHERE) {
             ResolvedWhereBroadcastPlan whereBroadcastPlan = plan.whereBroadcastPlan();
             return whereBroadcastPlan == null || whereBroadcastPlan.isNoBroadcast();
         }
-        return POLICY_HANDLED_OPS.contains(opType);
+        return dataType == DataType.FLOAT32 && POLICY_HANDLED_OPS.contains(opType);
     }
 
     public static boolean requiresCpuReadableConditionOnly(Operation op, DataType dataType, backend.cpu.kernels.CpuNodeExecutionPlan plan, config.runtime.RuntimeConfig runtimeConfig) {
@@ -92,7 +94,7 @@ public final class NativeCpuElementwiseExecutor {
         }
         Operation op = context.executionOperation();
         NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(opType(op), node.getDataType());
-        if (node.getDataType() != DataType.FLOAT32 || op == null || !isNativeUnaryOp(op.opType()) || context.nodePlan().stridedPath()) {
+        if (!supportsNativeElementwiseDType(node.getDataType()) || op == null || !isNativeUnaryOp(op.opType(), node.getDataType()) || context.nodePlan().stridedPath()) {
             fallbackUnary(kernel, inputs, node, context, fact, ineligibleReason(op, node, context));
             return true;
         }
@@ -102,11 +104,21 @@ public final class NativeCpuElementwiseExecutor {
         }
         try {
             String label = opLabel(op);
-            NativeFloat32Storage input = requireF32NativeInput(context, 0, label.toUpperCase());
-            NativeFloat32Storage out = allocateF32(node, context, label);
-            runDenseUnary(op, input, out, node.getFlatDataSize());
-            out.markModified();
-            context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU " + label.toUpperCase() + " wrote FLOAT32 output");
+            NativeTensorStorage out;
+            if (node.getDataType() == DataType.FLOAT64) {
+                NativeFloat64Storage input = requireF64NativeInput(context, 0, label.toUpperCase());
+                NativeFloat64Storage f64Out = allocateF64(node, context, label);
+                runDenseUnaryF64(op, input, f64Out, node.getFlatDataSize());
+                f64Out.markModified();
+                out = f64Out;
+            } else {
+                NativeFloat32Storage input = requireF32NativeInput(context, 0, label.toUpperCase());
+                NativeFloat32Storage f32Out = allocateF32(node, context, label);
+                runDenseUnaryF32(op, input, f32Out, node.getFlatDataSize());
+                f32Out.markModified();
+                out = f32Out;
+            }
+            context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU " + label.toUpperCase() + " wrote " + node.getDataType() + " output");
             publishTrace(context, fact, "CPU_NATIVE", "");
         } catch (Throwable t) {
             fallbackUnary(kernel, inputs, node, context, fact, "native-kernel-failed:" + opLabel(op) + ":" + safeMessage(t));
@@ -127,7 +139,7 @@ public final class NativeCpuElementwiseExecutor {
         }
         Operation op = context.executionOperation();
         NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(opType(op), node.getDataType());
-        if (node.getDataType() != DataType.FLOAT32 || op == null || op.opType() != Operation.OpType.MUL_SCALAR || context.nodePlan().stridedPath()) {
+        if (!supportsNativeElementwiseDType(node.getDataType()) || op == null || op.opType() != Operation.OpType.MUL_SCALAR || context.nodePlan().stridedPath()) {
             fallbackScalarUnary(kernel, parameterF64, parameterF32, inputs, node, context, fact, ineligibleReason(op, node, context));
             return true;
         }
@@ -137,11 +149,21 @@ public final class NativeCpuElementwiseExecutor {
         }
         try {
             String label = opLabel(op);
-            NativeFloat32Storage input = requireF32NativeInput(context, 0, label.toUpperCase());
-            NativeFloat32Storage out = allocateF32(node, context, label);
-            runDenseUnary(op, input, out, node.getFlatDataSize());
-            out.markModified();
-            context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU " + label.toUpperCase() + " wrote FLOAT32 output");
+            NativeTensorStorage out;
+            if (node.getDataType() == DataType.FLOAT64) {
+                NativeFloat64Storage input = requireF64NativeInput(context, 0, label.toUpperCase());
+                NativeFloat64Storage f64Out = allocateF64(node, context, label);
+                runDenseUnaryF64(op, input, f64Out, node.getFlatDataSize());
+                f64Out.markModified();
+                out = f64Out;
+            } else {
+                NativeFloat32Storage input = requireF32NativeInput(context, 0, label.toUpperCase());
+                NativeFloat32Storage f32Out = allocateF32(node, context, label);
+                runDenseUnaryF32(op, input, f32Out, node.getFlatDataSize());
+                f32Out.markModified();
+                out = f32Out;
+            }
+            context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU " + label.toUpperCase() + " wrote " + node.getDataType() + " output");
             publishTrace(context, fact, "CPU_NATIVE", "");
         } catch (Throwable t) {
             fallbackScalarUnary(kernel, parameterF64, parameterF32, inputs, node, context, fact, "native-kernel-failed:" + opLabel(op) + ":" + safeMessage(t));
@@ -155,12 +177,12 @@ public final class NativeCpuElementwiseExecutor {
         }
         Operation op = context.executionOperation();
         NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(opType(op), node.getDataType());
-        if (node.getDataType() != DataType.FLOAT32 || op == null || !isNativeBinaryOp(op.opType()) || context.nodePlan().stridedPath()) {
+        if (!supportsNativeElementwiseDType(node.getDataType()) || op == null || !isNativeBinaryOp(op.opType(), node.getDataType()) || context.nodePlan().stridedPath()) {
             fallbackBinary(kernel, inputs, node, context, fact, ineligibleReason(op, node, context));
             return true;
         }
         ResolvedBroadcastPlan broadcastPlan = context.broadcastPlan();
-        if (broadcastPlan != null && !broadcastPlan.isNoBroadcast() && !supportsBroadcast(op.opType(), broadcastPlan)) {
+        if (broadcastPlan != null && !broadcastPlan.isNoBroadcast() && !supportsBroadcast(op.opType(), node.getDataType(), broadcastPlan)) {
             fallbackBinary(kernel, inputs, node, context, fact, "native-kernel-ineligible:" + opLabel(op) + "-broadcast");
             return true;
         }
@@ -187,16 +209,27 @@ public final class NativeCpuElementwiseExecutor {
         }
         try {
             String label = opLabel(op);
-            NativeFloat32Storage left = requireF32NativeInput(context, 0, label.toUpperCase());
-            NativeFloat32Storage right = requireF32NativeInput(context, 1, label.toUpperCase());
-            NativeFloat32Storage out = allocateF32(node, context, label);
-            if (biasSpec == null) {
-                runDenseBinary(op.opType(), left, right, out, node.getFlatDataSize());
+            NativeTensorStorage out;
+            if (node.getDataType() == DataType.FLOAT64) {
+                NativeFloat64Storage left = requireF64NativeInput(context, 0, label.toUpperCase());
+                NativeFloat64Storage right = requireF64NativeInput(context, 1, label.toUpperCase());
+                NativeFloat64Storage f64Out = allocateF64(node, context, label);
+                runDenseBinaryF64(op.opType(), left, right, f64Out, node.getFlatDataSize());
+                f64Out.markModified();
+                out = f64Out;
             } else {
-                runLastDimBiasAdd(left, right, out, node.getFlatDataSize(), biasSpec);
+                NativeFloat32Storage left = requireF32NativeInput(context, 0, label.toUpperCase());
+                NativeFloat32Storage right = requireF32NativeInput(context, 1, label.toUpperCase());
+                NativeFloat32Storage f32Out = allocateF32(node, context, label);
+                if (biasSpec == null) {
+                    runDenseBinaryF32(op.opType(), left, right, f32Out, node.getFlatDataSize());
+                } else {
+                    runLastDimBiasAdd(left, right, f32Out, node.getFlatDataSize(), biasSpec);
+                }
+                f32Out.markModified();
+                out = f32Out;
             }
-            out.markModified();
-            context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU " + label.toUpperCase() + " wrote FLOAT32 output");
+            context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU " + label.toUpperCase() + " wrote " + node.getDataType() + " output");
             publishTrace(context, fact, "CPU_NATIVE", "");
         } catch (Throwable t) {
             fallbackBinary(kernel, inputs, node, context, fact, "native-kernel-failed:" + opLabel(op) + ":" + safeMessage(t));
@@ -255,7 +288,7 @@ public final class NativeCpuElementwiseExecutor {
         return true;
     }
 
-    private static void runDenseBinary(
+    private static void runDenseBinaryF32(
             Operation.OpType opType,
             NativeFloat32Storage left,
             NativeFloat32Storage right,
@@ -270,12 +303,36 @@ public final class NativeCpuElementwiseExecutor {
         }
     }
 
-    private static void runDenseUnary(Operation op, NativeFloat32Storage input, NativeFloat32Storage out, int size) {
+    private static void runDenseBinaryF64(
+            Operation.OpType opType,
+            NativeFloat64Storage left,
+            NativeFloat64Storage right,
+            NativeFloat64Storage out,
+            int size
+    ) {
+        for (int i = 0; i < size; i++) {
+            long offset = (long) i * Double.BYTES;
+            double leftValue = left.segment().get(JAVA_DOUBLE, offset);
+            double rightValue = right.segment().get(JAVA_DOUBLE, offset);
+            out.segment().set(JAVA_DOUBLE, offset, applyBinary(opType, leftValue, rightValue));
+        }
+    }
+
+    private static void runDenseUnaryF32(Operation op, NativeFloat32Storage input, NativeFloat32Storage out, int size) {
         float scalar = scalarParameter(op);
         for (int i = 0; i < size; i++) {
             long offset = (long) i * Float.BYTES;
             float value = input.segment().get(JAVA_FLOAT, offset);
             out.segment().set(JAVA_FLOAT, offset, applyUnary(op.opType(), value, scalar));
+        }
+    }
+
+    private static void runDenseUnaryF64(Operation op, NativeFloat64Storage input, NativeFloat64Storage out, int size) {
+        double scalar = scalarParameterF64(op);
+        for (int i = 0; i < size; i++) {
+            long offset = (long) i * Double.BYTES;
+            double value = input.segment().get(JAVA_DOUBLE, offset);
+            out.segment().set(JAVA_DOUBLE, offset, applyUnary(op.opType(), value, scalar));
         }
     }
 
@@ -305,6 +362,16 @@ public final class NativeCpuElementwiseExecutor {
         };
     }
 
+    private static double applyBinary(Operation.OpType opType, double leftValue, double rightValue) {
+        return switch (opType) {
+            case ADD -> leftValue + rightValue;
+            case SUB -> leftValue - rightValue;
+            case MUL -> leftValue * rightValue;
+            case DIV -> leftValue / rightValue;
+            default -> throw new IllegalArgumentException("Unsupported native binary op: " + opType);
+        };
+    }
+
     private static float applyUnary(Operation.OpType opType, float value, float scalar) {
         return switch (opType) {
             case MUL_SCALAR -> value * scalar;
@@ -314,10 +381,23 @@ public final class NativeCpuElementwiseExecutor {
         };
     }
 
-    private static boolean isNativeUnaryOp(Operation.OpType opType) {
-        return opType == Operation.OpType.MUL_SCALAR
+    private static double applyUnary(Operation.OpType opType, double value, double scalar) {
+        return switch (opType) {
+            case MUL_SCALAR -> value * scalar;
+            case NEG -> -value;
+            default -> throw new IllegalArgumentException("Unsupported native unary op: " + opType);
+        };
+    }
+
+    private static boolean isNativeUnaryOp(Operation.OpType opType, DataType dataType) {
+        if (dataType == DataType.FLOAT64) {
+            return opType == Operation.OpType.MUL_SCALAR
+                    || opType == Operation.OpType.NEG;
+        }
+        return dataType == DataType.FLOAT32
+                && (opType == Operation.OpType.MUL_SCALAR
                 || opType == Operation.OpType.NEG
-                || opType == Operation.OpType.RELU;
+                || opType == Operation.OpType.RELU);
     }
 
     private static float scalarParameter(Operation op) {
@@ -327,21 +407,23 @@ public final class NativeCpuElementwiseExecutor {
         return 0.0f;
     }
 
-    private static boolean isNativeBinaryOp(Operation.OpType opType) {
-        return opType == Operation.OpType.ADD
+    private static double scalarParameterF64(Operation op) {
+        if (op instanceof mulScalar mul) {
+            return mul.getScalar();
+        }
+        return 0.0d;
+    }
+
+    private static boolean isNativeBinaryOp(Operation.OpType opType, DataType dataType) {
+        return (dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64)
+                && (opType == Operation.OpType.ADD
                 || opType == Operation.OpType.SUB
                 || opType == Operation.OpType.MUL
-                || opType == Operation.OpType.DIV;
+                || opType == Operation.OpType.DIV);
     }
 
-    private static boolean isNativeSameShapeBinaryOp(Operation.OpType opType) {
-        return opType == Operation.OpType.SUB
-                || opType == Operation.OpType.MUL
-                || opType == Operation.OpType.DIV;
-    }
-
-    private static boolean supportsBroadcast(Operation.OpType opType, ResolvedBroadcastPlan broadcastPlan) {
-        return opType == Operation.OpType.ADD && isLastDimBiasBroadcast(broadcastPlan);
+    private static boolean supportsBroadcast(Operation.OpType opType, DataType dataType, ResolvedBroadcastPlan broadcastPlan) {
+        return dataType == DataType.FLOAT32 && opType == Operation.OpType.ADD && isLastDimBiasBroadcast(broadcastPlan);
     }
 
     private static void runLastDimBiasAdd(
@@ -473,11 +555,28 @@ public final class NativeCpuElementwiseExecutor {
         throw new IllegalStateException("native " + op + " requires FLOAT32 native input storage");
     }
 
+    private static NativeFloat64Storage requireF64NativeInput(CpuKernelContext context, int inputIndex, String op) {
+        int inputNodeId = context.inputNodeIds().get(inputIndex);
+        NativeTensorStorage storage = context.executionContext().requireNativeReadable(inputNodeId, CpuMaterializationReason.CPU_CONSUMER);
+        if (storage instanceof NativeFloat64Storage f64) {
+            return f64;
+        }
+        throw new IllegalStateException("native " + op + " requires FLOAT64 native input storage");
+    }
+
     private static NativeFloat32Storage allocateF32(Tensor node, CpuKernelContext context, String label) {
         return (NativeFloat32Storage) new NativeCpuStorageFactory().allocate(
                 DataType.FLOAT32,
                 node.getFlatDataSize(),
                 "node-" + context.nodeId() + ":" + node.getLabel() + ":native-f32-" + label
+        );
+    }
+
+    private static NativeFloat64Storage allocateF64(Tensor node, CpuKernelContext context, String label) {
+        return (NativeFloat64Storage) new NativeCpuStorageFactory().allocate(
+                DataType.FLOAT64,
+                node.getFlatDataSize(),
+                "node-" + context.nodeId() + ":" + node.getLabel() + ":native-f64-" + label
         );
     }
 
@@ -515,13 +614,17 @@ public final class NativeCpuElementwiseExecutor {
 
     private static String ineligibleReason(Operation op, Tensor node, CpuKernelContext context) {
         Operation.OpType opType = opType(op);
-        if (node.getDataType() != DataType.FLOAT32) {
+        if (!supportsNativeElementwiseDType(node.getDataType())) {
             return "native-storage-dtype-unsupported:" + node.getDataType().name().toLowerCase();
         }
         if (context.nodePlan().stridedPath()) {
             return "native-kernel-ineligible:" + opType.name().toLowerCase() + "-strided";
         }
         return "native-kernel-unsupported:" + opType.name().toLowerCase();
+    }
+
+    private static boolean supportsNativeElementwiseDType(DataType dataType) {
+        return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64;
     }
 
     private static String safeMessage(Throwable t) {

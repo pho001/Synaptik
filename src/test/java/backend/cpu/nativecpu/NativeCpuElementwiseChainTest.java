@@ -434,6 +434,83 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void cpuNativeF64AddMulNegChainKeepsOutputsNativeAndPublishesValues() {
+        Tensor out = f64(new double[]{1.0d, -2.0d, 3.0d, -4.0d}, "f64_a")
+                .add(f64(new double[]{0.5d, 2.0d, -1.0d, 8.0d}, "f64_b"))
+                .mul(f64(new double[]{2.0d, 3.0d, 4.0d, 5.0d}, "f64_scale"))
+                .neg();
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{-3.0d, -0.0d, -8.0d, -20.0d}, out.getFloat64Data(), 1.0e-12d);
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "ADD".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "MUL".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "NEG".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+    }
+
+    @Test
+    void cpuNativeF64MulScalarKeepsOutputNativeAndPublishesValues() {
+        Tensor out = f64(new double[]{1.0d, -2.0d, 3.5d, -4.5d}, "f64_a").mul(0.25d);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{0.25d, -0.5d, 0.875d, -1.125d}, out.getFloat64Data(), 1.0e-12d);
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "MUL_SCALAR".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+    }
+
+    @Test
+    void cpuNativeF64SumAndMeanKeepOutputsNativeAndPublishValues() {
+        Tensor sumAll = f64Matrix(new double[]{1.0d, 2.0d, 3.0d, 4.0d}, new int[]{2, 2}, "f64_sum_all").sum();
+        Tensor meanAll = f64Matrix(new double[]{1.0d, 2.0d, 3.0d, 4.0d}, new int[]{2, 2}, "f64_mean_all").mean();
+        Tensor sumColumns = f64Matrix(new double[]{1.0d, 2.0d, 3.0d, 4.0d}, new int[]{2, 2}, "f64_sum_columns").sum(0);
+        Tensor meanRows = f64Matrix(new double[]{1.0d, 2.0d, 3.0d, 4.0d}, new int[]{2, 2}, "f64_mean_rows").mean(1);
+
+        var sumAllTrace = CompiledGraph.compile(sumAll, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+        var meanAllTrace = CompiledGraph.compile(meanAll, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+        var sumColumnsTrace = CompiledGraph.compile(sumColumns, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+        var meanRowsTrace = CompiledGraph.compile(meanRows, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{10.0d}, sumAll.getFloat64Data(), 1.0e-12d);
+        assertArrayEquals(new double[]{2.5d}, meanAll.getFloat64Data(), 1.0e-12d);
+        assertArrayEquals(new double[]{4.0d, 6.0d}, sumColumns.getFloat64Data(), 1.0e-12d);
+        assertArrayEquals(new double[]{1.5d, 3.5d}, meanRows.getFloat64Data(), 1.0e-12d);
+        assertNativeReduction(sumAllTrace.steps().stream()
+                .filter(step -> "SUM".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeReduction(meanAllTrace.steps().stream()
+                .filter(step -> "MEAN".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeReduction(sumColumnsTrace.steps().stream()
+                .filter(step -> "SUM".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeReduction(meanRowsTrace.steps().stream()
+                .filter(step -> "MEAN".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+    }
+
+    @Test
     void unsupportedCpuNativeBroadcastMulFallsBackToArrayWithTraceReason() {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 
@@ -531,6 +608,40 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void unsupportedCpuNativeF64BroadcastAddFallsBackToArrayWithTraceReason() {
+        Tensor out = f64Matrix(new double[]{1.0d, 2.0d, 3.0d, 4.0d}, new int[]{2, 2}, "f64_a")
+                .add(f64Matrix(new double[]{10.0d, 20.0d}, new int[]{2, 1}, "f64_column_bias"));
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> add = attrs(trace.steps().stream()
+                .filter(step -> "ADD".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals("CPU_NATIVE", add.get("requestedCpuStorage"));
+        assertEquals("CPU_ARRAY", add.get("actualCpuStorage"));
+        assertEquals("native-kernel-ineligible:add-broadcast", add.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_ARRAY", add.get("storageResidency"));
+    }
+
+    @Test
+    void requireNativeRejectsUnsupportedCpuNativeF64BroadcastAdd() {
+        Tensor out = f64Matrix(new double[]{1.0d, 2.0d, 3.0d, 4.0d}, new int[]{2, 2}, "f64_a")
+                .add(f64Matrix(new double[]{10.0d, 20.0d}, new int[]{2, 1}, "f64_column_bias"));
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+        );
+
+        assertTrue(failure.getMessage().contains("Native CPU execution required"));
+        assertTrue(failure.getMessage().contains("native-kernel-ineligible:add-broadcast"));
+    }
+
+    @Test
     void unsupportedCpuNativeBroadcastWhereFallsBackToArrayWithTraceReason() {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 
@@ -595,6 +706,42 @@ class NativeCpuElementwiseChainTest {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 
         Tensor out = a().matmul(b()).transpose().sum(1);
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+        );
+
+        assertTrue(failure.getMessage().contains("Native CPU execution required"));
+        assertTrue(failure.getMessage().contains("native-kernel-ineligible:sum-strided"));
+    }
+
+    @Test
+    void unsupportedCpuNativeF64StridedSumFallsBackToArrayWithTraceReason() {
+        Tensor out = f64Matrix(new double[]{1.0d, 2.0d, 3.0d, 4.0d}, new int[]{2, 2}, "f64_a")
+                .transpose()
+                .sum(1);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> sum = attrs(trace.steps().stream()
+                .filter(step -> "SUM".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals("CPU_NATIVE", sum.get("requestedCpuStorage"));
+        assertEquals("CPU_ARRAY", sum.get("actualCpuStorage"));
+        assertEquals("native-kernel-ineligible:sum-strided", sum.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_ARRAY", sum.get("storageResidency"));
+    }
+
+    @Test
+    void requireNativeRejectsUnsupportedCpuNativeF64StridedSum() {
+        Tensor out = f64Matrix(new double[]{1.0d, 2.0d, 3.0d, 4.0d}, new int[]{2, 2}, "f64_a")
+                .transpose()
+                .sum(1);
 
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class,
@@ -834,6 +981,30 @@ class NativeCpuElementwiseChainTest {
         assertEquals("CPU_ARRAY", cast.get("storageResidency"));
     }
 
+    @Test
+    void autoStorageDoesNotUseNativeF64ElementwiseOrReductionSlices() {
+        Tensor out = f64(new double[]{1.0d, 2.0d, 3.0d, 4.0d}, "f64_a")
+                .add(f64(new double[]{4.0d, 3.0d, 2.0d, 1.0d}, "f64_b"))
+                .sum();
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> add = attrs(trace.steps().stream()
+                .filter(step -> "ADD".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        Map<String, Object> sum = attrs(trace.steps().stream()
+                .filter(step -> "SUM".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertFalse(add.containsKey("nativeCpuKernelStatus"));
+        assertEquals("CPU_ARRAY", add.get("storageResidency"));
+        assertFalse(sum.containsKey("nativeCpuKernelStatus"));
+        assertEquals("CPU_ARRAY", sum.get("storageResidency"));
+    }
+
     private static RuntimeConfig runtime(CpuStorageProfile storageProfile, NativeCpuFailurePolicy failurePolicy) {
         return new RuntimeConfig(
                 KernelTuningConfig.defaultsInference(),
@@ -879,6 +1050,14 @@ class NativeCpuElementwiseChainTest {
         return new Tensor(values, shape, null, label, DataType.FLOAT32);
     }
 
+    private static Tensor f64(double[] values, String label) {
+        return new Tensor(values, new int[]{2, 2}, null, label, DataType.FLOAT64);
+    }
+
+    private static Tensor f64Matrix(double[] values, int[] shape, String label) {
+        return new Tensor(values, shape, null, label, DataType.FLOAT64);
+    }
+
     private static Tensor boolTensor(byte[] values, int[] shape, String label) {
         return new Tensor(values, shape, null, label, DataType.BOOL);
     }
@@ -890,6 +1069,15 @@ class NativeCpuElementwiseChainTest {
         assertEquals("SEGMENT_SCALAR", reduction.get("nativeCpuKernelFamily"));
         assertEquals("", reduction.get("nativeCpuFallbackReason"));
         assertEquals("CPU_NATIVE", reduction.get("storageResidency"));
+    }
+
+    private static void assertNativeSegmentScalar(ExecutionStepTrace step) {
+        Map<String, Object> attrs = attrs(step);
+        assertEquals("CPU_NATIVE", attrs.get("actualCpuStorage"));
+        assertEquals("NATIVE_CORRECT_BUT_SLOW", attrs.get("nativeCpuKernelStatus"));
+        assertEquals("SEGMENT_SCALAR", attrs.get("nativeCpuKernelFamily"));
+        assertEquals("", attrs.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", attrs.get("storageResidency"));
     }
 
     private static void assertNativeCast(ExecutionStepTrace step) {

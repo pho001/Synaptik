@@ -52,18 +52,18 @@ public final class NativeCpuKernelFacts {
                     "requires-openblas-native-segment"
             );
         }
-        if (dataType == DataType.FLOAT32 && supportsF32SegmentScalar(opType)) {
+        if (supportsSegmentScalar(dataType, opType)) {
             return new NativeCpuKernelFact(
                     opType,
                     dataType,
                     NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW,
                     NativeCpuKernelFamily.SEGMENT_SCALAR,
-                    isSameShapeF32SegmentScalar(opType)
+                    isSameShapeSegmentScalar(opType)
                             ? "requires-dense-contiguous-same-shape"
                             : "requires-dense-contiguous"
             );
         }
-        if (dataType == DataType.FLOAT32 && supportsF32Reduction(opType)) {
+        if (supportsReduction(dataType, opType)) {
             return new NativeCpuKernelFact(
                     opType,
                     dataType,
@@ -115,18 +115,27 @@ public final class NativeCpuKernelFacts {
         return factFor(opType, dataType).preservesNativeStorage();
     }
 
-    private static boolean supportsF32SegmentScalar(Operation.OpType opType) {
-        return opType == Operation.OpType.ADD
+    private static boolean supportsSegmentScalar(DataType dataType, Operation.OpType opType) {
+        if (dataType == DataType.FLOAT64) {
+            return opType == Operation.OpType.ADD
+                    || opType == Operation.OpType.SUB
+                    || opType == Operation.OpType.MUL
+                    || opType == Operation.OpType.DIV
+                    || opType == Operation.OpType.MUL_SCALAR
+                    || opType == Operation.OpType.NEG;
+        }
+        return dataType == DataType.FLOAT32
+                && (opType == Operation.OpType.ADD
                 || opType == Operation.OpType.SUB
                 || opType == Operation.OpType.MUL
                 || opType == Operation.OpType.DIV
                 || opType == Operation.OpType.MUL_SCALAR
                 || opType == Operation.OpType.NEG
                 || opType == Operation.OpType.RELU
-                || opType == Operation.OpType.WHERE;
+                || opType == Operation.OpType.WHERE);
     }
 
-    private static boolean isSameShapeF32SegmentScalar(Operation.OpType opType) {
+    private static boolean isSameShapeSegmentScalar(Operation.OpType opType) {
         return opType == Operation.OpType.ADD
                 || opType == Operation.OpType.SUB
                 || opType == Operation.OpType.MUL
@@ -134,9 +143,10 @@ public final class NativeCpuKernelFacts {
                 || opType == Operation.OpType.WHERE;
     }
 
-    private static boolean supportsF32Reduction(Operation.OpType opType) {
-        return opType == Operation.OpType.SUM
-                || opType == Operation.OpType.MEAN;
+    private static boolean supportsReduction(DataType dataType, Operation.OpType opType) {
+        return (dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64)
+                && (opType == Operation.OpType.SUM
+                || opType == Operation.OpType.MEAN);
     }
 
     private static boolean supportsNativeCastOutput(DataType dataType) {
