@@ -419,7 +419,13 @@ public class BenchmarkSessionTest {
                                                         "OUTPUT_ONLY",
                                                         "SKIPPED",
                                                         "NONE",
-                                                        ""
+                                                        "",
+                                                        "FALLBACK_TO_ARRAY",
+                                                        "CPU_NATIVE",
+                                                        "CPU_NATIVE",
+                                                        "CPU_NATIVE",
+                                                        "CPU_NATIVE",
+                                                        "publication-policy-output-only"
                                                 ))
                                         )
                                 ),
@@ -433,12 +439,16 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("optimizerUpdate=optimizer=SgdOptimizer route=CPU_NATIVE"));
         assertTrue(text.contains("publicationPolicy=OUTPUT_ONLY"));
         assertTrue(text.contains("gradientPublication=SKIPPED"));
+        assertTrue(text.contains("nativeCpuFailurePolicy=FALLBACK_TO_ARRAY"));
+        assertTrue(text.contains("parameterResidencyAfter=CPU_NATIVE"));
 
         String json = JsonBenchmarkReportRenderer.render(report);
         assertTrue(json.contains("\"nativeOptimizers\": [{\"optimizer\": \"SgdOptimizer\", \"route\": \"CPU_NATIVE\""));
         assertTrue(json.contains("\"elementCount\": 128"));
         assertTrue(json.contains("\"publicationPolicy\": \"OUTPUT_ONLY\""));
         assertTrue(json.contains("\"gradientPublication\": \"SKIPPED\""));
+        assertTrue(json.contains("\"nativeCpuFailurePolicy\": \"FALLBACK_TO_ARRAY\""));
+        assertTrue(json.contains("\"parameterResidencyAfter\": \"CPU_NATIVE\""));
     }
 
     @Test

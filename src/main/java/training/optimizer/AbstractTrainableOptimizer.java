@@ -11,6 +11,8 @@ import backend.metal.buffer.MetalBufferAllocator;
 import backend.metal.buffer.MetalBufferBinding;
 import backend.metal.buffer.MetalDeviceToCpuMaterializer;
 import backend.runtime.ExecutionContext;
+import config.runtime.CpuStorageProfile;
+import config.runtime.NativeCpuFailurePolicy;
 import graph.CompiledGradientBinding;
 import graph.CompiledNode;
 import graph.execution.PublicationPolicy;
@@ -69,16 +71,23 @@ abstract class AbstractTrainableOptimizer implements TrainingOptimizer {
             if (!(ref.gradientBinding() instanceof CompiledGradientBinding.NodeBinding nodeBinding)) {
                 continue;
             }
+            int gradientNodeId = nodeBinding.nodeId();
+            OptimizerResidencySnapshot before = residencySnapshot(context, ref, gradientNodeId);
             if (tryMetalStep(context, ref, nodeBinding.nodeId())) {
-                recordOptimizerTrace(context, ref, nodeBinding.nodeId(), "GPU_METAL", "");
+                recordOptimizerTrace(context, ref, gradientNodeId, "GPU_METAL", "", before);
                 continue;
             }
-            if (nativeCpuStep(context, ref, nodeBinding.nodeId())) {
+            if (nativeCpuStep(context, ref, gradientNodeId)) {
                 clearMetalParameter(ref.parameterNode().sourceTensor());
+                recordOptimizerTrace(context, ref, gradientNodeId, "CPU_NATIVE", "", before);
                 continue;
             }
-            cpuStep(context, ref, nodeBinding.nodeId());
-            recordOptimizerTrace(context, ref, nodeBinding.nodeId(), "CPU_ARRAY", nativeCpuFallbackReason(context, ref, nodeBinding.nodeId()));
+            String fallbackReason = nativeCpuFallbackReason(context, ref, gradientNodeId);
+            if (requiresNativeCpuOptimizer(context)) {
+                throw nativeRequiredFailure(context, ref, gradientNodeId, fallbackReason);
+            }
+            cpuStep(context, ref, gradientNodeId);
+            recordOptimizerTrace(context, ref, gradientNodeId, "CPU_ARRAY", fallbackReason, before);
             clearMetalParameter(ref.parameterNode().sourceTensor());
         }
     }
@@ -131,6 +140,18 @@ abstract class AbstractTrainableOptimizer implements TrainingOptimizer {
             String route,
             String fallbackReason
     ) {
+        recordOptimizerTrace(context, ref, gradientNodeId, route, fallbackReason, residencySnapshot(context, ref, gradientNodeId));
+    }
+
+    protected void recordOptimizerTrace(
+            OptimizerStepContext context,
+            TrainableParameterRef ref,
+            int gradientNodeId,
+            String route,
+            String fallbackReason,
+            OptimizerResidencySnapshot before
+    ) {
+        OptimizerResidencySnapshot after = residencySnapshot(context, ref, gradientNodeId);
         context.recordNativeOptimizerTrace(new NativeOptimizerTrace(
                 optimizerName(),
                 route,
@@ -142,7 +163,13 @@ abstract class AbstractTrainableOptimizer implements TrainingOptimizer {
                 context.publicationPolicy().name(),
                 gradientPublication(context.publicationPolicy()),
                 optimizerStateStorage(route),
-                bf16TrainingPolicy(ref, fallbackReason)
+                bf16TrainingPolicy(ref, fallbackReason),
+                context.runtimeConfig().nativeCpuFailurePolicy().name(),
+                before.parameterResidency(),
+                after.parameterResidency(),
+                before.gradientResidency(),
+                after.gradientResidency(),
+                publicationSkippedReason(context.publicationPolicy())
         ));
     }
 
@@ -165,6 +192,52 @@ abstract class AbstractTrainableOptimizer implements TrainingOptimizer {
             return "PUBLISHED";
         }
         return publicationPolicy == PublicationPolicy.NONE ? "NONE" : "SKIPPED";
+    }
+
+    private static String publicationSkippedReason(PublicationPolicy publicationPolicy) {
+        if (publicationPolicy == null) {
+            return "publication-policy-output-only";
+        }
+        if (publicationPolicy.publishesGradients()) {
+            return "";
+        }
+        return publicationPolicy == PublicationPolicy.NONE
+                ? "publication-policy-none"
+                : "publication-policy-output-only";
+    }
+
+    private static boolean requiresNativeCpuOptimizer(OptimizerStepContext context) {
+        return context.runtimeConfig().cpuStorageProfile() == CpuStorageProfile.CPU_NATIVE
+                && context.runtimeConfig().nativeCpuFailurePolicy() == NativeCpuFailurePolicy.REQUIRE_NATIVE;
+    }
+
+    private IllegalStateException nativeRequiredFailure(
+            OptimizerStepContext context,
+            TrainableParameterRef ref,
+            int gradientNodeId,
+            String fallbackReason
+    ) {
+        String reason = fallbackReason == null || fallbackReason.isBlank()
+                ? nativeCpuFallbackReason(context, ref, gradientNodeId)
+                : fallbackReason;
+        return new IllegalStateException(
+                "Native CPU optimizer execution required but " + optimizerName()
+                        + " fell back to CPU_ARRAY. parameterNodeId=" + ref.parameterNode().id()
+                        + ", gradientNodeId=" + gradientNodeId
+                        + ", dtype=" + ref.parameterNode().dataType()
+                        + ", reason=" + reason
+        );
+    }
+
+    private static OptimizerResidencySnapshot residencySnapshot(
+            OptimizerStepContext context,
+            TrainableParameterRef ref,
+            int gradientNodeId
+    ) {
+        return new OptimizerResidencySnapshot(
+                context.executionContext().residencyForNodeId(ref.parameterNode().id()).residency().name(),
+                context.executionContext().residencyForNodeId(gradientNodeId).residency().name()
+        );
     }
 
     protected String optimizerName() {
@@ -250,5 +323,8 @@ abstract class AbstractTrainableOptimizer implements TrainingOptimizer {
     }
 
     private record OwnedMetalBinding(MetalBufferAllocator allocator, MetalBufferBinding binding) {
+    }
+
+    protected record OptimizerResidencySnapshot(String parameterResidency, String gradientResidency) {
     }
 }

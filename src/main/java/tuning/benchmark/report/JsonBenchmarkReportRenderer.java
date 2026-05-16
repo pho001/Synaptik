@@ -221,6 +221,12 @@ public final class JsonBenchmarkReportRenderer {
                     .append("\"gradientPublication\": \"").append(escape(trace.gradientPublication())).append("\", ")
                     .append("\"optimizerStateStorage\": \"").append(escape(trace.optimizerStateStorage())).append("\", ")
                     .append("\"bf16TrainingPolicy\": \"").append(escape(trace.bf16TrainingPolicy())).append("\", ")
+                    .append("\"nativeCpuFailurePolicy\": \"").append(escape(trace.nativeCpuFailurePolicy())).append("\", ")
+                    .append("\"parameterResidencyBefore\": \"").append(escape(trace.parameterResidencyBefore())).append("\", ")
+                    .append("\"parameterResidencyAfter\": \"").append(escape(trace.parameterResidencyAfter())).append("\", ")
+                    .append("\"gradientResidencyBefore\": \"").append(escape(trace.gradientResidencyBefore())).append("\", ")
+                    .append("\"gradientResidencyAfter\": \"").append(escape(trace.gradientResidencyAfter())).append("\", ")
+                    .append("\"publicationSkippedReason\": \"").append(escape(trace.publicationSkippedReason())).append("\", ")
                     .append("\"fallbackReason\": \"").append(escape(trace.fallbackReason())).append("\"")
                     .append("}");
         }

@@ -16,6 +16,12 @@ import tensor.DataType;
  * @param gradientPublication whether gradients were published, skipped, or disabled
  * @param optimizerStateStorage storage residency used for optimizer-owned state
  * @param bf16TrainingPolicy BF16 training policy evidence, blank for non-BF16 parameters
+ * @param nativeCpuFailurePolicy native CPU fallback policy active for the update
+ * @param parameterResidencyBefore parameter residency before optimizer routing
+ * @param parameterResidencyAfter parameter residency after optimizer routing
+ * @param gradientResidencyBefore gradient residency before optimizer routing
+ * @param gradientResidencyAfter gradient residency after optimizer routing
+ * @param publicationSkippedReason reason gradient publication was skipped, blank when published
  */
 public record NativeOptimizerTrace(
         String optimizer,
@@ -28,7 +34,13 @@ public record NativeOptimizerTrace(
         String publicationPolicy,
         String gradientPublication,
         String optimizerStateStorage,
-        String bf16TrainingPolicy
+        String bf16TrainingPolicy,
+        String nativeCpuFailurePolicy,
+        String parameterResidencyBefore,
+        String parameterResidencyAfter,
+        String gradientResidencyBefore,
+        String gradientResidencyAfter,
+        String publicationSkippedReason
 ) {
     public NativeOptimizerTrace(
             String optimizer,
@@ -50,6 +62,12 @@ public record NativeOptimizerTrace(
                 "",
                 "",
                 "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
                 ""
         );
     }
@@ -63,5 +81,11 @@ public record NativeOptimizerTrace(
         gradientPublication = gradientPublication == null ? "" : gradientPublication;
         optimizerStateStorage = optimizerStateStorage == null ? "" : optimizerStateStorage;
         bf16TrainingPolicy = bf16TrainingPolicy == null ? "" : bf16TrainingPolicy;
+        nativeCpuFailurePolicy = nativeCpuFailurePolicy == null ? "" : nativeCpuFailurePolicy;
+        parameterResidencyBefore = parameterResidencyBefore == null ? "" : parameterResidencyBefore;
+        parameterResidencyAfter = parameterResidencyAfter == null ? "" : parameterResidencyAfter;
+        gradientResidencyBefore = gradientResidencyBefore == null ? "" : gradientResidencyBefore;
+        gradientResidencyAfter = gradientResidencyAfter == null ? "" : gradientResidencyAfter;
+        publicationSkippedReason = publicationSkippedReason == null ? "" : publicationSkippedReason;
     }
 }

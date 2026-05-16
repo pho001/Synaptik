@@ -119,7 +119,6 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
                     parameterF32,
                     "optimizer native CPU SGD update"
             );
-            recordOptimizerTrace(context, ref, gradientNodeId, "CPU_NATIVE", "");
             return true;
         } catch (RuntimeException ex) {
             return false;

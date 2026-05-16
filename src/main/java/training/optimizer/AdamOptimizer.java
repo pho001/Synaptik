@@ -168,7 +168,6 @@ public final class AdamOptimizer extends AbstractTrainableOptimizer {
                     "optimizer native CPU Adam update"
             );
             cpuStates.remove(ref.parameterNode().sourceTensor());
-            recordOptimizerTrace(context, ref, gradientNodeId, "CPU_NATIVE", "");
             return true;
         } catch (RuntimeException ex) {
             return false;

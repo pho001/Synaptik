@@ -208,6 +208,12 @@ public final class TextBenchmarkReportRenderer {
                     .append(" gradientPublication=").append(trace.gradientPublication())
                     .append(" optimizerStateStorage=").append(trace.optimizerStateStorage())
                     .append(" bf16TrainingPolicy=").append(trace.bf16TrainingPolicy())
+                    .append(" nativeCpuFailurePolicy=").append(trace.nativeCpuFailurePolicy())
+                    .append(" parameterResidencyBefore=").append(trace.parameterResidencyBefore())
+                    .append(" parameterResidencyAfter=").append(trace.parameterResidencyAfter())
+                    .append(" gradientResidencyBefore=").append(trace.gradientResidencyBefore())
+                    .append(" gradientResidencyAfter=").append(trace.gradientResidencyAfter())
+                    .append(" publicationSkippedReason=").append(trace.publicationSkippedReason())
                     .append(" fallbackReason=").append(trace.fallbackReason())
                     .append('\n');
         }
