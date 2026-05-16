@@ -9,6 +9,8 @@ import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
+import backend.cpu.nativecpu.NativeCpuElementwiseExecutor;
+import backend.cpu.nativecpu.NativeCpuTraceState;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
@@ -422,6 +424,14 @@ public final class PreparedExecution {
         if (matMulExecutable != null && matMulExecutable.acceptsNativeInputs()) {
             return;
         }
+        if (NativeCpuElementwiseExecutor.acceptsNativeInputs(
+                step.executionOperation(),
+                step.compiledNode().dataType(),
+                step.metadata().cpuPlan(),
+                context.runtimeConfig()
+        )) {
+            return;
+        }
         List<Integer> inputIds = step.metadata().executionInputNodeIds().isEmpty()
                 ? step.compiledNode().inputIds()
                 : step.metadata().executionInputNodeIds();
@@ -603,6 +613,20 @@ public final class PreparedExecution {
             );
         }
 
+        Tensor runtimeTensor = safeRuntimeTensor(context, node.id());
+        NativeCpuTraceState nativeCpu = runtimeTensor == null
+                ? null
+                : context.runtimeStateFor(runtimeTensor, NativeCpuTraceState.class);
+        if (nativeCpu != null) {
+            attrs.put("cpuStorageProfile", nativeCpu.cpuStorageProfile());
+            attrs.put("nativeCpuFailurePolicy", nativeCpu.nativeCpuFailurePolicy());
+            attrs.put("requestedCpuStorage", nativeCpu.requestedCpuStorage());
+            attrs.put("actualCpuStorage", nativeCpu.actualCpuStorage());
+            attrs.put("nativeCpuKernelStatus", nativeCpu.nativeCpuKernelStatus());
+            attrs.put("nativeCpuKernelFamily", nativeCpu.nativeCpuKernelFamily());
+            attrs.put("nativeCpuFallbackReason", nativeCpu.nativeCpuFallbackReason());
+        }
+
         if (metadata.acceleratorExecutable() != null) {
             var decision = metadata.acceleratorExecutable().lastAcceleratorBufferDecision();
             attrs.put("acceleratorBufferMode", decision.mode().name());
@@ -780,6 +804,14 @@ public final class PreparedExecution {
 
         addFallbackSummary(attrs);
         return new StepExecutionMetadata("node", attrs, compute, layout, dispatch, reduction, matMul, conv, fusedMeta);
+    }
+
+    private static Tensor safeRuntimeTensor(ExecutionContext context, int nodeId) {
+        try {
+            return context.runtimeTensorForNodeId(nodeId);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     private static long matMulCopyInBytes(

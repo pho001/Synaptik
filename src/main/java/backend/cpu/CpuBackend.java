@@ -56,11 +56,11 @@ public final class CpuBackend {
         List<Tensor> inputs = executionPlan.apply(node.id(), originalInputs, executionContext);
         List<CompiledNodeExecutionMetadata> inputMetadatas = resolveInputMetadatas(effectiveInputNodeIds, originalInputs, inputs, executionContext);
         if (executionPlan.stridedPath()) {
-            CpuStridedElementWise.forward(op, inputs, runtimeTensor, new CpuKernelContext(node.id(), effectiveInputNodeIds, executionPlan, executionContext, metadata, inputMetadatas));
+            CpuStridedElementWise.forward(op, inputs, runtimeTensor, new CpuKernelContext(node.id(), effectiveInputNodeIds, executionPlan, executionContext, metadata, inputMetadatas, op));
             return;
         }
 
-        CpuKernelContext kernelContext = new CpuKernelContext(node.id(), effectiveInputNodeIds, executionPlan, executionContext, metadata, inputMetadatas);
+        CpuKernelContext kernelContext = new CpuKernelContext(node.id(), effectiveInputNodeIds, executionPlan, executionContext, metadata, inputMetadatas, op);
 
         switch (node.dataType()) {
             case FLOAT64 -> kernel.forwardF64(op, inputs, runtimeTensor, kernelContext);

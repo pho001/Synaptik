@@ -2,6 +2,7 @@ package backend.cpu.kernels.elementwise.unary;
 
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.elementwise.ElementwiseLoops;
+import backend.cpu.nativecpu.NativeCpuElementwiseExecutor;
 import tensor.Tensor;
 
 import java.util.List;
@@ -12,6 +13,9 @@ public final class ElementwiseUnaryExecutor {
     public static void execute(UnaryElementwiseKernel kernel, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (inputs == null || inputs.size() != 1) {
             throw new IllegalArgumentException("Unary elementwise executor requires exactly 1 input.");
+        }
+        if (NativeCpuElementwiseExecutor.tryRunUnary(kernel, inputs, node, context)) {
+            return;
         }
         ElementwiseLoops.runUnary(kernel, inputs.get(0), node, context);
     }

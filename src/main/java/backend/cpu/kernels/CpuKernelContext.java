@@ -28,6 +28,7 @@ public final class CpuKernelContext {
     private final ExecutionContext executionContext;
     private final CompiledNodeExecutionMetadata executionMetadata;
     private final List<CompiledNodeExecutionMetadata> inputMetadatas;
+    private final Operation executionOperation;
 
     public CpuKernelContext(
             int nodeId,
@@ -37,12 +38,25 @@ public final class CpuKernelContext {
             CompiledNodeExecutionMetadata executionMetadata,
             List<CompiledNodeExecutionMetadata> inputMetadatas
     ) {
+        this(nodeId, inputNodeIds, nodePlan, executionContext, executionMetadata, inputMetadatas, null);
+    }
+
+    public CpuKernelContext(
+            int nodeId,
+            List<Integer> inputNodeIds,
+            CpuNodeExecutionPlan nodePlan,
+            ExecutionContext executionContext,
+            CompiledNodeExecutionMetadata executionMetadata,
+            List<CompiledNodeExecutionMetadata> inputMetadatas,
+            Operation executionOperation
+    ) {
         this.nodeId = nodeId;
         this.inputNodeIds = Collections.unmodifiableList(new ArrayList<>(inputNodeIds == null ? List.of() : inputNodeIds));
         this.nodePlan = Objects.requireNonNull(nodePlan, "nodePlan cannot be null");
         this.executionContext = Objects.requireNonNull(executionContext, "executionContext cannot be null");
         this.executionMetadata = Objects.requireNonNull(executionMetadata, "executionMetadata cannot be null");
         this.inputMetadatas = Collections.unmodifiableList(new ArrayList<>(inputMetadatas == null ? List.of() : inputMetadatas));
+        this.executionOperation = executionOperation;
     }
 
     public CpuNodeExecutionPlan nodePlan() {
@@ -132,6 +146,10 @@ public final class CpuKernelContext {
 
     public CompiledNodeExecutionMetadata executionMetadata() {
         return executionMetadata;
+    }
+
+    public Operation executionOperation() {
+        return executionOperation == null ? executionMetadata.executionOperation() : executionOperation;
     }
 
     public PreparedFusedExecutable fusedExecutable() {
