@@ -30,6 +30,7 @@ import java.util.Objects;
  * @param cpuStorageProfile runtime-level CPU storage policy; {@code null} uses {@link CpuStorageProfile#CPU_ARRAY}
  * @param nativeCpuFailurePolicy native CPU fallback policy; {@code null} uses
  *                               {@link NativeCpuFailurePolicy#FALLBACK_TO_ARRAY}
+ * @param nativeCpuMemory native CPU allocation/pooling policy; {@code null} disables pooling
  */
 public record RuntimeConfig(
         KernelTuningConfig kernel,
@@ -39,7 +40,8 @@ public record RuntimeConfig(
         FusedExecutionPolicy fused,
         AcceleratorConfig accelerator,
         CpuStorageProfile cpuStorageProfile,
-        NativeCpuFailurePolicy nativeCpuFailurePolicy
+        NativeCpuFailurePolicy nativeCpuFailurePolicy,
+        NativeCpuMemoryConfig nativeCpuMemory
 ) {
     public RuntimeConfig {
         kernel = Objects.requireNonNull(kernel, "kernel cannot be null");
@@ -52,6 +54,30 @@ public record RuntimeConfig(
         nativeCpuFailurePolicy = nativeCpuFailurePolicy == null
                 ? NativeCpuFailurePolicy.FALLBACK_TO_ARRAY
                 : nativeCpuFailurePolicy;
+        nativeCpuMemory = nativeCpuMemory == null ? NativeCpuMemoryConfig.disabled() : nativeCpuMemory;
+    }
+
+    public RuntimeConfig(
+            KernelTuningConfig kernel,
+            ApproximationConfig approximation,
+            BlasConfig blas,
+            Conv2dConfig conv2d,
+            FusedExecutionPolicy fused,
+            AcceleratorConfig accelerator,
+            CpuStorageProfile cpuStorageProfile,
+            NativeCpuFailurePolicy nativeCpuFailurePolicy
+    ) {
+        this(
+                kernel,
+                approximation,
+                blas,
+                conv2d,
+                fused,
+                accelerator,
+                cpuStorageProfile,
+                nativeCpuFailurePolicy,
+                NativeCpuMemoryConfig.disabled()
+        );
     }
 
     public RuntimeConfig(
@@ -342,7 +368,8 @@ public record RuntimeConfig(
                 fused,
                 newAccelerator,
                 cpuStorageProfile,
-                nativeCpuFailurePolicy
+                nativeCpuFailurePolicy,
+                nativeCpuMemory
         );
     }
 
@@ -361,7 +388,8 @@ public record RuntimeConfig(
                 fused,
                 accelerator,
                 newCpuStorageProfile,
-                nativeCpuFailurePolicy
+                nativeCpuFailurePolicy,
+                nativeCpuMemory
         );
     }
 
@@ -380,7 +408,28 @@ public record RuntimeConfig(
                 fused,
                 accelerator,
                 cpuStorageProfile,
-                newNativeCpuFailurePolicy
+                newNativeCpuFailurePolicy,
+                nativeCpuMemory
+        );
+    }
+
+    /**
+     * Returns a copy with a different native CPU memory policy.
+     *
+     * @param newNativeCpuMemory replacement native memory policy; {@code null} disables pooling
+     * @return runtime config with the same execution policy and updated native memory config
+     */
+    public RuntimeConfig withNativeCpuMemory(NativeCpuMemoryConfig newNativeCpuMemory) {
+        return new RuntimeConfig(
+                kernel,
+                approximation,
+                blas,
+                conv2d,
+                fused,
+                accelerator,
+                cpuStorageProfile,
+                nativeCpuFailurePolicy,
+                newNativeCpuMemory
         );
     }
 }

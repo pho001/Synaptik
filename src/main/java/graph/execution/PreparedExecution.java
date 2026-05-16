@@ -301,6 +301,7 @@ public final class PreparedExecution {
         long runStart = System.nanoTime();
         java.util.ArrayList<ExecutionStepTrace> steps = captureTrace ? new java.util.ArrayList<>() : null;
         ExecutionState executionState = ExecutionState.create(allNodes, descriptorIndex, metadataIndex, forwardOutputNode.id());
+        executionState.configureNativeCpuMemory(runtimeConfig.nativeCpuMemory());
         RuntimeException executionFailure = null;
         Error executionError = null;
         try {

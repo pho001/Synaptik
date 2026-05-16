@@ -17,6 +17,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class NativeCpuAllocation implements ExecutionResource {
     private final Arena arena;
     private final MemorySegment segment;
+    private final NativeCpuMemoryPool.Block poolBlock;
+    private final NativeCpuMemoryPool pool;
     private final long byteSize;
     private final long allocatedBytes;
     private final long alignment;
@@ -41,9 +43,29 @@ public final class NativeCpuAllocation implements ExecutionResource {
     ) {
         this.arena = Objects.requireNonNull(arena, "arena cannot be null");
         this.segment = Objects.requireNonNull(segment, "segment cannot be null");
+        this.poolBlock = null;
+        this.pool = null;
         this.byteSize = byteSize;
         this.allocatedBytes = Math.max(0L, allocatedBytes);
         this.alignment = alignment;
+        this.label = label == null ? "" : label;
+        this.stats = stats == null ? new NativeCpuMemoryStats() : stats;
+    }
+
+    NativeCpuAllocation(
+            NativeCpuMemoryPool.Block poolBlock,
+            NativeCpuMemoryPool pool,
+            long byteSize,
+            String label,
+            NativeCpuMemoryStats stats
+    ) {
+        this.arena = null;
+        this.segment = Objects.requireNonNull(poolBlock, "poolBlock cannot be null").segment();
+        this.poolBlock = poolBlock;
+        this.pool = Objects.requireNonNull(pool, "pool cannot be null");
+        this.byteSize = byteSize;
+        this.allocatedBytes = poolBlock.allocatedBytes();
+        this.alignment = poolBlock.alignment();
         this.label = label == null ? "" : label;
         this.stats = stats == null ? new NativeCpuMemoryStats() : stats;
     }
@@ -101,10 +123,20 @@ public final class NativeCpuAllocation implements ExecutionResource {
 
     public void release() {
         if (released.compareAndSet(false, true)) {
+            boolean wasRetained = retained.get();
             try {
-                arena.close();
+                if (poolBlock != null && !wasRetained && pool.release(poolBlock)) {
+                    stats.recordPooledRelease(allocatedBytes);
+                } else {
+                    if (poolBlock != null) {
+                        poolBlock.close();
+                    } else {
+                        arena.close();
+                    }
+                    stats.recordDiscarded(allocatedBytes);
+                }
             } finally {
-                stats.recordRelease(allocatedBytes, retained.get());
+                stats.recordRelease(allocatedBytes, wasRetained);
             }
         }
     }

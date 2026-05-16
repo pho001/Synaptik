@@ -864,11 +864,13 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("nativeCpuMemory=allocationCount=3"));
         assertTrue(text.contains("requestedBytes=12288"));
         assertTrue(text.contains("peakLiveBytes=12288"));
+        assertTrue(text.contains("poolHitCount=0"));
+        assertTrue(text.contains("wastedBytes=0"));
         assertTrue(text.contains("nodeId=42 reason=GRAPH_OUTPUT from=GPU_METAL residency=DEVICE_OWNED bytes=4096"));
 
         String json = JsonBenchmarkReportRenderer.render(report);
         assertTrue(json.contains("\"runtimeCopy\": {\"cpuMaterializationBytes\": 4096, \"cpuMaterializationDurationNs\": 250000, \"matMulCopyInBytes\": 8192, \"matMulCopyOutBytes\": 4096, \"matMulNativeTempBytes\": 1024}"));
-        assertTrue(json.contains("\"nativeCpuMemory\": {\"allocationCount\": 3, \"releaseCount\": 0, \"retainCount\": 0, \"allocationFailureCount\": 0, \"requestedBytes\": 12288, \"allocatedBytes\": 12288, \"currentLiveBytes\": 12288, \"peakLiveBytes\": 12288, \"retainedBytes\": 0}"));
+        assertTrue(json.contains("\"nativeCpuMemory\": {\"allocationCount\": 3, \"releaseCount\": 0, \"retainCount\": 0, \"allocationFailureCount\": 0, \"requestedPoolPolicy\": \"\", \"effectivePoolPolicy\": \"\", \"requestedBytes\": 12288, \"allocatedBytes\": 12288, \"currentLiveBytes\": 12288, \"peakLiveBytes\": 12288, \"retainedBytes\": 0, \"poolHitCount\": 0, \"poolMissCount\": 0, \"pooledBytes\": 0, \"reusedBytes\": 0, \"discardedBytes\": 0, \"wastedBytes\": 0}"));
         assertTrue(json.contains("\"nativeCpuFallbackReason\": \"native-symbol-unavailable:cblas_sgemm\""));
         assertTrue(json.contains("\"materializedFrom\": \"GPU_METAL\""));
         assertTrue(json.contains("\"sourceResidency\": \"DEVICE_OWNED\""));

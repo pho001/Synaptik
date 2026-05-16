@@ -1,5 +1,7 @@
 package backend.cpu.nativecpu;
 
+import config.runtime.NativeCpuMemoryConfig;
+import config.runtime.NativeMemoryPoolPolicy;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.NativeBFloat16Storage;
@@ -122,6 +124,91 @@ class NativeCpuStorageTest {
         assertEquals(0L, released.currentLiveBytes());
         assertEquals(0L, released.retainedBytes());
         assertThrows(IllegalStateException.class, () -> allocation.retain("too late"));
+    }
+
+    @Test
+    void disabledAllocatorNeverReportsPoolHits() {
+        NativeCpuAllocator allocator = new NativeCpuAllocator(NativeCpuMemoryConfig.disabled());
+        NativeCpuAllocation first = allocator.allocate(32L, "first");
+        first.release();
+        NativeCpuAllocation second = allocator.allocate(32L, "second");
+        second.release();
+
+        var stats = allocator.statsSnapshot();
+        assertEquals(NativeMemoryPoolPolicy.DISABLED, allocator.effectivePoolPolicy());
+        assertEquals(2L, stats.allocationCount());
+        assertEquals(0L, stats.poolHitCount());
+        assertEquals(0L, stats.poolMissCount());
+    }
+
+    @Test
+    void perPreparedPolicyIsAcceptedButNotPooledInThisWave() {
+        NativeCpuAllocator allocator = new NativeCpuAllocator(new NativeCpuMemoryConfig(
+                NativeMemoryPoolPolicy.PER_PREPARED_EXECUTION,
+                1024L,
+                64,
+                false,
+                false
+        ));
+        NativeCpuAllocation first = allocator.allocate(32L, "first");
+        first.release();
+        NativeCpuAllocation second = allocator.allocate(32L, "second");
+        second.release();
+
+        var stats = allocator.statsSnapshot();
+        assertEquals(NativeMemoryPoolPolicy.PER_PREPARED_EXECUTION, allocator.requestedPoolPolicy());
+        assertEquals(NativeMemoryPoolPolicy.DISABLED, allocator.effectivePoolPolicy());
+        assertEquals(0L, stats.poolHitCount());
+        assertEquals(0L, stats.poolMissCount());
+    }
+
+    @Test
+    void perExecutionAllocatorReusesReleasedSameSizeBlock() {
+        NativeCpuAllocator allocator = new NativeCpuAllocator(NativeCpuMemoryConfig.perExecution(1024L));
+        NativeCpuAllocation first = allocator.allocate(32L, "first");
+        first.release();
+        NativeCpuAllocation second = allocator.allocate(32L, "second");
+
+        assertEquals(64L, first.allocatedBytes());
+        assertEquals(64L, second.allocatedBytes());
+        assertThrows(IllegalStateException.class, first::segment);
+        second.release();
+        allocator.drainPool();
+
+        var stats = allocator.statsSnapshot();
+        assertEquals(NativeMemoryPoolPolicy.PER_EXECUTION, allocator.effectivePoolPolicy());
+        assertEquals(2L, stats.allocationCount());
+        assertEquals(1L, stats.poolHitCount());
+        assertEquals(1L, stats.poolMissCount());
+        assertEquals(64L, stats.reusedBytes());
+        assertEquals(0L, stats.pooledBytes());
+    }
+
+    @Test
+    void perExecutionAllocatorDoesNotPoolRetainedOrOverBudgetBlocks() {
+        NativeCpuAllocator retainedAllocator = new NativeCpuAllocator(NativeCpuMemoryConfig.perExecution(1024L));
+        NativeCpuAllocation retained = retainedAllocator.allocate(32L, "retained");
+        retained.retain("publication");
+        retained.release();
+        NativeCpuAllocation afterRetain = retainedAllocator.allocate(32L, "after-retain");
+        afterRetain.release();
+        retainedAllocator.drainPool();
+
+        var retainedStats = retainedAllocator.statsSnapshot();
+        assertEquals(0L, retainedStats.poolHitCount());
+        assertEquals(2L, retainedStats.poolMissCount());
+        assertTrue(retainedStats.discardedBytes() >= 64L);
+
+        NativeCpuAllocator budgetAllocator = new NativeCpuAllocator(NativeCpuMemoryConfig.perExecution(32L));
+        NativeCpuAllocation overBudget = budgetAllocator.allocate(64L, "over-budget");
+        overBudget.release();
+        NativeCpuAllocation afterBudget = budgetAllocator.allocate(64L, "after-budget");
+        afterBudget.release();
+
+        var budgetStats = budgetAllocator.statsSnapshot();
+        assertEquals(0L, budgetStats.poolHitCount());
+        assertEquals(2L, budgetStats.poolMissCount());
+        assertEquals(0L, budgetStats.pooledBytes());
     }
 
     @Test

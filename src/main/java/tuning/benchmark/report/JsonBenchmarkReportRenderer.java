@@ -181,11 +181,19 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"releaseCount\": " + trace.releaseCount() + ", "
                 + "\"retainCount\": " + trace.retainCount() + ", "
                 + "\"allocationFailureCount\": " + trace.allocationFailureCount() + ", "
+                + "\"requestedPoolPolicy\": \"" + escape(trace.requestedPoolPolicy()) + "\", "
+                + "\"effectivePoolPolicy\": \"" + escape(trace.effectivePoolPolicy()) + "\", "
                 + "\"requestedBytes\": " + trace.requestedBytes() + ", "
                 + "\"allocatedBytes\": " + trace.allocatedBytes() + ", "
                 + "\"currentLiveBytes\": " + trace.currentLiveBytes() + ", "
                 + "\"peakLiveBytes\": " + trace.peakLiveBytes() + ", "
-                + "\"retainedBytes\": " + trace.retainedBytes()
+                + "\"retainedBytes\": " + trace.retainedBytes() + ", "
+                + "\"poolHitCount\": " + trace.poolHitCount() + ", "
+                + "\"poolMissCount\": " + trace.poolMissCount() + ", "
+                + "\"pooledBytes\": " + trace.pooledBytes() + ", "
+                + "\"reusedBytes\": " + trace.reusedBytes() + ", "
+                + "\"discardedBytes\": " + trace.discardedBytes() + ", "
+                + "\"wastedBytes\": " + trace.wastedBytes()
                 + "}";
     }
 

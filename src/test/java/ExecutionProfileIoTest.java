@@ -51,6 +51,8 @@ import config.runtime.CpuStorageProfile;
 import config.runtime.FusedExecutionPolicy;
 import config.runtime.FusedPrimaryBackend;
 import config.runtime.NativeCpuFailurePolicy;
+import config.runtime.NativeCpuMemoryConfig;
+import config.runtime.NativeMemoryPoolPolicy;
 import config.runtime.RuntimeConfig;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -214,6 +216,13 @@ public class ExecutionProfileIoTest {
                 RuntimeConfig.inferenceDefaults()
                         .withCpuStorageProfile(CpuStorageProfile.AUTO)
                         .withNativeCpuFailurePolicy(NativeCpuFailurePolicy.REQUIRE_NATIVE)
+                        .withNativeCpuMemory(new NativeCpuMemoryConfig(
+                                NativeMemoryPoolPolicy.PER_EXECUTION,
+                                65_536L,
+                                128,
+                                true,
+                                true
+                        ))
         );
 
         Path path = Files.createTempFile("execution-profile-cpu-storage-", ".json");
@@ -222,6 +231,11 @@ public class ExecutionProfileIoTest {
 
         assertEquals(CpuStorageProfile.AUTO, actual.runtime().cpuStorageProfile());
         assertEquals(NativeCpuFailurePolicy.REQUIRE_NATIVE, actual.runtime().nativeCpuFailurePolicy());
+        assertEquals(NativeMemoryPoolPolicy.PER_EXECUTION, actual.runtime().nativeCpuMemory().poolPolicy());
+        assertEquals(65_536L, actual.runtime().nativeCpuMemory().maxPoolBytes());
+        assertEquals(128, actual.runtime().nativeCpuMemory().alignmentBytes());
+        assertEquals(true, actual.runtime().nativeCpuMemory().debugPoisonReleasedBuffers());
+        assertEquals(true, actual.runtime().nativeCpuMemory().traceAllocations());
     }
 
     @Test
@@ -242,6 +256,7 @@ public class ExecutionProfileIoTest {
 
         assertEquals(CpuStorageProfile.CPU_ARRAY, actual.runtime().cpuStorageProfile());
         assertEquals(NativeCpuFailurePolicy.FALLBACK_TO_ARRAY, actual.runtime().nativeCpuFailurePolicy());
+        assertEquals(NativeMemoryPoolPolicy.DISABLED, actual.runtime().nativeCpuMemory().poolPolicy());
     }
 
     @Test

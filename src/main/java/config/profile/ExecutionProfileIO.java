@@ -55,6 +55,8 @@ import config.runtime.CpuStorageProfile;
 import config.runtime.FusedExecutionPolicy;
 import config.runtime.FusedPrimaryBackend;
 import config.runtime.NativeCpuFailurePolicy;
+import config.runtime.NativeCpuMemoryConfig;
+import config.runtime.NativeMemoryPoolPolicy;
 import config.runtime.RuntimeConfig;
 import tensor.DataType;
 
@@ -432,7 +434,8 @@ public final class ExecutionProfileIO {
                             "nativeCpuFailurePolicy",
                             defaultProfile.runtime().nativeCpuFailurePolicy(),
                             NativeCpuFailurePolicy.class
-                    )
+                    ),
+                    nativeCpuMemoryConfig(json, defaultProfile.runtime().nativeCpuMemory())
             );
 
             WorkloadProfile defaultWorkload = defaultProfile.workload();
@@ -627,6 +630,11 @@ public final class ExecutionProfileIO {
                 "    },\n" +
                 "    \"cpuStorageProfile\": \"" + runtime.cpuStorageProfile().name() + "\",\n" +
                 "    \"nativeCpuFailurePolicy\": \"" + runtime.nativeCpuFailurePolicy().name() + "\",\n" +
+                "    \"nativeMemoryPoolPolicy\": \"" + runtime.nativeCpuMemory().poolPolicy().name() + "\",\n" +
+                "    \"nativeMemoryMaxPoolBytes\": " + runtime.nativeCpuMemory().maxPoolBytes() + ",\n" +
+                "    \"nativeMemoryAlignmentBytes\": " + runtime.nativeCpuMemory().alignmentBytes() + ",\n" +
+                "    \"nativeMemoryDebugPoisonReleasedBuffers\": " + runtime.nativeCpuMemory().debugPoisonReleasedBuffers() + ",\n" +
+                "    \"nativeMemoryTraceAllocations\": " + runtime.nativeCpuMemory().traceAllocations() + ",\n" +
                 "    \"kernel\": {\n" +
                 "      \"cpu\": {\n" +
                 "        \"cpuLoopUnrollFactor\": " + cpu.loopUnrollFactor() + ",\n" +
@@ -781,6 +789,26 @@ public final class ExecutionProfileIO {
                         keyPrefix + "BufferMinimumEstimatedWork",
                         fallback.minimumEstimatedWork()
                 )
+        );
+    }
+
+    private static NativeCpuMemoryConfig nativeCpuMemoryConfig(String json, NativeCpuMemoryConfig defaultConfig) {
+        NativeCpuMemoryConfig fallback = defaultConfig == null ? NativeCpuMemoryConfig.disabled() : defaultConfig;
+        return new NativeCpuMemoryConfig(
+                findEnum(
+                        json,
+                        "nativeMemoryPoolPolicy",
+                        fallback.poolPolicy(),
+                        NativeMemoryPoolPolicy.class
+                ),
+                findLong(json, "nativeMemoryMaxPoolBytes", fallback.maxPoolBytes()),
+                findInt(json, "nativeMemoryAlignmentBytes", fallback.alignmentBytes()),
+                findBoolean(
+                        json,
+                        "nativeMemoryDebugPoisonReleasedBuffers",
+                        fallback.debugPoisonReleasedBuffers()
+                ),
+                findBoolean(json, "nativeMemoryTraceAllocations", fallback.traceAllocations())
         );
     }
 

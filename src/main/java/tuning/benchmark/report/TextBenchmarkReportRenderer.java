@@ -161,11 +161,19 @@ public final class TextBenchmarkReportRenderer {
                 .append(" releaseCount=").append(trace.releaseCount())
                 .append(" retainCount=").append(trace.retainCount())
                 .append(" allocationFailureCount=").append(trace.allocationFailureCount())
+                .append(" requestedPoolPolicy=").append(trace.requestedPoolPolicy())
+                .append(" effectivePoolPolicy=").append(trace.effectivePoolPolicy())
                 .append(" requestedBytes=").append(trace.requestedBytes())
                 .append(" allocatedBytes=").append(trace.allocatedBytes())
                 .append(" currentLiveBytes=").append(trace.currentLiveBytes())
                 .append(" peakLiveBytes=").append(trace.peakLiveBytes())
                 .append(" retainedBytes=").append(trace.retainedBytes())
+                .append(" poolHitCount=").append(trace.poolHitCount())
+                .append(" poolMissCount=").append(trace.poolMissCount())
+                .append(" pooledBytes=").append(trace.pooledBytes())
+                .append(" reusedBytes=").append(trace.reusedBytes())
+                .append(" discardedBytes=").append(trace.discardedBytes())
+                .append(" wastedBytes=").append(trace.wastedBytes())
                 .append('\n');
     }
 

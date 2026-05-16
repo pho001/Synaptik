@@ -15,6 +15,12 @@ public final class NativeCpuMemoryStats {
     private final AtomicLong currentLiveBytes = new AtomicLong();
     private final AtomicLong peakLiveBytes = new AtomicLong();
     private final AtomicLong retainedBytes = new AtomicLong();
+    private final AtomicLong poolHitCount = new AtomicLong();
+    private final AtomicLong poolMissCount = new AtomicLong();
+    private final AtomicLong pooledBytes = new AtomicLong();
+    private final AtomicLong reusedBytes = new AtomicLong();
+    private final AtomicLong discardedBytes = new AtomicLong();
+    private final AtomicLong wastedBytes = new AtomicLong();
 
     void recordAllocation(long requested, long allocated) {
         long safeRequested = Math.max(0L, requested);
@@ -22,6 +28,7 @@ public final class NativeCpuMemoryStats {
         allocationCount.incrementAndGet();
         requestedBytes.addAndGet(safeRequested);
         allocatedBytes.addAndGet(safeAllocated);
+        wastedBytes.addAndGet(Math.max(0L, safeAllocated - safeRequested));
         long live = currentLiveBytes.addAndGet(safeAllocated);
         updatePeak(live);
     }
@@ -45,6 +52,29 @@ public final class NativeCpuMemoryStats {
         allocationFailureCount.incrementAndGet();
     }
 
+    void recordPoolHit(long bytes) {
+        long safeBytes = Math.max(0L, bytes);
+        poolHitCount.incrementAndGet();
+        reusedBytes.addAndGet(safeBytes);
+        pooledBytes.updateAndGet(current -> Math.max(0L, current - safeBytes));
+    }
+
+    void recordPoolMiss() {
+        poolMissCount.incrementAndGet();
+    }
+
+    void recordPooledRelease(long bytes) {
+        pooledBytes.addAndGet(Math.max(0L, bytes));
+    }
+
+    void recordDiscarded(long bytes) {
+        discardedBytes.addAndGet(Math.max(0L, bytes));
+    }
+
+    void recordDrain(long bytes) {
+        pooledBytes.updateAndGet(current -> Math.max(0L, current - Math.max(0L, bytes)));
+    }
+
     public Snapshot snapshot() {
         return new Snapshot(
                 allocationCount.get(),
@@ -55,7 +85,13 @@ public final class NativeCpuMemoryStats {
                 allocatedBytes.get(),
                 currentLiveBytes.get(),
                 peakLiveBytes.get(),
-                retainedBytes.get()
+                retainedBytes.get(),
+                poolHitCount.get(),
+                poolMissCount.get(),
+                pooledBytes.get(),
+                reusedBytes.get(),
+                discardedBytes.get(),
+                wastedBytes.get()
         );
     }
 
@@ -78,7 +114,13 @@ public final class NativeCpuMemoryStats {
             long allocatedBytes,
             long currentLiveBytes,
             long peakLiveBytes,
-            long retainedBytes
+            long retainedBytes,
+            long poolHitCount,
+            long poolMissCount,
+            long pooledBytes,
+            long reusedBytes,
+            long discardedBytes,
+            long wastedBytes
     ) {
     }
 }

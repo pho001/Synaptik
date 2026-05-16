@@ -13,6 +13,8 @@ import config.runtime.BlasConfig;
 import config.runtime.BlasStorageMode;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
+import config.runtime.NativeCpuMemoryConfig;
+import config.runtime.NativeMemoryPoolPolicy;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.execution.PublicationPolicy;
@@ -75,6 +77,24 @@ class NativeCpuElementwiseChainTest {
         assertTrue(trace.nativeCpuMemory().requestedBytes() >= 48L);
         assertTrue(trace.nativeCpuMemory().allocatedBytes() >= trace.nativeCpuMemory().requestedBytes());
         assertTrue(trace.nativeCpuMemory().peakLiveBytes() >= trace.nativeCpuMemory().allocatedBytes());
+    }
+
+    @Test
+    void cpuNativeElementwiseRunTraceCapturesPerExecutionPoolPolicy() {
+        Tensor left = tensor(new float[]{1f, -2f, 3f, -4f}, "left");
+        Tensor right = tensor(new float[]{5f, 6f, -7f, -8f}, "right");
+        Tensor out = left.add(right);
+
+        RuntimeConfig runtime = runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)
+                .withNativeCpuMemory(NativeCpuMemoryConfig.perExecution(1024L));
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime, ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        assertEquals(NativeMemoryPoolPolicy.PER_EXECUTION.name(), trace.nativeCpuMemory().requestedPoolPolicy());
+        assertEquals(NativeMemoryPoolPolicy.PER_EXECUTION.name(), trace.nativeCpuMemory().effectivePoolPolicy());
+        assertTrue(trace.nativeCpuMemory().poolMissCount() >= 1L);
+        assertEquals(0L, trace.nativeCpuMemory().poolHitCount());
+        assertTrue(trace.nativeCpuMemory().wastedBytes() >= 0L);
     }
 
     @Test

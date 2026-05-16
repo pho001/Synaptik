@@ -13,6 +13,7 @@ import backend.memory.DeviceToCpuMaterializer;
 import backend.memory.ExecutionResource;
 import backend.memory.StorageResidency;
 import backend.memory.TensorResidencyState;
+import config.runtime.NativeCpuMemoryConfig;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
@@ -51,8 +52,8 @@ public final class ExecutionState {
     private final Map<String, DeviceToCpuMaterializer> deviceToCpuMaterializerByBackend;
     private final List<CpuMaterializationTrace> cpuMaterializationTraces;
     private final List<ExecutionResource> executionResources;
-    private final NativeCpuAllocator nativeCpuAllocator;
-    private final NativeCpuStorageFactory nativeCpuStorageFactory;
+    private NativeCpuAllocator nativeCpuAllocator;
+    private NativeCpuStorageFactory nativeCpuStorageFactory;
 
     private ExecutionState(
             Map<Integer, Tensor> runtimeTensorByNodeId,
@@ -74,6 +75,16 @@ public final class ExecutionState {
         this.cpuMaterializationTraces = new ArrayList<>();
         this.executionResources = new ArrayList<>();
         this.nativeCpuAllocator = new NativeCpuAllocator();
+        this.nativeCpuStorageFactory = new NativeCpuStorageFactory(nativeCpuAllocator);
+    }
+
+    /**
+     * Configures the run-owned native CPU allocator before execution starts.
+     *
+     * @param config native CPU memory policy; {@code null} disables pooling
+     */
+    public void configureNativeCpuMemory(NativeCpuMemoryConfig config) {
+        this.nativeCpuAllocator = new NativeCpuAllocator(config);
         this.nativeCpuStorageFactory = new NativeCpuStorageFactory(nativeCpuAllocator);
     }
 
@@ -572,6 +583,7 @@ public final class ExecutionState {
             }
         }
         executionResources.clear();
+        nativeCpuAllocator.drainPool();
         deviceBufferBindingByNodeId.clear();
         reservedDeviceBufferBindingByNodeId.clear();
         nativeStorageByNodeId.clear();
@@ -809,11 +821,19 @@ public final class ExecutionState {
                 snapshot.releaseCount(),
                 snapshot.retainCount(),
                 snapshot.allocationFailureCount(),
+                nativeCpuAllocator.requestedPoolPolicy().name(),
+                nativeCpuAllocator.effectivePoolPolicy().name(),
                 snapshot.requestedBytes(),
                 snapshot.allocatedBytes(),
                 snapshot.currentLiveBytes(),
                 snapshot.peakLiveBytes(),
-                snapshot.retainedBytes()
+                snapshot.retainedBytes(),
+                snapshot.poolHitCount(),
+                snapshot.poolMissCount(),
+                snapshot.pooledBytes(),
+                snapshot.reusedBytes(),
+                snapshot.discardedBytes(),
+                snapshot.wastedBytes()
         );
     }
 
