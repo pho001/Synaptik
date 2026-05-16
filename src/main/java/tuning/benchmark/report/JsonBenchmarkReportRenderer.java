@@ -71,6 +71,9 @@ public final class JsonBenchmarkReportRenderer {
                 sb.append("        \"runtimeCopy\": ").append(runtimeCopyTraceSummaryJson(
                         RuntimeCopyTraceSummary.fromRun(trace.run())
                 )).append(",\n");
+                sb.append("        \"hostDeviceTransfer\": ").append(hostDeviceTransferSummaryJson(
+                        HostDeviceTransferSummary.fromRun(trace.run())
+                )).append(",\n");
                 sb.append("        \"nativeCpuMemory\": ")
                         .append(nativeCpuMemoryTraceJson(trace.run().nativeCpuMemory()))
                         .append(",\n");
@@ -99,6 +102,15 @@ public final class JsonBenchmarkReportRenderer {
                         sb.append(",\n");
                     }
                     appendCpuMaterializationJson(sb, materializations.get(j), "          ");
+                }
+                sb.append("\n        ],\n");
+                sb.append("        \"hostDeviceTransfers\": [\n");
+                var transfers = trace.run().hostDeviceTransfers();
+                for (int j = 0; j < transfers.size(); j++) {
+                    if (j > 0) {
+                        sb.append(",\n");
+                    }
+                    appendHostDeviceTransferJson(sb, transfers.get(j), "          ");
                 }
                 sb.append("\n        ],\n");
                 sb.append("        \"steps\": [\n");
@@ -172,6 +184,20 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"matMulCopyInBytes\": " + summary.matMulCopyInBytes() + ", "
                 + "\"matMulCopyOutBytes\": " + summary.matMulCopyOutBytes() + ", "
                 + "\"matMulNativeTempBytes\": " + summary.matMulNativeTempBytes()
+                + "}";
+    }
+
+    private static String hostDeviceTransferSummaryJson(HostDeviceTransferSummary summary) {
+        if (summary == null || !summary.present()) {
+            return "null";
+        }
+        return "{"
+                + "\"transferCount\": " + summary.transferCount() + ", "
+                + "\"bytes\": " + summary.bytes() + ", "
+                + "\"javaArrayBytes\": " + summary.javaArrayBytes() + ", "
+                + "\"nativeBytes\": " + summary.nativeBytes() + ", "
+                + "\"deviceBytes\": " + summary.deviceBytes() + ", "
+                + "\"fallbackCount\": " + summary.fallbackCount()
                 + "}";
     }
 
@@ -327,6 +353,48 @@ public final class JsonBenchmarkReportRenderer {
                     copyOutBytes,
                     nativeTempBytes,
                     sawEvidence
+            );
+        }
+    }
+
+    private record HostDeviceTransferSummary(
+            int transferCount,
+            long bytes,
+            long javaArrayBytes,
+            long nativeBytes,
+            long deviceBytes,
+            int fallbackCount,
+            boolean present
+    ) {
+        static HostDeviceTransferSummary fromRun(graph.execution.trace.RunTrace run) {
+            if (run == null || run.hostDeviceTransfers().isEmpty()) {
+                return new HostDeviceTransferSummary(0, 0L, 0L, 0L, 0L, 0, false);
+            }
+            int fallbackCount = 0;
+            long bytes = 0L;
+            long javaArrayBytes = 0L;
+            long nativeBytes = 0L;
+            long deviceBytes = 0L;
+            for (var transfer : run.hostDeviceTransfers()) {
+                if (transfer == null) {
+                    continue;
+                }
+                bytes += transfer.bytes();
+                javaArrayBytes += transfer.javaArrayBytes();
+                nativeBytes += transfer.nativeBytes();
+                deviceBytes += transfer.deviceBytes();
+                if (!transfer.fallbackReason().isBlank()) {
+                    fallbackCount++;
+                }
+            }
+            return new HostDeviceTransferSummary(
+                    run.hostDeviceTransfers().size(),
+                    bytes,
+                    javaArrayBytes,
+                    nativeBytes,
+                    deviceBytes,
+                    fallbackCount,
+                    true
             );
         }
     }
@@ -917,6 +985,32 @@ public final class JsonBenchmarkReportRenderer {
         sb.append(indent).append("  \"durationNs\": ").append(materialization.durationNs()).append(",\n");
         sb.append(indent).append("  \"completed\": ").append(materialization.completed()).append(",\n");
         sb.append(indent).append("  \"detail\": \"").append(escape(materialization.detail())).append("\"\n");
+        sb.append(indent).append("}");
+    }
+
+    private static void appendHostDeviceTransferJson(
+            StringBuilder sb,
+            graph.execution.trace.HostDeviceTransferTrace transfer,
+            String indent
+    ) {
+        sb.append(indent).append("{\n");
+        sb.append(indent).append("  \"nodeId\": ").append(transfer.nodeId()).append(",\n");
+        sb.append(indent).append("  \"backend\": \"").append(escape(transfer.backend())).append("\",\n");
+        sb.append(indent).append("  \"dataType\": \"").append(transfer.dataType() == null ? "" : transfer.dataType().name()).append("\",\n");
+        sb.append(indent).append("  \"sourceResidency\": \"").append(transfer.sourceResidency().name()).append("\",\n");
+        sb.append(indent).append("  \"targetResidency\": \"").append(transfer.targetResidency().name()).append("\",\n");
+        sb.append(indent).append("  \"transferKind\": \"").append(transfer.transferKind().name()).append("\",\n");
+        sb.append(indent).append("  \"bytes\": ").append(transfer.bytes()).append(",\n");
+        sb.append(indent).append("  \"javaArrayBytes\": ").append(transfer.javaArrayBytes()).append(",\n");
+        sb.append(indent).append("  \"nativeBytes\": ").append(transfer.nativeBytes()).append(",\n");
+        sb.append(indent).append("  \"deviceBytes\": ").append(transfer.deviceBytes()).append(",\n");
+        sb.append(indent).append("  \"durationMs\": ").append(format(nanosToMs(transfer.durationNs()))).append(",\n");
+        sb.append(indent).append("  \"durationNs\": ").append(transfer.durationNs()).append(",\n");
+        sb.append(indent).append("  \"syncOnly\": ").append(transfer.syncOnly()).append(",\n");
+        sb.append(indent).append("  \"directTransferSupported\": ").append(transfer.directTransferSupported()).append(",\n");
+        sb.append(indent).append("  \"success\": ").append(transfer.success()).append(",\n");
+        sb.append(indent).append("  \"fallbackReason\": \"").append(escape(transfer.fallbackReason())).append("\",\n");
+        sb.append(indent).append("  \"detail\": \"").append(escape(transfer.detail())).append("\"\n");
         sb.append(indent).append("}");
     }
 

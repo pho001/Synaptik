@@ -52,6 +52,7 @@ import config.runtime.BlasConfig;
 import config.runtime.BlasStorageMode;
 import config.runtime.Conv2dConfig;
 import config.runtime.CpuStorageProfile;
+import config.runtime.DeviceTransferPolicy;
 import config.runtime.FusedExecutionPolicy;
 import config.runtime.FusedPrimaryBackend;
 import config.runtime.NativeCpuFailurePolicy;
@@ -435,6 +436,12 @@ public final class ExecutionProfileIO {
                             defaultProfile.runtime().nativeCpuFailurePolicy(),
                             NativeCpuFailurePolicy.class
                     ),
+                    findEnum(
+                            json,
+                            "deviceTransferPolicy",
+                            defaultProfile.runtime().deviceTransferPolicy(),
+                            DeviceTransferPolicy.class
+                    ),
                     nativeCpuMemoryConfig(json, defaultProfile.runtime().nativeCpuMemory())
             );
 
@@ -630,6 +637,7 @@ public final class ExecutionProfileIO {
                 "    },\n" +
                 "    \"cpuStorageProfile\": \"" + runtime.cpuStorageProfile().name() + "\",\n" +
                 "    \"nativeCpuFailurePolicy\": \"" + runtime.nativeCpuFailurePolicy().name() + "\",\n" +
+                "    \"deviceTransferPolicy\": \"" + runtime.deviceTransferPolicy().name() + "\",\n" +
                 "    \"nativeMemoryPoolPolicy\": \"" + runtime.nativeCpuMemory().poolPolicy().name() + "\",\n" +
                 "    \"nativeMemoryMaxPoolBytes\": " + runtime.nativeCpuMemory().maxPoolBytes() + ",\n" +
                 "    \"nativeMemoryAlignmentBytes\": " + runtime.nativeCpuMemory().alignmentBytes() + ",\n" +

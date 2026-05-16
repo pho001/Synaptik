@@ -354,6 +354,7 @@ public final class PreparedExecution implements AutoCloseable {
                     System.nanoTime() - runStart,
                     steps == null ? List.of() : steps,
                     executionState.cpuMaterializationTraces(),
+                    executionState.hostDeviceTransferTraces(),
                     executionState.nativeCpuMemoryTrace(),
                     optimizerContext == null ? List.of() : optimizerContext.nativeOptimizerTraces()
             );

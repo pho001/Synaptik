@@ -48,6 +48,7 @@ import config.runtime.AcceleratorBufferConfig;
 import config.runtime.AcceleratorConfig;
 import config.runtime.BlasConfig;
 import config.runtime.CpuStorageProfile;
+import config.runtime.DeviceTransferPolicy;
 import config.runtime.FusedExecutionPolicy;
 import config.runtime.FusedPrimaryBackend;
 import config.runtime.NativeCpuFailurePolicy;
@@ -216,6 +217,7 @@ public class ExecutionProfileIoTest {
                 RuntimeConfig.inferenceDefaults()
                         .withCpuStorageProfile(CpuStorageProfile.AUTO)
                         .withNativeCpuFailurePolicy(NativeCpuFailurePolicy.REQUIRE_NATIVE)
+                        .withDeviceTransferPolicy(DeviceTransferPolicy.REQUIRE_DIRECT)
                         .withNativeCpuMemory(new NativeCpuMemoryConfig(
                                 NativeMemoryPoolPolicy.PER_EXECUTION,
                                 65_536L,
@@ -231,6 +233,7 @@ public class ExecutionProfileIoTest {
 
         assertEquals(CpuStorageProfile.AUTO, actual.runtime().cpuStorageProfile());
         assertEquals(NativeCpuFailurePolicy.REQUIRE_NATIVE, actual.runtime().nativeCpuFailurePolicy());
+        assertEquals(DeviceTransferPolicy.REQUIRE_DIRECT, actual.runtime().deviceTransferPolicy());
         assertEquals(NativeMemoryPoolPolicy.PER_EXECUTION, actual.runtime().nativeCpuMemory().poolPolicy());
         assertEquals(65_536L, actual.runtime().nativeCpuMemory().maxPoolBytes());
         assertEquals(128, actual.runtime().nativeCpuMemory().alignmentBytes());
@@ -256,6 +259,7 @@ public class ExecutionProfileIoTest {
 
         assertEquals(CpuStorageProfile.CPU_ARRAY, actual.runtime().cpuStorageProfile());
         assertEquals(NativeCpuFailurePolicy.FALLBACK_TO_ARRAY, actual.runtime().nativeCpuFailurePolicy());
+        assertEquals(DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE, actual.runtime().deviceTransferPolicy());
         assertEquals(NativeMemoryPoolPolicy.DISABLED, actual.runtime().nativeCpuMemory().poolPolicy());
     }
 

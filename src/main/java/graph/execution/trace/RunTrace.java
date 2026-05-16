@@ -12,6 +12,7 @@ import java.util.Objects;
  * @param durationNs total run duration in nanoseconds
  * @param steps per-step trace metadata, empty when tracing was disabled
  * @param cpuMaterializations CPU materialization requests observed during execution
+ * @param hostDeviceTransfers host/device transfer routes observed during execution
  * @param nativeCpuMemory native CPU allocation counters observed during execution
  * @param nativeOptimizers optimizer route diagnostics observed during execution
  */
@@ -20,6 +21,7 @@ public record RunTrace(
         long durationNs,
         List<ExecutionStepTrace> steps,
         List<CpuMaterializationTrace> cpuMaterializations,
+        List<HostDeviceTransferTrace> hostDeviceTransfers,
         NativeCpuMemoryTrace nativeCpuMemory,
         List<NativeOptimizerTrace> nativeOptimizers
 ) {
@@ -27,6 +29,7 @@ public record RunTrace(
         Objects.requireNonNull(mode, "mode cannot be null");
         steps = steps == null ? List.of() : List.copyOf(steps);
         cpuMaterializations = cpuMaterializations == null ? List.of() : List.copyOf(cpuMaterializations);
+        hostDeviceTransfers = hostDeviceTransfers == null ? List.of() : List.copyOf(hostDeviceTransfers);
         nativeCpuMemory = nativeCpuMemory == null ? NativeCpuMemoryTrace.empty() : nativeCpuMemory;
         nativeOptimizers = nativeOptimizers == null ? List.of() : List.copyOf(nativeOptimizers);
     }
@@ -36,9 +39,20 @@ public record RunTrace(
             long durationNs,
             List<ExecutionStepTrace> steps,
             List<CpuMaterializationTrace> cpuMaterializations,
+            NativeCpuMemoryTrace nativeCpuMemory,
+            List<NativeOptimizerTrace> nativeOptimizers
+    ) {
+        this(mode, durationNs, steps, cpuMaterializations, List.of(), nativeCpuMemory, nativeOptimizers);
+    }
+
+    public RunTrace(
+            ExecutionMode mode,
+            long durationNs,
+            List<ExecutionStepTrace> steps,
+            List<CpuMaterializationTrace> cpuMaterializations,
             NativeCpuMemoryTrace nativeCpuMemory
     ) {
-        this(mode, durationNs, steps, cpuMaterializations, nativeCpuMemory, List.of());
+        this(mode, durationNs, steps, cpuMaterializations, List.of(), nativeCpuMemory, List.of());
     }
 
     public RunTrace(
@@ -47,7 +61,7 @@ public record RunTrace(
             List<ExecutionStepTrace> steps,
             List<CpuMaterializationTrace> cpuMaterializations
     ) {
-        this(mode, durationNs, steps, cpuMaterializations, NativeCpuMemoryTrace.empty());
+        this(mode, durationNs, steps, cpuMaterializations, List.of(), NativeCpuMemoryTrace.empty(), List.of());
     }
 
     /**
@@ -58,7 +72,7 @@ public record RunTrace(
      * @param steps per-step trace metadata
      */
     public RunTrace(ExecutionMode mode, long durationNs, List<ExecutionStepTrace> steps) {
-        this(mode, durationNs, steps, List.of(), NativeCpuMemoryTrace.empty());
+        this(mode, durationNs, steps, List.of(), List.of(), NativeCpuMemoryTrace.empty(), List.of());
     }
 
     /**
@@ -68,6 +82,6 @@ public record RunTrace(
      * @return empty run trace
      */
     public static RunTrace empty(ExecutionMode mode) {
-        return new RunTrace(mode, 0L, List.of(), List.of(), NativeCpuMemoryTrace.empty(), List.of());
+        return new RunTrace(mode, 0L, List.of(), List.of(), List.of(), NativeCpuMemoryTrace.empty(), List.of());
     }
 }

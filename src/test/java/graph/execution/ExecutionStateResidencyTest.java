@@ -13,6 +13,7 @@ import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
+import graph.execution.trace.HostDeviceTransferKind;
 import graph.CompiledGraph;
 import graph.CompiledNode;
 import org.junit.jupiter.api.Test;
@@ -127,6 +128,13 @@ class ExecutionStateResidencyTest {
         assertEquals(321L, trace.durationNs());
         assertTrue(trace.completed());
         assertEquals("fake Metal readback", trace.detail());
+        var transfer = fixture.state().hostDeviceTransferTraces().getFirst();
+        assertEquals(outputNodeId, transfer.nodeId());
+        assertEquals(HostDeviceTransferKind.DEVICE_TO_CPU_ARRAY_COPY, transfer.transferKind());
+        assertEquals(StorageResidency.DEVICE_OWNED, transfer.sourceResidency());
+        assertEquals(StorageResidency.CPU_ARRAY, transfer.targetResidency());
+        assertEquals(8L, transfer.javaArrayBytes());
+        assertTrue(transfer.success());
     }
 
     @Test
@@ -265,6 +273,35 @@ class ExecutionStateResidencyTest {
         var trace = fixture.state().cpuMaterializationTraces().getFirst();
         assertEquals(StorageResidency.CPU_ARRAY, trace.sourceResidency());
         assertEquals("array_to_native", trace.detail());
+    }
+
+    @Test
+    void deviceCurrentRequireNativeReadableRecordsArrayBridgeTransfer() {
+        Fixture fixture = fixture();
+        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        DeviceBufferBinding binding = fakeBinding(outputNodeId, 8, true);
+        RecordingMaterializer materializer = new RecordingMaterializer(321L, "fake Metal readback");
+
+        fixture.state().attachDeviceBufferBinding(
+                outputNodeId,
+                binding,
+                StorageResidency.DEVICE_OWNED,
+                "device-owned output"
+        );
+        fixture.state().registerDeviceToCpuMaterializer("GPU_METAL", materializer);
+
+        NativeTensorStorage storage = fixture.state().requireNativeReadable(
+                outputNodeId,
+                CpuMaterializationReason.CPU_CONSUMER
+        );
+
+        assertTrue(storage instanceof NativeFloat32Storage);
+        var transfers = fixture.state().hostDeviceTransferTraces();
+        assertEquals(2, transfers.size());
+        assertEquals(HostDeviceTransferKind.DEVICE_TO_CPU_ARRAY_COPY, transfers.get(0).transferKind());
+        assertEquals(HostDeviceTransferKind.DEVICE_TO_ARRAY_TO_NATIVE_BRIDGE, transfers.get(1).transferKind());
+        assertEquals("native-device-direct-transfer-unavailable", transfers.get(1).fallbackReason());
+        assertEquals(StorageResidency.CPU_NATIVE, transfers.get(1).targetResidency());
     }
 
     @Test

@@ -9,6 +9,7 @@ import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
 import config.runtime.BlasStorageMode;
 import config.runtime.CpuStorageProfile;
+import config.runtime.DeviceTransferPolicy;
 import config.runtime.NativeCpuFailurePolicy;
 import tensor.DataType;
 
@@ -150,7 +151,8 @@ public final class PlatformRuntimeProfileIO {
                 "  },\n" +
                 "  \"runtimePolicy\": {\n" +
                 "    \"cpuStorageProfile\": \"" + profile.cpuStorageProfile().name() + "\",\n" +
-                "    \"nativeCpuFailurePolicy\": \"" + profile.nativeCpuFailurePolicy().name() + "\"\n" +
+                "    \"nativeCpuFailurePolicy\": \"" + profile.nativeCpuFailurePolicy().name() + "\",\n" +
+                "    \"deviceTransferPolicy\": \"" + profile.deviceTransferPolicy().name() + "\"\n" +
                 "  }\n" +
                 "}\n";
     }
@@ -372,6 +374,12 @@ public final class PlatformRuntimeProfileIO {
                             "nativeCpuFailurePolicy",
                             fallback.nativeCpuFailurePolicy(),
                             NativeCpuFailurePolicy.class
+                    ),
+                    findEnum(
+                            json,
+                            "deviceTransferPolicy",
+                            fallback.deviceTransferPolicy(),
+                            DeviceTransferPolicy.class
                     )
             );
         } catch (Exception e) {

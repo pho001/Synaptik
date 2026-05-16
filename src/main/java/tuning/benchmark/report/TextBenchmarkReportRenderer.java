@@ -102,8 +102,10 @@ public final class TextBenchmarkReportRenderer {
                         sb.append("  tracedRunMs=").append(formatMs(trace.run().durationNs())).append('\n');
                         sb.append("  stepCount=").append(trace.run().steps().size()).append('\n');
                         sb.append("  cpuMaterializationCount=").append(trace.run().cpuMaterializations().size()).append('\n');
+                        sb.append("  hostDeviceTransferCount=").append(trace.run().hostDeviceTransfers().size()).append('\n');
                         appendNativeCpuSummary(sb, NativeCpuTraceSummary.fromSteps(trace.run().steps()));
                         appendRuntimeCopySummary(sb, RuntimeCopyTraceSummary.fromRun(trace.run()));
+                        appendHostDeviceTransferSummary(sb, HostDeviceTransferSummary.fromRun(trace.run()));
                         appendNativeCpuMemorySummary(sb, trace.run().nativeCpuMemory());
                         appendNativeOptimizerSummary(sb, trace.run().nativeOptimizers());
                         appendAcceleratorSummary(sb, AcceleratorTraceSummary.fromSteps(trace.run().steps()));
@@ -118,6 +120,7 @@ public final class TextBenchmarkReportRenderer {
                         sb.append("  steadyStateP90Ms=").append(String.format(Locale.US, "%.6f", stats.p90Ms())).append('\n');
                         sb.append("  speedupVsBaseline=").append(formatRatio(report.speedupVsBaseline(candidate))).append('\n');
                         appendCpuMaterializations(sb, trace.run().cpuMaterializations());
+                        appendHostDeviceTransfers(sb, trace.run().hostDeviceTransfers());
                         appendHotSteps(sb, trace.run().steps(), 5);
                         appendAllSteps(sb, trace.run().steps());
                     }
@@ -147,6 +150,20 @@ public final class TextBenchmarkReportRenderer {
                 .append(" matMulCopyInBytes=").append(summary.matMulCopyInBytes())
                 .append(" matMulCopyOutBytes=").append(summary.matMulCopyOutBytes())
                 .append(" matMulNativeTempBytes=").append(summary.matMulNativeTempBytes())
+                .append('\n');
+    }
+
+    private static void appendHostDeviceTransferSummary(StringBuilder sb, HostDeviceTransferSummary summary) {
+        if (summary == null || !summary.present()) {
+            return;
+        }
+        sb.append("  hostDeviceTransferSummary=")
+                .append("transferCount=").append(summary.transferCount())
+                .append(" bytes=").append(summary.bytes())
+                .append(" javaArrayBytes=").append(summary.javaArrayBytes())
+                .append(" nativeBytes=").append(summary.nativeBytes())
+                .append(" deviceBytes=").append(summary.deviceBytes())
+                .append(" fallbackCount=").append(summary.fallbackCount())
                 .append('\n');
     }
 
@@ -324,6 +341,48 @@ public final class TextBenchmarkReportRenderer {
         }
     }
 
+    private record HostDeviceTransferSummary(
+            int transferCount,
+            long bytes,
+            long javaArrayBytes,
+            long nativeBytes,
+            long deviceBytes,
+            int fallbackCount,
+            boolean present
+    ) {
+        static HostDeviceTransferSummary fromRun(graph.execution.trace.RunTrace run) {
+            if (run == null || run.hostDeviceTransfers().isEmpty()) {
+                return new HostDeviceTransferSummary(0, 0L, 0L, 0L, 0L, 0, false);
+            }
+            int fallbackCount = 0;
+            long bytes = 0L;
+            long javaArrayBytes = 0L;
+            long nativeBytes = 0L;
+            long deviceBytes = 0L;
+            for (var transfer : run.hostDeviceTransfers()) {
+                if (transfer == null) {
+                    continue;
+                }
+                bytes += transfer.bytes();
+                javaArrayBytes += transfer.javaArrayBytes();
+                nativeBytes += transfer.nativeBytes();
+                deviceBytes += transfer.deviceBytes();
+                if (!transfer.fallbackReason().isBlank()) {
+                    fallbackCount++;
+                }
+            }
+            return new HostDeviceTransferSummary(
+                    run.hostDeviceTransfers().size(),
+                    bytes,
+                    javaArrayBytes,
+                    nativeBytes,
+                    deviceBytes,
+                    fallbackCount,
+                    true
+            );
+        }
+    }
+
     private static void appendCpuMaterializations(
             StringBuilder sb,
             java.util.List<graph.execution.trace.CpuMaterializationTrace> materializations
@@ -344,6 +403,36 @@ public final class TextBenchmarkReportRenderer {
                     .append(" completed=").append(materialization.completed());
             if (!materialization.detail().isBlank()) {
                 sb.append(" detail=").append(materialization.detail());
+            }
+            sb.append('\n');
+        }
+    }
+
+    private static void appendHostDeviceTransfers(
+            StringBuilder sb,
+            java.util.List<graph.execution.trace.HostDeviceTransferTrace> transfers
+    ) {
+        if (transfers == null || transfers.isEmpty()) {
+            return;
+        }
+        sb.append("  hostDeviceTransfers:\n");
+        for (var transfer : transfers) {
+            sb.append("    - nodeId=").append(transfer.nodeId())
+                    .append(" backend=").append(transfer.backend())
+                    .append(" kind=").append(transfer.transferKind())
+                    .append(" source=").append(transfer.sourceResidency())
+                    .append(" target=").append(transfer.targetResidency())
+                    .append(" bytes=").append(transfer.bytes())
+                    .append(" javaArrayBytes=").append(transfer.javaArrayBytes())
+                    .append(" nativeBytes=").append(transfer.nativeBytes())
+                    .append(" deviceBytes=").append(transfer.deviceBytes())
+                    .append(" direct=").append(transfer.directTransferSupported())
+                    .append(" success=").append(transfer.success());
+            if (!transfer.fallbackReason().isBlank()) {
+                sb.append(" fallbackReason=").append(transfer.fallbackReason());
+            }
+            if (!transfer.detail().isBlank()) {
+                sb.append(" detail=").append(transfer.detail());
             }
             sb.append('\n');
         }

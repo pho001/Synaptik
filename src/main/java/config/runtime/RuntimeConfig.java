@@ -30,6 +30,8 @@ import java.util.Objects;
  * @param cpuStorageProfile runtime-level CPU storage policy; {@code null} uses {@link CpuStorageProfile#CPU_ARRAY}
  * @param nativeCpuFailurePolicy native CPU fallback policy; {@code null} uses
  *                               {@link NativeCpuFailurePolicy#FALLBACK_TO_ARRAY}
+ * @param deviceTransferPolicy host/device transfer fallback policy; {@code null} uses
+ *                             {@link DeviceTransferPolicy#ALLOW_ARRAY_BRIDGE}
  * @param nativeCpuMemory native CPU allocation/pooling policy; {@code null} disables pooling
  */
 public record RuntimeConfig(
@@ -41,6 +43,7 @@ public record RuntimeConfig(
         AcceleratorConfig accelerator,
         CpuStorageProfile cpuStorageProfile,
         NativeCpuFailurePolicy nativeCpuFailurePolicy,
+        DeviceTransferPolicy deviceTransferPolicy,
         NativeCpuMemoryConfig nativeCpuMemory
 ) {
     public RuntimeConfig {
@@ -54,7 +57,35 @@ public record RuntimeConfig(
         nativeCpuFailurePolicy = nativeCpuFailurePolicy == null
                 ? NativeCpuFailurePolicy.FALLBACK_TO_ARRAY
                 : nativeCpuFailurePolicy;
+        deviceTransferPolicy = deviceTransferPolicy == null
+                ? DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE
+                : deviceTransferPolicy;
         nativeCpuMemory = nativeCpuMemory == null ? NativeCpuMemoryConfig.disabled() : nativeCpuMemory;
+    }
+
+    public RuntimeConfig(
+            KernelTuningConfig kernel,
+            ApproximationConfig approximation,
+            BlasConfig blas,
+            Conv2dConfig conv2d,
+            FusedExecutionPolicy fused,
+            AcceleratorConfig accelerator,
+            CpuStorageProfile cpuStorageProfile,
+            NativeCpuFailurePolicy nativeCpuFailurePolicy,
+            NativeCpuMemoryConfig nativeCpuMemory
+    ) {
+        this(
+                kernel,
+                approximation,
+                blas,
+                conv2d,
+                fused,
+                accelerator,
+                cpuStorageProfile,
+                nativeCpuFailurePolicy,
+                DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE,
+                nativeCpuMemory
+        );
     }
 
     public RuntimeConfig(
@@ -76,6 +107,7 @@ public record RuntimeConfig(
                 accelerator,
                 cpuStorageProfile,
                 nativeCpuFailurePolicy,
+                DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE,
                 NativeCpuMemoryConfig.disabled()
         );
     }
@@ -369,6 +401,7 @@ public record RuntimeConfig(
                 newAccelerator,
                 cpuStorageProfile,
                 nativeCpuFailurePolicy,
+                deviceTransferPolicy,
                 nativeCpuMemory
         );
     }
@@ -389,6 +422,7 @@ public record RuntimeConfig(
                 accelerator,
                 newCpuStorageProfile,
                 nativeCpuFailurePolicy,
+                deviceTransferPolicy,
                 nativeCpuMemory
         );
     }
@@ -409,6 +443,28 @@ public record RuntimeConfig(
                 accelerator,
                 cpuStorageProfile,
                 newNativeCpuFailurePolicy,
+                deviceTransferPolicy,
+                nativeCpuMemory
+        );
+    }
+
+    /**
+     * Returns a copy with a different host/device transfer policy.
+     *
+     * @param newDeviceTransferPolicy replacement transfer policy; {@code null} allows array bridge fallback
+     * @return runtime config with the same execution policy and updated transfer policy
+     */
+    public RuntimeConfig withDeviceTransferPolicy(DeviceTransferPolicy newDeviceTransferPolicy) {
+        return new RuntimeConfig(
+                kernel,
+                approximation,
+                blas,
+                conv2d,
+                fused,
+                accelerator,
+                cpuStorageProfile,
+                nativeCpuFailurePolicy,
+                newDeviceTransferPolicy,
                 nativeCpuMemory
         );
     }
@@ -429,6 +485,7 @@ public record RuntimeConfig(
                 accelerator,
                 cpuStorageProfile,
                 nativeCpuFailurePolicy,
+                deviceTransferPolicy,
                 newNativeCpuMemory
         );
     }

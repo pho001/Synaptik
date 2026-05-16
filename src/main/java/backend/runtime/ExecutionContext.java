@@ -11,6 +11,7 @@ import config.runtime.RuntimeConfig;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.execution.ExecutionState;
 import graph.execution.trace.ConvTraceMetadata;
+import graph.execution.trace.HostDeviceTransferTrace;
 import tensor.DataType;
 import tensor.NativeTensorStorage;
 import tensor.Tensor;
@@ -382,6 +383,17 @@ public final class ExecutionContext {
     }
 
     /**
+     * Records a host/device transfer route observed by a backend helper.
+     *
+     * @param trace transfer trace entry
+     */
+    public void recordHostDeviceTransfer(HostDeviceTransferTrace trace) {
+        if (executionState != null) {
+            executionState.recordHostDeviceTransfer(trace);
+        }
+    }
+
+    /**
      * Registers a resource whose lifetime is owned by this execution run.
      *
      * @param resource resource to close when the run finishes
@@ -425,6 +437,15 @@ public final class ExecutionContext {
      */
     public int cpuMaterializationTraceCount() {
         return executionState == null ? 0 : executionState.cpuMaterializationTraces().size();
+    }
+
+    /**
+     * Returns the number of host/device transfer events recorded so far in this run.
+     *
+     * @return transfer trace count, or zero when no execution state is attached
+     */
+    public int hostDeviceTransferTraceCount() {
+        return executionState == null ? 0 : executionState.hostDeviceTransferTraces().size();
     }
 
     /**

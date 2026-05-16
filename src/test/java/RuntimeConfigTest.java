@@ -2,6 +2,7 @@ import config.backend.KernelTuningConfig;
 import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
 import config.runtime.CpuStorageProfile;
+import config.runtime.DeviceTransferPolicy;
 import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.NativeCpuMemoryConfig;
 import config.runtime.NativeMemoryPoolPolicy;
@@ -17,6 +18,7 @@ public class RuntimeConfigTest {
 
         assertEquals(CpuStorageProfile.CPU_ARRAY, runtime.cpuStorageProfile());
         assertEquals(NativeCpuFailurePolicy.FALLBACK_TO_ARRAY, runtime.nativeCpuFailurePolicy());
+        assertEquals(DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE, runtime.deviceTransferPolicy());
         assertEquals(NativeMemoryPoolPolicy.DISABLED, runtime.nativeCpuMemory().poolPolicy());
     }
 
@@ -36,6 +38,7 @@ public class RuntimeConfigTest {
 
         assertEquals(CpuStorageProfile.CPU_ARRAY, runtime.cpuStorageProfile());
         assertEquals(NativeCpuFailurePolicy.FALLBACK_TO_ARRAY, runtime.nativeCpuFailurePolicy());
+        assertEquals(DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE, runtime.deviceTransferPolicy());
         assertEquals(NativeMemoryPoolPolicy.DISABLED, runtime.nativeCpuMemory().poolPolicy());
     }
 
@@ -44,10 +47,12 @@ public class RuntimeConfigTest {
         RuntimeConfig runtime = RuntimeConfig.inferenceDefaults()
                 .withCpuStorageProfile(CpuStorageProfile.AUTO)
                 .withNativeCpuFailurePolicy(NativeCpuFailurePolicy.REQUIRE_NATIVE)
+                .withDeviceTransferPolicy(DeviceTransferPolicy.REQUIRE_DIRECT)
                 .withNativeCpuMemory(NativeCpuMemoryConfig.perExecution(4096L));
 
         assertEquals(CpuStorageProfile.AUTO, runtime.cpuStorageProfile());
         assertEquals(NativeCpuFailurePolicy.REQUIRE_NATIVE, runtime.nativeCpuFailurePolicy());
+        assertEquals(DeviceTransferPolicy.REQUIRE_DIRECT, runtime.deviceTransferPolicy());
         assertEquals(NativeMemoryPoolPolicy.PER_EXECUTION, runtime.nativeCpuMemory().poolPolicy());
         assertEquals(4096L, runtime.nativeCpuMemory().maxPoolBytes());
         assertEquals(RuntimeConfig.inferenceDefaults().blas(), runtime.blas());

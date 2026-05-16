@@ -26,6 +26,7 @@ import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.plan.CpuLayoutPlan;
 import backend.cpu.kernels.elementwise.strided.StridedLayoutDecision;
+import backend.cpu.nativecpu.NativeCpuStorageFactory;
 import backend.memory.DeviceBufferBinding;
 import backend.memory.StorageResidency;
 import backend.metal.bridge.MetalMpsBridgeContext;
@@ -49,7 +50,9 @@ import config.compile.CompileConfig;
 import config.runtime.AcceleratorBackendConfig;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
+import config.runtime.DeviceTransferPolicy;
 import config.runtime.RuntimeConfig;
+import graph.execution.trace.HostDeviceTransferKind;
 import graph.CompiledGraph;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
@@ -60,6 +63,7 @@ import operations.Operation;
 import operations.elementwise.unary.relu;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
+import tensor.NativeFloat32Storage;
 import tensor.Tensor;
 
 import java.lang.reflect.Method;
@@ -585,6 +589,69 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(fixture.inputNode().id(), bindings.inputs().getFirst().nodeId());
         assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.inputNode().id()));
         assertEquals(2, bridge.bufferAllocations);
+    }
+
+    @Test
+    void nativeInputFallsBackThroughArrayBridgeAndRecordsTransferTrace() {
+        Fixture fixture = fixture();
+        FakeBridge bridge = new FakeBridge(true);
+        MetalAcceleratorBufferBinder binder = new MetalAcceleratorBufferBinder(bridge, bridge.createContext());
+        NativeFloat32Storage storage = (NativeFloat32Storage) new NativeCpuStorageFactory()
+                .allocate(DataType.FLOAT32, fixture.inputNode().flatDataSize(), "native-metal-input");
+        for (int i = 0; i < fixture.inputNode().flatDataSize(); i++) {
+            storage.setFloat32At(i, i + 1f);
+        }
+        fixture.state().attachNativeStorage(fixture.inputNode().id(), storage, "native input");
+        Tensor input = fixture.context().runtimeTensorForNodeId(fixture.inputNode().id());
+        AcceleratorBufferRequest request = singleInputRequest(fixture, input);
+        ResolvedAcceleratorInputs resolved = singleInputResolved(fixture, input);
+
+        var decision = binder.decide(request, resolved, AcceleratorBufferConfig.defaults(), fixture.context());
+        var bindings = binder.resolve(request, resolved, decision, fixture.context());
+
+        assertEquals(AcceleratorBufferExecutionPath.BUFFER_BINDING, decision.path());
+        assertEquals(1, bindings.inputs().size());
+        assertEquals(StorageResidency.HOST_SHARED_DEVICE_BUFFER,
+                fixture.state().residencyForNodeId(fixture.inputNode().id()).residency());
+        assertEquals(1, fixture.state().cpuMaterializationTraces().size());
+        var transfer = fixture.state().hostDeviceTransferTraces().stream()
+                .filter(entry -> entry.transferKind() == HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(fixture.inputNode().id(), transfer.nodeId());
+        assertEquals("native-device-direct-transfer-unavailable", transfer.fallbackReason());
+        long expectedBytes = (long) fixture.inputNode().flatDataSize() * Float.BYTES;
+        assertEquals(expectedBytes, transfer.javaArrayBytes());
+        assertEquals(expectedBytes, transfer.nativeBytes());
+        assertFalse(transfer.directTransferSupported());
+    }
+
+    @Test
+    void requireDirectRejectsNativeInputArrayBridge() {
+        Fixture fixture = fixture();
+        FakeBridge bridge = new FakeBridge(true);
+        MetalAcceleratorBufferBinder binder = new MetalAcceleratorBufferBinder(bridge, bridge.createContext());
+        NativeFloat32Storage storage = (NativeFloat32Storage) new NativeCpuStorageFactory()
+                .allocate(DataType.FLOAT32, fixture.inputNode().flatDataSize(), "native-metal-input");
+        fixture.state().attachNativeStorage(fixture.inputNode().id(), storage, "native input");
+        ExecutionContext requireDirectContext = ExecutionContext.fromRuntimeConfig(
+                RuntimeConfig.inferenceDefaults().withDeviceTransferPolicy(DeviceTransferPolicy.REQUIRE_DIRECT),
+                ExecutionMode.FORWARD,
+                Map.of(),
+                fixture.state()
+        );
+        Tensor input = requireDirectContext.runtimeTensorForNodeId(fixture.inputNode().id());
+        AcceleratorBufferRequest request = singleInputRequest(fixture, input);
+        ResolvedAcceleratorInputs resolved = singleInputResolved(fixture, input);
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> binder.decide(request, resolved, AcceleratorBufferConfig.defaults(), requireDirectContext)
+        );
+
+        assertTrue(failure.getMessage().contains("DeviceTransferPolicy.REQUIRE_DIRECT"));
+        assertTrue(failure.getMessage().contains("native-device direct transfer is unavailable"));
+        assertTrue(fixture.state().hostDeviceTransferTraces().isEmpty());
     }
 
     @Test
@@ -1437,6 +1504,30 @@ class PreparedMetalExecutableBufferBindingTest {
                 List.of()
         );
         return new CpuNodeExecutionPlan(layoutPlan, null, false, 1, 0, null, null, null, null, null, null);
+    }
+
+    private static AcceleratorBufferRequest singleInputRequest(Fixture fixture, Tensor input) {
+        return new AcceleratorBufferRequest(
+                ComputeBackend.GPU_METAL,
+                fixture.outputNode().flatDataSize(),
+                List.of(fixture.inputNode().id()),
+                List.of(DataType.FLOAT32),
+                List.of(AcceleratorBufferLayout.fromTensor(input)),
+                List.of(fixture.outputNode().id()),
+                List.of(DataType.FLOAT32),
+                List.of(AcceleratorBufferLayout.fromTensor(fixture.context().runtimeTensorForNodeId(fixture.outputNode().id()))),
+                false
+        );
+    }
+
+    private static ResolvedAcceleratorInputs singleInputResolved(Fixture fixture, Tensor input) {
+        return new ResolvedAcceleratorInputs(
+                List.of(fixture.inputNode().id()),
+                List.of(input),
+                List.of(),
+                List.of(false),
+                List.of()
+        );
     }
 
     private static MetalPartitionPlan plan(CompiledNode inputNode, CompiledNode outputNode) {

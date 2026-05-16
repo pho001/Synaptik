@@ -8,6 +8,7 @@ import config.backend.KernelTuningConfig;
 import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
 import config.runtime.CpuStorageProfile;
+import config.runtime.DeviceTransferPolicy;
 import config.runtime.FusedExecutionPolicy;
 import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.RuntimeConfig;
@@ -41,6 +42,7 @@ import java.util.Objects;
  * @param accelerator accelerator backend selection policy; {@code null} uses defaults
  * @param cpuStorageProfile runtime-level CPU storage policy; {@code null} uses {@code CPU_ARRAY}
  * @param nativeCpuFailurePolicy native CPU fallback policy; {@code null} uses {@code FALLBACK_TO_ARRAY}
+ * @param deviceTransferPolicy host/device transfer fallback policy; {@code null} uses {@code ALLOW_ARRAY_BRIDGE}
  */
 public record PlatformRuntimeProfile(
         PlatformProfileMetadata metadata,
@@ -54,7 +56,8 @@ public record PlatformRuntimeProfile(
         NumericsPlatformProfile numerics,
         AcceleratorPlatformProfile accelerator,
         CpuStorageProfile cpuStorageProfile,
-        NativeCpuFailurePolicy nativeCpuFailurePolicy
+        NativeCpuFailurePolicy nativeCpuFailurePolicy,
+        DeviceTransferPolicy deviceTransferPolicy
 ) {
     public PlatformRuntimeProfile {
         Objects.requireNonNull(metadata, "metadata cannot be null");
@@ -71,6 +74,40 @@ public record PlatformRuntimeProfile(
         nativeCpuFailurePolicy = nativeCpuFailurePolicy == null
                 ? NativeCpuFailurePolicy.FALLBACK_TO_ARRAY
                 : nativeCpuFailurePolicy;
+        deviceTransferPolicy = deviceTransferPolicy == null
+                ? DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE
+                : deviceTransferPolicy;
+    }
+
+    public PlatformRuntimeProfile(
+            PlatformProfileMetadata metadata,
+            MatmulPlatformProfile matmul,
+            Conv2dPlatformProfile conv2d,
+            FusedPlatformProfile fused,
+            ElementwiseDispatchPlatformProfile elementwiseDispatch,
+            ReductionPlatformProfile reduction,
+            SchedulerPlatformProfile scheduler,
+            MaterializationPlatformProfile materialization,
+            NumericsPlatformProfile numerics,
+            AcceleratorPlatformProfile accelerator,
+            CpuStorageProfile cpuStorageProfile,
+            NativeCpuFailurePolicy nativeCpuFailurePolicy
+    ) {
+        this(
+                metadata,
+                matmul,
+                conv2d,
+                fused,
+                elementwiseDispatch,
+                reduction,
+                scheduler,
+                materialization,
+                numerics,
+                accelerator,
+                cpuStorageProfile,
+                nativeCpuFailurePolicy,
+                DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE
+        );
     }
 
     public PlatformRuntimeProfile(
@@ -97,7 +134,8 @@ public record PlatformRuntimeProfile(
                 numerics,
                 accelerator,
                 CpuStorageProfile.CPU_ARRAY,
-                NativeCpuFailurePolicy.FALLBACK_TO_ARRAY
+                NativeCpuFailurePolicy.FALLBACK_TO_ARRAY,
+                DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE
         );
     }
 
@@ -287,7 +325,8 @@ public record PlatformRuntimeProfile(
                 ),
                 AcceleratorPlatformProfile.fromRuntimeConfig(profile.runtime().accelerator()),
                 profile.runtime().cpuStorageProfile(),
-                profile.runtime().nativeCpuFailurePolicy()
+                profile.runtime().nativeCpuFailurePolicy(),
+                profile.runtime().deviceTransferPolicy()
         );
     }
 
@@ -377,7 +416,9 @@ public record PlatformRuntimeProfile(
                         : FusedExecutionPolicy.defaultsInference(),
                 accelerator.toRuntimeConfig(),
                 cpuStorageProfile,
-                nativeCpuFailurePolicy
+                nativeCpuFailurePolicy,
+                deviceTransferPolicy,
+                config.runtime.NativeCpuMemoryConfig.disabled()
         );
     }
 

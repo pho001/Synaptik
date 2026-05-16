@@ -20,6 +20,8 @@ import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.execution.trace.CpuMaterializationTrace;
+import graph.execution.trace.HostDeviceTransferKind;
+import graph.execution.trace.HostDeviceTransferTrace;
 import graph.execution.trace.NativeCpuMemoryTrace;
 import tensor.DataType;
 import tensor.NativeTensorStorage;
@@ -53,6 +55,7 @@ public final class ExecutionState {
     private final Map<Integer, NativeTensorStorage> nativeStorageByNodeId;
     private final Map<String, DeviceToCpuMaterializer> deviceToCpuMaterializerByBackend;
     private final List<CpuMaterializationTrace> cpuMaterializationTraces;
+    private final List<HostDeviceTransferTrace> hostDeviceTransferTraces;
     private final List<ExecutionResource> executionResources;
     private NativeCpuAllocator nativeCpuAllocator;
     private NativeCpuStorageFactory nativeCpuStorageFactory;
@@ -75,6 +78,7 @@ public final class ExecutionState {
         this.nativeStorageByNodeId = new HashMap<>();
         this.deviceToCpuMaterializerByBackend = new HashMap<>();
         this.cpuMaterializationTraces = new ArrayList<>();
+        this.hostDeviceTransferTraces = new ArrayList<>();
         this.executionResources = new ArrayList<>();
         this.nativeCpuAllocator = new NativeCpuAllocator();
         this.nativeCpuStorageFactory = new NativeCpuStorageFactory(nativeCpuAllocator);
@@ -543,9 +547,40 @@ public final class ExecutionState {
                 true,
                 detail == null || detail.isBlank() ? "device value synchronized to CPU storage" : detail
         ));
+        if (state.deviceCurrent()) {
+            recordHostDeviceTransfer(
+                    new HostDeviceTransferTrace(
+                            nodeId,
+                            state.deviceBackend(),
+                            runtimeTensorForNodeId(nodeId).getDataType(),
+                            state.residency(),
+                            StorageResidency.CPU_ARRAY,
+                            HostDeviceTransferKind.DEVICE_TO_CPU_ARRAY_COPY,
+                            logicalByteLength(nodeId),
+                            logicalByteLength(nodeId),
+                            0L,
+                            logicalByteLength(nodeId),
+                            durationNs,
+                            false,
+                            true,
+                            true,
+                            "",
+                            detail == null || detail.isBlank() ? "device_to_cpu_array" : detail
+                    )
+            );
+        }
         deviceBufferBindingByNodeId.remove(nodeId);
         reservedDeviceBufferBindingByNodeId.remove(nodeId);
         state.markMaterializedToCpu(reason.label());
+    }
+
+    /**
+     * Records a host/device transfer trace entry.
+     *
+     * @param trace transfer trace entry
+     */
+    public void recordHostDeviceTransfer(HostDeviceTransferTrace trace) {
+        hostDeviceTransferTraces.add(Objects.requireNonNull(trace, "trace cannot be null"));
     }
 
     /**
@@ -670,8 +705,31 @@ public final class ExecutionState {
             return materializeArrayToNative(nodeId, reason, "array_to_native");
         }
         if (state.deviceCurrent()) {
+            StorageResidency sourceResidency = state.residency();
+            String backend = state.deviceBackend();
+            long bytes = logicalByteLength(nodeId);
+            long start = System.nanoTime();
             requireCpuReadable(nodeId, reason);
-            return materializeArrayToNative(nodeId, reason, "device_to_array_to_native");
+            NativeTensorStorage storage = materializeArrayToNative(nodeId, reason, "device_to_array_to_native");
+            recordHostDeviceTransfer(new HostDeviceTransferTrace(
+                    nodeId,
+                    backend,
+                    runtimeTensorForNodeId(nodeId).getDataType(),
+                    sourceResidency,
+                    StorageResidency.CPU_NATIVE,
+                    HostDeviceTransferKind.DEVICE_TO_ARRAY_TO_NATIVE_BRIDGE,
+                    bytes,
+                    bytes,
+                    bytes,
+                    bytes,
+                    System.nanoTime() - start,
+                    false,
+                    false,
+                    true,
+                    "native-device-direct-transfer-unavailable",
+                    "device_to_array_to_native"
+            ));
+            return storage;
         }
         throw new IllegalStateException(
                 "Native CPU read requested for nodeId=" + nodeId
@@ -819,6 +877,15 @@ public final class ExecutionState {
      */
     public List<CpuMaterializationTrace> cpuMaterializationTraces() {
         return List.copyOf(cpuMaterializationTraces);
+    }
+
+    /**
+     * Returns host/device transfer trace entries recorded during this execution.
+     *
+     * @return immutable transfer trace entries
+     */
+    public List<HostDeviceTransferTrace> hostDeviceTransferTraces() {
+        return List.copyOf(hostDeviceTransferTraces);
     }
 
     /**

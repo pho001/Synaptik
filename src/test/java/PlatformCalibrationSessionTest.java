@@ -4,6 +4,7 @@ import config.profile.PlatformRuntimeProfileIO;
 import config.profile.PlatformRuntimeProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.CpuStorageProfile;
+import config.runtime.DeviceTransferPolicy;
 import config.runtime.NativeCpuFailurePolicy;
 import org.junit.jupiter.api.Test;
 import tuning.calibration.family.CalibrationFamilyId;
@@ -181,6 +182,7 @@ public class PlatformCalibrationSessionTest {
         assertTrue(loaded.accelerator().metal().requireRuntimeAvailability());
         assertEquals(CpuStorageProfile.AUTO, loaded.cpuStorageProfile());
         assertEquals(NativeCpuFailurePolicy.REQUIRE_NATIVE, loaded.nativeCpuFailurePolicy());
+        assertEquals(DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE, loaded.deviceTransferPolicy());
         assertEquals(4, loaded.toRuntimeConfig().kernel().cpu().fusedCheapContiguousAsmVectorWidth());
         assertEquals(2, loaded.toRuntimeConfig().kernel().cpu().fusedCheapStridedAsmVectorWidth());
         assertEquals(8, loaded.toRuntimeConfig().kernel().cpu().fusedNonCheapContiguousAsmVectorWidth());
@@ -199,6 +201,7 @@ public class PlatformCalibrationSessionTest {
         assertTrue(loaded.toRuntimeConfig().accelerator().metal().requireRuntimeAvailability());
         assertEquals(CpuStorageProfile.AUTO, loaded.toRuntimeConfig().cpuStorageProfile());
         assertEquals(NativeCpuFailurePolicy.REQUIRE_NATIVE, loaded.toRuntimeConfig().nativeCpuFailurePolicy());
+        assertEquals(DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE, loaded.toRuntimeConfig().deviceTransferPolicy());
     }
 
     @Test
@@ -214,7 +217,8 @@ public class PlatformCalibrationSessionTest {
                   },
                   "runtimePolicy": {
                     "cpuStorageProfile": "CPU_ARRAY",
-                    "nativeCpuFailurePolicy": "FALLBACK_TO_ARRAY"
+                    "nativeCpuFailurePolicy": "FALLBACK_TO_ARRAY",
+                    "deviceTransferPolicy": "ALLOW_ARRAY_BRIDGE"
                   }
                 """, """
                   }
@@ -224,6 +228,7 @@ public class PlatformCalibrationSessionTest {
 
         assertEquals(CpuStorageProfile.CPU_ARRAY, loaded.cpuStorageProfile());
         assertEquals(NativeCpuFailurePolicy.FALLBACK_TO_ARRAY, loaded.nativeCpuFailurePolicy());
+        assertEquals(DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE, loaded.deviceTransferPolicy());
     }
 
     @Test

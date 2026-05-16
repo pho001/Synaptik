@@ -17,11 +17,15 @@ import backend.cuda.CudaDTypeRolePolicy;
 import backend.cuda.bridge.CudaBridgeCapabilities;
 import backend.accelerator.exec.ResolvedAcceleratorInputs;
 import backend.cuda.bridge.CudaGraphBridge;
+import backend.memory.CpuMaterializationReason;
 import backend.memory.DeviceBufferBinding;
 import backend.memory.StorageResidency;
 import backend.runtime.ExecutionContext;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
+import config.runtime.DeviceTransferPolicy;
+import graph.execution.trace.HostDeviceTransferKind;
+import graph.execution.trace.HostDeviceTransferTrace;
 import tensor.DataType;
 import tensor.Tensor;
 
@@ -235,6 +239,15 @@ public final class CudaAcceleratorBufferBinder {
             if (!prepared && context != null) {
                 var residency = context.residencyForNodeId(nodeId);
                 if (residency == null || !residency.cpuCurrent()) {
+                    if (residency != null && residency.nativeCurrent()) {
+                        if (deviceTransferPolicy(context) == DeviceTransferPolicy.REQUIRE_DIRECT) {
+                            throw directTransferRequired(nodeId, ComputeBackend.GPU_CUDA.name(), residency.residency());
+                        }
+                        out.add(new AcceleratorBufferInputDecision(nodeId, layout, false, true,
+                                AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE,
+                                "external input nodeId=" + nodeId + " will bridge CPU_NATIVE through CPU_ARRAY"));
+                        continue;
+                    }
                     out.add(new AcceleratorBufferInputDecision(nodeId, layout, false, false,
                             AcceleratorBufferReasonCode.INPUT_NOT_CPU_CURRENT,
                             "external input nodeId=" + nodeId
@@ -367,7 +380,17 @@ public final class CudaAcceleratorBufferBinder {
                 continue;
             }
             Tensor tensor = inputTensor(request, inputs, context, i, nodeId);
+            InputTransferRoute transferRoute = prepareInputForDevice(context, nodeId, ComputeBackend.GPU_CUDA.name());
             CudaBufferBinding created = allocator.createInputBinding(nodeId, tensor);
+            recordInputTransfer(
+                    context,
+                    nodeId,
+                    tensor.getDataType(),
+                    StorageResidency.HOST_SHARED_DEVICE_BUFFER,
+                    created.logicalByteLength(),
+                    transferRoute,
+                    "cuda shared input buffer upload"
+            );
             context.registerResource(new CudaBufferResource(allocator, created.handle()));
             boolean prepared = inputs != null
                     && i < inputs.preparedInputUsed().size()
@@ -383,6 +406,96 @@ public final class CudaAcceleratorBufferBinder {
             bindings.add(created);
         }
         return List.copyOf(bindings);
+    }
+
+    private record InputTransferRoute(
+            StorageResidency sourceResidency,
+            HostDeviceTransferKind kind,
+            long startNs,
+            String fallbackReason,
+            boolean directTransferSupported
+    ) {
+    }
+
+    private static InputTransferRoute prepareInputForDevice(
+            ExecutionContext context,
+            int nodeId,
+            String backend
+    ) {
+        var residency = context.residencyForNodeId(nodeId);
+        if (residency != null && residency.nativeCurrent() && !residency.cpuCurrent()) {
+            DeviceTransferPolicy policy = deviceTransferPolicy(context);
+            if (!policy.allowsArrayBridge()) {
+                throw directTransferRequired(nodeId, backend, residency.residency());
+            }
+            long start = System.nanoTime();
+            context.requireCpuReadable(nodeId, CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT);
+            return new InputTransferRoute(
+                    StorageResidency.CPU_NATIVE,
+                    HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE,
+                    start,
+                    "native-device-direct-transfer-unavailable",
+                    false
+            );
+        }
+        return new InputTransferRoute(
+                StorageResidency.CPU_ARRAY,
+                HostDeviceTransferKind.CPU_ARRAY_TO_DEVICE_COPY,
+                System.nanoTime(),
+                "",
+                true
+        );
+    }
+
+    private static void recordInputTransfer(
+            ExecutionContext context,
+            int nodeId,
+            DataType dataType,
+            StorageResidency targetResidency,
+            long bytes,
+            InputTransferRoute route,
+            String detail
+    ) {
+        if (context == null || route == null) {
+            return;
+        }
+        context.recordHostDeviceTransfer(new HostDeviceTransferTrace(
+                nodeId,
+                ComputeBackend.GPU_CUDA.name(),
+                dataType,
+                route.sourceResidency(),
+                targetResidency,
+                route.kind(),
+                bytes,
+                bytes,
+                route.kind() == HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE ? bytes : 0L,
+                bytes,
+                System.nanoTime() - route.startNs(),
+                false,
+                route.directTransferSupported(),
+                true,
+                route.fallbackReason(),
+                detail
+        ));
+    }
+
+    private static DeviceTransferPolicy deviceTransferPolicy(ExecutionContext context) {
+        return context == null || context.runtimeConfig() == null || context.runtimeConfig().deviceTransferPolicy() == null
+                ? DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE
+                : context.runtimeConfig().deviceTransferPolicy();
+    }
+
+    private static IllegalStateException directTransferRequired(
+            int nodeId,
+            String backend,
+            StorageResidency sourceResidency
+    ) {
+        return new IllegalStateException(
+                "DeviceTransferPolicy.REQUIRE_DIRECT forbids Java array bridge for nodeId=" + nodeId
+                        + " backend=" + backend
+                        + " sourceResidency=" + sourceResidency
+                        + " because native-device direct transfer is unavailable in this runtime."
+        );
     }
 
     private static List<CudaBufferBinding> resolveOutputBindings(

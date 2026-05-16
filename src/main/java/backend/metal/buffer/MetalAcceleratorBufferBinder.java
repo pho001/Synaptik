@@ -15,6 +15,7 @@ import backend.accelerator.buffer.AcceleratorLayoutTransformKind;
 import backend.accelerator.buffer.AcceleratorLayoutTransformPlanner;
 import backend.accelerator.buffer.AcceleratorLayoutTransformRequest;
 import backend.accelerator.exec.ResolvedAcceleratorInputs;
+import backend.memory.CpuMaterializationReason;
 import backend.memory.DeviceBufferBinding;
 import backend.memory.StorageResidency;
 import backend.metal.MetalMpsCapabilities;
@@ -23,6 +24,9 @@ import backend.metal.bridge.MetalMpsGraphBridge;
 import backend.runtime.ExecutionContext;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
+import config.runtime.DeviceTransferPolicy;
+import graph.execution.trace.HostDeviceTransferKind;
+import graph.execution.trace.HostDeviceTransferTrace;
 import graph.execution.DeviceLayoutMaterializer;
 import operations.Operation;
 import tensor.DataType;
@@ -225,6 +229,15 @@ public final class MetalAcceleratorBufferBinder {
                     MetalBufferBinding created = expected == DataType.BOOL
                             ? resolvedAllocator.createPredicateInputBinding(nodeId, denseTensor)
                             : resolvedAllocator.createInputBinding(nodeId, denseTensor);
+                    recordArrayUploadTransfer(
+                            context,
+                            nodeId,
+                            denseTensor.getDataType(),
+                            StorageResidency.HOST_SHARED_DEVICE_BUFFER,
+                            created.logicalByteLength(),
+                            0L,
+                            "metal CPU-current input layout upload repair"
+                    );
                     context.registerResource(new MetalBufferResource(resolvedAllocator, created.handle()));
                     context.attachDeviceBufferBinding(
                             nodeId,
@@ -375,6 +388,15 @@ public final class MetalAcceleratorBufferBinder {
             }
             var residency = context.residencyForNodeId(nodeId);
             if (!prepared && (residency == null || !residency.cpuCurrent())) {
+                if (residency != null && residency.nativeCurrent()) {
+                    if (deviceTransferPolicy(context) == DeviceTransferPolicy.REQUIRE_DIRECT) {
+                        throw directTransferRequired(nodeId, ComputeBackend.GPU_METAL.name(), residency.residency());
+                    }
+                    out.add(new AcceleratorBufferInputDecision(nodeId, layout, false, true,
+                            AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE,
+                            "external input nodeId=" + nodeId + " will bridge CPU_NATIVE through CPU_ARRAY"));
+                    continue;
+                }
                 out.add(new AcceleratorBufferInputDecision(nodeId, layout, false, false,
                         AcceleratorBufferReasonCode.INPUT_NOT_CPU_CURRENT,
                         "external input nodeId=" + nodeId + " has no Metal binding and CPU storage is not current"));
@@ -440,9 +462,19 @@ public final class MetalAcceleratorBufferBinder {
             Tensor tensor = i < inputs.executionExternalInputs().size()
                     ? inputs.executionExternalInputs().get(i)
                     : context.runtimeTensorForNodeId(nodeId);
+            InputTransferRoute transferRoute = prepareInputForDevice(context, nodeId, ComputeBackend.GPU_METAL.name());
             MetalBufferBinding created = expected == DataType.BOOL
                     ? resolvedAllocator.createPredicateInputBinding(nodeId, tensor)
                     : resolvedAllocator.createInputBinding(nodeId, tensor);
+            recordInputTransfer(
+                    context,
+                    nodeId,
+                    tensor.getDataType(),
+                    StorageResidency.HOST_SHARED_DEVICE_BUFFER,
+                    created.logicalByteLength(),
+                    transferRoute,
+                    "metal shared input buffer upload"
+            );
             context.registerResource(new MetalBufferResource(resolvedAllocator, created.handle()));
             boolean prepared = i < inputs.preparedInputUsed().size() && inputs.preparedInputUsed().get(i);
             if (!prepared) {
@@ -456,6 +488,130 @@ public final class MetalAcceleratorBufferBinder {
             bindings.add(created);
         }
         return List.copyOf(bindings);
+    }
+
+    private record InputTransferRoute(
+            StorageResidency sourceResidency,
+            HostDeviceTransferKind kind,
+            long startNs,
+            String fallbackReason,
+            boolean directTransferSupported
+    ) {
+    }
+
+    private static InputTransferRoute prepareInputForDevice(
+            ExecutionContext context,
+            int nodeId,
+            String backend
+    ) {
+        var residency = context.residencyForNodeId(nodeId);
+        if (residency != null && residency.nativeCurrent() && !residency.cpuCurrent()) {
+            DeviceTransferPolicy policy = deviceTransferPolicy(context);
+            if (!policy.allowsArrayBridge()) {
+                throw directTransferRequired(nodeId, backend, residency.residency());
+            }
+            long start = System.nanoTime();
+            context.requireCpuReadable(nodeId, CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT);
+            return new InputTransferRoute(
+                    StorageResidency.CPU_NATIVE,
+                    HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE,
+                    start,
+                    "native-device-direct-transfer-unavailable",
+                    false
+            );
+        }
+        return new InputTransferRoute(
+                StorageResidency.CPU_ARRAY,
+                HostDeviceTransferKind.CPU_ARRAY_TO_DEVICE_COPY,
+                System.nanoTime(),
+                "",
+                true
+        );
+    }
+
+    private static void recordInputTransfer(
+            ExecutionContext context,
+            int nodeId,
+            DataType dataType,
+            StorageResidency targetResidency,
+            long bytes,
+            InputTransferRoute route,
+            String detail
+    ) {
+        if (context == null || route == null) {
+            return;
+        }
+        long javaArrayBytes = route.kind() == HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE ? bytes : bytes;
+        long nativeBytes = route.kind() == HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE ? bytes : 0L;
+        context.recordHostDeviceTransfer(new HostDeviceTransferTrace(
+                nodeId,
+                ComputeBackend.GPU_METAL.name(),
+                dataType,
+                route.sourceResidency(),
+                targetResidency,
+                route.kind(),
+                bytes,
+                javaArrayBytes,
+                nativeBytes,
+                bytes,
+                System.nanoTime() - route.startNs(),
+                false,
+                route.directTransferSupported(),
+                true,
+                route.fallbackReason(),
+                detail
+        ));
+    }
+
+    private static void recordArrayUploadTransfer(
+            ExecutionContext context,
+            int nodeId,
+            DataType dataType,
+            StorageResidency targetResidency,
+            long bytes,
+            long durationNs,
+            String detail
+    ) {
+        if (context == null) {
+            return;
+        }
+        context.recordHostDeviceTransfer(new HostDeviceTransferTrace(
+                nodeId,
+                ComputeBackend.GPU_METAL.name(),
+                dataType,
+                StorageResidency.CPU_ARRAY,
+                targetResidency,
+                HostDeviceTransferKind.CPU_ARRAY_TO_DEVICE_COPY,
+                bytes,
+                bytes,
+                0L,
+                bytes,
+                durationNs,
+                false,
+                true,
+                true,
+                "",
+                detail
+        ));
+    }
+
+    private static DeviceTransferPolicy deviceTransferPolicy(ExecutionContext context) {
+        return context == null || context.runtimeConfig() == null || context.runtimeConfig().deviceTransferPolicy() == null
+                ? DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE
+                : context.runtimeConfig().deviceTransferPolicy();
+    }
+
+    private static IllegalStateException directTransferRequired(
+            int nodeId,
+            String backend,
+            StorageResidency sourceResidency
+    ) {
+        return new IllegalStateException(
+                "DeviceTransferPolicy.REQUIRE_DIRECT forbids Java array bridge for nodeId=" + nodeId
+                        + " backend=" + backend
+                        + " sourceResidency=" + sourceResidency
+                        + " because native-device direct transfer is unavailable in this runtime."
+        );
     }
 
     private List<MetalBufferBinding> resolveOutputBindings(
