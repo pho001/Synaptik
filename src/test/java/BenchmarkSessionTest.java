@@ -742,6 +742,125 @@ public class BenchmarkSessionTest {
     }
 
     @Test
+    void renderersAggregateRuntimeCopyEvidenceFromMaterializationsAndMatmulMetadata() {
+        var profile = new ExecutionProfile(
+                "runtime-copy-evidence-profile",
+                "runtime-copy-evidence",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        var matMul = new graph.execution.trace.MatMulTraceMetadata(
+                true,
+                false,
+                "OPENBLAS_FFM",
+                "cblas_sgemm",
+                "OPENBLAS_NATIVE_SEGMENT",
+                "OPENBLAS_ARRAY_COPYING",
+                "CPU_NATIVE",
+                "FALLBACK_TO_ARRAY",
+                "CPU_NATIVE",
+                "CPU_ARRAY",
+                "native-symbol-unavailable:cblas_sgemm",
+                true,
+                false,
+                false,
+                false,
+                "",
+                "",
+                "",
+                "",
+                8192L,
+                4096L,
+                1024L,
+                "AUTO_UNCONTROLLED",
+                "native-symbol-unavailable:cblas_sgemm",
+                true,
+                16,
+                16,
+                8,
+                4,
+                131_072L,
+                "F32_8X4"
+        );
+        var step = new graph.execution.trace.ExecutionStepTrace(
+                0,
+                "runtime_copy_matmul",
+                "MATMUL",
+                List.of(32, 32),
+                DataType.FLOAT32,
+                "CPU",
+                "F32BlasMatMulExecutable",
+                100L,
+                new graph.execution.trace.StepExecutionMetadata(
+                        "node",
+                        Map.of(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        matMul,
+                        null,
+                        null
+                )
+        );
+        var materialization = new graph.execution.trace.CpuMaterializationTrace(
+                42,
+                CpuMaterializationReason.GRAPH_OUTPUT,
+                "GPU_METAL",
+                StorageResidency.DEVICE_OWNED,
+                4096L,
+                250_000L,
+                true,
+                "device value synchronized to CPU storage"
+        );
+        BenchmarkReport report = BenchmarkReport.of(
+                "runtime_copy_evidence_report",
+                List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
+                        BenchmarkEntry.candidate("runtime-copy-evidence", profile),
+                        tuning.validate.ValidationResult.skipped(),
+                        new tuning.measure.MeasurementResult(
+                                tuning.measure.MeasurementPolicy.defaults(),
+                                new graph.execution.trace.ExecutionTrace(
+                                        graph.execution.trace.CompileTrace.skipped(),
+                                        graph.execution.trace.PrepareTrace.skipped(),
+                                        new graph.execution.trace.RunTrace(
+                                                ExecutionMode.FORWARD,
+                                                100L,
+                                                List.of(step),
+                                                List.of(materialization)
+                                        )
+                                ),
+                                new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
+                        )
+                ))
+        );
+
+        assertFalse(matMul.nativeCpuFallbackReason().isBlank());
+        assertEquals(CpuMaterializationReason.GRAPH_OUTPUT, materialization.reason());
+        assertEquals(StorageResidency.DEVICE_OWNED, materialization.sourceResidency());
+        assertEquals(4096L, materialization.bytes());
+        assertTrue(materialization.completed());
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        assertTrue(text.contains("runtimeCopySummary=cpuMaterializationBytes=4096"));
+        assertTrue(text.contains("cpuMaterializationDurationNs=250000"));
+        assertTrue(text.contains("matMulCopyInBytes=8192"));
+        assertTrue(text.contains("matMulCopyOutBytes=4096"));
+        assertTrue(text.contains("matMulNativeTempBytes=1024"));
+        assertTrue(text.contains("nodeId=42 reason=GRAPH_OUTPUT from=GPU_METAL residency=DEVICE_OWNED bytes=4096"));
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+        assertTrue(json.contains("\"runtimeCopy\": {\"cpuMaterializationBytes\": 4096, \"cpuMaterializationDurationNs\": 250000, \"matMulCopyInBytes\": 8192, \"matMulCopyOutBytes\": 4096, \"matMulNativeTempBytes\": 1024}"));
+        assertTrue(json.contains("\"nativeCpuFallbackReason\": \"native-symbol-unavailable:cblas_sgemm\""));
+        assertTrue(json.contains("\"materializedFrom\": \"GPU_METAL\""));
+        assertTrue(json.contains("\"sourceResidency\": \"DEVICE_OWNED\""));
+        assertTrue(json.contains("\"completed\": true"));
+    }
+
+    @Test
     void benchmarkTextReportRendersGpuLoweredRegionManifest() {
         BenchmarkReport report = reportWithGpuLoweredRegionManifest();
 

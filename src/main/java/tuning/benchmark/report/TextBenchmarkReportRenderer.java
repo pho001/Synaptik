@@ -103,6 +103,7 @@ public final class TextBenchmarkReportRenderer {
                         sb.append("  stepCount=").append(trace.run().steps().size()).append('\n');
                         sb.append("  cpuMaterializationCount=").append(trace.run().cpuMaterializations().size()).append('\n');
                         appendNativeCpuSummary(sb, NativeCpuTraceSummary.fromSteps(trace.run().steps()));
+                        appendRuntimeCopySummary(sb, RuntimeCopyTraceSummary.fromRun(trace.run()));
                         appendAcceleratorSummary(sb, AcceleratorTraceSummary.fromSteps(trace.run().steps()));
                         appendGpuCoverageSummary(sb, GpuCoverageSummary.fromTrace(trace));
                         appendCrossBackendRouterEvidence(sb, CrossBackendRouterEvidence.fromTrace(trace));
@@ -131,6 +132,19 @@ public final class TextBenchmarkReportRenderer {
                 .append("nativeKernelCount=").append(summary.nativeKernelCount())
                 .append(" arrayKernelCount=").append(summary.arrayKernelCount())
                 .append(" fallbackCount=").append(summary.fallbackCount())
+                .append('\n');
+    }
+
+    private static void appendRuntimeCopySummary(StringBuilder sb, RuntimeCopyTraceSummary summary) {
+        if (summary == null || !summary.present()) {
+            return;
+        }
+        sb.append("  runtimeCopySummary=")
+                .append("cpuMaterializationBytes=").append(summary.cpuMaterializationBytes())
+                .append(" cpuMaterializationDurationNs=").append(summary.cpuMaterializationDurationNs())
+                .append(" matMulCopyInBytes=").append(summary.matMulCopyInBytes())
+                .append(" matMulCopyOutBytes=").append(summary.matMulCopyOutBytes())
+                .append(" matMulNativeTempBytes=").append(summary.matMulNativeTempBytes())
                 .append('\n');
     }
 
@@ -180,6 +194,62 @@ public final class TextBenchmarkReportRenderer {
                 }
             }
             return new NativeCpuTraceSummary(nativeKernels, arrayKernels, fallbacks, sawNativeAttrs);
+        }
+    }
+
+    private record RuntimeCopyTraceSummary(
+            long cpuMaterializationBytes,
+            long cpuMaterializationDurationNs,
+            long matMulCopyInBytes,
+            long matMulCopyOutBytes,
+            long matMulNativeTempBytes,
+            boolean present
+    ) {
+        static RuntimeCopyTraceSummary fromRun(graph.execution.trace.RunTrace run) {
+            if (run == null) {
+                return new RuntimeCopyTraceSummary(0L, 0L, 0L, 0L, 0L, false);
+            }
+            long materializationBytes = 0L;
+            long materializationDurationNs = 0L;
+            boolean sawEvidence = false;
+            for (var materialization : run.cpuMaterializations()) {
+                if (materialization == null) {
+                    continue;
+                }
+                sawEvidence = true;
+                materializationBytes += materialization.bytes();
+                materializationDurationNs += materialization.durationNs();
+            }
+
+            long copyInBytes = 0L;
+            long copyOutBytes = 0L;
+            long nativeTempBytes = 0L;
+            for (var step : run.steps()) {
+                if (step == null || step.metadata() == null || step.metadata().matMul() == null) {
+                    continue;
+                }
+                var matMul = step.metadata().matMul();
+                if (matMul.copyInBytes() >= 0L) {
+                    sawEvidence = true;
+                    copyInBytes += matMul.copyInBytes();
+                }
+                if (matMul.copyOutBytes() >= 0L) {
+                    sawEvidence = true;
+                    copyOutBytes += matMul.copyOutBytes();
+                }
+                if (matMul.nativeTempBytes() >= 0L) {
+                    sawEvidence = true;
+                    nativeTempBytes += matMul.nativeTempBytes();
+                }
+            }
+            return new RuntimeCopyTraceSummary(
+                    materializationBytes,
+                    materializationDurationNs,
+                    copyInBytes,
+                    copyOutBytes,
+                    nativeTempBytes,
+                    sawEvidence
+            );
         }
     }
 

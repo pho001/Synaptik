@@ -68,6 +68,9 @@ public final class JsonBenchmarkReportRenderer {
                 sb.append("        \"nativeCpu\": ").append(nativeCpuTraceSummaryJson(
                         NativeCpuTraceSummary.fromSteps(trace.run().steps())
                 )).append(",\n");
+                sb.append("        \"runtimeCopy\": ").append(runtimeCopyTraceSummaryJson(
+                        RuntimeCopyTraceSummary.fromRun(trace.run())
+                )).append(",\n");
                 sb.append("        \"accelerator\": ").append(acceleratorSummaryJson(
                         AcceleratorTraceSummary.fromSteps(trace.run().steps())
                 )).append(",\n");
@@ -153,6 +156,19 @@ public final class JsonBenchmarkReportRenderer {
                 + "}";
     }
 
+    private static String runtimeCopyTraceSummaryJson(RuntimeCopyTraceSummary summary) {
+        if (summary == null || !summary.present()) {
+            return "null";
+        }
+        return "{"
+                + "\"cpuMaterializationBytes\": " + summary.cpuMaterializationBytes() + ", "
+                + "\"cpuMaterializationDurationNs\": " + summary.cpuMaterializationDurationNs() + ", "
+                + "\"matMulCopyInBytes\": " + summary.matMulCopyInBytes() + ", "
+                + "\"matMulCopyOutBytes\": " + summary.matMulCopyOutBytes() + ", "
+                + "\"matMulNativeTempBytes\": " + summary.matMulNativeTempBytes()
+                + "}";
+    }
+
     private record NativeCpuTraceSummary(
             int nativeKernelCount,
             int arrayKernelCount,
@@ -191,6 +207,62 @@ public final class JsonBenchmarkReportRenderer {
                 }
             }
             return new NativeCpuTraceSummary(nativeKernels, arrayKernels, fallbacks, sawNativeAttrs);
+        }
+    }
+
+    private record RuntimeCopyTraceSummary(
+            long cpuMaterializationBytes,
+            long cpuMaterializationDurationNs,
+            long matMulCopyInBytes,
+            long matMulCopyOutBytes,
+            long matMulNativeTempBytes,
+            boolean present
+    ) {
+        static RuntimeCopyTraceSummary fromRun(graph.execution.trace.RunTrace run) {
+            if (run == null) {
+                return new RuntimeCopyTraceSummary(0L, 0L, 0L, 0L, 0L, false);
+            }
+            long materializationBytes = 0L;
+            long materializationDurationNs = 0L;
+            boolean sawEvidence = false;
+            for (var materialization : run.cpuMaterializations()) {
+                if (materialization == null) {
+                    continue;
+                }
+                sawEvidence = true;
+                materializationBytes += materialization.bytes();
+                materializationDurationNs += materialization.durationNs();
+            }
+
+            long copyInBytes = 0L;
+            long copyOutBytes = 0L;
+            long nativeTempBytes = 0L;
+            for (var step : run.steps()) {
+                if (step == null || step.metadata() == null || step.metadata().matMul() == null) {
+                    continue;
+                }
+                var matMul = step.metadata().matMul();
+                if (matMul.copyInBytes() >= 0L) {
+                    sawEvidence = true;
+                    copyInBytes += matMul.copyInBytes();
+                }
+                if (matMul.copyOutBytes() >= 0L) {
+                    sawEvidence = true;
+                    copyOutBytes += matMul.copyOutBytes();
+                }
+                if (matMul.nativeTempBytes() >= 0L) {
+                    sawEvidence = true;
+                    nativeTempBytes += matMul.nativeTempBytes();
+                }
+            }
+            return new RuntimeCopyTraceSummary(
+                    materializationBytes,
+                    materializationDurationNs,
+                    copyInBytes,
+                    copyOutBytes,
+                    nativeTempBytes,
+                    sawEvidence
+            );
         }
     }
 
