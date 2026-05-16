@@ -3,6 +3,7 @@ package backend.cpu.kernels.layout;
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.nativecpu.NativeCpuCastExecutor;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -12,37 +13,40 @@ import java.util.List;
 public final class CpuCastKernel implements CpuKernel {
     @Override
     public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        cast(inputs, node);
+        cast(op, inputs, node, context);
     }
 
     @Override
     public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        cast(inputs, node);
+        cast(op, inputs, node, context);
     }
 
     @Override
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        cast(inputs, node);
+        cast(op, inputs, node, context);
     }
 
     @Override
     public void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        cast(inputs, node);
+        cast(op, inputs, node, context);
     }
 
     @Override
     public void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        cast(inputs, node);
+        cast(op, inputs, node, context);
     }
 
     @Override
     public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        cast(inputs, node);
+        cast(op, inputs, node, context);
     }
 
-    private static void cast(List<Tensor> inputs, Tensor node) {
+    private static void cast(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (inputs == null || inputs.size() != 1) {
             throw new IllegalArgumentException("cast expects exactly one input.");
+        }
+        if (NativeCpuCastExecutor.tryRunCast(inputs, node, context)) {
+            return;
         }
         Tensor input = inputs.getFirst();
         int size = node.getFlatDataSize();

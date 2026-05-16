@@ -121,10 +121,18 @@ class NativeCpuStorageTest {
 
     @Test
     void bfloat16ArrayNativeArrayMaterializationPreservesRawBits() {
-        short[] bits = new short[]{(short) 0x3f80, (short) 0x7fc1, (short) 0x8000};
-        Tensor source = new Tensor(bits.clone(), new int[]{3}, null, "source", DataType.BFLOAT16);
-        Tensor target = new Tensor(new short[]{0, 0, 0}, new int[]{3}, null, "target", DataType.BFLOAT16);
-        NativeTensorStorage storage = new NativeCpuStorageFactory().allocate(DataType.BFLOAT16, 3, "bf16-copy");
+        short[] bits = new short[]{
+                (short) 0x3f80,
+                (short) 0x7fc1,
+                (short) 0x7f80,
+                (short) 0xff80,
+                (short) 0x8000,
+                (short) 0x0001,
+                (short) 0x8001
+        };
+        Tensor source = new Tensor(bits.clone(), new int[]{bits.length}, null, "source", DataType.BFLOAT16);
+        Tensor target = new Tensor(new short[bits.length], new int[]{bits.length}, null, "target", DataType.BFLOAT16);
+        NativeTensorStorage storage = new NativeCpuStorageFactory().allocate(DataType.BFLOAT16, bits.length, "bf16-copy");
 
         try {
             NativeCpuMaterializer.arrayToNative(source, storage);

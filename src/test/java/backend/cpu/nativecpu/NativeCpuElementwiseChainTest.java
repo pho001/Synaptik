@@ -2,6 +2,7 @@ package backend.cpu.nativecpu;
 
 import backend.blas.BlasProvider;
 import backend.blas.OpenBlasFfmBridge;
+import backend.cpu.kernels.CpuDTypeOps;
 import backend.runtime.ExecutionMode;
 import config.backend.KernelTuningConfig;
 import config.compile.CompileConfig;
@@ -384,6 +385,55 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void cpuNativeF32ToBf16CastWritesNativeOutputAndPublishesRawBits() {
+        Tensor input = new Tensor(new float[]{
+                1.0f,
+                -0.0f,
+                Float.POSITIVE_INFINITY,
+                Float.NaN
+        }, new int[]{2, 2}, null, "cast_f32", DataType.FLOAT32);
+        Tensor out = input.cast(DataType.BFLOAT16);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new short[]{
+                CpuDTypeOps.toBFloat16Bits(1.0f),
+                CpuDTypeOps.toBFloat16Bits(-0.0f),
+                CpuDTypeOps.toBFloat16Bits(Float.POSITIVE_INFINITY),
+                CpuDTypeOps.toBFloat16Bits(Float.NaN)
+        }, out.getBFloat16Data());
+        assertNativeCast(trace.steps().stream()
+                .filter(step -> "CAST".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+    }
+
+    @Test
+    void cpuNativeBf16ToF32CastWritesNativeOutputAndPublishesValues() {
+        short[] bits = new short[]{
+                (short) 0x3f80,
+                (short) 0x8000,
+                (short) 0x7f80,
+                (short) 0x0001
+        };
+        Tensor input = new Tensor(bits.clone(), new int[]{2, 2}, null, "cast_bf16", DataType.BFLOAT16);
+        Tensor out = input.cast(DataType.FLOAT32);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertEquals(Float.floatToRawIntBits(CpuDTypeOps.fromBFloat16Bits(bits[0])), Float.floatToRawIntBits(out.getFloat32Data()[0]));
+        assertEquals(Float.floatToRawIntBits(CpuDTypeOps.fromBFloat16Bits(bits[1])), Float.floatToRawIntBits(out.getFloat32Data()[1]));
+        assertEquals(Float.floatToRawIntBits(CpuDTypeOps.fromBFloat16Bits(bits[2])), Float.floatToRawIntBits(out.getFloat32Data()[2]));
+        assertEquals(Float.floatToRawIntBits(CpuDTypeOps.fromBFloat16Bits(bits[3])), Float.floatToRawIntBits(out.getFloat32Data()[3]));
+        assertNativeCast(trace.steps().stream()
+                .filter(step -> "CAST".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+    }
+
+    @Test
     void unsupportedCpuNativeBroadcastMulFallsBackToArrayWithTraceReason() {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 
@@ -554,6 +604,38 @@ class NativeCpuElementwiseChainTest {
 
         assertTrue(failure.getMessage().contains("Native CPU execution required"));
         assertTrue(failure.getMessage().contains("native-kernel-ineligible:sum-strided"));
+    }
+
+    @Test
+    void unsupportedCpuNativeCastFallsBackToArrayWithTraceReason() {
+        Tensor out = tensor(new float[]{1f, 2f, 3f, 4f}, "cast_input").cast(DataType.FLOAT64);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> cast = attrs(trace.steps().stream()
+                .filter(step -> "CAST".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals("CPU_NATIVE", cast.get("requestedCpuStorage"));
+        assertEquals("CPU_ARRAY", cast.get("actualCpuStorage"));
+        assertEquals("native-kernel-ineligible:cast-dtype", cast.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_ARRAY", cast.get("storageResidency"));
+    }
+
+    @Test
+    void requireNativeRejectsUnsupportedCpuNativeCast() {
+        Tensor out = tensor(new float[]{1f, 2f, 3f, 4f}, "cast_input").cast(DataType.FLOAT64);
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+        );
+
+        assertTrue(failure.getMessage().contains("Native CPU execution required"));
+        assertTrue(failure.getMessage().contains("native-kernel-ineligible:cast-dtype"));
     }
 
     @Test
@@ -736,6 +818,22 @@ class NativeCpuElementwiseChainTest {
         assertEquals("CPU_ARRAY", sum.get("storageResidency"));
     }
 
+    @Test
+    void autoStorageDoesNotUseNativeCastSlice() {
+        Tensor out = tensor(new float[]{1f, 2f, 3f, 4f}, "cast_input").cast(DataType.BFLOAT16);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> cast = attrs(trace.steps().stream()
+                .filter(step -> "CAST".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertFalse(cast.containsKey("nativeCpuKernelStatus"));
+        assertEquals("CPU_ARRAY", cast.get("storageResidency"));
+    }
+
     private static RuntimeConfig runtime(CpuStorageProfile storageProfile, NativeCpuFailurePolicy failurePolicy) {
         return new RuntimeConfig(
                 KernelTuningConfig.defaultsInference(),
@@ -792,6 +890,15 @@ class NativeCpuElementwiseChainTest {
         assertEquals("SEGMENT_SCALAR", reduction.get("nativeCpuKernelFamily"));
         assertEquals("", reduction.get("nativeCpuFallbackReason"));
         assertEquals("CPU_NATIVE", reduction.get("storageResidency"));
+    }
+
+    private static void assertNativeCast(ExecutionStepTrace step) {
+        Map<String, Object> cast = attrs(step);
+        assertEquals("CPU_NATIVE", cast.get("actualCpuStorage"));
+        assertEquals("NATIVE_CORRECT_BUT_SLOW", cast.get("nativeCpuKernelStatus"));
+        assertEquals("SEGMENT_SCALAR", cast.get("nativeCpuKernelFamily"));
+        assertEquals("", cast.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", cast.get("storageResidency"));
     }
 
     private static Map<String, Object> attrs(ExecutionStepTrace step) {

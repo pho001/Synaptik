@@ -98,6 +98,24 @@ class NativeCpuKernelFactsTest {
     }
 
     @Test
+    void f32Bf16CastMvpOpsHaveNativeSegmentScalarFacts() {
+        NativeCpuKernelFact f32 = NativeCpuKernelFacts.factFor(Operation.OpType.CAST, DataType.FLOAT32);
+        NativeCpuKernelFact bf16 = NativeCpuKernelFacts.factFor(Operation.OpType.CAST, DataType.BFLOAT16);
+        NativeCpuKernelFact f64 = NativeCpuKernelFacts.factFor(Operation.OpType.CAST, DataType.FLOAT64);
+
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, f32.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, bf16.status());
+        assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, f32.family());
+        assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, bf16.family());
+        assertEquals("requires-dense-contiguous-cast", f32.reason());
+        assertEquals("requires-dense-contiguous-cast", bf16.reason());
+        assertTrue(f32.nativeComputeEligible());
+        assertTrue(bf16.preservesNativeStorage());
+        assertEquals("native-kernel-unsupported:cast", f64.reason());
+        assertFalse(f64.nativeComputeEligible());
+    }
+
+    @Test
     void metadataOnlyViewsCanPreserveNativeStorageWithoutClaimingCompute() {
         NativeCpuKernelFact reshape = NativeCpuKernelFacts.factFor(Operation.OpType.RESHAPE, DataType.FLOAT32);
         NativeCpuKernelFact squeeze = NativeCpuKernelFacts.factFor(Operation.OpType.SQUEEZE, DataType.BFLOAT16);

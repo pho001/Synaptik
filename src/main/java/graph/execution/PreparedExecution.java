@@ -9,6 +9,7 @@ import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
+import backend.cpu.nativecpu.NativeCpuCastExecutor;
 import backend.cpu.nativecpu.NativeCpuElementwiseExecutor;
 import backend.cpu.nativecpu.NativeCpuReductionExecutor;
 import backend.cpu.nativecpu.NativeCpuTraceState;
@@ -448,6 +449,14 @@ public final class PreparedExecution {
             return;
         }
         if (NativeCpuReductionExecutor.acceptsNativeInputs(
+                step.executionOperation(),
+                step.compiledNode().dataType(),
+                step.metadata().cpuPlan(),
+                context.runtimeConfig()
+        )) {
+            return;
+        }
+        if (NativeCpuCastExecutor.acceptsNativeInputs(
                 step.executionOperation(),
                 step.compiledNode().dataType(),
                 step.metadata().cpuPlan(),
