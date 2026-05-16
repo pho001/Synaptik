@@ -6,6 +6,7 @@ import backend.accelerator.buffer.AcceleratorLayoutAbiV2Descriptor;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.CpuMaterializationResult;
 import tensor.DataType;
+import tensor.NativeFloat32Storage;
 import tensor.Tensor;
 
 import java.lang.foreign.Arena;
@@ -137,6 +138,42 @@ public final class MetalBufferAllocator {
             }
             default -> throw new UnsupportedOperationException("Metal buffer inputs support FLOAT32/BFLOAT16/INT32 data buffers only; got " + tensor.getDataType());
         };
+    }
+
+    /**
+     * Creates a shared FLOAT32 input binding initialized directly from native CPU storage.
+     *
+     * @param nodeId compiled node id represented by the tensor
+     * @param tensor runtime tensor layout
+     * @param storage current native FLOAT32 storage
+     * @return initialized Metal input binding
+     */
+    public MetalBufferBinding createNativeFloat32InputBinding(
+            int nodeId,
+            Tensor tensor,
+            NativeFloat32Storage storage
+    ) {
+        ensureAvailable();
+        validateCommonInput(tensor);
+        Objects.requireNonNull(storage, "storage cannot be null");
+        storage.ensureOpen();
+        if (tensor.getDataType() != DataType.FLOAT32) {
+            throw new UnsupportedOperationException("Metal native segment input supports FLOAT32 only; got "
+                    + tensor.getDataType());
+        }
+        if (storage.getType() != DataType.FLOAT32 || storage.getSize() != tensor.getFlatDataSize()) {
+            throw new IllegalArgumentException("Native FLOAT32 storage does not match tensor payload. storageType="
+                    + storage.getType() + ", storageSize=" + storage.getSize()
+                    + ", tensorElements=" + tensor.getFlatDataSize());
+        }
+        long bytes = storage.byteSize();
+        MetalBufferHandle handle = nativeAccess.createBuffer(
+                bytes,
+                STORAGE_MODE_SHARED,
+                storage.segment(),
+                bytes
+        );
+        return binding(nodeId, tensor, handle, MetalBufferAccess.READ);
     }
 
     /**
@@ -286,6 +323,37 @@ public final class MetalBufferAllocator {
     }
 
     /**
+     * Reads a dense FLOAT32 Metal binding directly into native CPU storage.
+     *
+     * @param binding active Metal binding
+     * @param destination destination runtime tensor layout
+     * @param nativeDestination destination native FLOAT32 storage
+     * @param reason materialization reason
+     * @return materialization diagnostics
+     */
+    public CpuMaterializationResult readToNativeFloat32(
+            MetalBufferBinding binding,
+            Tensor destination,
+            NativeFloat32Storage nativeDestination,
+            CpuMaterializationReason reason
+    ) {
+        ensureAvailable();
+        Objects.requireNonNull(binding, "binding cannot be null");
+        Objects.requireNonNull(destination, "destination cannot be null");
+        Objects.requireNonNull(nativeDestination, "nativeDestination cannot be null");
+        nativeDestination.ensureOpen();
+        validateNativeFloat32Readback(binding, destination, nativeDestination);
+        long start = System.nanoTime();
+        nativeAccess.readBuffer(binding.handle(), nativeDestination.segment(), binding.logicalByteLength());
+        nativeDestination.markModified();
+        return new CpuMaterializationResult(
+                System.nanoTime() - start,
+                "metal read_buffer materialized native FLOAT32 nodeId=" + binding.nodeId()
+                        + " reason=" + reason.label()
+        );
+    }
+
+    /**
      * Destroys an owned Metal buffer handle.
      *
      * @param handle handle returned by this allocator
@@ -312,6 +380,36 @@ public final class MetalBufferAllocator {
         }
         if (tensor.hasStorageOffset()) {
             throw new UnsupportedOperationException("Metal buffer input tensor has storage offset.");
+        }
+    }
+
+    private static void validateNativeFloat32Readback(
+            MetalBufferBinding binding,
+            Tensor destination,
+            NativeFloat32Storage nativeDestination
+    ) {
+        if (!binding.available()) {
+            throw new IllegalArgumentException("Metal binding is unavailable: " + binding.describe());
+        }
+        if (binding.layout().dataType() != DataType.FLOAT32 || destination.getDataType() != DataType.FLOAT32) {
+            throw new UnsupportedOperationException("Metal native readback supports dtype-matched FLOAT32 only; binding="
+                    + binding.layout().dataType() + ", destination=" + destination.getDataType());
+        }
+        AcceleratorBufferLayout destinationLayout = AcceleratorBufferLayout.fromTensor(destination);
+        if (binding.layout().layoutClass() != AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS
+                || destinationLayout.layoutClass() != AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS
+                || destination.hasStorageOffset()
+                || !destination.isContiguous()) {
+            throw new UnsupportedOperationException("Metal native FLOAT32 readback requires dense contiguous zero-offset tensors.");
+        }
+        if (!Arrays.equals(binding.layout().shape(), destinationLayout.shape())
+                || binding.layout().logicalElementCount() != destinationLayout.logicalElementCount()) {
+            throw new IllegalArgumentException("Metal binding layout does not match native readback destination.");
+        }
+        if (nativeDestination.getType() != DataType.FLOAT32
+                || nativeDestination.getSize() != destination.getFlatDataSize()
+                || nativeDestination.byteSize() < binding.logicalByteLength()) {
+            throw new IllegalArgumentException("Native FLOAT32 destination storage does not match Metal binding byte length.");
         }
     }
 

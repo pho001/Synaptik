@@ -7,11 +7,13 @@ import backend.memory.CpuMaterializationReason;
 import backend.memory.CpuMaterializationResult;
 import backend.memory.DeviceBufferBinding;
 import backend.memory.DeviceToCpuMaterializer;
+import backend.memory.DeviceToNativeMaterializer;
 import backend.memory.ExecutionResource;
 import backend.memory.StorageResidency;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
+import config.runtime.DeviceTransferPolicy;
 import config.runtime.RuntimeConfig;
 import graph.execution.trace.HostDeviceTransferKind;
 import graph.CompiledGraph;
@@ -305,6 +307,71 @@ class ExecutionStateResidencyTest {
     }
 
     @Test
+    void deviceCurrentRequireNativeReadableUsesDirectNativeMaterializerWhenAvailable() {
+        Fixture fixture = fixture();
+        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        DeviceBufferBinding binding = fakeBinding(outputNodeId, 8, true);
+        RecordingNativeMaterializer materializer = new RecordingNativeMaterializer(654L, "fake Metal native readback");
+
+        fixture.state().attachDeviceBufferBinding(
+                outputNodeId,
+                binding,
+                StorageResidency.DEVICE_OWNED,
+                "device-owned output"
+        );
+        fixture.state().registerDeviceToNativeMaterializer("GPU_METAL", materializer);
+
+        NativeTensorStorage storage = fixture.state().requireNativeReadable(
+                outputNodeId,
+                CpuMaterializationReason.CPU_CONSUMER
+        );
+
+        assertTrue(storage instanceof NativeFloat32Storage);
+        NativeFloat32Storage f32 = (NativeFloat32Storage) storage;
+        assertEquals(21f, f32.getFloat32At(0), 0f);
+        assertEquals(-8f, f32.getFloat32At(1), 0f);
+        assertEquals(1, materializer.calls);
+        assertTrue(fixture.state().cpuMaterializationTraces().isEmpty());
+        var transfer = fixture.state().hostDeviceTransferTraces().getFirst();
+        assertEquals(HostDeviceTransferKind.DEVICE_TO_NATIVE_SEGMENT_COPY, transfer.transferKind());
+        assertEquals(StorageResidency.DEVICE_OWNED, transfer.sourceResidency());
+        assertEquals(StorageResidency.CPU_NATIVE, transfer.targetResidency());
+        assertEquals(0L, transfer.javaArrayBytes());
+        assertEquals(8L, transfer.nativeBytes());
+        assertEquals(8L, transfer.deviceBytes());
+        assertTrue(transfer.directTransferSupported());
+    }
+
+    @Test
+    void requireDirectRejectsDeviceToArrayToNativeBridgeWhenDirectMaterializerMissing() {
+        Fixture fixture = fixture();
+        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        DeviceBufferBinding binding = fakeBinding(outputNodeId, 8, true);
+        ExecutionContext context = ExecutionContext.fromRuntimeConfig(
+                RuntimeConfig.inferenceDefaults().withDeviceTransferPolicy(DeviceTransferPolicy.REQUIRE_DIRECT),
+                ExecutionMode.FORWARD,
+                fixture.metadata(),
+                fixture.state()
+        );
+
+        fixture.state().attachDeviceBufferBinding(
+                outputNodeId,
+                binding,
+                StorageResidency.DEVICE_OWNED,
+                "device-owned output"
+        );
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> context.requireNativeReadable(outputNodeId, CpuMaterializationReason.CPU_CONSUMER)
+        );
+
+        assertTrue(failure.getMessage().contains("DeviceTransferPolicy.REQUIRE_DIRECT"));
+        assertTrue(failure.getMessage().contains("direct device-to-native transfer is unavailable"));
+        assertTrue(fixture.state().hostDeviceTransferTraces().isEmpty());
+    }
+
+    @Test
     void closeResourcesClosesAttachedNativeStorageAndClearsBinding() {
         Fixture fixture = fixture();
         int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
@@ -444,6 +511,31 @@ class ExecutionStateResidencyTest {
             this.binding = binding;
             this.target = target;
             this.reason = reason;
+            return new CpuMaterializationResult(durationNs, detail);
+        }
+    }
+
+    private static final class RecordingNativeMaterializer implements DeviceToNativeMaterializer {
+        private final long durationNs;
+        private final String detail;
+        private int calls;
+
+        private RecordingNativeMaterializer(long durationNs, String detail) {
+            this.durationNs = durationNs;
+            this.detail = detail;
+        }
+
+        @Override
+        public CpuMaterializationResult materialize(
+                DeviceBufferBinding binding,
+                Tensor target,
+                NativeTensorStorage nativeStorage,
+                CpuMaterializationReason reason
+        ) {
+            calls++;
+            NativeFloat32Storage f32 = (NativeFloat32Storage) nativeStorage;
+            f32.setFloat32At(0, 21f);
+            f32.setFloat32At(1, -8f);
             return new CpuMaterializationResult(durationNs, detail);
         }
     }

@@ -1095,24 +1095,44 @@ public class BenchmarkSessionTest {
                                                 100L,
                                                 List.of(step),
                                                 List.of(materialization),
-                                                List.of(new graph.execution.trace.HostDeviceTransferTrace(
-                                                        42,
-                                                        "GPU_METAL",
-                                                        DataType.FLOAT32,
-                                                        StorageResidency.CPU_NATIVE,
-                                                        StorageResidency.HOST_SHARED_DEVICE_BUFFER,
-                                                        graph.execution.trace.HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE,
-                                                        4096L,
-                                                        4096L,
-                                                        4096L,
-                                                        4096L,
-                                                        125_000L,
-                                                        false,
-                                                        false,
-                                                        true,
-                                                        "native-device-direct-transfer-unavailable",
-                                                        "metal shared input buffer upload"
-                                                )),
+                                                List.of(
+                                                        new graph.execution.trace.HostDeviceTransferTrace(
+                                                                42,
+                                                                "GPU_METAL",
+                                                                DataType.FLOAT32,
+                                                                StorageResidency.CPU_NATIVE,
+                                                                StorageResidency.HOST_SHARED_DEVICE_BUFFER,
+                                                                graph.execution.trace.HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE,
+                                                                4096L,
+                                                                4096L,
+                                                                4096L,
+                                                                4096L,
+                                                                125_000L,
+                                                                false,
+                                                                false,
+                                                                true,
+                                                                "native-device-direct-transfer-unavailable",
+                                                                "metal shared input buffer upload"
+                                                        ),
+                                                        new graph.execution.trace.HostDeviceTransferTrace(
+                                                                43,
+                                                                "GPU_METAL",
+                                                                DataType.FLOAT32,
+                                                                StorageResidency.CPU_NATIVE,
+                                                                StorageResidency.HOST_SHARED_DEVICE_BUFFER,
+                                                                graph.execution.trace.HostDeviceTransferKind.NATIVE_SEGMENT_TO_DEVICE_COPY,
+                                                                2048L,
+                                                                0L,
+                                                                2048L,
+                                                                2048L,
+                                                                50_000L,
+                                                                false,
+                                                                true,
+                                                                true,
+                                                                "",
+                                                                "metal native segment input buffer upload"
+                                                        )
+                                                ),
                                                 new graph.execution.trace.NativeCpuMemoryTrace(
                                                         3L,
                                                         0L,
@@ -1145,8 +1165,10 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("matMulCopyOutBytes=4096"));
         assertTrue(text.contains("matMulNativeTempBytes=1024"));
         assertTrue(text.contains("nativeCpuMemory=allocationCount=3"));
-        assertTrue(text.contains("hostDeviceTransferSummary=transferCount=1 bytes=4096 javaArrayBytes=4096 nativeBytes=4096 deviceBytes=4096 fallbackCount=1"));
+        assertTrue(text.contains("hostDeviceTransferSummary=transferCount=2 bytes=6144 javaArrayBytes=4096 nativeBytes=6144 deviceBytes=6144 fallbackCount=1"));
         assertTrue(text.contains("kind=NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE"));
+        assertTrue(text.contains("kind=NATIVE_SEGMENT_TO_DEVICE_COPY"));
+        assertTrue(text.contains("javaArrayBytes=0"));
         assertTrue(text.contains("fallbackReason=native-device-direct-transfer-unavailable"));
         assertTrue(text.contains("requestedBytes=12288"));
         assertTrue(text.contains("peakLiveBytes=12288"));
@@ -1156,8 +1178,10 @@ public class BenchmarkSessionTest {
 
         String json = JsonBenchmarkReportRenderer.render(report);
         assertTrue(json.contains("\"runtimeCopy\": {\"cpuMaterializationBytes\": 4096, \"cpuMaterializationDurationNs\": 250000, \"matMulCopyInBytes\": 8192, \"matMulCopyOutBytes\": 4096, \"matMulNativeTempBytes\": 1024}"));
-        assertTrue(json.contains("\"hostDeviceTransfer\": {\"transferCount\": 1, \"bytes\": 4096, \"javaArrayBytes\": 4096, \"nativeBytes\": 4096, \"deviceBytes\": 4096, \"fallbackCount\": 1}"));
+        assertTrue(json.contains("\"hostDeviceTransfer\": {\"transferCount\": 2, \"bytes\": 6144, \"javaArrayBytes\": 4096, \"nativeBytes\": 6144, \"deviceBytes\": 6144, \"fallbackCount\": 1}"));
         assertTrue(json.contains("\"transferKind\": \"NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE\""));
+        assertTrue(json.contains("\"transferKind\": \"NATIVE_SEGMENT_TO_DEVICE_COPY\""));
+        assertTrue(json.contains("\"javaArrayBytes\": 0"));
         assertTrue(json.contains("\"fallbackReason\": \"native-device-direct-transfer-unavailable\""));
         assertTrue(json.contains("\"nativeCpuMemory\": {\"allocationCount\": 3, \"releaseCount\": 0, \"retainCount\": 0, \"allocationFailureCount\": 0, \"requestedPoolPolicy\": \"\", \"effectivePoolPolicy\": \"\", \"requestedBytes\": 12288, \"allocatedBytes\": 12288, \"currentLiveBytes\": 12288, \"peakLiveBytes\": 12288, \"retainedBytes\": 0, \"poolHitCount\": 0, \"poolMissCount\": 0, \"pooledBytes\": 0, \"reusedBytes\": 0, \"discardedBytes\": 0, \"wastedBytes\": 0}"));
         assertTrue(json.contains("\"nativeCpuFallbackReason\": \"native-symbol-unavailable:cblas_sgemm\""));

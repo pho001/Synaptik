@@ -30,6 +30,8 @@ import graph.execution.trace.HostDeviceTransferTrace;
 import graph.execution.DeviceLayoutMaterializer;
 import operations.Operation;
 import tensor.DataType;
+import tensor.NativeFloat32Storage;
+import tensor.NativeTensorStorage;
 import tensor.Tensor;
 import tensor.TensorMetadata;
 import tensor.TensorRemap;
@@ -135,6 +137,10 @@ public final class MetalAcceleratorBufferBinder {
         context.registerDeviceToCpuMaterializer(
                 ComputeBackend.GPU_METAL.name(),
                 new MetalDeviceToCpuMaterializer(resolvedAllocator)
+        );
+        context.registerDeviceToNativeMaterializer(
+                ComputeBackend.GPU_METAL.name(),
+                new MetalDeviceToNativeMaterializer(resolvedAllocator)
         );
         if (bridge.supportsLayoutMaterialization()) {
             context.registerRuntimeService(
@@ -389,6 +395,12 @@ public final class MetalAcceleratorBufferBinder {
             var residency = context.residencyForNodeId(nodeId);
             if (!prepared && (residency == null || !residency.cpuCurrent())) {
                 if (residency != null && residency.nativeCurrent()) {
+                    if (supportsNativeSegmentInput(context, nodeId, tensor, layout)) {
+                        out.add(new AcceleratorBufferInputDecision(nodeId, layout, false, true,
+                                AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE,
+                                "external input nodeId=" + nodeId + " will upload CPU_NATIVE FLOAT32 segment directly"));
+                        continue;
+                    }
                     if (deviceTransferPolicy(context) == DeviceTransferPolicy.REQUIRE_DIRECT) {
                         throw directTransferRequired(nodeId, ComputeBackend.GPU_METAL.name(), residency.residency());
                     }
@@ -462,8 +474,20 @@ public final class MetalAcceleratorBufferBinder {
             Tensor tensor = i < inputs.executionExternalInputs().size()
                     ? inputs.executionExternalInputs().get(i)
                     : context.runtimeTensorForNodeId(nodeId);
-            InputTransferRoute transferRoute = prepareInputForDevice(context, nodeId, ComputeBackend.GPU_METAL.name());
-            MetalBufferBinding created = expected == DataType.BOOL
+            InputTransferRoute transferRoute = prepareInputForDevice(
+                    context,
+                    nodeId,
+                    ComputeBackend.GPU_METAL.name(),
+                    tensor,
+                    layout
+            );
+            MetalBufferBinding created = transferRoute.kind() == HostDeviceTransferKind.NATIVE_SEGMENT_TO_DEVICE_COPY
+                    ? resolvedAllocator.createNativeFloat32InputBinding(
+                            nodeId,
+                            tensor,
+                            (NativeFloat32Storage) context.nativeStorageForNodeId(nodeId)
+                    )
+                    : expected == DataType.BOOL
                     ? resolvedAllocator.createPredicateInputBinding(nodeId, tensor)
                     : resolvedAllocator.createInputBinding(nodeId, tensor);
             recordInputTransfer(
@@ -502,10 +526,21 @@ public final class MetalAcceleratorBufferBinder {
     private static InputTransferRoute prepareInputForDevice(
             ExecutionContext context,
             int nodeId,
-            String backend
+            String backend,
+            Tensor tensor,
+            AcceleratorBufferLayout layout
     ) {
         var residency = context.residencyForNodeId(nodeId);
         if (residency != null && residency.nativeCurrent() && !residency.cpuCurrent()) {
+            if (supportsNativeSegmentInput(context, nodeId, tensor, layout)) {
+                return new InputTransferRoute(
+                        StorageResidency.CPU_NATIVE,
+                        HostDeviceTransferKind.NATIVE_SEGMENT_TO_DEVICE_COPY,
+                        System.nanoTime(),
+                        "",
+                        true
+                );
+            }
             DeviceTransferPolicy policy = deviceTransferPolicy(context);
             if (!policy.allowsArrayBridge()) {
                 throw directTransferRequired(nodeId, backend, residency.residency());
@@ -529,6 +564,23 @@ public final class MetalAcceleratorBufferBinder {
         );
     }
 
+    private static boolean supportsNativeSegmentInput(
+            ExecutionContext context,
+            int nodeId,
+            Tensor tensor,
+            AcceleratorBufferLayout layout
+    ) {
+        if (context == null || tensor == null || layout == null || tensor.getDataType() != DataType.FLOAT32) {
+            return false;
+        }
+        NativeTensorStorage storage = context.nativeStorageForNodeId(nodeId);
+        return storage instanceof NativeFloat32Storage
+                && layout.layoutClass() == AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS
+                && tensor.isContiguous()
+                && !tensor.hasStorageOffset()
+                && storage.getSize() == tensor.getFlatDataSize();
+    }
+
     private static void recordInputTransfer(
             ExecutionContext context,
             int nodeId,
@@ -541,8 +593,8 @@ public final class MetalAcceleratorBufferBinder {
         if (context == null || route == null) {
             return;
         }
-        long javaArrayBytes = route.kind() == HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE ? bytes : bytes;
-        long nativeBytes = route.kind() == HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE ? bytes : 0L;
+        long javaArrayBytes = route.kind() == HostDeviceTransferKind.NATIVE_SEGMENT_TO_DEVICE_COPY ? 0L : bytes;
+        long nativeBytes = route.kind() == HostDeviceTransferKind.CPU_ARRAY_TO_DEVICE_COPY ? 0L : bytes;
         context.recordHostDeviceTransfer(new HostDeviceTransferTrace(
                 nodeId,
                 ComputeBackend.GPU_METAL.name(),

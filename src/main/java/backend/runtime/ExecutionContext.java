@@ -3,6 +3,7 @@ package backend.runtime;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.DeviceBufferBinding;
 import backend.memory.DeviceToCpuMaterializer;
+import backend.memory.DeviceToNativeMaterializer;
 import backend.memory.ExecutionResource;
 import backend.memory.StorageResidency;
 import backend.memory.TensorResidencyState;
@@ -383,6 +384,18 @@ public final class ExecutionContext {
     }
 
     /**
+     * Registers a backend hook that can synchronize device-current values directly into native CPU storage.
+     *
+     * @param backendId backend id such as {@code GPU_METAL}
+     * @param materializer materializer implementation
+     */
+    public void registerDeviceToNativeMaterializer(String backendId, DeviceToNativeMaterializer materializer) {
+        if (executionState != null) {
+            executionState.registerDeviceToNativeMaterializer(backendId, materializer);
+        }
+    }
+
+    /**
      * Records a host/device transfer route observed by a backend helper.
      *
      * @param trace transfer trace entry
@@ -427,7 +440,11 @@ public final class ExecutionContext {
         if (executionState == null) {
             throw new IllegalStateException("ExecutionContext does not carry per-run ExecutionState.");
         }
-        return executionState.requireNativeReadable(nodeId, reason);
+        return executionState.requireNativeReadable(
+                nodeId,
+                reason,
+                runtimeConfig == null ? null : runtimeConfig.deviceTransferPolicy()
+        );
     }
 
     /**

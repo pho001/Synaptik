@@ -12,9 +12,11 @@ import backend.memory.CpuMaterializationReason;
 import backend.memory.CpuMaterializationResult;
 import backend.memory.DeviceBufferBinding;
 import backend.memory.DeviceToCpuMaterializer;
+import backend.memory.DeviceToNativeMaterializer;
 import backend.memory.ExecutionResource;
 import backend.memory.StorageResidency;
 import backend.memory.TensorResidencyState;
+import config.runtime.DeviceTransferPolicy;
 import config.runtime.NativeCpuMemoryConfig;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
@@ -54,6 +56,7 @@ public final class ExecutionState {
     private final Map<Integer, DeviceBufferBinding> reservedDeviceBufferBindingByNodeId;
     private final Map<Integer, NativeTensorStorage> nativeStorageByNodeId;
     private final Map<String, DeviceToCpuMaterializer> deviceToCpuMaterializerByBackend;
+    private final Map<String, DeviceToNativeMaterializer> deviceToNativeMaterializerByBackend;
     private final List<CpuMaterializationTrace> cpuMaterializationTraces;
     private final List<HostDeviceTransferTrace> hostDeviceTransferTraces;
     private final List<ExecutionResource> executionResources;
@@ -77,6 +80,7 @@ public final class ExecutionState {
         this.reservedDeviceBufferBindingByNodeId = new HashMap<>();
         this.nativeStorageByNodeId = new HashMap<>();
         this.deviceToCpuMaterializerByBackend = new HashMap<>();
+        this.deviceToNativeMaterializerByBackend = new HashMap<>();
         this.cpuMaterializationTraces = new ArrayList<>();
         this.hostDeviceTransferTraces = new ArrayList<>();
         this.executionResources = new ArrayList<>();
@@ -600,6 +604,22 @@ public final class ExecutionState {
     }
 
     /**
+     * Registers or replaces the materializer used to read one device backend directly into native CPU storage.
+     *
+     * @param backendId backend id such as {@code GPU_METAL}
+     * @param materializer materializer implementation
+     */
+    public void registerDeviceToNativeMaterializer(String backendId, DeviceToNativeMaterializer materializer) {
+        if (backendId == null || backendId.isBlank()) {
+            throw new IllegalArgumentException("backendId cannot be blank");
+        }
+        deviceToNativeMaterializerByBackend.put(
+                backendId,
+                Objects.requireNonNull(materializer, "materializer cannot be null")
+        );
+    }
+
+    /**
      * Registers a native/backend resource owned by this execution run.
      *
      * <p>Resources are closed in reverse allocation order by {@link #closeResources()}. Only owned resources
@@ -690,7 +710,26 @@ public final class ExecutionState {
      * @return current native CPU storage
      */
     public NativeTensorStorage requireNativeReadable(int nodeId, CpuMaterializationReason reason) {
+        return requireNativeReadable(nodeId, reason, DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE);
+    }
+
+    /**
+     * Verifies that native CPU storage is current before a native CPU read.
+     *
+     * @param nodeId compiled node id
+     * @param reason reason for the requested native access
+     * @param deviceTransferPolicy host/device transfer fallback policy
+     * @return current native CPU storage
+     */
+    public NativeTensorStorage requireNativeReadable(
+            int nodeId,
+            CpuMaterializationReason reason,
+            DeviceTransferPolicy deviceTransferPolicy
+    ) {
         Objects.requireNonNull(reason, "reason cannot be null");
+        DeviceTransferPolicy transferPolicy = deviceTransferPolicy == null
+                ? DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE
+                : deviceTransferPolicy;
         TensorResidencyState state = residencyForNodeId(nodeId);
         if (state.nativeCurrent()) {
             NativeTensorStorage storage = nativeStorageByNodeId.get(nodeId);
@@ -705,6 +744,18 @@ public final class ExecutionState {
             return materializeArrayToNative(nodeId, reason, "array_to_native");
         }
         if (state.deviceCurrent()) {
+            NativeTensorStorage direct = tryMaterializeDeviceToNative(nodeId, reason, state);
+            if (direct != null) {
+                return direct;
+            }
+            if (!transferPolicy.allowsArrayBridge()) {
+                throw new IllegalStateException(
+                        "DeviceTransferPolicy.REQUIRE_DIRECT forbids Java array bridge for nodeId=" + nodeId
+                                + " backend=" + state.deviceBackend()
+                                + " sourceResidency=" + state.residency()
+                                + " because direct device-to-native transfer is unavailable."
+                );
+            }
             StorageResidency sourceResidency = state.residency();
             String backend = state.deviceBackend();
             long bytes = logicalByteLength(nodeId);
@@ -736,6 +787,64 @@ public final class ExecutionState {
                         + " reason=" + reason.label()
                         + " but neither native, CPU array, nor device storage is current."
         );
+    }
+
+    private NativeTensorStorage tryMaterializeDeviceToNative(
+            int nodeId,
+            CpuMaterializationReason reason,
+            TensorResidencyState state
+    ) {
+        DeviceBufferBinding binding = deviceBufferBindingByNodeId.get(nodeId);
+        DeviceToNativeMaterializer materializer = binding == null
+                ? null
+                : deviceToNativeMaterializerByBackend.get(binding.backendId());
+        if (binding == null || materializer == null) {
+            return null;
+        }
+        Tensor tensor = runtimeTensorForNodeId(nodeId);
+        NativeTensorStorage storage = nativeStorageByNodeId.get(nodeId);
+        if (storage == null || storage.closed() || storage.getType() != tensor.getDataType()
+                || storage.getSize() != tensor.getFlatDataSize()) {
+            storage = allocateNativeStorage(
+                    tensor.getDataType(),
+                    tensor.getFlatDataSize(),
+                    "node-" + nodeId + ":" + tensor.getLabel()
+            );
+            nativeStorageByNodeId.put(nodeId, storage);
+            if (storage.ownsSegment()) {
+                registerResource(storage.allocation());
+            }
+        }
+        if (!materializer.supports(binding, tensor, storage, reason)) {
+            return null;
+        }
+        CpuMaterializationResult result = materializer.materialize(binding, tensor, storage, reason);
+        if (result == null) {
+            result = CpuMaterializationResult.unmeasured("device value synchronized to native CPU storage");
+        }
+        long bytes = logicalByteLength(nodeId);
+        recordHostDeviceTransfer(new HostDeviceTransferTrace(
+                nodeId,
+                state.deviceBackend(),
+                tensor.getDataType(),
+                state.residency(),
+                StorageResidency.CPU_NATIVE,
+                HostDeviceTransferKind.DEVICE_TO_NATIVE_SEGMENT_COPY,
+                bytes,
+                0L,
+                bytes,
+                bytes,
+                result.durationNs(),
+                false,
+                true,
+                true,
+                "",
+                result.detail()
+        ));
+        deviceBufferBindingByNodeId.remove(nodeId);
+        reservedDeviceBufferBindingByNodeId.remove(nodeId);
+        residencyForNodeId(nodeId).markNativeCurrent(reason.label());
+        return storage;
     }
 
     /**

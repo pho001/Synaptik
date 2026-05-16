@@ -592,7 +592,7 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     @Test
-    void nativeInputFallsBackThroughArrayBridgeAndRecordsTransferTrace() {
+    void nativeInputUploadsDirectlyAndRecordsTransferTrace() {
         Fixture fixture = fixture();
         FakeBridge bridge = new FakeBridge(true);
         MetalAcceleratorBufferBinder binder = new MetalAcceleratorBufferBinder(bridge, bridge.createContext());
@@ -613,21 +613,21 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(1, bindings.inputs().size());
         assertEquals(StorageResidency.HOST_SHARED_DEVICE_BUFFER,
                 fixture.state().residencyForNodeId(fixture.inputNode().id()).residency());
-        assertEquals(1, fixture.state().cpuMaterializationTraces().size());
+        assertTrue(fixture.state().cpuMaterializationTraces().isEmpty());
         var transfer = fixture.state().hostDeviceTransferTraces().stream()
-                .filter(entry -> entry.transferKind() == HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE)
+                .filter(entry -> entry.transferKind() == HostDeviceTransferKind.NATIVE_SEGMENT_TO_DEVICE_COPY)
                 .findFirst()
                 .orElseThrow();
         assertEquals(fixture.inputNode().id(), transfer.nodeId());
-        assertEquals("native-device-direct-transfer-unavailable", transfer.fallbackReason());
+        assertTrue(transfer.fallbackReason().isBlank());
         long expectedBytes = (long) fixture.inputNode().flatDataSize() * Float.BYTES;
-        assertEquals(expectedBytes, transfer.javaArrayBytes());
+        assertEquals(0L, transfer.javaArrayBytes());
         assertEquals(expectedBytes, transfer.nativeBytes());
-        assertFalse(transfer.directTransferSupported());
+        assertTrue(transfer.directTransferSupported());
     }
 
     @Test
-    void requireDirectRejectsNativeInputArrayBridge() {
+    void requireDirectAllowsDenseNativeInputDirectUpload() {
         Fixture fixture = fixture();
         FakeBridge bridge = new FakeBridge(true);
         MetalAcceleratorBufferBinder binder = new MetalAcceleratorBufferBinder(bridge, bridge.createContext());
@@ -644,14 +644,35 @@ class PreparedMetalExecutableBufferBindingTest {
         AcceleratorBufferRequest request = singleInputRequest(fixture, input);
         ResolvedAcceleratorInputs resolved = singleInputResolved(fixture, input);
 
-        IllegalStateException failure = assertThrows(
-                IllegalStateException.class,
-                () -> binder.decide(request, resolved, AcceleratorBufferConfig.defaults(), requireDirectContext)
+        var decision = binder.decide(request, resolved, AcceleratorBufferConfig.defaults(), requireDirectContext);
+        var bindings = binder.resolve(request, resolved, decision, requireDirectContext);
+
+        assertEquals(AcceleratorBufferExecutionPath.BUFFER_BINDING, decision.path());
+        assertEquals(1, bindings.inputs().size());
+        assertTrue(fixture.state().hostDeviceTransferTraces().stream()
+                .anyMatch(entry -> entry.transferKind() == HostDeviceTransferKind.NATIVE_SEGMENT_TO_DEVICE_COPY
+                        && entry.javaArrayBytes() == 0L));
+    }
+
+    @Test
+    void metalOutputMaterializesDirectlyToNativeFloat32Storage() {
+        Fixture fixture = fixture();
+        FakeBridge bridge = new FakeBridge(true);
+        PreparedMetalExecutable executable = executable(fixture, bridge);
+
+        executable.execute(fixture.context());
+        var storage = fixture.context().requireNativeReadable(
+                fixture.outputNode().id(),
+                backend.memory.CpuMaterializationReason.CPU_CONSUMER
         );
 
-        assertTrue(failure.getMessage().contains("DeviceTransferPolicy.REQUIRE_DIRECT"));
-        assertTrue(failure.getMessage().contains("native-device direct transfer is unavailable"));
-        assertTrue(fixture.state().hostDeviceTransferTraces().isEmpty());
+        assertTrue(storage instanceof NativeFloat32Storage);
+        assertTrue(fixture.state().cpuMaterializationTraces().isEmpty());
+        assertTrue(fixture.state().hostDeviceTransferTraces().stream()
+                .anyMatch(entry -> entry.nodeId() == fixture.outputNode().id()
+                        && entry.transferKind() == HostDeviceTransferKind.DEVICE_TO_NATIVE_SEGMENT_COPY
+                        && entry.javaArrayBytes() == 0L
+                        && entry.nativeBytes() == fixture.outputNode().flatDataSize() * Float.BYTES));
     }
 
     @Test

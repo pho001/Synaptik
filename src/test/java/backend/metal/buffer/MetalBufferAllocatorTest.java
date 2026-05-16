@@ -1,9 +1,11 @@
 package backend.metal.buffer;
 
+import backend.cpu.nativecpu.NativeCpuStorageFactory;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.DeviceToCpuMaterializer;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
+import tensor.NativeFloat32Storage;
 import tensor.Tensor;
 
 import java.lang.foreign.MemorySegment;
@@ -16,6 +18,44 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MetalBufferAllocatorTest {
+    @Test
+    void nativeFloat32InputBindingUploadsSegmentWithoutJavaArrayCopy() {
+        FakeNativeAccess nativeAccess = new FakeNativeAccess();
+        MetalBufferAllocator allocator = MetalBufferAllocator.available(nativeAccess);
+        Tensor source = new Tensor(new float[]{0f, 0f, 0f}, new int[]{3}, null, "source", DataType.FLOAT32);
+        NativeFloat32Storage storage = (NativeFloat32Storage) new NativeCpuStorageFactory()
+                .allocate(DataType.FLOAT32, 3, "native-source");
+        storage.setFloat32At(0, 1.25f);
+        storage.setFloat32At(1, -2.5f);
+        storage.setFloat32At(2, 3.75f);
+
+        MetalBufferBinding binding = allocator.createNativeFloat32InputBinding(5, source, storage);
+
+        assertEquals(DataType.FLOAT32, binding.layout().dataType());
+        assertEquals(3L * Float.BYTES, binding.logicalByteLength());
+        assertArrayEquals(new float[]{1.25f, -2.5f, 3.75f}, nativeAccess.floatValues(binding.handle()), 0.0f);
+    }
+
+    @Test
+    void nativeFloat32ReadbackWritesSegmentWithoutJavaArrayCopy() {
+        FakeNativeAccess nativeAccess = new FakeNativeAccess();
+        MetalBufferAllocator allocator = MetalBufferAllocator.available(nativeAccess);
+        Tensor destination = new Tensor(new float[]{0f, 0f, 0f}, new int[]{3}, null, "destination", DataType.FLOAT32);
+        NativeFloat32Storage storage = (NativeFloat32Storage) new NativeCpuStorageFactory()
+                .allocate(DataType.FLOAT32, 3, "native-destination");
+        MetalBufferBinding binding = allocator.createOutputBinding(
+                7,
+                backend.accelerator.buffer.AcceleratorBufferLayout.fromTensor(destination)
+        );
+        nativeAccess.putFloatValues(binding.handle(), new float[]{4f, 5f, 6f});
+
+        allocator.readToNativeFloat32(binding, destination, storage, CpuMaterializationReason.CPU_CONSUMER);
+
+        assertEquals(4f, storage.getFloat32At(0), 0.0f);
+        assertEquals(5f, storage.getFloat32At(1), 0.0f);
+        assertEquals(6f, storage.getFloat32At(2), 0.0f);
+    }
+
     @Test
     void bfloat16InputBindingAndReadbackPreserveRawStorageBits() {
         FakeNativeAccess nativeAccess = new FakeNativeAccess();
@@ -122,6 +162,19 @@ class MetalBufferAllocatorTest {
         @Override
         public void destroyBuffer(MetalBufferHandle handle) {
             buffers.remove(handle.nativeHandle().address());
+        }
+
+        void putFloatValues(MetalBufferHandle handle, float[] values) {
+            byte[] bytes = new byte[values.length * Float.BYTES];
+            MemorySegment.ofArray(bytes).copyFrom(MemorySegment.ofArray(values));
+            buffers.put(handle.nativeHandle().address(), bytes);
+        }
+
+        float[] floatValues(MetalBufferHandle handle) {
+            byte[] storage = buffers.get(handle.nativeHandle().address());
+            float[] values = new float[storage.length / Float.BYTES];
+            MemorySegment.ofArray(values).copyFrom(MemorySegment.ofArray(storage));
+            return values;
         }
     }
 }
