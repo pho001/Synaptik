@@ -51,8 +51,10 @@ import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
 import config.runtime.BlasStorageMode;
 import config.runtime.Conv2dConfig;
+import config.runtime.CpuStorageProfile;
 import config.runtime.FusedExecutionPolicy;
 import config.runtime.FusedPrimaryBackend;
+import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.RuntimeConfig;
 import tensor.DataType;
 
@@ -417,7 +419,21 @@ public final class ExecutionProfileIO {
                             acceleratorBufferConfig(json, "metal", defaultProfile.runtime().accelerator().metal().buffer())
                     )
             );
-            RuntimeConfig runtime = new RuntimeConfig(new KernelTuningConfig(cpu, cuda, opencl), approximation, blas, conv2d, fused, accelerator);
+            RuntimeConfig runtime = new RuntimeConfig(
+                    new KernelTuningConfig(cpu, cuda, opencl),
+                    approximation,
+                    blas,
+                    conv2d,
+                    fused,
+                    accelerator,
+                    findEnum(json, "cpuStorageProfile", defaultProfile.runtime().cpuStorageProfile(), CpuStorageProfile.class),
+                    findEnum(
+                            json,
+                            "nativeCpuFailurePolicy",
+                            defaultProfile.runtime().nativeCpuFailurePolicy(),
+                            NativeCpuFailurePolicy.class
+                    )
+            );
 
             WorkloadProfile defaultWorkload = defaultProfile.workload();
             WorkloadKind workloadKind = findEnum(json, "kind", defaultWorkload.kind(), WorkloadKind.class);
@@ -609,6 +625,8 @@ public final class ExecutionProfileIO {
                 "      \"approxMode\": \"" + approximation.approxMode().name() + "\",\n" +
                 "      \"forceExactTranscendentals\": " + approximation.forceExactTranscendentals() + "\n" +
                 "    },\n" +
+                "    \"cpuStorageProfile\": \"" + runtime.cpuStorageProfile().name() + "\",\n" +
+                "    \"nativeCpuFailurePolicy\": \"" + runtime.nativeCpuFailurePolicy().name() + "\",\n" +
                 "    \"kernel\": {\n" +
                 "      \"cpu\": {\n" +
                 "        \"cpuLoopUnrollFactor\": " + cpu.loopUnrollFactor() + ",\n" +

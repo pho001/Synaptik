@@ -47,8 +47,10 @@ import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
 import config.runtime.AcceleratorConfig;
 import config.runtime.BlasConfig;
+import config.runtime.CpuStorageProfile;
 import config.runtime.FusedExecutionPolicy;
 import config.runtime.FusedPrimaryBackend;
+import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.RuntimeConfig;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -199,6 +201,47 @@ public class ExecutionProfileIoTest {
         assertEquals(expected.runtime().fused(), actual.runtime().fused());
         assertEquals(expected.runtime().accelerator(), actual.runtime().accelerator());
         assertEquals(expected.workload(), actual.workload());
+    }
+
+    @Test
+    void executionProfileRoundTripsRuntimeCpuStoragePolicy() throws Exception {
+        ExecutionProfile expected = new ExecutionProfile(
+                "cpu-storage-policy",
+                "cpu-storage-policy",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                CompileConfig.inference(),
+                RuntimeConfig.inferenceDefaults()
+                        .withCpuStorageProfile(CpuStorageProfile.AUTO)
+                        .withNativeCpuFailurePolicy(NativeCpuFailurePolicy.REQUIRE_NATIVE)
+        );
+
+        Path path = Files.createTempFile("execution-profile-cpu-storage-", ".json");
+        ExecutionProfileIO.saveExecutionProfile(path, expected);
+        ExecutionProfile actual = ExecutionProfileIO.loadExecutionProfileOrDefault(path, defaultProfile());
+
+        assertEquals(CpuStorageProfile.AUTO, actual.runtime().cpuStorageProfile());
+        assertEquals(NativeCpuFailurePolicy.REQUIRE_NATIVE, actual.runtime().nativeCpuFailurePolicy());
+    }
+
+    @Test
+    void legacyExecutionProfilesWithoutCpuStoragePolicyUseDefaults() {
+        ExecutionProfile fallback = defaultProfile();
+        String json = """
+                {
+                  "dataType": "FLOAT32",
+                  "mode": "FORWARD",
+                  "profileName": "legacy",
+                  "candidateName": "legacy",
+                  "compile": {},
+                  "runtime": {}
+                }
+                """;
+
+        ExecutionProfile actual = ExecutionProfileIO.fromJsonOrDefault(json, fallback);
+
+        assertEquals(CpuStorageProfile.CPU_ARRAY, actual.runtime().cpuStorageProfile());
+        assertEquals(NativeCpuFailurePolicy.FALLBACK_TO_ARRAY, actual.runtime().nativeCpuFailurePolicy());
     }
 
     @Test

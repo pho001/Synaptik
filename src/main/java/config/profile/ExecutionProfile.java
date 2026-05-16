@@ -1,6 +1,9 @@
 package config.profile;
 
 import config.compile.CompileConfig;
+import config.runtime.AcceleratorConfig;
+import config.runtime.CpuStorageProfile;
+import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.RuntimeConfig;
 import backend.runtime.ExecutionMode;
 import tensor.DataType;
@@ -100,6 +103,60 @@ public record ExecutionProfile(
                 ExecutionMode.FORWARD,
                 CompileConfig.inference(),
                 RuntimeConfig.inferenceDefaults()
+        );
+    }
+
+    public static ExecutionProfile cpuArray() {
+        return new ExecutionProfile(
+                "cpu-array",
+                "cpu-array",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                CompileConfig.inference(),
+                RuntimeConfig.inferenceDefaults()
+                        .withCpuStorageProfile(CpuStorageProfile.CPU_ARRAY)
+                        .withAccelerator(AcceleratorConfig.disabled())
+        );
+    }
+
+    public static ExecutionProfile cpuNative() {
+        return new ExecutionProfile(
+                "cpu-native",
+                "cpu-native",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                CompileConfig.inference(),
+                RuntimeConfig.inferenceDefaults()
+                        .withCpuStorageProfile(CpuStorageProfile.CPU_NATIVE)
+                        .withNativeCpuFailurePolicy(NativeCpuFailurePolicy.REQUIRE_NATIVE)
+                        .withAccelerator(AcceleratorConfig.disabled())
+        );
+    }
+
+    public static ExecutionProfile cpuAuto() {
+        return new ExecutionProfile(
+                "cpu-auto",
+                "cpu-auto",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                CompileConfig.inference(),
+                RuntimeConfig.inferenceDefaults()
+                        .withCpuStorageProfile(CpuStorageProfile.AUTO)
+                        .withNativeCpuFailurePolicy(NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)
+                        .withAccelerator(AcceleratorConfig.disabled())
+        );
+    }
+
+    public static ExecutionProfile metalAuto() {
+        return new ExecutionProfile(
+                "metal-auto",
+                "metal-auto",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                CompileConfig.inferenceAutoAccelerator(),
+                RuntimeConfig.inferenceDefaults()
+                        .withCpuStorageProfile(CpuStorageProfile.AUTO)
+                        .withNativeCpuFailurePolicy(NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)
         );
     }
 

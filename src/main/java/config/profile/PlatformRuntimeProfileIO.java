@@ -8,6 +8,8 @@ import config.backend.SumAccuracyMode;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
 import config.runtime.BlasStorageMode;
+import config.runtime.CpuStorageProfile;
+import config.runtime.NativeCpuFailurePolicy;
 import tensor.DataType;
 
 import java.io.IOException;
@@ -145,6 +147,10 @@ public final class PlatformRuntimeProfileIO {
                 "    \"metalBufferBindingMode\": \"" + profile.accelerator().metal().buffer().bindingMode().name() + "\",\n" +
                 "    \"metalAllowPreparedInputMaterialization\": " + profile.accelerator().metal().buffer().allowPreparedInputMaterialization() + ",\n" +
                 "    \"metalBufferMinimumEstimatedWork\": " + profile.accelerator().metal().buffer().minimumEstimatedWork() + "\n" +
+                "  },\n" +
+                "  \"runtimePolicy\": {\n" +
+                "    \"cpuStorageProfile\": \"" + profile.cpuStorageProfile().name() + "\",\n" +
+                "    \"nativeCpuFailurePolicy\": \"" + profile.nativeCpuFailurePolicy().name() + "\"\n" +
                 "  }\n" +
                 "}\n";
     }
@@ -359,6 +365,13 @@ public final class PlatformRuntimeProfileIO {
                                     ),
                                     acceleratorBufferConfig(json, "metal", fallback.accelerator().metal().buffer())
                             )
+                    ),
+                    findEnum(json, "cpuStorageProfile", fallback.cpuStorageProfile(), CpuStorageProfile.class),
+                    findEnum(
+                            json,
+                            "nativeCpuFailurePolicy",
+                            fallback.nativeCpuFailurePolicy(),
+                            NativeCpuFailurePolicy.class
                     )
             );
         } catch (Exception e) {

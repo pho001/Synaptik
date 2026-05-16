@@ -27,6 +27,9 @@ import java.util.Objects;
  * @param conv2d conv2d GEMM dispatch policy; {@code null} derives from BLAS config
  * @param fused fused execution backend policy; {@code null} uses training defaults
  * @param accelerator accelerator backend policy; {@code null} uses training defaults
+ * @param cpuStorageProfile runtime-level CPU storage policy; {@code null} uses {@link CpuStorageProfile#CPU_ARRAY}
+ * @param nativeCpuFailurePolicy native CPU fallback policy; {@code null} uses
+ *                               {@link NativeCpuFailurePolicy#FALLBACK_TO_ARRAY}
  */
 public record RuntimeConfig(
         KernelTuningConfig kernel,
@@ -34,7 +37,9 @@ public record RuntimeConfig(
         BlasConfig blas,
         Conv2dConfig conv2d,
         FusedExecutionPolicy fused,
-        AcceleratorConfig accelerator
+        AcceleratorConfig accelerator,
+        CpuStorageProfile cpuStorageProfile,
+        NativeCpuFailurePolicy nativeCpuFailurePolicy
 ) {
     public RuntimeConfig {
         kernel = Objects.requireNonNull(kernel, "kernel cannot be null");
@@ -43,6 +48,30 @@ public record RuntimeConfig(
         conv2d = conv2d == null ? Conv2dConfig.fromBlasConfig(blas) : conv2d;
         fused = fused == null ? FusedExecutionPolicy.defaultsTraining() : fused;
         accelerator = accelerator == null ? AcceleratorConfig.defaultsTraining() : accelerator;
+        cpuStorageProfile = cpuStorageProfile == null ? CpuStorageProfile.CPU_ARRAY : cpuStorageProfile;
+        nativeCpuFailurePolicy = nativeCpuFailurePolicy == null
+                ? NativeCpuFailurePolicy.FALLBACK_TO_ARRAY
+                : nativeCpuFailurePolicy;
+    }
+
+    public RuntimeConfig(
+            KernelTuningConfig kernel,
+            ApproximationConfig approximation,
+            BlasConfig blas,
+            Conv2dConfig conv2d,
+            FusedExecutionPolicy fused,
+            AcceleratorConfig accelerator
+    ) {
+        this(
+                kernel,
+                approximation,
+                blas,
+                conv2d,
+                fused,
+                accelerator,
+                CpuStorageProfile.CPU_ARRAY,
+                NativeCpuFailurePolicy.FALLBACK_TO_ARRAY
+        );
     }
 
     /**
@@ -305,6 +334,53 @@ public record RuntimeConfig(
      * @return runtime config with the same kernel, approximation, BLAS, conv2d, and fused settings
      */
     public RuntimeConfig withAccelerator(AcceleratorConfig newAccelerator) {
-        return new RuntimeConfig(kernel, approximation, blas, conv2d, fused, newAccelerator);
+        return new RuntimeConfig(
+                kernel,
+                approximation,
+                blas,
+                conv2d,
+                fused,
+                newAccelerator,
+                cpuStorageProfile,
+                nativeCpuFailurePolicy
+        );
+    }
+
+    /**
+     * Returns a copy with a different CPU storage profile.
+     *
+     * @param newCpuStorageProfile replacement CPU storage policy; {@code null} uses {@code CPU_ARRAY}
+     * @return runtime config with the same kernel, approximation, BLAS, conv2d, fused, accelerator, and failure policy
+     */
+    public RuntimeConfig withCpuStorageProfile(CpuStorageProfile newCpuStorageProfile) {
+        return new RuntimeConfig(
+                kernel,
+                approximation,
+                blas,
+                conv2d,
+                fused,
+                accelerator,
+                newCpuStorageProfile,
+                nativeCpuFailurePolicy
+        );
+    }
+
+    /**
+     * Returns a copy with a different native CPU failure policy.
+     *
+     * @param newNativeCpuFailurePolicy replacement native failure policy; {@code null} uses fallback-to-array
+     * @return runtime config with the same kernel, approximation, BLAS, conv2d, fused, accelerator, and storage policy
+     */
+    public RuntimeConfig withNativeCpuFailurePolicy(NativeCpuFailurePolicy newNativeCpuFailurePolicy) {
+        return new RuntimeConfig(
+                kernel,
+                approximation,
+                blas,
+                conv2d,
+                fused,
+                accelerator,
+                cpuStorageProfile,
+                newNativeCpuFailurePolicy
+        );
     }
 }

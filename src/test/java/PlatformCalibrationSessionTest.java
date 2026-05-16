@@ -3,6 +3,8 @@ import config.profile.ExecutionProfile;
 import config.profile.PlatformRuntimeProfileIO;
 import config.profile.PlatformRuntimeProfile;
 import config.profile.WorkloadProfile;
+import config.runtime.CpuStorageProfile;
+import config.runtime.NativeCpuFailurePolicy;
 import org.junit.jupiter.api.Test;
 import tuning.calibration.family.CalibrationFamilyId;
 import tuning.calibration.PlatformCalibrationDefaults;
@@ -103,6 +105,7 @@ public class PlatformCalibrationSessionTest {
                         ),
                         config.runtime.ApproximationConfig.defaults(),
                         config.runtime.BlasConfig.disabled(),
+                        null,
                         config.runtime.FusedExecutionPolicy.defaultsInference(),
                         new config.runtime.AcceleratorConfig(
                                 new config.runtime.AcceleratorBackendConfig(
@@ -135,7 +138,9 @@ public class PlatformCalibrationSessionTest {
                                                 7_890L
                                         )
                                 )
-                        )
+                        ),
+                        CpuStorageProfile.AUTO,
+                        NativeCpuFailurePolicy.REQUIRE_NATIVE
                 ),
                 WorkloadProfile.none()
         );
@@ -174,6 +179,8 @@ public class PlatformCalibrationSessionTest {
         assertEquals(4_560L, loaded.accelerator().opencl().buffer().minimumEstimatedWork());
         assertEquals(7_890L, loaded.accelerator().metal().buffer().minimumEstimatedWork());
         assertTrue(loaded.accelerator().metal().requireRuntimeAvailability());
+        assertEquals(CpuStorageProfile.AUTO, loaded.cpuStorageProfile());
+        assertEquals(NativeCpuFailurePolicy.REQUIRE_NATIVE, loaded.nativeCpuFailurePolicy());
         assertEquals(4, loaded.toRuntimeConfig().kernel().cpu().fusedCheapContiguousAsmVectorWidth());
         assertEquals(2, loaded.toRuntimeConfig().kernel().cpu().fusedCheapStridedAsmVectorWidth());
         assertEquals(8, loaded.toRuntimeConfig().kernel().cpu().fusedNonCheapContiguousAsmVectorWidth());
@@ -190,6 +197,33 @@ public class PlatformCalibrationSessionTest {
         );
         assertEquals(7_890L, loaded.toRuntimeConfig().accelerator().metal().buffer().minimumEstimatedWork());
         assertTrue(loaded.toRuntimeConfig().accelerator().metal().requireRuntimeAvailability());
+        assertEquals(CpuStorageProfile.AUTO, loaded.toRuntimeConfig().cpuStorageProfile());
+        assertEquals(NativeCpuFailurePolicy.REQUIRE_NATIVE, loaded.toRuntimeConfig().nativeCpuFailurePolicy());
+    }
+
+    @Test
+    void legacyPlatformProfilesWithoutCpuStoragePolicyUseDefaults() {
+        PlatformRuntimeProfile fallback = PlatformRuntimeProfile.fromExecutionProfile(
+                "fallback",
+                "fallback",
+                "TEST",
+                defaultSeed()
+        );
+        String json = PlatformRuntimeProfileIO.toJson(fallback)
+                .replace("""
+                  },
+                  "runtimePolicy": {
+                    "cpuStorageProfile": "CPU_ARRAY",
+                    "nativeCpuFailurePolicy": "FALLBACK_TO_ARRAY"
+                  }
+                """, """
+                  }
+                """);
+
+        PlatformRuntimeProfile loaded = PlatformRuntimeProfileIO.fromJsonOrDefault(json, fallback);
+
+        assertEquals(CpuStorageProfile.CPU_ARRAY, loaded.cpuStorageProfile());
+        assertEquals(NativeCpuFailurePolicy.FALLBACK_TO_ARRAY, loaded.nativeCpuFailurePolicy());
     }
 
     @Test

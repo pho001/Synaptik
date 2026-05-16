@@ -674,7 +674,17 @@ The decision starts in [`MatMulPlanner.java`](../src/main/java/backend/cpu/kerne
    - BF16 output requires `cblas_bgemm`;
    - native segment BF16-output route is not selected when `cblas_bgemm` is missing.
 
-`BlasConfig.storageMode()` then determines whether an eligible dense rank-2 GEMM stays on the existing array-copy bridge or may use `MemorySegment`-backed native CPU storage:
+`RuntimeConfig.cpuStorageProfile()` is the high-level runtime policy for CPU storage. It answers the question "should this prepared execution stay on Java arrays, prefer native CPU storage, or let the planner decide?" The current values are:
+
+| CPU storage profile | Meaning |
+|---|---|
+| `CPU_ARRAY` | Keep CPU compute on Java arrays. |
+| `CPU_NATIVE` | Prefer `MemorySegment`-backed native CPU storage for supported operations. |
+| `AUTO` | Let the planner choose between array and native storage. |
+
+`RuntimeConfig.nativeCpuFailurePolicy()` is the companion diagnostic policy. `FALLBACK_TO_ARRAY` permits unsupported native operations to use the Java-array path; `REQUIRE_NATIVE` records that fallback should become an error once the chain-aware native planner enforces the policy.
+
+`BlasConfig.storageMode()` is narrower. It determines whether an eligible dense rank-2 GEMM stays on the existing array-copy bridge or may use `MemorySegment`-backed native CPU storage:
 
 | Storage mode | Meaning |
 |---|---|

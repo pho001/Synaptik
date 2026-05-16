@@ -216,7 +216,7 @@ This still executes the prepared forward/backward graph. It only changes which r
 
 **Source:** `src/main/java/config/runtime/RuntimeConfig.java`
 
-`RuntimeConfig` controls runtime kernel tuning, approximations, BLAS, conv2d, fused execution, and accelerator enablement.
+`RuntimeConfig` controls runtime kernel tuning, approximations, CPU storage policy, BLAS, conv2d, fused execution, and accelerator enablement.
 
 Fields:
 
@@ -228,6 +228,8 @@ Fields:
 | `conv2d` | `Conv2dConfig` | Defaults from BLAS config |
 | `fused` | `FusedExecutionPolicy` | Defaults to training fused policy |
 | `accelerator` | `AcceleratorConfig` | Defaults to training accelerator config |
+| `cpuStorageProfile` | `CpuStorageProfile` | Defaults to `CPU_ARRAY` |
+| `nativeCpuFailurePolicy` | `NativeCpuFailurePolicy` | Defaults to `FALLBACK_TO_ARRAY` |
 
 Preset methods:
 
@@ -236,6 +238,23 @@ Preset methods:
 | `RuntimeConfig.trainingDefaults()` | CPU training defaults, disabled BLAS/conv2d BLAS, default fused and accelerator configs. |
 | `RuntimeConfig.inferenceDefaults()` | CPU inference defaults, disabled BLAS/conv2d BLAS, default fused and accelerator configs. |
 | `RuntimeConfig.noOptNoVecNoPar()` | Baseline runtime that effectively disables vectorization, parallelism, and BLAS through very high thresholds. |
+
+`CpuStorageProfile` is the runtime-level vocabulary for CPU storage ownership:
+
+| Profile | Meaning |
+|---|---|
+| `CPU_ARRAY` | Keep CPU compute on the existing Java-array storage path. This is the compatibility default. |
+| `CPU_NATIVE` | Prefer `MemorySegment`-backed native CPU storage for supported operations. Unsupported operation handling is governed by `NativeCpuFailurePolicy`. |
+| `AUTO` | Let the runtime planner choose between Java-array and native CPU storage. |
+
+`NativeCpuFailurePolicy` says what should happen when native CPU execution was requested but the current operation or shape is unsupported:
+
+| Policy | Meaning |
+|---|---|
+| `FALLBACK_TO_ARRAY` | Unsupported native CPU operations may fall back to Java-array CPU execution. |
+| `REQUIRE_NATIVE` | Unsupported native CPU operations should fail instead of silently falling back. Wave 2 persists the policy; full enforcement belongs to the chain-aware native planner. |
+
+This is deliberately separate from `BlasStorageMode`. `CpuStorageProfile` describes the runtime CPU storage policy for the whole prepared execution. `BlasStorageMode` describes the storage route of an individual BLAS-capable kernel family.
 
 ### KernelTuningConfig
 
@@ -424,6 +443,15 @@ ExecutionProfile profile = new ExecutionProfile(
         RuntimeConfig.inferenceDefaults()
 );
 ```
+
+Convenience profiles exist for the common runtime comparison axes:
+
+| Preset | Meaning |
+|---|---|
+| `ExecutionProfile.cpuArray()` | Inference profile with CPU array storage and accelerators disabled. |
+| `ExecutionProfile.cpuNative()` | Inference profile requesting native CPU storage and native-required diagnostics. |
+| `ExecutionProfile.cpuAuto()` | Inference profile letting the CPU planner choose array vs native storage. |
+| `ExecutionProfile.metalAuto()` | Inference profile with auto accelerator planning and CPU storage left on auto fallback policy. |
 
 ### GraphExecutionPolicy
 

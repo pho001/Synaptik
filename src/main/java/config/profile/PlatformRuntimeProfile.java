@@ -7,7 +7,9 @@ import config.backend.CpuKernelConfig;
 import config.backend.KernelTuningConfig;
 import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
+import config.runtime.CpuStorageProfile;
 import config.runtime.FusedExecutionPolicy;
+import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.RuntimeConfig;
 import tensor.DataType;
 
@@ -37,6 +39,8 @@ import java.util.Objects;
  * @param materialization calibrated layout/materialization thresholds
  * @param numerics numerical approximation policy copied into runtime config
  * @param accelerator accelerator backend selection policy; {@code null} uses defaults
+ * @param cpuStorageProfile runtime-level CPU storage policy; {@code null} uses {@code CPU_ARRAY}
+ * @param nativeCpuFailurePolicy native CPU fallback policy; {@code null} uses {@code FALLBACK_TO_ARRAY}
  */
 public record PlatformRuntimeProfile(
         PlatformProfileMetadata metadata,
@@ -48,7 +52,9 @@ public record PlatformRuntimeProfile(
         SchedulerPlatformProfile scheduler,
         MaterializationPlatformProfile materialization,
         NumericsPlatformProfile numerics,
-        AcceleratorPlatformProfile accelerator
+        AcceleratorPlatformProfile accelerator,
+        CpuStorageProfile cpuStorageProfile,
+        NativeCpuFailurePolicy nativeCpuFailurePolicy
 ) {
     public PlatformRuntimeProfile {
         Objects.requireNonNull(metadata, "metadata cannot be null");
@@ -61,6 +67,38 @@ public record PlatformRuntimeProfile(
         Objects.requireNonNull(materialization, "materialization cannot be null");
         Objects.requireNonNull(numerics, "numerics cannot be null");
         accelerator = accelerator == null ? AcceleratorPlatformProfile.defaults() : accelerator;
+        cpuStorageProfile = cpuStorageProfile == null ? CpuStorageProfile.CPU_ARRAY : cpuStorageProfile;
+        nativeCpuFailurePolicy = nativeCpuFailurePolicy == null
+                ? NativeCpuFailurePolicy.FALLBACK_TO_ARRAY
+                : nativeCpuFailurePolicy;
+    }
+
+    public PlatformRuntimeProfile(
+            PlatformProfileMetadata metadata,
+            MatmulPlatformProfile matmul,
+            Conv2dPlatformProfile conv2d,
+            FusedPlatformProfile fused,
+            ElementwiseDispatchPlatformProfile elementwiseDispatch,
+            ReductionPlatformProfile reduction,
+            SchedulerPlatformProfile scheduler,
+            MaterializationPlatformProfile materialization,
+            NumericsPlatformProfile numerics,
+            AcceleratorPlatformProfile accelerator
+    ) {
+        this(
+                metadata,
+                matmul,
+                conv2d,
+                fused,
+                elementwiseDispatch,
+                reduction,
+                scheduler,
+                materialization,
+                numerics,
+                accelerator,
+                CpuStorageProfile.CPU_ARRAY,
+                NativeCpuFailurePolicy.FALLBACK_TO_ARRAY
+        );
     }
 
     /**
@@ -247,7 +285,9 @@ public record PlatformRuntimeProfile(
                         profile.runtime().approximation().approxMode(),
                         profile.runtime().approximation().forceExactTranscendentals()
                 ),
-                AcceleratorPlatformProfile.fromRuntimeConfig(profile.runtime().accelerator())
+                AcceleratorPlatformProfile.fromRuntimeConfig(profile.runtime().accelerator()),
+                profile.runtime().cpuStorageProfile(),
+                profile.runtime().nativeCpuFailurePolicy()
         );
     }
 
@@ -335,7 +375,9 @@ public record PlatformRuntimeProfile(
                 metadata.executionMode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD
                         ? FusedExecutionPolicy.defaultsTraining()
                         : FusedExecutionPolicy.defaultsInference(),
-                accelerator.toRuntimeConfig()
+                accelerator.toRuntimeConfig(),
+                cpuStorageProfile,
+                nativeCpuFailurePolicy
         );
     }
 
