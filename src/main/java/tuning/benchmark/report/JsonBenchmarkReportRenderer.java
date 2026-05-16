@@ -65,6 +65,9 @@ public final class JsonBenchmarkReportRenderer {
                 sb.append("        \"cpuMaterializationCount\": ").append(trace.run().cpuMaterializations().size()).append(",\n");
                 sb.append("        \"parallelUsed\": ").append(usesParallel(trace.run().steps())).append(",\n");
                 sb.append("        \"vectorUsed\": ").append(usesVector(trace.run().steps())).append(",\n");
+                sb.append("        \"nativeCpu\": ").append(nativeCpuTraceSummaryJson(
+                        NativeCpuTraceSummary.fromSteps(trace.run().steps())
+                )).append(",\n");
                 sb.append("        \"accelerator\": ").append(acceleratorSummaryJson(
                         AcceleratorTraceSummary.fromSteps(trace.run().steps())
                 )).append(",\n");
@@ -137,6 +140,58 @@ public final class JsonBenchmarkReportRenderer {
 
     private static double nanosToMs(long durationNs) {
         return durationNs / 1_000_000.0d;
+    }
+
+    private static String nativeCpuTraceSummaryJson(NativeCpuTraceSummary summary) {
+        if (summary == null || !summary.present()) {
+            return "null";
+        }
+        return "{"
+                + "\"nativeKernelCount\": " + summary.nativeKernelCount() + ", "
+                + "\"arrayKernelCount\": " + summary.arrayKernelCount() + ", "
+                + "\"fallbackCount\": " + summary.fallbackCount()
+                + "}";
+    }
+
+    private record NativeCpuTraceSummary(
+            int nativeKernelCount,
+            int arrayKernelCount,
+            int fallbackCount,
+            boolean present
+    ) {
+        static NativeCpuTraceSummary fromSteps(java.util.List<graph.execution.trace.ExecutionStepTrace> steps) {
+            if (steps == null || steps.isEmpty()) {
+                return new NativeCpuTraceSummary(0, 0, 0, false);
+            }
+            int nativeKernels = 0;
+            int arrayKernels = 0;
+            int fallbacks = 0;
+            boolean sawNativeAttrs = false;
+            for (var step : steps) {
+                if (step == null || step.metadata() == null || step.metadata().attributes() == null) {
+                    continue;
+                }
+                Map<String, Object> attrs = step.metadata().attributes();
+                if (!attrs.containsKey("nativeCpuKernelStatus")
+                        && !attrs.containsKey("requestedCpuStorage")
+                        && !attrs.containsKey("actualCpuStorage")
+                        && !attrs.containsKey("nativeCpuFallbackReason")) {
+                    continue;
+                }
+                sawNativeAttrs = true;
+                String fallbackReason = String.valueOf(attrs.getOrDefault("nativeCpuFallbackReason", ""));
+                if (!fallbackReason.isBlank()) {
+                    fallbacks++;
+                }
+                if (attrs.containsKey("nativeCpuKernelStatus") && fallbackReason.isBlank()) {
+                    nativeKernels++;
+                }
+                if ("CPU_ARRAY".equals(String.valueOf(attrs.getOrDefault("actualCpuStorage", "")))) {
+                    arrayKernels++;
+                }
+            }
+            return new NativeCpuTraceSummary(nativeKernels, arrayKernels, fallbacks, sawNativeAttrs);
+        }
     }
 
     private static String compilePolicyJson(BenchmarkCandidateReport candidate) {

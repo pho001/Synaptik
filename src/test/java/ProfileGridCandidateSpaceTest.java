@@ -84,6 +84,75 @@ public class ProfileGridCandidateSpaceTest {
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("blasProvider=OPENBLAS_FFM")));
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("vectorThresholds=")));
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("fused=")));
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("runtime=openblas-native")));
+    }
+
+    @Test
+    void cpuRuntimePolicyMutatorProducesNativeAndOpenBlasStorageVariants() {
+        ExecutionProfile base = new ExecutionProfile(
+                "runtime-policy-grid",
+                "runtime-policy-grid",
+                tensor.DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.compile.CompileConfig.inference(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+
+        var candidates = new ProfileGridCandidateSpace(
+                base,
+                List.of(ExplicitProfileMutators.cpuRuntimePolicyVariants())
+        ).generate(StandardWorkloads.matmul("matmul", 1, 64, 64, 64));
+
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("runtime=cpu-array")
+                && c.profile().runtime().cpuStorageProfile() == config.runtime.CpuStorageProfile.CPU_ARRAY
+                && c.profile().runtime().blas().provider() == backend.blas.BlasProvider.NONE));
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("runtime=cpu-native-require")
+                && c.profile().runtime().cpuStorageProfile() == config.runtime.CpuStorageProfile.CPU_NATIVE
+                && c.profile().runtime().nativeCpuFailurePolicy() == config.runtime.NativeCpuFailurePolicy.REQUIRE_NATIVE));
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("runtime=cpu-native-auto")
+                && c.profile().runtime().cpuStorageProfile() == config.runtime.CpuStorageProfile.AUTO
+                && c.profile().runtime().nativeCpuFailurePolicy() == config.runtime.NativeCpuFailurePolicy.FALLBACK_TO_ARRAY));
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("runtime=openblas-array-copy")
+                && c.profile().runtime().cpuStorageProfile() == config.runtime.CpuStorageProfile.CPU_ARRAY
+                && c.profile().runtime().blas().provider() == backend.blas.BlasProvider.OPENBLAS_FFM
+                && c.profile().runtime().blas().storageMode() == config.runtime.BlasStorageMode.CPU_ARRAY));
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("runtime=openblas-native")
+                && c.profile().runtime().cpuStorageProfile() == config.runtime.CpuStorageProfile.CPU_NATIVE
+                && c.profile().runtime().blas().provider() == backend.blas.BlasProvider.OPENBLAS_FFM
+                && c.profile().runtime().blas().storageMode() == config.runtime.BlasStorageMode.CPU_NATIVE));
+    }
+
+    @Test
+    void blasAndKernelMutatorsPreserveNativeCpuRuntimePolicy() {
+        ExecutionProfile base = new ExecutionProfile(
+                "native-policy-preservation",
+                "native-policy-preservation",
+                tensor.DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.compile.CompileConfig.inference(),
+                config.runtime.RuntimeConfig.inferenceDefaults()
+                        .withCpuStorageProfile(config.runtime.CpuStorageProfile.CPU_NATIVE)
+                        .withNativeCpuFailurePolicy(config.runtime.NativeCpuFailurePolicy.REQUIRE_NATIVE),
+                WorkloadProfile.none()
+        );
+
+        var candidates = new ProfileGridCandidateSpace(
+                base,
+                List.of(
+                        ExplicitProfileMutators.matmulBlasProviders(
+                                List.of(backend.blas.BlasProvider.OPENBLAS_FFM),
+                                List.of(1_000_000L)
+                        ),
+                        ExplicitProfileMutators.blasThreads(List.of(0)),
+                        ExplicitProfileMutators.parallelThresholds(List.of(4_096), List.of(2_048), List.of(8_192))
+                )
+        ).generate(StandardWorkloads.matmul("matmul", 1, 64, 64, 64));
+
+        assertTrue(candidates.stream().allMatch(c ->
+                c.profile().runtime().cpuStorageProfile() == config.runtime.CpuStorageProfile.CPU_NATIVE));
+        assertTrue(candidates.stream().allMatch(c ->
+                c.profile().runtime().nativeCpuFailurePolicy() == config.runtime.NativeCpuFailurePolicy.REQUIRE_NATIVE));
     }
 
     @Test

@@ -102,6 +102,7 @@ public final class TextBenchmarkReportRenderer {
                         sb.append("  tracedRunMs=").append(formatMs(trace.run().durationNs())).append('\n');
                         sb.append("  stepCount=").append(trace.run().steps().size()).append('\n');
                         sb.append("  cpuMaterializationCount=").append(trace.run().cpuMaterializations().size()).append('\n');
+                        appendNativeCpuSummary(sb, NativeCpuTraceSummary.fromSteps(trace.run().steps()));
                         appendAcceleratorSummary(sb, AcceleratorTraceSummary.fromSteps(trace.run().steps()));
                         appendGpuCoverageSummary(sb, GpuCoverageSummary.fromTrace(trace));
                         appendCrossBackendRouterEvidence(sb, CrossBackendRouterEvidence.fromTrace(trace));
@@ -122,12 +123,64 @@ public final class TextBenchmarkReportRenderer {
         return sb.toString();
     }
 
+    private static void appendNativeCpuSummary(StringBuilder sb, NativeCpuTraceSummary summary) {
+        if (summary == null || !summary.present()) {
+            return;
+        }
+        sb.append("  nativeCpuSummary=")
+                .append("nativeKernelCount=").append(summary.nativeKernelCount())
+                .append(" arrayKernelCount=").append(summary.arrayKernelCount())
+                .append(" fallbackCount=").append(summary.fallbackCount())
+                .append('\n');
+    }
+
     private static String formatMs(long durationNs) {
         return String.format(Locale.US, "%.6f", durationNs / 1_000_000.0d);
     }
 
     private static double nanosToMs(long durationNs) {
         return durationNs / 1_000_000.0d;
+    }
+
+    private record NativeCpuTraceSummary(
+            int nativeKernelCount,
+            int arrayKernelCount,
+            int fallbackCount,
+            boolean present
+    ) {
+        static NativeCpuTraceSummary fromSteps(java.util.List<graph.execution.trace.ExecutionStepTrace> steps) {
+            if (steps == null || steps.isEmpty()) {
+                return new NativeCpuTraceSummary(0, 0, 0, false);
+            }
+            int nativeKernels = 0;
+            int arrayKernels = 0;
+            int fallbacks = 0;
+            boolean sawNativeAttrs = false;
+            for (var step : steps) {
+                if (step == null || step.metadata() == null || step.metadata().attributes() == null) {
+                    continue;
+                }
+                Map<String, Object> attrs = step.metadata().attributes();
+                if (!attrs.containsKey("nativeCpuKernelStatus")
+                        && !attrs.containsKey("requestedCpuStorage")
+                        && !attrs.containsKey("actualCpuStorage")
+                        && !attrs.containsKey("nativeCpuFallbackReason")) {
+                    continue;
+                }
+                sawNativeAttrs = true;
+                String fallbackReason = String.valueOf(attrs.getOrDefault("nativeCpuFallbackReason", ""));
+                if (!fallbackReason.isBlank()) {
+                    fallbacks++;
+                }
+                if (attrs.containsKey("nativeCpuKernelStatus") && fallbackReason.isBlank()) {
+                    nativeKernels++;
+                }
+                if ("CPU_ARRAY".equals(String.valueOf(attrs.getOrDefault("actualCpuStorage", "")))) {
+                    arrayKernels++;
+                }
+            }
+            return new NativeCpuTraceSummary(nativeKernels, arrayKernels, fallbacks, sawNativeAttrs);
+        }
     }
 
     private static void appendCpuMaterializations(

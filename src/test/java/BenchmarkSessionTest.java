@@ -677,6 +677,36 @@ public class BenchmarkSessionTest {
                         null
                 )
         );
+        var fallbackAttrs = Map.<String, Object>of(
+                "cpuStorageProfile", "CPU_NATIVE",
+                "nativeCpuFailurePolicy", "FALLBACK_TO_ARRAY",
+                "requestedCpuStorage", "CPU_NATIVE",
+                "actualCpuStorage", "CPU_ARRAY",
+                "nativeCpuKernelStatus", "NATIVE_UNSUPPORTED",
+                "nativeCpuKernelFamily", "ARRAY_ONLY",
+                "nativeCpuFallbackReason", "native-kernel-unsupported:erf"
+        );
+        var fallbackStep = new graph.execution.trace.ExecutionStepTrace(
+                1,
+                "unsupported_erf",
+                "ERF",
+                List.of(2, 2),
+                DataType.FLOAT32,
+                "CPU",
+                "CpuErfKernel",
+                200L,
+                new graph.execution.trace.StepExecutionMetadata(
+                        "node",
+                        fallbackAttrs,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
         BenchmarkReport report = BenchmarkReport.of(
                 "native_cpu_non_blas_report",
                 List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
@@ -687,7 +717,7 @@ public class BenchmarkSessionTest {
                                 new graph.execution.trace.ExecutionTrace(
                                         graph.execution.trace.CompileTrace.skipped(),
                                         graph.execution.trace.PrepareTrace.skipped(),
-                                        new graph.execution.trace.RunTrace(ExecutionMode.FORWARD, 100L, List.of(step))
+                                        new graph.execution.trace.RunTrace(ExecutionMode.FORWARD, 100L, List.of(step, fallbackStep))
                                 ),
                                 new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
                         )
@@ -700,6 +730,7 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("nativeCpuKernelStatus=NATIVE_CORRECT_BUT_SLOW"));
         assertTrue(text.contains("nativeCpuKernelFamily=SEGMENT_SCALAR"));
         assertTrue(text.contains("computePrecision=F32_PROMOTED"));
+        assertTrue(text.contains("nativeCpuSummary=nativeKernelCount=1 arrayKernelCount=1 fallbackCount=1"));
 
         String json = JsonBenchmarkReportRenderer.render(report);
         assertTrue(json.contains("\"cpuStorageProfile\": \"CPU_NATIVE\""));
@@ -707,6 +738,7 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"nativeCpuKernelStatus\": \"NATIVE_CORRECT_BUT_SLOW\""));
         assertTrue(json.contains("\"nativeCpuKernelFamily\": \"SEGMENT_SCALAR\""));
         assertTrue(json.contains("\"computePrecision\": \"F32_PROMOTED\""));
+        assertTrue(json.contains("\"nativeCpu\": {\"nativeKernelCount\": 1, \"arrayKernelCount\": 1, \"fallbackCount\": 1}"));
     }
 
     @Test

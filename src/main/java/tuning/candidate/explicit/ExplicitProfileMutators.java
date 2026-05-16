@@ -8,8 +8,11 @@ import config.optimizer.Conv2dLoweringMode;
 import config.optimizer.RewriteConfig;
 import config.profile.ExecutionProfile;
 import config.runtime.BlasConfig;
+import config.runtime.BlasStorageMode;
+import config.runtime.CpuStorageProfile;
 import config.runtime.FusedExecutionPolicy;
 import config.runtime.FusedPrimaryBackend;
+import config.runtime.NativeCpuFailurePolicy;
 import tuning.candidate.ExecutionProfileMutator;
 import tuning.candidate.ExecutionProfileVariant;
 import tuning.workload.WorkloadKind;
@@ -36,6 +39,7 @@ public final class ExplicitProfileMutators {
 
     public static List<ExecutionProfileMutator> matmulWorkloadMutators() {
         return List.of(
+                cpuRuntimePolicyVariants(),
                 matmulBlasProviders(List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM), List.of(1_000_000L, 2_000_000L, 4_000_000L)),
                 blasThreads(List.of(0)),
                 matmulParallelThresholds(List.of(100_000, 500_000, 2_000_000)),
@@ -45,6 +49,7 @@ public final class ExplicitProfileMutators {
 
     public static List<ExecutionProfileMutator> transformerHotPathMutators() {
         return List.of(
+                cpuRuntimePolicyVariants(),
                 attentionMatMulPolicies(List.of(
                         AttentionMatMulPolicy.AUTO,
                         AttentionMatMulPolicy.FORCE_OFF,
@@ -63,6 +68,7 @@ public final class ExplicitProfileMutators {
 
     public static List<ExecutionProfileMutator> mlpWorkloadMutators() {
         return List.of(
+                cpuRuntimePolicyVariants(),
                 matmulBlasProviders(List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM), List.of(1_000_000L, 2_000_000L, 4_000_000L)),
                 blasThreads(List.of(0)),
                 matmulParallelThresholds(List.of(100_000, 500_000, 2_000_000)),
@@ -213,12 +219,74 @@ public final class ExplicitProfileMutators {
                                     baseProfile.runtime().kernel(),
                                     baseProfile.runtime().approximation(),
                                     baseProfile.runtime().blas(),
-                                    policy
+                                    baseProfile.runtime().conv2d(),
+                                    policy,
+                                    baseProfile.runtime().accelerator(),
+                                    baseProfile.runtime().cpuStorageProfile(),
+                                    baseProfile.runtime().nativeCpuFailurePolicy()
                             ))
                     ));
                 }
             }
             return variants;
+        };
+    }
+
+    public static ExecutionProfileMutator cpuRuntimePolicyVariants() {
+        return (baseProfile, workload) -> {
+            if (!usesMatmulRuntimePolicies(workload.kind())) {
+                return List.of(new ExecutionProfileVariant(
+                        "runtime=cpu-storage-" + baseProfile.runtime().cpuStorageProfile().name(),
+                        baseProfile
+                ));
+            }
+
+            BlasConfig openblasArray = withBlasRoute(baseProfile.runtime().blas(), BlasProvider.OPENBLAS_FFM, BlasStorageMode.CPU_ARRAY);
+            BlasConfig openblasNative = withBlasRoute(baseProfile.runtime().blas(), BlasProvider.OPENBLAS_FFM, BlasStorageMode.CPU_NATIVE);
+            BlasConfig openblasAuto = withBlasRoute(baseProfile.runtime().blas(), BlasProvider.OPENBLAS_FFM, BlasStorageMode.AUTO);
+
+            return List.of(
+                    new ExecutionProfileVariant(
+                            "runtime=cpu-array",
+                            withRuntimePolicy(
+                                    withBlas(baseProfile, BlasConfig.disabled()),
+                                    CpuStorageProfile.CPU_ARRAY,
+                                    NativeCpuFailurePolicy.FALLBACK_TO_ARRAY
+                            )
+                    ),
+                    new ExecutionProfileVariant(
+                            "runtime=cpu-native-require",
+                            withRuntimePolicy(
+                                    withBlas(baseProfile, openblasNative),
+                                    CpuStorageProfile.CPU_NATIVE,
+                                    NativeCpuFailurePolicy.REQUIRE_NATIVE
+                            )
+                    ),
+                    new ExecutionProfileVariant(
+                            "runtime=cpu-native-auto",
+                            withRuntimePolicy(
+                                    withBlas(baseProfile, openblasAuto),
+                                    CpuStorageProfile.AUTO,
+                                    NativeCpuFailurePolicy.FALLBACK_TO_ARRAY
+                            )
+                    ),
+                    new ExecutionProfileVariant(
+                            "runtime=openblas-array-copy",
+                            withRuntimePolicy(
+                                    withBlas(baseProfile, openblasArray),
+                                    CpuStorageProfile.CPU_ARRAY,
+                                    NativeCpuFailurePolicy.FALLBACK_TO_ARRAY
+                            )
+                    ),
+                    new ExecutionProfileVariant(
+                            "runtime=openblas-native",
+                            withRuntimePolicy(
+                                    withBlas(baseProfile, openblasNative),
+                                    CpuStorageProfile.CPU_NATIVE,
+                                    NativeCpuFailurePolicy.FALLBACK_TO_ARRAY
+                            )
+                    )
+            );
         };
     }
 
@@ -280,7 +348,11 @@ public final class ExplicitProfileMutators {
                                     baseProfile.runtime().kernel(),
                                     baseProfile.runtime().approximation(),
                                     cfg,
-                                    baseProfile.runtime().fused()
+                                    baseProfile.runtime().conv2d(),
+                                    baseProfile.runtime().fused(),
+                                    baseProfile.runtime().accelerator(),
+                                    baseProfile.runtime().cpuStorageProfile(),
+                                    baseProfile.runtime().nativeCpuFailurePolicy()
                             ),
                             baseProfile.workload()
                     )
@@ -706,8 +778,44 @@ public final class ExplicitProfileMutators {
                 baseProfile.runtime().kernel(),
                 baseProfile.runtime().approximation(),
                 cfg,
-                baseProfile.runtime().fused()
+                baseProfile.runtime().conv2d(),
+                baseProfile.runtime().fused(),
+                baseProfile.runtime().accelerator(),
+                baseProfile.runtime().cpuStorageProfile(),
+                baseProfile.runtime().nativeCpuFailurePolicy()
         ));
+    }
+
+    private static ExecutionProfile withRuntimePolicy(
+            ExecutionProfile baseProfile,
+            CpuStorageProfile cpuStorageProfile,
+            NativeCpuFailurePolicy nativeCpuFailurePolicy
+    ) {
+        return withRuntime(baseProfile, new config.runtime.RuntimeConfig(
+                baseProfile.runtime().kernel(),
+                baseProfile.runtime().approximation(),
+                baseProfile.runtime().blas(),
+                baseProfile.runtime().conv2d(),
+                baseProfile.runtime().fused(),
+                baseProfile.runtime().accelerator(),
+                cpuStorageProfile,
+                nativeCpuFailurePolicy
+        ));
+    }
+
+    private static BlasConfig withBlasRoute(BlasConfig base, BlasProvider provider, BlasStorageMode storageMode) {
+        BlasConfig safeBase = base == null ? BlasConfig.disabled() : base;
+        return new BlasConfig(
+                provider,
+                safeBase.matmulMinWork(),
+                safeBase.f32RequireMgeK(),
+                safeBase.f32MaxNOverK(),
+                safeBase.f32WideRequireMgeK(),
+                safeBase.f32WideMaxNOverK(),
+                storageMode,
+                safeBase.debug(),
+                safeBase.threads()
+        );
     }
 
     private static ExecutionProfile withRuntime(ExecutionProfile baseProfile, config.runtime.RuntimeConfig runtime) {
@@ -737,7 +845,11 @@ public final class ExplicitProfileMutators {
                         ),
                         baseProfile.runtime().approximation(),
                         baseProfile.runtime().blas(),
-                        baseProfile.runtime().fused()
+                        baseProfile.runtime().conv2d(),
+                        baseProfile.runtime().fused(),
+                        baseProfile.runtime().accelerator(),
+                        baseProfile.runtime().cpuStorageProfile(),
+                        baseProfile.runtime().nativeCpuFailurePolicy()
                 ),
                 baseProfile.workload()
         );
