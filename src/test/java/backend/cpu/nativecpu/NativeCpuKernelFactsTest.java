@@ -295,6 +295,26 @@ class NativeCpuKernelFactsTest {
     }
 
     @Test
+    void contiguousMaterializationHasNativeCopyFact() {
+        NativeCpuKernelFact f32 = NativeCpuKernelFacts.factFor(Operation.OpType.CONTIGUOUS, DataType.FLOAT32);
+        NativeCpuKernelFact f64 = NativeCpuKernelFacts.factFor(Operation.OpType.CONTIGUOUS, DataType.FLOAT64);
+        NativeCpuKernelFact bf16 = NativeCpuKernelFacts.factFor(Operation.OpType.CONTIGUOUS, DataType.BFLOAT16);
+        NativeCpuKernelFact bool = NativeCpuKernelFacts.factFor(Operation.OpType.CONTIGUOUS, DataType.BOOL);
+
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, f32.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, f64.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, bf16.status());
+        assertEquals(NativeCpuKernelFamily.NATIVE_MICROKERNEL, f32.family());
+        assertEquals(NativeCpuKernelFamily.NATIVE_MICROKERNEL, bf16.family());
+        assertEquals("requires-dense-contiguous-copy", f32.reason());
+        assertEquals("requires-dense-contiguous-copy", bf16.reason());
+        assertTrue(f32.nativeComputeEligible());
+        assertTrue(bf16.preservesNativeStorage());
+        assertEquals(NativeCpuKernelPerformanceStatus.ARRAY_ONLY, bool.status());
+        assertFalse(bool.nativeComputeEligible());
+    }
+
+    @Test
     void nonShapeOnlyViewsAreNotNativeViewOnlyFactsYet() {
         NativeCpuKernelFact select = NativeCpuKernelFacts.factFor(Operation.OpType.SELECT, DataType.FLOAT32);
         NativeCpuKernelFact slice = NativeCpuKernelFacts.factFor(Operation.OpType.SLICE, DataType.FLOAT32);

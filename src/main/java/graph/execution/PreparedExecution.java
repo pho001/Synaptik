@@ -11,6 +11,7 @@ import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
 import backend.cpu.nativecpu.NativeCpuCastExecutor;
 import backend.cpu.nativecpu.NativeCpuCompareExecutor;
+import backend.cpu.nativecpu.NativeCpuContiguousExecutor;
 import backend.cpu.nativecpu.NativeCpuElementwiseExecutor;
 import backend.cpu.nativecpu.NativeCpuMemoryPool;
 import backend.cpu.nativecpu.NativeCpuReductionExecutor;
@@ -495,6 +496,14 @@ public final class PreparedExecution implements AutoCloseable {
             return;
         }
         if (NativeCpuCastExecutor.acceptsNativeInputs(
+                step.executionOperation(),
+                step.compiledNode().dataType(),
+                step.metadata().cpuPlan(),
+                context.runtimeConfig()
+        )) {
+            return;
+        }
+        if (NativeCpuContiguousExecutor.acceptsNativeInputs(
                 step.executionOperation(),
                 step.compiledNode().dataType(),
                 step.metadata().cpuPlan(),

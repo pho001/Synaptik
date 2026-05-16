@@ -90,6 +90,15 @@ public final class NativeCpuKernelFacts {
                     "requires-dense-contiguous-cast"
             );
         }
+        if (opType == Operation.OpType.CONTIGUOUS) {
+            return new NativeCpuKernelFact(
+                    opType,
+                    dataType,
+                    NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW,
+                    NativeCpuKernelFamily.NATIVE_MICROKERNEL,
+                    "requires-dense-contiguous-copy"
+            );
+        }
         if (METADATA_VIEW_OPS.contains(opType)) {
             return new NativeCpuKernelFact(
                     opType,

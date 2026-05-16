@@ -694,6 +694,87 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void cpuNativeMatmulContiguousReluKeepsContiguousOutputNative() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor out = a().matmul(b()).contiguous().relu();
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        assertNativeContiguous(trace.steps().stream()
+                .filter(step -> "CONTIGUOUS".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "RELU".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+    }
+
+    @Test
+    void cpuNativeBf16ContiguousPreservesRawBits() {
+        short[] bits = new short[]{
+                (short) 0x3f80,
+                (short) 0x8000,
+                (short) 0x7f80,
+                (short) 0x7fc1,
+                (short) 0x0001,
+                (short) 0x8001
+        };
+        Tensor input = new Tensor(bits.clone(), new int[]{2, 3}, null, "bf16_contiguous_input", DataType.BFLOAT16);
+        Tensor out = input.contiguous();
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(bits, out.getBFloat16Data());
+        assertNativeContiguous(trace.steps().stream()
+                .filter(step -> "CONTIGUOUS".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+    }
+
+    @Test
+    void stridedCpuNativeContiguousFallsBackToArrayWithTraceReason() {
+        Tensor out = matrix(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, "strided_contiguous_input")
+                .transpose()
+                .contiguous();
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new float[]{1f, 3f, 2f, 4f}, out.getFloat32Data(), 0f);
+        Map<String, Object> contiguous = attrs(trace.steps().stream()
+                .filter(step -> "CONTIGUOUS".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals("CPU_NATIVE", contiguous.get("requestedCpuStorage"));
+        assertEquals("CPU_ARRAY", contiguous.get("actualCpuStorage"));
+        assertEquals("NATIVE_CORRECT_BUT_SLOW", contiguous.get("nativeCpuKernelStatus"));
+        assertEquals("NATIVE_MICROKERNEL", contiguous.get("nativeCpuKernelFamily"));
+        assertEquals("native-kernel-ineligible:contiguous-strided", contiguous.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_ARRAY", contiguous.get("storageResidency"));
+    }
+
+    @Test
+    void requireNativeRejectsUnsupportedCpuNativeContiguous() {
+        Tensor out = matrix(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, "strided_contiguous_input")
+                .transpose()
+                .contiguous();
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+        );
+
+        assertTrue(failure.getMessage().contains("Native CPU execution required"));
+        assertTrue(failure.getMessage().contains("native-kernel-ineligible:contiguous-strided"));
+    }
+
+    @Test
     void cpuNativeBf16PromotedBinaryOpsKeepOutputNativeAndPublishValues() {
         float[] left = new float[]{1.25f, -2.5f, 3.75f, -4.5f};
         float[] right = new float[]{0.5f, 1.5f, -2.0f, -0.25f};
@@ -1539,6 +1620,23 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void autoStorageDoesNotUseNativeContiguousCopy() {
+        Tensor out = tensor(new float[]{1f, 2f, 3f, 4f}, "contiguous_auto_input")
+                .contiguous();
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> contiguous = attrs(trace.steps().stream()
+                .filter(step -> "CONTIGUOUS".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertFalse(contiguous.containsKey("nativeCpuKernelStatus"));
+        assertEquals("CPU_ARRAY", contiguous.get("storageResidency"));
+    }
+
+    @Test
     void selectAndSliceStayOutsideNativeViewSlice() {
         Tensor selected = tensor(new float[]{1f, 2f, 3f, 4f}, "select_input")
                 .select(0, 1)
@@ -1697,6 +1795,17 @@ class NativeCpuElementwiseChainTest {
         assertEquals("VIEW_ONLY", view.get("nativeCpuKernelFamily"));
         assertEquals("", view.get("nativeCpuFallbackReason"));
         assertEquals("CPU_NATIVE", view.get("storageResidency"));
+    }
+
+    private static void assertNativeContiguous(ExecutionStepTrace step) {
+        Map<String, Object> contiguous = attrs(step);
+        assertEquals("CPU_NATIVE", contiguous.get("cpuStorageProfile"));
+        assertEquals("CPU_NATIVE", contiguous.get("requestedCpuStorage"));
+        assertEquals("CPU_NATIVE", contiguous.get("actualCpuStorage"));
+        assertEquals("NATIVE_CORRECT_BUT_SLOW", contiguous.get("nativeCpuKernelStatus"));
+        assertEquals("NATIVE_MICROKERNEL", contiguous.get("nativeCpuKernelFamily"));
+        assertEquals("", contiguous.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", contiguous.get("storageResidency"));
     }
 
     private static void assertNativeUnaryValues(Tensor out, String opType, float[] expected, float tolerance) {
