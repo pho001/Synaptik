@@ -46,6 +46,7 @@ import config.runtime.AcceleratorBackendConfig;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
 import config.runtime.AcceleratorConfig;
+import config.runtime.BFloat16TrainingPolicy;
 import config.runtime.BlasConfig;
 import config.runtime.CpuStorageProfile;
 import config.runtime.DeviceTransferPolicy;
@@ -225,6 +226,7 @@ public class ExecutionProfileIoTest {
                                 true,
                                 true
                         ))
+                        .withBFloat16TrainingPolicy(BFloat16TrainingPolicy.PARAMS_WITH_F32_MASTER)
         );
 
         Path path = Files.createTempFile("execution-profile-cpu-storage-", ".json");
@@ -239,6 +241,7 @@ public class ExecutionProfileIoTest {
         assertEquals(128, actual.runtime().nativeCpuMemory().alignmentBytes());
         assertEquals(true, actual.runtime().nativeCpuMemory().debugPoisonReleasedBuffers());
         assertEquals(true, actual.runtime().nativeCpuMemory().traceAllocations());
+        assertEquals(BFloat16TrainingPolicy.PARAMS_WITH_F32_MASTER, actual.runtime().bfloat16TrainingPolicy());
     }
 
     @Test
@@ -261,6 +264,7 @@ public class ExecutionProfileIoTest {
         assertEquals(NativeCpuFailurePolicy.FALLBACK_TO_ARRAY, actual.runtime().nativeCpuFailurePolicy());
         assertEquals(DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE, actual.runtime().deviceTransferPolicy());
         assertEquals(NativeMemoryPoolPolicy.DISABLED, actual.runtime().nativeCpuMemory().poolPolicy());
+        assertEquals(BFloat16TrainingPolicy.ACTIVATIONS_ONLY, actual.runtime().bfloat16TrainingPolicy());
     }
 
     @Test

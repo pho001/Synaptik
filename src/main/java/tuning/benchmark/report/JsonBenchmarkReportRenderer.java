@@ -230,6 +230,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"optimizerArrayFallbackCount\": " + summary.optimizerArrayFallbackCount() + ", "
                 + "\"optimizerNativeCount\": " + summary.optimizerNativeCount() + ", "
                 + "\"activationsOnlyPolicyCount\": " + summary.activationsOnlyPolicyCount() + ", "
+                + "\"f32MasterPolicyCount\": " + summary.f32MasterPolicyCount() + ", "
                 + "\"experimentalPolicyCount\": " + summary.experimentalPolicyCount() + ", "
                 + "\"fallbackReasons\": " + stringListJson(summary.fallbackReasons())
                 + "}";

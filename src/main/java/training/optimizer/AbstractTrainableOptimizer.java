@@ -163,7 +163,7 @@ abstract class AbstractTrainableOptimizer implements TrainingOptimizer {
                 context.publicationPolicy().name(),
                 gradientPublication(context.publicationPolicy()),
                 optimizerStateStorage(route),
-                bf16TrainingPolicy(ref, fallbackReason),
+                bf16TrainingPolicy(context, ref, fallbackReason),
                 context.runtimeConfig().nativeCpuFailurePolicy().name(),
                 before.parameterResidency(),
                 after.parameterResidency(),
@@ -177,11 +177,11 @@ abstract class AbstractTrainableOptimizer implements TrainingOptimizer {
         return "NONE";
     }
 
-    protected String bf16TrainingPolicy(TrainableParameterRef ref, String fallbackReason) {
+    protected String bf16TrainingPolicy(OptimizerStepContext context, TrainableParameterRef ref, String fallbackReason) {
         if (ref.parameterNode().dataType() != DataType.BFLOAT16) {
             return "";
         }
-        return "ACTIVATIONS_ONLY";
+        return context.runtimeConfig().bfloat16TrainingPolicy().name();
     }
 
     private static String gradientPublication(PublicationPolicy publicationPolicy) {

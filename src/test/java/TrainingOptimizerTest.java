@@ -1,6 +1,7 @@
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
+import config.runtime.BFloat16TrainingPolicy;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.NativeCpuMemoryConfig;
@@ -190,7 +191,7 @@ class TrainingOptimizerTest {
                 () -> bf16.executeOptimizerStepTraced(new SgdOptimizer(0.1f), PublicationPolicy.OUTPUT_ONLY)
         );
         assertTrue(bf16Failure.getMessage().contains("SgdOptimizer"));
-        assertTrue(bf16Failure.getMessage().contains("dtype-BFLOAT16"));
+        assertTrue(bf16Failure.getMessage().contains("bf16-policy-ACTIVATIONS_ONLY"));
     }
 
     @Test
@@ -210,9 +211,60 @@ class TrainingOptimizerTest {
         assertEquals(DataType.BFLOAT16, trace.nativeOptimizers().getFirst().dataType());
         assertEquals("ACTIVATIONS_ONLY", trace.nativeOptimizers().getFirst().bf16TrainingPolicy());
         assertEquals("SKIPPED", trace.nativeOptimizers().getFirst().gradientPublication());
-        assertTrue(trace.nativeOptimizers().getFirst().fallbackReason().contains("dtype-BFLOAT16"));
+        assertTrue(trace.nativeOptimizers().getFirst().fallbackReason().contains("bf16-policy-ACTIVATIONS_ONLY"));
         assertNull(w.getGradient());
         assertNull(x.getGradient());
+    }
+
+    @Test
+    void nativeSgdSupportsExplicitExperimentalBf16ParameterPolicy() {
+        Tensor w = bf16Tensor(new float[]{1.0f, 2.0f}, "w");
+        Tensor x = bf16Tensor(new float[]{2.0f, 3.0f}, "x");
+        w.setTrainableParameter(true);
+        x.setRequiresGrad(true);
+        Tensor loss = w.mul(x).sum();
+        PreparedExecution prepared = CompiledGraph.compile(loss, CompileConfig.training())
+                .prepare(nativeTrainingRuntime()
+                        .withBFloat16TrainingPolicy(BFloat16TrainingPolicy.PARAMS_BF16_EXPERIMENTAL));
+        SgdOptimizer optimizer = new SgdOptimizer(0.1f);
+
+        var trace = prepared.executeOptimizerStepTraced(optimizer, PublicationPolicy.OUTPUT_ONLY);
+
+        assertEquals("CPU_NATIVE", trace.nativeOptimizers().getFirst().route());
+        assertEquals(DataType.BFLOAT16, trace.nativeOptimizers().getFirst().dataType());
+        assertEquals("PARAMS_BF16_EXPERIMENTAL", trace.nativeOptimizers().getFirst().bf16TrainingPolicy());
+        assertEquals("CPU_NATIVE", trace.nativeOptimizers().getFirst().parameterResidencyAfter());
+        assertEquals("CPU_NATIVE", trace.nativeOptimizers().getFirst().gradientResidencyAfter());
+        assertArrayEquals(new double[]{1.0, 2.0}, w.toDoubleArrayCopy(), 0.0);
+
+        optimizer.syncParametersToCpu();
+
+        assertArrayEquals(
+                new double[]{
+                        CpuDTypeOps.fromBFloat16Bits(CpuDTypeOps.toBFloat16Bits(0.8f)),
+                        CpuDTypeOps.fromBFloat16Bits(CpuDTypeOps.toBFloat16Bits(1.7f))
+                },
+                w.toDoubleArrayCopy(),
+                0.0
+        );
+    }
+
+    @Test
+    void nativeSgdReportsF32MasterBf16PolicyAsNotImplementedWithoutExperimentalUpdate() {
+        Tensor w = bf16Tensor(new float[]{1.0f, 2.0f}, "w");
+        Tensor x = bf16Tensor(new float[]{2.0f, 3.0f}, "x");
+        w.setTrainableParameter(true);
+        x.setRequiresGrad(true);
+        Tensor loss = w.mul(x).sum();
+        PreparedExecution prepared = CompiledGraph.compile(loss, CompileConfig.training())
+                .prepare(nativeTrainingRuntime()
+                        .withBFloat16TrainingPolicy(BFloat16TrainingPolicy.PARAMS_WITH_F32_MASTER));
+
+        var trace = prepared.executeOptimizerStepTraced(new SgdOptimizer(0.1f), PublicationPolicy.OUTPUT_ONLY);
+
+        assertEquals("CPU_ARRAY", trace.nativeOptimizers().getFirst().route());
+        assertEquals("PARAMS_WITH_F32_MASTER", trace.nativeOptimizers().getFirst().bf16TrainingPolicy());
+        assertTrue(trace.nativeOptimizers().getFirst().fallbackReason().contains("bf16-master-not-implemented"));
     }
 
     @Test
@@ -377,7 +429,7 @@ class TrainingOptimizerTest {
                 () -> bf16.executeOptimizerStepTraced(new AdamOptimizer(0.1f), PublicationPolicy.OUTPUT_ONLY)
         );
         assertTrue(bf16Failure.getMessage().contains("AdamOptimizer"));
-        assertTrue(bf16Failure.getMessage().contains("dtype-BFLOAT16"));
+        assertTrue(bf16Failure.getMessage().contains("bf16-policy-ACTIVATIONS_ONLY"));
     }
 
     @Test
@@ -398,9 +450,41 @@ class TrainingOptimizerTest {
         assertEquals(DataType.BFLOAT16, trace.nativeOptimizers().getFirst().dataType());
         assertEquals("CPU_ARRAY", trace.nativeOptimizers().getFirst().optimizerStateStorage());
         assertEquals("ACTIVATIONS_ONLY", trace.nativeOptimizers().getFirst().bf16TrainingPolicy());
-        assertTrue(trace.nativeOptimizers().getFirst().fallbackReason().contains("dtype-BFLOAT16"));
+        assertTrue(trace.nativeOptimizers().getFirst().fallbackReason().contains("bf16-policy-ACTIVATIONS_ONLY"));
         assertNull(w.getGradient());
         assertNull(x.getGradient());
+    }
+
+    @Test
+    void nativeAdamReportsBf16ParameterPoliciesAsNotImplemented() {
+        Tensor f32MasterW = bf16Tensor(new float[]{1.0f, 2.0f}, "f32MasterW");
+        Tensor f32MasterX = bf16Tensor(new float[]{2.0f, 3.0f}, "f32MasterX");
+        f32MasterW.setTrainableParameter(true);
+        f32MasterX.setRequiresGrad(true);
+        PreparedExecution f32MasterPrepared = CompiledGraph.compile(f32MasterW.mul(f32MasterX).sum(), CompileConfig.training())
+                .prepare(nativeTrainingRuntime()
+                        .withBFloat16TrainingPolicy(BFloat16TrainingPolicy.PARAMS_WITH_F32_MASTER));
+
+        var f32MasterTrace = f32MasterPrepared.executeOptimizerStepTraced(new AdamOptimizer(0.1f), PublicationPolicy.OUTPUT_ONLY);
+
+        assertEquals("CPU_ARRAY", f32MasterTrace.nativeOptimizers().getFirst().route());
+        assertEquals("PARAMS_WITH_F32_MASTER", f32MasterTrace.nativeOptimizers().getFirst().bf16TrainingPolicy());
+        assertTrue(f32MasterTrace.nativeOptimizers().getFirst().fallbackReason().contains("bf16-master-not-implemented"));
+
+        Tensor experimentalW = bf16Tensor(new float[]{1.0f, 2.0f}, "experimentalW");
+        Tensor experimentalX = bf16Tensor(new float[]{2.0f, 3.0f}, "experimentalX");
+        experimentalW.setTrainableParameter(true);
+        experimentalX.setRequiresGrad(true);
+        PreparedExecution experimentalPrepared = CompiledGraph.compile(experimentalW.mul(experimentalX).sum(), CompileConfig.training())
+                .prepare(nativeTrainingRuntime()
+                        .withBFloat16TrainingPolicy(BFloat16TrainingPolicy.PARAMS_BF16_EXPERIMENTAL));
+
+        var experimentalTrace = experimentalPrepared.executeOptimizerStepTraced(new AdamOptimizer(0.1f), PublicationPolicy.OUTPUT_ONLY);
+
+        assertEquals("CPU_ARRAY", experimentalTrace.nativeOptimizers().getFirst().route());
+        assertEquals("PARAMS_BF16_EXPERIMENTAL", experimentalTrace.nativeOptimizers().getFirst().bf16TrainingPolicy());
+        assertTrue(experimentalTrace.nativeOptimizers().getFirst().fallbackReason()
+                .contains("bf16-experimental-adam-not-implemented"));
     }
 
     @Test

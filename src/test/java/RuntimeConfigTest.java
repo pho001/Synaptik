@@ -1,5 +1,6 @@
 import config.backend.KernelTuningConfig;
 import config.runtime.ApproximationConfig;
+import config.runtime.BFloat16TrainingPolicy;
 import config.runtime.BlasConfig;
 import config.runtime.CpuStorageProfile;
 import config.runtime.DeviceTransferPolicy;
@@ -20,6 +21,7 @@ public class RuntimeConfigTest {
         assertEquals(NativeCpuFailurePolicy.FALLBACK_TO_ARRAY, runtime.nativeCpuFailurePolicy());
         assertEquals(DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE, runtime.deviceTransferPolicy());
         assertEquals(NativeMemoryPoolPolicy.DISABLED, runtime.nativeCpuMemory().poolPolicy());
+        assertEquals(BFloat16TrainingPolicy.ACTIVATIONS_ONLY, runtime.bfloat16TrainingPolicy());
     }
 
     @Test
@@ -40,6 +42,7 @@ public class RuntimeConfigTest {
         assertEquals(NativeCpuFailurePolicy.FALLBACK_TO_ARRAY, runtime.nativeCpuFailurePolicy());
         assertEquals(DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE, runtime.deviceTransferPolicy());
         assertEquals(NativeMemoryPoolPolicy.DISABLED, runtime.nativeCpuMemory().poolPolicy());
+        assertEquals(BFloat16TrainingPolicy.ACTIVATIONS_ONLY, runtime.bfloat16TrainingPolicy());
     }
 
     @Test
@@ -48,13 +51,15 @@ public class RuntimeConfigTest {
                 .withCpuStorageProfile(CpuStorageProfile.AUTO)
                 .withNativeCpuFailurePolicy(NativeCpuFailurePolicy.REQUIRE_NATIVE)
                 .withDeviceTransferPolicy(DeviceTransferPolicy.REQUIRE_DIRECT)
-                .withNativeCpuMemory(NativeCpuMemoryConfig.perExecution(4096L));
+                .withNativeCpuMemory(NativeCpuMemoryConfig.perExecution(4096L))
+                .withBFloat16TrainingPolicy(BFloat16TrainingPolicy.PARAMS_BF16_EXPERIMENTAL);
 
         assertEquals(CpuStorageProfile.AUTO, runtime.cpuStorageProfile());
         assertEquals(NativeCpuFailurePolicy.REQUIRE_NATIVE, runtime.nativeCpuFailurePolicy());
         assertEquals(DeviceTransferPolicy.REQUIRE_DIRECT, runtime.deviceTransferPolicy());
         assertEquals(NativeMemoryPoolPolicy.PER_EXECUTION, runtime.nativeCpuMemory().poolPolicy());
         assertEquals(4096L, runtime.nativeCpuMemory().maxPoolBytes());
+        assertEquals(BFloat16TrainingPolicy.PARAMS_BF16_EXPERIMENTAL, runtime.bfloat16TrainingPolicy());
         assertEquals(RuntimeConfig.inferenceDefaults().blas(), runtime.blas());
         assertEquals(RuntimeConfig.inferenceDefaults().accelerator(), runtime.accelerator());
     }

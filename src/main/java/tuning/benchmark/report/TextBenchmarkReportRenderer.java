@@ -192,6 +192,7 @@ public final class TextBenchmarkReportRenderer {
                 .append(" optimizerArrayFallbackCount=").append(summary.optimizerArrayFallbackCount())
                 .append(" optimizerNativeCount=").append(summary.optimizerNativeCount())
                 .append(" activationsOnlyPolicyCount=").append(summary.activationsOnlyPolicyCount())
+                .append(" f32MasterPolicyCount=").append(summary.f32MasterPolicyCount())
                 .append(" experimentalPolicyCount=").append(summary.experimentalPolicyCount())
                 .append(" fallbackReasons=").append(summary.fallbackReasons())
                 .append('\n');

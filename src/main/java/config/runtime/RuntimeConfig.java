@@ -33,6 +33,8 @@ import java.util.Objects;
  * @param deviceTransferPolicy host/device transfer fallback policy; {@code null} uses
  *                             {@link DeviceTransferPolicy#ALLOW_ARRAY_BRIDGE}
  * @param nativeCpuMemory native CPU allocation/pooling policy; {@code null} disables pooling
+ * @param bfloat16TrainingPolicy BF16 parameter/optimizer policy; {@code null} uses
+ *                               {@link BFloat16TrainingPolicy#ACTIVATIONS_ONLY}
  */
 public record RuntimeConfig(
         KernelTuningConfig kernel,
@@ -44,7 +46,8 @@ public record RuntimeConfig(
         CpuStorageProfile cpuStorageProfile,
         NativeCpuFailurePolicy nativeCpuFailurePolicy,
         DeviceTransferPolicy deviceTransferPolicy,
-        NativeCpuMemoryConfig nativeCpuMemory
+        NativeCpuMemoryConfig nativeCpuMemory,
+        BFloat16TrainingPolicy bfloat16TrainingPolicy
 ) {
     public RuntimeConfig {
         kernel = Objects.requireNonNull(kernel, "kernel cannot be null");
@@ -61,6 +64,36 @@ public record RuntimeConfig(
                 ? DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE
                 : deviceTransferPolicy;
         nativeCpuMemory = nativeCpuMemory == null ? NativeCpuMemoryConfig.disabled() : nativeCpuMemory;
+        bfloat16TrainingPolicy = bfloat16TrainingPolicy == null
+                ? BFloat16TrainingPolicy.ACTIVATIONS_ONLY
+                : bfloat16TrainingPolicy;
+    }
+
+    public RuntimeConfig(
+            KernelTuningConfig kernel,
+            ApproximationConfig approximation,
+            BlasConfig blas,
+            Conv2dConfig conv2d,
+            FusedExecutionPolicy fused,
+            AcceleratorConfig accelerator,
+            CpuStorageProfile cpuStorageProfile,
+            NativeCpuFailurePolicy nativeCpuFailurePolicy,
+            DeviceTransferPolicy deviceTransferPolicy,
+            NativeCpuMemoryConfig nativeCpuMemory
+    ) {
+        this(
+                kernel,
+                approximation,
+                blas,
+                conv2d,
+                fused,
+                accelerator,
+                cpuStorageProfile,
+                nativeCpuFailurePolicy,
+                deviceTransferPolicy,
+                nativeCpuMemory,
+                BFloat16TrainingPolicy.ACTIVATIONS_ONLY
+        );
     }
 
     public RuntimeConfig(
@@ -84,7 +117,8 @@ public record RuntimeConfig(
                 cpuStorageProfile,
                 nativeCpuFailurePolicy,
                 DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE,
-                nativeCpuMemory
+                nativeCpuMemory,
+                BFloat16TrainingPolicy.ACTIVATIONS_ONLY
         );
     }
 
@@ -108,7 +142,8 @@ public record RuntimeConfig(
                 cpuStorageProfile,
                 nativeCpuFailurePolicy,
                 DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE,
-                NativeCpuMemoryConfig.disabled()
+                NativeCpuMemoryConfig.disabled(),
+                BFloat16TrainingPolicy.ACTIVATIONS_ONLY
         );
     }
 
@@ -402,7 +437,8 @@ public record RuntimeConfig(
                 cpuStorageProfile,
                 nativeCpuFailurePolicy,
                 deviceTransferPolicy,
-                nativeCpuMemory
+                nativeCpuMemory,
+                bfloat16TrainingPolicy
         );
     }
 
@@ -423,7 +459,8 @@ public record RuntimeConfig(
                 newCpuStorageProfile,
                 nativeCpuFailurePolicy,
                 deviceTransferPolicy,
-                nativeCpuMemory
+                nativeCpuMemory,
+                bfloat16TrainingPolicy
         );
     }
 
@@ -444,7 +481,8 @@ public record RuntimeConfig(
                 cpuStorageProfile,
                 newNativeCpuFailurePolicy,
                 deviceTransferPolicy,
-                nativeCpuMemory
+                nativeCpuMemory,
+                bfloat16TrainingPolicy
         );
     }
 
@@ -465,7 +503,8 @@ public record RuntimeConfig(
                 cpuStorageProfile,
                 nativeCpuFailurePolicy,
                 newDeviceTransferPolicy,
-                nativeCpuMemory
+                nativeCpuMemory,
+                bfloat16TrainingPolicy
         );
     }
 
@@ -486,7 +525,30 @@ public record RuntimeConfig(
                 cpuStorageProfile,
                 nativeCpuFailurePolicy,
                 deviceTransferPolicy,
-                newNativeCpuMemory
+                newNativeCpuMemory,
+                bfloat16TrainingPolicy
+        );
+    }
+
+    /**
+     * Returns a copy with a different BF16 training policy.
+     *
+     * @param newBFloat16TrainingPolicy replacement BF16 training policy; {@code null} uses activations-only
+     * @return runtime config with the same execution policy and updated BF16 training policy
+     */
+    public RuntimeConfig withBFloat16TrainingPolicy(BFloat16TrainingPolicy newBFloat16TrainingPolicy) {
+        return new RuntimeConfig(
+                kernel,
+                approximation,
+                blas,
+                conv2d,
+                fused,
+                accelerator,
+                cpuStorageProfile,
+                nativeCpuFailurePolicy,
+                deviceTransferPolicy,
+                nativeCpuMemory,
+                newBFloat16TrainingPolicy
         );
     }
 }

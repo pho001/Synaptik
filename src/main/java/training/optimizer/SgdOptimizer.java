@@ -7,10 +7,12 @@ import backend.memory.CpuMaterializationReason;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.buffer.MetalBufferAllocator;
 import backend.metal.buffer.MetalBufferBinding;
+import config.runtime.BFloat16TrainingPolicy;
 import config.runtime.CpuStorageProfile;
 import graph.CompiledNode;
 import backend.cpu.kernels.CpuDTypeOps;
 import tensor.DataType;
+import tensor.NativeBFloat16Storage;
 import tensor.NativeFloat32Storage;
 import tensor.NativeTensorStorage;
 import tensor.Tensor;
@@ -21,6 +23,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
+import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
 /**
  * Stochastic gradient descent optimizer for trainable parameters.
@@ -54,14 +57,15 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
             return;
         }
         for (TrainableParameterRef ref : selectedParameters(context)) {
-            if (ref.parameterNode().dataType() != DataType.FLOAT32) {
+            if (ref.parameterNode().dataType() != DataType.FLOAT32
+                    && !nativeBf16Experimental(context, ref)) {
                 continue;
             }
             OwnedNativeParameter owned = nativeParameterFor(ref.parameterNode());
             context.executionContext().attachNativeStorage(
                     ref.parameterNode().id(),
                     owned.view(),
-                    "optimizer-owned native F32 parameter"
+                    "optimizer-owned native SGD parameter"
             );
         }
     }
@@ -107,19 +111,32 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
                     gradientNodeId,
                     CpuMaterializationReason.OPTIMIZER_STEP
             );
-            if (!(parameter instanceof NativeFloat32Storage parameterF32)
-                    || !(gradient instanceof NativeFloat32Storage gradientF32)
-                    || parameterF32.getSize() != gradientF32.getSize()) {
-                return false;
+            if (parameter instanceof NativeFloat32Storage parameterF32
+                    && gradient instanceof NativeFloat32Storage gradientF32
+                    && parameterF32.getSize() == gradientF32.getSize()) {
+                updateNativeF32(parameterF32, gradientF32, learningRate);
+                parameterF32.markModified();
+                context.executionContext().attachNativeStorage(
+                        ref.parameterNode().id(),
+                        parameterF32,
+                        "optimizer native CPU SGD update"
+                );
+                return true;
             }
-            updateNativeF32(parameterF32, gradientF32, learningRate);
-            parameterF32.markModified();
-            context.executionContext().attachNativeStorage(
-                    ref.parameterNode().id(),
-                    parameterF32,
-                    "optimizer native CPU SGD update"
-            );
-            return true;
+            if (nativeBf16Experimental(context, ref)
+                    && parameter instanceof NativeBFloat16Storage parameterBF16
+                    && gradient instanceof NativeBFloat16Storage gradientBF16
+                    && parameterBF16.getSize() == gradientBF16.getSize()) {
+                updateNativeBF16(parameterBF16, gradientBF16, learningRate);
+                parameterBF16.markModified();
+                context.executionContext().attachNativeStorage(
+                        ref.parameterNode().id(),
+                        parameterBF16,
+                        "optimizer native CPU experimental BF16 SGD update"
+                );
+                return true;
+            }
+            return false;
         } catch (RuntimeException ex) {
             return false;
         }
@@ -130,11 +147,20 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
         if (context.runtimeConfig().cpuStorageProfile() != CpuStorageProfile.CPU_NATIVE) {
             return "native-sgd-ineligible:cpu-storage-profile-" + context.runtimeConfig().cpuStorageProfile().name();
         }
-        if (ref.parameterNode().dataType() != DataType.FLOAT32) {
+        if (ref.parameterNode().dataType() == DataType.BFLOAT16
+                && context.runtimeConfig().bfloat16TrainingPolicy() == BFloat16TrainingPolicy.ACTIVATIONS_ONLY) {
+            return "native-sgd-ineligible:bf16-policy-ACTIVATIONS_ONLY";
+        }
+        if (ref.parameterNode().dataType() == DataType.BFLOAT16
+                && context.runtimeConfig().bfloat16TrainingPolicy() == BFloat16TrainingPolicy.PARAMS_WITH_F32_MASTER) {
+            return "native-sgd-ineligible:bf16-master-not-implemented";
+        }
+        if (ref.parameterNode().dataType() != DataType.FLOAT32
+                && !nativeBf16Experimental(context, ref)) {
             return "native-sgd-ineligible:dtype-" + ref.parameterNode().dataType().name();
         }
         Tensor gradient = context.executionContext().runtimeTensorForNodeId(gradientNodeId);
-        if (gradient.getDataType() != DataType.FLOAT32) {
+        if (gradient.getDataType() != ref.parameterNode().dataType()) {
             return "native-sgd-ineligible:gradient-dtype-" + gradient.getDataType().name();
         }
         if (!java.util.Arrays.equals(ref.parameterNode().shape(), gradient.getShapeUnsafe())) {
@@ -198,12 +224,15 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
     }
 
     private boolean nativeEligible(OptimizerStepContext context, TrainableParameterRef ref, int gradientNodeId) {
-        if (context.runtimeConfig().cpuStorageProfile() != CpuStorageProfile.CPU_NATIVE
-                || ref.parameterNode().dataType() != DataType.FLOAT32) {
+        if (context.runtimeConfig().cpuStorageProfile() != CpuStorageProfile.CPU_NATIVE) {
+            return false;
+        }
+        if (ref.parameterNode().dataType() != DataType.FLOAT32
+                && !nativeBf16Experimental(context, ref)) {
             return false;
         }
         Tensor gradient = context.executionContext().runtimeTensorForNodeId(gradientNodeId);
-        return gradient.getDataType() == DataType.FLOAT32
+        return gradient.getDataType() == ref.parameterNode().dataType()
                 && java.util.Arrays.equals(ref.parameterNode().shape(), gradient.getShapeUnsafe());
     }
 
@@ -214,10 +243,10 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
             if (owned != null) {
                 owned.storage().close();
             }
-            NativeFloat32Storage storage = (NativeFloat32Storage) nativeStorageFactory.allocate(
-                    DataType.FLOAT32,
+            NativeTensorStorage storage = nativeStorageFactory.allocate(
+                    source.getDataType(),
                     source.getFlatDataSize(),
-                    "optimizer-sgd-f32:" + source.getLabel()
+                    "optimizer-sgd-" + source.getDataType().name().toLowerCase(java.util.Locale.ROOT) + ":" + source.getLabel()
             );
             NativeCpuMaterializer.arrayToNative(source, storage);
             owned = new OwnedNativeParameter(source, storage);
@@ -235,11 +264,27 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
         }
     }
 
+    private static void updateNativeBF16(NativeBFloat16Storage parameter, NativeBFloat16Storage gradient, float learningRate) {
+        MemorySegment p = parameter.segment();
+        MemorySegment g = gradient.segment();
+        for (int i = 0; i < parameter.getSize(); i++) {
+            long offset = (long) i * Short.BYTES;
+            float updated = CpuDTypeOps.fromBFloat16Bits(p.get(JAVA_SHORT, offset))
+                    - learningRate * CpuDTypeOps.fromBFloat16Bits(g.get(JAVA_SHORT, offset));
+            p.set(JAVA_SHORT, offset, CpuDTypeOps.toBFloat16Bits(updated));
+        }
+    }
+
+    private static boolean nativeBf16Experimental(OptimizerStepContext context, TrainableParameterRef ref) {
+        return ref.parameterNode().dataType() == DataType.BFLOAT16
+                && context.runtimeConfig().bfloat16TrainingPolicy() == BFloat16TrainingPolicy.PARAMS_BF16_EXPERIMENTAL;
+    }
+
     private static final class OwnedNativeParameter {
         private final Tensor source;
-        private final NativeFloat32Storage storage;
+        private final NativeTensorStorage storage;
 
-        private OwnedNativeParameter(Tensor source, NativeFloat32Storage storage) {
+        private OwnedNativeParameter(Tensor source, NativeTensorStorage storage) {
             this.source = source;
             this.storage = storage;
         }
@@ -248,12 +293,16 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
             return source;
         }
 
-        private NativeFloat32Storage storage() {
+        private NativeTensorStorage storage() {
             return storage;
         }
 
-        private NativeFloat32Storage view() {
-            return new NativeFloat32Storage(storage.getSize(), storage.allocation(), storage.byteOffset(), false);
+        private NativeTensorStorage view() {
+            return switch (storage.getType()) {
+                case FLOAT32 -> new NativeFloat32Storage(storage.getSize(), storage.allocation(), storage.byteOffset(), false);
+                case BFLOAT16 -> new NativeBFloat16Storage(storage.getSize(), storage.allocation(), storage.byteOffset(), false);
+                default -> throw new IllegalStateException("Unsupported native SGD parameter dtype: " + storage.getType());
+            };
         }
     }
 }

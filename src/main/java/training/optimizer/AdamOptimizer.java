@@ -9,6 +9,7 @@ import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.buffer.MetalBufferAccess;
 import backend.metal.buffer.MetalBufferAllocator;
 import backend.metal.buffer.MetalBufferBinding;
+import config.runtime.BFloat16TrainingPolicy;
 import config.runtime.CpuStorageProfile;
 import graph.CompiledNode;
 import tensor.DataType;
@@ -178,6 +179,18 @@ public final class AdamOptimizer extends AbstractTrainableOptimizer {
     protected String nativeCpuFallbackReason(OptimizerStepContext context, TrainableParameterRef ref, int gradientNodeId) {
         if (context.runtimeConfig().cpuStorageProfile() != CpuStorageProfile.CPU_NATIVE) {
             return "native-adam-ineligible:cpu-storage-profile-" + context.runtimeConfig().cpuStorageProfile().name();
+        }
+        if (ref.parameterNode().dataType() == DataType.BFLOAT16
+                && context.runtimeConfig().bfloat16TrainingPolicy() == BFloat16TrainingPolicy.ACTIVATIONS_ONLY) {
+            return "native-adam-ineligible:bf16-policy-ACTIVATIONS_ONLY";
+        }
+        if (ref.parameterNode().dataType() == DataType.BFLOAT16
+                && context.runtimeConfig().bfloat16TrainingPolicy() == BFloat16TrainingPolicy.PARAMS_WITH_F32_MASTER) {
+            return "native-adam-ineligible:bf16-master-not-implemented";
+        }
+        if (ref.parameterNode().dataType() == DataType.BFLOAT16
+                && context.runtimeConfig().bfloat16TrainingPolicy() == BFloat16TrainingPolicy.PARAMS_BF16_EXPERIMENTAL) {
+            return "native-adam-ineligible:bf16-experimental-adam-not-implemented";
         }
         if (ref.parameterNode().dataType() != DataType.FLOAT32) {
             return "native-adam-ineligible:dtype-" + ref.parameterNode().dataType().name();

@@ -7,6 +7,7 @@ import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.ApproximationConfig;
+import config.runtime.BFloat16TrainingPolicy;
 import config.runtime.BlasConfig;
 import config.runtime.BlasStorageMode;
 import config.runtime.CpuStorageProfile;
@@ -159,6 +160,7 @@ public final class Bf16PerformanceBenchmark {
                         RuntimeConfig.trainingDefaults()
                                 .withCpuStorageProfile(CpuStorageProfile.CPU_NATIVE)
                                 .withNativeCpuFailurePolicy(NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)
+                                .withBFloat16TrainingPolicy(BFloat16TrainingPolicy.ACTIVATIONS_ONLY)
                 ))
         );
     }

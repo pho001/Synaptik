@@ -26,6 +26,7 @@ public record Bf16PerformanceSummary(
         int optimizerArrayFallbackCount,
         int optimizerNativeCount,
         int activationsOnlyPolicyCount,
+        int f32MasterPolicyCount,
         int experimentalPolicyCount,
         List<String> fallbackReasons,
         boolean present
@@ -50,6 +51,7 @@ public record Bf16PerformanceSummary(
                 0L,
                 0L,
                 0L,
+                0,
                 0,
                 0,
                 0,
@@ -131,6 +133,7 @@ public record Bf16PerformanceSummary(
         int optimizerArrayFallback = 0;
         int optimizerNative = 0;
         int activationsOnly = 0;
+        int f32Master = 0;
         int experimental = 0;
         for (var optimizer : run.nativeOptimizers()) {
             if (optimizer == null || optimizer.dataType() != DataType.BFLOAT16) {
@@ -145,6 +148,9 @@ public record Bf16PerformanceSummary(
             }
             if ("ACTIVATIONS_ONLY".equals(optimizer.bf16TrainingPolicy())) {
                 activationsOnly++;
+            }
+            if ("PARAMS_WITH_F32_MASTER".equals(optimizer.bf16TrainingPolicy())) {
+                f32Master++;
             }
             if ("PARAMS_BF16_EXPERIMENTAL".equals(optimizer.bf16TrainingPolicy())) {
                 experimental++;
@@ -169,6 +175,7 @@ public record Bf16PerformanceSummary(
                 optimizerArrayFallback,
                 optimizerNative,
                 activationsOnly,
+                f32Master,
                 experimental,
                 reasons,
                 present

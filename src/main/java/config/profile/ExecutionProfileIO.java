@@ -48,6 +48,7 @@ import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
 import config.runtime.AcceleratorConfig;
 import config.runtime.ApproximationConfig;
+import config.runtime.BFloat16TrainingPolicy;
 import config.runtime.BlasConfig;
 import config.runtime.BlasStorageMode;
 import config.runtime.Conv2dConfig;
@@ -442,7 +443,13 @@ public final class ExecutionProfileIO {
                             defaultProfile.runtime().deviceTransferPolicy(),
                             DeviceTransferPolicy.class
                     ),
-                    nativeCpuMemoryConfig(json, defaultProfile.runtime().nativeCpuMemory())
+                    nativeCpuMemoryConfig(json, defaultProfile.runtime().nativeCpuMemory()),
+                    findEnum(
+                            json,
+                            "bfloat16TrainingPolicy",
+                            defaultProfile.runtime().bfloat16TrainingPolicy(),
+                            BFloat16TrainingPolicy.class
+                    )
             );
 
             WorkloadProfile defaultWorkload = defaultProfile.workload();
@@ -643,6 +650,7 @@ public final class ExecutionProfileIO {
                 "    \"nativeMemoryAlignmentBytes\": " + runtime.nativeCpuMemory().alignmentBytes() + ",\n" +
                 "    \"nativeMemoryDebugPoisonReleasedBuffers\": " + runtime.nativeCpuMemory().debugPoisonReleasedBuffers() + ",\n" +
                 "    \"nativeMemoryTraceAllocations\": " + runtime.nativeCpuMemory().traceAllocations() + ",\n" +
+                "    \"bfloat16TrainingPolicy\": \"" + runtime.bfloat16TrainingPolicy().name() + "\",\n" +
                 "    \"kernel\": {\n" +
                 "      \"cpu\": {\n" +
                 "        \"cpuLoopUnrollFactor\": " + cpu.loopUnrollFactor() + ",\n" +

@@ -14,6 +14,7 @@ import config.compile.BackendPlanningFailurePolicy;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.AcceleratorBufferBindingMode;
+import config.runtime.BFloat16TrainingPolicy;
 import config.runtime.CpuStorageProfile;
 import config.runtime.DeviceTransferPolicy;
 import config.runtime.NativeCpuFailurePolicy;
@@ -79,6 +80,7 @@ public class BenchmarkSessionTest {
         assertEquals(backend.blas.BlasProvider.OPENBLAS_FFM, entries.get(3).profile().runtime().blas().provider());
         assertEquals(ExecutionMode.FORWARD_BACKWARD, entries.get(4).profile().mode());
         assertEquals(CpuStorageProfile.CPU_NATIVE, entries.get(4).profile().runtime().cpuStorageProfile());
+        assertEquals(BFloat16TrainingPolicy.ACTIVATIONS_ONLY, entries.get(4).profile().runtime().bfloat16TrainingPolicy());
     }
 
     @Test
@@ -995,25 +997,46 @@ public class BenchmarkSessionTest {
                                                 List.of(),
                                                 List.of(),
                                                 graph.execution.trace.NativeCpuMemoryTrace.empty(),
-                                                List.of(new graph.execution.trace.NativeOptimizerTrace(
-                                                        "SgdOptimizer",
-                                                        "CPU_ARRAY",
-                                                        DataType.BFLOAT16,
-                                                        10,
-                                                        11,
-                                                        1024,
-                                                        "native optimizer unsupported dtype-BFLOAT16",
-                                                        "OUTPUT_ONLY",
-                                                        "SKIPPED",
-                                                        "NONE",
-                                                        "ACTIVATIONS_ONLY",
-                                                        "FALLBACK_TO_ARRAY",
-                                                        "CPU_ARRAY",
-                                                        "CPU_ARRAY",
-                                                        "CPU_ARRAY",
-                                                        "CPU_ARRAY",
-                                                        "publication-policy-output-only"
-                                                ))
+                                                List.of(
+                                                        new graph.execution.trace.NativeOptimizerTrace(
+                                                                "SgdOptimizer",
+                                                                "CPU_ARRAY",
+                                                                DataType.BFLOAT16,
+                                                                10,
+                                                                11,
+                                                                1024,
+                                                                "native-sgd-ineligible:bf16-policy-ACTIVATIONS_ONLY",
+                                                                "OUTPUT_ONLY",
+                                                                "SKIPPED",
+                                                                "NONE",
+                                                                "ACTIVATIONS_ONLY",
+                                                                "FALLBACK_TO_ARRAY",
+                                                                "CPU_ARRAY",
+                                                                "CPU_ARRAY",
+                                                                "CPU_ARRAY",
+                                                                "CPU_ARRAY",
+                                                                "publication-policy-output-only"
+                                                        ),
+                                                        new graph.execution.trace.NativeOptimizerTrace(
+                                                                "SgdOptimizer",
+                                                                "CPU_ARRAY",
+                                                                DataType.BFLOAT16,
+                                                                10,
+                                                                11,
+                                                                1024,
+                                                                "native-sgd-ineligible:bf16-master-not-implemented",
+                                                                "OUTPUT_ONLY",
+                                                                "SKIPPED",
+                                                                "NONE",
+                                                                "PARAMS_WITH_F32_MASTER",
+                                                                "FALLBACK_TO_ARRAY",
+                                                                "CPU_ARRAY",
+                                                                "CPU_ARRAY",
+                                                                "CPU_ARRAY",
+                                                                "CPU_ARRAY",
+                                                                "publication-policy-output-only"
+                                                        )
+                                                )
                                         )
                                 ),
                                 new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
@@ -1027,8 +1050,13 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("bf16PerformanceSummary=matMulStepCount=1"));
         assertTrue(text.contains("sbgemmContinuationCount=1"));
         assertTrue(text.contains("promotedF32Count=1"));
-        assertTrue(text.contains("optimizerArrayFallbackCount=1"));
+        assertTrue(text.contains("optimizerArrayFallbackCount=2"));
+        assertTrue(text.contains("optimizerNativeCount=0"));
         assertTrue(text.contains("activationsOnlyPolicyCount=1"));
+        assertTrue(text.contains("f32MasterPolicyCount=1"));
+        assertTrue(text.contains("experimentalPolicyCount=0"));
+        assertTrue(text.contains("native-sgd-ineligible:bf16-policy-ACTIVATIONS_ONLY"));
+        assertTrue(text.contains("native-sgd-ineligible:bf16-master-not-implemented"));
         assertTrue(text.contains("openblasSbgemmAvailable=true"));
         assertTrue(text.contains("openblasBgemmAvailable=false"));
         assertTrue(text.contains("bf16ContinuationRoute=SBGEMM"));
@@ -1045,8 +1073,13 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"bf16Performance\": {\"matMulStepCount\": 1"));
         assertTrue(json.contains("\"sbgemmContinuationCount\": 1"));
         assertTrue(json.contains("\"promotedF32Count\": 1"));
-        assertTrue(json.contains("\"optimizerArrayFallbackCount\": 1"));
+        assertTrue(json.contains("\"optimizerArrayFallbackCount\": 2"));
+        assertTrue(json.contains("\"optimizerNativeCount\": 0"));
         assertTrue(json.contains("\"activationsOnlyPolicyCount\": 1"));
+        assertTrue(json.contains("\"f32MasterPolicyCount\": 1"));
+        assertTrue(json.contains("\"experimentalPolicyCount\": 0"));
+        assertTrue(json.contains("\"native-sgd-ineligible:bf16-policy-ACTIVATIONS_ONLY\""));
+        assertTrue(json.contains("\"native-sgd-ineligible:bf16-master-not-implemented\""));
         assertTrue(json.contains("\"openblasSbgemmAvailable\": true"));
         assertTrue(json.contains("\"openblasBgemmAvailable\": false"));
         assertTrue(json.contains("\"bf16ContinuationRoute\": \"SBGEMM\""));
