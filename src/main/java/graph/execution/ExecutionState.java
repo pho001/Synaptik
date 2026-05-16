@@ -2,6 +2,7 @@ package graph.execution;
 
 import backend.cpu.kernels.CpuNodeWorkspace;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
+import backend.cpu.nativecpu.NativeCpuAllocator;
 import backend.cpu.nativecpu.NativeCpuMaterializer;
 import backend.cpu.nativecpu.NativeCpuStorageFactory;
 import backend.cpu.plan.CpuPreparedInput;
@@ -16,6 +17,7 @@ import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.execution.trace.CpuMaterializationTrace;
+import graph.execution.trace.NativeCpuMemoryTrace;
 import tensor.DataType;
 import tensor.NativeTensorStorage;
 import tensor.Tensor;
@@ -49,6 +51,8 @@ public final class ExecutionState {
     private final Map<String, DeviceToCpuMaterializer> deviceToCpuMaterializerByBackend;
     private final List<CpuMaterializationTrace> cpuMaterializationTraces;
     private final List<ExecutionResource> executionResources;
+    private final NativeCpuAllocator nativeCpuAllocator;
+    private final NativeCpuStorageFactory nativeCpuStorageFactory;
 
     private ExecutionState(
             Map<Integer, Tensor> runtimeTensorByNodeId,
@@ -69,6 +73,8 @@ public final class ExecutionState {
         this.deviceToCpuMaterializerByBackend = new HashMap<>();
         this.cpuMaterializationTraces = new ArrayList<>();
         this.executionResources = new ArrayList<>();
+        this.nativeCpuAllocator = new NativeCpuAllocator();
+        this.nativeCpuStorageFactory = new NativeCpuStorageFactory(nativeCpuAllocator);
     }
 
     /**
@@ -306,6 +312,18 @@ public final class ExecutionState {
         deviceBufferBindingByNodeId.remove(nodeId);
         reservedDeviceBufferBindingByNodeId.remove(nodeId);
         residencyForNodeId(nodeId).markNativeCurrent(reason);
+    }
+
+    /**
+     * Allocates run-owned native CPU tensor storage through this execution state's allocator.
+     *
+     * @param dataType tensor dtype
+     * @param elements number of logical elements
+     * @param label diagnostic allocation label
+     * @return native tensor storage
+     */
+    public NativeTensorStorage allocateNativeStorage(DataType dataType, int elements, String label) {
+        return nativeCpuStorageFactory.allocate(dataType, elements, label);
     }
 
     /**
@@ -653,7 +671,7 @@ public final class ExecutionState {
         NativeTensorStorage storage = nativeStorageByNodeId.get(nodeId);
         if (storage == null || storage.closed() || storage.getType() != tensor.getDataType()
                 || storage.getSize() != tensor.getFlatDataSize()) {
-            storage = new NativeCpuStorageFactory().allocate(
+            storage = allocateNativeStorage(
                     tensor.getDataType(),
                     tensor.getFlatDataSize(),
                     "node-" + nodeId + ":" + tensor.getLabel()
@@ -777,6 +795,26 @@ public final class ExecutionState {
      */
     public List<CpuMaterializationTrace> cpuMaterializationTraces() {
         return List.copyOf(cpuMaterializationTraces);
+    }
+
+    /**
+     * Returns native CPU allocation counters recorded so far in this execution.
+     *
+     * @return native CPU memory trace snapshot
+     */
+    public NativeCpuMemoryTrace nativeCpuMemoryTrace() {
+        var snapshot = nativeCpuAllocator.statsSnapshot();
+        return new NativeCpuMemoryTrace(
+                snapshot.allocationCount(),
+                snapshot.releaseCount(),
+                snapshot.retainCount(),
+                snapshot.allocationFailureCount(),
+                snapshot.requestedBytes(),
+                snapshot.allocatedBytes(),
+                snapshot.currentLiveBytes(),
+                snapshot.peakLiveBytes(),
+                snapshot.retainedBytes()
+        );
     }
 
     private long logicalByteLength(int nodeId) {

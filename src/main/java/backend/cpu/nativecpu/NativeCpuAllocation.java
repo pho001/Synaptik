@@ -18,16 +18,34 @@ public final class NativeCpuAllocation implements ExecutionResource {
     private final Arena arena;
     private final MemorySegment segment;
     private final long byteSize;
+    private final long allocatedBytes;
     private final long alignment;
     private final String label;
-    private final AtomicBoolean closed = new AtomicBoolean();
+    private final NativeCpuMemoryStats stats;
+    private final AtomicBoolean released = new AtomicBoolean();
+    private final AtomicBoolean retained = new AtomicBoolean();
+    private volatile String retainedReason;
 
     NativeCpuAllocation(Arena arena, MemorySegment segment, long byteSize, long alignment, String label) {
+        this(arena, segment, byteSize, Math.max(byteSize, 1L), alignment, label, new NativeCpuMemoryStats());
+    }
+
+    NativeCpuAllocation(
+            Arena arena,
+            MemorySegment segment,
+            long byteSize,
+            long allocatedBytes,
+            long alignment,
+            String label,
+            NativeCpuMemoryStats stats
+    ) {
         this.arena = Objects.requireNonNull(arena, "arena cannot be null");
         this.segment = Objects.requireNonNull(segment, "segment cannot be null");
         this.byteSize = byteSize;
+        this.allocatedBytes = Math.max(0L, allocatedBytes);
         this.alignment = alignment;
         this.label = label == null ? "" : label;
+        this.stats = stats == null ? new NativeCpuMemoryStats() : stats;
     }
 
     public MemorySegment segment() {
@@ -39,6 +57,10 @@ public final class NativeCpuAllocation implements ExecutionResource {
         return byteSize;
     }
 
+    public long allocatedBytes() {
+        return allocatedBytes;
+    }
+
     public long alignment() {
         return alignment;
     }
@@ -48,19 +70,47 @@ public final class NativeCpuAllocation implements ExecutionResource {
     }
 
     public boolean closed() {
-        return closed.get();
+        return released();
+    }
+
+    public boolean released() {
+        return released.get();
+    }
+
+    public boolean retainedAfterExecute() {
+        return retained.get();
+    }
+
+    public String retainedReason() {
+        return retainedReason == null ? "" : retainedReason;
+    }
+
+    public void retain(String reason) {
+        ensureOpen();
+        if (retained.compareAndSet(false, true)) {
+            retainedReason = reason == null ? "" : reason;
+            stats.recordRetain(allocatedBytes);
+        }
     }
 
     public void ensureOpen() {
-        if (closed.get()) {
+        if (released.get()) {
             throw new IllegalStateException("Native CPU allocation is closed: " + label);
+        }
+    }
+
+    public void release() {
+        if (released.compareAndSet(false, true)) {
+            try {
+                arena.close();
+            } finally {
+                stats.recordRelease(allocatedBytes, retained.get());
+            }
         }
     }
 
     @Override
     public void close() {
-        if (closed.compareAndSet(false, true)) {
-            arena.close();
-        }
+        release();
     }
 }

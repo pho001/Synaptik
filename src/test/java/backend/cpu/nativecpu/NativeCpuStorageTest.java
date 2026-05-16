@@ -10,6 +10,7 @@ import tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -85,6 +86,42 @@ class NativeCpuStorageTest {
 
         IllegalStateException error = assertThrows(IllegalStateException.class, storage::segment);
         assertTrue(error.getMessage().contains("closed"));
+    }
+
+    @Test
+    void allocatorTracksLeaseStatsAndRetainState() {
+        NativeCpuAllocator allocator = new NativeCpuAllocator();
+        NativeCpuAllocation allocation = allocator.allocate(0L, "stats-test");
+
+        assertFalse(allocation.released());
+        assertEquals(0L, allocation.byteSize());
+        assertEquals(1L, allocation.allocatedBytes());
+
+        var allocated = allocator.statsSnapshot();
+        assertEquals(1L, allocated.allocationCount());
+        assertEquals(0L, allocated.requestedBytes());
+        assertEquals(1L, allocated.allocatedBytes());
+        assertEquals(1L, allocated.currentLiveBytes());
+        assertEquals(1L, allocated.peakLiveBytes());
+
+        allocation.retain("published output");
+        allocation.retain("ignored duplicate");
+
+        assertTrue(allocation.retainedAfterExecute());
+        assertEquals("published output", allocation.retainedReason());
+        var retained = allocator.statsSnapshot();
+        assertEquals(1L, retained.retainCount());
+        assertEquals(1L, retained.retainedBytes());
+
+        allocation.release();
+        allocation.close();
+
+        assertTrue(allocation.released());
+        var released = allocator.statsSnapshot();
+        assertEquals(1L, released.releaseCount());
+        assertEquals(0L, released.currentLiveBytes());
+        assertEquals(0L, released.retainedBytes());
+        assertThrows(IllegalStateException.class, () -> allocation.retain("too late"));
     }
 
     @Test

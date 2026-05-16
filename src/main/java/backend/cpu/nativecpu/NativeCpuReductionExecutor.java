@@ -247,7 +247,7 @@ public final class NativeCpuReductionExecutor {
     }
 
     private static NativeFloat32Storage allocateF32(Tensor node, CpuKernelContext context, String label) {
-        return (NativeFloat32Storage) new NativeCpuStorageFactory().allocate(
+        return (NativeFloat32Storage) context.executionContext().allocateNativeStorage(
                 DataType.FLOAT32,
                 node.getFlatDataSize(),
                 "node-" + context.nodeId() + ":" + node.getLabel() + ":native-f32-" + label
@@ -255,7 +255,7 @@ public final class NativeCpuReductionExecutor {
     }
 
     private static NativeFloat64Storage allocateF64(Tensor node, CpuKernelContext context, String label) {
-        return (NativeFloat64Storage) new NativeCpuStorageFactory().allocate(
+        return (NativeFloat64Storage) context.executionContext().allocateNativeStorage(
                 DataType.FLOAT64,
                 node.getFlatDataSize(),
                 "node-" + context.nodeId() + ":" + node.getLabel() + ":native-f64-" + label

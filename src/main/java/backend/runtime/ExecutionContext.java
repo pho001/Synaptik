@@ -11,6 +11,7 @@ import config.runtime.RuntimeConfig;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.execution.ExecutionState;
 import graph.execution.trace.ConvTraceMetadata;
+import tensor.DataType;
 import tensor.NativeTensorStorage;
 import tensor.Tensor;
 
@@ -255,6 +256,21 @@ public final class ExecutionContext {
             return null;
         }
         return executionState.nativeStorageForNodeId(nodeId);
+    }
+
+    /**
+     * Allocates run-owned native CPU tensor storage.
+     *
+     * @param dataType tensor dtype
+     * @param elements number of logical elements
+     * @param label diagnostic allocation label
+     * @return native tensor storage
+     */
+    public NativeTensorStorage allocateNativeStorage(DataType dataType, int elements, String label) {
+        if (executionState == null) {
+            throw new IllegalStateException("ExecutionContext does not carry per-run ExecutionState.");
+        }
+        return executionState.allocateNativeStorage(dataType, elements, label);
     }
 
     /**

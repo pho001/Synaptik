@@ -104,6 +104,7 @@ public final class TextBenchmarkReportRenderer {
                         sb.append("  cpuMaterializationCount=").append(trace.run().cpuMaterializations().size()).append('\n');
                         appendNativeCpuSummary(sb, NativeCpuTraceSummary.fromSteps(trace.run().steps()));
                         appendRuntimeCopySummary(sb, RuntimeCopyTraceSummary.fromRun(trace.run()));
+                        appendNativeCpuMemorySummary(sb, trace.run().nativeCpuMemory());
                         appendAcceleratorSummary(sb, AcceleratorTraceSummary.fromSteps(trace.run().steps()));
                         appendGpuCoverageSummary(sb, GpuCoverageSummary.fromTrace(trace));
                         appendCrossBackendRouterEvidence(sb, CrossBackendRouterEvidence.fromTrace(trace));
@@ -145,6 +146,26 @@ public final class TextBenchmarkReportRenderer {
                 .append(" matMulCopyInBytes=").append(summary.matMulCopyInBytes())
                 .append(" matMulCopyOutBytes=").append(summary.matMulCopyOutBytes())
                 .append(" matMulNativeTempBytes=").append(summary.matMulNativeTempBytes())
+                .append('\n');
+    }
+
+    private static void appendNativeCpuMemorySummary(
+            StringBuilder sb,
+            graph.execution.trace.NativeCpuMemoryTrace trace
+    ) {
+        if (trace == null || !trace.present()) {
+            return;
+        }
+        sb.append("  nativeCpuMemory=")
+                .append("allocationCount=").append(trace.allocationCount())
+                .append(" releaseCount=").append(trace.releaseCount())
+                .append(" retainCount=").append(trace.retainCount())
+                .append(" allocationFailureCount=").append(trace.allocationFailureCount())
+                .append(" requestedBytes=").append(trace.requestedBytes())
+                .append(" allocatedBytes=").append(trace.allocatedBytes())
+                .append(" currentLiveBytes=").append(trace.currentLiveBytes())
+                .append(" peakLiveBytes=").append(trace.peakLiveBytes())
+                .append(" retainedBytes=").append(trace.retainedBytes())
                 .append('\n');
     }
 

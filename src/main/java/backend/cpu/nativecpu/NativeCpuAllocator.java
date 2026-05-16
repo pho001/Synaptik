@@ -9,6 +9,16 @@ import java.lang.foreign.MemorySegment;
 public final class NativeCpuAllocator {
     public static final long DEFAULT_ALIGNMENT_BYTES = 64L;
 
+    private final NativeCpuMemoryStats stats;
+
+    public NativeCpuAllocator() {
+        this(new NativeCpuMemoryStats());
+    }
+
+    public NativeCpuAllocator(NativeCpuMemoryStats stats) {
+        this.stats = stats == null ? new NativeCpuMemoryStats() : stats;
+    }
+
     public NativeCpuAllocation allocate(long byteSize, String label) {
         return allocate(byteSize, DEFAULT_ALIGNMENT_BYTES, label);
     }
@@ -22,11 +32,18 @@ public final class NativeCpuAllocator {
         }
         Arena arena = Arena.ofShared();
         try {
-            MemorySegment segment = arena.allocate(Math.max(byteSize, 1L), alignment);
-            return new NativeCpuAllocation(arena, segment, byteSize, alignment, label);
+            long allocatedBytes = Math.max(byteSize, 1L);
+            MemorySegment segment = arena.allocate(allocatedBytes, alignment);
+            stats.recordAllocation(byteSize, allocatedBytes);
+            return new NativeCpuAllocation(arena, segment, byteSize, allocatedBytes, alignment, label, stats);
         } catch (RuntimeException ex) {
+            stats.recordAllocationFailure();
             arena.close();
             throw ex;
         }
+    }
+
+    public NativeCpuMemoryStats.Snapshot statsSnapshot() {
+        return stats.snapshot();
     }
 }

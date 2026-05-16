@@ -71,6 +71,9 @@ public final class JsonBenchmarkReportRenderer {
                 sb.append("        \"runtimeCopy\": ").append(runtimeCopyTraceSummaryJson(
                         RuntimeCopyTraceSummary.fromRun(trace.run())
                 )).append(",\n");
+                sb.append("        \"nativeCpuMemory\": ")
+                        .append(nativeCpuMemoryTraceJson(trace.run().nativeCpuMemory()))
+                        .append(",\n");
                 sb.append("        \"accelerator\": ").append(acceleratorSummaryJson(
                         AcceleratorTraceSummary.fromSteps(trace.run().steps())
                 )).append(",\n");
@@ -166,6 +169,23 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"matMulCopyInBytes\": " + summary.matMulCopyInBytes() + ", "
                 + "\"matMulCopyOutBytes\": " + summary.matMulCopyOutBytes() + ", "
                 + "\"matMulNativeTempBytes\": " + summary.matMulNativeTempBytes()
+                + "}";
+    }
+
+    private static String nativeCpuMemoryTraceJson(graph.execution.trace.NativeCpuMemoryTrace trace) {
+        if (trace == null || !trace.present()) {
+            return "null";
+        }
+        return "{"
+                + "\"allocationCount\": " + trace.allocationCount() + ", "
+                + "\"releaseCount\": " + trace.releaseCount() + ", "
+                + "\"retainCount\": " + trace.retainCount() + ", "
+                + "\"allocationFailureCount\": " + trace.allocationFailureCount() + ", "
+                + "\"requestedBytes\": " + trace.requestedBytes() + ", "
+                + "\"allocatedBytes\": " + trace.allocatedBytes() + ", "
+                + "\"currentLiveBytes\": " + trace.currentLiveBytes() + ", "
+                + "\"peakLiveBytes\": " + trace.peakLiveBytes() + ", "
+                + "\"retainedBytes\": " + trace.retainedBytes()
                 + "}";
     }
 

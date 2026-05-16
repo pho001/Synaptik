@@ -333,7 +333,8 @@ public final class PreparedExecution {
                     mode,
                     System.nanoTime() - runStart,
                     steps == null ? List.of() : steps,
-                    executionState.cpuMaterializationTraces()
+                    executionState.cpuMaterializationTraces(),
+                    executionState.nativeCpuMemoryTrace()
             );
         } catch (RuntimeException ex) {
             executionFailure = ex;

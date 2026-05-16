@@ -663,7 +663,7 @@ public final class NativeCpuElementwiseExecutor {
     }
 
     private static NativeFloat32Storage allocateF32(Tensor node, CpuKernelContext context, String label) {
-        return (NativeFloat32Storage) new NativeCpuStorageFactory().allocate(
+        return (NativeFloat32Storage) context.executionContext().allocateNativeStorage(
                 DataType.FLOAT32,
                 node.getFlatDataSize(),
                 "node-" + context.nodeId() + ":" + node.getLabel() + ":native-f32-" + label
@@ -671,7 +671,7 @@ public final class NativeCpuElementwiseExecutor {
     }
 
     private static NativeFloat64Storage allocateF64(Tensor node, CpuKernelContext context, String label) {
-        return (NativeFloat64Storage) new NativeCpuStorageFactory().allocate(
+        return (NativeFloat64Storage) context.executionContext().allocateNativeStorage(
                 DataType.FLOAT64,
                 node.getFlatDataSize(),
                 "node-" + context.nodeId() + ":" + node.getLabel() + ":native-f64-" + label
@@ -679,7 +679,7 @@ public final class NativeCpuElementwiseExecutor {
     }
 
     private static NativeBFloat16Storage allocateBF16(Tensor node, CpuKernelContext context, String label) {
-        return (NativeBFloat16Storage) new NativeCpuStorageFactory().allocate(
+        return (NativeBFloat16Storage) context.executionContext().allocateNativeStorage(
                 DataType.BFLOAT16,
                 node.getFlatDataSize(),
                 "node-" + context.nodeId() + ":" + node.getLabel() + ":native-bf16-" + label

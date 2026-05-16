@@ -58,6 +58,26 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void cpuNativeElementwiseRunTraceCapturesNativeAllocationPressure() {
+        Tensor left = tensor(new float[]{1f, -2f, 3f, -4f}, "left");
+        Tensor right = tensor(new float[]{5f, 6f, -7f, -8f}, "right");
+        Tensor out = left.add(right);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(
+                        runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY),
+                        ExecutionMode.FORWARD,
+                        PublicationPolicy.NONE
+                );
+
+        assertTrue(trace.nativeCpuMemory().present());
+        assertTrue(trace.nativeCpuMemory().allocationCount() >= 3L);
+        assertTrue(trace.nativeCpuMemory().requestedBytes() >= 48L);
+        assertTrue(trace.nativeCpuMemory().allocatedBytes() >= trace.nativeCpuMemory().requestedBytes());
+        assertTrue(trace.nativeCpuMemory().peakLiveBytes() >= trace.nativeCpuMemory().allocatedBytes());
+    }
+
+    @Test
     void cpuNativeMatmulAddKeepsSameShapeAddOutputNative() {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 

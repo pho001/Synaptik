@@ -5,7 +5,6 @@ import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
 import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
-import backend.cpu.nativecpu.NativeCpuStorageFactory;
 import backend.memory.CpuMaterializationReason;
 import config.runtime.NativeCpuFailurePolicy;
 import tensor.NativeFloat32Storage;
@@ -65,7 +64,7 @@ public final class F32NativeBlasMatMulExecutable implements PreparedMatMulExecut
                 fallbackToJava(a, b, node, context, "native OpenBLAS segment route requires FLOAT32 native input storage");
                 return;
             }
-            NativeTensorStorage outStorage = new NativeCpuStorageFactory().allocate(
+            NativeTensorStorage outStorage = context.executionContext().allocateNativeStorage(
                     node.getDataType(),
                     node.getFlatDataSize(),
                     "node-" + context.nodeId() + ":" + node.getLabel() + ":openblas-f32"

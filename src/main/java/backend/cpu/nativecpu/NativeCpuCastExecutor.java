@@ -131,7 +131,7 @@ public final class NativeCpuCastExecutor {
     }
 
     private static NativeTensorStorage allocateNativeOutput(Tensor node, CpuKernelContext context) {
-        return new NativeCpuStorageFactory().allocate(
+        return context.executionContext().allocateNativeStorage(
                 node.getDataType(),
                 node.getFlatDataSize(),
                 "node-" + context.nodeId() + ":" + node.getLabel() + ":native-cast"
