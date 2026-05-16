@@ -10,9 +10,12 @@ import backend.accelerator.lowering.GpuLoweringUnsupportedReason;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.StorageResidency;
 import backend.runtime.ExecutionMode;
+import config.compile.BackendPlanningFailurePolicy;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
+import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.CpuStorageProfile;
+import config.runtime.DeviceTransferPolicy;
 import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.NativeCpuMemoryConfig;
 import config.runtime.NativeMemoryPoolPolicy;
@@ -28,8 +31,10 @@ import tuning.benchmark.report.GpuCoverageNativeEvidence;
 import tuning.benchmark.report.GpuCoverageRegressionGate;
 import tuning.benchmark.report.GpuCoverageSummary;
 import tuning.benchmark.report.JsonBenchmarkReportRenderer;
+import tuning.benchmark.report.NativeDeviceBridgeBenchmarkGate;
 import tuning.benchmark.report.TextBenchmarkReportRenderer;
 import tuning.benchmark.BenchmarkEntry;
+import tuning.benchmark.NativeDeviceBridgeBenchmark;
 import tuning.benchmark.BenchmarkRequest;
 import tuning.benchmark.BenchmarkSession;
 import tuning.store.PersistencePolicy;
@@ -40,6 +45,7 @@ import tuning.workload.WorkloadMetadata;
 import graph.execution.PublicationPolicy;
 import graph.execution.trace.NativeCpuMemoryTrace;
 import tuning.measure.MeasurementExecutionMode;
+import tuning.measure.MeasurementPolicy;
 
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
@@ -53,6 +59,102 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class BenchmarkSessionTest {
+    @Test
+    void nativeDeviceBridgeBenchmarkDefinesThreeTransferProfiles() {
+        List<BenchmarkEntry> entries = NativeDeviceBridgeBenchmark.entries();
+
+        assertEquals(3, entries.size());
+        assertEquals(NativeDeviceBridgeBenchmark.CPU_ARRAY_METAL, entries.get(0).name());
+        assertEquals(NativeDeviceBridgeBenchmark.CPU_NATIVE_ARRAY_BRIDGE_METAL, entries.get(1).name());
+        assertEquals(NativeDeviceBridgeBenchmark.CPU_NATIVE_DIRECT_METAL, entries.get(2).name());
+
+        ExecutionProfile array = entries.get(0).profile();
+        ExecutionProfile bridge = entries.get(1).profile();
+        ExecutionProfile direct = entries.get(2).profile();
+
+        assertEquals(CpuStorageProfile.CPU_ARRAY, array.runtime().cpuStorageProfile());
+        assertEquals(DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE, array.runtime().deviceTransferPolicy());
+        assertEquals(CpuStorageProfile.CPU_NATIVE, bridge.runtime().cpuStorageProfile());
+        assertEquals(DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE, bridge.runtime().deviceTransferPolicy());
+        assertEquals(CpuStorageProfile.CPU_NATIVE, direct.runtime().cpuStorageProfile());
+        assertEquals(NativeCpuFailurePolicy.REQUIRE_NATIVE, direct.runtime().nativeCpuFailurePolicy());
+        assertEquals(DeviceTransferPolicy.REQUIRE_DIRECT, direct.runtime().deviceTransferPolicy());
+        assertEquals(
+                AcceleratorBufferBindingMode.REQUIRE,
+                direct.runtime().accelerator().metal().buffer().bindingMode()
+        );
+        assertEquals(
+                BackendPlanningFailurePolicy.REQUIRE_ACCELERATOR_REGION,
+                direct.compile().backendPlanning().failurePolicy()
+        );
+    }
+
+    @Test
+    void nativeDeviceBridgeBenchmarkSessionRendersAndGatesTransferEvidence() {
+        BenchmarkRequest request = NativeDeviceBridgeBenchmark.request(
+                32,
+                32,
+                32,
+                new MeasurementPolicy(0, 1, 1, true, true, true, true, true)
+        );
+
+        BenchmarkReport report = BenchmarkSession.create(
+                request,
+                (candidate, workload, policy) -> nativeDeviceBridgeMeasurement(candidate.name(), policy),
+                (candidate, workloadSpec, workload, policy) -> tuning.validate.ValidationResult.skipped()
+        ).run();
+
+        NativeDeviceBridgeBenchmarkGate.requirePass(report);
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        assertTrue(text.contains("cpu-array-metal"));
+        assertTrue(text.contains("cpu-native-array-bridge-metal"));
+        assertTrue(text.contains("cpu-native-direct-metal"));
+        assertTrue(text.contains("steadyStateP90Ms=1.400000"));
+        assertTrue(text.contains("kind=CPU_ARRAY_TO_DEVICE_COPY"));
+        assertTrue(text.contains("kind=NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE"));
+        assertTrue(text.contains("kind=NATIVE_SEGMENT_TO_DEVICE_COPY"));
+        assertTrue(text.contains("javaArrayBytes=0"));
+        assertTrue(text.contains("fallbackReason=native-device-direct-transfer-unavailable"));
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+        assertTrue(json.contains("\"name\": \"cpu-native-direct-metal\""));
+        assertTrue(json.contains("\"p90Ms\": 1.4"));
+        assertTrue(json.contains("\"transferKind\": \"CPU_ARRAY_TO_DEVICE_COPY\""));
+        assertTrue(json.contains("\"transferKind\": \"NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE\""));
+        assertTrue(json.contains("\"transferKind\": \"NATIVE_SEGMENT_TO_DEVICE_COPY\""));
+        assertTrue(json.contains("\"javaArrayBytes\": 0"));
+        assertTrue(json.contains("\"directTransferSupported\": true"));
+        assertTrue(json.contains("\"fallbackReason\": \"native-device-direct-transfer-unavailable\""));
+    }
+
+    @Test
+    void nativeDeviceBridgeBenchmarkGateRejectsHiddenDirectFallback() {
+        BenchmarkReport report = BenchmarkReport.of(
+                NativeDeviceBridgeBenchmark.WORKLOAD_NAME,
+                List.of(
+                        nativeDeviceBridgeCandidate(
+                                NativeDeviceBridgeBenchmark.CPU_ARRAY_METAL,
+                                graph.execution.trace.HostDeviceTransferKind.CPU_ARRAY_TO_DEVICE_COPY
+                        ),
+                        nativeDeviceBridgeCandidate(
+                                NativeDeviceBridgeBenchmark.CPU_NATIVE_ARRAY_BRIDGE_METAL,
+                                graph.execution.trace.HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE
+                        ),
+                        nativeDeviceBridgeCandidate(
+                                NativeDeviceBridgeBenchmark.CPU_NATIVE_DIRECT_METAL,
+                                graph.execution.trace.HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE
+                        )
+                )
+        );
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> NativeDeviceBridgeBenchmarkGate.requirePass(report)
+        );
+        assertTrue(failure.getMessage().contains("missing transfer route NATIVE_SEGMENT_TO_DEVICE_COPY"));
+    }
+
     @Test
     void benchmarkSessionMeasuresSimpleTensorWorkload() {
         TensorRootWorkloadSpec workload = new TensorRootWorkloadSpec(
@@ -1480,6 +1582,106 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"javaToNativeCopyNs\": 100000"));
         assertTrue(json.contains("\"nativeDeviceCopyNs\": 25000"));
         assertTrue(json.contains("\"storageResidency\": \"DEVICE_OWNED\""));
+    }
+
+    private static tuning.measure.MeasurementResult nativeDeviceBridgeMeasurement(
+            String candidateName,
+            MeasurementPolicy policy
+    ) {
+        graph.execution.trace.HostDeviceTransferKind kind = switch (candidateName) {
+            case NativeDeviceBridgeBenchmark.CPU_ARRAY_METAL ->
+                    graph.execution.trace.HostDeviceTransferKind.CPU_ARRAY_TO_DEVICE_COPY;
+            case NativeDeviceBridgeBenchmark.CPU_NATIVE_ARRAY_BRIDGE_METAL ->
+                    graph.execution.trace.HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE;
+            case NativeDeviceBridgeBenchmark.CPU_NATIVE_DIRECT_METAL ->
+                    graph.execution.trace.HostDeviceTransferKind.NATIVE_SEGMENT_TO_DEVICE_COPY;
+            default -> throw new IllegalArgumentException("unexpected native device bridge candidate " + candidateName);
+        };
+        return new tuning.measure.MeasurementResult(
+                policy,
+                new graph.execution.trace.ExecutionTrace(
+                        graph.execution.trace.CompileTrace.skipped(),
+                        graph.execution.trace.PrepareTrace.skipped(),
+                        new graph.execution.trace.RunTrace(
+                                ExecutionMode.FORWARD,
+                                100_000L,
+                                List.of(),
+                                List.of(),
+                                List.of(nativeDeviceBridgeTransfer(kind)),
+                                graph.execution.trace.NativeCpuMemoryTrace.empty(),
+                                List.of()
+                        )
+                ),
+                new tuning.measure.MeasurementStatistics(1.2d, 1.0d, 1.4d)
+        );
+    }
+
+    private static BenchmarkCandidateReport nativeDeviceBridgeCandidate(
+            String name,
+            graph.execution.trace.HostDeviceTransferKind kind
+    ) {
+        return BenchmarkCandidateReport.success(
+                BenchmarkEntry.candidate(name, NativeDeviceBridgeBenchmark.entries().stream()
+                        .filter(entry -> entry.name().equals(name))
+                        .findFirst()
+                        .orElseThrow()
+                        .profile()),
+                tuning.validate.ValidationResult.skipped(),
+                new tuning.measure.MeasurementResult(
+                        NativeDeviceBridgeBenchmark.measurementPolicy(),
+                        new graph.execution.trace.ExecutionTrace(
+                                graph.execution.trace.CompileTrace.skipped(),
+                                graph.execution.trace.PrepareTrace.skipped(),
+                                new graph.execution.trace.RunTrace(
+                                        ExecutionMode.FORWARD,
+                                        100_000L,
+                                        List.of(),
+                                        List.of(),
+                                        List.of(nativeDeviceBridgeTransfer(kind)),
+                                        graph.execution.trace.NativeCpuMemoryTrace.empty(),
+                                        List.of()
+                                )
+                        ),
+                        new tuning.measure.MeasurementStatistics(1.2d, 1.0d, 1.4d)
+                )
+        );
+    }
+
+    private static graph.execution.trace.HostDeviceTransferTrace nativeDeviceBridgeTransfer(
+            graph.execution.trace.HostDeviceTransferKind kind
+    ) {
+        long bytes = 4096L;
+        StorageResidency source = kind == graph.execution.trace.HostDeviceTransferKind.CPU_ARRAY_TO_DEVICE_COPY
+                ? StorageResidency.CPU_ARRAY
+                : StorageResidency.CPU_NATIVE;
+        long javaArrayBytes = kind == graph.execution.trace.HostDeviceTransferKind.NATIVE_SEGMENT_TO_DEVICE_COPY
+                ? 0L
+                : bytes;
+        long nativeBytes = kind == graph.execution.trace.HostDeviceTransferKind.CPU_ARRAY_TO_DEVICE_COPY
+                ? 0L
+                : bytes;
+        boolean directSupported = kind != graph.execution.trace.HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE;
+        String fallbackReason = kind == graph.execution.trace.HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE
+                ? "native-device-direct-transfer-unavailable"
+                : "";
+        return new graph.execution.trace.HostDeviceTransferTrace(
+                101,
+                ComputeBackend.GPU_METAL.name(),
+                DataType.FLOAT32,
+                source,
+                StorageResidency.HOST_SHARED_DEVICE_BUFFER,
+                kind,
+                bytes,
+                javaArrayBytes,
+                nativeBytes,
+                bytes,
+                25_000L,
+                false,
+                directSupported,
+                true,
+                fallbackReason,
+                "metal native device bridge benchmark transfer"
+        );
     }
 
     @Test
