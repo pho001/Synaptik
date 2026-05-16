@@ -1,6 +1,5 @@
 package backend.cpu.nativecpu;
 
-import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.memory.CpuMaterializationReason;
@@ -61,12 +60,12 @@ public final class NativeCpuCastExecutor {
             if (input.getDataType() == DataType.FLOAT32) {
                 NativeFloat32Storage in = requireF32NativeInput(context);
                 NativeTensorStorage out = allocateNativeOutput(node, context);
-                runF32ToBF16(in, (NativeBFloat16Storage) out, node.getFlatDataSize());
+                NativeBFloat16Kernels.fromFloat32(in, (NativeBFloat16Storage) out, node.getFlatDataSize());
                 context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU CAST wrote " + node.getDataType() + " output");
             } else {
                 NativeBFloat16Storage in = requireBF16NativeInput(context);
                 NativeTensorStorage out = allocateNativeOutput(node, context);
-                runBF16ToF32(in, (NativeFloat32Storage) out, node.getFlatDataSize());
+                NativeBFloat16Kernels.toFloat32(in, (NativeFloat32Storage) out, node.getFlatDataSize());
                 context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU CAST wrote " + node.getDataType() + " output");
             }
             publishTrace(context, fact, "CPU_NATIVE", "");
@@ -79,18 +78,6 @@ public final class NativeCpuCastExecutor {
     private static boolean supportedCast(DataType input, DataType output) {
         return input == DataType.FLOAT32 && output == DataType.BFLOAT16
                 || input == DataType.BFLOAT16 && output == DataType.FLOAT32;
-    }
-
-    private static void runF32ToBF16(NativeFloat32Storage input, NativeBFloat16Storage out, int size) {
-        for (int i = 0; i < size; i++) {
-            out.setBFloat16BitsAt(i, CpuDTypeOps.toBFloat16Bits(input.getFloat32At(i)));
-        }
-    }
-
-    private static void runBF16ToF32(NativeBFloat16Storage input, NativeFloat32Storage out, int size) {
-        for (int i = 0; i < size; i++) {
-            out.setFloat32At(i, CpuDTypeOps.fromBFloat16Bits(input.getBFloat16BitsAt(i)));
-        }
     }
 
     private static boolean fallback(CpuKernelContext context, NativeCpuKernelFact fact, String reason) {
