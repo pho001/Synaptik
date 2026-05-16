@@ -214,6 +214,35 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void cpuNativeMatmulBiasMulScalarReluKeepsMulScalarAndReluOutputNative() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor bias = vector(new float[]{1f, -100f}, "bias");
+        Tensor out = a().matmul(b()).add(bias).mul(0.5d).relu();
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> mulScalar = attrs(trace.steps().stream()
+                .filter(step -> "MUL_SCALAR".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        Map<String, Object> relu = attrs(trace.steps().stream()
+                .filter(step -> "RELU".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals("CPU_NATIVE", mulScalar.get("actualCpuStorage"));
+        assertEquals("NATIVE_CORRECT_BUT_SLOW", mulScalar.get("nativeCpuKernelStatus"));
+        assertEquals("SEGMENT_SCALAR", mulScalar.get("nativeCpuKernelFamily"));
+        assertEquals("", mulScalar.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", mulScalar.get("storageResidency"));
+        assertEquals("CPU_NATIVE", relu.get("actualCpuStorage"));
+        assertEquals("", relu.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", relu.get("storageResidency"));
+    }
+
+    @Test
     void unsupportedCpuNativeBroadcastMulFallsBackToArrayWithTraceReason() {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 
@@ -432,6 +461,24 @@ class NativeCpuElementwiseChainTest {
         assertEquals("CPU_ARRAY", div.get("storageResidency"));
         assertFalse(neg.containsKey("nativeCpuKernelStatus"));
         assertEquals("CPU_ARRAY", neg.get("storageResidency"));
+    }
+
+    @Test
+    void autoStorageDoesNotUseNativeMulScalarSlice() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor out = a().matmul(b()).mul(0.5d);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> mulScalar = attrs(trace.steps().stream()
+                .filter(step -> "MUL_SCALAR".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertFalse(mulScalar.containsKey("nativeCpuKernelStatus"));
+        assertEquals("CPU_ARRAY", mulScalar.get("storageResidency"));
     }
 
     private static RuntimeConfig runtime(CpuStorageProfile storageProfile, NativeCpuFailurePolicy failurePolicy) {

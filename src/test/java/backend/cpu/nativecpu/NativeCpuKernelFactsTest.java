@@ -33,6 +33,7 @@ class NativeCpuKernelFactsTest {
         NativeCpuKernelFact sub = NativeCpuKernelFacts.factFor(Operation.OpType.SUB, DataType.FLOAT32);
         NativeCpuKernelFact mul = NativeCpuKernelFacts.factFor(Operation.OpType.MUL, DataType.FLOAT32);
         NativeCpuKernelFact div = NativeCpuKernelFacts.factFor(Operation.OpType.DIV, DataType.FLOAT32);
+        NativeCpuKernelFact mulScalar = NativeCpuKernelFacts.factFor(Operation.OpType.MUL_SCALAR, DataType.FLOAT32);
         NativeCpuKernelFact neg = NativeCpuKernelFacts.factFor(Operation.OpType.NEG, DataType.FLOAT32);
         NativeCpuKernelFact relu = NativeCpuKernelFacts.factFor(Operation.OpType.RELU, DataType.FLOAT32);
 
@@ -40,23 +41,27 @@ class NativeCpuKernelFactsTest {
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, sub.status());
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, mul.status());
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, div.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, mulScalar.status());
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, neg.status());
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, relu.status());
         assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, add.family());
         assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, sub.family());
         assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, mul.family());
         assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, div.family());
+        assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, mulScalar.family());
         assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, neg.family());
         assertEquals("requires-dense-contiguous-same-shape", add.reason());
         assertEquals("requires-dense-contiguous-same-shape", sub.reason());
         assertEquals("requires-dense-contiguous-same-shape", mul.reason());
         assertEquals("requires-dense-contiguous-same-shape", div.reason());
+        assertEquals("requires-dense-contiguous", mulScalar.reason());
         assertEquals("requires-dense-contiguous", neg.reason());
         assertEquals("requires-dense-contiguous", relu.reason());
         assertTrue(add.nativeComputeEligible());
         assertTrue(sub.nativeComputeEligible());
         assertTrue(mul.nativeComputeEligible());
         assertTrue(div.nativeComputeEligible());
+        assertTrue(mulScalar.nativeComputeEligible());
         assertTrue(neg.nativeComputeEligible());
         assertTrue(relu.preservesNativeStorage());
     }

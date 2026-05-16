@@ -31,6 +31,9 @@ public final class ElementwiseUnaryExecutor {
         if (inputs == null || inputs.size() != 1) {
             throw new IllegalArgumentException("Scalar unary elementwise executor requires exactly 1 input.");
         }
+        if (NativeCpuElementwiseExecutor.tryRunScalarUnary(kernel, parameterF64, parameterF32, inputs, node, context)) {
+            return;
+        }
         ElementwiseLoops.runScalarUnary(kernel, parameterF64, parameterF32, inputs.get(0), node, context);
     }
 }

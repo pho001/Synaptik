@@ -102,6 +102,7 @@ public final class NativeCpuKernelFacts {
                 || opType == Operation.OpType.SUB
                 || opType == Operation.OpType.MUL
                 || opType == Operation.OpType.DIV
+                || opType == Operation.OpType.MUL_SCALAR
                 || opType == Operation.OpType.NEG
                 || opType == Operation.OpType.RELU;
     }

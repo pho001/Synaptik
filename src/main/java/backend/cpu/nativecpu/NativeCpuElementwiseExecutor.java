@@ -3,12 +3,14 @@ package backend.cpu.nativecpu;
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.elementwise.ElementwiseLoops;
 import backend.cpu.kernels.elementwise.binary.BinaryElementwiseKernel;
+import backend.cpu.kernels.elementwise.unary.ScalarUnaryElementwiseKernel;
 import backend.cpu.kernels.elementwise.unary.UnaryElementwiseKernel;
 import backend.cpu.kernels.layout.plan.ResolvedBroadcastPlan;
 import backend.memory.CpuMaterializationReason;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
 import operations.Operation;
+import operations.elementwise.unary.mulScalar;
 import tensor.DataType;
 import tensor.NativeFloat32Storage;
 import tensor.NativeTensorStorage;
@@ -89,12 +91,47 @@ public final class NativeCpuElementwiseExecutor {
             String label = opLabel(op);
             NativeFloat32Storage input = requireF32NativeInput(context, 0, label.toUpperCase());
             NativeFloat32Storage out = allocateF32(node, context, label);
-            runDenseUnary(op.opType(), input, out, node.getFlatDataSize());
+            runDenseUnary(op, input, out, node.getFlatDataSize());
             out.markModified();
             context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU " + label.toUpperCase() + " wrote FLOAT32 output");
             publishTrace(context, fact, "CPU_NATIVE", "");
         } catch (Throwable t) {
             fallbackUnary(kernel, inputs, node, context, fact, "native-kernel-failed:" + opLabel(op) + ":" + safeMessage(t));
+        }
+        return true;
+    }
+
+    public static boolean tryRunScalarUnary(
+            ScalarUnaryElementwiseKernel kernel,
+            double parameterF64,
+            float parameterF32,
+            List<Tensor> inputs,
+            Tensor node,
+            CpuKernelContext context
+    ) {
+        if (!nativeRequested(context)) {
+            return false;
+        }
+        Operation op = context.executionOperation();
+        NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(opType(op), node.getDataType());
+        if (node.getDataType() != DataType.FLOAT32 || op == null || op.opType() != Operation.OpType.MUL_SCALAR || context.nodePlan().stridedPath()) {
+            fallbackScalarUnary(kernel, parameterF64, parameterF32, inputs, node, context, fact, ineligibleReason(op, node, context));
+            return true;
+        }
+        if (inputs == null || inputs.size() != 1) {
+            fallbackScalarUnary(kernel, parameterF64, parameterF32, inputs, node, context, fact, "native-kernel-ineligible:" + opLabel(op) + "-input-count");
+            return true;
+        }
+        try {
+            String label = opLabel(op);
+            NativeFloat32Storage input = requireF32NativeInput(context, 0, label.toUpperCase());
+            NativeFloat32Storage out = allocateF32(node, context, label);
+            runDenseUnary(op, input, out, node.getFlatDataSize());
+            out.markModified();
+            context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU " + label.toUpperCase() + " wrote FLOAT32 output");
+            publishTrace(context, fact, "CPU_NATIVE", "");
+        } catch (Throwable t) {
+            fallbackScalarUnary(kernel, parameterF64, parameterF32, inputs, node, context, fact, "native-kernel-failed:" + opLabel(op) + ":" + safeMessage(t));
         }
         return true;
     }
@@ -169,11 +206,12 @@ public final class NativeCpuElementwiseExecutor {
         }
     }
 
-    private static void runDenseUnary(Operation.OpType opType, NativeFloat32Storage input, NativeFloat32Storage out, int size) {
+    private static void runDenseUnary(Operation op, NativeFloat32Storage input, NativeFloat32Storage out, int size) {
+        float scalar = scalarParameter(op);
         for (int i = 0; i < size; i++) {
             long offset = (long) i * Float.BYTES;
             float value = input.segment().get(JAVA_FLOAT, offset);
-            out.segment().set(JAVA_FLOAT, offset, applyUnary(opType, value));
+            out.segment().set(JAVA_FLOAT, offset, applyUnary(op.opType(), value, scalar));
         }
     }
 
@@ -187,8 +225,9 @@ public final class NativeCpuElementwiseExecutor {
         };
     }
 
-    private static float applyUnary(Operation.OpType opType, float value) {
+    private static float applyUnary(Operation.OpType opType, float value, float scalar) {
         return switch (opType) {
+            case MUL_SCALAR -> value * scalar;
             case NEG -> -value;
             case RELU -> Math.max(0.0f, value);
             default -> throw new IllegalArgumentException("Unsupported native unary op: " + opType);
@@ -196,7 +235,16 @@ public final class NativeCpuElementwiseExecutor {
     }
 
     private static boolean isNativeUnaryOp(Operation.OpType opType) {
-        return opType == Operation.OpType.NEG || opType == Operation.OpType.RELU;
+        return opType == Operation.OpType.MUL_SCALAR
+                || opType == Operation.OpType.NEG
+                || opType == Operation.OpType.RELU;
+    }
+
+    private static float scalarParameter(Operation op) {
+        if (op instanceof mulScalar mul) {
+            return mul.getScalarF32();
+        }
+        return 0.0f;
     }
 
     private static boolean isNativeBinaryOp(Operation.OpType opType) {
@@ -292,6 +340,22 @@ public final class NativeCpuElementwiseExecutor {
         requireCpuReadableInputs(context);
         publishTrace(context, fact, "CPU_ARRAY", reason);
         ElementwiseLoops.runUnary(kernel, inputs.get(0), node, context);
+    }
+
+    private static void fallbackScalarUnary(
+            ScalarUnaryElementwiseKernel kernel,
+            double parameterF64,
+            float parameterF32,
+            List<Tensor> inputs,
+            Tensor node,
+            CpuKernelContext context,
+            NativeCpuKernelFact fact,
+            String reason
+    ) {
+        handleRequireNative(context, "scalar unary elementwise", reason);
+        requireCpuReadableInputs(context);
+        publishTrace(context, fact, "CPU_ARRAY", reason);
+        ElementwiseLoops.runScalarUnary(kernel, parameterF64, parameterF32, inputs.get(0), node, context);
     }
 
     private static void fallbackBinary(BinaryElementwiseKernel kernel, List<Tensor> inputs, Tensor node, CpuKernelContext context, NativeCpuKernelFact fact, String reason) {
