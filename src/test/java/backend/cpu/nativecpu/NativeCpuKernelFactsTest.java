@@ -4,6 +4,7 @@ import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -335,5 +336,34 @@ class NativeCpuKernelFactsTest {
         assertTrue(facts.containsKey(Operation.OpType.MATMUL));
         assertTrue(facts.containsKey(Operation.OpType.UNKNOWN));
         assertEquals("native-kernel-unknown-op", facts.get(Operation.OpType.UNKNOWN).reason());
+    }
+
+    @Test
+    void segmentScalarFactsRemainCorrectnessFallbacksUntilFastFamiliesExist() {
+        EnumSet<NativeCpuKernelFamily> fastFamilies = EnumSet.of(
+                NativeCpuKernelFamily.VECTOR_API,
+                NativeCpuKernelFamily.GENERATED_DIRECT,
+                NativeCpuKernelFamily.NATIVE_MICROKERNEL
+        );
+
+        for (DataType dataType : DataType.values()) {
+            for (Operation.OpType opType : Operation.OpType.values()) {
+                NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(opType, dataType);
+
+                if (fact.family() == NativeCpuKernelFamily.SEGMENT_SCALAR) {
+                    assertEquals(
+                            NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW,
+                            fact.status(),
+                            dataType + " " + opType + " segment scalar must stay out of AUTO fast eligibility"
+                    );
+                }
+                if (fact.status() == NativeCpuKernelPerformanceStatus.NATIVE_FAST) {
+                    assertTrue(
+                            fastFamilies.contains(fact.family()),
+                            dataType + " " + opType + " cannot claim NATIVE_FAST from " + fact.family()
+                    );
+                }
+            }
+        }
     }
 }

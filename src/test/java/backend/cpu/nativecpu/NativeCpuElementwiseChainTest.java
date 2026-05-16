@@ -23,6 +23,7 @@ import tensor.DataType;
 import tensor.Tensor;
 import utils.FastTranscendentals;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -105,6 +106,40 @@ class NativeCpuElementwiseChainTest {
         assertEquals("CPU_NATIVE", relu.get("actualCpuStorage"));
         assertEquals("", relu.get("nativeCpuFallbackReason"));
         assertEquals("CPU_NATIVE", relu.get("storageResidency"));
+    }
+
+    @Test
+    void cpuNativeF32MatmulBiasReluMeanForwardBackwardMatchesArrayBaselineAndTracesForwardNativeHotPath() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor baselineInput = matrix(new float[]{1f, -1f, 2f, 0.5f}, new int[]{2, 2}, "baseline_input");
+        Tensor baselineWeight = matrix(new float[]{2f, -1f, 1f, 3f}, new int[]{2, 2}, "baseline_weight");
+        Tensor baselineBias = vector(new float[]{0.5f, -4f}, "baseline_bias");
+        baselineInput.setRequiresGrad(true);
+        baselineWeight.setRequiresGrad(true);
+        baselineBias.setRequiresGrad(true);
+        Tensor baselineLoss = baselineInput.matmul(baselineWeight).add(baselineBias).relu().mean();
+        CompiledGraph.compile(baselineLoss, nativeElementwiseCompileConfig())
+                .execute(runtime(CpuStorageProfile.CPU_ARRAY, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD_BACKWARD);
+
+        Tensor nativeInput = matrix(new float[]{1f, -1f, 2f, 0.5f}, new int[]{2, 2}, "native_input");
+        Tensor nativeWeight = matrix(new float[]{2f, -1f, 1f, 3f}, new int[]{2, 2}, "native_weight");
+        Tensor nativeBias = vector(new float[]{0.5f, -4f}, "native_bias");
+        nativeInput.setRequiresGrad(true);
+        nativeWeight.setRequiresGrad(true);
+        nativeBias.setRequiresGrad(true);
+        Tensor nativeLoss = nativeInput.matmul(nativeWeight).add(nativeBias).relu().mean();
+
+        var trace = CompiledGraph.compile(nativeLoss, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(baselineLoss.toDoubleArrayCopy(), nativeLoss.toDoubleArrayCopy(), 1.0e-6);
+        assertArrayEquals(baselineInput.getGradient().toDoubleArrayCopy(), nativeInput.getGradient().toDoubleArrayCopy(), 1.0e-6);
+        assertArrayEquals(baselineWeight.getGradient().toDoubleArrayCopy(), nativeWeight.getGradient().toDoubleArrayCopy(), 1.0e-6);
+        assertArrayEquals(baselineBias.getGradient().toDoubleArrayCopy(), nativeBias.getGradient().toDoubleArrayCopy(), 1.0e-6);
+        assertNativeSegmentScalar(firstNativeStep(trace.steps(), "ADD"));
+        assertNativeSegmentScalar(firstNativeStep(trace.steps(), "RELU"));
+        assertNativeReduction(firstNativeStep(trace.steps(), "MEAN"));
     }
 
     @Test
@@ -638,6 +673,33 @@ class NativeCpuElementwiseChainTest {
                 "MUL_SCALAR",
                 promotedBf16Unary(values, "MUL_SCALAR", 0.5f)
         );
+    }
+
+    @Test
+    void cpuNativeBf16PromotedChainKeepsPrecisionEvidenceAcrossNativeSteps() {
+        float[] left = new float[]{1.25f, -2.5f, 3.75f, -4.5f};
+        float[] right = new float[]{0.5f, 1.5f, -2.0f, 5.0f};
+        float[] afterAdd = promotedBf16Binary(left, right, "ADD");
+        float[] afterRelu = promotedBf16Unary(afterAdd, "RELU", 0.0f);
+        float[] expected = promotedBf16Unary(afterRelu, "MUL_SCALAR", 0.5f);
+
+        Tensor out = bf16(left, "bf16_chain_left")
+                .add(bf16(right, "bf16_chain_right"))
+                .relu()
+                .mul(0.5d)
+                .cast(DataType.FLOAT32);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(expected, out.getFloat32Data(), 1.0e-6f);
+        assertNativeBf16Promoted(firstNativeStep(trace.steps(), "ADD"));
+        assertNativeBf16Promoted(firstNativeStep(trace.steps(), "RELU"));
+        assertNativeBf16Promoted(firstNativeStep(trace.steps(), "MUL_SCALAR"));
+        assertNativeCast(trace.steps().stream()
+                .filter(step -> "CAST".equals(step.opType()) && step.dataType() == DataType.FLOAT32)
+                .findFirst()
+                .orElseThrow());
     }
 
     @Test
@@ -1451,6 +1513,14 @@ class NativeCpuElementwiseChainTest {
         )
                 .withCpuStorageProfile(storageProfile)
                 .withNativeCpuFailurePolicy(failurePolicy);
+    }
+
+    private static ExecutionStepTrace firstNativeStep(List<ExecutionStepTrace> steps, String opType) {
+        return steps.stream()
+                .filter(step -> opType.equals(step.opType()))
+                .filter(step -> "CPU_NATIVE".equals(attrs(step).get("requestedCpuStorage")))
+                .findFirst()
+                .orElseThrow();
     }
 
     private static CompileConfig nativeElementwiseCompileConfig() {

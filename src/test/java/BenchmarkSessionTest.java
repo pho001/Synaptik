@@ -635,6 +635,81 @@ public class BenchmarkSessionTest {
     }
 
     @Test
+    void renderersExposeNativeCpuNonBlasPolicyEvidenceFromStepAttributes() {
+        var profile = new ExecutionProfile(
+                "native-cpu-non-blas-profile",
+                "native-cpu-non-blas",
+                DataType.BFLOAT16,
+                ExecutionMode.FORWARD,
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        var attrs = Map.<String, Object>of(
+                "cpuStorageProfile", "CPU_NATIVE",
+                "nativeCpuFailurePolicy", "FALLBACK_TO_ARRAY",
+                "requestedCpuStorage", "CPU_NATIVE",
+                "actualCpuStorage", "CPU_NATIVE",
+                "nativeCpuKernelStatus", "NATIVE_CORRECT_BUT_SLOW",
+                "nativeCpuKernelFamily", "SEGMENT_SCALAR",
+                "nativeCpuFallbackReason", "",
+                "storagePrecision", "BF16",
+                "computePrecision", "F32_PROMOTED"
+        );
+        var step = new graph.execution.trace.ExecutionStepTrace(
+                0,
+                "bf16_promoted_add",
+                "ADD",
+                List.of(2, 2),
+                DataType.BFLOAT16,
+                "CPU",
+                "NativeCpuElementwiseExecutor",
+                100L,
+                new graph.execution.trace.StepExecutionMetadata(
+                        "node",
+                        attrs,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+        BenchmarkReport report = BenchmarkReport.of(
+                "native_cpu_non_blas_report",
+                List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
+                        BenchmarkEntry.candidate("native-cpu-non-blas", profile),
+                        tuning.validate.ValidationResult.skipped(),
+                        new tuning.measure.MeasurementResult(
+                                tuning.measure.MeasurementPolicy.defaults(),
+                                new graph.execution.trace.ExecutionTrace(
+                                        graph.execution.trace.CompileTrace.skipped(),
+                                        graph.execution.trace.PrepareTrace.skipped(),
+                                        new graph.execution.trace.RunTrace(ExecutionMode.FORWARD, 100L, List.of(step))
+                                ),
+                                new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
+                        )
+                ))
+        );
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        assertTrue(text.contains("cpuStorageProfile=CPU_NATIVE"));
+        assertTrue(text.contains("nativeCpuFailurePolicy=FALLBACK_TO_ARRAY"));
+        assertTrue(text.contains("nativeCpuKernelStatus=NATIVE_CORRECT_BUT_SLOW"));
+        assertTrue(text.contains("nativeCpuKernelFamily=SEGMENT_SCALAR"));
+        assertTrue(text.contains("computePrecision=F32_PROMOTED"));
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+        assertTrue(json.contains("\"cpuStorageProfile\": \"CPU_NATIVE\""));
+        assertTrue(json.contains("\"nativeCpuFailurePolicy\": \"FALLBACK_TO_ARRAY\""));
+        assertTrue(json.contains("\"nativeCpuKernelStatus\": \"NATIVE_CORRECT_BUT_SLOW\""));
+        assertTrue(json.contains("\"nativeCpuKernelFamily\": \"SEGMENT_SCALAR\""));
+        assertTrue(json.contains("\"computePrecision\": \"F32_PROMOTED\""));
+    }
+
+    @Test
     void benchmarkTextReportRendersGpuLoweredRegionManifest() {
         BenchmarkReport report = reportWithGpuLoweredRegionManifest();
 
