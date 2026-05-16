@@ -424,6 +424,20 @@ public final class PreparedExecution {
         if (matMulExecutable != null && matMulExecutable.acceptsNativeInputs()) {
             return;
         }
+        if (NativeCpuElementwiseExecutor.requiresCpuReadableConditionOnly(
+                step.executionOperation(),
+                step.compiledNode().dataType(),
+                step.metadata().cpuPlan(),
+                context.runtimeConfig()
+        )) {
+            List<Integer> inputIds = step.metadata().executionInputNodeIds().isEmpty()
+                    ? step.compiledNode().inputIds()
+                    : step.metadata().executionInputNodeIds();
+            if (!inputIds.isEmpty()) {
+                context.requireCpuReadable(inputIds.get(0), CpuMaterializationReason.CPU_CONSUMER);
+            }
+            return;
+        }
         if (NativeCpuElementwiseExecutor.acceptsNativeInputs(
                 step.executionOperation(),
                 step.compiledNode().dataType(),

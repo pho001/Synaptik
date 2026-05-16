@@ -243,6 +243,36 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void cpuNativeMatmulWhereReluKeepsWhereAndReluOutputNative() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor condition = boolTensor(new byte[]{1, 0, 1, 0}, new int[]{2, 2}, "condition");
+        Tensor fallback = tensor(new float[]{-100f, -100f, -100f, -100f}, "fallback");
+        Tensor out = Tensor.where(condition, a().matmul(b()), fallback).relu();
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> where = attrs(trace.steps().stream()
+                .filter(step -> "WHERE".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        Map<String, Object> relu = attrs(trace.steps().stream()
+                .filter(step -> "RELU".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals("CPU_NATIVE", where.get("actualCpuStorage"));
+        assertEquals("NATIVE_CORRECT_BUT_SLOW", where.get("nativeCpuKernelStatus"));
+        assertEquals("SEGMENT_SCALAR", where.get("nativeCpuKernelFamily"));
+        assertEquals("", where.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", where.get("storageResidency"));
+        assertEquals("CPU_NATIVE", relu.get("actualCpuStorage"));
+        assertEquals("", relu.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", relu.get("storageResidency"));
+    }
+
+    @Test
     void unsupportedCpuNativeBroadcastMulFallsBackToArrayWithTraceReason() {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 
@@ -337,6 +367,46 @@ class NativeCpuElementwiseChainTest {
         assertEquals("CPU_ARRAY", add.get("actualCpuStorage"));
         assertEquals("native-kernel-ineligible:add-broadcast", add.get("nativeCpuFallbackReason"));
         assertEquals("CPU_ARRAY", add.get("storageResidency"));
+    }
+
+    @Test
+    void unsupportedCpuNativeBroadcastWhereFallsBackToArrayWithTraceReason() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor condition = boolTensor(new byte[]{1, 0}, new int[]{2, 1}, "condition");
+        Tensor fallback = tensor(new float[]{-100f, -100f, -100f, -100f}, "fallback");
+        Tensor out = Tensor.where(condition, a().matmul(b()), fallback);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> where = attrs(trace.steps().stream()
+                .filter(step -> "WHERE".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals("CPU_NATIVE", where.get("requestedCpuStorage"));
+        assertEquals("CPU_ARRAY", where.get("actualCpuStorage"));
+        assertEquals("native-kernel-ineligible:where-broadcast", where.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_ARRAY", where.get("storageResidency"));
+    }
+
+    @Test
+    void requireNativeRejectsUnsupportedCpuNativeBroadcastWhere() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor condition = boolTensor(new byte[]{1, 0}, new int[]{2, 1}, "condition");
+        Tensor fallback = tensor(new float[]{-100f, -100f, -100f, -100f}, "fallback");
+        Tensor out = Tensor.where(condition, a().matmul(b()), fallback);
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+        );
+
+        assertTrue(failure.getMessage().contains("Native CPU execution required"));
+        assertTrue(failure.getMessage().contains("native-kernel-ineligible:where-broadcast"));
     }
 
     @Test
@@ -481,6 +551,26 @@ class NativeCpuElementwiseChainTest {
         assertEquals("CPU_ARRAY", mulScalar.get("storageResidency"));
     }
 
+    @Test
+    void autoStorageDoesNotUseNativeWhereSlice() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor condition = boolTensor(new byte[]{1, 0, 1, 0}, new int[]{2, 2}, "condition");
+        Tensor fallback = tensor(new float[]{-100f, -100f, -100f, -100f}, "fallback");
+        Tensor out = Tensor.where(condition, a().matmul(b()), fallback);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> where = attrs(trace.steps().stream()
+                .filter(step -> "WHERE".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertFalse(where.containsKey("nativeCpuKernelStatus"));
+        assertEquals("CPU_ARRAY", where.get("storageResidency"));
+    }
+
     private static RuntimeConfig runtime(CpuStorageProfile storageProfile, NativeCpuFailurePolicy failurePolicy) {
         return new RuntimeConfig(
                 KernelTuningConfig.defaultsInference(),
@@ -524,6 +614,10 @@ class NativeCpuElementwiseChainTest {
 
     private static Tensor matrix(float[] values, int[] shape, String label) {
         return new Tensor(values, shape, null, label, DataType.FLOAT32);
+    }
+
+    private static Tensor boolTensor(byte[] values, int[] shape, String label) {
+        return new Tensor(values, shape, null, label, DataType.BOOL);
     }
 
     private static Map<String, Object> attrs(ExecutionStepTrace step) {

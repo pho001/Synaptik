@@ -5,7 +5,9 @@ import backend.cpu.kernels.elementwise.ElementwiseLoops;
 import backend.cpu.kernels.elementwise.binary.BinaryElementwiseKernel;
 import backend.cpu.kernels.elementwise.unary.ScalarUnaryElementwiseKernel;
 import backend.cpu.kernels.elementwise.unary.UnaryElementwiseKernel;
+import backend.cpu.kernels.elementwise.where.WhereElementwiseKernel;
 import backend.cpu.kernels.layout.plan.ResolvedBroadcastPlan;
+import backend.cpu.kernels.layout.plan.ResolvedWhereBroadcastPlan;
 import backend.memory.CpuMaterializationReason;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
@@ -48,7 +50,8 @@ public final class NativeCpuElementwiseExecutor {
             Operation.OpType.CEIL,
             Operation.OpType.SIGN,
             Operation.OpType.RELU,
-            Operation.OpType.SIGMOID
+            Operation.OpType.SIGMOID,
+            Operation.OpType.WHERE
     );
 
     private NativeCpuElementwiseExecutor() {
@@ -70,7 +73,17 @@ public final class NativeCpuElementwiseExecutor {
             ResolvedBroadcastPlan broadcastPlan = plan.broadcastPlan();
             return broadcastPlan == null || broadcastPlan.isNoBroadcast();
         }
+        if (opType == Operation.OpType.WHERE) {
+            ResolvedWhereBroadcastPlan whereBroadcastPlan = plan.whereBroadcastPlan();
+            return whereBroadcastPlan == null || whereBroadcastPlan.isNoBroadcast();
+        }
         return POLICY_HANDLED_OPS.contains(opType);
+    }
+
+    public static boolean requiresCpuReadableConditionOnly(Operation op, DataType dataType, backend.cpu.kernels.CpuNodeExecutionPlan plan, config.runtime.RuntimeConfig runtimeConfig) {
+        return acceptsNativeInputs(op, dataType, plan, runtimeConfig)
+                && op != null
+                && op.opType() == Operation.OpType.WHERE;
     }
 
     public static boolean tryRunUnary(UnaryElementwiseKernel kernel, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
@@ -191,6 +204,57 @@ public final class NativeCpuElementwiseExecutor {
         return true;
     }
 
+    public static boolean tryRunWhere(WhereElementwiseKernel kernel, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        if (!nativeRequested(context)) {
+            return false;
+        }
+        Operation op = context.executionOperation();
+        NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(opType(op), node.getDataType());
+        if (op == null || op.opType() != Operation.OpType.WHERE || context.nodePlan().stridedPath()) {
+            fallbackWhere(kernel, inputs, node, context, fact, ineligibleReason(op, node, context));
+            return true;
+        }
+        if (node.getDataType() != DataType.FLOAT32) {
+            fallbackWhere(kernel, inputs, node, context, fact, "native-storage-dtype-unsupported:" + node.getDataType().name().toLowerCase());
+            return true;
+        }
+        if (inputs == null || inputs.size() != 3) {
+            fallbackWhere(kernel, inputs, node, context, fact, "native-kernel-ineligible:where-input-count");
+            return true;
+        }
+        if (inputs.get(0).getDataType() != DataType.BOOL
+                || inputs.get(1).getDataType() != DataType.FLOAT32
+                || inputs.get(2).getDataType() != DataType.FLOAT32) {
+            fallbackWhere(kernel, inputs, node, context, fact, "native-kernel-ineligible:where-dtype");
+            return true;
+        }
+        ResolvedWhereBroadcastPlan whereBroadcastPlan = context.whereBroadcastPlan();
+        if (whereBroadcastPlan != null && !whereBroadcastPlan.isNoBroadcast()) {
+            fallbackWhere(kernel, inputs, node, context, fact, "native-kernel-ineligible:where-broadcast");
+            return true;
+        }
+        int size = node.getFlatDataSize();
+        if (inputs.get(0).getFlatDataSize() != size
+                || inputs.get(1).getFlatDataSize() != size
+                || inputs.get(2).getFlatDataSize() != size) {
+            fallbackWhere(kernel, inputs, node, context, fact, "native-kernel-ineligible:where-shape");
+            return true;
+        }
+        try {
+            byte[] condition = inputs.get(0).getBoolData();
+            NativeFloat32Storage ifTrue = requireF32NativeInput(context, 1, "WHERE");
+            NativeFloat32Storage ifFalse = requireF32NativeInput(context, 2, "WHERE");
+            NativeFloat32Storage out = allocateF32(node, context, "where");
+            runDenseWhere(kernel, condition, ifTrue, ifFalse, out, size);
+            out.markModified();
+            context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU WHERE wrote FLOAT32 output");
+            publishTrace(context, fact, "CPU_NATIVE", "");
+        } catch (Throwable t) {
+            fallbackWhere(kernel, inputs, node, context, fact, "native-kernel-failed:where:" + safeMessage(t));
+        }
+        return true;
+    }
+
     private static void runDenseBinary(
             Operation.OpType opType,
             NativeFloat32Storage left,
@@ -212,6 +276,22 @@ public final class NativeCpuElementwiseExecutor {
             long offset = (long) i * Float.BYTES;
             float value = input.segment().get(JAVA_FLOAT, offset);
             out.segment().set(JAVA_FLOAT, offset, applyUnary(op.opType(), value, scalar));
+        }
+    }
+
+    private static void runDenseWhere(
+            WhereElementwiseKernel kernel,
+            byte[] condition,
+            NativeFloat32Storage ifTrue,
+            NativeFloat32Storage ifFalse,
+            NativeFloat32Storage out,
+            int size
+    ) {
+        for (int i = 0; i < size; i++) {
+            long offset = (long) i * Float.BYTES;
+            float trueValue = ifTrue.segment().get(JAVA_FLOAT, offset);
+            float falseValue = ifFalse.segment().get(JAVA_FLOAT, offset);
+            out.segment().set(JAVA_FLOAT, offset, kernel.applyF32(condition[i], trueValue, falseValue));
         }
     }
 
@@ -363,6 +443,13 @@ public final class NativeCpuElementwiseExecutor {
         requireCpuReadableInputs(context);
         publishTrace(context, fact, "CPU_ARRAY", reason);
         ElementwiseLoops.runBinary(kernel, inputs.get(0), inputs.get(1), node, context);
+    }
+
+    private static void fallbackWhere(WhereElementwiseKernel kernel, List<Tensor> inputs, Tensor node, CpuKernelContext context, NativeCpuKernelFact fact, String reason) {
+        handleRequireNative(context, "where elementwise", reason);
+        requireCpuReadableInputs(context);
+        publishTrace(context, fact, "CPU_ARRAY", reason);
+        ElementwiseLoops.runWhere(kernel, inputs.get(0), inputs.get(1), inputs.get(2), node, context);
     }
 
     private static void handleRequireNative(CpuKernelContext context, String family, String reason) {

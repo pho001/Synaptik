@@ -104,14 +104,16 @@ public final class NativeCpuKernelFacts {
                 || opType == Operation.OpType.DIV
                 || opType == Operation.OpType.MUL_SCALAR
                 || opType == Operation.OpType.NEG
-                || opType == Operation.OpType.RELU;
+                || opType == Operation.OpType.RELU
+                || opType == Operation.OpType.WHERE;
     }
 
     private static boolean isSameShapeF32SegmentScalar(Operation.OpType opType) {
         return opType == Operation.OpType.ADD
                 || opType == Operation.OpType.SUB
                 || opType == Operation.OpType.MUL
-                || opType == Operation.OpType.DIV;
+                || opType == Operation.OpType.DIV
+                || opType == Operation.OpType.WHERE;
     }
 
     private static NativeCpuKernelFact unsupported(Operation.OpType opType, DataType dataType, String reason) {
