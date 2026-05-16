@@ -511,6 +511,58 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void cpuNativeF32CompareOpsReadNativeInputsAndPublishBoolArrays() {
+        Tensor left = tensor(new float[]{1.0f, 2.0f, 3.0f, 4.0f}, "compare_left");
+        Tensor right = tensor(new float[]{2.0f, 2.0f, 1.0f, 4.0f}, "compare_right");
+
+        assertNativeCompare(left.greaterThan(right), "GT", new byte[]{0, 0, 1, 0});
+        assertNativeCompare(left.greaterOrEqual(right), "GE", new byte[]{0, 1, 1, 1});
+        assertNativeCompare(left.lessThan(right), "LT", new byte[]{1, 0, 0, 0});
+        assertNativeCompare(left.lessOrEqual(right), "LE", new byte[]{1, 1, 0, 1});
+        assertNativeCompare(left.equalTo(right), "EQ", new byte[]{0, 1, 0, 1});
+        assertNativeCompare(left.notEqualTo(right), "NE", new byte[]{1, 0, 1, 0});
+    }
+
+    @Test
+    void cpuNativeF64CompareReadsNativeInputsAndPublishesBoolArray() {
+        Tensor out = f64(new double[]{1.0d, 2.0d, 3.0d, 4.0d}, "compare_left")
+                .lessOrEqual(f64(new double[]{2.0d, 2.0d, 1.0d, 4.0d}, "compare_right"));
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new byte[]{1, 1, 0, 1}, out.getBoolData());
+        assertNativeCompareTrace(trace.steps().stream()
+                .filter(step -> "LE".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+    }
+
+    @Test
+    void cpuNativeCompareConditionFeedsNativeWhere() {
+        Tensor condition = tensor(new float[]{1.0f, 4.0f, 3.0f, 0.0f}, "compare_left")
+                .greaterThan(tensor(new float[]{0.0f, 5.0f, 2.0f, 1.0f}, "compare_right"));
+        Tensor out = Tensor.where(
+                condition,
+                tensor(new float[]{10.0f, 20.0f, 30.0f, 40.0f}, "if_true"),
+                tensor(new float[]{-10.0f, -20.0f, -30.0f, -40.0f}, "if_false")
+        );
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new float[]{10.0f, -20.0f, 30.0f, -40.0f}, out.getFloat32Data(), 1.0e-6f);
+        assertNativeCompareTrace(trace.steps().stream()
+                .filter(step -> "GT".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "WHERE".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+    }
+
+    @Test
     void unsupportedCpuNativeBroadcastMulFallsBackToArrayWithTraceReason() {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 
@@ -639,6 +691,40 @@ class NativeCpuElementwiseChainTest {
 
         assertTrue(failure.getMessage().contains("Native CPU execution required"));
         assertTrue(failure.getMessage().contains("native-kernel-ineligible:add-broadcast"));
+    }
+
+    @Test
+    void unsupportedCpuNativeBroadcastCompareFallsBackToArrayWithTraceReason() {
+        Tensor out = tensor(new float[]{1.0f, 2.0f, 3.0f, 4.0f}, "compare_left")
+                .greaterThan(vector(new float[]{2.0f, 3.0f}, "compare_bias"));
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> gt = attrs(trace.steps().stream()
+                .filter(step -> "GT".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals("CPU_NATIVE", gt.get("requestedCpuStorage"));
+        assertEquals("CPU_ARRAY", gt.get("actualCpuStorage"));
+        assertEquals("native-kernel-ineligible:gt-broadcast", gt.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_ARRAY", gt.get("storageResidency"));
+    }
+
+    @Test
+    void requireNativeRejectsUnsupportedCpuNativeBroadcastCompare() {
+        Tensor out = tensor(new float[]{1.0f, 2.0f, 3.0f, 4.0f}, "compare_left")
+                .greaterThan(vector(new float[]{2.0f, 3.0f}, "compare_bias"));
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+        );
+
+        assertTrue(failure.getMessage().contains("Native CPU execution required"));
+        assertTrue(failure.getMessage().contains("native-kernel-ineligible:gt-broadcast"));
     }
 
     @Test
@@ -966,6 +1052,23 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void autoStorageDoesNotUseNativeCompareSlice() {
+        Tensor out = tensor(new float[]{1.0f, 2.0f, 3.0f, 4.0f}, "compare_left")
+                .greaterThan(tensor(new float[]{2.0f, 2.0f, 1.0f, 4.0f}, "compare_right"));
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> gt = attrs(trace.steps().stream()
+                .filter(step -> "GT".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertFalse(gt.containsKey("nativeCpuKernelStatus"));
+        assertEquals("CPU_ARRAY", gt.get("storageResidency"));
+    }
+
+    @Test
     void autoStorageDoesNotUseNativeCastSlice() {
         Tensor out = tensor(new float[]{1f, 2f, 3f, 4f}, "cast_input").cast(DataType.BFLOAT16);
 
@@ -1078,6 +1181,27 @@ class NativeCpuElementwiseChainTest {
         assertEquals("SEGMENT_SCALAR", attrs.get("nativeCpuKernelFamily"));
         assertEquals("", attrs.get("nativeCpuFallbackReason"));
         assertEquals("CPU_NATIVE", attrs.get("storageResidency"));
+    }
+
+    private static void assertNativeCompare(Tensor out, String opType, byte[] expected) {
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(expected, out.getBoolData());
+        assertNativeCompareTrace(trace.steps().stream()
+                .filter(step -> opType.equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+    }
+
+    private static void assertNativeCompareTrace(ExecutionStepTrace step) {
+        Map<String, Object> compare = attrs(step);
+        assertEquals("CPU_NATIVE", compare.get("requestedCpuStorage"));
+        assertEquals("CPU_ARRAY", compare.get("actualCpuStorage"));
+        assertEquals("NATIVE_CORRECT_BUT_SLOW", compare.get("nativeCpuKernelStatus"));
+        assertEquals("SEGMENT_SCALAR", compare.get("nativeCpuKernelFamily"));
+        assertEquals("", compare.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_ARRAY", compare.get("storageResidency"));
     }
 
     private static void assertNativeCast(ExecutionStepTrace step) {

@@ -34,6 +34,15 @@ public final class NativeCpuKernelFacts {
         Objects.requireNonNull(opType, "opType cannot be null");
         Objects.requireNonNull(dataType, "dataType cannot be null");
 
+        if (dataType == DataType.BOOL && supportsCompare(opType)) {
+            return new NativeCpuKernelFact(
+                    opType,
+                    dataType,
+                    NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW,
+                    NativeCpuKernelFamily.SEGMENT_SCALAR,
+                    "requires-dense-contiguous-compare"
+            );
+        }
         if (!FLOAT_NATIVE_STORAGE_DTYPES.contains(dataType)) {
             return new NativeCpuKernelFact(
                     opType,
@@ -147,6 +156,15 @@ public final class NativeCpuKernelFacts {
         return (dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64)
                 && (opType == Operation.OpType.SUM
                 || opType == Operation.OpType.MEAN);
+    }
+
+    private static boolean supportsCompare(Operation.OpType opType) {
+        return opType == Operation.OpType.GT
+                || opType == Operation.OpType.GE
+                || opType == Operation.OpType.LT
+                || opType == Operation.OpType.LE
+                || opType == Operation.OpType.EQ
+                || opType == Operation.OpType.NE;
     }
 
     private static boolean supportsNativeCastOutput(DataType dataType) {

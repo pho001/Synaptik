@@ -2,6 +2,7 @@ package backend.cpu.kernels.elementwise.compare;
 
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.elementwise.ElementwiseLoops;
+import backend.cpu.nativecpu.NativeCpuCompareExecutor;
 import tensor.DataType;
 import tensor.Tensor;
 
@@ -16,6 +17,9 @@ public final class CompareExecutor {
         }
         if (node.getDataType() != DataType.BOOL) {
             throw new IllegalArgumentException("Compare executor requires BOOL output.");
+        }
+        if (NativeCpuCompareExecutor.tryRunCompare(kernel, inputs, node, context)) {
+            return;
         }
         ElementwiseLoops.runCompare(kernel, inputs.get(0), inputs.get(1), node, context);
     }

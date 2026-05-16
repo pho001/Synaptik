@@ -147,6 +147,30 @@ class NativeCpuKernelFactsTest {
     }
 
     @Test
+    void boolCompareMvpOpsHaveNativeSegmentScalarFactsWithoutNativeBoolResidency() {
+        NativeCpuKernelFact gt = NativeCpuKernelFacts.factFor(Operation.OpType.GT, DataType.BOOL);
+        NativeCpuKernelFact ge = NativeCpuKernelFacts.factFor(Operation.OpType.GE, DataType.BOOL);
+        NativeCpuKernelFact lt = NativeCpuKernelFacts.factFor(Operation.OpType.LT, DataType.BOOL);
+        NativeCpuKernelFact le = NativeCpuKernelFacts.factFor(Operation.OpType.LE, DataType.BOOL);
+        NativeCpuKernelFact eq = NativeCpuKernelFacts.factFor(Operation.OpType.EQ, DataType.BOOL);
+        NativeCpuKernelFact ne = NativeCpuKernelFacts.factFor(Operation.OpType.NE, DataType.BOOL);
+        NativeCpuKernelFact add = NativeCpuKernelFacts.factFor(Operation.OpType.ADD, DataType.BOOL);
+
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, gt.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, ge.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, lt.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, le.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, eq.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, ne.status());
+        assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, gt.family());
+        assertEquals("requires-dense-contiguous-compare", gt.reason());
+        assertTrue(gt.nativeComputeEligible());
+        assertFalse(gt.preservesNativeStorage());
+        assertEquals(NativeCpuKernelPerformanceStatus.ARRAY_ONLY, add.status());
+        assertFalse(add.nativeComputeEligible());
+    }
+
+    @Test
     void f32Bf16CastMvpOpsHaveNativeSegmentScalarFacts() {
         NativeCpuKernelFact f32 = NativeCpuKernelFacts.factFor(Operation.OpType.CAST, DataType.FLOAT32);
         NativeCpuKernelFact bf16 = NativeCpuKernelFacts.factFor(Operation.OpType.CAST, DataType.BFLOAT16);

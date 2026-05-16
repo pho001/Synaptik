@@ -42,6 +42,6 @@ public record NativeCpuKernelFact(
      * Returns whether an existing native storage value can remain native across this operation.
      */
     public boolean preservesNativeStorage() {
-        return nativeComputeEligible() || status == NativeCpuKernelPerformanceStatus.VIEW_ONLY;
+        return dataType != DataType.BOOL && (nativeComputeEligible() || status == NativeCpuKernelPerformanceStatus.VIEW_ONLY);
     }
 }
