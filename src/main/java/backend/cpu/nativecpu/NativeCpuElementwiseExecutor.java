@@ -57,14 +57,14 @@ public final class NativeCpuElementwiseExecutor {
             return false;
         }
         Operation.OpType opType = op.opType();
-        if (opType == Operation.OpType.RELU) {
+        if (isNativeUnaryOp(opType)) {
             return true;
         }
         if (opType == Operation.OpType.ADD) {
             ResolvedBroadcastPlan broadcastPlan = plan.broadcastPlan();
             return broadcastPlan == null || broadcastPlan.isNoBroadcast() || isLastDimBiasBroadcast(broadcastPlan);
         }
-        if (opType == Operation.OpType.MUL) {
+        if (isNativeSameShapeBinaryOp(opType)) {
             ResolvedBroadcastPlan broadcastPlan = plan.broadcastPlan();
             return broadcastPlan == null || broadcastPlan.isNoBroadcast();
         }
@@ -77,27 +77,24 @@ public final class NativeCpuElementwiseExecutor {
         }
         Operation op = context.executionOperation();
         NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(opType(op), node.getDataType());
-        if (node.getDataType() != DataType.FLOAT32 || op == null || op.opType() != Operation.OpType.RELU || context.nodePlan().stridedPath()) {
+        if (node.getDataType() != DataType.FLOAT32 || op == null || !isNativeUnaryOp(op.opType()) || context.nodePlan().stridedPath()) {
             fallbackUnary(kernel, inputs, node, context, fact, ineligibleReason(op, node, context));
             return true;
         }
         if (inputs == null || inputs.size() != 1) {
-            fallbackUnary(kernel, inputs, node, context, fact, "native-kernel-ineligible:relu-input-count");
+            fallbackUnary(kernel, inputs, node, context, fact, "native-kernel-ineligible:" + opLabel(op) + "-input-count");
             return true;
         }
         try {
-            NativeFloat32Storage input = requireF32NativeInput(context, 0, "RELU");
-            NativeFloat32Storage out = allocateF32(node, context, "relu");
-            int size = node.getFlatDataSize();
-            for (int i = 0; i < size; i++) {
-                float value = input.segment().get(JAVA_FLOAT, (long) i * Float.BYTES);
-                out.segment().set(JAVA_FLOAT, (long) i * Float.BYTES, Math.max(0.0f, value));
-            }
+            String label = opLabel(op);
+            NativeFloat32Storage input = requireF32NativeInput(context, 0, label.toUpperCase());
+            NativeFloat32Storage out = allocateF32(node, context, label);
+            runDenseUnary(op.opType(), input, out, node.getFlatDataSize());
             out.markModified();
-            context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU RELU wrote FLOAT32 output");
+            context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU " + label.toUpperCase() + " wrote FLOAT32 output");
             publishTrace(context, fact, "CPU_NATIVE", "");
         } catch (Throwable t) {
-            fallbackUnary(kernel, inputs, node, context, fact, "native-kernel-failed:relu:" + safeMessage(t));
+            fallbackUnary(kernel, inputs, node, context, fact, "native-kernel-failed:" + opLabel(op) + ":" + safeMessage(t));
         }
         return true;
     }
@@ -168,12 +165,51 @@ public final class NativeCpuElementwiseExecutor {
             long offset = (long) i * Float.BYTES;
             float leftValue = left.segment().get(JAVA_FLOAT, offset);
             float rightValue = right.segment().get(JAVA_FLOAT, offset);
-            out.segment().set(JAVA_FLOAT, offset, opType == Operation.OpType.MUL ? leftValue * rightValue : leftValue + rightValue);
+            out.segment().set(JAVA_FLOAT, offset, applyBinary(opType, leftValue, rightValue));
         }
     }
 
+    private static void runDenseUnary(Operation.OpType opType, NativeFloat32Storage input, NativeFloat32Storage out, int size) {
+        for (int i = 0; i < size; i++) {
+            long offset = (long) i * Float.BYTES;
+            float value = input.segment().get(JAVA_FLOAT, offset);
+            out.segment().set(JAVA_FLOAT, offset, applyUnary(opType, value));
+        }
+    }
+
+    private static float applyBinary(Operation.OpType opType, float leftValue, float rightValue) {
+        return switch (opType) {
+            case ADD -> leftValue + rightValue;
+            case SUB -> leftValue - rightValue;
+            case MUL -> leftValue * rightValue;
+            case DIV -> leftValue / rightValue;
+            default -> throw new IllegalArgumentException("Unsupported native binary op: " + opType);
+        };
+    }
+
+    private static float applyUnary(Operation.OpType opType, float value) {
+        return switch (opType) {
+            case NEG -> -value;
+            case RELU -> Math.max(0.0f, value);
+            default -> throw new IllegalArgumentException("Unsupported native unary op: " + opType);
+        };
+    }
+
+    private static boolean isNativeUnaryOp(Operation.OpType opType) {
+        return opType == Operation.OpType.NEG || opType == Operation.OpType.RELU;
+    }
+
     private static boolean isNativeBinaryOp(Operation.OpType opType) {
-        return opType == Operation.OpType.ADD || opType == Operation.OpType.MUL;
+        return opType == Operation.OpType.ADD
+                || opType == Operation.OpType.SUB
+                || opType == Operation.OpType.MUL
+                || opType == Operation.OpType.DIV;
+    }
+
+    private static boolean isNativeSameShapeBinaryOp(Operation.OpType opType) {
+        return opType == Operation.OpType.SUB
+                || opType == Operation.OpType.MUL
+                || opType == Operation.OpType.DIV;
     }
 
     private static boolean supportsBroadcast(Operation.OpType opType, ResolvedBroadcastPlan broadcastPlan) {

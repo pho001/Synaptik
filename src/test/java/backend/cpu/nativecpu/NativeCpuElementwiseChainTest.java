@@ -154,6 +154,66 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void cpuNativeMatmulSubNegReluKeepsOutputsNative() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor offset = tensor(new float[]{100f, 100f, 100f, 100f}, "offset");
+        Tensor out = a().matmul(b()).sub(offset).neg().relu();
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> sub = attrs(trace.steps().stream()
+                .filter(step -> "SUB".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        Map<String, Object> neg = attrs(trace.steps().stream()
+                .filter(step -> "NEG".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        Map<String, Object> relu = attrs(trace.steps().stream()
+                .filter(step -> "RELU".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals("CPU_NATIVE", sub.get("actualCpuStorage"));
+        assertEquals("NATIVE_CORRECT_BUT_SLOW", sub.get("nativeCpuKernelStatus"));
+        assertEquals("SEGMENT_SCALAR", sub.get("nativeCpuKernelFamily"));
+        assertEquals("", sub.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", sub.get("storageResidency"));
+        assertEquals("CPU_NATIVE", neg.get("actualCpuStorage"));
+        assertEquals("NATIVE_CORRECT_BUT_SLOW", neg.get("nativeCpuKernelStatus"));
+        assertEquals("SEGMENT_SCALAR", neg.get("nativeCpuKernelFamily"));
+        assertEquals("", neg.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", neg.get("storageResidency"));
+        assertEquals("CPU_NATIVE", relu.get("actualCpuStorage"));
+        assertEquals("", relu.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", relu.get("storageResidency"));
+    }
+
+    @Test
+    void cpuNativeMatmulDivKeepsDivOutputNative() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor divisor = tensor(new float[]{1f, 2f, 4f, 5f}, "divisor");
+        Tensor out = a().matmul(b()).div(divisor);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> div = attrs(trace.steps().stream()
+                .filter(step -> "DIV".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals("CPU_NATIVE", div.get("actualCpuStorage"));
+        assertEquals("NATIVE_CORRECT_BUT_SLOW", div.get("nativeCpuKernelStatus"));
+        assertEquals("SEGMENT_SCALAR", div.get("nativeCpuKernelFamily"));
+        assertEquals("", div.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", div.get("storageResidency"));
+    }
+
+    @Test
     void unsupportedCpuNativeBroadcastMulFallsBackToArrayWithTraceReason() {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 
@@ -189,6 +249,44 @@ class NativeCpuElementwiseChainTest {
 
         assertTrue(failure.getMessage().contains("Native CPU execution required"));
         assertTrue(failure.getMessage().contains("native-kernel-ineligible:mul-broadcast"));
+    }
+
+    @Test
+    void unsupportedCpuNativeBroadcastSubFallsBackToArrayWithTraceReason() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor offset = vector(new float[]{1f, 2f}, "offset");
+        Tensor out = a().matmul(b()).sub(offset);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> sub = attrs(trace.steps().stream()
+                .filter(step -> "SUB".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals("CPU_NATIVE", sub.get("requestedCpuStorage"));
+        assertEquals("CPU_ARRAY", sub.get("actualCpuStorage"));
+        assertEquals("native-kernel-ineligible:sub-broadcast", sub.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_ARRAY", sub.get("storageResidency"));
+    }
+
+    @Test
+    void requireNativeRejectsUnsupportedCpuNativeBroadcastDiv() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor divisor = vector(new float[]{1f, 2f}, "divisor");
+        Tensor out = a().matmul(b()).div(divisor);
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+        );
+
+        assertTrue(failure.getMessage().contains("Native CPU execution required"));
+        assertTrue(failure.getMessage().contains("native-kernel-ineligible:div-broadcast"));
     }
 
     @Test
@@ -301,6 +399,39 @@ class NativeCpuElementwiseChainTest {
 
         assertFalse(mul.containsKey("nativeCpuKernelStatus"));
         assertEquals("CPU_ARRAY", mul.get("storageResidency"));
+    }
+
+    @Test
+    void autoStorageDoesNotUseNativeSubDivOrNegSlice() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor out = a().matmul(b())
+                .sub(tensor(new float[]{1f, 2f, 3f, 4f}, "offset"))
+                .div(tensor(new float[]{1f, 2f, 4f, 5f}, "divisor"))
+                .neg();
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> sub = attrs(trace.steps().stream()
+                .filter(step -> "SUB".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        Map<String, Object> div = attrs(trace.steps().stream()
+                .filter(step -> "DIV".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        Map<String, Object> neg = attrs(trace.steps().stream()
+                .filter(step -> "NEG".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertFalse(sub.containsKey("nativeCpuKernelStatus"));
+        assertEquals("CPU_ARRAY", sub.get("storageResidency"));
+        assertFalse(div.containsKey("nativeCpuKernelStatus"));
+        assertEquals("CPU_ARRAY", div.get("storageResidency"));
+        assertFalse(neg.containsKey("nativeCpuKernelStatus"));
+        assertEquals("CPU_ARRAY", neg.get("storageResidency"));
     }
 
     private static RuntimeConfig runtime(CpuStorageProfile storageProfile, NativeCpuFailurePolicy failurePolicy) {

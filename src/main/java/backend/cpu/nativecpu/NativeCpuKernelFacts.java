@@ -52,13 +52,13 @@ public final class NativeCpuKernelFacts {
                     "requires-openblas-native-segment"
             );
         }
-        if (dataType == DataType.FLOAT32 && (opType == Operation.OpType.RELU || opType == Operation.OpType.ADD || opType == Operation.OpType.MUL)) {
+        if (dataType == DataType.FLOAT32 && supportsF32SegmentScalar(opType)) {
             return new NativeCpuKernelFact(
                     opType,
                     dataType,
                     NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW,
                     NativeCpuKernelFamily.SEGMENT_SCALAR,
-                    opType == Operation.OpType.ADD || opType == Operation.OpType.MUL
+                    isSameShapeF32SegmentScalar(opType)
                             ? "requires-dense-contiguous-same-shape"
                             : "requires-dense-contiguous"
             );
@@ -95,6 +95,22 @@ public final class NativeCpuKernelFacts {
      */
     public static boolean preservesNativeStorage(Operation.OpType opType, DataType dataType) {
         return factFor(opType, dataType).preservesNativeStorage();
+    }
+
+    private static boolean supportsF32SegmentScalar(Operation.OpType opType) {
+        return opType == Operation.OpType.ADD
+                || opType == Operation.OpType.SUB
+                || opType == Operation.OpType.MUL
+                || opType == Operation.OpType.DIV
+                || opType == Operation.OpType.NEG
+                || opType == Operation.OpType.RELU;
+    }
+
+    private static boolean isSameShapeF32SegmentScalar(Operation.OpType opType) {
+        return opType == Operation.OpType.ADD
+                || opType == Operation.OpType.SUB
+                || opType == Operation.OpType.MUL
+                || opType == Operation.OpType.DIV;
     }
 
     private static NativeCpuKernelFact unsupported(Operation.OpType opType, DataType dataType, String reason) {
