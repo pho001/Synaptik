@@ -73,13 +73,28 @@ class NativeCpuKernelFactsTest {
 
     @Test
     void otherNonBlasElementwiseOpsRemainUnsupportedUntilSegmentKernelsExist() {
-        NativeCpuKernelFact mean = NativeCpuKernelFacts.factFor(Operation.OpType.MEAN, DataType.FLOAT32);
+        NativeCpuKernelFact reduceMin = NativeCpuKernelFacts.factFor(Operation.OpType.REDUCE_MIN, DataType.FLOAT32);
         NativeCpuKernelFact log = NativeCpuKernelFacts.factFor(Operation.OpType.LOG, DataType.FLOAT32);
 
-        assertEquals("native-kernel-unsupported:mean", mean.reason());
-        assertFalse(mean.nativeComputeEligible());
+        assertEquals("native-kernel-unsupported:reduce_min", reduceMin.reason());
+        assertFalse(reduceMin.nativeComputeEligible());
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_UNSUPPORTED, log.status());
         assertFalse(log.preservesNativeStorage());
+    }
+
+    @Test
+    void f32AllReductionMvpOpsHaveNativeSegmentScalarFacts() {
+        NativeCpuKernelFact sum = NativeCpuKernelFacts.factFor(Operation.OpType.SUM, DataType.FLOAT32);
+        NativeCpuKernelFact mean = NativeCpuKernelFacts.factFor(Operation.OpType.MEAN, DataType.FLOAT32);
+
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, sum.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, mean.status());
+        assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, sum.family());
+        assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, mean.family());
+        assertEquals("requires-dense-contiguous-all-reduction", sum.reason());
+        assertEquals("requires-dense-contiguous-all-reduction", mean.reason());
+        assertTrue(sum.nativeComputeEligible());
+        assertTrue(mean.preservesNativeStorage());
     }
 
     @Test

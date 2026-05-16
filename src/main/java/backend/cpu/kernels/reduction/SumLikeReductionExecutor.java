@@ -1,6 +1,8 @@
 package backend.cpu.kernels.reduction;
 
 import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.nativecpu.NativeCpuReductionExecutor;
+import operations.Operation;
 import tensor.Tensor;
 
 final class SumLikeReductionExecutor {
@@ -14,6 +16,9 @@ final class SumLikeReductionExecutor {
 
     static void executeF32(SumLikeReduction reduction, Tensor input, Tensor node, int dimension, CpuKernelContext context) {
         validate(reduction, input, node, context);
+        if (NativeCpuReductionExecutor.tryRunSumLike(opType(reduction), input, node, dimension, context)) {
+            return;
+        }
         SumLoops.executeF32(input, node, dimension, context);
         reduction.finalizeF32(node, input, dimension);
     }
@@ -34,5 +39,12 @@ final class SumLikeReductionExecutor {
         if (reduction == null || input == null || node == null || context == null) {
             throw new IllegalArgumentException("sum-like reduction execution arguments cannot be null");
         }
+    }
+
+    private static Operation.OpType opType(SumLikeReduction reduction) {
+        return switch (reduction) {
+            case SUM -> Operation.OpType.SUM;
+            case MEAN -> Operation.OpType.MEAN;
+        };
     }
 }

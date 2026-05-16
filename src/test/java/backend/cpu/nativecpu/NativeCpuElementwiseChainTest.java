@@ -273,6 +273,50 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void cpuNativeMatmulSumAllKeepsSumOutputNativeAndPublishesValue() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor out = a().matmul(b()).sum();
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        Map<String, Object> sum = attrs(trace.steps().stream()
+                .filter(step -> "SUM".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals(134.0f, out.getFloat32Data()[0], 1.0e-5f);
+        assertEquals("CPU_NATIVE", sum.get("actualCpuStorage"));
+        assertEquals("NATIVE_CORRECT_BUT_SLOW", sum.get("nativeCpuKernelStatus"));
+        assertEquals("SEGMENT_SCALAR", sum.get("nativeCpuKernelFamily"));
+        assertEquals("", sum.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", sum.get("storageResidency"));
+    }
+
+    @Test
+    void cpuNativeMatmulMeanAllKeepsMeanOutputNativeAndPublishesValue() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor out = a().matmul(b()).mean();
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        Map<String, Object> mean = attrs(trace.steps().stream()
+                .filter(step -> "MEAN".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals(33.5f, out.getFloat32Data()[0], 1.0e-5f);
+        assertEquals("CPU_NATIVE", mean.get("actualCpuStorage"));
+        assertEquals("NATIVE_CORRECT_BUT_SLOW", mean.get("nativeCpuKernelStatus"));
+        assertEquals("SEGMENT_SCALAR", mean.get("nativeCpuKernelFamily"));
+        assertEquals("", mean.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", mean.get("storageResidency"));
+    }
+
+    @Test
     void unsupportedCpuNativeBroadcastMulFallsBackToArrayWithTraceReason() {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 
@@ -407,6 +451,42 @@ class NativeCpuElementwiseChainTest {
 
         assertTrue(failure.getMessage().contains("Native CPU execution required"));
         assertTrue(failure.getMessage().contains("native-kernel-ineligible:where-broadcast"));
+    }
+
+    @Test
+    void unsupportedCpuNativeAxisSumFallsBackToArrayWithTraceReason() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor out = a().matmul(b()).sum(1);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> sum = attrs(trace.steps().stream()
+                .filter(step -> "SUM".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals("CPU_NATIVE", sum.get("requestedCpuStorage"));
+        assertEquals("CPU_ARRAY", sum.get("actualCpuStorage"));
+        assertEquals("native-kernel-ineligible:sum-axis", sum.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_ARRAY", sum.get("storageResidency"));
+    }
+
+    @Test
+    void requireNativeRejectsUnsupportedCpuNativeAxisSum() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor out = a().matmul(b()).sum(1);
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+        );
+
+        assertTrue(failure.getMessage().contains("Native CPU execution required"));
+        assertTrue(failure.getMessage().contains("native-kernel-ineligible:sum-axis"));
     }
 
     @Test
@@ -569,6 +649,24 @@ class NativeCpuElementwiseChainTest {
 
         assertFalse(where.containsKey("nativeCpuKernelStatus"));
         assertEquals("CPU_ARRAY", where.get("storageResidency"));
+    }
+
+    @Test
+    void autoStorageDoesNotUseNativeSumSlice() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor out = a().matmul(b()).sum();
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> sum = attrs(trace.steps().stream()
+                .filter(step -> "SUM".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertFalse(sum.containsKey("nativeCpuKernelStatus"));
+        assertEquals("CPU_ARRAY", sum.get("storageResidency"));
     }
 
     private static RuntimeConfig runtime(CpuStorageProfile storageProfile, NativeCpuFailurePolicy failurePolicy) {
