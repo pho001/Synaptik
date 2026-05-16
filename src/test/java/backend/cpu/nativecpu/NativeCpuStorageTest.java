@@ -10,6 +10,13 @@ import tensor.NativeFloat64Storage;
 import tensor.NativeTensorStorage;
 import tensor.Tensor;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -224,6 +231,71 @@ class NativeCpuStorageTest {
         assertEquals(NativeMemoryPoolPolicy.PER_PREPARED_EXECUTION, afterCloseRun.effectivePoolPolicy());
         assertEquals(0L, afterCloseRun.statsSnapshot().poolHitCount());
         assertTrue(pool.closed());
+    }
+
+    @Test
+    void perPreparedPoolSurvivesRepeatedAcquireReleaseStress() {
+        NativeCpuMemoryPool pool = new NativeCpuMemoryPool(4096L);
+        long hits = 0L;
+        long misses = 0L;
+
+        for (int i = 0; i < 64; i++) {
+            NativeCpuAllocator run = new NativeCpuAllocator(
+                    NativeCpuMemoryConfig.perPreparedExecution(4096L),
+                    new NativeCpuMemoryStats(),
+                    pool
+            );
+            NativeCpuAllocation allocation = run.allocate(32L, "stress-" + i);
+            allocation.release();
+            hits += run.statsSnapshot().poolHitCount();
+            misses += run.statsSnapshot().poolMissCount();
+        }
+        pool.close();
+
+        assertEquals(63L, hits);
+        assertEquals(1L, misses);
+        assertTrue(pool.closed());
+    }
+
+    @Test
+    void perPreparedPoolDoesNotShareActiveBlocksAcrossConcurrentLeases() throws Exception {
+        int workers = 8;
+        NativeCpuMemoryPool pool = new NativeCpuMemoryPool(8192L);
+        CountDownLatch allocated = new CountDownLatch(workers);
+        CountDownLatch release = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(workers);
+        try {
+            List<java.util.concurrent.Future<Long>> futures = new ArrayList<>();
+            for (int i = 0; i < workers; i++) {
+                int worker = i;
+                futures.add(executor.submit(() -> {
+                    NativeCpuAllocator allocator = new NativeCpuAllocator(
+                            NativeCpuMemoryConfig.perPreparedExecution(8192L),
+                            new NativeCpuMemoryStats(),
+                            pool
+                    );
+                    NativeCpuAllocation allocation = allocator.allocate(32L, "concurrent-" + worker);
+                    long address = allocation.segment().address();
+                    allocated.countDown();
+                    assertTrue(release.await(5, TimeUnit.SECONDS));
+                    allocation.release();
+                    return address;
+                }));
+            }
+
+            assertTrue(allocated.await(5, TimeUnit.SECONDS));
+            release.countDown();
+
+            var addresses = new HashSet<Long>();
+            for (var future : futures) {
+                addresses.add(future.get(5, TimeUnit.SECONDS));
+            }
+            assertEquals(workers, addresses.size());
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+            pool.close();
+        }
     }
 
     @Test

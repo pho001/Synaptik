@@ -47,40 +47,43 @@ public final class DefaultMeasurementEngine implements MeasurementEngine {
         );
 
         PreparedExecution prepared = compiled.prepare(candidate.profile().runtime());
+        try {
+            RunTrace reportRunTrace = RunTrace.empty(candidate.profile().mode());
+            boolean needsTrace = policy.measureColdRun() || policy.captureStepTrace();
 
-        RunTrace reportRunTrace = RunTrace.empty(candidate.profile().mode());
-        boolean needsTrace = policy.measureColdRun() || policy.captureStepTrace();
-
-        if (needsTrace && !policy.measureSteadyState()) {
-            reportRunTrace = prepared.executeTraced(candidate.profile().mode(), policy.publicationPolicy());
-        }
-
-        MeasurementStatistics stats = MeasurementStatistics.zero();
-        if (policy.measureSteadyState()) {
-            for (int i = 0; i < policy.warmupIters(); i++) {
-                prepared.execute(candidate.profile().mode(), policy.publicationPolicy());
-            }
-            if (needsTrace) {
+            if (needsTrace && !policy.measureSteadyState()) {
                 reportRunTrace = prepared.executeTraced(candidate.profile().mode(), policy.publicationPolicy());
             }
-            double[] samples = new double[policy.repeats()];
-            for (int r = 0; r < policy.repeats(); r++) {
-                long start = System.nanoTime();
-                for (int i = 0; i < policy.measureIters(); i++) {
+
+            MeasurementStatistics stats = MeasurementStatistics.zero();
+            if (policy.measureSteadyState()) {
+                for (int i = 0; i < policy.warmupIters(); i++) {
                     prepared.execute(candidate.profile().mode(), policy.publicationPolicy());
                 }
-                long end = System.nanoTime();
-                samples[r] = (end - start) / 1_000_000.0d / policy.measureIters();
+                if (needsTrace) {
+                    reportRunTrace = prepared.executeTraced(candidate.profile().mode(), policy.publicationPolicy());
+                }
+                double[] samples = new double[policy.repeats()];
+                for (int r = 0; r < policy.repeats(); r++) {
+                    long start = System.nanoTime();
+                    for (int i = 0; i < policy.measureIters(); i++) {
+                        prepared.execute(candidate.profile().mode(), policy.publicationPolicy());
+                    }
+                    long end = System.nanoTime();
+                    samples[r] = (end - start) / 1_000_000.0d / policy.measureIters();
+                }
+                stats = summarize(samples);
             }
-            stats = summarize(samples);
-        }
 
-        ExecutionTrace trace = new ExecutionTrace(
-                policy.measureCompile() ? compiled.compileTrace() : graph.execution.trace.CompileTrace.skipped(),
-                policy.measurePrepare() ? prepared.prepareTrace() : graph.execution.trace.PrepareTrace.skipped(),
-                reportRunTrace
-        );
-        return new MeasurementResult(policy, trace, stats);
+            ExecutionTrace trace = new ExecutionTrace(
+                    policy.measureCompile() ? compiled.compileTrace() : graph.execution.trace.CompileTrace.skipped(),
+                    policy.measurePrepare() ? prepared.prepareTrace() : graph.execution.trace.PrepareTrace.skipped(),
+                    reportRunTrace
+            );
+            return new MeasurementResult(policy, trace, stats);
+        } finally {
+            prepared.close();
+        }
     }
 
     private static MeasurementStatistics summarize(double[] samplesMs) {

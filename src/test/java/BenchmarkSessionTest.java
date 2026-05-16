@@ -12,11 +12,17 @@ import backend.memory.StorageResidency;
 import backend.runtime.ExecutionMode;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
+import config.runtime.CpuStorageProfile;
+import config.runtime.NativeCpuFailurePolicy;
+import config.runtime.NativeCpuMemoryConfig;
+import config.runtime.NativeMemoryPoolPolicy;
+import config.runtime.RuntimeConfig;
 import graph.optimizer.partition.cost.AcceleratorPartitionScoreModel;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tuning.benchmark.report.BenchmarkReport;
+import tuning.benchmark.report.BenchmarkCandidateReport;
 import tuning.benchmark.report.GpuCoverageGatePolicy;
 import tuning.benchmark.report.GpuCoverageNativeEvidence;
 import tuning.benchmark.report.GpuCoverageRegressionGate;
@@ -31,6 +37,8 @@ import tuning.workload.StandardWorkloads;
 import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadKind;
 import tuning.workload.WorkloadMetadata;
+import graph.execution.PublicationPolicy;
+import graph.execution.trace.NativeCpuMemoryTrace;
 
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
@@ -87,6 +95,98 @@ public class BenchmarkSessionTest {
         assertTrue(report.candidates().getFirst().measurement().trace().prepare().measured());
         assertTrue(report.candidates().getFirst().measurement().trace().run().durationNs() >= 0L);
         assertTrue(report.candidates().getFirst().measurement().steadyStateStats().medianMs() >= 0.0d);
+    }
+
+    @Test
+    void benchmarkSessionReportsNativeMemoryPoolPolicyVariants() {
+        TensorRootWorkloadSpec workload = new TensorRootWorkloadSpec(
+                "native_memory_pool_variants",
+                WorkloadKind.GENERIC,
+                environment -> {
+                    Tensor left = new Tensor(
+                            new float[]{1f, -2f, 3f, -4f, 5f, -6f, 7f, -8f},
+                            new int[]{8},
+                            null,
+                            "left",
+                            DataType.FLOAT32
+                    );
+                    Tensor right = new Tensor(
+                            new float[]{8f, 7f, -6f, -5f, 4f, 3f, -2f, -1f},
+                            new int[]{8},
+                            null,
+                            "right",
+                            DataType.FLOAT32
+                    );
+                    return left.add(right).relu();
+                },
+                environment -> tuning.validate.ValidationReference.none(),
+                environment -> new WorkloadMetadata("native_memory_pool_variants", WorkloadKind.GENERIC, Map.of("dtype", "f32"))
+        );
+
+        BenchmarkReport report = BenchmarkSession.create(new BenchmarkRequest(
+                workload,
+                List.of(
+                        BenchmarkEntry.baseline(
+                                "pool-disabled",
+                                nativeMemoryProfile("pool-disabled", NativeCpuMemoryConfig.disabled())
+                        ),
+                        BenchmarkEntry.candidate(
+                                "pool-per-execution",
+                                nativeMemoryProfile("pool-per-execution", NativeCpuMemoryConfig.perExecution(4096L))
+                        ),
+                        BenchmarkEntry.candidate(
+                                "pool-per-prepared",
+                                nativeMemoryProfile("pool-per-prepared", NativeCpuMemoryConfig.perPreparedExecution(4096L))
+                        )
+                ),
+                new tuning.measure.MeasurementPolicy(
+                        1,
+                        1,
+                        1,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true,
+                        PublicationPolicy.NONE
+                ),
+                tuning.validate.ValidationPolicy.disabled(),
+                tuning.reporting.ReportPolicy.defaults()
+        )).run();
+
+        assertEquals(3, report.candidates().size());
+        assertTrue(report.candidates().stream().allMatch(BenchmarkCandidateReport::success));
+
+        NativeCpuMemoryTrace disabled = nativeCpuMemoryTrace(report, "pool-disabled");
+        NativeCpuMemoryTrace perExecution = nativeCpuMemoryTrace(report, "pool-per-execution");
+        NativeCpuMemoryTrace perPrepared = nativeCpuMemoryTrace(report, "pool-per-prepared");
+
+        assertEquals(NativeMemoryPoolPolicy.DISABLED.name(), disabled.effectivePoolPolicy());
+        assertEquals(0L, disabled.poolHitCount());
+        assertEquals(0L, disabled.poolMissCount());
+        assertTrue(disabled.peakLiveBytes() > 0L);
+
+        assertEquals(NativeMemoryPoolPolicy.PER_EXECUTION.name(), perExecution.effectivePoolPolicy());
+        assertTrue(perExecution.poolMissCount() > 0L);
+        assertTrue(perExecution.peakLiveBytes() > 0L);
+
+        assertEquals(NativeMemoryPoolPolicy.PER_PREPARED_EXECUTION.name(), perPrepared.effectivePoolPolicy());
+        assertTrue(perPrepared.poolHitCount() > 0L);
+        assertTrue(perPrepared.peakLiveBytes() > 0L);
+        assertEquals(0L, perPrepared.retainedBytes());
+        assertTrue(Double.isFinite(findReport(report, "pool-per-prepared").measurement().steadyStateStats().medianMs()));
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        assertTrue(text.contains("effectivePoolPolicy=PER_PREPARED_EXECUTION"));
+        assertTrue(text.contains("poolHitCount=" + perPrepared.poolHitCount()));
+        assertTrue(text.contains("peakLiveBytes=" + perPrepared.peakLiveBytes()));
+        assertTrue(text.contains("retainedBytes=0"));
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+        assertTrue(json.contains("\"effectivePoolPolicy\": \"PER_PREPARED_EXECUTION\""));
+        assertTrue(json.contains("\"poolHitCount\": " + perPrepared.poolHitCount()));
+        assertTrue(json.contains("\"peakLiveBytes\": " + perPrepared.peakLiveBytes()));
+        assertTrue(json.contains("\"retainedBytes\": 0"));
     }
 
     @Test
@@ -1626,6 +1726,35 @@ public class BenchmarkSessionTest {
                         )
                 ))
         );
+    }
+
+    private static ExecutionProfile nativeMemoryProfile(String name, NativeCpuMemoryConfig nativeCpuMemory) {
+        RuntimeConfig runtime = RuntimeConfig.inferenceDefaults()
+                .withCpuStorageProfile(CpuStorageProfile.CPU_NATIVE)
+                .withNativeCpuFailurePolicy(NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)
+                .withNativeCpuMemory(nativeCpuMemory);
+        return new ExecutionProfile(
+                name + "-profile",
+                name,
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.compile.CompileConfig.noGraphOptimizationBaseline()
+                        .withSemanticCanonicalization(config.compile.SemanticCanonicalizationConfig.disabled())
+                        .withRegionOptimization(config.compile.RegionOptimizationConfig.disabled()),
+                runtime,
+                WorkloadProfile.none()
+        );
+    }
+
+    private static NativeCpuMemoryTrace nativeCpuMemoryTrace(BenchmarkReport report, String candidateName) {
+        return findReport(report, candidateName).measurement().trace().run().nativeCpuMemory();
+    }
+
+    private static BenchmarkCandidateReport findReport(BenchmarkReport report, String candidateName) {
+        return report.candidates().stream()
+                .filter(candidate -> candidate.entry().name().equals(candidateName))
+                .findFirst()
+                .orElseThrow();
     }
 
     private static GpuLoweredRegionManifest sampleGpuManifest() {
