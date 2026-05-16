@@ -629,6 +629,14 @@ public final class PreparedExecution implements AutoCloseable {
                     attrs.put("matMulFallbackReason", matMul.fallbackReason());
                 }
             }
+            PreparedNativeCpuPlan nativeCpuPlan = plan.nativeCpuPlan();
+            if (nativeCpuPlan != null
+                    && (nativeCpuPlan.chainSegmentId() >= 0
+                    || nativeCpuPlan.chainDecision() != backend.cpu.nativecpu.NativeCpuChainDecision.NONE)) {
+                attrs.put("nativeCpuChainSegmentId", nativeCpuPlan.chainSegmentId());
+                attrs.put("nativeCpuChainDecision", nativeCpuPlan.chainDecision().name());
+                attrs.put("nativeCpuChainReason", nativeCpuPlan.chainReason());
+            }
         }
 
         ConvTraceMetadata trace = context.convTraceForNodeId(node.id());

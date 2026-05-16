@@ -140,7 +140,7 @@ public final class NativeCpuContiguousExecutor {
     }
 
     private static boolean nativeRequested(CpuKernelContext context) {
-        return context != null && nativeRequested(context.executionContext().runtimeConfig());
+        return NativeCpuRuntimePolicy.nativeRequested(context);
     }
 
     private static boolean nativeRequested(RuntimeConfig runtimeConfig) {

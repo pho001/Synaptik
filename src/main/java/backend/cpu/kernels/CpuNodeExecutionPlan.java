@@ -88,4 +88,21 @@ public record CpuNodeExecutionPlan(
     public ResolvedWhereBroadcastPlan whereBroadcastPlan() {
         return layoutPlan.whereBroadcastPlan();
     }
+
+    public CpuNodeExecutionPlan withNativeCpuPlan(PreparedNativeCpuPlan plan) {
+        return new CpuNodeExecutionPlan(
+                layoutPlan,
+                computeContract,
+                publishFloatContinuation,
+                plannedWorkers,
+                contiguousMaterializeThreshold,
+                dispatchHints,
+                reductionHints,
+                matMulHints,
+                matMulExecutable,
+                conv2dHints,
+                attentionPlan,
+                plan
+        );
+    }
 }
