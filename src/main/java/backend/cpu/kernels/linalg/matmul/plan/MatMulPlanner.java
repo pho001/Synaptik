@@ -6,6 +6,7 @@ import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
 import backend.cpu.kernels.plan.CpuPlanningPolicy;
 import config.backend.CpuMatMulMicroKernel;
 import config.runtime.BlasConfig;
+import config.runtime.BlasStorageMode;
 import tensor.DataType;
 import tensor.Tensor;
 
@@ -20,6 +21,10 @@ public final class MatMulPlanner {
     }
 
     public ResolvedMatMulHints resolve(Tensor a, Tensor b, Tensor out, BlasConfig blasConfig) {
+        return resolve(a, b, out, blasConfig, false);
+    }
+
+    public ResolvedMatMulHints resolve(Tensor a, Tensor b, Tensor out, BlasConfig blasConfig, boolean publishFloatContinuation) {
         Objects.requireNonNull(a, "a cannot be null");
         Objects.requireNonNull(b, "b cannot be null");
         Objects.requireNonNull(out, "out cannot be null");
@@ -33,7 +38,8 @@ public final class MatMulPlanner {
                 out.getShapeUnsafe(),
                 out.getDataType(),
                 out.isContiguous(),
-                blasConfig
+                blasConfig,
+                publishFloatContinuation
         );
     }
 
@@ -46,6 +52,20 @@ public final class MatMulPlanner {
             DataType outDataType,
             boolean outContiguous,
             BlasConfig blasConfig
+    ) {
+        return resolve(aShape, aContiguous, bShape, bContiguous, outShape, outDataType, outContiguous, blasConfig, false);
+    }
+
+    public ResolvedMatMulHints resolve(
+            int[] aShape,
+            boolean aContiguous,
+            int[] bShape,
+            boolean bContiguous,
+            int[] outShape,
+            DataType outDataType,
+            boolean outContiguous,
+            BlasConfig blasConfig,
+            boolean publishFloatContinuation
     ) {
         Objects.requireNonNull(aShape, "aShape cannot be null");
         Objects.requireNonNull(bShape, "bShape cannot be null");
@@ -69,13 +89,34 @@ public final class MatMulPlanner {
 
         boolean parallel = work >= policy.matMulParallelMinSize() && policy.plannedWorkers() > 1;
         boolean useBlas = aShape.length == 2 && bShape.length == 2
-                && shouldUseBlas(outDataType, aContiguous, bContiguous, outContiguous, m, n, k, blasConfig);
+                && shouldUseBlas(outDataType, aContiguous, bContiguous, outContiguous, m, n, k, blasConfig, publishFloatContinuation);
         boolean useBatchedBlas = aShape.length > 2
-                && shouldUseBatchedBlas(aShape, aContiguous, bShape, bContiguous, outShape, outDataType, outContiguous, m, n, k, work, blasConfig);
+                && shouldUseBatchedBlas(aShape, aContiguous, bShape, bContiguous, outShape, outDataType, outContiguous, m, n, k, work, blasConfig, publishFloatContinuation);
+        MatMulExecutionRoute route = resolveRoute(
+                aShape,
+                aContiguous,
+                bShape,
+                bContiguous,
+                outDataType,
+                outContiguous,
+                m,
+                n,
+                k,
+                work,
+                blasConfig,
+                publishFloatContinuation,
+                useBlas,
+                useBatchedBlas
+        );
+        if (route == MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT) {
+            useBlas = true;
+            useBatchedBlas = false;
+        }
 
         return new ResolvedMatMulHints(
                 useBlas,
                 useBatchedBlas,
+                route,
                 parallel,
                 policy.matMulTileM(),
                 policy.matMulTileN(),
@@ -176,7 +217,8 @@ public final class MatMulPlanner {
             int m,
             int n,
             int k,
-            BlasConfig blasConfig
+            BlasConfig blasConfig,
+            boolean publishFloatContinuation
     ) {
         if (outDataType != DataType.FLOAT32 && outDataType != DataType.FLOAT64 && outDataType != DataType.BFLOAT16) {
             return false;
@@ -184,7 +226,7 @@ public final class MatMulPlanner {
         if (blasConfig.provider() != BlasProvider.OPENBLAS_FFM) {
             return false;
         }
-        if (outDataType == DataType.BFLOAT16 && !OpenBlasFfmBridge.isBFloat16GemmAvailable()) {
+        if (outDataType == DataType.BFLOAT16 && !bf16BlasSymbolAvailable(publishFloatContinuation)) {
             return false;
         }
         long work = (long) m * n * k;
@@ -206,6 +248,76 @@ public final class MatMulPlanner {
         return true;
     }
 
+    private MatMulExecutionRoute resolveRoute(
+            int[] aShape,
+            boolean aContiguous,
+            int[] bShape,
+            boolean bContiguous,
+            DataType outDataType,
+            boolean outContiguous,
+            int m,
+            int n,
+            int k,
+            long work,
+            BlasConfig blasConfig,
+            boolean publishFloatContinuation,
+            boolean useBlas,
+            boolean useBatchedBlas
+    ) {
+        if (useBatchedBlas) {
+            return MatMulExecutionRoute.OPENBLAS_ARRAY_COPYING;
+        }
+        if (blasConfig.provider() != BlasProvider.OPENBLAS_FFM) {
+            return MatMulExecutionRoute.JAVA_DIRECT;
+        }
+        BlasStorageMode storageMode = blasConfig.storageMode();
+        if (storageMode == BlasStorageMode.CPU_ARRAY) {
+            return useBlas ? MatMulExecutionRoute.OPENBLAS_ARRAY_COPYING : MatMulExecutionRoute.JAVA_DIRECT;
+        }
+        boolean nativeEligible = isNativeSegmentEligible(
+                aShape,
+                aContiguous,
+                bShape,
+                bContiguous,
+                outDataType,
+                outContiguous,
+                publishFloatContinuation
+        );
+        if (!nativeEligible) {
+            return useBlas ? MatMulExecutionRoute.OPENBLAS_ARRAY_COPYING : MatMulExecutionRoute.JAVA_DIRECT;
+        }
+        if (storageMode == BlasStorageMode.CPU_NATIVE) {
+            return MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT;
+        }
+        long shapeWork = (long) m * n * k;
+        return work >= blasConfig.matmulMinWork() && shapeWork >= blasConfig.matmulMinWork()
+                ? MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT
+                : (useBlas ? MatMulExecutionRoute.OPENBLAS_ARRAY_COPYING : MatMulExecutionRoute.JAVA_DIRECT);
+    }
+
+    private static boolean isNativeSegmentEligible(
+            int[] aShape,
+            boolean aContiguous,
+            int[] bShape,
+            boolean bContiguous,
+            DataType outDataType,
+            boolean outContiguous,
+            boolean publishFloatContinuation
+    ) {
+        if (aShape.length != 2 || bShape.length != 2) {
+            return false;
+        }
+        if (!aContiguous || !bContiguous || !outContiguous) {
+            return false;
+        }
+        return switch (outDataType) {
+            case FLOAT32 -> OpenBlasFfmBridge.isFloat32GemmAvailable();
+            case FLOAT64 -> OpenBlasFfmBridge.isFloat64GemmAvailable();
+            case BFLOAT16 -> !publishFloatContinuation && OpenBlasFfmBridge.isBFloat16OutputGemmAvailable();
+            default -> false;
+        };
+    }
+
     private boolean shouldUseBatchedBlas(
             int[] aShape,
             boolean aContiguous,
@@ -218,7 +330,8 @@ public final class MatMulPlanner {
             int n,
             int k,
             long work,
-            BlasConfig blasConfig
+            BlasConfig blasConfig,
+            boolean publishFloatContinuation
     ) {
         if (outDataType != DataType.FLOAT32 && outDataType != DataType.FLOAT64 && outDataType != DataType.BFLOAT16) {
             return false;
@@ -232,7 +345,7 @@ public final class MatMulPlanner {
         if (blasConfig.provider() != BlasProvider.OPENBLAS_FFM) {
             return false;
         }
-        if (outDataType == DataType.BFLOAT16 && !OpenBlasFfmBridge.isBFloat16GemmAvailable()) {
+        if (outDataType == DataType.BFLOAT16 && !bf16BlasSymbolAvailable(publishFloatContinuation)) {
             return false;
         }
         if (work < blasConfig.matmulMinWork()) {
@@ -252,6 +365,12 @@ public final class MatMulPlanner {
             case FORCE_ON -> true;
             case AUTO -> true;
         };
+    }
+
+    private static boolean bf16BlasSymbolAvailable(boolean publishFloatContinuation) {
+        return publishFloatContinuation
+                ? OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable()
+                : OpenBlasFfmBridge.isBFloat16OutputGemmAvailable();
     }
 
     private MatMulBlasShapeHeuristics selectBlasShapeHeuristics(int m, int n, int k, BlasConfig blasConfig) {
@@ -305,6 +424,7 @@ public final class MatMulPlanner {
         return new ResolvedMatMulHints(
                 hints.useBlas(),
                 hints.useBatchedBlas(),
+                hints.route(),
                 hints.parallel(),
                 tileM,
                 tileN,

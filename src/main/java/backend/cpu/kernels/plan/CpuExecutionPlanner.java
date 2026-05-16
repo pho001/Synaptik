@@ -340,6 +340,10 @@ public final class CpuExecutionPlanner {
         return matMulPlanner.resolve(a, b, out, blasConfig);
     }
 
+    public ResolvedMatMulHints resolveMatMulHints(Tensor a, Tensor b, Tensor out, BlasConfig blasConfig, boolean publishFloatContinuation) {
+        return matMulPlanner.resolve(a, b, out, blasConfig, publishFloatContinuation);
+    }
+
     public ResolvedMatMulHints resolveJavaMatMulHints(int[] aShape, int[] bShape, int[] outShape, DataType outDataType) {
         return matMulPlanner.resolveJava(aShape, bShape, outShape, outDataType);
     }

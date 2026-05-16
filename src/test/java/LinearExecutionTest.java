@@ -127,7 +127,7 @@ public class LinearExecutionTest {
 
     @Test
     void bfloat16LinearWithBiasMatchesBaselineWhenBlasIsEnabled() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16GemmAvailable(), "OpenBLAS BF16 GEMM is unavailable");
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16OutputGemmAvailable(), "OpenBLAS BGEMM is unavailable");
 
         double[] inputValues = random(32 * 64, 11);
         double[] weightValues = random(64 * 96, 17);
@@ -155,7 +155,7 @@ public class LinearExecutionTest {
 
     @Test
     void bfloat16LinearThenReluMatchesBaselineWhenBlasContinuationIsEnabled() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16GemmAvailable(), "OpenBLAS BF16 GEMM is unavailable");
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
 
         double[] inputValues = random(32 * 64, 31);
         double[] weightValues = random(64 * 96, 37);

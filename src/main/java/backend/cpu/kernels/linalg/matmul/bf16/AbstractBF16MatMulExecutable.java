@@ -11,6 +11,7 @@ import tensor.Tensor;
 abstract class AbstractBF16MatMulExecutable implements PreparedMatMulExecutable {
     protected final ResolvedMatMulHints hints;
     private final boolean publishFloatContinuation;
+    private String lastBlasSymbol = "";
 
     protected AbstractBF16MatMulExecutable(ResolvedMatMulHints hints, boolean publishFloatContinuation) {
         this.hints = hints;
@@ -19,6 +20,7 @@ abstract class AbstractBF16MatMulExecutable implements PreparedMatMulExecutable 
 
     @Override
     public final void execute(Tensor a, Tensor b, Tensor node, CpuKernelContext context) {
+        lastBlasSymbol = "";
         int[] as = a.getShapeUnsafe();
         int[] bs = b.getShapeUnsafe();
         short[] ad = a.getBFloat16Data();
@@ -191,6 +193,15 @@ abstract class AbstractBF16MatMulExecutable implements PreparedMatMulExecutable 
     }
 
     protected abstract boolean allowPackedAndContinuationFastPaths();
+
+    @Override
+    public final String lastBlasSymbol() {
+        return lastBlasSymbol;
+    }
+
+    protected final void recordBlasSymbol(String symbol) {
+        lastBlasSymbol = symbol == null ? "" : symbol;
+    }
 
     protected abstract boolean tryBackendToFloat(
             Tensor node,

@@ -262,6 +262,9 @@ public final class ExplicitProfileMutators {
                     baseProfile.runtime().blas().matmulMinWork(),
                     baseProfile.runtime().blas().f32RequireMgeK(),
                     baseProfile.runtime().blas().f32MaxNOverK(),
+                    baseProfile.runtime().blas().f32WideRequireMgeK(),
+                    baseProfile.runtime().blas().f32WideMaxNOverK(),
+                    baseProfile.runtime().blas().storageMode(),
                     baseProfile.runtime().blas().debug(),
                     0
             );
@@ -307,6 +310,9 @@ public final class ExplicitProfileMutators {
                             minWork == null ? baseProfile.runtime().blas().matmulMinWork() : minWork,
                             baseProfile.runtime().blas().f32RequireMgeK(),
                             baseProfile.runtime().blas().f32MaxNOverK(),
+                            baseProfile.runtime().blas().f32WideRequireMgeK(),
+                            baseProfile.runtime().blas().f32WideMaxNOverK(),
+                            baseProfile.runtime().blas().storageMode(),
                             baseProfile.runtime().blas().debug(),
                             baseProfile.runtime().blas().threads()
                     );
@@ -343,6 +349,9 @@ public final class ExplicitProfileMutators {
                             baseProfile.runtime().blas().matmulMinWork(),
                             requireMgeK == null ? baseProfile.runtime().blas().f32RequireMgeK() : requireMgeK,
                             maxNOverK == null ? baseProfile.runtime().blas().f32MaxNOverK() : maxNOverK,
+                            requireMgeK == null ? baseProfile.runtime().blas().f32WideRequireMgeK() : requireMgeK,
+                            maxNOverK == null ? baseProfile.runtime().blas().f32WideMaxNOverK() : maxNOverK,
+                            baseProfile.runtime().blas().storageMode(),
                             baseProfile.runtime().blas().debug(),
                             baseProfile.runtime().blas().threads()
                     );

@@ -17,6 +17,7 @@ import java.util.Objects;
  * @param f32MaxNOverK maximum {@code N / K} ratio for regular FLOAT32 BLAS dispatch
  * @param f32WideRequireMgeK whether wide FLOAT32 BLAS dispatch requires {@code M >= K}
  * @param f32WideMaxNOverK maximum {@code N / K} ratio for wide FLOAT32 BLAS dispatch
+ * @param storageMode BLAS storage route policy
  * @param debug whether BLAS dispatch should emit debug diagnostics
  * @param threads requested BLAS thread count; normalized to {@link #DEFAULT_THREADS}
  */
@@ -27,6 +28,7 @@ public record BlasConfig(
         double f32MaxNOverK,
         boolean f32WideRequireMgeK,
         double f32WideMaxNOverK,
+        BlasStorageMode storageMode,
         boolean debug,
         int threads
 ) {
@@ -37,6 +39,7 @@ public record BlasConfig(
 
     public BlasConfig {
         provider = Objects.requireNonNullElse(provider, BlasProvider.NONE);
+        storageMode = Objects.requireNonNullElse(storageMode, BlasStorageMode.CPU_ARRAY);
         matmulMinWork = matmulMinWork > 0 ? matmulMinWork : DEFAULT_MATMUL_MIN_WORK;
         f32MaxNOverK = f32MaxNOverK > 0.0d ? f32MaxNOverK : DEFAULT_F32_MAX_N_OVER_K;
         f32WideMaxNOverK = f32WideMaxNOverK > 0.0d ? f32WideMaxNOverK : f32MaxNOverK;
@@ -50,9 +53,35 @@ public record BlasConfig(
             double f32MaxNOverK,
             boolean f32WideRequireMgeK,
             double f32WideMaxNOverK,
+            boolean debug,
+            int threads
+    ) {
+        this(provider, matmulMinWork, f32RequireMgeK, f32MaxNOverK, f32WideRequireMgeK, f32WideMaxNOverK, BlasStorageMode.CPU_ARRAY, debug, threads);
+    }
+
+    public BlasConfig(
+            BlasProvider provider,
+            long matmulMinWork,
+            boolean f32RequireMgeK,
+            double f32MaxNOverK,
+            boolean f32WideRequireMgeK,
+            double f32WideMaxNOverK,
             boolean debug
     ) {
-        this(provider, matmulMinWork, f32RequireMgeK, f32MaxNOverK, f32WideRequireMgeK, f32WideMaxNOverK, debug, DEFAULT_THREADS);
+        this(provider, matmulMinWork, f32RequireMgeK, f32MaxNOverK, f32WideRequireMgeK, f32WideMaxNOverK, BlasStorageMode.CPU_ARRAY, debug, DEFAULT_THREADS);
+    }
+
+    public BlasConfig(
+            BlasProvider provider,
+            long matmulMinWork,
+            boolean f32RequireMgeK,
+            double f32MaxNOverK,
+            boolean f32WideRequireMgeK,
+            double f32WideMaxNOverK,
+            BlasStorageMode storageMode,
+            boolean debug
+    ) {
+        this(provider, matmulMinWork, f32RequireMgeK, f32MaxNOverK, f32WideRequireMgeK, f32WideMaxNOverK, storageMode, debug, DEFAULT_THREADS);
     }
 
     public BlasConfig(
@@ -63,7 +92,7 @@ public record BlasConfig(
             boolean debug,
             int threads
     ) {
-        this(provider, matmulMinWork, f32RequireMgeK, f32MaxNOverK, f32RequireMgeK, f32MaxNOverK, debug, threads);
+        this(provider, matmulMinWork, f32RequireMgeK, f32MaxNOverK, f32RequireMgeK, f32MaxNOverK, BlasStorageMode.CPU_ARRAY, debug, threads);
     }
 
     public BlasConfig(
@@ -73,7 +102,7 @@ public record BlasConfig(
             double f32MaxNOverK,
             boolean debug
     ) {
-        this(provider, matmulMinWork, f32RequireMgeK, f32MaxNOverK, f32RequireMgeK, f32MaxNOverK, debug, DEFAULT_THREADS);
+        this(provider, matmulMinWork, f32RequireMgeK, f32MaxNOverK, f32RequireMgeK, f32MaxNOverK, BlasStorageMode.CPU_ARRAY, debug, DEFAULT_THREADS);
     }
 
     /**
@@ -89,8 +118,23 @@ public record BlasConfig(
                 DEFAULT_F32_MAX_N_OVER_K,
                 DEFAULT_F32_REQUIRE_M_GE_K,
                 DEFAULT_F32_MAX_N_OVER_K,
+                BlasStorageMode.CPU_ARRAY,
                 false,
                 DEFAULT_THREADS
+        );
+    }
+
+    public BlasConfig withStorageMode(BlasStorageMode storageMode) {
+        return new BlasConfig(
+                provider,
+                matmulMinWork,
+                f32RequireMgeK,
+                f32MaxNOverK,
+                f32WideRequireMgeK,
+                f32WideMaxNOverK,
+                storageMode,
+                debug,
+                threads
         );
     }
 }

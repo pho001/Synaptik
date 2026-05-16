@@ -51,7 +51,7 @@ public class ComputeModeTraceTest {
 
     @Test
     void bfloat16MatmulTraceCarriesBfloat16BlasComputeModeWhenBlasIsUsed() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16GemmAvailable(), "OpenBLAS BF16 GEMM is unavailable");
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16OutputGemmAvailable(), "OpenBLAS BGEMM is unavailable");
 
         Tensor a = new Tensor(random(64 * 64), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(random(64 * 64), new int[]{64, 64}, null, "b", DataType.BFLOAT16);

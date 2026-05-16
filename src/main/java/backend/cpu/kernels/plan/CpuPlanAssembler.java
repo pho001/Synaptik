@@ -67,6 +67,7 @@ public final class CpuPlanAssembler {
                 planner,
                 blasConfig,
                 conv2dConfig,
+                publishFloatContinuation,
                 dispatchHintsOverride
         );
         PreparedMatMulExecutable matMulExecutable = PreparedMatMulExecutableFactory.create(

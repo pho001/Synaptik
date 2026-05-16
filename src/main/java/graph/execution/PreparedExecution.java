@@ -3,8 +3,11 @@ package graph.execution;
 import backend.ComputeBackend;
 import backend.ComputeEngine;
 import backend.accelerator.lowering.GpuCompoundPatternType;
+import backend.blas.OpenBlasFfmBridge;
 import backend.cpu.fused.plan.FusedOperation;
 import backend.cpu.kernels.CpuDTypeOps;
+import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
+import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
@@ -393,6 +396,10 @@ public final class PreparedExecution {
     private static void markResidencyAfterStep(PreparedNodeExecution step, ExecutionContext context) {
         int nodeId = step.compiledNode().id();
         if (step.metadata().backend() == ComputeBackend.CPU) {
+            var residency = context.residencyForNodeId(nodeId);
+            if (residency != null && residency.nativeCurrent()) {
+                return;
+            }
             context.markCpuCurrent(nodeId, residencyReason(step));
             return;
         }
@@ -404,6 +411,12 @@ public final class PreparedExecution {
 
     private static void requireCpuReadableInputs(PreparedNodeExecution step, ExecutionContext context) {
         if (step.metadata().backend() != ComputeBackend.CPU) {
+            return;
+        }
+        PreparedMatMulExecutable matMulExecutable = step.metadata().cpuPlan() == null
+                ? null
+                : step.metadata().cpuPlan().matMulExecutable();
+        if (matMulExecutable != null && matMulExecutable.acceptsNativeInputs()) {
             return;
         }
         List<Integer> inputIds = step.metadata().executionInputNodeIds().isEmpty()
@@ -492,9 +505,22 @@ public final class PreparedExecution {
                 );
             }
             if (plan.matMulHints() != null) {
+                PreparedMatMulExecutable executable = plan.matMulExecutable();
+                MatMulExecutionRoute route = executable == null || executable.lastExecutionRoute() == null
+                        ? plan.matMulHints().route()
+                        : executable.lastExecutionRoute();
                 matMul = new MatMulTraceMetadata(
                         plan.matMulHints().useBlas(),
                         plan.matMulHints().useBatchedBlas(),
+                        matMulBlasProvider(context),
+                        matMulBlasSymbol(node, route, executable),
+                        route.name(),
+                        route.name(),
+                        matMulCopyInBytes(node, step, context, executable, route),
+                        matMulCopyOutBytes(node, executable, route),
+                        matMulNativeTempBytes(route),
+                        matMulThreadPolicy(context),
+                        executable == null ? "" : executable.lastFallbackReason(),
                         plan.matMulHints().parallel(),
                         plan.matMulHints().tileM(),
                         plan.matMulHints().tileN(),
@@ -503,6 +529,24 @@ public final class PreparedExecution {
                         plan.matMulHints().work(),
                         plan.matMulHints().microKernel().name()
                 );
+                attrs.put("matMulRoute", matMul.route());
+                attrs.put("blasProvider", matMul.blasProvider());
+                attrs.put("blasSymbol", matMul.blasSymbol());
+                attrs.put("blasRoute", matMul.blasRoute());
+                if ("OPENBLAS_FFM".equals(matMul.blasProvider())) {
+                    attrs.put("openblasLookupSource", OpenBlasFfmBridge.lookupSource());
+                    attrs.put("openblasSgemmAvailable", OpenBlasFfmBridge.isFloat32GemmAvailable());
+                    attrs.put("openblasDgemmAvailable", OpenBlasFfmBridge.isFloat64GemmAvailable());
+                    attrs.put("openblasSbgemmAvailable", OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable());
+                    attrs.put("openblasBgemmAvailable", OpenBlasFfmBridge.isBFloat16OutputGemmAvailable());
+                }
+                attrs.put("matMulCopyInBytes", matMul.copyInBytes());
+                attrs.put("matMulCopyOutBytes", matMul.copyOutBytes());
+                attrs.put("matMulNativeTempBytes", matMul.nativeTempBytes());
+                attrs.put("blasThreadPolicy", matMul.threadPolicy());
+                if (!matMul.fallbackReason().isBlank()) {
+                    attrs.put("matMulFallbackReason", matMul.fallbackReason());
+                }
             }
         }
 
@@ -709,6 +753,106 @@ public final class PreparedExecution {
         return new StepExecutionMetadata("node", attrs, compute, layout, dispatch, reduction, matMul, conv, fusedMeta);
     }
 
+    private static long matMulCopyInBytes(
+            CompiledNode node,
+            PreparedNodeExecution step,
+            ExecutionContext context,
+            PreparedMatMulExecutable executable,
+            MatMulExecutionRoute route
+    ) {
+        if (executable != null && executable.lastCopyInBytes() >= 0L) {
+            return executable.lastCopyInBytes();
+        }
+        if (route != MatMulExecutionRoute.OPENBLAS_ARRAY_COPYING) {
+            return route == MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT ? 0L : -1L;
+        }
+        List<Integer> inputIds = step.metadata().executionInputNodeIds().isEmpty()
+                ? node.inputIds()
+                : step.metadata().executionInputNodeIds();
+        long bytes = 0L;
+        for (int inputId : inputIds) {
+            bytes += logicalByteLength(context.runtimeTensorForNodeId(inputId));
+        }
+        return bytes;
+    }
+
+    private static long matMulCopyOutBytes(
+            CompiledNode node,
+            PreparedMatMulExecutable executable,
+            MatMulExecutionRoute route
+    ) {
+        if (executable != null && executable.lastCopyOutBytes() >= 0L) {
+            return executable.lastCopyOutBytes();
+        }
+        if (route != MatMulExecutionRoute.OPENBLAS_ARRAY_COPYING) {
+            return route == MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT ? 0L : -1L;
+        }
+        return logicalByteLength(node.dataType(), node.shape());
+    }
+
+    private static long matMulNativeTempBytes(MatMulExecutionRoute route) {
+        return route == MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT ? 0L : -1L;
+    }
+
+    private static String matMulBlasProvider(ExecutionContext context) {
+        if (context.runtimeConfig() == null || context.runtimeConfig().blas() == null) {
+            return "";
+        }
+        return context.runtimeConfig().blas().provider().name();
+    }
+
+    private static String matMulThreadPolicy(ExecutionContext context) {
+        if (context.runtimeConfig() == null
+                || context.runtimeConfig().blas() == null
+                || context.runtimeConfig().blas().provider() != backend.blas.BlasProvider.OPENBLAS_FFM) {
+            return "";
+        }
+        return OpenBlasFfmBridge.threadPolicy();
+    }
+
+    private static String matMulBlasSymbol(CompiledNode node, MatMulExecutionRoute route) {
+        return matMulBlasSymbol(node, route, null);
+    }
+
+    private static String matMulBlasSymbol(CompiledNode node, MatMulExecutionRoute route, PreparedMatMulExecutable executable) {
+        if (executable != null && !executable.lastBlasSymbol().isBlank()) {
+            return executable.lastBlasSymbol();
+        }
+        if (route == MatMulExecutionRoute.JAVA_DIRECT) {
+            return "";
+        }
+        return switch (node.dataType()) {
+            case FLOAT32 -> "cblas_sgemm";
+            case FLOAT64 -> "cblas_dgemm";
+            case BFLOAT16 -> "cblas_bgemm";
+            default -> "";
+        };
+    }
+
+    private static long logicalByteLength(Tensor tensor) {
+        if (tensor == null) {
+            return 0L;
+        }
+        return Math.multiplyExact((long) tensor.getFlatDataSize(), elementBytes(tensor.getDataType()));
+    }
+
+    private static long logicalByteLength(tensor.DataType dataType, int[] shape) {
+        long elements = 1L;
+        for (int dim : shape == null ? new int[0] : shape) {
+            elements = Math.multiplyExact(elements, Math.max(0, dim));
+        }
+        return Math.multiplyExact(elements, elementBytes(dataType));
+    }
+
+    private static int elementBytes(tensor.DataType dataType) {
+        return switch (dataType) {
+            case FLOAT64, INT64 -> Long.BYTES;
+            case FLOAT32, INT32 -> Integer.BYTES;
+            case BFLOAT16 -> Short.BYTES;
+            case BOOL -> Byte.BYTES;
+        };
+    }
+
     private static void addFallbackSummary(LinkedHashMap<String, Object> attrs) {
         ArrayList<String> kinds = new ArrayList<>();
         ArrayList<String> reasonCodes = new ArrayList<>();
@@ -784,6 +928,17 @@ public final class PreparedExecution {
                     "CUDA_TENSOR_ARRAY_FALLBACK",
                     stringAttr(attrs, "acceleratorBufferReasonCode"),
                     firstNonBlank(stringAttr(attrs, "cudaFallbackReason"), stringAttr(attrs, "acceleratorBufferReason"))
+            );
+        }
+
+        if (!stringAttr(attrs, "matMulFallbackReason").isBlank()) {
+            addFallback(
+                    kinds,
+                    reasonCodes,
+                    reasons,
+                    "CPU_MATMUL_ROUTE_FALLBACK",
+                    stringAttr(attrs, "matMulRoute"),
+                    stringAttr(attrs, "matMulFallbackReason")
             );
         }
 

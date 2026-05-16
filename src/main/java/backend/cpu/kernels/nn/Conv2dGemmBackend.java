@@ -1075,7 +1075,7 @@ final class Conv2dGemmBackend {
     }
 
     private static boolean accumulateBlasF64(double[] a, double[] b, double[] c, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isAvailable()) {
+        if (!OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable()) {
             return false;
         }
         try {
@@ -1087,7 +1087,7 @@ final class Conv2dGemmBackend {
     }
 
     private static boolean accumulateBlasF32(float[] a, float[] b, float[] c, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isAvailable()) {
+        if (!OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable()) {
             return false;
         }
         try {

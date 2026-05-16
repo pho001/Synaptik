@@ -141,7 +141,7 @@ public final class Conv2dPlanner {
         if (!backend.blas.OpenBlasFfmBridge.isAvailable()) {
             return false;
         }
-        if (dataType == DataType.BFLOAT16 && !backend.blas.OpenBlasFfmBridge.isBFloat16GemmAvailable()) {
+        if (dataType == DataType.BFLOAT16 && !backend.blas.OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable()) {
             return false;
         }
         if (conv2dConfig.provider() != BlasProvider.OPENBLAS_FFM) {

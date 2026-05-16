@@ -87,23 +87,74 @@ public final class MatMulBlasBackend {
     }
 
     public static boolean tryBlasBF16(short[] ad, short[] bd, short[] od, float[] tmp, int m, int n, int k) {
-        if (!tryBlasBF16ToFloat(ad, bd, tmp, m, n, k)) {
+        if (!OpenBlasFfmBridge.isBFloat16OutputGemmAvailable()) {
+            maybeLogBlasUnavailable();
             return false;
         }
-        materializeBFloat16(tmp, od, m * n);
-        return true;
+        try {
+            OpenBlasFfmBridge.bgemmRowMajorNoTrans(
+                    m,
+                    n,
+                    k,
+                    CpuDTypeOps.toBFloat16Bits(1.0f),
+                    ad,
+                    k,
+                    bd,
+                    n,
+                    CpuDTypeOps.toBFloat16Bits(0.0f),
+                    od,
+                    n
+            );
+            return true;
+        } catch (Throwable t) {
+            if (BlasRuntime.debug()) {
+                System.err.println("[BLAS] BGEMM failed, fallback to Java kernel: " + t.getMessage());
+            }
+            return false;
+        }
     }
 
     public static boolean tryBatchedBlasBF16(short[] ad, int[] as, short[] bd, int[] bs, short[] od, float[] tmp, int[] outShape, int m, int n, int k) {
-        if (!tryBatchedBlasBF16ToFloat(ad, as, bd, bs, tmp, outShape, m, n, k)) {
+        if (!OpenBlasFfmBridge.isBFloat16OutputGemmAvailable()) {
+            maybeLogBlasUnavailable();
             return false;
         }
-        materializeBFloat16(tmp, od, od.length);
-        return true;
+        try {
+            int batchCount = MatMulBatchingSupport.batchCount(outShape);
+            int[] aBatchOffsets = MatMulBatchingSupport.computeBatchOffsets(as, outShape);
+            int[] bBatchOffsets = MatMulBatchingSupport.computeBatchOffsets(bs, outShape);
+            int mn = m * n;
+            short alpha = CpuDTypeOps.toBFloat16Bits(1.0f);
+            short beta = CpuDTypeOps.toBFloat16Bits(0.0f);
+            for (int batch = 0; batch < batchCount; batch++) {
+                OpenBlasFfmBridge.bgemmRowMajorNoTransOffsets(
+                        m,
+                        n,
+                        k,
+                        alpha,
+                        ad,
+                        aBatchOffsets[batch],
+                        k,
+                        bd,
+                        bBatchOffsets[batch],
+                        n,
+                        beta,
+                        od,
+                        batch * mn,
+                        n
+                );
+            }
+            return true;
+        } catch (Throwable t) {
+            if (BlasRuntime.debug()) {
+                System.err.println("[BLAS] Batched BGEMM failed, fallback to Java kernel: " + t.getMessage());
+            }
+            return false;
+        }
     }
 
     public static boolean tryBlasBF16ToFloat(short[] ad, short[] bd, float[] out, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isBFloat16GemmAvailable()) {
+        if (!OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable()) {
             maybeLogBlasUnavailable();
             return false;
         }
@@ -122,7 +173,7 @@ public final class MatMulBlasBackend {
     }
 
     public static boolean tryBatchedBlasBF16ToFloat(short[] ad, int[] as, short[] bd, int[] bs, float[] out, int[] outShape, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isBFloat16GemmAvailable()) {
+        if (!OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable()) {
             maybeLogBlasUnavailable();
             return false;
         }
@@ -143,13 +194,6 @@ public final class MatMulBlasBackend {
                 System.err.println("[BLAS] Batched SBGEMM failed, fallback to Java kernel: " + t.getMessage());
             }
             return false;
-        }
-    }
-
-    public static void materializeBFloat16(float[] src, short[] dst, int length) {
-        int limit = Math.min(length, Math.min(src.length, dst.length));
-        for (int i = 0; i < limit; i++) {
-            dst[i] = CpuDTypeOps.toBFloat16Bits(src[i]);
         }
     }
 

@@ -3,12 +3,16 @@ package backend.cpu.kernels.linalg.matmul.exec;
 import backend.cpu.kernels.linalg.matmul.bf16.BF16BatchedBlasMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.bf16.BF16BlasMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.bf16.BF16JavaMatMulExecutable;
+import backend.cpu.kernels.linalg.matmul.bf16.BF16NativeBlasMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.f32.F32BatchedBlasMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.f32.F32BlasMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.f32.F32JavaMatMulExecutable;
+import backend.cpu.kernels.linalg.matmul.f32.F32NativeBlasMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.f64.F64BatchedBlasMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.f64.F64BlasMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.f64.F64JavaMatMulExecutable;
+import backend.cpu.kernels.linalg.matmul.f64.F64NativeBlasMatMulExecutable;
+import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
 import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
 import operations.Operation;
 import tensor.Tensor;
@@ -38,6 +42,9 @@ public final class PreparedMatMulExecutableFactory {
     }
 
     private static PreparedMatMulExecutable createF64(ResolvedMatMulHints hints) {
+        if (hints.route() == MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT) {
+            return new F64NativeBlasMatMulExecutable(hints);
+        }
         if (hints.useBatchedBlas()) {
             return new F64BatchedBlasMatMulExecutable(hints);
         }
@@ -48,6 +55,9 @@ public final class PreparedMatMulExecutableFactory {
     }
 
     private static PreparedMatMulExecutable createF32(ResolvedMatMulHints hints) {
+        if (hints.route() == MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT) {
+            return new F32NativeBlasMatMulExecutable(hints);
+        }
         if (hints.useBatchedBlas()) {
             return new F32BatchedBlasMatMulExecutable(hints);
         }
@@ -58,6 +68,9 @@ public final class PreparedMatMulExecutableFactory {
     }
 
     private static PreparedMatMulExecutable createBF16(ResolvedMatMulHints hints, boolean publishFloatContinuation) {
+        if (hints.route() == MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT) {
+            return new BF16NativeBlasMatMulExecutable(hints);
+        }
         if (hints.useBatchedBlas()) {
             return new BF16BatchedBlasMatMulExecutable(hints, publishFloatContinuation);
         }

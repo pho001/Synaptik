@@ -7,6 +7,7 @@ import config.backend.CpuMatMulMicroKernel;
 import config.backend.SumAccuracyMode;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
+import config.runtime.BlasStorageMode;
 import tensor.DataType;
 
 import java.io.IOException;
@@ -60,6 +61,7 @@ public final class PlatformRuntimeProfileIO {
                 "    \"f32MaxNOverK\": " + profile.matmul().f32MaxNOverK() + ",\n" +
                 "    \"f32WideRequireMgeK\": " + profile.matmul().f32WideRequireMgeK() + ",\n" +
                 "    \"f32WideMaxNOverK\": " + profile.matmul().f32WideMaxNOverK() + ",\n" +
+                "    \"blasStorageMode\": \"" + profile.matmul().blasStorageMode().name() + "\",\n" +
                 "    \"loopUnrollFactor\": " + profile.matmul().loopUnrollFactor() + ",\n" +
                 "    \"matMulTileM\": " + profile.matmul().matMulTileM() + ",\n" +
                 "    \"matMulTileN\": " + profile.matmul().matMulTileN() + ",\n" +
@@ -198,6 +200,7 @@ public final class PlatformRuntimeProfileIO {
                     findDouble(json, "f32MaxNOverK", fallback.matmul().f32MaxNOverK()),
                     findBoolean(json, "f32WideRequireMgeK", fallback.matmul().f32WideRequireMgeK()),
                     findDouble(json, "f32WideMaxNOverK", fallback.matmul().f32WideMaxNOverK()),
+                    findEnum(json, "blasStorageMode", fallback.matmul().blasStorageMode(), BlasStorageMode.class),
                     findInt(json, "loopUnrollFactor", fallback.matmul().loopUnrollFactor()),
                     loadedMatMulTileM,
                     loadedMatMulTileN,

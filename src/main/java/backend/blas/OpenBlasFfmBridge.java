@@ -10,6 +10,7 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.invoke.MethodHandle;
 import java.util.Arrays;
+import java.util.Objects;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
@@ -53,10 +54,40 @@ public final class OpenBlasFfmBridge {
     }
 
     /**
-     * Returns whether the optional OpenBLAS BF16 GEMM symbol is available and enabled.
+     * Returns whether any optional OpenBLAS BF16 GEMM symbol is available and enabled.
      */
     public static boolean isBFloat16GemmAvailable() {
+        return isBFloat16ToFloatGemmAvailable() || isBFloat16OutputGemmAvailable();
+    }
+
+    /**
+     * Returns whether OpenBLAS can multiply BF16 inputs and produce FLOAT32 output via {@code cblas_sbgemm}.
+     */
+    public static boolean isBFloat16ToFloatGemmAvailable() {
         return STATE.available && STATE.sbgemm != null;
+    }
+
+    /**
+     * Returns whether OpenBLAS can multiply BF16 inputs and produce BF16 output via {@code cblas_bgemm}.
+     */
+    public static boolean isBFloat16OutputGemmAvailable() {
+        return STATE.available && STATE.bgemm != null;
+    }
+
+    public static boolean isFloat32GemmAvailable() {
+        return STATE.available && STATE.sgemm != null;
+    }
+
+    public static boolean isFloat64GemmAvailable() {
+        return STATE.available && STATE.dgemm != null;
+    }
+
+    public static String lookupSource() {
+        return STATE.source == null ? "UNAVAILABLE" : STATE.source.name();
+    }
+
+    public static String threadPolicy() {
+        return "AUTO_UNCONTROLLED";
     }
 
     /**
@@ -151,6 +182,53 @@ public final class OpenBlasFfmBridge {
             copyFloatSegment(cSeg, c, cOffset, cLength);
         } catch (Throwable t) {
             throw new IllegalStateException("OpenBLAS FFM sgemm call failed", t);
+        }
+    }
+
+    /**
+     * Invokes row-major f32 GEMM directly over native memory segments.
+     */
+    public static void sgemmRowMajorNoTransSegment(
+            int m,
+            int n,
+            int k,
+            float alpha,
+            MemorySegment a,
+            long aByteOffset,
+            int lda,
+            MemorySegment b,
+            long bByteOffset,
+            int ldb,
+            float beta,
+            MemorySegment c,
+            long cByteOffset,
+            int ldc
+    ) {
+        if (!STATE.available || STATE.sgemm == null) {
+            throw new IllegalStateException("OpenBLAS FFM sgemm is unavailable: " + STATE.reason);
+        }
+        try {
+            MemorySegment aSeg = segmentSlice(a, aByteOffset, requiredElements(m, lda), Float.BYTES, "a");
+            MemorySegment bSeg = segmentSlice(b, bByteOffset, requiredElements(k, ldb), Float.BYTES, "b");
+            MemorySegment cSeg = segmentSlice(c, cByteOffset, requiredElements(m, ldc), Float.BYTES, "c");
+            STATE.sgemm.invokeExact(
+                    CBLAS_ROW_MAJOR,
+                    CBLAS_NO_TRANS,
+                    CBLAS_NO_TRANS,
+                    m,
+                    n,
+                    k,
+                    alpha,
+                    aSeg,
+                    lda,
+                    bSeg,
+                    ldb,
+                    beta,
+                    cSeg,
+                    ldc
+            );
+        } catch (Throwable t) {
+            throw new IllegalStateException("OpenBLAS FFM segment sgemm call failed", t);
         }
     }
 
@@ -250,6 +328,53 @@ public final class OpenBlasFfmBridge {
     }
 
     /**
+     * Invokes row-major f64 GEMM directly over native memory segments.
+     */
+    public static void dgemmRowMajorNoTransSegment(
+            int m,
+            int n,
+            int k,
+            double alpha,
+            MemorySegment a,
+            long aByteOffset,
+            int lda,
+            MemorySegment b,
+            long bByteOffset,
+            int ldb,
+            double beta,
+            MemorySegment c,
+            long cByteOffset,
+            int ldc
+    ) {
+        if (!STATE.available || STATE.dgemm == null) {
+            throw new IllegalStateException("OpenBLAS FFM dgemm is unavailable: " + STATE.reason);
+        }
+        try {
+            MemorySegment aSeg = segmentSlice(a, aByteOffset, requiredElements(m, lda), Double.BYTES, "a");
+            MemorySegment bSeg = segmentSlice(b, bByteOffset, requiredElements(k, ldb), Double.BYTES, "b");
+            MemorySegment cSeg = segmentSlice(c, cByteOffset, requiredElements(m, ldc), Double.BYTES, "c");
+            STATE.dgemm.invokeExact(
+                    CBLAS_ROW_MAJOR,
+                    CBLAS_NO_TRANS,
+                    CBLAS_NO_TRANS,
+                    m,
+                    n,
+                    k,
+                    alpha,
+                    aSeg,
+                    lda,
+                    bSeg,
+                    ldb,
+                    beta,
+                    cSeg,
+                    ldc
+            );
+        } catch (Throwable t) {
+            throw new IllegalStateException("OpenBLAS FFM segment dgemm call failed", t);
+        }
+    }
+
+    /**
      * Invokes row-major BF16 GEMM with f32 accumulation starting at array offset zero.
      */
     public static void sbgemmRowMajorNoTrans(
@@ -344,8 +469,219 @@ public final class OpenBlasFfmBridge {
         }
     }
 
+    /**
+     * Invokes row-major BF16 GEMM that writes BF16 output starting at array offset zero.
+     */
+    public static void bgemmRowMajorNoTrans(
+            int m,
+            int n,
+            int k,
+            short alpha,
+            short[] a,
+            int lda,
+            short[] b,
+            int ldb,
+            short beta,
+            short[] c,
+            int ldc
+    ) {
+        if (!STATE.available || STATE.bgemm == null) {
+            throw new IllegalStateException("OpenBLAS FFM bgemm is unavailable: " + STATE.reason);
+        }
+        try (Arena callArena = Arena.ofConfined()) {
+            int cLength = requiredElements(m, ldc);
+            MemorySegment aSeg = nativeShortSegment(callArena, a, 0, requiredElements(m, lda));
+            MemorySegment bSeg = nativeShortSegment(callArena, b, 0, requiredElements(k, ldb));
+            MemorySegment cSeg = nativeShortSegment(callArena, c, 0, cLength);
+            STATE.bgemm.invokeExact(
+                    CBLAS_ROW_MAJOR,
+                    CBLAS_NO_TRANS,
+                    CBLAS_NO_TRANS,
+                    m,
+                    n,
+                    k,
+                    alpha,
+                    aSeg,
+                    lda,
+                    bSeg,
+                    ldb,
+                    beta,
+                    cSeg,
+                    ldc
+            );
+            copyShortSegment(cSeg, c, 0, cLength);
+        } catch (Throwable t) {
+            throw new IllegalStateException("OpenBLAS FFM bgemm call failed", t);
+        }
+    }
+
+    /**
+     * Invokes row-major BF16 GEMM that writes BF16 output and supports explicit array offsets.
+     */
+    public static void bgemmRowMajorNoTransOffsets(
+            int m,
+            int n,
+            int k,
+            short alpha,
+            short[] a,
+            int aOffset,
+            int lda,
+            short[] b,
+            int bOffset,
+            int ldb,
+            short beta,
+            short[] c,
+            int cOffset,
+            int ldc
+    ) {
+        if (!STATE.available || STATE.bgemm == null) {
+            throw new IllegalStateException("OpenBLAS FFM bgemm is unavailable: " + STATE.reason);
+        }
+        try (Arena callArena = Arena.ofConfined()) {
+            int cLength = requiredElements(m, ldc);
+            MemorySegment aSeg = nativeShortSegment(callArena, a, aOffset, requiredElements(m, lda));
+            MemorySegment bSeg = nativeShortSegment(callArena, b, bOffset, requiredElements(k, ldb));
+            MemorySegment cSeg = nativeShortSegment(callArena, c, cOffset, cLength);
+            STATE.bgemm.invokeExact(
+                    CBLAS_ROW_MAJOR,
+                    CBLAS_NO_TRANS,
+                    CBLAS_NO_TRANS,
+                    m,
+                    n,
+                    k,
+                    alpha,
+                    aSeg,
+                    lda,
+                    bSeg,
+                    ldb,
+                    beta,
+                    cSeg,
+                    ldc
+            );
+            copyShortSegment(cSeg, c, cOffset, cLength);
+        } catch (Throwable t) {
+            throw new IllegalStateException("OpenBLAS FFM bgemm call failed", t);
+        }
+    }
+
+    /**
+     * Invokes row-major BF16 GEMM directly over native input segments and writes f32 output.
+     *
+     * <p>This method models the OpenBLAS {@code cblas_sbgemm} contract explicitly: inputs are BF16 raw
+     * bits and the output segment stores FLOAT32 accumulation results. It does not produce BF16 output
+     * storage and must not be reported as a BF16-output native route.</p>
+     */
+    public static void sbgemmRowMajorNoTransSegment(
+            int m,
+            int n,
+            int k,
+            float alpha,
+            MemorySegment aBf16,
+            long aByteOffset,
+            int lda,
+            MemorySegment bBf16,
+            long bByteOffset,
+            int ldb,
+            float beta,
+            MemorySegment cF32,
+            long cByteOffset,
+            int ldc
+    ) {
+        if (!STATE.available || STATE.sbgemm == null) {
+            throw new IllegalStateException("OpenBLAS FFM sbgemm is unavailable: " + STATE.reason);
+        }
+        try {
+            MemorySegment aSeg = segmentSlice(aBf16, aByteOffset, requiredElements(m, lda), Short.BYTES, "aBf16");
+            MemorySegment bSeg = segmentSlice(bBf16, bByteOffset, requiredElements(k, ldb), Short.BYTES, "bBf16");
+            MemorySegment cSeg = segmentSlice(cF32, cByteOffset, requiredElements(m, ldc), Float.BYTES, "cF32");
+            STATE.sbgemm.invokeExact(
+                    CBLAS_ROW_MAJOR,
+                    CBLAS_NO_TRANS,
+                    CBLAS_NO_TRANS,
+                    m,
+                    n,
+                    k,
+                    alpha,
+                    aSeg,
+                    lda,
+                    bSeg,
+                    ldb,
+                    beta,
+                    cSeg,
+                    ldc
+            );
+        } catch (Throwable t) {
+            throw new IllegalStateException("OpenBLAS FFM segment sbgemm call failed", t);
+        }
+    }
+
+    /**
+     * Invokes row-major BF16 GEMM directly over native BF16 segments and writes BF16 output.
+     */
+    public static void bgemmRowMajorNoTransSegment(
+            int m,
+            int n,
+            int k,
+            short alpha,
+            MemorySegment aBf16,
+            long aByteOffset,
+            int lda,
+            MemorySegment bBf16,
+            long bByteOffset,
+            int ldb,
+            short beta,
+            MemorySegment cBf16,
+            long cByteOffset,
+            int ldc
+    ) {
+        if (!STATE.available || STATE.bgemm == null) {
+            throw new IllegalStateException("OpenBLAS FFM bgemm is unavailable: " + STATE.reason);
+        }
+        try {
+            MemorySegment aSeg = segmentSlice(aBf16, aByteOffset, requiredElements(m, lda), Short.BYTES, "aBf16");
+            MemorySegment bSeg = segmentSlice(bBf16, bByteOffset, requiredElements(k, ldb), Short.BYTES, "bBf16");
+            MemorySegment cSeg = segmentSlice(cBf16, cByteOffset, requiredElements(m, ldc), Short.BYTES, "cBf16");
+            STATE.bgemm.invokeExact(
+                    CBLAS_ROW_MAJOR,
+                    CBLAS_NO_TRANS,
+                    CBLAS_NO_TRANS,
+                    m,
+                    n,
+                    k,
+                    alpha,
+                    aSeg,
+                    lda,
+                    bSeg,
+                    ldb,
+                    beta,
+                    cSeg,
+                    ldc
+            );
+        } catch (Throwable t) {
+            throw new IllegalStateException("OpenBLAS FFM segment bgemm call failed", t);
+        }
+    }
+
     private static int requiredElements(int rows, int leadingDim) {
         return Math.max(0, rows) * Math.max(0, leadingDim);
+    }
+
+    private static MemorySegment segmentSlice(
+            MemorySegment segment,
+            long byteOffset,
+            int elements,
+            int elementBytes,
+            String name
+    ) {
+        Objects.requireNonNull(segment, name + " segment cannot be null");
+        long byteLength = Math.multiplyExact(Math.max(0L, elements), Math.max(1L, elementBytes));
+        if (byteOffset < 0L || byteLength < 0L || byteOffset > segment.byteSize() || segment.byteSize() - byteOffset < byteLength) {
+            throw new IllegalArgumentException("OpenBLAS segment slice is outside backing storage for " + name
+                    + ". byteOffset=" + byteOffset
+                    + ", byteLength=" + byteLength
+                    + ", segmentBytes=" + segment.byteSize());
+        }
+        return segment.asSlice(byteOffset, byteLength);
     }
 
     private static MemorySegment nativeFloatSegment(Arena arena, float[] src, int offset, int length) {
@@ -366,6 +702,10 @@ public final class OpenBlasFfmBridge {
 
     private static void copyDoubleSegment(MemorySegment src, double[] dst, int offset, int length) {
         System.arraycopy(src.toArray(JAVA_DOUBLE), 0, dst, offset, length);
+    }
+
+    private static void copyShortSegment(MemorySegment src, short[] dst, int offset, int length) {
+        System.arraycopy(src.toArray(JAVA_SHORT), 0, dst, offset, length);
     }
 
     private static float[] copyRange(float[] src, int offset, int length) {
@@ -442,9 +782,29 @@ public final class OpenBlasFfmBridge {
             } catch (Throwable ignored) {
             }
 
-            return new State(true, null, lookupResolution.source(), arena, sgemm, dgemm, sbgemm);
+            MethodHandle bgemm = null;
+            try {
+                MemorySegment bgemmSym = lookup.find("cblas_bgemm").orElse(null);
+                if (bgemmSym != null) {
+                    bgemm = linker.downcallHandle(
+                            bgemmSym,
+                            FunctionDescriptor.ofVoid(
+                                    JAVA_INT, JAVA_INT, JAVA_INT,
+                                    JAVA_INT, JAVA_INT, JAVA_INT,
+                                    JAVA_SHORT,
+                                    ADDRESS, JAVA_INT,
+                                    ADDRESS, JAVA_INT,
+                                    JAVA_SHORT,
+                                    ADDRESS, JAVA_INT
+                            )
+                    );
+                }
+            } catch (Throwable ignored) {
+            }
+
+            return new State(true, null, lookupResolution.source(), arena, sgemm, dgemm, sbgemm, bgemm);
         } catch (Throwable t) {
-            return new State(false, t.getClass().getSimpleName() + ": " + safeMessage(t), null, null, null, null, null);
+            return new State(false, t.getClass().getSimpleName() + ": " + safeMessage(t), null, null, null, null, null, null);
         }
     }
 
@@ -499,8 +859,9 @@ public final class OpenBlasFfmBridge {
         private final MethodHandle sgemm;
         private final MethodHandle dgemm;
         private final MethodHandle sbgemm;
+        private final MethodHandle bgemm;
 
-        private State(boolean available, String reason, LookupSource source, Arena arenaRef, MethodHandle sgemm, MethodHandle dgemm, MethodHandle sbgemm) {
+        private State(boolean available, String reason, LookupSource source, Arena arenaRef, MethodHandle sgemm, MethodHandle dgemm, MethodHandle sbgemm, MethodHandle bgemm) {
             this.available = available;
             this.reason = reason;
             this.source = source;
@@ -508,6 +869,7 @@ public final class OpenBlasFfmBridge {
             this.sgemm = sgemm;
             this.dgemm = dgemm;
             this.sbgemm = sbgemm;
+            this.bgemm = bgemm;
         }
     }
 }

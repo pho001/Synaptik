@@ -49,6 +49,7 @@ import config.runtime.AcceleratorBufferConfig;
 import config.runtime.AcceleratorConfig;
 import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
+import config.runtime.BlasStorageMode;
 import config.runtime.Conv2dConfig;
 import config.runtime.FusedExecutionPolicy;
 import config.runtime.FusedPrimaryBackend;
@@ -322,6 +323,7 @@ public final class ExecutionProfileIO {
                     findDouble(json, "f32MaxNOverK", defaultProfile.runtime().blas().f32MaxNOverK()),
                     findBoolean(json, "f32WideRequireMgeK", defaultProfile.runtime().blas().f32WideRequireMgeK()),
                     findDouble(json, "f32WideMaxNOverK", defaultProfile.runtime().blas().f32WideMaxNOverK()),
+                    findEnum(json, "blasStorageMode", defaultProfile.runtime().blas().storageMode(), BlasStorageMode.class),
                     findBoolean(json, "debug", defaultProfile.runtime().blas().debug()),
                     findInt(json, "threads", defaultProfile.runtime().blas().threads())
             );
@@ -667,10 +669,11 @@ public final class ExecutionProfileIO {
                 "      \"provider\": \"" + blas.provider().name() + "\",\n" +
                 "      \"matmulMinWork\": " + blas.matmulMinWork() + ",\n" +
                 "      \"f32RequireMgeK\": " + blas.f32RequireMgeK() + ",\n" +
-                "      \"f32MaxNOverK\": " + blas.f32MaxNOverK() + ",\n" +
-                "      \"f32WideRequireMgeK\": " + blas.f32WideRequireMgeK() + ",\n" +
-                "      \"f32WideMaxNOverK\": " + blas.f32WideMaxNOverK() + ",\n" +
-                "      \"debug\": " + blas.debug() + ",\n" +
+              "      \"f32MaxNOverK\": " + blas.f32MaxNOverK() + ",\n" +
+              "      \"f32WideRequireMgeK\": " + blas.f32WideRequireMgeK() + ",\n" +
+              "      \"f32WideMaxNOverK\": " + blas.f32WideMaxNOverK() + ",\n" +
+              "      \"blasStorageMode\": \"" + blas.storageMode().name() + "\",\n" +
+              "      \"debug\": " + blas.debug() + ",\n" +
                 "      \"threads\": " + blas.threads() + "\n" +
                 "    },\n" +
                 "    \"conv2d\": {\n" +

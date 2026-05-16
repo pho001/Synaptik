@@ -201,6 +201,9 @@ public final class FrameworkEtalon {
                         blasMinWork,
                         base.blas().f32RequireMgeK(),
                         base.blas().f32MaxNOverK(),
+                        base.blas().f32WideRequireMgeK(),
+                        base.blas().f32WideMaxNOverK(),
+                        base.blas().storageMode(),
                         base.blas().debug(),
                         threads
                 )

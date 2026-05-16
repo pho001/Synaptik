@@ -1422,7 +1422,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void bfloat16LinearToReluPublishesFloatContinuationInInference() {
-        assumeTrue(OpenBlasFfmBridge.isBFloat16GemmAvailable(), "OpenBLAS BF16 GEMM is unavailable");
+        assumeTrue(OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
 
         Tensor input = new Tensor(new double[32 * 64], new int[]{32, 64}, null, "input", DataType.BFLOAT16);
         Tensor weight = new Tensor(new double[64 * 96], new int[]{64, 96}, null, "weight", DataType.BFLOAT16);
@@ -1445,7 +1445,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void bfloat16MatmulToAddPublishesFloatContinuationInInference() {
-        assumeTrue(OpenBlasFfmBridge.isBFloat16GemmAvailable(), "OpenBLAS BF16 GEMM is unavailable");
+        assumeTrue(OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
 
         Tensor a = new Tensor(new double[64 * 64], new int[]{64, 64}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(new double[64 * 96], new int[]{64, 96}, null, "b", DataType.BFLOAT16);
@@ -1529,7 +1529,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void bfloat16MatmulToFusedNumericChainPublishesFloatContinuationInInference() {
-        assumeTrue(OpenBlasFfmBridge.isBFloat16GemmAvailable(), "OpenBLAS BF16 GEMM is unavailable");
+        assumeTrue(OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
 
         Tensor a = new Tensor(new double[64 * 64], new int[]{64, 64}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(new double[64 * 96], new int[]{64, 96}, null, "b", DataType.BFLOAT16);

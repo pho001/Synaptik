@@ -2,6 +2,7 @@ package config.profile;
 
 import backend.blas.BlasProvider;
 import config.backend.CpuMatMulMicroKernel;
+import config.runtime.BlasStorageMode;
 
 import java.util.Objects;
 
@@ -20,6 +21,7 @@ import java.util.Objects;
  * @param f32MaxNOverK maximum {@code N / K} ratio for regular F32 BLAS dispatch
  * @param f32WideRequireMgeK whether F32 wide BLAS dispatch requires {@code M >= K}
  * @param f32WideMaxNOverK maximum {@code N / K} ratio for wide F32 BLAS dispatch
+ * @param blasStorageMode BLAS storage route policy
  * @param loopUnrollFactor scalar loop unroll factor used by CPU kernels
  * @param matMulTileM CPU matmul tile size in the M dimension
  * @param matMulTileN CPU matmul tile size in the N dimension
@@ -39,6 +41,7 @@ public record MatmulPlatformProfile(
         double f32MaxNOverK,
         boolean f32WideRequireMgeK,
         double f32WideMaxNOverK,
+        BlasStorageMode blasStorageMode,
         int loopUnrollFactor,
         int matMulTileM,
         int matMulTileN,
@@ -52,6 +55,7 @@ public record MatmulPlatformProfile(
 ) {
     public MatmulPlatformProfile {
         blasProvider = Objects.requireNonNull(blasProvider, "blasProvider cannot be null");
+        blasStorageMode = blasStorageMode == null ? BlasStorageMode.CPU_ARRAY : blasStorageMode;
         blasThreads = 0;
         attentionMatMulTileM = attentionMatMulTileM <= 0 ? matMulTileM : attentionMatMulTileM;
         attentionMatMulTileN = attentionMatMulTileN <= 0 ? matMulTileN : attentionMatMulTileN;
@@ -86,6 +90,47 @@ public record MatmulPlatformProfile(
             int blasThreads,
             boolean f32RequireMgeK,
             double f32MaxNOverK,
+            boolean f32WideRequireMgeK,
+            double f32WideMaxNOverK,
+            int loopUnrollFactor,
+            int matMulTileM,
+            int matMulTileN,
+            int matMulTileK,
+            int attentionMatMulTileM,
+            int attentionMatMulTileN,
+            int attentionMatMulTileK,
+            int matMulParallelMinSize,
+            CpuMatMulMicroKernel matMulMicroKernel,
+            CpuMatMulMicroKernel attentionMatMulMicroKernel
+    ) {
+        this(
+                blasProvider,
+                blasMatmulMinWork,
+                blasThreads,
+                f32RequireMgeK,
+                f32MaxNOverK,
+                f32WideRequireMgeK,
+                f32WideMaxNOverK,
+                BlasStorageMode.CPU_ARRAY,
+                loopUnrollFactor,
+                matMulTileM,
+                matMulTileN,
+                matMulTileK,
+                attentionMatMulTileM,
+                attentionMatMulTileN,
+                attentionMatMulTileK,
+                matMulParallelMinSize,
+                matMulMicroKernel,
+                attentionMatMulMicroKernel
+        );
+    }
+
+    public MatmulPlatformProfile(
+            BlasProvider blasProvider,
+            long blasMatmulMinWork,
+            int blasThreads,
+            boolean f32RequireMgeK,
+            double f32MaxNOverK,
             int loopUnrollFactor,
             int matMulTileM,
             int matMulTileN,
@@ -105,6 +150,7 @@ public record MatmulPlatformProfile(
                 f32MaxNOverK,
                 f32RequireMgeK,
                 f32MaxNOverK,
+                BlasStorageMode.CPU_ARRAY,
                 loopUnrollFactor,
                 matMulTileM,
                 matMulTileN,

@@ -25,11 +25,12 @@ final class CpuOperationPlanResolver {
             CpuExecutionPlanner planner,
             BlasConfig blasConfig,
             Conv2dConfig conv2dConfig,
+            boolean publishFloatContinuation,
             ResolvedDispatchHints dispatchHintsOverride
     ) {
         ResolvedMatMulHints matMulHints =
                 (op != null && (op.opType() == Operation.OpType.MATMUL || op.opType() == Operation.OpType.LINEAR) && runtimeInputs.size() >= 2)
-                        ? planner.resolveMatMulHints(runtimeInputs.get(0), runtimeInputs.get(1), node, blasConfig)
+                        ? planner.resolveMatMulHints(runtimeInputs.get(0), runtimeInputs.get(1), node, blasConfig, publishFloatContinuation)
                         : null;
 
         ResolvedConv2dHints conv2dHints = planner.resolveConv2dHints(op, runtimeInputs, node, conv2dConfig);
