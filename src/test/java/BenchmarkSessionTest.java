@@ -1307,6 +1307,8 @@ public class BenchmarkSessionTest {
                 Map.entry("nativeCpuRegionFallbackReason", ""),
                 Map.entry("nativeCpuRegionProviderNodes", List.of(2)),
                 Map.entry("nativeCpuRegionLocalKernelNodes", List.of(3)),
+                Map.entry("nativeCpuRegionSegmentScalarNodes", List.of(3)),
+                Map.entry("nativeCpuRegionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT", "SEGMENT_SCALAR")),
                 Map.entry("nativeCpuRegionOutputs", List.of(3))
         );
         var rejectedAttrs = Map.<String, Object>ofEntries(
@@ -1381,7 +1383,7 @@ public class BenchmarkSessionTest {
 
         String text = TextBenchmarkReportRenderer.render(report);
         assertTrue(text.contains("nativeCpuRegionSummary=selectedRegionCount=1 rejectedRegionCount=1 nativeRouteCount=1 fallbackCount=1"));
-        assertTrue(text.contains("providerNodeCount=1 localKernelNodeCount=1 boundaryOutputCount=2"));
+        assertTrue(text.contains("providerNodeCount=1 localKernelNodeCount=1 segmentScalarNodeCount=1 boundaryOutputCount=2"));
         assertTrue(text.contains("fallbackReasons=[native-cpu-region-provider-unavailable:matmul]"));
         assertTrue(text.contains("rejectionReasons=[native-cpu-region-provider-unavailable:matmul]"));
 
@@ -1389,6 +1391,7 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"nativeCpuRegion\": {\"selectedRegionCount\": 1, \"rejectedRegionCount\": 1, \"nativeRouteCount\": 1, \"fallbackCount\": 1"));
         assertTrue(json.contains("\"providerNodeCount\": 1"));
         assertTrue(json.contains("\"localKernelNodeCount\": 1"));
+        assertTrue(json.contains("\"segmentScalarNodeCount\": 1"));
         assertTrue(json.contains("\"boundaryOutputCount\": 2"));
         assertTrue(json.contains("\"rejectionReasons\": [\"native-cpu-region-provider-unavailable:matmul\"]"));
     }

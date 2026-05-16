@@ -153,6 +153,7 @@ public final class TextBenchmarkReportRenderer {
                 .append(" fallbackCount=").append(summary.fallbackCount())
                 .append(" providerNodeCount=").append(summary.providerNodeCount())
                 .append(" localKernelNodeCount=").append(summary.localKernelNodeCount())
+                .append(" segmentScalarNodeCount=").append(summary.segmentScalarNodeCount())
                 .append(" boundaryOutputCount=").append(summary.boundaryOutputCount())
                 .append(" fallbackReasons=").append(summary.fallbackReasons())
                 .append(" rejectionReasons=").append(summary.rejectionReasons())
@@ -337,6 +338,7 @@ public final class TextBenchmarkReportRenderer {
             int fallbackCount,
             int providerNodeCount,
             int localKernelNodeCount,
+            int segmentScalarNodeCount,
             int boundaryOutputCount,
             java.util.List<String> fallbackReasons,
             java.util.List<String> rejectionReasons,
@@ -352,6 +354,7 @@ public final class TextBenchmarkReportRenderer {
             int fallbacks = 0;
             int providers = 0;
             int localKernels = 0;
+            int segmentScalarNodes = 0;
             int boundaries = 0;
             java.util.LinkedHashSet<String> fallbackReasons = new java.util.LinkedHashSet<>();
             java.util.LinkedHashSet<String> rejectionReasons = new java.util.LinkedHashSet<>();
@@ -386,6 +389,7 @@ public final class TextBenchmarkReportRenderer {
                 }
                 providers += listSize(attrs.get("nativeCpuRegionProviderNodes"));
                 localKernels += listSize(attrs.get("nativeCpuRegionLocalKernelNodes"));
+                segmentScalarNodes += nativeCpuRegionSegmentScalarNodeCount(attrs);
                 boundaries += listSize(attrs.get("nativeCpuRegionOutputs"));
             }
             return new NativeCpuRegionTraceSummary(
@@ -395,6 +399,7 @@ public final class TextBenchmarkReportRenderer {
                     fallbacks,
                     providers,
                     localKernels,
+                    segmentScalarNodes,
                     boundaries,
                     java.util.List.copyOf(fallbackReasons),
                     java.util.List.copyOf(rejectionReasons),
@@ -403,7 +408,8 @@ public final class TextBenchmarkReportRenderer {
         }
 
         private static NativeCpuRegionTraceSummary empty(boolean present) {
-            return new NativeCpuRegionTraceSummary(0, 0, 0, 0, 0, 0, 0, java.util.List.of(), java.util.List.of(), present);
+            return new NativeCpuRegionTraceSummary(0, 0, 0, 0, 0, 0, 0, 0,
+                    java.util.List.of(), java.util.List.of(), present);
         }
     }
 
@@ -1122,6 +1128,24 @@ public final class TextBenchmarkReportRenderer {
             return collection.size();
         }
         return 0;
+    }
+
+    private static int nativeCpuRegionSegmentScalarNodeCount(Map<String, Object> attrs) {
+        int explicitCount = listSize(attrs.get("nativeCpuRegionSegmentScalarNodes"));
+        if (explicitCount > 0) {
+            return explicitCount;
+        }
+        Object kernels = attrs.get("nativeCpuRegionPhysicalKernels");
+        if (!(kernels instanceof java.util.Collection<?> collection)) {
+            return 0;
+        }
+        int count = 0;
+        for (Object kernel : collection) {
+            if ("SEGMENT_SCALAR".equals(String.valueOf(kernel))) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static void appendMetalRouteCostSummary(StringBuilder sb, graph.execution.trace.ExecutionStepTrace step) {

@@ -662,6 +662,22 @@ public final class PreparedExecution implements AutoCloseable {
                             .filter(nodePlan -> nodePlan.regionRole() == RegionRole.VIEW_ALIAS)
                             .map(backend.lowering.region.RegionNodePlan::nodeId)
                             .toList());
+                    attrs.put("nativeCpuRegionPhysicalKernels", regionPlan.nodePlans().stream()
+                            .map(backend.lowering.region.RegionNodePlan::physicalKernel)
+                            .toList());
+                    attrs.put("nativeCpuRegionExecutionKinds", regionPlan.nodePlans().stream()
+                            .map(nodePlan -> nodePlan.executionKind().name())
+                            .toList());
+                    attrs.put("nativeCpuRegionStorageContracts", regionPlan.nodePlans().stream()
+                            .map(nodePlan -> nodePlan.storageContract().name())
+                            .toList());
+                    attrs.put("nativeCpuRegionNodeReasons", regionPlan.nodePlans().stream()
+                            .map(backend.lowering.region.RegionNodePlan::reason)
+                            .toList());
+                    attrs.put("nativeCpuRegionSegmentScalarNodes", regionPlan.nodePlans().stream()
+                            .filter(nodePlan -> "SEGMENT_SCALAR".equals(nodePlan.physicalKernel()))
+                            .map(backend.lowering.region.RegionNodePlan::nodeId)
+                            .toList());
                     attrs.put("nativeCpuRegionFallbackPlanCount", payload.fallbackPlans().size());
                 }
             }
