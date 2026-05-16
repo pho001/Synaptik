@@ -153,6 +153,97 @@ class TrainingOptimizerTest {
     }
 
     @Test
+    void nativeF32AdamMatchesArrayBaselineAndPublishesOnlyOnSync() {
+        Tensor baselineW = new Tensor(new float[]{1.0f, 2.0f}, new int[]{2}, null, "baseline_w", DataType.FLOAT32);
+        Tensor baselineX = new Tensor(new float[]{2.0f, 3.0f}, new int[]{2}, null, "baseline_x", DataType.FLOAT32);
+        baselineW.setTrainableParameter(true);
+        baselineX.setRequiresGrad(true);
+        Tensor baselineLoss = baselineW.mul(baselineX).sum();
+        CompiledGraph.compile(baselineLoss, CompileConfig.training())
+                .prepare(RuntimeConfig.trainingDefaults())
+                .executeOptimizerStep(new AdamOptimizer(0.1f), PublicationPolicy.OUTPUT_ONLY);
+
+        Tensor nativeW = new Tensor(new float[]{1.0f, 2.0f}, new int[]{2}, null, "native_w", DataType.FLOAT32);
+        Tensor nativeX = new Tensor(new float[]{2.0f, 3.0f}, new int[]{2}, null, "native_x", DataType.FLOAT32);
+        nativeW.setTrainableParameter(true);
+        nativeX.setRequiresGrad(true);
+        Tensor nativeLoss = nativeW.mul(nativeX).sum();
+        PreparedExecution prepared = CompiledGraph.compile(nativeLoss, CompileConfig.training())
+                .prepare(nativeTrainingRuntime());
+        AdamOptimizer optimizer = new AdamOptimizer(0.1f);
+
+        var trace = prepared.executeOptimizerStepTraced(optimizer, PublicationPolicy.OUTPUT_ONLY);
+
+        assertArrayEquals(new float[]{1.0f, 2.0f}, nativeW.getFloat32Data(), 0.0f);
+        assertNull(nativeW.getGradient());
+        assertNull(nativeX.getGradient());
+        assertEquals(1, trace.nativeOptimizers().size());
+        assertEquals("AdamOptimizer", trace.nativeOptimizers().getFirst().optimizer());
+        assertEquals("CPU_NATIVE", trace.nativeOptimizers().getFirst().route());
+        assertEquals(DataType.FLOAT32, trace.nativeOptimizers().getFirst().dataType());
+
+        optimizer.syncParametersToCpu();
+
+        assertArrayEquals(baselineW.getFloat32Data(), nativeW.getFloat32Data(), 1.0e-6f);
+    }
+
+    @Test
+    void nativeF32AdamPreservesOptimizerStateAcrossSteps() {
+        Tensor baselineW = new Tensor(new float[]{1.0f, 2.0f}, new int[]{2}, null, "baseline_w", DataType.FLOAT32);
+        Tensor baselineX = new Tensor(new float[]{2.0f, 3.0f}, new int[]{2}, null, "baseline_x", DataType.FLOAT32);
+        baselineW.setTrainableParameter(true);
+        baselineX.setRequiresGrad(true);
+        Tensor baselineLoss = baselineW.mul(baselineX).sum();
+        PreparedExecution baselinePrepared = CompiledGraph.compile(baselineLoss, CompileConfig.training())
+                .prepare(RuntimeConfig.trainingDefaults());
+        AdamOptimizer baselineOptimizer = new AdamOptimizer(0.1f);
+        baselinePrepared.executeOptimizerStep(baselineOptimizer, PublicationPolicy.OUTPUT_ONLY);
+        baselinePrepared.executeOptimizerStep(baselineOptimizer, PublicationPolicy.OUTPUT_ONLY);
+
+        Tensor nativeW = new Tensor(new float[]{1.0f, 2.0f}, new int[]{2}, null, "native_w", DataType.FLOAT32);
+        Tensor nativeX = new Tensor(new float[]{2.0f, 3.0f}, new int[]{2}, null, "native_x", DataType.FLOAT32);
+        nativeW.setTrainableParameter(true);
+        nativeX.setRequiresGrad(true);
+        Tensor nativeLoss = nativeW.mul(nativeX).sum();
+        PreparedExecution nativePrepared = CompiledGraph.compile(nativeLoss, CompileConfig.training())
+                .prepare(nativeTrainingRuntime());
+        AdamOptimizer nativeOptimizer = new AdamOptimizer(0.1f);
+
+        var first = nativePrepared.executeOptimizerStepTraced(nativeOptimizer, PublicationPolicy.OUTPUT_ONLY);
+        var second = nativePrepared.executeOptimizerStepTraced(nativeOptimizer, PublicationPolicy.OUTPUT_ONLY);
+
+        assertEquals("CPU_NATIVE", first.nativeOptimizers().getFirst().route());
+        assertEquals("CPU_NATIVE", second.nativeOptimizers().getFirst().route());
+        assertNull(nativeW.getGradient());
+        assertNull(nativeX.getGradient());
+
+        nativeOptimizer.syncParametersToCpu();
+
+        assertArrayEquals(baselineW.getFloat32Data(), nativeW.getFloat32Data(), 1.0e-6f);
+    }
+
+    @Test
+    void nativeAdamTraceReportsArrayFallbackForUnsupportedDType() {
+        Tensor w = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "w", DataType.FLOAT64);
+        Tensor x = new Tensor(new double[]{2.0, 3.0}, new int[]{2}, null, "x", DataType.FLOAT64);
+        w.setTrainableParameter(true);
+        x.setRequiresGrad(true);
+        Tensor loss = w.mul(x).sum();
+        PreparedExecution prepared = CompiledGraph.compile(loss, CompileConfig.training())
+                .prepare(nativeTrainingRuntime());
+
+        var trace = prepared.executeOptimizerStepTraced(new AdamOptimizer(0.1f), PublicationPolicy.OUTPUT_ONLY);
+
+        assertEquals(1, trace.nativeOptimizers().size());
+        assertEquals("AdamOptimizer", trace.nativeOptimizers().getFirst().optimizer());
+        assertEquals("CPU_ARRAY", trace.nativeOptimizers().getFirst().route());
+        assertTrue(trace.nativeOptimizers().getFirst().fallbackReason().contains("dtype-FLOAT64"));
+        assertArrayEquals(new double[]{0.9, 1.9}, w.getFloat64Data(), 1.0e-5);
+        assertNull(w.getGradient());
+        assertNull(x.getGradient());
+    }
+
+    @Test
     void explicitOptimizerParameterListCannotUpdateNonTrainableGradientTensors() {
         Tensor w = new Tensor(new float[]{1.0f, 2.0f}, new int[]{2}, null, "w", DataType.FLOAT32);
         Tensor x = new Tensor(new float[]{2.0f, 3.0f}, new int[]{2}, null, "x", DataType.FLOAT32);
