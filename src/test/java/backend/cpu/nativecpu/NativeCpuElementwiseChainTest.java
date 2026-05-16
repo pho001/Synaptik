@@ -588,6 +588,59 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void cpuNativeBf16PromotedBinaryOpsKeepOutputNativeAndPublishValues() {
+        float[] left = new float[]{1.25f, -2.5f, 3.75f, -4.5f};
+        float[] right = new float[]{0.5f, 1.5f, -2.0f, -0.25f};
+
+        assertNativeBf16PromotedValues(
+                bf16(left, "bf16_add_left").add(bf16(right, "bf16_add_right")).cast(DataType.FLOAT32),
+                "ADD",
+                promotedBf16Binary(left, right, "ADD")
+        );
+        assertNativeBf16PromotedValues(
+                bf16(left, "bf16_sub_left").sub(bf16(right, "bf16_sub_right")).cast(DataType.FLOAT32),
+                "SUB",
+                promotedBf16Binary(left, right, "SUB")
+        );
+        assertNativeBf16PromotedValues(
+                bf16(left, "bf16_mul_left").mul(bf16(right, "bf16_mul_right")).cast(DataType.FLOAT32),
+                "MUL",
+                promotedBf16Binary(left, right, "MUL")
+        );
+        assertNativeBf16PromotedValues(
+                bf16(left, "bf16_div_left").div(bf16(new float[]{0.5f, -2.0f, 1.5f, -0.25f}, "bf16_div_right")).cast(DataType.FLOAT32),
+                "DIV",
+                promotedBf16Binary(left, new float[]{0.5f, -2.0f, 1.5f, -0.25f}, "DIV")
+        );
+    }
+
+    @Test
+    void cpuNativeBf16PromotedUnaryOpsKeepOutputNativeAndPublishValues() {
+        float[] values = new float[]{-2.5f, -0.25f, 0.5f, 3.75f};
+
+        assertNativeBf16PromotedValues(
+                bf16(values, "bf16_neg").neg().cast(DataType.FLOAT32),
+                "NEG",
+                promotedBf16Unary(values, "NEG", 0.0f)
+        );
+        assertNativeBf16PromotedValues(
+                bf16(values, "bf16_relu").relu().cast(DataType.FLOAT32),
+                "RELU",
+                promotedBf16Unary(values, "RELU", 0.0f)
+        );
+        assertNativeBf16PromotedValues(
+                bf16(values, "bf16_abs").abs().cast(DataType.FLOAT32),
+                "ABS",
+                promotedBf16Unary(values, "ABS", 0.0f)
+        );
+        assertNativeBf16PromotedValues(
+                bf16(values, "bf16_mul_scalar").mul(0.5d).cast(DataType.FLOAT32),
+                "MUL_SCALAR",
+                promotedBf16Unary(values, "MUL_SCALAR", 0.5f)
+        );
+    }
+
+    @Test
     void cpuNativeF64AddMulNegChainKeepsOutputsNativeAndPublishesValues() {
         Tensor out = f64(new double[]{1.0d, -2.0d, 3.0d, -4.0d}, "f64_a")
                 .add(f64(new double[]{0.5d, 2.0d, -1.0d, 8.0d}, "f64_b"))
@@ -1081,6 +1134,42 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void unsupportedCpuNativeBf16ElementwiseFallsBackToArrayWithTraceReason() {
+        Tensor out = bf16(new float[]{1.0f, 2.0f, 4.0f, 8.0f}, "bf16_log").log();
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> log = attrs(trace.steps().stream()
+                .filter(step -> "LOG".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals("CPU_NATIVE", log.get("requestedCpuStorage"));
+        assertEquals("CPU_ARRAY", log.get("actualCpuStorage"));
+        assertEquals("NATIVE_UNSUPPORTED", log.get("nativeCpuKernelStatus"));
+        assertEquals("ARRAY_ONLY", log.get("nativeCpuKernelFamily"));
+        assertEquals("native-kernel-unsupported:log", log.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_ARRAY", log.get("storageResidency"));
+        assertFalse(log.containsKey("storagePrecision"));
+        assertFalse(log.containsKey("computePrecision"));
+    }
+
+    @Test
+    void requireNativeRejectsUnsupportedCpuNativeBf16Elementwise() {
+        Tensor out = bf16(new float[]{1.0f, 2.0f, 4.0f, 8.0f}, "bf16_log").log();
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+        );
+
+        assertTrue(failure.getMessage().contains("Native CPU execution required"));
+        assertTrue(failure.getMessage().contains("native-kernel-unsupported:log"));
+    }
+
+    @Test
     void autoStorageDoesNotUseNativeElementwiseSlice() {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 
@@ -1257,6 +1346,24 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void autoStorageDoesNotUseNativeBf16ElementwiseSlice() {
+        Tensor out = bf16(new float[]{1f, 2f, 3f, 4f}, "bf16_auto_left")
+                .add(bf16(new float[]{4f, 3f, 2f, 1f}, "bf16_auto_right"))
+                .cast(DataType.FLOAT32);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> add = attrs(trace.steps().stream()
+                .filter(step -> "ADD".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertFalse(add.containsKey("nativeCpuKernelStatus"));
+        assertEquals("CPU_ARRAY", add.get("storageResidency"));
+    }
+
+    @Test
     void autoStorageDoesNotUseNativeF64ElementwiseOrReductionSlices() {
         Tensor out = f64(new double[]{1.0d, 2.0d, 3.0d, 4.0d}, "f64_a")
                 .add(f64(new double[]{4.0d, 3.0d, 2.0d, 1.0d}, "f64_b"))
@@ -1384,6 +1491,14 @@ class NativeCpuElementwiseChainTest {
         return new Tensor(values, shape, null, label, DataType.BOOL);
     }
 
+    private static Tensor bf16(float[] values, String label) {
+        short[] bits = new short[values.length];
+        for (int i = 0; i < values.length; i++) {
+            bits[i] = CpuDTypeOps.toBFloat16Bits(values[i]);
+        }
+        return new Tensor(bits, new int[]{2, 2}, null, label, DataType.BFLOAT16);
+    }
+
     private static void assertNativeReduction(ExecutionStepTrace step) {
         Map<String, Object> reduction = attrs(step);
         assertEquals("CPU_NATIVE", reduction.get("actualCpuStorage"));
@@ -1452,6 +1567,66 @@ class NativeCpuElementwiseChainTest {
                 .filter(step -> opType.equals(step.opType()))
                 .findFirst()
                 .orElseThrow());
+    }
+
+    private static void assertNativeBf16PromotedValues(Tensor out, String opType, float[] expected) {
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(expected, out.getFloat32Data(), 1.0e-6f);
+        assertNativeBf16Promoted(trace.steps().stream()
+                .filter(step -> opType.equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+    }
+
+    private static void assertNativeBf16Promoted(ExecutionStepTrace step) {
+        Map<String, Object> attrs = attrs(step);
+        assertEquals("CPU_NATIVE", attrs.get("requestedCpuStorage"));
+        assertEquals("CPU_NATIVE", attrs.get("actualCpuStorage"));
+        assertEquals("NATIVE_CORRECT_BUT_SLOW", attrs.get("nativeCpuKernelStatus"));
+        assertEquals("SEGMENT_SCALAR", attrs.get("nativeCpuKernelFamily"));
+        assertEquals("", attrs.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", attrs.get("storageResidency"));
+        assertEquals("BF16", attrs.get("storagePrecision"));
+        assertEquals("F32_PROMOTED", attrs.get("computePrecision"));
+    }
+
+    private static float[] promotedBf16Binary(float[] left, float[] right, String opType) {
+        float[] out = new float[left.length];
+        for (int i = 0; i < left.length; i++) {
+            float leftValue = roundBf16(left[i]);
+            float rightValue = roundBf16(right[i]);
+            float result = switch (opType) {
+                case "ADD" -> leftValue + rightValue;
+                case "SUB" -> leftValue - rightValue;
+                case "MUL" -> leftValue * rightValue;
+                case "DIV" -> leftValue / rightValue;
+                default -> throw new IllegalArgumentException("Unsupported test op: " + opType);
+            };
+            out[i] = roundBf16(result);
+        }
+        return out;
+    }
+
+    private static float[] promotedBf16Unary(float[] values, String opType, float scalar) {
+        float[] out = new float[values.length];
+        for (int i = 0; i < values.length; i++) {
+            float value = roundBf16(values[i]);
+            float result = switch (opType) {
+                case "MUL_SCALAR" -> value * scalar;
+                case "NEG" -> -value;
+                case "RELU" -> Math.max(0.0f, value);
+                case "ABS" -> Math.abs(value);
+                default -> throw new IllegalArgumentException("Unsupported test op: " + opType);
+            };
+            out[i] = roundBf16(result);
+        }
+        return out;
+    }
+
+    private static float roundBf16(float value) {
+        return CpuDTypeOps.fromBFloat16Bits(CpuDTypeOps.toBFloat16Bits(value));
     }
 
     private static Map<String, Object> attrs(ExecutionStepTrace step) {

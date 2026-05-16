@@ -1,5 +1,6 @@
 package backend.cpu.nativecpu;
 
+import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.elementwise.ElementwiseLoops;
 import backend.cpu.kernels.elementwise.binary.BinaryElementwiseKernel;
@@ -14,6 +15,7 @@ import config.runtime.NativeCpuFailurePolicy;
 import operations.Operation;
 import operations.elementwise.unary.mulScalar;
 import tensor.DataType;
+import tensor.NativeBFloat16Storage;
 import tensor.NativeFloat32Storage;
 import tensor.NativeFloat64Storage;
 import tensor.NativeTensorStorage;
@@ -112,6 +114,12 @@ public final class NativeCpuElementwiseExecutor {
                 runDenseUnaryF64(op, input, f64Out, node.getFlatDataSize());
                 f64Out.markModified();
                 out = f64Out;
+            } else if (node.getDataType() == DataType.BFLOAT16) {
+                NativeBFloat16Storage input = requireBF16NativeInput(context, 0, label.toUpperCase());
+                NativeBFloat16Storage bf16Out = allocateBF16(node, context, label);
+                runDenseUnaryBF16(op, input, bf16Out, node.getFlatDataSize());
+                bf16Out.markModified();
+                out = bf16Out;
             } else {
                 NativeFloat32Storage input = requireF32NativeInput(context, 0, label.toUpperCase());
                 NativeFloat32Storage f32Out = allocateF32(node, context, label);
@@ -157,6 +165,12 @@ public final class NativeCpuElementwiseExecutor {
                 runDenseUnaryF64(op, input, f64Out, node.getFlatDataSize());
                 f64Out.markModified();
                 out = f64Out;
+            } else if (node.getDataType() == DataType.BFLOAT16) {
+                NativeBFloat16Storage input = requireBF16NativeInput(context, 0, label.toUpperCase());
+                NativeBFloat16Storage bf16Out = allocateBF16(node, context, label);
+                runDenseUnaryBF16(op, input, bf16Out, node.getFlatDataSize());
+                bf16Out.markModified();
+                out = bf16Out;
             } else {
                 NativeFloat32Storage input = requireF32NativeInput(context, 0, label.toUpperCase());
                 NativeFloat32Storage f32Out = allocateF32(node, context, label);
@@ -218,6 +232,13 @@ public final class NativeCpuElementwiseExecutor {
                 runDenseBinaryF64(op.opType(), left, right, f64Out, node.getFlatDataSize());
                 f64Out.markModified();
                 out = f64Out;
+            } else if (node.getDataType() == DataType.BFLOAT16) {
+                NativeBFloat16Storage left = requireBF16NativeInput(context, 0, label.toUpperCase());
+                NativeBFloat16Storage right = requireBF16NativeInput(context, 1, label.toUpperCase());
+                NativeBFloat16Storage bf16Out = allocateBF16(node, context, label);
+                runDenseBinaryBF16(op.opType(), left, right, bf16Out, node.getFlatDataSize());
+                bf16Out.markModified();
+                out = bf16Out;
             } else {
                 NativeFloat32Storage left = requireF32NativeInput(context, 0, label.toUpperCase());
                 NativeFloat32Storage right = requireF32NativeInput(context, 1, label.toUpperCase());
@@ -319,6 +340,20 @@ public final class NativeCpuElementwiseExecutor {
         }
     }
 
+    private static void runDenseBinaryBF16(
+            Operation.OpType opType,
+            NativeBFloat16Storage left,
+            NativeBFloat16Storage right,
+            NativeBFloat16Storage out,
+            int size
+    ) {
+        for (int i = 0; i < size; i++) {
+            float leftValue = CpuDTypeOps.fromBFloat16Bits(left.getBFloat16BitsAt(i));
+            float rightValue = CpuDTypeOps.fromBFloat16Bits(right.getBFloat16BitsAt(i));
+            out.setBFloat16BitsAt(i, CpuDTypeOps.toBFloat16Bits(applyBinary(opType, leftValue, rightValue)));
+        }
+    }
+
     private static void runDenseUnaryF32(
             Operation op,
             NativeFloat32Storage input,
@@ -341,6 +376,14 @@ public final class NativeCpuElementwiseExecutor {
             long offset = (long) i * Double.BYTES;
             double value = input.segment().get(JAVA_DOUBLE, offset);
             out.segment().set(JAVA_DOUBLE, offset, applyUnary(op.opType(), value, scalar));
+        }
+    }
+
+    private static void runDenseUnaryBF16(Operation op, NativeBFloat16Storage input, NativeBFloat16Storage out, int size) {
+        float scalar = scalarParameter(op);
+        for (int i = 0; i < size; i++) {
+            float value = CpuDTypeOps.fromBFloat16Bits(input.getBFloat16BitsAt(i));
+            out.setBFloat16BitsAt(i, CpuDTypeOps.toBFloat16Bits(applyUnaryBF16(op.opType(), value, scalar)));
         }
     }
 
@@ -411,10 +454,26 @@ public final class NativeCpuElementwiseExecutor {
         };
     }
 
+    private static float applyUnaryBF16(Operation.OpType opType, float value, float scalar) {
+        return switch (opType) {
+            case MUL_SCALAR -> value * scalar;
+            case NEG -> -value;
+            case RELU -> Math.max(0.0f, value);
+            case ABS -> Math.abs(value);
+            default -> throw new IllegalArgumentException("Unsupported native BF16 unary op: " + opType);
+        };
+    }
+
     private static boolean isNativeUnaryOp(Operation.OpType opType, DataType dataType) {
         if (dataType == DataType.FLOAT64) {
             return opType == Operation.OpType.MUL_SCALAR
                     || opType == Operation.OpType.NEG;
+        }
+        if (dataType == DataType.BFLOAT16) {
+            return opType == Operation.OpType.MUL_SCALAR
+                    || opType == Operation.OpType.NEG
+                    || opType == Operation.OpType.RELU
+                    || opType == Operation.OpType.ABS;
         }
         return dataType == DataType.FLOAT32
                 && (opType == Operation.OpType.MUL_SCALAR
@@ -445,7 +504,7 @@ public final class NativeCpuElementwiseExecutor {
     }
 
     private static boolean isNativeBinaryOp(Operation.OpType opType, DataType dataType) {
-        return (dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64)
+        return (dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64 || dataType == DataType.BFLOAT16)
                 && (opType == Operation.OpType.ADD
                 || opType == Operation.OpType.SUB
                 || opType == Operation.OpType.MUL
@@ -594,6 +653,15 @@ public final class NativeCpuElementwiseExecutor {
         throw new IllegalStateException("native " + op + " requires FLOAT64 native input storage");
     }
 
+    private static NativeBFloat16Storage requireBF16NativeInput(CpuKernelContext context, int inputIndex, String op) {
+        int inputNodeId = context.inputNodeIds().get(inputIndex);
+        NativeTensorStorage storage = context.executionContext().requireNativeReadable(inputNodeId, CpuMaterializationReason.CPU_CONSUMER);
+        if (storage instanceof NativeBFloat16Storage bf16) {
+            return bf16;
+        }
+        throw new IllegalStateException("native " + op + " requires BFLOAT16 native input storage");
+    }
+
     private static NativeFloat32Storage allocateF32(Tensor node, CpuKernelContext context, String label) {
         return (NativeFloat32Storage) new NativeCpuStorageFactory().allocate(
                 DataType.FLOAT32,
@@ -610,10 +678,22 @@ public final class NativeCpuElementwiseExecutor {
         );
     }
 
+    private static NativeBFloat16Storage allocateBF16(Tensor node, CpuKernelContext context, String label) {
+        return (NativeBFloat16Storage) new NativeCpuStorageFactory().allocate(
+                DataType.BFLOAT16,
+                node.getFlatDataSize(),
+                "node-" + context.nodeId() + ":" + node.getLabel() + ":native-bf16-" + label
+        );
+    }
+
     private static void publishTrace(CpuKernelContext context, NativeCpuKernelFact fact, String actualCpuStorage, String fallbackReason) {
         var runtime = context.executionContext().runtimeConfig();
+        Tensor runtimeTensor = context.executionContext().runtimeTensorForNodeId(context.nodeId());
+        boolean bf16Promoted = runtimeTensor.getDataType() == DataType.BFLOAT16
+                && "CPU_NATIVE".equals(actualCpuStorage)
+                && (fallbackReason == null || fallbackReason.isBlank());
         context.putRuntimeState(
-                context.executionContext().runtimeTensorForNodeId(context.nodeId()),
+                runtimeTensor,
                 new NativeCpuTraceState(
                         runtime.cpuStorageProfile().name(),
                         runtime.nativeCpuFailurePolicy().name(),
@@ -621,7 +701,9 @@ public final class NativeCpuElementwiseExecutor {
                         actualCpuStorage,
                         fact.status().name(),
                         fact.family().name(),
-                        fallbackReason
+                        fallbackReason,
+                        bf16Promoted ? "BF16" : "",
+                        bf16Promoted ? "F32_PROMOTED" : ""
                 )
         );
     }
@@ -654,7 +736,7 @@ public final class NativeCpuElementwiseExecutor {
     }
 
     private static boolean supportsNativeElementwiseDType(DataType dataType) {
-        return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64;
+        return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64 || dataType == DataType.BFLOAT16;
     }
 
     private static String safeMessage(Throwable t) {

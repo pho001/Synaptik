@@ -233,6 +233,48 @@ class NativeCpuKernelFactsTest {
     }
 
     @Test
+    void bf16PromotedElementwiseMvpOpsHaveNativeSegmentScalarFacts() {
+        NativeCpuKernelFact add = NativeCpuKernelFacts.factFor(Operation.OpType.ADD, DataType.BFLOAT16);
+        NativeCpuKernelFact sub = NativeCpuKernelFacts.factFor(Operation.OpType.SUB, DataType.BFLOAT16);
+        NativeCpuKernelFact mul = NativeCpuKernelFacts.factFor(Operation.OpType.MUL, DataType.BFLOAT16);
+        NativeCpuKernelFact div = NativeCpuKernelFacts.factFor(Operation.OpType.DIV, DataType.BFLOAT16);
+        NativeCpuKernelFact mulScalar = NativeCpuKernelFacts.factFor(Operation.OpType.MUL_SCALAR, DataType.BFLOAT16);
+        NativeCpuKernelFact neg = NativeCpuKernelFacts.factFor(Operation.OpType.NEG, DataType.BFLOAT16);
+        NativeCpuKernelFact relu = NativeCpuKernelFacts.factFor(Operation.OpType.RELU, DataType.BFLOAT16);
+        NativeCpuKernelFact abs = NativeCpuKernelFacts.factFor(Operation.OpType.ABS, DataType.BFLOAT16);
+        NativeCpuKernelFact log = NativeCpuKernelFacts.factFor(Operation.OpType.LOG, DataType.BFLOAT16);
+        NativeCpuKernelFact sum = NativeCpuKernelFacts.factFor(Operation.OpType.SUM, DataType.BFLOAT16);
+        NativeCpuKernelFact where = NativeCpuKernelFacts.factFor(Operation.OpType.WHERE, DataType.BFLOAT16);
+
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, add.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, sub.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, mul.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, div.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, mulScalar.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, neg.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, relu.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, abs.status());
+        assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, add.family());
+        assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, abs.family());
+        assertEquals("requires-dense-contiguous-same-shape", add.reason());
+        assertEquals("requires-dense-contiguous-same-shape", sub.reason());
+        assertEquals("requires-dense-contiguous-same-shape", mul.reason());
+        assertEquals("requires-dense-contiguous-same-shape", div.reason());
+        assertEquals("requires-dense-contiguous", mulScalar.reason());
+        assertEquals("requires-dense-contiguous", neg.reason());
+        assertEquals("requires-dense-contiguous", relu.reason());
+        assertEquals("requires-dense-contiguous", abs.reason());
+        assertTrue(add.nativeComputeEligible());
+        assertTrue(abs.preservesNativeStorage());
+        assertEquals("native-kernel-unsupported:log", log.reason());
+        assertEquals("native-kernel-unsupported:sum", sum.reason());
+        assertEquals("native-kernel-unsupported:where", where.reason());
+        assertFalse(log.nativeComputeEligible());
+        assertFalse(sum.nativeComputeEligible());
+        assertFalse(where.preservesNativeStorage());
+    }
+
+    @Test
     void metadataOnlyViewsCanPreserveNativeStorageWithoutClaimingCompute() {
         NativeCpuKernelFact noop = NativeCpuKernelFacts.factFor(Operation.OpType.NOOP, DataType.FLOAT64);
         NativeCpuKernelFact reshape = NativeCpuKernelFacts.factFor(Operation.OpType.RESHAPE, DataType.FLOAT32);

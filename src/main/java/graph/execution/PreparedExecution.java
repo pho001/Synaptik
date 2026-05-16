@@ -675,6 +675,12 @@ public final class PreparedExecution {
             attrs.put("nativeCpuKernelStatus", nativeCpu.nativeCpuKernelStatus());
             attrs.put("nativeCpuKernelFamily", nativeCpu.nativeCpuKernelFamily());
             attrs.put("nativeCpuFallbackReason", nativeCpu.nativeCpuFallbackReason());
+            if (!nativeCpu.storagePrecision().isBlank()) {
+                attrs.put("storagePrecision", nativeCpu.storagePrecision());
+            }
+            if (!nativeCpu.computePrecision().isBlank()) {
+                attrs.put("computePrecision", nativeCpu.computePrecision());
+            }
         }
 
         if (metadata.acceleratorExecutable() != null) {
