@@ -36,6 +36,14 @@ class NativeCpuKernelFactsTest {
         NativeCpuKernelFact mulScalar = NativeCpuKernelFacts.factFor(Operation.OpType.MUL_SCALAR, DataType.FLOAT32);
         NativeCpuKernelFact neg = NativeCpuKernelFacts.factFor(Operation.OpType.NEG, DataType.FLOAT32);
         NativeCpuKernelFact relu = NativeCpuKernelFacts.factFor(Operation.OpType.RELU, DataType.FLOAT32);
+        NativeCpuKernelFact log = NativeCpuKernelFacts.factFor(Operation.OpType.LOG, DataType.FLOAT32);
+        NativeCpuKernelFact exp = NativeCpuKernelFacts.factFor(Operation.OpType.EXP, DataType.FLOAT32);
+        NativeCpuKernelFact fastExp = NativeCpuKernelFacts.factFor(Operation.OpType.FAST_EXP, DataType.FLOAT32);
+        NativeCpuKernelFact sqrt = NativeCpuKernelFacts.factFor(Operation.OpType.SQRT, DataType.FLOAT32);
+        NativeCpuKernelFact abs = NativeCpuKernelFacts.factFor(Operation.OpType.ABS, DataType.FLOAT32);
+        NativeCpuKernelFact tanh = NativeCpuKernelFacts.factFor(Operation.OpType.TANH, DataType.FLOAT32);
+        NativeCpuKernelFact fastTanh = NativeCpuKernelFacts.factFor(Operation.OpType.FAST_TANH, DataType.FLOAT32);
+        NativeCpuKernelFact sigmoid = NativeCpuKernelFacts.factFor(Operation.OpType.SIGMOID, DataType.FLOAT32);
         NativeCpuKernelFact where = NativeCpuKernelFacts.factFor(Operation.OpType.WHERE, DataType.FLOAT32);
 
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, add.status());
@@ -45,6 +53,14 @@ class NativeCpuKernelFactsTest {
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, mulScalar.status());
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, neg.status());
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, relu.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, log.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, exp.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, fastExp.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, sqrt.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, abs.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, tanh.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, fastTanh.status());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, sigmoid.status());
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, where.status());
         assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, add.family());
         assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, sub.family());
@@ -52,6 +68,10 @@ class NativeCpuKernelFactsTest {
         assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, div.family());
         assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, mulScalar.family());
         assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, neg.family());
+        assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, log.family());
+        assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, fastExp.family());
+        assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, sqrt.family());
+        assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, sigmoid.family());
         assertEquals(NativeCpuKernelFamily.SEGMENT_SCALAR, where.family());
         assertEquals("requires-dense-contiguous-same-shape", add.reason());
         assertEquals("requires-dense-contiguous-same-shape", sub.reason());
@@ -61,14 +81,31 @@ class NativeCpuKernelFactsTest {
         assertEquals("requires-dense-contiguous", mulScalar.reason());
         assertEquals("requires-dense-contiguous", neg.reason());
         assertEquals("requires-dense-contiguous", relu.reason());
+        assertEquals("requires-dense-contiguous", log.reason());
+        assertEquals("requires-dense-contiguous", exp.reason());
+        assertEquals("requires-dense-contiguous", fastExp.reason());
+        assertEquals("requires-dense-contiguous", sqrt.reason());
+        assertEquals("requires-dense-contiguous", abs.reason());
+        assertEquals("requires-dense-contiguous", tanh.reason());
+        assertEquals("requires-dense-contiguous", fastTanh.reason());
+        assertEquals("requires-dense-contiguous", sigmoid.reason());
         assertTrue(add.nativeComputeEligible());
         assertTrue(sub.nativeComputeEligible());
         assertTrue(mul.nativeComputeEligible());
         assertTrue(div.nativeComputeEligible());
         assertTrue(mulScalar.nativeComputeEligible());
         assertTrue(neg.nativeComputeEligible());
+        assertTrue(log.nativeComputeEligible());
+        assertTrue(exp.nativeComputeEligible());
+        assertTrue(fastExp.nativeComputeEligible());
+        assertTrue(sqrt.nativeComputeEligible());
+        assertTrue(abs.nativeComputeEligible());
+        assertTrue(tanh.nativeComputeEligible());
+        assertTrue(fastTanh.nativeComputeEligible());
+        assertTrue(sigmoid.nativeComputeEligible());
         assertTrue(where.nativeComputeEligible());
         assertTrue(relu.preservesNativeStorage());
+        assertTrue(sigmoid.preservesNativeStorage());
     }
 
     @Test
@@ -82,6 +119,8 @@ class NativeCpuKernelFactsTest {
         NativeCpuKernelFact relu = NativeCpuKernelFacts.factFor(Operation.OpType.RELU, DataType.FLOAT64);
         NativeCpuKernelFact where = NativeCpuKernelFacts.factFor(Operation.OpType.WHERE, DataType.FLOAT64);
         NativeCpuKernelFact log = NativeCpuKernelFacts.factFor(Operation.OpType.LOG, DataType.FLOAT64);
+        NativeCpuKernelFact exp = NativeCpuKernelFacts.factFor(Operation.OpType.EXP, DataType.FLOAT64);
+        NativeCpuKernelFact sigmoid = NativeCpuKernelFacts.factFor(Operation.OpType.SIGMOID, DataType.FLOAT64);
 
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, add.status());
         assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, sub.status());
@@ -98,19 +137,24 @@ class NativeCpuKernelFactsTest {
         assertEquals("native-kernel-unsupported:relu", relu.reason());
         assertEquals("native-kernel-unsupported:where", where.reason());
         assertEquals("native-kernel-unsupported:log", log.reason());
+        assertEquals("native-kernel-unsupported:exp", exp.reason());
+        assertEquals("native-kernel-unsupported:sigmoid", sigmoid.reason());
         assertFalse(relu.nativeComputeEligible());
         assertFalse(where.preservesNativeStorage());
+        assertFalse(log.nativeComputeEligible());
+        assertFalse(exp.nativeComputeEligible());
+        assertFalse(sigmoid.preservesNativeStorage());
     }
 
     @Test
     void otherNonBlasElementwiseOpsRemainUnsupportedUntilSegmentKernelsExist() {
         NativeCpuKernelFact reduceMin = NativeCpuKernelFacts.factFor(Operation.OpType.REDUCE_MIN, DataType.FLOAT32);
-        NativeCpuKernelFact log = NativeCpuKernelFacts.factFor(Operation.OpType.LOG, DataType.FLOAT32);
+        NativeCpuKernelFact erf = NativeCpuKernelFacts.factFor(Operation.OpType.ERF, DataType.FLOAT32);
 
         assertEquals("native-kernel-unsupported:reduce_min", reduceMin.reason());
         assertFalse(reduceMin.nativeComputeEligible());
-        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_UNSUPPORTED, log.status());
-        assertFalse(log.preservesNativeStorage());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_UNSUPPORTED, erf.status());
+        assertFalse(erf.preservesNativeStorage());
     }
 
     @Test

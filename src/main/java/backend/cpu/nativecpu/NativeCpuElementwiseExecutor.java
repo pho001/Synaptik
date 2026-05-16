@@ -18,6 +18,7 @@ import tensor.NativeFloat32Storage;
 import tensor.NativeFloat64Storage;
 import tensor.NativeTensorStorage;
 import tensor.Tensor;
+import utils.FastTranscendentals;
 
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -114,7 +115,7 @@ public final class NativeCpuElementwiseExecutor {
             } else {
                 NativeFloat32Storage input = requireF32NativeInput(context, 0, label.toUpperCase());
                 NativeFloat32Storage f32Out = allocateF32(node, context, label);
-                runDenseUnaryF32(op, input, f32Out, node.getFlatDataSize());
+                runDenseUnaryF32(op, input, f32Out, node.getFlatDataSize(), context.useFastExpApprox(), context.useFastTanhApprox());
                 f32Out.markModified();
                 out = f32Out;
             }
@@ -159,7 +160,7 @@ public final class NativeCpuElementwiseExecutor {
             } else {
                 NativeFloat32Storage input = requireF32NativeInput(context, 0, label.toUpperCase());
                 NativeFloat32Storage f32Out = allocateF32(node, context, label);
-                runDenseUnaryF32(op, input, f32Out, node.getFlatDataSize());
+                runDenseUnaryF32(op, input, f32Out, node.getFlatDataSize(), context.useFastExpApprox(), context.useFastTanhApprox());
                 f32Out.markModified();
                 out = f32Out;
             }
@@ -318,12 +319,19 @@ public final class NativeCpuElementwiseExecutor {
         }
     }
 
-    private static void runDenseUnaryF32(Operation op, NativeFloat32Storage input, NativeFloat32Storage out, int size) {
+    private static void runDenseUnaryF32(
+            Operation op,
+            NativeFloat32Storage input,
+            NativeFloat32Storage out,
+            int size,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
         float scalar = scalarParameter(op);
         for (int i = 0; i < size; i++) {
             long offset = (long) i * Float.BYTES;
             float value = input.segment().get(JAVA_FLOAT, offset);
-            out.segment().set(JAVA_FLOAT, offset, applyUnary(op.opType(), value, scalar));
+            out.segment().set(JAVA_FLOAT, offset, applyUnary(op.opType(), value, scalar, useFastExpApprox, useFastTanhApprox));
         }
     }
 
@@ -372,11 +380,25 @@ public final class NativeCpuElementwiseExecutor {
         };
     }
 
-    private static float applyUnary(Operation.OpType opType, float value, float scalar) {
+    private static float applyUnary(
+            Operation.OpType opType,
+            float value,
+            float scalar,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
         return switch (opType) {
             case MUL_SCALAR -> value * scalar;
             case NEG -> -value;
             case RELU -> Math.max(0.0f, value);
+            case LOG -> (float) Math.log(value);
+            case EXP -> useFastExpApprox ? FastTranscendentals.fastExpF32(value) : (float) Math.exp(value);
+            case FAST_EXP -> FastTranscendentals.fastExpF32(value);
+            case SQRT -> (float) Math.sqrt(value);
+            case ABS -> Math.abs(value);
+            case TANH -> useFastTanhApprox ? FastTranscendentals.fastTanhF32(value) : (float) Math.tanh(value);
+            case FAST_TANH -> FastTranscendentals.fastTanhF32(value);
+            case SIGMOID -> 1.0f / (1.0f + (float) Math.exp(-value));
             default -> throw new IllegalArgumentException("Unsupported native unary op: " + opType);
         };
     }
@@ -397,7 +419,15 @@ public final class NativeCpuElementwiseExecutor {
         return dataType == DataType.FLOAT32
                 && (opType == Operation.OpType.MUL_SCALAR
                 || opType == Operation.OpType.NEG
-                || opType == Operation.OpType.RELU);
+                || opType == Operation.OpType.RELU
+                || opType == Operation.OpType.LOG
+                || opType == Operation.OpType.EXP
+                || opType == Operation.OpType.FAST_EXP
+                || opType == Operation.OpType.SQRT
+                || opType == Operation.OpType.ABS
+                || opType == Operation.OpType.TANH
+                || opType == Operation.OpType.FAST_TANH
+                || opType == Operation.OpType.SIGMOID);
     }
 
     private static float scalarParameter(Operation op) {

@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
+import utils.FastTranscendentals;
 
 import java.util.Map;
 
@@ -213,6 +214,92 @@ class NativeCpuElementwiseChainTest {
         assertEquals("SEGMENT_SCALAR", div.get("nativeCpuKernelFamily"));
         assertEquals("", div.get("nativeCpuFallbackReason"));
         assertEquals("CPU_NATIVE", div.get("storageResidency"));
+    }
+
+    @Test
+    void cpuNativeF32UnaryTranscendentalsKeepOutputNativeAndPublishValues() {
+        assertNativeUnaryValues(
+                tensor(new float[]{1.0f, 2.0f, 4.0f, 8.0f}, "log_input").log(),
+                "LOG",
+                new float[]{0.0f, (float) Math.log(2.0f), (float) Math.log(4.0f), (float) Math.log(8.0f)},
+                1.0e-6f
+        );
+        assertNativeUnaryValues(
+                tensor(new float[]{-1.0f, 0.0f, 1.0f, 2.0f}, "exp_input").exp(),
+                "EXP",
+                new float[]{(float) Math.exp(-1.0f), 1.0f, (float) Math.exp(1.0f), (float) Math.exp(2.0f)},
+                1.0e-6f
+        );
+        assertNativeUnaryValues(
+                tensor(new float[]{-1.0f, 0.0f, 1.0f, 2.0f}, "fast_exp_input").fastExp(),
+                "FAST_EXP",
+                new float[]{
+                        FastTranscendentals.fastExpF32(-1.0f),
+                        FastTranscendentals.fastExpF32(0.0f),
+                        FastTranscendentals.fastExpF32(1.0f),
+                        FastTranscendentals.fastExpF32(2.0f)
+                },
+                1.0e-6f
+        );
+        assertNativeUnaryValues(
+                tensor(new float[]{0.0f, 1.0f, 4.0f, 9.0f}, "sqrt_input").sqrt(),
+                "SQRT",
+                new float[]{0.0f, 1.0f, 2.0f, 3.0f},
+                1.0e-6f
+        );
+        assertNativeUnaryValues(
+                tensor(new float[]{-2.0f, -0.0f, 0.0f, 3.5f}, "abs_input").abs(),
+                "ABS",
+                new float[]{2.0f, 0.0f, 0.0f, 3.5f},
+                1.0e-6f
+        );
+        assertNativeUnaryValues(
+                tensor(new float[]{-2.0f, -0.5f, 0.5f, 2.0f}, "tanh_input").tanh(),
+                "TANH",
+                new float[]{(float) Math.tanh(-2.0f), (float) Math.tanh(-0.5f), (float) Math.tanh(0.5f), (float) Math.tanh(2.0f)},
+                1.0e-6f
+        );
+        assertNativeUnaryValues(
+                tensor(new float[]{-2.0f, -0.5f, 0.5f, 2.0f}, "fast_tanh_input").fastTanh(),
+                "FAST_TANH",
+                new float[]{
+                        FastTranscendentals.fastTanhF32(-2.0f),
+                        FastTranscendentals.fastTanhF32(-0.5f),
+                        FastTranscendentals.fastTanhF32(0.5f),
+                        FastTranscendentals.fastTanhF32(2.0f)
+                },
+                1.0e-6f
+        );
+        assertNativeUnaryValues(
+                tensor(new float[]{-2.0f, -0.5f, 0.5f, 2.0f}, "sigmoid_input").sigmoid(),
+                "SIGMOID",
+                new float[]{
+                        1.0f / (1.0f + (float) Math.exp(2.0f)),
+                        1.0f / (1.0f + (float) Math.exp(0.5f)),
+                        1.0f / (1.0f + (float) Math.exp(-0.5f)),
+                        1.0f / (1.0f + (float) Math.exp(-2.0f))
+                },
+                1.0e-6f
+        );
+    }
+
+    @Test
+    void cpuNativeMatmulLogReluKeepsLogAndReluOutputNative() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor out = a().matmul(b()).log().relu();
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "LOG".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "RELU".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
     }
 
     @Test
@@ -959,29 +1046,29 @@ class NativeCpuElementwiseChainTest {
     void unsupportedCpuNativeElementwiseFallsBackToArrayWithTraceReason() {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 
-        Tensor out = a().matmul(b()).log();
+        Tensor out = a().matmul(b()).erf();
 
         var trace = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
-        Map<String, Object> log = attrs(trace.steps().stream()
-                .filter(step -> "LOG".equals(step.opType()))
+        Map<String, Object> erf = attrs(trace.steps().stream()
+                .filter(step -> "ERF".equals(step.opType()))
                 .findFirst()
                 .orElseThrow());
 
-        assertEquals("CPU_NATIVE", log.get("requestedCpuStorage"));
-        assertEquals("CPU_ARRAY", log.get("actualCpuStorage"));
-        assertEquals("NATIVE_UNSUPPORTED", log.get("nativeCpuKernelStatus"));
-        assertEquals("ARRAY_ONLY", log.get("nativeCpuKernelFamily"));
-        assertEquals("native-kernel-unsupported:log", log.get("nativeCpuFallbackReason"));
-        assertEquals("CPU_ARRAY", log.get("storageResidency"));
+        assertEquals("CPU_NATIVE", erf.get("requestedCpuStorage"));
+        assertEquals("CPU_ARRAY", erf.get("actualCpuStorage"));
+        assertEquals("NATIVE_UNSUPPORTED", erf.get("nativeCpuKernelStatus"));
+        assertEquals("ARRAY_ONLY", erf.get("nativeCpuKernelFamily"));
+        assertEquals("native-kernel-unsupported:erf", erf.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_ARRAY", erf.get("storageResidency"));
     }
 
     @Test
     void requireNativeRejectsUnsupportedCpuNativeElementwise() {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 
-        Tensor out = a().matmul(b()).log();
+        Tensor out = a().matmul(b()).erf();
 
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class,
@@ -990,7 +1077,7 @@ class NativeCpuElementwiseChainTest {
         );
 
         assertTrue(failure.getMessage().contains("Native CPU execution required"));
-        assertTrue(failure.getMessage().contains("native-kernel-unsupported:log"));
+        assertTrue(failure.getMessage().contains("native-kernel-unsupported:erf"));
     }
 
     @Test
@@ -1009,6 +1096,24 @@ class NativeCpuElementwiseChainTest {
 
         assertFalse(add.containsKey("nativeCpuKernelStatus"));
         assertEquals("CPU_ARRAY", add.get("storageResidency"));
+    }
+
+    @Test
+    void autoStorageDoesNotUseNativeUnaryTranscendentalSlice() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+
+        Tensor out = a().matmul(b()).log();
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> log = attrs(trace.steps().stream()
+                .filter(step -> "LOG".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertFalse(log.containsKey("nativeCpuKernelStatus"));
+        assertEquals("CPU_ARRAY", log.get("storageResidency"));
     }
 
     @Test
@@ -1336,6 +1441,17 @@ class NativeCpuElementwiseChainTest {
         assertEquals("VIEW_ONLY", view.get("nativeCpuKernelFamily"));
         assertEquals("", view.get("nativeCpuFallbackReason"));
         assertEquals("CPU_NATIVE", view.get("storageResidency"));
+    }
+
+    private static void assertNativeUnaryValues(Tensor out, String opType, float[] expected, float tolerance) {
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(expected, out.getFloat32Data(), tolerance);
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> opType.equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
     }
 
     private static Map<String, Object> attrs(ExecutionStepTrace step) {

@@ -141,6 +141,14 @@ public final class NativeCpuKernelFacts {
                 || opType == Operation.OpType.MUL_SCALAR
                 || opType == Operation.OpType.NEG
                 || opType == Operation.OpType.RELU
+                || opType == Operation.OpType.LOG
+                || opType == Operation.OpType.EXP
+                || opType == Operation.OpType.FAST_EXP
+                || opType == Operation.OpType.SQRT
+                || opType == Operation.OpType.ABS
+                || opType == Operation.OpType.TANH
+                || opType == Operation.OpType.FAST_TANH
+                || opType == Operation.OpType.SIGMOID
                 || opType == Operation.OpType.WHERE);
     }
 
