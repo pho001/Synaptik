@@ -1,7 +1,5 @@
 package tensor;
 
-import backend.cpu.nativecpu.NativeCpuAllocation;
-
 import java.lang.foreign.MemorySegment;
 
 /**
@@ -22,7 +20,7 @@ public interface NativeTensorStorage extends TensorStorage, AutoCloseable {
 
     boolean ownsSegment();
 
-    NativeCpuAllocation allocation();
+    NativeMemoryAllocation allocation();
 
     boolean closed();
 

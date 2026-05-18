@@ -6,6 +6,7 @@ import backend.cpu.kernels.elementwise.ElementwiseLoops;
 import backend.cpu.kernels.elementwise.binary.BinaryElementwiseKernel;
 import backend.cpu.kernels.elementwise.unary.ScalarUnaryElementwiseKernel;
 import backend.cpu.kernels.elementwise.unary.UnaryElementwiseKernel;
+import backend.cpu.kernels.elementwise.unary.support.CpuPowSupport;
 import backend.cpu.kernels.elementwise.where.WhereElementwiseKernel;
 import backend.cpu.kernels.layout.plan.ResolvedBroadcastPlan;
 import backend.cpu.kernels.layout.plan.ResolvedWhereBroadcastPlan;
@@ -13,7 +14,10 @@ import backend.memory.CpuMaterializationReason;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
 import operations.Operation;
+import operations.elementwise.unary.clampMax;
+import operations.elementwise.unary.clampMin;
 import operations.elementwise.unary.mulScalar;
+import operations.elementwise.unary.pow;
 import tensor.DataType;
 import tensor.NativeBFloat16Storage;
 import tensor.NativeFloat32Storage;
@@ -49,12 +53,15 @@ public final class NativeCpuElementwiseExecutor {
             Operation.OpType.ERF,
             Operation.OpType.TANH,
             Operation.OpType.FAST_TANH,
+            Operation.OpType.POW,
             Operation.OpType.SQRT,
             Operation.OpType.ABS,
             Operation.OpType.FLOOR,
             Operation.OpType.CEIL,
             Operation.OpType.SIGN,
             Operation.OpType.RELU,
+            Operation.OpType.CLAMP_MIN,
+            Operation.OpType.CLAMP_MAX,
             Operation.OpType.SIGMOID,
             Operation.OpType.WHERE
     );
@@ -78,7 +85,7 @@ public final class NativeCpuElementwiseExecutor {
             ResolvedBroadcastPlan broadcastPlan = plan.broadcastPlan();
             return broadcastPlan == null || broadcastPlan.isNoBroadcast();
         }
-        if (dataType == DataType.FLOAT32 && opType == Operation.OpType.WHERE) {
+        if (supportsNativeWhereDType(dataType) && opType == Operation.OpType.WHERE) {
             ResolvedWhereBroadcastPlan whereBroadcastPlan = plan.whereBroadcastPlan();
             return whereBroadcastPlan == null || whereBroadcastPlan.isNoBroadcast();
         }
@@ -148,7 +155,9 @@ public final class NativeCpuElementwiseExecutor {
         }
         Operation op = context.executionOperation();
         NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(opType(op), node.getDataType());
-        if (!supportsNativeElementwiseDType(node.getDataType()) || op == null || op.opType() != Operation.OpType.MUL_SCALAR || context.nodePlan().stridedPath()) {
+        if (!supportsNativeElementwiseDType(node.getDataType()) || op == null
+                || !isNativeScalarUnaryOp(op.opType()) || !isNativeUnaryOp(op.opType(), node.getDataType())
+                || context.nodePlan().stridedPath()) {
             fallbackScalarUnary(kernel, parameterF64, parameterF32, inputs, node, context, fact, ineligibleReason(op, node, context));
             return true;
         }
@@ -269,7 +278,7 @@ public final class NativeCpuElementwiseExecutor {
             fallbackWhere(kernel, inputs, node, context, fact, ineligibleReason(op, node, context));
             return true;
         }
-        if (node.getDataType() != DataType.FLOAT32) {
+        if (!supportsNativeWhereDType(node.getDataType())) {
             fallbackWhere(kernel, inputs, node, context, fact, "native-storage-dtype-unsupported:" + node.getDataType().name().toLowerCase());
             return true;
         }
@@ -277,9 +286,10 @@ public final class NativeCpuElementwiseExecutor {
             fallbackWhere(kernel, inputs, node, context, fact, "native-kernel-ineligible:where-input-count");
             return true;
         }
+        DataType branchDataType = node.getDataType();
         if (inputs.get(0).getDataType() != DataType.BOOL
-                || inputs.get(1).getDataType() != DataType.FLOAT32
-                || inputs.get(2).getDataType() != DataType.FLOAT32) {
+                || inputs.get(1).getDataType() != branchDataType
+                || inputs.get(2).getDataType() != branchDataType) {
             fallbackWhere(kernel, inputs, node, context, fact, "native-kernel-ineligible:where-dtype");
             return true;
         }
@@ -297,12 +307,22 @@ public final class NativeCpuElementwiseExecutor {
         }
         try {
             byte[] condition = inputs.get(0).getBoolData();
-            NativeFloat32Storage ifTrue = requireF32NativeInput(context, 1, "WHERE");
-            NativeFloat32Storage ifFalse = requireF32NativeInput(context, 2, "WHERE");
-            NativeFloat32Storage out = allocateF32(node, context, "where");
-            runDenseWhere(kernel, condition, ifTrue, ifFalse, out, size);
-            out.markModified();
-            context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU WHERE wrote FLOAT32 output");
+            NativeTensorStorage out;
+            if (branchDataType == DataType.FLOAT64) {
+                NativeFloat64Storage ifTrue = requireF64NativeInput(context, 1, "WHERE");
+                NativeFloat64Storage ifFalse = requireF64NativeInput(context, 2, "WHERE");
+                NativeFloat64Storage f64Out = allocateF64(node, context, "where");
+                runDenseWhere(kernel, condition, ifTrue, ifFalse, f64Out, size);
+                out = f64Out;
+            } else {
+                NativeFloat32Storage ifTrue = requireF32NativeInput(context, 1, "WHERE");
+                NativeFloat32Storage ifFalse = requireF32NativeInput(context, 2, "WHERE");
+                NativeFloat32Storage f32Out = allocateF32(node, context, "where");
+                runDenseWhere(kernel, condition, ifTrue, ifFalse, f32Out, size);
+                f32Out.markModified();
+                out = f32Out;
+            }
+            context.executionContext().attachNativeStorage(context.nodeId(), out, "native CPU WHERE wrote " + branchDataType + " output");
             publishTrace(context, fact, "CPU_NATIVE", "");
         } catch (Throwable t) {
             fallbackWhere(kernel, inputs, node, context, fact, "native-kernel-failed:where:" + safeMessage(t));
@@ -410,12 +430,28 @@ public final class NativeCpuElementwiseExecutor {
         }
     }
 
+    private static void runDenseWhere(
+            WhereElementwiseKernel kernel,
+            byte[] condition,
+            NativeFloat64Storage ifTrue,
+            NativeFloat64Storage ifFalse,
+            NativeFloat64Storage out,
+            int size
+    ) {
+        for (int i = 0; i < size; i++) {
+            out.setFloat64At(i, kernel.applyF64(condition[i], ifTrue.getFloat64At(i), ifFalse.getFloat64At(i)));
+        }
+    }
+
     private static float applyBinary(Operation.OpType opType, float leftValue, float rightValue) {
         return switch (opType) {
             case ADD -> leftValue + rightValue;
             case SUB -> leftValue - rightValue;
             case MUL -> leftValue * rightValue;
             case DIV -> leftValue / rightValue;
+            case MIN -> Math.min(leftValue, rightValue);
+            case MAX -> Math.max(leftValue, rightValue);
+            case POW_TENSOR -> CpuPowSupport.applyF32(leftValue, rightValue);
             default -> throw new IllegalArgumentException("Unsupported native binary op: " + opType);
         };
     }
@@ -426,6 +462,9 @@ public final class NativeCpuElementwiseExecutor {
             case SUB -> leftValue - rightValue;
             case MUL -> leftValue * rightValue;
             case DIV -> leftValue / rightValue;
+            case MIN -> Math.min(leftValue, rightValue);
+            case MAX -> Math.max(leftValue, rightValue);
+            case POW_TENSOR -> CpuPowSupport.applyF64(leftValue, rightValue);
             default -> throw new IllegalArgumentException("Unsupported native binary op: " + opType);
         };
     }
@@ -441,11 +480,17 @@ public final class NativeCpuElementwiseExecutor {
             case MUL_SCALAR -> value * scalar;
             case NEG -> -value;
             case RELU -> Math.max(0.0f, value);
+            case CLAMP_MIN -> Math.max(value, scalar);
+            case CLAMP_MAX -> Math.min(value, scalar);
             case LOG -> (float) Math.log(value);
             case EXP -> useFastExpApprox ? FastTranscendentals.fastExpF32(value) : (float) Math.exp(value);
             case FAST_EXP -> FastTranscendentals.fastExpF32(value);
             case SQRT -> (float) Math.sqrt(value);
             case ABS -> Math.abs(value);
+            case FLOOR -> (float) Math.floor(value);
+            case CEIL -> (float) Math.ceil(value);
+            case SIGN -> Math.signum(value);
+            case POW -> CpuPowSupport.applyF32(value, scalar);
             case TANH -> useFastTanhApprox ? FastTranscendentals.fastTanhF32(value) : (float) Math.tanh(value);
             case FAST_TANH -> FastTranscendentals.fastTanhF32(value);
             case SIGMOID -> 1.0f / (1.0f + (float) Math.exp(-value));
@@ -464,11 +509,17 @@ public final class NativeCpuElementwiseExecutor {
             case MUL_SCALAR -> value * scalar;
             case NEG -> -value;
             case RELU -> Math.max(0.0d, value);
+            case CLAMP_MIN -> Math.max(value, scalar);
+            case CLAMP_MAX -> Math.min(value, scalar);
             case LOG -> Math.log(value);
             case EXP -> useFastExpApprox ? FastTranscendentals.fastExpF64(value) : Math.exp(value);
             case FAST_EXP -> FastTranscendentals.fastExpF64(value);
             case SQRT -> Math.sqrt(value);
             case ABS -> Math.abs(value);
+            case FLOOR -> Math.floor(value);
+            case CEIL -> Math.ceil(value);
+            case SIGN -> Math.signum(value);
+            case POW -> CpuPowSupport.applyF64(value, scalar);
             case TANH -> useFastTanhApprox ? FastTranscendentals.fastTanhF64(value) : Math.tanh(value);
             case FAST_TANH -> FastTranscendentals.fastTanhF64(value);
             case SIGMOID -> 1.0d / (1.0d + Math.exp(-value));
@@ -482,6 +533,8 @@ public final class NativeCpuElementwiseExecutor {
             case MUL_SCALAR -> value * scalar;
             case NEG -> -value;
             case RELU -> Math.max(0.0f, value);
+            case CLAMP_MIN -> Math.max(value, scalar);
+            case CLAMP_MAX -> Math.min(value, scalar);
             case ABS -> Math.abs(value);
             default -> throw new IllegalArgumentException("Unsupported native BF16 unary op: " + opType);
         };
@@ -492,11 +545,17 @@ public final class NativeCpuElementwiseExecutor {
             return opType == Operation.OpType.MUL_SCALAR
                     || opType == Operation.OpType.NEG
                     || opType == Operation.OpType.RELU
+                    || opType == Operation.OpType.CLAMP_MIN
+                    || opType == Operation.OpType.CLAMP_MAX
                     || opType == Operation.OpType.LOG
                     || opType == Operation.OpType.EXP
                     || opType == Operation.OpType.FAST_EXP
                     || opType == Operation.OpType.SQRT
                     || opType == Operation.OpType.ABS
+                    || opType == Operation.OpType.FLOOR
+                    || opType == Operation.OpType.CEIL
+                    || opType == Operation.OpType.SIGN
+                    || opType == Operation.OpType.POW
                     || opType == Operation.OpType.TANH
                     || opType == Operation.OpType.FAST_TANH
                     || opType == Operation.OpType.SIGMOID
@@ -506,25 +565,49 @@ public final class NativeCpuElementwiseExecutor {
             return opType == Operation.OpType.MUL_SCALAR
                     || opType == Operation.OpType.NEG
                     || opType == Operation.OpType.RELU
+                    || opType == Operation.OpType.CLAMP_MIN
+                    || opType == Operation.OpType.CLAMP_MAX
                     || opType == Operation.OpType.ABS;
         }
         return dataType == DataType.FLOAT32
                 && (opType == Operation.OpType.MUL_SCALAR
                 || opType == Operation.OpType.NEG
                 || opType == Operation.OpType.RELU
+                || opType == Operation.OpType.CLAMP_MIN
+                || opType == Operation.OpType.CLAMP_MAX
                 || opType == Operation.OpType.LOG
                 || opType == Operation.OpType.EXP
                 || opType == Operation.OpType.FAST_EXP
                 || opType == Operation.OpType.SQRT
                 || opType == Operation.OpType.ABS
+                || opType == Operation.OpType.FLOOR
+                || opType == Operation.OpType.CEIL
+                || opType == Operation.OpType.SIGN
+                || opType == Operation.OpType.POW
                 || opType == Operation.OpType.TANH
                 || opType == Operation.OpType.FAST_TANH
                 || opType == Operation.OpType.SIGMOID);
     }
 
+    private static boolean isNativeScalarUnaryOp(Operation.OpType opType) {
+        return opType == Operation.OpType.MUL_SCALAR
+                || opType == Operation.OpType.CLAMP_MIN
+                || opType == Operation.OpType.CLAMP_MAX
+                || opType == Operation.OpType.POW;
+    }
+
     private static float scalarParameter(Operation op) {
         if (op instanceof mulScalar mul) {
             return mul.getScalarF32();
+        }
+        if (op instanceof clampMin clamp) {
+            return clamp.getMinValueF32();
+        }
+        if (op instanceof clampMax clamp) {
+            return clamp.getMaxValueF32();
+        }
+        if (op instanceof pow power) {
+            return power.getExponentF32();
         }
         return 0.0f;
     }
@@ -533,15 +616,29 @@ public final class NativeCpuElementwiseExecutor {
         if (op instanceof mulScalar mul) {
             return mul.getScalar();
         }
+        if (op instanceof clampMin clamp) {
+            return clamp.getMinValue();
+        }
+        if (op instanceof clampMax clamp) {
+            return clamp.getMaxValue();
+        }
+        if (op instanceof pow power) {
+            return power.getExponent();
+        }
         return 0.0d;
     }
 
     private static boolean isNativeBinaryOp(Operation.OpType opType, DataType dataType) {
+        if (opType == Operation.OpType.POW_TENSOR) {
+            return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64;
+        }
         return (dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64 || dataType == DataType.BFLOAT16)
                 && (opType == Operation.OpType.ADD
                 || opType == Operation.OpType.SUB
                 || opType == Operation.OpType.MUL
-                || opType == Operation.OpType.DIV);
+                || opType == Operation.OpType.DIV
+                || opType == Operation.OpType.MIN
+                || opType == Operation.OpType.MAX);
     }
 
     private static boolean supportsBroadcast(Operation.OpType opType, DataType dataType, ResolvedBroadcastPlan broadcastPlan) {
@@ -770,6 +867,10 @@ public final class NativeCpuElementwiseExecutor {
 
     private static boolean supportsNativeElementwiseDType(DataType dataType) {
         return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64 || dataType == DataType.BFLOAT16;
+    }
+
+    private static boolean supportsNativeWhereDType(DataType dataType) {
+        return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64;
     }
 
     private static String safeMessage(Throwable t) {

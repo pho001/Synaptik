@@ -359,14 +359,11 @@ public final class TensorDataFactory {
         if (shape == null || shape.length == 0) {
             throw new IllegalArgumentException("shape cannot be null/empty for " + label);
         }
-        int size = 1;
-        for (int dim : shape) {
-            size *= dim;
+        try {
+            return TensorShape.checkedFlatSize(shape);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Invalid shape size for " + label + ": " + ex.getMessage(), ex);
         }
-        if (size <= 0) {
-            throw new IllegalArgumentException("Invalid shape size for " + label);
-        }
-        return size;
     }
 
     private static DataType requireDataType(DataType dataType) {

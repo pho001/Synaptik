@@ -637,7 +637,7 @@ public class Tensor {
      * @return flat element count
      */
     public int calculateSize(int[] dimensions) {
-        return Arrays.stream(dimensions).reduce(1, (a, b) -> a * b);
+        return TensorShape.checkedFlatSize(dimensions);
     }
 
     /**
@@ -892,6 +892,7 @@ public class Tensor {
         if (data == null) {
             throw new IllegalArgumentException("data cannot be null");
         }
+        requireDenseStorageReplacement("setData(double[])");
         TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "double[]");
         storage = TensorStorageSupport.fromDoubleArray(metadata, data);
     }
@@ -906,6 +907,7 @@ public class Tensor {
         if (data == null) {
             throw new IllegalArgumentException("data cannot be null");
         }
+        requireDenseStorageReplacement("setData(float[])");
         TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "float[]");
         storage = TensorStorageSupport.fromFloatArray(metadata, data);
     }
@@ -920,6 +922,7 @@ public class Tensor {
         if (data == null) {
             throw new IllegalArgumentException("data cannot be null");
         }
+        requireDenseStorageReplacement("setData(short[])");
         TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "short[]");
         storage = TensorStorageSupport.fromBFloat16Array(metadata, data);
     }
@@ -934,6 +937,7 @@ public class Tensor {
         if (data == null) {
             throw new IllegalArgumentException("data cannot be null");
         }
+        requireDenseStorageReplacement("setData(byte[])");
         TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "byte[]");
         storage = TensorStorageSupport.fromBoolArray(metadata, data);
     }
@@ -948,6 +952,7 @@ public class Tensor {
         if (data == null) {
             throw new IllegalArgumentException("data cannot be null");
         }
+        requireDenseStorageReplacement("setData(int[])");
         TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "int[]");
         storage = TensorStorageSupport.fromIntArray(metadata, data);
     }
@@ -962,6 +967,7 @@ public class Tensor {
         if (data == null) {
             throw new IllegalArgumentException("data cannot be null");
         }
+        requireDenseStorageReplacement("setData(long[])");
         TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "long[]");
         storage = TensorStorageSupport.fromLongArray(metadata, data);
     }
@@ -2926,12 +2932,20 @@ public class Tensor {
 
     void replaceStorageInternal(TensorStorage replacement) {
         Objects.requireNonNull(replacement, "replacement storage cannot be null");
+        requireDenseStorageReplacement("replaceStorageInternal");
         if (replacement.getType() != metadata.getDataType()) {
             throw new IllegalArgumentException("replacement storage dtype " + replacement.getType()
                     + " does not match tensor dtype " + metadata.getDataType());
         }
         TensorStorageSupport.validateInputLength(replacement.getSize(), metadata.getFlatSize(), "TensorStorage");
         this.storage = replacement;
+    }
+
+    private void requireDenseStorageReplacement(String operationName) {
+        if (!metadata.isContiguous() || metadata.hasStorageOffset()) {
+            throw new UnsupportedOperationException(operationName
+                    + " cannot replace storage for non-dense tensor layout. Use contiguous() first.");
+        }
     }
 
 

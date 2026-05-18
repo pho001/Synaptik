@@ -5,6 +5,7 @@ import tensor.DataType;
 import tensor.Float32Storage;
 import tensor.Float64Storage;
 import tensor.NativeBFloat16Storage;
+import tensor.NativeBoolStorage;
 import tensor.NativeFloat32Storage;
 import tensor.NativeFloat64Storage;
 import tensor.NativeTensorStorage;
@@ -16,6 +17,7 @@ import java.util.Objects;
 
 import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
 /**
@@ -34,7 +36,8 @@ public final class NativeCpuMaterializer {
             case FLOAT32 -> copyF32ArrayToNative(source, target);
             case FLOAT64 -> copyF64ArrayToNative(source, target);
             case BFLOAT16 -> copyBF16ArrayToNative(source, target);
-            case BOOL, INT32, INT64 -> throw new UnsupportedOperationException("array -> native MVP supports only FLOAT32, FLOAT64, and BFLOAT16. dtype=" + source.getDataType());
+            case BOOL -> copyBoolArrayToNative(source, target);
+            case INT32, INT64 -> throw new UnsupportedOperationException("array -> native MVP supports only FLOAT32, FLOAT64, BFLOAT16, and BOOL masks. dtype=" + source.getDataType());
         }
         target.markModified();
     }
@@ -48,7 +51,8 @@ public final class NativeCpuMaterializer {
             case FLOAT32 -> copyF32NativeToArray(source, target);
             case FLOAT64 -> copyF64NativeToArray(source, target);
             case BFLOAT16 -> copyBF16NativeToArray(source, target);
-            case BOOL, INT32, INT64 -> throw new UnsupportedOperationException("native -> array MVP supports only FLOAT32, FLOAT64, and BFLOAT16. dtype=" + target.getDataType());
+            case BOOL -> copyBoolNativeToArray(source, target);
+            case INT32, INT64 -> throw new UnsupportedOperationException("native -> array MVP supports only FLOAT32, FLOAT64, BFLOAT16, and BOOL masks. dtype=" + target.getDataType());
         }
         target.markStorageModified();
     }
@@ -86,6 +90,20 @@ public final class NativeCpuMaterializer {
         MemorySegment.copy(data, 0, target.segment(), JAVA_SHORT, 0L, source.getFlatDataSize());
     }
 
+    private static void copyBoolArrayToNative(Tensor source, NativeTensorStorage target) {
+        if (!(target instanceof NativeBoolStorage)) {
+            throw typeMismatch(source.getDataType(), target.getType());
+        }
+        byte[] data = source.getBoolData();
+        if (data == null) {
+            throw new IllegalStateException("BOOL source does not expose CPU array storage.");
+        }
+        MemorySegment segment = target.segment();
+        for (int i = 0; i < source.getFlatDataSize(); i++) {
+            segment.set(JAVA_BYTE, i, data[i] == 0 ? (byte) 0 : (byte) 1);
+        }
+    }
+
     private static void copyF32NativeToArray(NativeTensorStorage source, Tensor target) {
         if (!(source instanceof NativeFloat32Storage)) {
             throw typeMismatch(target.getDataType(), source.getType());
@@ -117,6 +135,20 @@ public final class NativeCpuMaterializer {
             throw new IllegalStateException("BFLOAT16 target does not expose CPU array storage.");
         }
         MemorySegment.copy(source.segment(), JAVA_SHORT, 0L, data, 0, target.getFlatDataSize());
+    }
+
+    private static void copyBoolNativeToArray(NativeTensorStorage source, Tensor target) {
+        if (!(source instanceof NativeBoolStorage)) {
+            throw typeMismatch(target.getDataType(), source.getType());
+        }
+        byte[] data = target.getBoolData();
+        if (data == null) {
+            throw new IllegalStateException("BOOL target does not expose CPU array storage.");
+        }
+        MemorySegment segment = source.segment();
+        for (int i = 0; i < target.getFlatDataSize(); i++) {
+            data[i] = segment.get(JAVA_BYTE, i) == 0 ? (byte) 0 : (byte) 1;
+        }
     }
 
     private static void validateShapeAndType(Tensor tensor, NativeTensorStorage storage) {

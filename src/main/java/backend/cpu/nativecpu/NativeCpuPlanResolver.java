@@ -7,6 +7,10 @@ import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import config.runtime.CpuStorageProfile;
 import operations.Operation;
 import operations.reduction.mean;
+import operations.reduction.reduceAll;
+import operations.reduction.reduceAny;
+import operations.reduction.reduceMax;
+import operations.reduction.reduceMin;
 import operations.reduction.sum;
 import tensor.DataType;
 import tensor.Tensor;
@@ -58,7 +62,7 @@ public final class NativeCpuPlanResolver {
         if (isViewAlias(opType)) {
             return PreparedNativeCpuPlan.viewAlias(coverage, requestedStorage);
         }
-        if (opType == Operation.OpType.WHERE && dataType == DataType.FLOAT32) {
+        if (opType == Operation.OpType.WHERE && supportsNativeWhereDType(dataType)) {
             if (!whereNoBroadcast(plan)) {
                 return PreparedNativeCpuPlan.fallbackOnly(coverage, requestedStorage, ineligible(opType, "broadcast"));
             }
@@ -74,6 +78,14 @@ public final class NativeCpuPlanResolver {
                     ? PreparedNativeCpuPlan.nativeExecutable(coverage, requestedStorage)
                     : PreparedNativeCpuPlan.fallbackOnly(coverage, requestedStorage, ineligible(opType, "strided"));
         }
+        if (isBoolLogical(opType) && dataType == DataType.BOOL) {
+            if (isBoolLogicalBinary(opType) && !noBroadcast(plan)) {
+                return PreparedNativeCpuPlan.fallbackOnly(coverage, requestedStorage, ineligible(opType, "broadcast"));
+            }
+            return denseInputs(inputs)
+                    ? PreparedNativeCpuPlan.nativeExecutable(coverage, requestedStorage)
+                    : PreparedNativeCpuPlan.fallbackOnly(coverage, requestedStorage, ineligible(opType, "strided"));
+        }
         if (opType == Operation.OpType.CONTIGUOUS) {
             if (!supportsNativeStorageDType(dataType)) {
                 return PreparedNativeCpuPlan.fallbackOnly(coverage, requestedStorage, coverage.fallbackReason());
@@ -82,8 +94,13 @@ public final class NativeCpuPlanResolver {
                     ? PreparedNativeCpuPlan.nativeExecutable(coverage, requestedStorage)
                     : PreparedNativeCpuPlan.fallbackOnly(coverage, requestedStorage, ineligible(opType, "strided"));
         }
-        if (opType == Operation.OpType.SUM || opType == Operation.OpType.MEAN) {
-            return supportsNativeReductionDType(dataType) && !plan.stridedPath() && denseInputs(inputs) && reductionDimension(op) >= -1
+        if (isBoolReduction(opType) && dataType == DataType.BOOL) {
+            return denseInputs(inputs) && reductionDimension(op) >= -1
+                    ? PreparedNativeCpuPlan.nativeExecutable(coverage, requestedStorage)
+                    : PreparedNativeCpuPlan.fallbackOnly(coverage, requestedStorage, ineligible(opType, "strided"));
+        }
+        if (isFloatReduction(opType)) {
+            return supportsNativeReductionDType(dataType, opType) && !plan.stridedPath() && denseInputs(inputs) && reductionDimension(op) >= -1
                     ? PreparedNativeCpuPlan.nativeExecutable(coverage, requestedStorage)
                     : PreparedNativeCpuPlan.fallbackOnly(coverage, requestedStorage, ineligible(opType, "strided"));
         }
@@ -146,8 +163,15 @@ public final class NativeCpuPlanResolver {
         return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64 || dataType == DataType.BFLOAT16;
     }
 
-    private static boolean supportsNativeReductionDType(DataType dataType) {
+    private static boolean supportsNativeReductionDType(DataType dataType, Operation.OpType opType) {
+        if (dataType == DataType.BFLOAT16) {
+            return opType == Operation.OpType.SUM || opType == Operation.OpType.MEAN;
+        }
         return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64;
+    }
+
+    private static boolean supportsNativeWhereDType(DataType dataType) {
+        return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64 || dataType == DataType.BFLOAT16;
     }
 
     private static boolean supportedCast(List<Tensor> inputs, DataType outputType) {
@@ -164,11 +188,17 @@ public final class NativeCpuPlanResolver {
             return opType == Operation.OpType.NEG
                     || opType == Operation.OpType.MUL_SCALAR
                     || opType == Operation.OpType.RELU
+                    || opType == Operation.OpType.CLAMP_MIN
+                    || opType == Operation.OpType.CLAMP_MAX
                     || opType == Operation.OpType.LOG
                     || opType == Operation.OpType.EXP
                     || opType == Operation.OpType.FAST_EXP
                     || opType == Operation.OpType.SQRT
                     || opType == Operation.OpType.ABS
+                    || opType == Operation.OpType.FLOOR
+                    || opType == Operation.OpType.CEIL
+                    || opType == Operation.OpType.SIGN
+                    || opType == Operation.OpType.POW
                     || opType == Operation.OpType.TANH
                     || opType == Operation.OpType.FAST_TANH
                     || opType == Operation.OpType.SIGMOID
@@ -178,17 +208,25 @@ public final class NativeCpuPlanResolver {
             return opType == Operation.OpType.NEG
                     || opType == Operation.OpType.MUL_SCALAR
                     || opType == Operation.OpType.RELU
+                    || opType == Operation.OpType.CLAMP_MIN
+                    || opType == Operation.OpType.CLAMP_MAX
                     || opType == Operation.OpType.ABS;
         }
         return dataType == DataType.FLOAT32
                 && (opType == Operation.OpType.NEG
                 || opType == Operation.OpType.MUL_SCALAR
                 || opType == Operation.OpType.RELU
+                || opType == Operation.OpType.CLAMP_MIN
+                || opType == Operation.OpType.CLAMP_MAX
                 || opType == Operation.OpType.LOG
                 || opType == Operation.OpType.EXP
                 || opType == Operation.OpType.FAST_EXP
                 || opType == Operation.OpType.SQRT
                 || opType == Operation.OpType.ABS
+                || opType == Operation.OpType.FLOOR
+                || opType == Operation.OpType.CEIL
+                || opType == Operation.OpType.SIGN
+                || opType == Operation.OpType.POW
                 || opType == Operation.OpType.TANH
                 || opType == Operation.OpType.FAST_TANH
                 || opType == Operation.OpType.SIGMOID);
@@ -199,26 +237,37 @@ public final class NativeCpuPlanResolver {
             return opType == Operation.OpType.ADD
                     || opType == Operation.OpType.SUB
                     || opType == Operation.OpType.MUL
-                    || opType == Operation.OpType.DIV;
+                    || opType == Operation.OpType.DIV
+                    || opType == Operation.OpType.MIN
+                    || opType == Operation.OpType.MAX
+                    || opType == Operation.OpType.POW_TENSOR;
         }
         if (dataType == DataType.BFLOAT16) {
             return opType == Operation.OpType.ADD
                     || opType == Operation.OpType.SUB
                     || opType == Operation.OpType.MUL
-                    || opType == Operation.OpType.DIV;
+                    || opType == Operation.OpType.DIV
+                    || opType == Operation.OpType.MIN
+                    || opType == Operation.OpType.MAX;
         }
         return dataType == DataType.FLOAT32
                 && (opType == Operation.OpType.ADD
                 || opType == Operation.OpType.SUB
                 || opType == Operation.OpType.MUL
-                || opType == Operation.OpType.DIV);
+                || opType == Operation.OpType.DIV
+                || opType == Operation.OpType.MIN
+                || opType == Operation.OpType.MAX
+                || opType == Operation.OpType.POW_TENSOR);
     }
 
     private static boolean isBinaryLike(Operation.OpType opType) {
         return opType == Operation.OpType.ADD
                 || opType == Operation.OpType.SUB
                 || opType == Operation.OpType.MUL
-                || opType == Operation.OpType.DIV;
+                || opType == Operation.OpType.DIV
+                || opType == Operation.OpType.MIN
+                || opType == Operation.OpType.MAX
+                || opType == Operation.OpType.POW_TENSOR;
     }
 
     private static boolean isCompare(Operation.OpType opType) {
@@ -230,9 +279,31 @@ public final class NativeCpuPlanResolver {
                 || opType == Operation.OpType.NE;
     }
 
+    private static boolean isBoolLogical(Operation.OpType opType) {
+        return isBoolLogicalBinary(opType) || opType == Operation.OpType.LOGICAL_NOT;
+    }
+
+    private static boolean isBoolLogicalBinary(Operation.OpType opType) {
+        return opType == Operation.OpType.LOGICAL_AND || opType == Operation.OpType.LOGICAL_OR;
+    }
+
+    private static boolean isBoolReduction(Operation.OpType opType) {
+        return opType == Operation.OpType.REDUCE_ALL || opType == Operation.OpType.REDUCE_ANY;
+    }
+
+    private static boolean isFloatReduction(Operation.OpType opType) {
+        return opType == Operation.OpType.SUM
+                || opType == Operation.OpType.MEAN
+                || opType == Operation.OpType.REDUCE_MIN
+                || opType == Operation.OpType.REDUCE_MAX;
+    }
+
     private static boolean isViewAlias(Operation.OpType opType) {
         return opType == Operation.OpType.NOOP
                 || opType == Operation.OpType.RESHAPE
+                || opType == Operation.OpType.PERMUTE
+                || opType == Operation.OpType.SELECT
+                || opType == Operation.OpType.SLICE
                 || opType == Operation.OpType.EXPAND_DIMS
                 || opType == Operation.OpType.SQUEEZE;
     }
@@ -283,6 +354,18 @@ public final class NativeCpuPlanResolver {
         }
         if (op instanceof mean meanOp) {
             return meanOp.getDimension();
+        }
+        if (op instanceof reduceAll reduceAllOp) {
+            return reduceAllOp.getDimension();
+        }
+        if (op instanceof reduceAny reduceAnyOp) {
+            return reduceAnyOp.getDimension();
+        }
+        if (op instanceof reduceMin reduceMinOp) {
+            return reduceMinOp.getDimension();
+        }
+        if (op instanceof reduceMax reduceMaxOp) {
+            return reduceMaxOp.getDimension();
         }
         return -2;
     }

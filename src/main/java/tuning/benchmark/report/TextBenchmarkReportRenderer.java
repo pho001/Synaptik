@@ -151,11 +151,22 @@ public final class TextBenchmarkReportRenderer {
                 .append(" rejectedRegionCount=").append(summary.rejectedRegionCount())
                 .append(" nativeRouteCount=").append(summary.nativeRouteCount())
                 .append(" fallbackCount=").append(summary.fallbackCount())
+                .append(" measuredWinClaimCount=").append(summary.measuredWinClaimCount())
+                .append(" measuredWinProofCount=").append(summary.measuredWinProofCount())
                 .append(" providerNodeCount=").append(summary.providerNodeCount())
                 .append(" localKernelNodeCount=").append(summary.localKernelNodeCount())
                 .append(" segmentScalarNodeCount=").append(summary.segmentScalarNodeCount())
+                .append(" stridedNodeCount=").append(summary.stridedNodeCount())
+                .append(" stridedMaterializationCount=").append(summary.stridedMaterializationCount())
+                .append(" benchmarkRowCounts=").append(summary.benchmarkRowCounts())
+                .append(" layoutClassCounts=").append(summary.layoutClassCounts())
+                .append(" parityStoragePathCounts=").append(summary.parityStoragePathCounts())
+                .append(" parityLayoutCapabilityCounts=").append(summary.parityLayoutCapabilityCounts())
+                .append(" parityResultResidencyCounts=").append(summary.parityResultResidencyCounts())
+                .append(" parityAutoEligibleNodeCount=").append(summary.parityAutoEligibleNodeCount())
                 .append(" boundaryOutputCount=").append(summary.boundaryOutputCount())
                 .append(" fallbackReasons=").append(summary.fallbackReasons())
+                .append(" stridedFallbackReasons=").append(summary.stridedFallbackReasons())
                 .append(" rejectionReasons=").append(summary.rejectionReasons())
                 .append('\n');
     }
@@ -182,6 +193,10 @@ public final class TextBenchmarkReportRenderer {
                 .append(" bgemmOutputCount=").append(summary.bgemmOutputCount())
                 .append(" sbgemmContinuationCount=").append(summary.sbgemmContinuationCount())
                 .append(" promotedF32Count=").append(summary.promotedF32Count())
+                .append(" promotedNonBlasStepCount=").append(summary.promotedNonBlasStepCount())
+                .append(" promotedNonBlasRegionNodeCount=").append(summary.promotedNonBlasRegionNodeCount())
+                .append(" promotedNonBlasSegmentScalarCount=").append(summary.promotedNonBlasSegmentScalarCount())
+                .append(" promotedNonBlasArrayFallbackCount=").append(summary.promotedNonBlasArrayFallbackCount())
                 .append(" javaRouteCount=").append(summary.javaRouteCount())
                 .append(" unavailableRouteCount=").append(summary.unavailableRouteCount())
                 .append(" openblasSbgemmAvailable=").append(summary.openblasSbgemmAvailable())
@@ -336,11 +351,22 @@ public final class TextBenchmarkReportRenderer {
             int rejectedRegionCount,
             int nativeRouteCount,
             int fallbackCount,
+            int measuredWinClaimCount,
+            int measuredWinProofCount,
             int providerNodeCount,
             int localKernelNodeCount,
             int segmentScalarNodeCount,
+            int stridedNodeCount,
+            int stridedMaterializationCount,
+            java.util.Map<String, Integer> benchmarkRowCounts,
+            java.util.Map<String, Integer> layoutClassCounts,
+            java.util.Map<String, Integer> parityStoragePathCounts,
+            java.util.Map<String, Integer> parityLayoutCapabilityCounts,
+            java.util.Map<String, Integer> parityResultResidencyCounts,
+            int parityAutoEligibleNodeCount,
             int boundaryOutputCount,
             java.util.List<String> fallbackReasons,
+            java.util.List<String> stridedFallbackReasons,
             java.util.List<String> rejectionReasons,
             boolean present
     ) {
@@ -352,11 +378,22 @@ public final class TextBenchmarkReportRenderer {
             int rejected = 0;
             int nativeRoutes = 0;
             int fallbacks = 0;
+            int measuredWinClaims = 0;
+            int measuredWinProofs = 0;
             int providers = 0;
             int localKernels = 0;
             int segmentScalarNodes = 0;
+            int stridedNodes = 0;
+            int stridedMaterializations = 0;
             int boundaries = 0;
+            java.util.LinkedHashMap<String, Integer> benchmarkRowCounts = new java.util.LinkedHashMap<>();
+            java.util.LinkedHashMap<String, Integer> layoutClassCounts = new java.util.LinkedHashMap<>();
+            java.util.LinkedHashMap<String, Integer> parityStoragePathCounts = new java.util.LinkedHashMap<>();
+            java.util.LinkedHashMap<String, Integer> parityLayoutCapabilityCounts = new java.util.LinkedHashMap<>();
+            java.util.LinkedHashMap<String, Integer> parityResultResidencyCounts = new java.util.LinkedHashMap<>();
+            int parityAutoEligibleNodes = 0;
             java.util.LinkedHashSet<String> fallbackReasons = new java.util.LinkedHashSet<>();
+            java.util.LinkedHashSet<String> stridedFallbackReasons = new java.util.LinkedHashSet<>();
             java.util.LinkedHashSet<String> rejectionReasons = new java.util.LinkedHashSet<>();
             boolean present = false;
             for (var step : steps) {
@@ -387,29 +424,57 @@ public final class TextBenchmarkReportRenderer {
                     fallbacks++;
                     fallbackReasons.add(fallbackReason);
                 }
+                if (NativeCpuRegionMeasuredWinEvidence.claimed(attrs)) {
+                    measuredWinClaims++;
+                    if (NativeCpuRegionMeasuredWinEvidence.proven(attrs)) {
+                        measuredWinProofs++;
+                    }
+                }
                 providers += listSize(attrs.get("nativeCpuRegionProviderNodes"));
                 localKernels += listSize(attrs.get("nativeCpuRegionLocalKernelNodes"));
                 segmentScalarNodes += nativeCpuRegionSegmentScalarNodeCount(attrs);
+                stridedNodes += intAttr(attrs.get("nativeCpuStridedNodeCount"));
+                stridedMaterializations += intAttr(attrs.get("nativeCpuStridedMaterializationCount"));
+                mergeStringCounts(layoutClassCounts, attrs.get("nativeCpuLayoutClassCounts"));
+                mergeNestedStringCounts(parityStoragePathCounts, attrs.get("nativeCpuParityStoragePaths"));
+                mergeNestedStringCounts(parityLayoutCapabilityCounts, attrs.get("nativeCpuParityLayoutCapabilities"));
+                mergeNestedStringCounts(parityResultResidencyCounts, attrs.get("nativeCpuParityResultResidencies"));
+                parityAutoEligibleNodes += trueCount(attrs.get("nativeCpuParityAutoEligible"));
+                addStrings(stridedFallbackReasons, attrs.get("nativeCpuStridedFallbackReasons"));
                 boundaries += listSize(attrs.get("nativeCpuRegionOutputs"));
+                increment(benchmarkRowCounts, nativeCpuRegionBenchmarkRow(attrs));
             }
             return new NativeCpuRegionTraceSummary(
                     selected,
                     rejected,
                     nativeRoutes,
                     fallbacks,
+                    measuredWinClaims,
+                    measuredWinProofs,
                     providers,
                     localKernels,
                     segmentScalarNodes,
+                    stridedNodes,
+                    stridedMaterializations,
+                    orderedMap(benchmarkRowCounts),
+                    orderedMap(layoutClassCounts),
+                    orderedMap(parityStoragePathCounts),
+                    orderedMap(parityLayoutCapabilityCounts),
+                    orderedMap(parityResultResidencyCounts),
+                    parityAutoEligibleNodes,
                     boundaries,
                     java.util.List.copyOf(fallbackReasons),
+                    java.util.List.copyOf(stridedFallbackReasons),
                     java.util.List.copyOf(rejectionReasons),
                     present
             );
         }
 
         private static NativeCpuRegionTraceSummary empty(boolean present) {
-            return new NativeCpuRegionTraceSummary(0, 0, 0, 0, 0, 0, 0, 0,
-                    java.util.List.of(), java.util.List.of(), present);
+            return new NativeCpuRegionTraceSummary(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(),
+                    java.util.Map.of(), 0,
+                    0, java.util.List.of(), java.util.List.of(), java.util.List.of(), present);
         }
     }
 
@@ -1130,22 +1195,173 @@ public final class TextBenchmarkReportRenderer {
         return 0;
     }
 
+    private static int intAttr(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String text) {
+            try {
+                return Integer.parseInt(text);
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
+        return 0;
+    }
+
+    private static void addStrings(java.util.LinkedHashSet<String> out, Object value) {
+        if (out == null || !(value instanceof java.util.Collection<?> collection)) {
+            return;
+        }
+        for (Object item : collection) {
+            String text = String.valueOf(item);
+            if (!text.isBlank()) {
+                out.add(text);
+            }
+        }
+    }
+
+    private static void mergeStringCounts(java.util.LinkedHashMap<String, Integer> out, Object value) {
+        if (out == null || !(value instanceof Map<?, ?> map)) {
+            return;
+        }
+        for (var entry : map.entrySet()) {
+            String key = String.valueOf(entry.getKey());
+            int count = intAttr(entry.getValue());
+            if (!key.isBlank() && count > 0) {
+                out.merge(key, count, Integer::sum);
+            }
+        }
+    }
+
+    private static void increment(java.util.LinkedHashMap<String, Integer> out, String key) {
+        if (out != null && key != null && !key.isBlank()) {
+            out.merge(key, 1, Integer::sum);
+        }
+    }
+
+    private static Map<String, Integer> orderedMap(java.util.LinkedHashMap<String, Integer> values) {
+        if (values == null || values.isEmpty()) {
+            return java.util.Map.of();
+        }
+        return java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(values));
+    }
+
+    private static void mergeNestedStringCounts(java.util.LinkedHashMap<String, Integer> out, Object value) {
+        if (out == null || !(value instanceof java.util.Collection<?> outer)) {
+            return;
+        }
+        for (Object item : outer) {
+            if (item instanceof java.util.Collection<?> inner) {
+                for (Object nested : inner) {
+                    String key = String.valueOf(nested);
+                    if (!key.isBlank()) {
+                        out.merge(key, 1, Integer::sum);
+                    }
+                }
+            } else {
+                String key = String.valueOf(item);
+                if (!key.isBlank()) {
+                    out.merge(key, 1, Integer::sum);
+                }
+            }
+        }
+    }
+
+    private static int trueCount(Object value) {
+        if (!(value instanceof java.util.Collection<?> collection)) {
+            return 0;
+        }
+        int count = 0;
+        for (Object item : collection) {
+            if (Boolean.TRUE.equals(item) || "true".equalsIgnoreCase(String.valueOf(item))) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     private static int nativeCpuRegionSegmentScalarNodeCount(Map<String, Object> attrs) {
         int explicitCount = listSize(attrs.get("nativeCpuRegionSegmentScalarNodes"));
         if (explicitCount > 0) {
             return explicitCount;
         }
         Object kernels = attrs.get("nativeCpuRegionPhysicalKernels");
-        if (!(kernels instanceof java.util.Collection<?> collection)) {
-            return 0;
-        }
         int count = 0;
-        for (Object kernel : collection) {
-            if ("SEGMENT_SCALAR".equals(String.valueOf(kernel))) {
-                count++;
+        if (kernels instanceof java.util.Collection<?> collection) {
+            for (Object kernel : collection) {
+                String family = String.valueOf(kernel);
+                if ("SEGMENT_SCALAR".equals(family)
+                        || "SEGMENT_DENSE_SCALAR".equals(family)
+                        || "SEGMENT_STRIDED_SCALAR".equals(family)) {
+                    count++;
+                }
+            }
+        }
+        if (count > 0) {
+            return count;
+        }
+        Object families = attrs.get("nativeCpuRegionSegmentKernelFamilies");
+        if (families instanceof java.util.Collection<?> familyCollection) {
+            for (Object family : familyCollection) {
+                String value = String.valueOf(family);
+                if ("SEGMENT_DENSE_SCALAR".equals(value) || "SEGMENT_STRIDED_SCALAR".equals(value)) {
+                    count++;
+                }
             }
         }
         return count;
+    }
+
+    private static String nativeCpuRegionBenchmarkRow(Map<String, Object> attrs) {
+        String route = String.valueOf(attrs.getOrDefault("nativeCpuRegionRoute", ""));
+        int providerNodes = listSize(attrs.get("nativeCpuRegionProviderNodes"));
+        int localKernelNodes = listSize(attrs.get("nativeCpuRegionLocalKernelNodes"));
+        int segmentScalarNodes = nativeCpuRegionSegmentScalarNodeCount(attrs);
+        int stridedNodes = intAttr(attrs.get("nativeCpuStridedNodeCount"));
+        if ("NATIVE".equals(route)) {
+            if (providerNodes > 0 && localKernelNodes > 0) {
+                return "native provider + local native";
+            }
+            if (providerNodes > 0) {
+                return "native provider only";
+            }
+            if (segmentScalarNodes > 0) {
+                return "native segment scalar";
+            }
+            if (containsKernelFamily(attrs, "SEGMENT_PARALLEL")
+                    || containsKernelFamily(attrs, "NATIVE_SEGMENT_PARALLEL")) {
+                return "native segment parallel";
+            }
+            return "native segment fused";
+        }
+        if (providerNodes > 0) {
+            return "native provider + array fallback";
+        }
+        if (stridedNodes > 0) {
+            return "array strided";
+        }
+        return "array dense";
+    }
+
+    private static boolean containsKernelFamily(Map<String, Object> attrs, String expected) {
+        if (attrs == null || expected == null || expected.isBlank()) {
+            return false;
+        }
+        return containsValue(attrs.get("nativeCpuRegionSegmentKernelFamilies"), expected)
+                || containsValue(attrs.get("nativeCpuRegionPhysicalKernels"), expected);
+    }
+
+    private static boolean containsValue(Object value, String expected) {
+        if (!(value instanceof java.util.Collection<?> collection)) {
+            return false;
+        }
+        for (Object item : collection) {
+            if (expected.equals(String.valueOf(item))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void appendMetalRouteCostSummary(StringBuilder sb, graph.execution.trace.ExecutionStepTrace step) {

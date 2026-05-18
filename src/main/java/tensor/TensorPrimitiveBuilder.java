@@ -112,6 +112,7 @@ public final class TensorPrimitiveBuilder {
             Runnable backward
     ) {
         Tensor out = new Tensor(outShape, outStrides, storageOffset, List.of(input), op, label, dataType);
+        TensorInternalAccess.aliasRuntimeFrom(out, input);
         if (backward != null) {
             TensorInternalAccess.setBackwardFunction(out, backward);
         }

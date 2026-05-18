@@ -9,6 +9,12 @@ import backend.cpu.kernels.plan.CpuExecutionPlanner;
 import backend.cpu.nativecpu.NativeCpuCoverageEntry;
 import backend.cpu.nativecpu.NativeCpuCoverageMatrix;
 import backend.cpu.nativecpu.NativeCpuKernelPerformanceStatus;
+import backend.cpu.nativecpu.NativeCpuParityMatrix;
+import backend.cpu.nativecpu.layout.NativeCpuLayoutClass;
+import backend.cpu.nativecpu.layout.NativeCpuStorageFamily;
+import backend.cpu.nativecpu.layout.NativeSegmentKernelFamily;
+import backend.cpu.nativecpu.layout.NativeSegmentStridedKernels;
+import backend.cpu.nativecpu.layout.TensorPhysicalView;
 import backend.lowering.BackendWorkspaceRequirement;
 import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweredUnitArtifact;
@@ -41,6 +47,7 @@ import graph.optimizer.region.RegionOptimizationTrace;
 import graph.optimizer.partition.PartitionValueRef;
 import graph.optimizer.region.RegionValueRef;
 import operations.Operation;
+import tensor.DataType;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -329,7 +336,12 @@ public final class CpuRegionLowerer implements RegionLowerer {
                         "native-cpu-region-unsupported:" + node.operation().opType().name().toLowerCase()
                 ));
             }
-            if (runtimeConfig.cpuStorageProfile() == CpuStorageProfile.AUTO && !coverage.autoFastEligible()) {
+            NativeNodeLayoutPlan layoutPlan = nativeNodeLayoutPlan(nodeId, request, coverage);
+            if (!layoutPlan.selected()) {
+                return NativeRegionLegality.rejected(layoutPlan.rejectionReason());
+            }
+            if (runtimeConfig.cpuStorageProfile() == CpuStorageProfile.AUTO
+                    && !NativeCpuParityMatrix.isAutoEligible(node.operation().opType(), node.dataType())) {
                 return NativeRegionLegality.rejected("native-cpu-region-auto-rejected-slow-op:"
                         + node.operation().opType().name().toLowerCase());
             }
@@ -581,6 +593,7 @@ public final class CpuRegionLowerer implements RegionLowerer {
                 op == null ? Operation.OpType.UNKNOWN : op.opType(),
                 node == null ? tensor.DataType.FLOAT64 : node.dataType()
         );
+        NativeNodeLayoutPlan layoutPlan = nativeNodeLayoutPlan(nodeId, request, coverage);
         RegionExecutionKind executionKind = switch (coverage.status()) {
             case LIBRARY_PROVIDER -> RegionExecutionKind.PROVIDER_CALL;
             case VIEW_ONLY -> RegionExecutionKind.VIEW;
@@ -607,12 +620,193 @@ public final class CpuRegionLowerer implements RegionLowerer {
                 role,
                 executionKind,
                 coverage.family().name(),
+                layoutPlan.segmentKernelFamily(),
+                layoutPlan.layoutClass(),
+                layoutPlan.inputLayoutClasses(),
+                layoutPlan.outputLayoutClass(),
+                layoutPlan.materializationReason(),
                 storageContract,
                 node == null ? List.of() : node.inputIds(),
                 List.of(nodeId),
                 RegionLegalityStatus.SELECTED,
                 coverage.status().name().toLowerCase()
         );
+    }
+
+    private NativeNodeLayoutPlan nativeNodeLayoutPlan(
+            int nodeId,
+            LoweringRequest request,
+            NativeCpuCoverageEntry coverage
+    ) {
+        CompiledNode node = request.context().compiledNode(nodeId);
+        Operation op = node == null ? null : node.operation();
+        List<Integer> inputNodeIds = node == null ? List.of() : node.inputIds();
+        ArrayList<String> inputLayoutClasses = new ArrayList<>();
+        ArrayList<NativeCpuLayoutClass> inputLayouts = new ArrayList<>();
+        for (int inputNodeId : inputNodeIds) {
+            NativeCpuLayoutClass inputLayout = nativeLayoutClass(inputNodeId, request);
+            inputLayouts.add(inputLayout);
+            inputLayoutClasses.add(inputLayout.name());
+            if (inputLayout == NativeCpuLayoutClass.UNSUPPORTED_LAYOUT) {
+                return NativeNodeLayoutPlan.rejected(
+                        NativeCpuLayoutClass.UNSUPPORTED_LAYOUT.name(),
+                        inputLayoutClasses,
+                        nativeLayoutClass(nodeId, request).name(),
+                        "",
+                        "native-layout-unsupported:input-node-" + inputNodeId
+                );
+            }
+        }
+        NativeCpuLayoutClass outputLayout = nativeLayoutClass(nodeId, request);
+        if (outputLayout == NativeCpuLayoutClass.UNSUPPORTED_LAYOUT) {
+            return NativeNodeLayoutPlan.rejected(
+                    NativeCpuLayoutClass.UNSUPPORTED_LAYOUT.name(),
+                    inputLayoutClasses,
+                    outputLayout.name(),
+                    "",
+                    "native-layout-unsupported:node-" + nodeId
+            );
+        }
+        NativeCpuLayoutClass accessLayout = nativeAccessLayout(op, coverage, inputLayouts, outputLayout);
+        String materializationReason = nativeLayoutMaterializationReason(node, op, coverage, inputLayouts, outputLayout);
+        if (!materializationReason.isBlank()) {
+            return NativeNodeLayoutPlan.rejected(
+                    accessLayout.name(),
+                    inputLayoutClasses,
+                    outputLayout.name(),
+                    materializationReason,
+                    materializationReason
+            );
+        }
+        return NativeNodeLayoutPlan.selected(
+                accessLayout.name(),
+                inputLayoutClasses,
+                outputLayout.name(),
+                "",
+                nativeSegmentKernelFamily(coverage, accessLayout).name()
+        );
+    }
+
+    private NativeCpuLayoutClass nativeLayoutClass(int nodeId, LoweringRequest request) {
+        try {
+            CompiledTensorDescriptor descriptor = request.context().descriptor(nodeId);
+            return TensorPhysicalView.fromDescriptor(descriptor, NativeCpuStorageFamily.CPU_NATIVE).layoutClass();
+        } catch (RuntimeException ignored) {
+            return NativeCpuLayoutClass.UNSUPPORTED_LAYOUT;
+        }
+    }
+
+    private NativeCpuLayoutClass nativeAccessLayout(
+            Operation op,
+            NativeCpuCoverageEntry coverage,
+            List<NativeCpuLayoutClass> inputLayouts,
+            NativeCpuLayoutClass outputLayout
+    ) {
+        if (coverage.status() == NativeCpuKernelPerformanceStatus.VIEW_ONLY) {
+            return NativeCpuLayoutClass.VIEW_ALIAS_ONLY;
+        }
+        for (NativeCpuLayoutClass candidate : List.of(
+                NativeCpuLayoutClass.GENERAL_STRIDED_READ_STRIDED_WRITE,
+                NativeCpuLayoutClass.GENERAL_STRIDED_READ_DENSE_WRITE,
+                NativeCpuLayoutClass.TRANSPOSE_2D_READ_DENSE_WRITE,
+                NativeCpuLayoutClass.LAST_DIM_BIAS_BROADCAST,
+                NativeCpuLayoutClass.BROADCAST_READ_DENSE_WRITE,
+                NativeCpuLayoutClass.OFFSET_CONTIGUOUS
+        )) {
+            if (inputLayouts.contains(candidate)) {
+                return candidate;
+            }
+        }
+        if (outputLayout != NativeCpuLayoutClass.DENSE_CONTIGUOUS) {
+            return outputLayout;
+        }
+        return op == null ? outputLayout : NativeCpuLayoutClass.DENSE_CONTIGUOUS;
+    }
+
+    private String nativeLayoutMaterializationReason(
+            CompiledNode node,
+            Operation op,
+            NativeCpuCoverageEntry coverage,
+            List<NativeCpuLayoutClass> inputLayouts,
+            NativeCpuLayoutClass outputLayout
+    ) {
+        if (coverage.status() == NativeCpuKernelPerformanceStatus.VIEW_ONLY) {
+            return "";
+        }
+        Operation.OpType opType = op == null ? Operation.OpType.UNKNOWN : op.opType();
+        for (NativeCpuLayoutClass inputLayout : inputLayouts) {
+            if (inputLayout == NativeCpuLayoutClass.DENSE_CONTIGUOUS) {
+                continue;
+            }
+            if (coverage.status() == NativeCpuKernelPerformanceStatus.LIBRARY_PROVIDER) {
+                return "native-layout-materialization-required:provider-dense-input";
+            }
+            if (nativeSegmentLayoutEligible(node, op, coverage)) {
+                continue;
+            }
+            if (inputLayout == NativeCpuLayoutClass.OFFSET_CONTIGUOUS) {
+                return "native-layout-materialization-required:offset-input:" + opType.name().toLowerCase();
+            }
+            if (inputLayout == NativeCpuLayoutClass.BROADCAST_READ_DENSE_WRITE
+                    || inputLayout == NativeCpuLayoutClass.LAST_DIM_BIAS_BROADCAST) {
+                return "native-layout-materialization-required:broadcast-input:" + opType.name().toLowerCase();
+            }
+            return "native-layout-unsupported:strided-input:" + opType.name().toLowerCase();
+        }
+        if (outputLayout != NativeCpuLayoutClass.DENSE_CONTIGUOUS
+                && coverage.status() != NativeCpuKernelPerformanceStatus.VIEW_ONLY) {
+            return "native-layout-unsupported:strided-output:" + opType.name().toLowerCase();
+        }
+        return "";
+    }
+
+    private boolean nativeSegmentLayoutEligible(CompiledNode node, Operation op, NativeCpuCoverageEntry coverage) {
+        if (op == null || coverage == null) {
+            return false;
+        }
+        DataType dataType = coverage.dataType();
+        Operation.OpType opType = op.opType();
+        if (NativeSegmentStridedKernels.supportsUnary(op, dataType)) {
+            return true;
+        }
+        if (NativeSegmentStridedKernels.supportsBinary(op, dataType)) {
+            return true;
+        }
+        if (NativeSegmentStridedKernels.supportsReduction(opType, dataType)) {
+            return true;
+        }
+        if (isCompareOp(opType) && node != null && node.inputTensors().size() >= 2) {
+            DataType leftDataType = node.inputTensors().get(0).getDataType();
+            DataType rightDataType = node.inputTensors().get(1).getDataType();
+            return leftDataType == rightDataType && NativeSegmentStridedKernels.supportsCompare(op, leftDataType);
+        }
+        return opType == Operation.OpType.WHERE
+                && (dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64 || dataType == DataType.BFLOAT16);
+    }
+
+    private static boolean isCompareOp(Operation.OpType opType) {
+        return opType == Operation.OpType.GT
+                || opType == Operation.OpType.GE
+                || opType == Operation.OpType.LT
+                || opType == Operation.OpType.LE
+                || opType == Operation.OpType.EQ
+                || opType == Operation.OpType.NE;
+    }
+
+    private NativeSegmentKernelFamily nativeSegmentKernelFamily(
+            NativeCpuCoverageEntry coverage,
+            NativeCpuLayoutClass accessLayout
+    ) {
+        if (coverage.status() == NativeCpuKernelPerformanceStatus.LIBRARY_PROVIDER) {
+            return NativeSegmentKernelFamily.PROVIDER;
+        }
+        if (coverage.status() == NativeCpuKernelPerformanceStatus.VIEW_ONLY) {
+            return NativeSegmentKernelFamily.VIEW_ALIAS;
+        }
+        if (accessLayout == NativeCpuLayoutClass.DENSE_CONTIGUOUS) {
+            return NativeSegmentKernelFamily.SEGMENT_DENSE_SCALAR;
+        }
+        return NativeSegmentKernelFamily.SEGMENT_STRIDED_SCALAR;
     }
 
     private LoweringFamily chooseSingleOpFamily(ExecutionUnit unit, LoweringRequest request) {
@@ -772,7 +966,7 @@ public final class CpuRegionLowerer implements RegionLowerer {
                 return current;
             }
             boolean aliasView = switch (node.operation().opType()) {
-                case NOOP, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE -> true;
+                case NOOP, EXPAND, SELECT, SLICE, PERMUTE, EXPAND_DIMS, SQUEEZE -> true;
                 case RESHAPE -> {
                     CompiledTensorDescriptor input = request.context().descriptor(node.inputIds().getFirst());
                     yield input != null && input.contiguous();
@@ -805,6 +999,61 @@ public final class CpuRegionLowerer implements RegionLowerer {
 
         static NativeRegionLegality rejected(String reason) {
             return new NativeRegionLegality(false, List.of(), List.of(), reason);
+        }
+    }
+
+    private record NativeNodeLayoutPlan(
+            boolean selected,
+            String layoutClass,
+            List<String> inputLayoutClasses,
+            String outputLayoutClass,
+            String materializationReason,
+            String segmentKernelFamily,
+            String rejectionReason
+    ) {
+        private NativeNodeLayoutPlan {
+            layoutClass = layoutClass == null ? "" : layoutClass;
+            inputLayoutClasses = List.copyOf(inputLayoutClasses == null ? List.of() : inputLayoutClasses);
+            outputLayoutClass = outputLayoutClass == null ? "" : outputLayoutClass;
+            materializationReason = materializationReason == null ? "" : materializationReason;
+            segmentKernelFamily = segmentKernelFamily == null ? "" : segmentKernelFamily;
+            rejectionReason = rejectionReason == null ? "" : rejectionReason;
+        }
+
+        static NativeNodeLayoutPlan selected(
+                String layoutClass,
+                List<String> inputLayoutClasses,
+                String outputLayoutClass,
+                String materializationReason,
+                String segmentKernelFamily
+        ) {
+            return new NativeNodeLayoutPlan(
+                    true,
+                    layoutClass,
+                    inputLayoutClasses,
+                    outputLayoutClass,
+                    materializationReason,
+                    segmentKernelFamily,
+                    ""
+            );
+        }
+
+        static NativeNodeLayoutPlan rejected(
+                String layoutClass,
+                List<String> inputLayoutClasses,
+                String outputLayoutClass,
+                String materializationReason,
+                String rejectionReason
+        ) {
+            return new NativeNodeLayoutPlan(
+                    false,
+                    layoutClass,
+                    inputLayoutClasses,
+                    outputLayoutClass,
+                    materializationReason,
+                    "",
+                    rejectionReason
+            );
         }
     }
 }

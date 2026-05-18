@@ -401,16 +401,36 @@ public final class ExecutionState {
                     + ", sourceNodeId=" + sourceNodeId + ", targetType=" + target.getDataType()
                     + ", sourceType=" + source.getDataType());
         }
-        if (target.getFlatDataSize() != source.getFlatDataSize()) {
-            throw new IllegalArgumentException("Native view alias size mismatch. targetNodeId=" + targetNodeId
-                    + ", sourceNodeId=" + sourceNodeId + ", targetElements=" + target.getFlatDataSize()
-                    + ", sourceElements=" + source.getFlatDataSize());
-        }
         NativeTensorStorage storage = requireNativeReadable(sourceNodeId, CpuMaterializationReason.CPU_CONSUMER);
+        long requiredElements = viewPhysicalElementSpan(target);
+        if (requiredElements > storage.getSize()) {
+            throw new IllegalArgumentException("Native view alias exceeds source storage. targetNodeId=" + targetNodeId
+                    + ", sourceNodeId=" + sourceNodeId + ", requiredElements=" + requiredElements
+                    + ", storageElements=" + storage.getSize());
+        }
         nativeStorageByNodeId.put(targetNodeId, storage);
         deviceBufferBindingByNodeId.remove(targetNodeId);
         reservedDeviceBufferBindingByNodeId.remove(targetNodeId);
         residencyForNodeId(targetNodeId).markNativeCurrent(reason);
+    }
+
+    private static long viewPhysicalElementSpan(Tensor tensor) {
+        int[] shape = tensor.getShapeUnsafe();
+        int[] strides = tensor.getStridesUnsafe();
+        long maxElementOffset = tensor.getStorageOffsetUnsafe();
+        for (int i = 0; i < shape.length; i++) {
+            if (shape[i] < 0 || strides[i] < 0) {
+                throw new IllegalArgumentException("Native view alias supports only non-negative shape/strides.");
+            }
+            if (shape[i] == 0) {
+                return 0L;
+            }
+            maxElementOffset = Math.addExact(
+                    maxElementOffset,
+                    Math.multiplyExact((long) shape[i] - 1L, strides[i])
+            );
+        }
+        return Math.addExact(maxElementOffset, 1L);
     }
 
     /**
@@ -926,7 +946,9 @@ public final class ExecutionState {
                         nodeId,
                         reason,
                         System.nanoTime() - start,
-                        "native_to_array"
+                        storage.getType() == DataType.BOOL
+                                ? "bool_mask_published:native_to_array"
+                                : "native_to_array"
                 );
                 return;
             }

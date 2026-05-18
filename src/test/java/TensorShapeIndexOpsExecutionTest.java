@@ -13,6 +13,43 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class TensorShapeIndexOpsExecutionTest {
     @Test
+    public void selectViewReadsSourceStorageBeforeCompute() {
+        Tensor x = new Tensor(new double[]{
+                1.0, 2.0, 3.0,
+                4.0, 5.0, 6.0
+        }, new int[]{2, 3}, null, "x", DataType.FLOAT64);
+
+        Tensor selected = x.select(1, 1);
+
+        assertArrayEquals(new int[]{2}, selected.getShape());
+        assertArrayEquals(new double[]{2.0, 5.0}, selected.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    public void sliceViewReadsSourceStorageBeforeCompute() {
+        Tensor x = new Tensor(new double[]{
+                1.0, 2.0, 3.0,
+                4.0, 5.0, 6.0
+        }, new int[]{2, 3}, null, "x", DataType.FLOAT64);
+
+        Tensor sliced = x.slice(new int[]{0, 1}, new int[]{2, 3}, new int[]{0, 1}, new int[]{1, 1});
+
+        assertArrayEquals(new int[]{2, 2}, sliced.getShape());
+        assertArrayEquals(new double[]{2.0, 3.0, 5.0, 6.0}, sliced.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    public void setDataOnViewIsRejected() {
+        Tensor x = new Tensor(new double[]{
+                1.0, 2.0, 3.0,
+                4.0, 5.0, 6.0
+        }, new int[]{2, 3}, null, "x", DataType.FLOAT64);
+        Tensor selected = x.select(1, 1);
+
+        assertThrows(UnsupportedOperationException.class, () -> selected.setData(new double[]{20.0, 50.0}));
+    }
+
+    @Test
     public void sliceWithStepsConcatAndCastExecute() {
         Tensor x = new Tensor(new float[]{
                 1f, 2f, 3f, 4f,

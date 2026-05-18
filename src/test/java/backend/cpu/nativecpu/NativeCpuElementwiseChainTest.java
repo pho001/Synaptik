@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorPrimitiveBuilder;
 import utils.FastTranscendentals;
 
 import java.util.List;
@@ -799,6 +800,16 @@ class NativeCpuElementwiseChainTest {
                 "DIV",
                 promotedBf16Binary(left, new float[]{0.5f, -2.0f, 1.5f, -0.25f}, "DIV")
         );
+        assertNativeBf16PromotedValues(
+                bf16(left, "bf16_min_left").min(bf16(right, "bf16_min_right")).cast(DataType.FLOAT32),
+                "MIN",
+                promotedBf16Binary(left, right, "MIN")
+        );
+        assertNativeBf16PromotedValues(
+                bf16(left, "bf16_max_left").max(bf16(right, "bf16_max_right")).cast(DataType.FLOAT32),
+                "MAX",
+                promotedBf16Binary(left, right, "MAX")
+        );
     }
 
     @Test
@@ -825,6 +836,36 @@ class NativeCpuElementwiseChainTest {
                 "MUL_SCALAR",
                 promotedBf16Unary(values, "MUL_SCALAR", 0.5f)
         );
+        assertNativeBf16PromotedValues(
+                bf16(values, "bf16_clamp_min").clampMin(0.25d).cast(DataType.FLOAT32),
+                "CLAMP_MIN",
+                promotedBf16Unary(values, "CLAMP_MIN", 0.25f)
+        );
+        assertNativeBf16PromotedValues(
+                bf16(values, "bf16_clamp_max").clampMax(0.25d).cast(DataType.FLOAT32),
+                "CLAMP_MAX",
+                promotedBf16Unary(values, "CLAMP_MAX", 0.25f)
+        );
+    }
+
+    @Test
+    void cpuNativeBf16PromotedReductionsKeepOutputNativeAndPublishValues() {
+        Tensor sum = bf16(new float[]{1.0f, 2.0f, 3.0f, 5.0f}, "bf16_sum")
+                .sum()
+                .cast(DataType.FLOAT32);
+        Tensor meanRows = bf16(new float[]{1.0f, 2.0f, 3.0f, 5.0f}, "bf16_mean_rows")
+                .mean(1, false)
+                .cast(DataType.FLOAT32);
+
+        var sumTrace = CompiledGraph.compile(sum, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+        var meanTrace = CompiledGraph.compile(meanRows, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new float[]{11.0f}, sum.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{1.5f, 4.0f}, meanRows.getFloat32Data(), 0.0f);
+        assertNativeBf16Promoted(firstNativeStep(sumTrace.steps(), "SUM"));
+        assertNativeBf16Promoted(firstNativeStep(meanTrace.steps(), "MEAN"));
     }
 
     @Test
@@ -929,6 +970,82 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void cpuNativeFloorCeilSignKeepOutputsNativeAndPublishValues() {
+        Tensor f32 = tensor(new float[]{-1.7f, 0.0f, 2.3f, -0.2f}, "f32_rounding")
+                .floor()
+                .sign();
+
+        var f32Trace = CompiledGraph.compile(f32, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new float[]{-1.0f, 0.0f, 1.0f, -1.0f}, f32.getFloat32Data(), 0.0f);
+        assertNativeSegmentScalar(firstNativeStep(f32Trace.steps(), "FLOOR"));
+        assertNativeSegmentScalar(firstNativeStep(f32Trace.steps(), "SIGN"));
+
+        Tensor f64 = f64(new double[]{-1.7d, 0.0d, 2.3d, -0.2d}, "f64_rounding").ceil();
+
+        var f64Trace = CompiledGraph.compile(f64, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{-1.0d, 0.0d, 3.0d, -0.0d}, f64.getFloat64Data(), 0.0d);
+        assertNativeSegmentScalar(firstNativeStep(f64Trace.steps(), "CEIL"));
+    }
+
+    @Test
+    void cpuNativeMinMaxClampKeepOutputsNativeAndPublishValues() {
+        Tensor f32 = tensor(new float[]{1.0f, 5.0f, -3.0f, 7.0f}, "f32_minmax_left")
+                .min(tensor(new float[]{2.0f, 4.0f, -4.0f, 8.0f}, "f32_minmax_right"))
+                .clampMin(-2.5d)
+                .clampMax(4.0d);
+
+        var f32Trace = CompiledGraph.compile(f32, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new float[]{1.0f, 4.0f, -2.5f, 4.0f}, f32.getFloat32Data(), 1.0e-6f);
+        assertNativeSegmentScalar(firstNativeStep(f32Trace.steps(), "MIN"));
+        assertNativeSegmentScalar(firstNativeStep(f32Trace.steps(), "CLAMP_MIN"));
+        assertNativeSegmentScalar(firstNativeStep(f32Trace.steps(), "CLAMP_MAX"));
+
+        Tensor f64 = f64(new double[]{1.0d, 5.0d, -3.0d, 7.0d}, "f64_minmax_left")
+                .max(f64(new double[]{2.0d, 4.0d, -4.0d, 8.0d}, "f64_minmax_right"))
+                .clampMin(-2.5d)
+                .clampMax(4.0d);
+
+        var f64Trace = CompiledGraph.compile(f64, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{2.0d, 4.0d, -2.5d, 4.0d}, f64.getFloat64Data(), 1.0e-12d);
+        assertNativeSegmentScalar(firstNativeStep(f64Trace.steps(), "MAX"));
+        assertNativeSegmentScalar(firstNativeStep(f64Trace.steps(), "CLAMP_MIN"));
+        assertNativeSegmentScalar(firstNativeStep(f64Trace.steps(), "CLAMP_MAX"));
+    }
+
+    @Test
+    void cpuNativePowAndPowTensorKeepOutputsNativeAndPublishValues() {
+        Tensor f32 = tensor(new float[]{1.0f, 4.0f, 9.0f, 16.0f}, "f32_pow_base")
+                .pow(0.5d)
+                .pow(tensor(new float[]{2.0f, 3.0f, 0.5f, -1.0f}, "f32_pow_exponent"));
+
+        var f32Trace = CompiledGraph.compile(f32, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new float[]{1.0f, 8.0f, (float) Math.sqrt(3.0f), 0.25f}, f32.getFloat32Data(), 1.0e-6f);
+        assertNativeSegmentScalar(firstNativeStep(f32Trace.steps(), "POW"));
+        assertNativeSegmentScalar(firstNativeStep(f32Trace.steps(), "POW_TENSOR"));
+
+        Tensor f64 = f64(new double[]{1.0d, 4.0d, 9.0d, 16.0d}, "f64_pow_base")
+                .pow(0.5d)
+                .pow(f64(new double[]{2.0d, 3.0d, 0.5d, -1.0d}, "f64_pow_exponent"));
+
+        var f64Trace = CompiledGraph.compile(f64, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{1.0d, 8.0d, Math.sqrt(3.0d), 0.25d}, f64.getFloat64Data(), 1.0e-12d);
+        assertNativeSegmentScalar(firstNativeStep(f64Trace.steps(), "POW"));
+        assertNativeSegmentScalar(firstNativeStep(f64Trace.steps(), "POW_TENSOR"));
+    }
+
+    @Test
     void cpuNativeF64SumAndMeanKeepOutputsNativeAndPublishValues() {
         Tensor sumAll = f64Matrix(new double[]{1.0d, 2.0d, 3.0d, 4.0d}, new int[]{2, 2}, "f64_sum_all").sum();
         Tensor meanAll = f64Matrix(new double[]{1.0d, 2.0d, 3.0d, 4.0d}, new int[]{2, 2}, "f64_mean_all").mean();
@@ -964,6 +1081,27 @@ class NativeCpuElementwiseChainTest {
                 .filter(step -> "MEAN".equals(step.opType()))
                 .findFirst()
                 .orElseThrow());
+    }
+
+    @Test
+    void cpuNativeF32F64ReduceMinMaxKeepOutputsNativeAndPublishValues() {
+        Tensor f32MinAll = matrix(new float[]{4.0f, -2.0f, 3.0f, -5.0f}, new int[]{2, 2}, "f32_reduce_min_all").min();
+        Tensor f32MaxRows = matrix(new float[]{4.0f, -2.0f, 3.0f, -5.0f}, new int[]{2, 2}, "f32_reduce_max_rows").max(1, false);
+        Tensor f64MinColumns = f64Matrix(new double[]{4.0d, -2.0d, 3.0d, -5.0d}, new int[]{2, 2}, "f64_reduce_min_columns").min(0, false);
+
+        var f32MinTrace = CompiledGraph.compile(f32MinAll, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+        var f32MaxTrace = CompiledGraph.compile(f32MaxRows, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+        var f64MinTrace = CompiledGraph.compile(f64MinColumns, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new float[]{-5.0f}, f32MinAll.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{4.0f, 3.0f}, f32MaxRows.getFloat32Data(), 0.0f);
+        assertArrayEquals(new double[]{3.0d, -5.0d}, f64MinColumns.getFloat64Data(), 0.0d);
+        assertNativeReduction(firstNativeStep(f32MinTrace.steps(), "REDUCE_MIN"));
+        assertNativeReduction(firstNativeStep(f32MaxTrace.steps(), "REDUCE_MAX"));
+        assertNativeReduction(firstNativeStep(f64MinTrace.steps(), "REDUCE_MIN"));
     }
 
     @Test
@@ -1016,6 +1154,77 @@ class NativeCpuElementwiseChainTest {
                 .filter(step -> "WHERE".equals(step.opType()))
                 .findFirst()
                 .orElseThrow());
+    }
+
+    @Test
+    void cpuNativeF64CompareConditionFeedsNativeWhere() {
+        Tensor condition = f64(new double[]{1.0d, 4.0d, 3.0d, 0.0d}, "f64_compare_left")
+                .greaterThan(f64(new double[]{0.0d, 5.0d, 2.0d, 1.0d}, "f64_compare_right"));
+        Tensor out = Tensor.where(
+                condition,
+                f64(new double[]{10.0d, 20.0d, 30.0d, 40.0d}, "f64_if_true"),
+                f64(new double[]{-10.0d, -20.0d, -30.0d, -40.0d}, "f64_if_false")
+        );
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{10.0d, -20.0d, 30.0d, -40.0d}, out.getFloat64Data(), 1.0e-12d);
+        assertNativeCompareTrace(trace.steps().stream()
+                .filter(step -> "GT".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "WHERE".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+    }
+
+    @Test
+    void cpuNativeBoolMaskLogicalOpsUseNativeMaskStorage() {
+        Tensor left = boolTensor(new byte[]{1, 0, 1, 1}, new int[]{2, 2}, "mask_left");
+        Tensor right = boolTensor(new byte[]{1, 1, 0, 1}, new int[]{2, 2}, "mask_right");
+        Tensor out = left.logicalAnd(right).logicalOr(left.logicalNot());
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new byte[]{1, 1, 0, 1}, out.getBoolData());
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "LOGICAL_AND".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "LOGICAL_OR".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "LOGICAL_NOT".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertTrue(trace.cpuMaterializations().stream()
+                .anyMatch(materialization -> materialization.detail().contains("bool_mask_published")));
+    }
+
+    @Test
+    void cpuNativeBoolMaskReductionConsumesNativeLogicalOutput() {
+        Tensor input = boolTensor(new byte[]{1, 1, 0, 0, 0, 0}, new int[]{2, 3}, "mask_reduce_input");
+        Tensor out = input.logicalNot().any(1, false);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new byte[]{1, 1}, out.getBoolData());
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "LOGICAL_NOT".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertNativeReduction(trace.steps().stream()
+                .filter(step -> "REDUCE_ANY".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        assertTrue(trace.cpuMaterializations().stream()
+                .anyMatch(materialization -> materialization.detail().contains("bool_mask_published")));
     }
 
     @Test
@@ -1206,6 +1415,30 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
+    void unsupportedCpuNativeF64BroadcastWhereFallsBackToArrayWithTraceReason() {
+        Tensor condition = boolTensor(new byte[]{1, 0}, new int[]{2, 1}, "f64_condition");
+        Tensor out = Tensor.where(
+                condition,
+                f64Matrix(new double[]{1.0d, 2.0d, 3.0d, 4.0d}, new int[]{2, 2}, "f64_where_true"),
+                f64Matrix(new double[]{-1.0d, -2.0d, -3.0d, -4.0d}, new int[]{2, 2}, "f64_where_false")
+        );
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+
+        Map<String, Object> where = attrs(trace.steps().stream()
+                .filter(step -> "WHERE".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertArrayEquals(new double[]{1.0d, 2.0d, -3.0d, -4.0d}, out.getFloat64Data(), 1.0e-12d);
+        assertEquals("CPU_NATIVE", where.get("requestedCpuStorage"));
+        assertEquals("CPU_ARRAY", where.get("actualCpuStorage"));
+        assertEquals("native-kernel-ineligible:where-broadcast", where.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_ARRAY", where.get("storageResidency"));
+    }
+
+    @Test
     void requireNativeRejectsUnsupportedCpuNativeBroadcastWhere() {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 
@@ -1364,6 +1597,81 @@ class NativeCpuElementwiseChainTest {
         assertEquals("ARRAY_ONLY", erf.get("nativeCpuKernelFamily"));
         assertEquals("native-kernel-unsupported:erf", erf.get("nativeCpuFallbackReason"));
         assertEquals("CPU_ARRAY", erf.get("storageResidency"));
+    }
+
+    @Test
+    void unsupportedCpuNativeSoftmaxLikeFallsBackToArrayWithStableTraceReason() {
+        Tensor softmaxOut = specialSoftmax(a(), 1);
+        Tensor logSoftmaxOut = specialLogSoftmax(a(), 1);
+
+        var softmaxTrace = CompiledGraph.compile(softmaxOut, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+        var logSoftmaxTrace = CompiledGraph.compile(logSoftmaxOut, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> softmax = attrs(softmaxTrace.steps().stream()
+                .filter(step -> "SOFTMAX".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+        Map<String, Object> logSoftmax = attrs(logSoftmaxTrace.steps().stream()
+                .filter(step -> "LOG_SOFTMAX".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals("REJECTED", softmax.get("nativeCpuRegionDecision"));
+        assertEquals("CPU_ARRAY", softmax.get("nativeCpuRegionRoute"));
+        assertEquals("SOFTMAX", softmax.get("nativeCpuRegionRejectedOp"));
+        assertEquals(
+                "native-cpu-region-rejected:native-softmax-scalar-loop-slower-than-array",
+                softmax.get("nativeCpuRegionFallbackReason")
+        );
+        assertEquals("LOG_SOFTMAX", logSoftmax.get("nativeCpuRegionRejectedOp"));
+        assertEquals(
+                "native-cpu-region-rejected:native-softmax-scalar-loop-slower-than-array",
+                logSoftmax.get("nativeCpuRegionFallbackReason")
+        );
+    }
+
+    @Test
+    void unsupportedCpuNativeArgMaxFallsBackToArrayWithStableTraceReason() {
+        Tensor out = a().argMax(1, false);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> argMax = attrs(trace.steps().stream()
+                .filter(step -> "ARGMAX".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals("REJECTED", argMax.get("nativeCpuRegionDecision"));
+        assertEquals("CPU_ARRAY", argMax.get("nativeCpuRegionRoute"));
+        assertEquals("ARGMAX", argMax.get("nativeCpuRegionRejectedOp"));
+        assertEquals(
+                "native-cpu-region-rejected:native-argmax-index-output-unsupported",
+                argMax.get("nativeCpuRegionFallbackReason")
+        );
+    }
+
+    @Test
+    void unsupportedCpuNativeBf16MinMaxReductionFallsBackToArrayWithStableTraceReason() {
+        Tensor out = bf16(new float[]{1.0f, 4.0f, 2.0f, 3.0f}, "bf16_reduce_min").min(1, false);
+
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+
+        Map<String, Object> reduceMin = attrs(trace.steps().stream()
+                .filter(step -> "REDUCE_MIN".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
+
+        assertEquals("REJECTED", reduceMin.get("nativeCpuRegionDecision"));
+        assertEquals("CPU_ARRAY", reduceMin.get("nativeCpuRegionRoute"));
+        assertEquals("REDUCE_MIN", reduceMin.get("nativeCpuRegionRejectedOp"));
+        assertEquals(
+                "native-cpu-region-rejected:native-bf16-reduce-minmax-output-policy-unsupported",
+                reduceMin.get("nativeCpuRegionFallbackReason")
+        );
     }
 
     @Test
@@ -1672,13 +1980,11 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
-    void selectAndSliceStayOutsideNativeViewSlice() {
+    void selectAndSliceUseNativeViewAliasesWithoutCpuMaterialization() {
         Tensor selected = tensor(new float[]{1f, 2f, 3f, 4f}, "select_input")
-                .select(0, 1)
-                .relu();
+                .select(0, 1);
         Tensor sliced = tensor(new float[]{1f, 2f, 3f, 4f}, "slice_input")
-                .slice(new int[]{0, 0}, new int[]{1, 2}, new int[]{0, 1}, new int[]{1, 1})
-                .relu();
+                .slice(new int[]{0, 0}, new int[]{1, 2}, new int[]{0, 1}, new int[]{1, 1});
 
         var selectTrace = CompiledGraph.compile(selected, nativeElementwiseCompileConfig())
                 .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
@@ -1693,11 +1999,14 @@ class NativeCpuElementwiseChainTest {
                 .filter(step -> "SLICE".equals(step.opType()))
                 .findFirst()
                 .orElseThrow());
+        assertEquals("CPU_NATIVE", select.get("actualCpuStorage"));
+        assertEquals("VIEW_ONLY", select.get("nativeCpuKernelStatus"));
+        assertEquals("VIEW_ONLY", select.get("nativeCpuKernelFamily"));
+        assertEquals("CPU_NATIVE", select.get("storageResidency"));
 
-        assertFalse(select.containsKey("nativeCpuKernelStatus"));
-        assertEquals("CPU_ARRAY", select.get("storageResidency"));
-        assertFalse(slice.containsKey("nativeCpuKernelStatus"));
-        assertEquals("CPU_ARRAY", slice.get("storageResidency"));
+        assertEquals("CPU_NATIVE", slice.get("actualCpuStorage"));
+        assertEquals("VIEW_ONLY", slice.get("nativeCpuKernelStatus"));
+        assertEquals("CPU_NATIVE", slice.get("storageResidency"));
     }
 
     private static RuntimeConfig runtime(CpuStorageProfile storageProfile, NativeCpuFailurePolicy failurePolicy) {
@@ -1735,6 +2044,24 @@ class NativeCpuElementwiseChainTest {
 
     private static Tensor a() {
         return tensor(new float[]{1f, 2f, 3f, 4f}, "a");
+    }
+
+    private static Tensor specialSoftmax(Tensor input, int dimension) {
+        return TensorPrimitiveBuilder.unary(
+                input,
+                new operations.reduction.softmax(dimension),
+                "legacySoftmax",
+                input.getDataType()
+        );
+    }
+
+    private static Tensor specialLogSoftmax(Tensor input, int dimension) {
+        return TensorPrimitiveBuilder.unary(
+                input,
+                new operations.reduction.logSoftmax(dimension),
+                "legacyLogSoftmax",
+                input.getDataType()
+        );
     }
 
     private static Tensor b() {
@@ -1887,6 +2214,8 @@ class NativeCpuElementwiseChainTest {
                 case "SUB" -> leftValue - rightValue;
                 case "MUL" -> leftValue * rightValue;
                 case "DIV" -> leftValue / rightValue;
+                case "MIN" -> Math.min(leftValue, rightValue);
+                case "MAX" -> Math.max(leftValue, rightValue);
                 default -> throw new IllegalArgumentException("Unsupported test op: " + opType);
             };
             out[i] = roundBf16(result);
@@ -1903,6 +2232,8 @@ class NativeCpuElementwiseChainTest {
                 case "NEG" -> -value;
                 case "RELU" -> Math.max(0.0f, value);
                 case "ABS" -> Math.abs(value);
+                case "CLAMP_MIN" -> Math.max(value, scalar);
+                case "CLAMP_MAX" -> Math.min(value, scalar);
                 default -> throw new IllegalArgumentException("Unsupported test op: " + opType);
             };
             out[i] = roundBf16(result);

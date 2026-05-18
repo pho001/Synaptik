@@ -1,7 +1,5 @@
 package tensor;
 
-import backend.cpu.nativecpu.NativeCpuAllocation;
-
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
 /**
@@ -11,11 +9,11 @@ import static java.lang.foreign.ValueLayout.JAVA_SHORT;
  * carrier is not FP16 and no arithmetic conversion is implied by this storage class.</p>
  */
 public final class NativeBFloat16Storage extends AbstractNativeTensorStorage {
-    public NativeBFloat16Storage(int size, NativeCpuAllocation allocation) {
+    public NativeBFloat16Storage(int size, NativeMemoryAllocation allocation) {
         this(size, allocation, 0L, true);
     }
 
-    public NativeBFloat16Storage(int size, NativeCpuAllocation allocation, long byteOffset, boolean ownsSegment) {
+    public NativeBFloat16Storage(int size, NativeMemoryAllocation allocation, long byteOffset, boolean ownsSegment) {
         super(DataType.BFLOAT16, size, Short.BYTES, allocation, byteOffset, ownsSegment);
     }
 

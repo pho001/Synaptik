@@ -121,4 +121,13 @@ public class TensorStorageDataTypeTest {
         Tensor t = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "t64", DataType.FLOAT64);
         assertThrows(UnsupportedOperationException.class, () -> t.setFloat32Data(new float[]{1.0f, 2.0f}));
     }
+
+    @Test
+    void typedRawGettersRejectWrongStorageType() {
+        Tensor f64 = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "f64", DataType.FLOAT64);
+        Tensor f32 = new Tensor(new float[]{1.0f, 2.0f}, new int[]{2}, null, "f32", DataType.FLOAT32);
+
+        assertThrows(UnsupportedOperationException.class, f64::getFloat32Data);
+        assertThrows(UnsupportedOperationException.class, f32::getFloat64Data);
+    }
 }

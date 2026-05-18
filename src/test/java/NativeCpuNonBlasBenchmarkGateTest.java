@@ -41,6 +41,8 @@ class NativeCpuNonBlasBenchmarkGateTest {
                         Map.entry("nativeCpuRegionProviderNodes", List.of(1)),
                         Map.entry("nativeCpuRegionLocalKernelNodes", List.of(2)),
                         Map.entry("nativeCpuRegionSegmentScalarNodes", List.of(2)),
+                        Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 2)),
+                        Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("PROVIDER", "SEGMENT_DENSE_SCALAR")),
                         Map.entry("nativeCpuRegionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT", "SEGMENT_SCALAR"))
                 )
         );
@@ -52,6 +54,8 @@ class NativeCpuNonBlasBenchmarkGateTest {
 
         assertTrue(failure.getMessage().contains("AUTO native CPU region selected slow segment scalar kernels"));
         assertTrue(failure.getMessage().contains("auto-native-slow"));
+        assertTrue(failure.getMessage().contains("SEGMENT_DENSE_SCALAR"));
+        assertTrue(failure.getMessage().contains("DENSE_CONTIGUOUS"));
     }
 
     @Test
@@ -73,6 +77,135 @@ class NativeCpuNonBlasBenchmarkGateTest {
     }
 
     @Test
+    void rejectsAutoNativeRegionWithParityNonEligibleNodeEvenWithoutScalarFamily() {
+        BenchmarkReport report = report(
+                "auto-native-parity-non-eligible",
+                CpuStorageProfile.AUTO,
+                Map.ofEntries(
+                        Map.entry("nativeCpuRegionDecision", "SELECTED"),
+                        Map.entry("nativeCpuRegionRoute", "NATIVE"),
+                        Map.entry("nativeCpuRegionProviderNodes", List.of(1)),
+                        Map.entry("nativeCpuRegionLocalKernelNodes", List.of(2)),
+                        Map.entry("nativeCpuParityAutoEligible", List.of(true, false)),
+                        Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 1, "OFFSET_CONTIGUOUS", 1)),
+                        Map.entry("nativeCpuParityResultResidencies", List.of(List.of("CPU_NATIVE"), List.of("CPU_NATIVE"))),
+                        Map.entry("nativeCpuRegionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT", "CUSTOM_NATIVE"))
+                )
+        );
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> NativeCpuNonBlasBenchmarkGate.requirePass(report)
+        );
+
+        assertTrue(failure.getMessage().contains("AUTO native CPU region selected parity non-eligible nodes"));
+        assertTrue(failure.getMessage().contains("auto-native-parity-non-eligible"));
+        assertTrue(failure.getMessage().contains("parityAutoEligible=[true, false]"));
+        assertTrue(failure.getMessage().contains("OFFSET_CONTIGUOUS"));
+    }
+
+    @Test
+    void allowsAutoSlowNativeRegionOnlyWithMeasuredWinProof() {
+        BenchmarkReport report = report(
+                "auto-native-measured-win",
+                CpuStorageProfile.AUTO,
+                Map.ofEntries(
+                        Map.entry("nativeCpuRegionDecision", "SELECTED"),
+                        Map.entry("nativeCpuRegionRoute", "NATIVE"),
+                        Map.entry("nativeCpuRegionProviderNodes", List.of(1)),
+                        Map.entry("nativeCpuRegionLocalKernelNodes", List.of(2)),
+                        Map.entry("nativeCpuRegionSegmentScalarNodes", List.of(2)),
+                        Map.entry("nativeCpuParityAutoEligible", List.of(true, false)),
+                        Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("PROVIDER", "SEGMENT_DENSE_SCALAR")),
+                        Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 2)),
+                        Map.entry("nativeCpuRegionMeasuredWin", true),
+                        Map.entry("nativeCpuRegionNativeMedianMs", 0.90d),
+                        Map.entry("nativeCpuRegionArrayMedianMs", 1.00d),
+                        Map.entry("nativeCpuRegionMeasuredWinThreshold", 0.95d)
+                )
+        );
+
+        assertDoesNotThrow(() -> NativeCpuNonBlasBenchmarkGate.requirePass(report));
+    }
+
+    @Test
+    void allowsAutoMeasuredWinProofWithStringValuesAndDefaultThreshold() {
+        BenchmarkReport report = report(
+                "auto-native-measured-win-strings",
+                CpuStorageProfile.AUTO,
+                Map.ofEntries(
+                        Map.entry("nativeCpuRegionDecision", "SELECTED"),
+                        Map.entry("nativeCpuRegionRoute", "NATIVE"),
+                        Map.entry("nativeCpuRegionLocalKernelNodes", List.of(2)),
+                        Map.entry("nativeCpuRegionSegmentScalarNodes", List.of(2)),
+                        Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("SEGMENT_STRIDED_SCALAR")),
+                        Map.entry("nativeCpuRegionMeasuredWin", "true"),
+                        Map.entry("nativeCpuRegionNativeMedianMs", "0.94"),
+                        Map.entry("nativeCpuRegionArrayMedianMs", "1.00")
+                )
+        );
+
+        assertDoesNotThrow(() -> NativeCpuNonBlasBenchmarkGate.requirePass(report));
+    }
+
+    @Test
+    void rejectsAutoSlowNativeRegionWhenMeasuredWinFlagLacksNumericProof() {
+        BenchmarkReport report = report(
+                "auto-native-stale-proof",
+                CpuStorageProfile.AUTO,
+                Map.ofEntries(
+                        Map.entry("nativeCpuRegionDecision", "SELECTED"),
+                        Map.entry("nativeCpuRegionRoute", "NATIVE"),
+                        Map.entry("nativeCpuRegionProviderNodes", List.of(1)),
+                        Map.entry("nativeCpuRegionLocalKernelNodes", List.of(2)),
+                        Map.entry("nativeCpuRegionSegmentScalarNodes", List.of(2)),
+                        Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("PROVIDER", "SEGMENT_DENSE_SCALAR")),
+                        Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 2)),
+                        Map.entry("nativeCpuRegionMeasuredWin", true),
+                        Map.entry("nativeCpuRegionNativeMedianMs", 0.99d),
+                        Map.entry("nativeCpuRegionArrayMedianMs", 1.00d),
+                        Map.entry("nativeCpuRegionMeasuredWinThreshold", 0.95d)
+                )
+        );
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> NativeCpuNonBlasBenchmarkGate.requirePass(report)
+        );
+
+        assertTrue(failure.getMessage().contains("AUTO native CPU region selected slow segment scalar kernels"));
+        assertTrue(failure.getMessage().contains("measuredWinProof={enabled=true"));
+        assertTrue(failure.getMessage().contains("nativeMedianMs=0.99"));
+        assertTrue(failure.getMessage().contains("arrayMedianMs=1.0"));
+    }
+
+    @Test
+    void rejectsAutoSlowNativeRegionEvenWhenWholeWorkloadBeatsBaselineWithoutRegionProof() {
+        BenchmarkReport report = reportWithBaseline(
+                "auto-native-workload-win-without-region-proof",
+                Map.ofEntries(
+                        Map.entry("nativeCpuRegionDecision", "SELECTED"),
+                        Map.entry("nativeCpuRegionRoute", "NATIVE"),
+                        Map.entry("nativeCpuRegionProviderNodes", List.of(1)),
+                        Map.entry("nativeCpuRegionLocalKernelNodes", List.of(2)),
+                        Map.entry("nativeCpuRegionSegmentScalarNodes", List.of(2)),
+                        Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("PROVIDER", "SEGMENT_DENSE_SCALAR")),
+                        Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 2))
+                ),
+                1.00d,
+                0.90d
+        );
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> NativeCpuNonBlasBenchmarkGate.requirePass(report)
+        );
+
+        assertTrue(failure.getMessage().contains("AUTO native CPU region selected slow segment scalar kernels"));
+        assertTrue(failure.getMessage().contains("measuredWinProof={enabled=[]"));
+    }
+
+    @Test
     void allowsAutoProviderOnlyOrRejectedRegionEvidence() {
         BenchmarkReport providerOnly = report(
                 "auto-native-provider-only",
@@ -82,6 +215,7 @@ class NativeCpuNonBlasBenchmarkGateTest {
                         Map.entry("nativeCpuRegionRoute", "NATIVE"),
                         Map.entry("nativeCpuRegionProviderNodes", List.of(1)),
                         Map.entry("nativeCpuRegionLocalKernelNodes", List.of()),
+                        Map.entry("nativeCpuParityAutoEligible", List.of(true)),
                         Map.entry("nativeCpuRegionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT"))
                 )
         );
@@ -101,8 +235,33 @@ class NativeCpuNonBlasBenchmarkGateTest {
         assertDoesNotThrow(() -> NativeCpuNonBlasBenchmarkGate.requirePass(rejectedSlow));
     }
 
-    private static BenchmarkReport report(String name, CpuStorageProfile cpuStorageProfile, Map<String, Object> attrs) {
-        ExecutionProfile profile = new ExecutionProfile(
+    private static BenchmarkReport reportWithBaseline(
+            String name,
+            Map<String, Object> candidateAttrs,
+            double baselineMedianMs,
+            double candidateMedianMs
+    ) {
+        ExecutionProfile baselineProfile = profile(name + "-baseline", CpuStorageProfile.CPU_ARRAY);
+        ExecutionProfile candidateProfile = profile(name, CpuStorageProfile.AUTO);
+        return BenchmarkReport.of(
+                name,
+                List.of(
+                        BenchmarkCandidateReport.success(
+                                BenchmarkEntry.baseline(name + "-baseline", baselineProfile),
+                                ValidationResult.skipped(),
+                                measurement(step(0, name + "-baseline-step", "CpuMatMulKernel", Map.of()), baselineMedianMs)
+                        ),
+                        BenchmarkCandidateReport.success(
+                                BenchmarkEntry.candidate(name, candidateProfile),
+                                ValidationResult.skipped(),
+                                measurement(step(0, name + "-step", "PreparedNativeCpuRegionExecutable", candidateAttrs), candidateMedianMs)
+                        )
+                )
+        );
+    }
+
+    private static ExecutionProfile profile(String name, CpuStorageProfile cpuStorageProfile) {
+        return new ExecutionProfile(
                 name,
                 name,
                 DataType.FLOAT32,
@@ -111,39 +270,55 @@ class NativeCpuNonBlasBenchmarkGateTest {
                 RuntimeConfig.inferenceDefaults().withCpuStorageProfile(cpuStorageProfile),
                 WorkloadProfile.none()
         );
-        ExecutionStepTrace step = new ExecutionStepTrace(
-                0,
-                name + "-step",
+    }
+
+    private static ExecutionStepTrace step(String name, Map<String, Object> attrs) {
+        return step(0, name + "-step", "PreparedNativeCpuRegionExecutable", attrs);
+    }
+
+    private static ExecutionStepTrace step(int index, String name, String kernel, Map<String, Object> attrs) {
+        return new ExecutionStepTrace(
+                index,
+                name,
                 "MATMUL",
                 List.of(2, 2),
                 DataType.FLOAT32,
                 "CPU",
-                "PreparedNativeCpuRegionExecutable",
+                kernel,
                 100L,
                 new StepExecutionMetadata("node", attrs, null, null, null, null, null, null, null)
         );
+    }
+
+    private static MeasurementResult measurement(ExecutionStepTrace step, double medianMs) {
+        return new MeasurementResult(
+                MeasurementPolicy.defaults(),
+                new ExecutionTrace(
+                        CompileTrace.skipped(),
+                        PrepareTrace.skipped(),
+                        new RunTrace(
+                                ExecutionMode.FORWARD,
+                                100L,
+                                List.of(step),
+                                List.of(),
+                                List.of(),
+                                NativeCpuMemoryTrace.empty(),
+                                List.of()
+                        )
+                ),
+                new MeasurementStatistics(medianMs, medianMs, medianMs)
+        );
+    }
+
+    private static BenchmarkReport report(String name, CpuStorageProfile cpuStorageProfile, Map<String, Object> attrs) {
+        ExecutionProfile profile = profile(name, cpuStorageProfile);
+        ExecutionStepTrace step = step(name, attrs);
         return BenchmarkReport.of(
                 name,
                 List.of(BenchmarkCandidateReport.success(
                         BenchmarkEntry.candidate(name, profile),
                         ValidationResult.skipped(),
-                        new MeasurementResult(
-                                MeasurementPolicy.defaults(),
-                                new ExecutionTrace(
-                                        CompileTrace.skipped(),
-                                        PrepareTrace.skipped(),
-                                        new RunTrace(
-                                                ExecutionMode.FORWARD,
-                                                100L,
-                                                List.of(step),
-                                                List.of(),
-                                                List.of(),
-                                                NativeCpuMemoryTrace.empty(),
-                                                List.of()
-                                        )
-                                ),
-                                new MeasurementStatistics(1.0, 1.0, 1.0)
-                        )
+                        measurement(step, 1.0d)
                 ))
         );
     }

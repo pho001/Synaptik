@@ -1,6 +1,6 @@
 package backend.cpu.nativecpu;
 
-import backend.memory.ExecutionResource;
+import tensor.NativeMemoryAllocation;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * that arena. Instances are idempotent {@link ExecutionResource}s so they can be registered with
  * {@link graph.execution.ExecutionState} and closed from a {@code finally} block.</p>
  */
-public final class NativeCpuAllocation implements ExecutionResource {
+public final class NativeCpuAllocation implements NativeMemoryAllocation {
     private final Arena arena;
     private final MemorySegment segment;
     private final NativeCpuMemoryPool.Block poolBlock;

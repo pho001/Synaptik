@@ -979,6 +979,63 @@ public class BenchmarkSessionTest {
                         null
                 )
         );
+        var promotedNonBlasStep = new graph.execution.trace.ExecutionStepTrace(
+                1,
+                "bf16_relu",
+                "RELU",
+                List.of(32, 32),
+                DataType.BFLOAT16,
+                "CPU",
+                "NativeCpuElementwiseExecutor",
+                20L,
+                new graph.execution.trace.StepExecutionMetadata(
+                        "node",
+                        Map.of(
+                                "cpuStorageProfile", "CPU_NATIVE",
+                                "requestedCpuStorage", "CPU_NATIVE",
+                                "actualCpuStorage", "CPU_NATIVE",
+                                "nativeCpuKernelStatus", "NATIVE_CORRECT_BUT_SLOW",
+                                "nativeCpuKernelFamily", "SEGMENT_SCALAR",
+                                "storagePrecision", "BF16",
+                                "computePrecision", "F32_PROMOTED"
+                        ),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+        var promotedRegionStep = new graph.execution.trace.ExecutionStepTrace(
+                2,
+                "bf16_native_region",
+                "MATMUL",
+                List.of(32, 32),
+                DataType.BFLOAT16,
+                "CPU",
+                "PreparedNativeCpuRegionExecutable",
+                40L,
+                new graph.execution.trace.StepExecutionMetadata(
+                        "node",
+                        Map.of(
+                                "nativeCpuRegionDecision", "SELECTED",
+                                "nativeCpuRegionRoute", "NATIVE",
+                                "nativeCpuRegionBf16PromotedNodes", List.of(22, 23),
+                                "nativeCpuRegionBf16PromotedSegmentScalarNodes", List.of(22, 23),
+                                "nativeCpuRegionBf16StoragePrecision", "BF16",
+                                "nativeCpuRegionBf16ComputePrecision", "F32_PROMOTED"
+                        ),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
 
         BenchmarkReport report = BenchmarkReport.of(
                 "bf16_openblas_route_report",
@@ -993,7 +1050,7 @@ public class BenchmarkSessionTest {
                                         new graph.execution.trace.RunTrace(
                                                 ExecutionMode.FORWARD,
                                                 100L,
-                                                List.of(step),
+                                                List.of(step, promotedNonBlasStep, promotedRegionStep),
                                                 List.of(),
                                                 List.of(),
                                                 graph.execution.trace.NativeCpuMemoryTrace.empty(),
@@ -1050,6 +1107,10 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("bf16PerformanceSummary=matMulStepCount=1"));
         assertTrue(text.contains("sbgemmContinuationCount=1"));
         assertTrue(text.contains("promotedF32Count=1"));
+        assertTrue(text.contains("promotedNonBlasStepCount=1"));
+        assertTrue(text.contains("promotedNonBlasRegionNodeCount=2"));
+        assertTrue(text.contains("promotedNonBlasSegmentScalarCount=2"));
+        assertTrue(text.contains("promotedNonBlasArrayFallbackCount=0"));
         assertTrue(text.contains("optimizerArrayFallbackCount=2"));
         assertTrue(text.contains("optimizerNativeCount=0"));
         assertTrue(text.contains("activationsOnlyPolicyCount=1"));
@@ -1073,6 +1134,10 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"bf16Performance\": {\"matMulStepCount\": 1"));
         assertTrue(json.contains("\"sbgemmContinuationCount\": 1"));
         assertTrue(json.contains("\"promotedF32Count\": 1"));
+        assertTrue(json.contains("\"promotedNonBlasStepCount\": 1"));
+        assertTrue(json.contains("\"promotedNonBlasRegionNodeCount\": 2"));
+        assertTrue(json.contains("\"promotedNonBlasSegmentScalarCount\": 2"));
+        assertTrue(json.contains("\"promotedNonBlasArrayFallbackCount\": 0"));
         assertTrue(json.contains("\"optimizerArrayFallbackCount\": 2"));
         assertTrue(json.contains("\"optimizerNativeCount\": 0"));
         assertTrue(json.contains("\"activationsOnlyPolicyCount\": 1"));
@@ -1180,6 +1245,68 @@ public class BenchmarkSessionTest {
                 () -> Bf16PerformanceBenchmarkGate.requirePass(report)
         );
         assertTrue(failure.getMessage().contains("sbgemm overclaimed as BF16 output route"));
+    }
+
+    @Test
+    void bf16PerformanceGateRejectsNonBlasPromotedStepWithoutPrecisionContract() {
+        var profile = new ExecutionProfile(
+                "bf16-non-blas-contract-profile",
+                "bf16-non-blas-contract",
+                DataType.BFLOAT16,
+                ExecutionMode.FORWARD,
+                config.compile.CompileConfig.noGraphOptimizationBaseline(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        var step = new graph.execution.trace.ExecutionStepTrace(
+                0,
+                "bf16_bad_relu",
+                "RELU",
+                List.of(2, 2),
+                DataType.BFLOAT16,
+                "CPU",
+                "NativeCpuElementwiseExecutor",
+                100L,
+                new graph.execution.trace.StepExecutionMetadata(
+                        "node",
+                        Map.of(
+                                "actualCpuStorage", "CPU_NATIVE",
+                                "nativeCpuKernelStatus", "NATIVE_CORRECT_BUT_SLOW",
+                                "nativeCpuKernelFamily", "SEGMENT_SCALAR",
+                                "storagePrecision", "BF16"
+                        ),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+        BenchmarkReport report = BenchmarkReport.of(
+                "bf16_non_blas_contract_report",
+                List.of(BenchmarkCandidateReport.success(
+                        BenchmarkEntry.candidate("bf16-non-blas-contract", profile),
+                        tuning.validate.ValidationResult.skipped(),
+                        new tuning.measure.MeasurementResult(
+                                tuning.measure.MeasurementPolicy.defaults(),
+                                new graph.execution.trace.ExecutionTrace(
+                                        graph.execution.trace.CompileTrace.skipped(),
+                                        graph.execution.trace.PrepareTrace.skipped(),
+                                        new graph.execution.trace.RunTrace(ExecutionMode.FORWARD, 100L, List.of(step))
+                                ),
+                                new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
+                        )
+                ))
+        );
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> Bf16PerformanceBenchmarkGate.requirePass(report)
+        );
+
+        assertTrue(failure.getMessage().contains("BF16 non-BLAS promoted step missing BF16/F32_PROMOTED"));
     }
 
     @Test
@@ -1309,56 +1436,135 @@ public class BenchmarkSessionTest {
                 Map.entry("nativeCpuRegionLocalKernelNodes", List.of(3)),
                 Map.entry("nativeCpuRegionSegmentScalarNodes", List.of(3)),
                 Map.entry("nativeCpuRegionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT", "SEGMENT_SCALAR")),
+                Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("PROVIDER", "SEGMENT_DENSE_SCALAR")),
+                Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 2)),
+                Map.entry("nativeCpuParityStoragePaths", List.of(
+                        List.of("CPU_ARRAY_DENSE", "CPU_ARRAY_STRIDED", "CPU_NATIVE_REGION_PROVIDER"),
+                        List.of("CPU_ARRAY_DENSE", "CPU_ARRAY_STRIDED", "CPU_NATIVE_REGION_DENSE")
+                )),
+                Map.entry("nativeCpuParityLayoutCapabilities", List.of(
+                        List.of("DENSE"),
+                        List.of("DENSE", "OFFSET_CONTIGUOUS")
+                )),
+                Map.entry("nativeCpuParityResultResidencies", List.of(
+                        List.of("CPU_NATIVE"),
+                        List.of("CPU_NATIVE")
+                )),
+                Map.entry("nativeCpuParityAutoEligible", List.of(true, false)),
+                Map.entry("nativeCpuRegionMeasuredWin", true),
+                Map.entry("nativeCpuRegionNativeMedianMs", 0.90d),
+                Map.entry("nativeCpuRegionArrayMedianMs", 1.00d),
+                Map.entry("nativeCpuRegionMeasuredWinThreshold", 0.95d),
+                Map.entry("nativeCpuStridedNodeCount", 0),
+                Map.entry("nativeCpuStridedMaterializationCount", 0),
+                Map.entry("nativeCpuStridedFallbackReasons", List.of()),
                 Map.entry("nativeCpuRegionOutputs", List.of(3))
+        );
+        var providerOnlyAttrs = Map.<String, Object>ofEntries(
+                Map.entry("nativeCpuRegionDecision", "SELECTED"),
+                Map.entry("nativeCpuRegionRoute", "NATIVE"),
+                Map.entry("nativeCpuRegionReason", "selected"),
+                Map.entry("nativeCpuRegionFallbackReason", ""),
+                Map.entry("nativeCpuRegionProviderNodes", List.of(5)),
+                Map.entry("nativeCpuRegionLocalKernelNodes", List.of()),
+                Map.entry("nativeCpuRegionSegmentScalarNodes", List.of()),
+                Map.entry("nativeCpuRegionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT")),
+                Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("PROVIDER")),
+                Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 1)),
+                Map.entry("nativeCpuParityAutoEligible", List.of(true)),
+                Map.entry("nativeCpuStridedNodeCount", 0),
+                Map.entry("nativeCpuStridedMaterializationCount", 0),
+                Map.entry("nativeCpuStridedFallbackReasons", List.of()),
+                Map.entry("nativeCpuRegionOutputs", List.of(5))
+        );
+        var scalarAttrs = Map.<String, Object>ofEntries(
+                Map.entry("nativeCpuRegionDecision", "SELECTED"),
+                Map.entry("nativeCpuRegionRoute", "NATIVE"),
+                Map.entry("nativeCpuRegionReason", "selected"),
+                Map.entry("nativeCpuRegionFallbackReason", ""),
+                Map.entry("nativeCpuRegionProviderNodes", List.of()),
+                Map.entry("nativeCpuRegionLocalKernelNodes", List.of(6)),
+                Map.entry("nativeCpuRegionSegmentScalarNodes", List.of(6)),
+                Map.entry("nativeCpuRegionPhysicalKernels", List.of("SEGMENT_SCALAR")),
+                Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("SEGMENT_STRIDED_SCALAR")),
+                Map.entry("nativeCpuLayoutClassCounts", Map.of("STRIDED_VIEW", 1)),
+                Map.entry("nativeCpuParityAutoEligible", List.of(false)),
+                Map.entry("nativeCpuStridedNodeCount", 1),
+                Map.entry("nativeCpuStridedMaterializationCount", 0),
+                Map.entry("nativeCpuStridedFallbackReasons", List.of()),
+                Map.entry("nativeCpuRegionOutputs", List.of(6))
+        );
+        var parallelAttrs = Map.<String, Object>ofEntries(
+                Map.entry("nativeCpuRegionDecision", "SELECTED"),
+                Map.entry("nativeCpuRegionRoute", "NATIVE"),
+                Map.entry("nativeCpuRegionReason", "selected"),
+                Map.entry("nativeCpuRegionFallbackReason", ""),
+                Map.entry("nativeCpuRegionProviderNodes", List.of()),
+                Map.entry("nativeCpuRegionLocalKernelNodes", List.of(7)),
+                Map.entry("nativeCpuRegionSegmentScalarNodes", List.of()),
+                Map.entry("nativeCpuRegionPhysicalKernels", List.of("SEGMENT_PARALLEL")),
+                Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("SEGMENT_PARALLEL")),
+                Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 1)),
+                Map.entry("nativeCpuParityAutoEligible", List.of(true)),
+                Map.entry("nativeCpuStridedNodeCount", 0),
+                Map.entry("nativeCpuStridedMaterializationCount", 0),
+                Map.entry("nativeCpuStridedFallbackReasons", List.of()),
+                Map.entry("nativeCpuRegionOutputs", List.of(7))
+        );
+        var fusedAttrs = Map.<String, Object>ofEntries(
+                Map.entry("nativeCpuRegionDecision", "SELECTED"),
+                Map.entry("nativeCpuRegionRoute", "NATIVE"),
+                Map.entry("nativeCpuRegionReason", "selected"),
+                Map.entry("nativeCpuRegionFallbackReason", ""),
+                Map.entry("nativeCpuRegionProviderNodes", List.of()),
+                Map.entry("nativeCpuRegionLocalKernelNodes", List.of(8)),
+                Map.entry("nativeCpuRegionSegmentScalarNodes", List.of()),
+                Map.entry("nativeCpuRegionPhysicalKernels", List.of("SEGMENT_FUSED")),
+                Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("SEGMENT_FUSED")),
+                Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 1)),
+                Map.entry("nativeCpuParityAutoEligible", List.of(true)),
+                Map.entry("nativeCpuStridedNodeCount", 0),
+                Map.entry("nativeCpuStridedMaterializationCount", 0),
+                Map.entry("nativeCpuStridedFallbackReasons", List.of()),
+                Map.entry("nativeCpuRegionOutputs", List.of(8))
+        );
+        var providerFallbackAttrs = Map.<String, Object>ofEntries(
+                Map.entry("nativeCpuRegionDecision", "REJECTED"),
+                Map.entry("nativeCpuRegionRoute", "CPU_ARRAY"),
+                Map.entry("nativeCpuRegionReason", "native-cpu-region-provider-fallback:matmul"),
+                Map.entry("nativeCpuRegionFallbackReason", "native-cpu-region-provider-fallback:matmul"),
+                Map.entry("nativeCpuRegionProviderNodes", List.of(9)),
+                Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 1)),
+                Map.entry("nativeCpuStridedNodeCount", 0),
+                Map.entry("nativeCpuStridedMaterializationCount", 0),
+                Map.entry("nativeCpuStridedFallbackReasons", List.of()),
+                Map.entry("nativeCpuRegionOutputs", List.of(9))
+        );
+        var stridedRejectedAttrs = Map.<String, Object>ofEntries(
+                Map.entry("nativeCpuRegionDecision", "REJECTED"),
+                Map.entry("nativeCpuRegionRoute", "CPU_ARRAY"),
+                Map.entry("nativeCpuRegionReason", "native-layout-unsupported:negative-stride"),
+                Map.entry("nativeCpuRegionFallbackReason", "native-layout-unsupported:negative-stride"),
+                Map.entry("nativeCpuLayoutClassCounts", Map.of("NEGATIVE_STRIDE", 1)),
+                Map.entry("nativeCpuStridedNodeCount", 1),
+                Map.entry("nativeCpuStridedMaterializationCount", 1),
+                Map.entry("nativeCpuStridedFallbackReasons", List.of("native-layout-unsupported:negative-stride")),
+                Map.entry("nativeCpuRegionOutputs", List.of(10))
         );
         var rejectedAttrs = Map.<String, Object>ofEntries(
                 Map.entry("nativeCpuRegionDecision", "REJECTED"),
                 Map.entry("nativeCpuRegionRoute", "CPU_ARRAY"),
                 Map.entry("nativeCpuRegionReason", "native-cpu-region-provider-unavailable:matmul"),
                 Map.entry("nativeCpuRegionFallbackReason", "native-cpu-region-provider-unavailable:matmul"),
+                Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 1)),
+                Map.entry("nativeCpuRegionMeasuredWin", true),
+                Map.entry("nativeCpuRegionNativeMedianMs", 0.99d),
+                Map.entry("nativeCpuRegionArrayMedianMs", 1.00d),
+                Map.entry("nativeCpuRegionMeasuredWinThreshold", 0.95d),
+                Map.entry("nativeCpuStridedNodeCount", 0),
+                Map.entry("nativeCpuStridedMaterializationCount", 0),
+                Map.entry("nativeCpuStridedFallbackReasons", List.of()),
                 Map.entry("nativeCpuRegionOutputs", List.of(4))
-        );
-        var selectedStep = new graph.execution.trace.ExecutionStepTrace(
-                0,
-                "native_region",
-                "MATMUL",
-                List.of(2, 2),
-                DataType.FLOAT32,
-                "CPU",
-                "PreparedNativeCpuRegionExecutable",
-                100L,
-                new graph.execution.trace.StepExecutionMetadata(
-                        "node",
-                        selectedAttrs,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null
-                )
-        );
-        var rejectedStep = new graph.execution.trace.ExecutionStepTrace(
-                1,
-                "array_matmul",
-                "MATMUL",
-                List.of(2, 2),
-                DataType.FLOAT32,
-                "CPU",
-                "CpuMatMulKernel",
-                200L,
-                new graph.execution.trace.StepExecutionMetadata(
-                        "node",
-                        rejectedAttrs,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null
-                )
         );
         BenchmarkReport report = BenchmarkReport.of(
                 "native_cpu_region_report",
@@ -1373,7 +1579,16 @@ public class BenchmarkSessionTest {
                                         new graph.execution.trace.RunTrace(
                                                 ExecutionMode.FORWARD,
                                                 100L,
-                                                List.of(selectedStep, rejectedStep)
+                                                List.of(
+                                                        nativeRegionStep(0, "native_provider_local", "PreparedNativeCpuRegionExecutable", selectedAttrs),
+                                                        nativeRegionStep(1, "native_provider_only", "PreparedNativeCpuRegionExecutable", providerOnlyAttrs),
+                                                        nativeRegionStep(2, "native_segment_scalar", "PreparedNativeCpuRegionExecutable", scalarAttrs),
+                                                        nativeRegionStep(3, "native_segment_parallel", "PreparedNativeCpuRegionExecutable", parallelAttrs),
+                                                        nativeRegionStep(4, "native_segment_fused", "PreparedNativeCpuRegionExecutable", fusedAttrs),
+                                                        nativeRegionStep(5, "native_provider_array_fallback", "CpuMatMulKernel", providerFallbackAttrs),
+                                                        nativeRegionStep(6, "array_strided", "CpuStridedKernel", stridedRejectedAttrs),
+                                                        nativeRegionStep(7, "array_dense", "CpuMatMulKernel", rejectedAttrs)
+                                                )
                                         )
                                 ),
                                 new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
@@ -1382,18 +1597,65 @@ public class BenchmarkSessionTest {
         );
 
         String text = TextBenchmarkReportRenderer.render(report);
-        assertTrue(text.contains("nativeCpuRegionSummary=selectedRegionCount=1 rejectedRegionCount=1 nativeRouteCount=1 fallbackCount=1"));
-        assertTrue(text.contains("providerNodeCount=1 localKernelNodeCount=1 segmentScalarNodeCount=1 boundaryOutputCount=2"));
-        assertTrue(text.contains("fallbackReasons=[native-cpu-region-provider-unavailable:matmul]"));
-        assertTrue(text.contains("rejectionReasons=[native-cpu-region-provider-unavailable:matmul]"));
+        assertTrue(text.contains("nativeCpuRegionSummary=selectedRegionCount=5 rejectedRegionCount=3 nativeRouteCount=5 fallbackCount=3"));
+        assertTrue(text.contains("measuredWinClaimCount=2 measuredWinProofCount=1"));
+        assertTrue(text.contains("providerNodeCount=3 localKernelNodeCount=4 segmentScalarNodeCount=2 stridedNodeCount=2 stridedMaterializationCount=1"));
+        assertTrue(text.contains("benchmarkRowCounts="));
+        assertTrue(text.contains("native provider + local native=1"));
+        assertTrue(text.contains("native provider only=1"));
+        assertTrue(text.contains("native segment scalar=1"));
+        assertTrue(text.contains("native segment parallel=1"));
+        assertTrue(text.contains("native segment fused=1"));
+        assertTrue(text.contains("native provider + array fallback=1"));
+        assertTrue(text.contains("array strided=1"));
+        assertTrue(text.contains("array dense=1"));
+        assertTrue(text.contains("layoutClassCounts="));
+        assertTrue(text.contains("DENSE_CONTIGUOUS=7"));
+        assertTrue(text.contains("STRIDED_VIEW=1"));
+        assertTrue(text.contains("NEGATIVE_STRIDE=1"));
+        assertTrue(text.contains("boundaryOutputCount=8"));
+        assertTrue(text.contains("parityStoragePathCounts="));
+        assertTrue(text.contains("CPU_NATIVE_REGION_PROVIDER=1"));
+        assertTrue(text.contains("CPU_NATIVE_REGION_DENSE=1"));
+        assertTrue(text.contains("parityLayoutCapabilityCounts="));
+        assertTrue(text.contains("OFFSET_CONTIGUOUS=1"));
+        assertTrue(text.contains("parityResultResidencyCounts={CPU_NATIVE=2}"));
+        assertTrue(text.contains("parityAutoEligibleNodeCount=4"));
+        assertTrue(text.contains("fallbackReasons=[native-cpu-region-provider-fallback:matmul, native-layout-unsupported:negative-stride, native-cpu-region-provider-unavailable:matmul]"));
+        assertTrue(text.contains("stridedFallbackReasons=[native-layout-unsupported:negative-stride]"));
+        assertTrue(text.contains("rejectionReasons=[native-cpu-region-provider-fallback:matmul, native-layout-unsupported:negative-stride, native-cpu-region-provider-unavailable:matmul]"));
 
         String json = JsonBenchmarkReportRenderer.render(report);
-        assertTrue(json.contains("\"nativeCpuRegion\": {\"selectedRegionCount\": 1, \"rejectedRegionCount\": 1, \"nativeRouteCount\": 1, \"fallbackCount\": 1"));
-        assertTrue(json.contains("\"providerNodeCount\": 1"));
-        assertTrue(json.contains("\"localKernelNodeCount\": 1"));
-        assertTrue(json.contains("\"segmentScalarNodeCount\": 1"));
-        assertTrue(json.contains("\"boundaryOutputCount\": 2"));
-        assertTrue(json.contains("\"rejectionReasons\": [\"native-cpu-region-provider-unavailable:matmul\"]"));
+        assertTrue(json.contains("\"nativeCpuRegion\": {\"selectedRegionCount\": 5, \"rejectedRegionCount\": 3, \"nativeRouteCount\": 5, \"fallbackCount\": 3"));
+        assertTrue(json.contains("\"measuredWinClaimCount\": 2"));
+        assertTrue(json.contains("\"measuredWinProofCount\": 1"));
+        assertTrue(json.contains("\"providerNodeCount\": 3"));
+        assertTrue(json.contains("\"localKernelNodeCount\": 4"));
+        assertTrue(json.contains("\"segmentScalarNodeCount\": 2"));
+        assertTrue(json.contains("\"stridedNodeCount\": 2"));
+        assertTrue(json.contains("\"stridedMaterializationCount\": 1"));
+        assertTrue(json.contains("\"benchmarkRowCounts\": {"));
+        assertTrue(json.contains("\"native provider + local native\": 1"));
+        assertTrue(json.contains("\"native provider only\": 1"));
+        assertTrue(json.contains("\"native segment scalar\": 1"));
+        assertTrue(json.contains("\"native segment parallel\": 1"));
+        assertTrue(json.contains("\"native segment fused\": 1"));
+        assertTrue(json.contains("\"native provider + array fallback\": 1"));
+        assertTrue(json.contains("\"array strided\": 1"));
+        assertTrue(json.contains("\"array dense\": 1"));
+        assertTrue(json.contains("\"DENSE_CONTIGUOUS\": 7"));
+        assertTrue(json.contains("\"STRIDED_VIEW\": 1"));
+        assertTrue(json.contains("\"NEGATIVE_STRIDE\": 1"));
+        assertTrue(json.contains("\"parityStoragePathCounts\": {"));
+        assertTrue(json.contains("\"CPU_NATIVE_REGION_PROVIDER\": 1"));
+        assertTrue(json.contains("\"CPU_NATIVE_REGION_DENSE\": 1"));
+        assertTrue(json.contains("\"parityLayoutCapabilityCounts\": {"));
+        assertTrue(json.contains("\"OFFSET_CONTIGUOUS\": 1"));
+        assertTrue(json.contains("\"parityResultResidencyCounts\": {\"CPU_NATIVE\": 2}"));
+        assertTrue(json.contains("\"parityAutoEligibleNodeCount\": 4"));
+        assertTrue(json.contains("\"boundaryOutputCount\": 8"));
+        assertTrue(json.contains("\"stridedFallbackReasons\": [\"native-layout-unsupported:negative-stride\"]"));
+        assertTrue(json.contains("\"rejectionReasons\": [\"native-cpu-region-provider-fallback:matmul\", \"native-layout-unsupported:negative-stride\", \"native-cpu-region-provider-unavailable:matmul\"]"));
     }
 
     @Test
@@ -2548,6 +2810,35 @@ public class BenchmarkSessionTest {
                 .filter(candidate -> candidate.entry().name().equals(candidateName))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private static graph.execution.trace.ExecutionStepTrace nativeRegionStep(
+            int index,
+            String name,
+            String kernel,
+            Map<String, Object> attrs
+    ) {
+        return new graph.execution.trace.ExecutionStepTrace(
+                index,
+                name,
+                "MATMUL",
+                List.of(2, 2),
+                DataType.FLOAT32,
+                "CPU",
+                kernel,
+                100L,
+                new graph.execution.trace.StepExecutionMetadata(
+                        "node",
+                        attrs,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
     }
 
     private static GpuLoweredRegionManifest sampleGpuManifest() {

@@ -13,6 +13,7 @@ import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorPrimitiveBuilder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -42,8 +43,24 @@ class NativeCpuPlanResolverTest {
     void cpuNativePreparesDenseF32ElementwiseAndReductionRoutes() {
         assertNativeExecutable(f32("add_left").add(f32("add_right")), Operation.OpType.ADD);
         assertNativeExecutable(f32("relu_input").relu(), Operation.OpType.RELU);
+        assertNativeExecutable(f32("floor_input").floor(), Operation.OpType.FLOOR);
+        assertNativeExecutable(f32("ceil_input").ceil(), Operation.OpType.CEIL);
+        assertNativeExecutable(f32("sign_input").sign(), Operation.OpType.SIGN);
         assertNativeExecutable(f32("sum_input").sum(), Operation.OpType.SUM);
         assertNativeExecutable(f32("mean_input").mean(1), Operation.OpType.MEAN);
+        assertNativeExecutable(f32("reduce_min_input").min(1, false), Operation.OpType.REDUCE_MIN);
+        assertNativeExecutable(f32("reduce_max_input").max(), Operation.OpType.REDUCE_MAX);
+        assertNativeExecutable(bf16("bf16_sum_input").sum(), Operation.OpType.SUM);
+        assertNativeExecutable(bf16("bf16_mean_input").mean(1), Operation.OpType.MEAN);
+    }
+
+    @Test
+    void cpuNativePreparesDenseBoolMaskLogicalAndReductionRoutes() {
+        assertNativeExecutable(bool("not_input").logicalNot(), Operation.OpType.LOGICAL_NOT);
+        assertNativeExecutable(bool("and_left").logicalAnd(bool("and_right")), Operation.OpType.LOGICAL_AND);
+        assertNativeExecutable(bool("or_left").logicalOr(bool("or_right")), Operation.OpType.LOGICAL_OR);
+        assertNativeExecutable(bool("any_input").any(1, false), Operation.OpType.REDUCE_ANY);
+        assertNativeExecutable(bool("all_input").all(), Operation.OpType.REDUCE_ALL);
     }
 
     @Test
@@ -54,22 +71,37 @@ class NativeCpuPlanResolverTest {
         assertNativeExecutable(f32("compare_left").greaterThan(f32("compare_right")), Operation.OpType.GT);
 
         PreparedNativeCpuPlan reshape = nativePlan(f32("reshape_input").reshape(4).relu(), Operation.OpType.RESHAPE, nativeRuntime());
+        PreparedNativeCpuPlan select = nativePlan(f32("select_input").select(0, 1).relu(), Operation.OpType.SELECT, nativeRuntime());
+        PreparedNativeCpuPlan slice = nativePlan(
+                f32("slice_input").slice(new int[]{1, 0}, new int[]{2, 2}, new int[]{0, 1}, new int[]{1, 1}).relu(),
+                Operation.OpType.SLICE,
+                nativeRuntime()
+        );
+
         assertEquals(PreparedNativeCpuRoute.VIEW_ALIAS, reshape.route());
         assertEquals(PreparedNativeCpuInputPolicy.ALL_NATIVE, reshape.inputPolicy());
         assertEquals(NativeCpuKernelPerformanceStatus.VIEW_ONLY, reshape.coverageEntry().status());
+        assertEquals(PreparedNativeCpuRoute.VIEW_ALIAS, select.route());
+        assertEquals(PreparedNativeCpuRoute.VIEW_ALIAS, slice.route());
     }
 
     @Test
     void cpuNativeWherePreparesConditionCpuValuesWithNativeBranches() {
         Tensor condition = new Tensor(new byte[]{1, 0, 1, 0}, new int[]{2, 2}, null, "where_condition", DataType.BOOL);
-        Tensor out = Tensor.where(condition, f32("where_true"), f32("where_false"));
+        Tensor f32Out = Tensor.where(condition, f32("where_true"), f32("where_false"));
+        Tensor f64Out = Tensor.where(condition, f64("where_f64_true"), f64("where_f64_false"));
 
-        PreparedNativeCpuPlan plan = nativePlan(out, Operation.OpType.WHERE, nativeRuntime());
+        PreparedNativeCpuPlan f32Plan = nativePlan(f32Out, Operation.OpType.WHERE, nativeRuntime());
+        PreparedNativeCpuPlan f64Plan = nativePlan(f64Out, Operation.OpType.WHERE, nativeRuntime());
 
-        assertEquals(PreparedNativeCpuRoute.CONDITION_ARRAY_INPUT_NATIVE_OUTPUT, plan.route());
-        assertEquals(PreparedNativeCpuInputPolicy.CONDITION_CPU_VALUES_NATIVE, plan.inputPolicy());
-        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, plan.coverageEntry().status());
-        assertEquals("", plan.fallbackReason());
+        assertEquals(PreparedNativeCpuRoute.CONDITION_ARRAY_INPUT_NATIVE_OUTPUT, f32Plan.route());
+        assertEquals(PreparedNativeCpuInputPolicy.CONDITION_CPU_VALUES_NATIVE, f32Plan.inputPolicy());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, f32Plan.coverageEntry().status());
+        assertEquals("", f32Plan.fallbackReason());
+        assertEquals(PreparedNativeCpuRoute.CONDITION_ARRAY_INPUT_NATIVE_OUTPUT, f64Plan.route());
+        assertEquals(PreparedNativeCpuInputPolicy.CONDITION_CPU_VALUES_NATIVE, f64Plan.inputPolicy());
+        assertEquals(NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW, f64Plan.coverageEntry().status());
+        assertEquals("", f64Plan.fallbackReason());
     }
 
     @Test
@@ -92,6 +124,24 @@ class NativeCpuPlanResolverTest {
         PreparedNativeCpuPlan stridedCopy = nativePlan(strided, Operation.OpType.CONTIGUOUS, nativeRuntime());
         assertEquals(PreparedNativeCpuRoute.FALLBACK_ONLY, stridedCopy.route());
         assertEquals("native-kernel-ineligible:contiguous-strided", stridedCopy.fallbackReason());
+
+        PreparedNativeCpuPlan softmax = nativePlan(specialSoftmax(f32("softmax_input"), 1), Operation.OpType.SOFTMAX, nativeRuntime());
+        PreparedNativeCpuPlan logSoftmax = nativePlan(specialLogSoftmax(f32("log_softmax_input"), 1), Operation.OpType.LOG_SOFTMAX, nativeRuntime());
+        assertEquals(PreparedNativeCpuRoute.FALLBACK_ONLY, softmax.route());
+        assertEquals(PreparedNativeCpuRoute.FALLBACK_ONLY, logSoftmax.route());
+        assertEquals("native-softmax-scalar-loop-slower-than-array", softmax.fallbackReason());
+        assertEquals("native-softmax-scalar-loop-slower-than-array", logSoftmax.fallbackReason());
+
+        PreparedNativeCpuPlan argMax = nativePlan(f32("argmax_input").argMax(1, false), Operation.OpType.ARGMAX, nativeRuntime());
+        assertEquals(PreparedNativeCpuRoute.FALLBACK_ONLY, argMax.route());
+        assertEquals("native-argmax-index-output-unsupported", argMax.fallbackReason());
+
+        PreparedNativeCpuPlan bf16ReduceMin = nativePlan(bf16("bf16_reduce_min_input").min(1, false), Operation.OpType.REDUCE_MIN, nativeRuntime());
+        PreparedNativeCpuPlan bf16ReduceMax = nativePlan(bf16("bf16_reduce_max_input").max(), Operation.OpType.REDUCE_MAX, nativeRuntime());
+        assertEquals(PreparedNativeCpuRoute.FALLBACK_ONLY, bf16ReduceMin.route());
+        assertEquals(PreparedNativeCpuRoute.FALLBACK_ONLY, bf16ReduceMax.route());
+        assertEquals("native-bf16-reduce-minmax-output-policy-unsupported", bf16ReduceMin.fallbackReason());
+        assertEquals("native-bf16-reduce-minmax-output-policy-unsupported", bf16ReduceMax.fallbackReason());
     }
 
     private static void assertNativeExecutable(Tensor out, Operation.OpType opType) {
@@ -139,6 +189,28 @@ class NativeCpuPlanResolverTest {
         return new Tensor(new float[]{1f, -2f, 3f, -4f}, new int[]{2, 2}, null, label, DataType.FLOAT32);
     }
 
+    private static Tensor specialSoftmax(Tensor input, int dimension) {
+        return TensorPrimitiveBuilder.unary(
+                input,
+                new operations.reduction.softmax(dimension),
+                "legacySoftmax",
+                input.getDataType()
+        );
+    }
+
+    private static Tensor specialLogSoftmax(Tensor input, int dimension) {
+        return TensorPrimitiveBuilder.unary(
+                input,
+                new operations.reduction.logSoftmax(dimension),
+                "legacyLogSoftmax",
+                input.getDataType()
+        );
+    }
+
+    private static Tensor f64(String label) {
+        return new Tensor(new double[]{1d, -2d, 3d, -4d}, new int[]{2, 2}, null, label, DataType.FLOAT64);
+    }
+
     private static Tensor bf16(String label) {
         return new Tensor(new short[]{
                 CpuDTypeOps.toBFloat16Bits(1f),
@@ -146,5 +218,9 @@ class NativeCpuPlanResolverTest {
                 CpuDTypeOps.toBFloat16Bits(3f),
                 CpuDTypeOps.toBFloat16Bits(-4f)
         }, new int[]{2, 2}, null, label, DataType.BFLOAT16);
+    }
+
+    private static Tensor bool(String label) {
+        return new Tensor(new byte[]{1, 0, 1, 1}, new int[]{2, 2}, null, label, DataType.BOOL);
     }
 }

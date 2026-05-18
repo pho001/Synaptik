@@ -46,9 +46,6 @@ public final class NativeCpuViewExecutor {
         if (input.getDataType() != node.getDataType()) {
             return fallback(context, fact, op, "native-kernel-ineligible:" + opLabel(op) + "-dtype");
         }
-        if (input.getFlatDataSize() != node.getFlatDataSize()) {
-            return fallback(context, fact, op, "native-kernel-ineligible:" + opLabel(op) + "-shape");
-        }
         try {
             int sourceNodeId = context.inputNodeIds().getFirst();
             context.executionContext().aliasNativeStorage(
@@ -105,6 +102,9 @@ public final class NativeCpuViewExecutor {
     private static boolean supportsViewOp(Operation.OpType opType) {
         return opType == Operation.OpType.NOOP
                 || opType == Operation.OpType.RESHAPE
+                || opType == Operation.OpType.PERMUTE
+                || opType == Operation.OpType.SELECT
+                || opType == Operation.OpType.SLICE
                 || opType == Operation.OpType.EXPAND_DIMS
                 || opType == Operation.OpType.SQUEEZE;
     }

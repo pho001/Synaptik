@@ -2,14 +2,18 @@ package backend.cpu.nativecpu;
 
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
+import backend.cpu.kernels.CpuDTypeOps;
 import backend.memory.CpuMaterializationReason;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.RuntimeConfig;
 import operations.Operation;
 import operations.reduction.mean;
+import operations.reduction.reduceMax;
+import operations.reduction.reduceMin;
 import operations.reduction.sum;
 import tensor.DataType;
+import tensor.NativeBFloat16Storage;
 import tensor.NativeFloat32Storage;
 import tensor.NativeFloat64Storage;
 import tensor.NativeTensorStorage;
@@ -27,7 +31,7 @@ public final class NativeCpuReductionExecutor {
             return false;
         }
         Operation.OpType opType = op.opType();
-        return (opType == Operation.OpType.SUM || opType == Operation.OpType.MEAN) && reductionDimension(op) >= -1;
+        return isSupportedReduction(dataType, opType) && reductionDimension(op) >= -1;
     }
 
     public static boolean tryRunSumLike(
@@ -40,8 +44,31 @@ public final class NativeCpuReductionExecutor {
         if (!nativeRequested(context)) {
             return false;
         }
+        return tryRunReduction(opType, input, node, dimension, context);
+    }
+
+    public static boolean tryRunMinMax(
+            Operation.OpType opType,
+            Tensor input,
+            Tensor node,
+            int dimension,
+            CpuKernelContext context
+    ) {
+        if (!nativeRequested(context)) {
+            return false;
+        }
+        return tryRunReduction(opType, input, node, dimension, context);
+    }
+
+    private static boolean tryRunReduction(
+            Operation.OpType opType,
+            Tensor input,
+            Tensor node,
+            int dimension,
+            CpuKernelContext context
+    ) {
         NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(opTypeOrUnknown(opType), node.getDataType());
-        if (opType != Operation.OpType.SUM && opType != Operation.OpType.MEAN) {
+        if (!isSupportedReduction(node.getDataType(), opType)) {
             return fallback(context, fact, opType, "native-kernel-unsupported:" + opLabel(opType));
         }
         if (!supportsNativeReductionDType(node.getDataType()) || input.getDataType() != node.getDataType()) {
@@ -71,6 +98,15 @@ public final class NativeCpuReductionExecutor {
                     reduceAxisF64(opType, in, f64Out, shape, dimension);
                 }
                 out = f64Out;
+            } else if (node.getDataType() == DataType.BFLOAT16) {
+                NativeBFloat16Storage in = requireBF16NativeInput(context, opLabel(opType).toUpperCase());
+                NativeBFloat16Storage bf16Out = allocateBF16(node, context, opLabel(opType));
+                if (dimension == -1) {
+                    bf16Out.setBFloat16BitsAt(0, CpuDTypeOps.toBFloat16Bits(reduceAllBF16(opType, in, input.getFlatDataSize())));
+                } else {
+                    reduceAxisBF16(opType, in, bf16Out, shape, dimension);
+                }
+                out = bf16Out;
             } else {
                 NativeFloat32Storage in = requireF32NativeInput(context, opLabel(opType).toUpperCase());
                 NativeFloat32Storage f32Out = allocateF32(node, context, opLabel(opType));
@@ -90,6 +126,14 @@ public final class NativeCpuReductionExecutor {
     }
 
     private static float reduceAllF32(Operation.OpType opType, NativeFloat32Storage input, int size) {
+        if (opType == Operation.OpType.REDUCE_MIN || opType == Operation.OpType.REDUCE_MAX) {
+            float best = input.getFloat32At(0);
+            for (int i = 1; i < size; i++) {
+                float value = input.getFloat32At(i);
+                best = opType == Operation.OpType.REDUCE_MAX ? Math.max(best, value) : Math.min(best, value);
+            }
+            return best;
+        }
         double sum = 0.0d;
         for (int i = 0; i < size; i++) {
             sum += input.getFloat32At(i);
@@ -101,6 +145,14 @@ public final class NativeCpuReductionExecutor {
     }
 
     private static double reduceAllF64(Operation.OpType opType, NativeFloat64Storage input, int size) {
+        if (opType == Operation.OpType.REDUCE_MIN || opType == Operation.OpType.REDUCE_MAX) {
+            double best = input.getFloat64At(0);
+            for (int i = 1; i < size; i++) {
+                double value = input.getFloat64At(i);
+                best = opType == Operation.OpType.REDUCE_MAX ? Math.max(best, value) : Math.min(best, value);
+            }
+            return best;
+        }
         double sum = 0.0d;
         for (int i = 0; i < size; i++) {
             sum += input.getFloat64At(i);
@@ -109,6 +161,17 @@ public final class NativeCpuReductionExecutor {
             sum /= size;
         }
         return sum;
+    }
+
+    private static float reduceAllBF16(Operation.OpType opType, NativeBFloat16Storage input, int size) {
+        double sum = 0.0d;
+        for (int i = 0; i < size; i++) {
+            sum += CpuDTypeOps.fromBFloat16Bits(input.getBFloat16BitsAt(i));
+        }
+        if (opType == Operation.OpType.MEAN) {
+            sum /= size;
+        }
+        return (float) sum;
     }
 
     private static void reduceAxisF32(
@@ -124,14 +187,7 @@ public final class NativeCpuReductionExecutor {
         int[] outDenseStrides = denseStridesExcludingDim(shape, dimension);
         for (int outIndex = 0; outIndex < outSize; outIndex++) {
             int inputBase = inputBaseOffset(outIndex, shape, outDenseStrides, dimension);
-            double sum = 0.0d;
-            for (int k = 0; k < reducedSize; k++) {
-                sum += input.getFloat32At(inputBase + k * axisStride);
-            }
-            if (opType == Operation.OpType.MEAN) {
-                sum /= reducedSize;
-            }
-            out.setFloat32At(outIndex, (float) sum);
+            out.setFloat32At(outIndex, reduceAxisF32Value(opType, input, inputBase, axisStride, reducedSize));
         }
     }
 
@@ -148,15 +204,95 @@ public final class NativeCpuReductionExecutor {
         int[] outDenseStrides = denseStridesExcludingDim(shape, dimension);
         for (int outIndex = 0; outIndex < outSize; outIndex++) {
             int inputBase = inputBaseOffset(outIndex, shape, outDenseStrides, dimension);
-            double sum = 0.0d;
-            for (int k = 0; k < reducedSize; k++) {
-                sum += input.getFloat64At(inputBase + k * axisStride);
-            }
-            if (opType == Operation.OpType.MEAN) {
-                sum /= reducedSize;
-            }
-            out.setFloat64At(outIndex, sum);
+            out.setFloat64At(outIndex, reduceAxisF64Value(opType, input, inputBase, axisStride, reducedSize));
         }
+    }
+
+    private static void reduceAxisBF16(
+            Operation.OpType opType,
+            NativeBFloat16Storage input,
+            NativeBFloat16Storage out,
+            int[] shape,
+            int dimension
+    ) {
+        int reducedSize = shape[dimension];
+        int axisStride = denseStride(shape, dimension);
+        int outSize = expectedOutputSize(shape, dimension);
+        int[] outDenseStrides = denseStridesExcludingDim(shape, dimension);
+        for (int outIndex = 0; outIndex < outSize; outIndex++) {
+            int inputBase = inputBaseOffset(outIndex, shape, outDenseStrides, dimension);
+            out.setBFloat16BitsAt(
+                    outIndex,
+                    CpuDTypeOps.toBFloat16Bits(reduceAxisBF16Value(opType, input, inputBase, axisStride, reducedSize))
+            );
+        }
+    }
+
+    private static float reduceAxisF32Value(
+            Operation.OpType opType,
+            NativeFloat32Storage input,
+            int inputBase,
+            int axisStride,
+            int reducedSize
+    ) {
+        if (opType == Operation.OpType.REDUCE_MIN || opType == Operation.OpType.REDUCE_MAX) {
+            float best = input.getFloat32At(inputBase);
+            for (int k = 1; k < reducedSize; k++) {
+                float value = input.getFloat32At(inputBase + k * axisStride);
+                best = opType == Operation.OpType.REDUCE_MAX ? Math.max(best, value) : Math.min(best, value);
+            }
+            return best;
+        }
+        double sum = 0.0d;
+        for (int k = 0; k < reducedSize; k++) {
+            sum += input.getFloat32At(inputBase + k * axisStride);
+        }
+        if (opType == Operation.OpType.MEAN) {
+            sum /= reducedSize;
+        }
+        return (float) sum;
+    }
+
+    private static double reduceAxisF64Value(
+            Operation.OpType opType,
+            NativeFloat64Storage input,
+            int inputBase,
+            int axisStride,
+            int reducedSize
+    ) {
+        if (opType == Operation.OpType.REDUCE_MIN || opType == Operation.OpType.REDUCE_MAX) {
+            double best = input.getFloat64At(inputBase);
+            for (int k = 1; k < reducedSize; k++) {
+                double value = input.getFloat64At(inputBase + k * axisStride);
+                best = opType == Operation.OpType.REDUCE_MAX ? Math.max(best, value) : Math.min(best, value);
+            }
+            return best;
+        }
+        double sum = 0.0d;
+        for (int k = 0; k < reducedSize; k++) {
+            sum += input.getFloat64At(inputBase + k * axisStride);
+        }
+        if (opType == Operation.OpType.MEAN) {
+            sum /= reducedSize;
+        }
+        return sum;
+    }
+
+    private static float reduceAxisBF16Value(
+            Operation.OpType opType,
+            NativeBFloat16Storage input,
+            int inputBase,
+            int axisStride,
+            int reducedSize
+    ) {
+        double sum = 0.0d;
+        for (int k = 0; k < reducedSize; k++) {
+            sum += CpuDTypeOps.fromBFloat16Bits(input.getBFloat16BitsAt(inputBase + k * axisStride));
+        }
+        if (opType == Operation.OpType.MEAN) {
+            sum /= reducedSize;
+        }
+        return (float) sum;
     }
 
     private static int inputBaseOffset(int outIndex, int[] shape, int[] outDenseStrides, int dimension) {
@@ -246,6 +382,15 @@ public final class NativeCpuReductionExecutor {
         throw new IllegalStateException("native " + op + " requires FLOAT64 native input storage");
     }
 
+    private static NativeBFloat16Storage requireBF16NativeInput(CpuKernelContext context, String op) {
+        int inputNodeId = context.inputNodeIds().getFirst();
+        NativeTensorStorage storage = context.executionContext().requireNativeReadable(inputNodeId, CpuMaterializationReason.CPU_CONSUMER);
+        if (storage instanceof NativeBFloat16Storage bf16) {
+            return bf16;
+        }
+        throw new IllegalStateException("native " + op + " requires BFLOAT16 native input storage");
+    }
+
     private static NativeFloat32Storage allocateF32(Tensor node, CpuKernelContext context, String label) {
         return (NativeFloat32Storage) context.executionContext().allocateNativeStorage(
                 DataType.FLOAT32,
@@ -262,10 +407,22 @@ public final class NativeCpuReductionExecutor {
         );
     }
 
+    private static NativeBFloat16Storage allocateBF16(Tensor node, CpuKernelContext context, String label) {
+        return (NativeBFloat16Storage) context.executionContext().allocateNativeStorage(
+                DataType.BFLOAT16,
+                node.getFlatDataSize(),
+                "node-" + context.nodeId() + ":" + node.getLabel() + ":native-bf16-" + label
+        );
+    }
+
     private static void publishTrace(CpuKernelContext context, NativeCpuKernelFact fact, String actualCpuStorage, String fallbackReason) {
         var runtime = context.executionContext().runtimeConfig();
+        Tensor runtimeTensor = context.executionContext().runtimeTensorForNodeId(context.nodeId());
+        boolean bf16Promoted = runtimeTensor.getDataType() == DataType.BFLOAT16
+                && "CPU_NATIVE".equals(actualCpuStorage)
+                && (fallbackReason == null || fallbackReason.isBlank());
         context.putRuntimeState(
-                context.executionContext().runtimeTensorForNodeId(context.nodeId()),
+                runtimeTensor,
                 new NativeCpuTraceState(
                         runtime.cpuStorageProfile().name(),
                         runtime.nativeCpuFailurePolicy().name(),
@@ -273,7 +430,9 @@ public final class NativeCpuReductionExecutor {
                         actualCpuStorage,
                         fact.status().name(),
                         fact.family().name(),
-                        fallbackReason
+                        fallbackReason,
+                        bf16Promoted ? "BF16" : "",
+                        bf16Promoted ? "F32_PROMOTED" : ""
                 )
         );
     }
@@ -287,7 +446,18 @@ public final class NativeCpuReductionExecutor {
     }
 
     private static boolean supportsNativeReductionDType(DataType dataType) {
-        return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64;
+        return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64 || dataType == DataType.BFLOAT16;
+    }
+
+    private static boolean isSupportedReduction(DataType dataType, Operation.OpType opType) {
+        if (dataType == DataType.BFLOAT16) {
+            return opType == Operation.OpType.SUM || opType == Operation.OpType.MEAN;
+        }
+        return (dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64)
+                && (opType == Operation.OpType.SUM
+                || opType == Operation.OpType.MEAN
+                || opType == Operation.OpType.REDUCE_MIN
+                || opType == Operation.OpType.REDUCE_MAX);
     }
 
     private static int reductionDimension(Operation op) {
@@ -295,6 +465,12 @@ public final class NativeCpuReductionExecutor {
             return reduction.getDimension();
         }
         if (op instanceof mean reduction) {
+            return reduction.getDimension();
+        }
+        if (op instanceof reduceMin reduction) {
+            return reduction.getDimension();
+        }
+        if (op instanceof reduceMax reduction) {
             return reduction.getDimension();
         }
         return Integer.MIN_VALUE;

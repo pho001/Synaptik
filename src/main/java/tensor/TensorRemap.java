@@ -1,7 +1,5 @@
 package tensor;
 
-import backend.cpu.kernels.CpuThreadPool;
-
 import java.util.Arrays;
 
 public final class TensorRemap {
@@ -187,21 +185,11 @@ public final class TensorRemap {
     }
 
     private static int[] denseStrides(int[] shape) {
-        int[] out = new int[shape.length];
-        int stride = 1;
-        for (int i = shape.length - 1; i >= 0; i--) {
-            out[i] = stride;
-            stride *= shape[i];
-        }
-        return out;
+        return TensorShape.contiguousStrides(shape);
     }
 
     private static int logicalSize(int[] shape) {
-        int size = 1;
-        for (int dim : shape) {
-            size *= dim;
-        }
-        return size;
+        return TensorShape.checkedFlatSize(shape);
     }
 
     private static void applyF32(Tensor src, Tensor dst, RemapPlan plan, int parallelThreshold) {
@@ -354,7 +342,7 @@ public final class TensorRemap {
         int targetChunks = Math.max(workers, workers * 4);
         int chunkSize = Math.max(1024, (logicalSize + targetChunks - 1) / targetChunks);
         int chunks = (logicalSize + chunkSize - 1) / chunkSize;
-        CpuThreadPool.runChunks(chunks, workers, chunk -> {
+        TensorParallelSupport.runChunks(chunks, workers, chunk -> {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, logicalSize);
             body.accept(start, end);
@@ -407,8 +395,8 @@ public final class TensorRemap {
     }
 
     private static boolean tryFastCopyF64(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
-        double[] srcData = src.getFloat64Data();
-        double[] dstData = dst.getFloat64Data();
+        double[] srcData = TensorStorageSupport.float64DataOrNull(src.getStorage());
+        double[] dstData = TensorStorageSupport.float64DataOrNull(dst.getStorage());
         if (srcData == null || dstData == null) {
             return false;
         }
@@ -420,8 +408,8 @@ public final class TensorRemap {
     }
 
     private static boolean tryFastCopyF32(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
-        float[] srcData = src.getFloat32Data();
-        float[] dstData = dst.getFloat32Data();
+        float[] srcData = TensorStorageSupport.float32DataOrNull(src.getStorage());
+        float[] dstData = TensorStorageSupport.float32DataOrNull(dst.getStorage());
         if (srcData == null || dstData == null) {
             return false;
         }
@@ -433,8 +421,8 @@ public final class TensorRemap {
     }
 
     private static boolean tryFastCopyF16(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
-        short[] srcData = src.getBFloat16Data();
-        short[] dstData = dst.getBFloat16Data();
+        short[] srcData = TensorStorageSupport.bfloat16DataOrNull(src.getStorage());
+        short[] dstData = TensorStorageSupport.bfloat16DataOrNull(dst.getStorage());
         if (srcData == null || dstData == null) {
             return false;
         }
@@ -446,8 +434,8 @@ public final class TensorRemap {
     }
 
     private static boolean tryFastCopyBool(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
-        byte[] srcData = src.getBoolData();
-        byte[] dstData = dst.getBoolData();
+        byte[] srcData = TensorStorageSupport.boolDataOrNull(src.getStorage());
+        byte[] dstData = TensorStorageSupport.boolDataOrNull(dst.getStorage());
         if (srcData == null || dstData == null) {
             return false;
         }
@@ -459,8 +447,8 @@ public final class TensorRemap {
     }
 
     private static boolean tryFastCopyI32(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
-        int[] srcData = src.getInt32Data();
-        int[] dstData = dst.getInt32Data();
+        int[] srcData = TensorStorageSupport.int32DataOrNull(src.getStorage());
+        int[] dstData = TensorStorageSupport.int32DataOrNull(dst.getStorage());
         if (srcData == null || dstData == null) {
             return false;
         }
@@ -472,8 +460,8 @@ public final class TensorRemap {
     }
 
     private static boolean tryFastCopyI64(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
-        long[] srcData = src.getInt64Data();
-        long[] dstData = dst.getInt64Data();
+        long[] srcData = TensorStorageSupport.int64DataOrNull(src.getStorage());
+        long[] dstData = TensorStorageSupport.int64DataOrNull(dst.getStorage());
         if (srcData == null || dstData == null) {
             return false;
         }

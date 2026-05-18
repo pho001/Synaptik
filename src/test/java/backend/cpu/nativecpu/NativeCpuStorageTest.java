@@ -5,6 +5,7 @@ import config.runtime.NativeMemoryPoolPolicy;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.NativeBFloat16Storage;
+import tensor.NativeBoolStorage;
 import tensor.NativeFloat32Storage;
 import tensor.NativeFloat64Storage;
 import tensor.NativeTensorStorage;
@@ -27,6 +28,32 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class NativeCpuStorageTest {
+    @Test
+    void nativeStorageRejectsNegativeByteOffset() {
+        NativeCpuAllocation allocation = new NativeCpuAllocator().allocate(16L, "negative-offset");
+        try {
+            IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                    () -> new NativeFloat32Storage(1, allocation, -4L, false));
+
+            assertTrue(error.getMessage().contains("byteOffset"));
+        } finally {
+            allocation.close();
+        }
+    }
+
+    @Test
+    void nativeStorageRejectsOverflowingByteRange() {
+        NativeCpuAllocation allocation = new NativeCpuAllocator().allocate(16L, "overflow-offset");
+        try {
+            IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                    () -> new NativeFloat32Storage(1, allocation, Long.MAX_VALUE, false));
+
+            assertTrue(error.getMessage().contains("overflows"));
+        } finally {
+            allocation.close();
+        }
+    }
+
     @Test
     void float32StorageAllocatesExpectedBytesAndRoundTripsValues() {
         NativeTensorStorage storage = new NativeCpuStorageFactory().allocate(DataType.FLOAT32, 3, "f32-test");
@@ -84,6 +111,28 @@ class NativeCpuStorageTest {
 
             assertEquals((short) 0x3f80, bf16.getBFloat16BitsAt(0));
             assertEquals((short) 0xc020, bf16.getBFloat16BitsAt(1));
+        } finally {
+            storage.close();
+        }
+    }
+
+    @Test
+    void boolStorageAllocatesOneBytePerElementAndNormalizesValues() {
+        NativeTensorStorage storage = new NativeCpuStorageFactory().allocate(DataType.BOOL, 3, "bool-test");
+
+        try {
+            assertTrue(storage instanceof NativeBoolStorage);
+            assertEquals(3L, storage.byteSize());
+            assertEquals(1L, storage.elementSizeBytes());
+            NativeBoolStorage bool = (NativeBoolStorage) storage;
+
+            bool.setBoolAt(0, (byte) 7);
+            bool.setBoolAt(1, (byte) 0);
+            bool.setBoolAt(2, (byte) -3);
+
+            assertEquals((byte) 1, bool.getBoolAt(0));
+            assertEquals((byte) 0, bool.getBoolAt(1));
+            assertEquals((byte) 1, bool.getBoolAt(2));
         } finally {
             storage.close();
         }
@@ -426,6 +475,22 @@ class NativeCpuStorageTest {
             NativeCpuMaterializer.nativeToArray(storage, target);
 
             assertArrayEquals(bits, target.getBFloat16Data());
+        } finally {
+            storage.close();
+        }
+    }
+
+    @Test
+    void boolArrayNativeArrayMaterializationNormalizesMaskValues() {
+        Tensor source = new Tensor(new byte[]{1, 0, 7, -2}, new int[]{4}, null, "source", DataType.BOOL);
+        Tensor target = new Tensor(new byte[]{0, 0, 0, 0}, new int[]{4}, null, "target", DataType.BOOL);
+        NativeTensorStorage storage = new NativeCpuStorageFactory().allocate(DataType.BOOL, 4, "bool-copy");
+
+        try {
+            NativeCpuMaterializer.arrayToNative(source, storage);
+            NativeCpuMaterializer.nativeToArray(storage, target);
+
+            assertArrayEquals(new byte[]{1, 0, 1, 1}, target.getBoolData());
         } finally {
             storage.close();
         }

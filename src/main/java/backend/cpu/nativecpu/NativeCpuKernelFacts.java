@@ -20,6 +20,10 @@ public final class NativeCpuKernelFacts {
     private static final EnumSet<Operation.OpType> METADATA_VIEW_OPS = EnumSet.of(
             Operation.OpType.NOOP,
             Operation.OpType.RESHAPE,
+            Operation.OpType.PERMUTE,
+            Operation.OpType.EXPAND,
+            Operation.OpType.SELECT,
+            Operation.OpType.SLICE,
             Operation.OpType.EXPAND_DIMS,
             Operation.OpType.SQUEEZE
     );
@@ -42,6 +46,29 @@ public final class NativeCpuKernelFacts {
                     NativeCpuKernelFamily.SEGMENT_SCALAR,
                     "requires-dense-contiguous-compare"
             );
+        }
+        if (dataType == DataType.BOOL && supportsBoolLogical(opType)) {
+            return new NativeCpuKernelFact(
+                    opType,
+                    dataType,
+                    NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW,
+                    NativeCpuKernelFamily.SEGMENT_SCALAR,
+                    opType == Operation.OpType.LOGICAL_NOT
+                            ? "requires-dense-contiguous"
+                            : "requires-dense-contiguous-same-shape"
+            );
+        }
+        if (dataType == DataType.BOOL && supportsBoolReduction(opType)) {
+            return new NativeCpuKernelFact(
+                    opType,
+                    dataType,
+                    NativeCpuKernelPerformanceStatus.NATIVE_CORRECT_BUT_SLOW,
+                    NativeCpuKernelFamily.SEGMENT_SCALAR,
+                    "requires-dense-contiguous-reduction"
+            );
+        }
+        if (opType == Operation.OpType.ARGMAX) {
+            return unsupported(opType, dataType, "native-argmax-index-output-unsupported");
         }
         if (!FLOAT_NATIVE_STORAGE_DTYPES.contains(dataType)) {
             return new NativeCpuKernelFact(
@@ -72,6 +99,9 @@ public final class NativeCpuKernelFacts {
                             : "requires-dense-contiguous"
             );
         }
+        if (dataType == DataType.BFLOAT16 && isMinMaxReduction(opType)) {
+            return unsupported(opType, dataType, "native-bf16-reduce-minmax-output-policy-unsupported");
+        }
         if (supportsReduction(dataType, opType)) {
             return new NativeCpuKernelFact(
                     opType,
@@ -80,6 +110,9 @@ public final class NativeCpuKernelFacts {
                     NativeCpuKernelFamily.SEGMENT_SCALAR,
                     "requires-dense-contiguous-reduction"
             );
+        }
+        if (isSoftmaxLike(opType)) {
+            return unsupported(opType, dataType, "native-softmax-scalar-loop-slower-than-array");
         }
         if (opType == Operation.OpType.CAST && supportsNativeCastOutput(dataType)) {
             return new NativeCpuKernelFact(
@@ -139,42 +172,66 @@ public final class NativeCpuKernelFacts {
                     || opType == Operation.OpType.SUB
                     || opType == Operation.OpType.MUL
                     || opType == Operation.OpType.DIV
+                    || opType == Operation.OpType.MIN
+                    || opType == Operation.OpType.MAX
+                    || opType == Operation.OpType.POW_TENSOR
                     || opType == Operation.OpType.MUL_SCALAR
                     || opType == Operation.OpType.NEG
                     || opType == Operation.OpType.RELU
+                    || opType == Operation.OpType.CLAMP_MIN
+                    || opType == Operation.OpType.CLAMP_MAX
                     || opType == Operation.OpType.LOG
                     || opType == Operation.OpType.EXP
                     || opType == Operation.OpType.FAST_EXP
                     || opType == Operation.OpType.SQRT
                     || opType == Operation.OpType.ABS
+                    || opType == Operation.OpType.FLOOR
+                    || opType == Operation.OpType.CEIL
+                    || opType == Operation.OpType.SIGN
+                    || opType == Operation.OpType.POW
                     || opType == Operation.OpType.TANH
                     || opType == Operation.OpType.FAST_TANH
                     || opType == Operation.OpType.SIGMOID
-                    || opType == Operation.OpType.INV;
+                    || opType == Operation.OpType.INV
+                    || opType == Operation.OpType.WHERE;
         }
         if (dataType == DataType.BFLOAT16) {
             return opType == Operation.OpType.ADD
                     || opType == Operation.OpType.SUB
                     || opType == Operation.OpType.MUL
                     || opType == Operation.OpType.DIV
+                    || opType == Operation.OpType.MIN
+                    || opType == Operation.OpType.MAX
                     || opType == Operation.OpType.MUL_SCALAR
                     || opType == Operation.OpType.NEG
                     || opType == Operation.OpType.RELU
-                    || opType == Operation.OpType.ABS;
+                    || opType == Operation.OpType.CLAMP_MIN
+                    || opType == Operation.OpType.CLAMP_MAX
+                    || opType == Operation.OpType.ABS
+                    || opType == Operation.OpType.WHERE;
         }
         return dataType == DataType.FLOAT32
                 && (opType == Operation.OpType.ADD
                 || opType == Operation.OpType.SUB
                 || opType == Operation.OpType.MUL
                 || opType == Operation.OpType.DIV
+                || opType == Operation.OpType.MIN
+                || opType == Operation.OpType.MAX
+                || opType == Operation.OpType.POW_TENSOR
                 || opType == Operation.OpType.MUL_SCALAR
                 || opType == Operation.OpType.NEG
                 || opType == Operation.OpType.RELU
+                || opType == Operation.OpType.CLAMP_MIN
+                || opType == Operation.OpType.CLAMP_MAX
                 || opType == Operation.OpType.LOG
                 || opType == Operation.OpType.EXP
                 || opType == Operation.OpType.FAST_EXP
                 || opType == Operation.OpType.SQRT
                 || opType == Operation.OpType.ABS
+                || opType == Operation.OpType.FLOOR
+                || opType == Operation.OpType.CEIL
+                || opType == Operation.OpType.SIGN
+                || opType == Operation.OpType.POW
                 || opType == Operation.OpType.TANH
                 || opType == Operation.OpType.FAST_TANH
                 || opType == Operation.OpType.SIGMOID
@@ -186,13 +243,29 @@ public final class NativeCpuKernelFacts {
                 || opType == Operation.OpType.SUB
                 || opType == Operation.OpType.MUL
                 || opType == Operation.OpType.DIV
+                || opType == Operation.OpType.MIN
+                || opType == Operation.OpType.MAX
+                || opType == Operation.OpType.POW_TENSOR
                 || opType == Operation.OpType.WHERE;
     }
 
     private static boolean supportsReduction(DataType dataType, Operation.OpType opType) {
+        if (dataType == DataType.BFLOAT16) {
+            return opType == Operation.OpType.SUM || opType == Operation.OpType.MEAN;
+        }
         return (dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64)
                 && (opType == Operation.OpType.SUM
-                || opType == Operation.OpType.MEAN);
+                || opType == Operation.OpType.MEAN
+                || opType == Operation.OpType.REDUCE_MIN
+                || opType == Operation.OpType.REDUCE_MAX);
+    }
+
+    private static boolean isMinMaxReduction(Operation.OpType opType) {
+        return opType == Operation.OpType.REDUCE_MIN || opType == Operation.OpType.REDUCE_MAX;
+    }
+
+    private static boolean isSoftmaxLike(Operation.OpType opType) {
+        return opType == Operation.OpType.SOFTMAX || opType == Operation.OpType.LOG_SOFTMAX;
     }
 
     private static boolean supportsCompare(Operation.OpType opType) {
@@ -202,6 +275,17 @@ public final class NativeCpuKernelFacts {
                 || opType == Operation.OpType.LE
                 || opType == Operation.OpType.EQ
                 || opType == Operation.OpType.NE;
+    }
+
+    private static boolean supportsBoolLogical(Operation.OpType opType) {
+        return opType == Operation.OpType.LOGICAL_AND
+                || opType == Operation.OpType.LOGICAL_OR
+                || opType == Operation.OpType.LOGICAL_NOT;
+    }
+
+    private static boolean supportsBoolReduction(Operation.OpType opType) {
+        return opType == Operation.OpType.REDUCE_ALL
+                || opType == Operation.OpType.REDUCE_ANY;
     }
 
     private static boolean supportsNativeCastOutput(DataType dataType) {

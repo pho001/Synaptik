@@ -16,7 +16,9 @@ import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
 import backend.cpu.fused.plan.FusedOperation;
 import operations.Operation;
+import tensor.BoolStorage;
 import tensor.DataType;
+import tensor.Float64Storage;
 import tensor.Tensor;
 
 import java.util.ArrayList;
@@ -329,7 +331,7 @@ public final class Float64FusedExecutor {
     }
 
     private static boolean supportsVectorFastPath(FusedExpressionPlan plan, List<Tensor> inputs, Tensor out) {
-        if (out.getDataType() != DataType.FLOAT64 || out.getFloat64Data() == null || !out.isContiguous()) {
+        if (out.getDataType() != DataType.FLOAT64 || !(out.getStorage() instanceof Float64Storage) || !out.isContiguous()) {
             return false;
         }
         if (plan.outputNode().outputType() == DataType.BOOL) {
@@ -342,14 +344,14 @@ public final class Float64FusedExecutor {
                 return false;
             }
             if (inputPlan.dataType() == DataType.BOOL) {
-                if (input.getDataType() != DataType.BOOL || input.getBoolData() == null) {
+                if (input.getDataType() != DataType.BOOL || !(input.getStorage() instanceof BoolStorage)) {
                     return false;
                 }
                 continue;
             }
             if (inputPlan.dataType() != DataType.FLOAT64
                     || input.getDataType() != DataType.FLOAT64
-                    || input.getFloat64Data() == null) {
+                    || !(input.getStorage() instanceof Float64Storage)) {
                 return false;
             }
         }

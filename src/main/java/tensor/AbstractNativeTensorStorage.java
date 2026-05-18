@@ -1,7 +1,5 @@
 package tensor;
 
-import backend.cpu.nativecpu.NativeCpuAllocation;
-
 import java.lang.foreign.MemorySegment;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
@@ -10,7 +8,7 @@ abstract class AbstractNativeTensorStorage implements NativeTensorStorage {
     private final DataType type;
     private final int size;
     private final long elementSizeBytes;
-    private final NativeCpuAllocation allocation;
+    private final NativeMemoryAllocation allocation;
     private final MemorySegment segment;
     private final long byteOffset;
     private final long byteSize;
@@ -21,7 +19,7 @@ abstract class AbstractNativeTensorStorage implements NativeTensorStorage {
             DataType type,
             int size,
             long elementSizeBytes,
-            NativeCpuAllocation allocation,
+            NativeMemoryAllocation allocation,
             long byteOffset,
             boolean ownsSegment
     ) {
@@ -35,11 +33,20 @@ abstract class AbstractNativeTensorStorage implements NativeTensorStorage {
         this.size = size;
         this.elementSizeBytes = elementSizeBytes;
         this.allocation = Objects.requireNonNull(allocation, "allocation cannot be null");
-        this.byteOffset = Math.max(0L, byteOffset);
+        if (byteOffset < 0L) {
+            throw new IllegalArgumentException("byteOffset cannot be negative: " + byteOffset);
+        }
+        this.byteOffset = byteOffset;
         this.byteSize = Math.multiplyExact((long) size, elementSizeBytes);
         this.ownsSegment = ownsSegment;
         MemorySegment base = allocation.segment();
-        long requiredBytes = this.byteOffset + this.byteSize;
+        long requiredBytes;
+        try {
+            requiredBytes = Math.addExact(this.byteOffset, this.byteSize);
+        } catch (ArithmeticException ex) {
+            throw new IllegalArgumentException("Native storage view byte range overflows long. byteOffset="
+                    + this.byteOffset + ", byteSize=" + this.byteSize, ex);
+        }
         if (requiredBytes > allocation.byteSize()) {
             throw new IllegalArgumentException("Native storage view exceeds allocation byteSize. required="
                     + requiredBytes + ", allocation=" + allocation.byteSize());
@@ -94,7 +101,7 @@ abstract class AbstractNativeTensorStorage implements NativeTensorStorage {
     }
 
     @Override
-    public final NativeCpuAllocation allocation() {
+    public final NativeMemoryAllocation allocation() {
         return allocation;
     }
 

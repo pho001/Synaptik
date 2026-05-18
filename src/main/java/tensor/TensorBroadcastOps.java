@@ -1,7 +1,5 @@
 package tensor;
 
-import backend.cpu.kernels.CpuDTypeOps;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -101,14 +99,14 @@ public final class TensorBroadcastOps {
         short[] og = outGrad.getBFloat16Data();
         float[] gradAcc = new float[(forFirst ? first : second).getFlatDataSize()];
         accumulateMinMaxGrad(og.length, plan, isMax, forFirst,
-                i -> CpuDTypeOps.fromBFloat16Bits(a[i]),
-                i -> CpuDTypeOps.fromBFloat16Bits(b[i]),
-                i -> CpuDTypeOps.fromBFloat16Bits(og[i]),
+                i -> BFloat16Bits.toFloat(a[i]),
+                i -> BFloat16Bits.toFloat(b[i]),
+                i -> BFloat16Bits.toFloat(og[i]),
                 (idx, val) -> gradAcc[idx] += (float) val);
 
         short[] grad = new short[gradAcc.length];
         for (int i = 0; i < gradAcc.length; i++) {
-            grad[i] = CpuDTypeOps.toBFloat16Bits(gradAcc[i]);
+            grad[i] = BFloat16Bits.fromFloat(gradAcc[i]);
         }
         return new Tensor(grad, (forFirst ? first : second).getShape().clone(), null,
                 (isMax ? "max" : "min") + "_grad_" + (forFirst ? "a" : "b"), DataType.BFLOAT16);

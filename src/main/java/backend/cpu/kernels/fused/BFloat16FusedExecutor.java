@@ -15,6 +15,7 @@ import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
 import backend.cpu.fused.plan.FusedOperation;
 import operations.Operation;
+import tensor.BFloat16Storage;
 import tensor.DataType;
 import tensor.Tensor;
 
@@ -322,7 +323,7 @@ public final class BFloat16FusedExecutor {
     }
 
     private static boolean supportsVectorFastPath(FusedExpressionPlan plan, List<Tensor> inputs, Tensor out) {
-        if (out.getDataType() != DataType.BFLOAT16 || out.getBFloat16Data() == null || !out.isContiguous()) {
+        if (out.getDataType() != DataType.BFLOAT16 || !(out.getStorage() instanceof BFloat16Storage) || !out.isContiguous()) {
             return false;
         }
         if (plan.outputNode().outputType() == DataType.BOOL) {
@@ -334,7 +335,7 @@ public final class BFloat16FusedExecutor {
             if (inputPlan.dataType() != DataType.BFLOAT16
                     || !inputPlan.isLinearAccess()
                     || input.getDataType() != DataType.BFLOAT16
-                    || input.getBFloat16Data() == null) {
+                    || !(input.getStorage() instanceof BFloat16Storage)) {
                 return false;
             }
         }

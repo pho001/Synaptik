@@ -1,18 +1,16 @@
 package tensor;
 
-import backend.cpu.nativecpu.NativeCpuAllocation;
-
 import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
 
 /**
  * {@link DataType#FLOAT64} tensor storage backed by native CPU memory.
  */
 public final class NativeFloat64Storage extends AbstractNativeTensorStorage {
-    public NativeFloat64Storage(int size, NativeCpuAllocation allocation) {
+    public NativeFloat64Storage(int size, NativeMemoryAllocation allocation) {
         this(size, allocation, 0L, true);
     }
 
-    public NativeFloat64Storage(int size, NativeCpuAllocation allocation, long byteOffset, boolean ownsSegment) {
+    public NativeFloat64Storage(int size, NativeMemoryAllocation allocation, long byteOffset, boolean ownsSegment) {
         super(DataType.FLOAT64, size, Double.BYTES, allocation, byteOffset, ownsSegment);
     }
 

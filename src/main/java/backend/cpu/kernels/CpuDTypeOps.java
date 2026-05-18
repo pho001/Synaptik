@@ -1,6 +1,7 @@
 package backend.cpu.kernels;
 
 import tensor.DataType;
+import tensor.BFloat16Bits;
 import tensor.Tensor;
 
 public final class CpuDTypeOps {
@@ -109,28 +110,10 @@ public final class CpuDTypeOps {
     }
 
     public static float fromBFloat16Bits(short halfBits) {
-        return bfloat16BitsToFloat(halfBits);
+        return BFloat16Bits.toFloat(halfBits);
     }
 
     public static short toBFloat16Bits(float value) {
-        return floatToBFloat16Bits(value);
-    }
-
-    private static float bfloat16BitsToFloat(short halfBits) {
-        int floatBits = (halfBits & 0xFFFF) << 16;
-        return Float.intBitsToFloat(floatBits);
-    }
-
-    private static short floatToBFloat16Bits(float value) {
-        int bits = Float.floatToIntBits(value);
-        if (Float.isNaN(value)) {
-            return (short) 0x7FC0;
-        }
-        int upper = bits >>> 16;
-        int lower = bits & 0xFFFF;
-        if (lower > 0x8000 || (lower == 0x8000 && (upper & 0x1) != 0)) {
-            upper++;
-        }
-        return (short) upper;
+        return BFloat16Bits.fromFloat(value);
     }
 }

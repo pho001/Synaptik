@@ -10,10 +10,14 @@ import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
 import backend.cpu.nativecpu.NativeCpuMemoryPool;
+import backend.cpu.nativecpu.NativeCpuParityMatrix;
 import backend.cpu.nativecpu.NativeCpuTraceState;
 import backend.cpu.nativecpu.PreparedNativeCpuInputPolicy;
 import backend.cpu.nativecpu.PreparedNativeCpuPlan;
 import backend.cpu.nativecpu.PreparedNativeCpuRoute;
+import backend.cpu.nativecpu.layout.NativeCpuLayoutClass;
+import backend.cpu.nativecpu.layout.NativeCpuStorageFamily;
+import backend.cpu.nativecpu.layout.TensorPhysicalView;
 import backend.lowering.region.CpuNativeRegionPayload;
 import backend.lowering.region.RegionRole;
 import backend.memory.CpuMaterializationReason;
@@ -665,6 +669,42 @@ public final class PreparedExecution implements AutoCloseable {
                     attrs.put("nativeCpuRegionPhysicalKernels", regionPlan.nodePlans().stream()
                             .map(backend.lowering.region.RegionNodePlan::physicalKernel)
                             .toList());
+                    attrs.put("nativeCpuRegionSegmentKernelFamilies", regionPlan.nodePlans().stream()
+                            .map(backend.lowering.region.RegionNodePlan::segmentKernelFamily)
+                            .toList());
+                    attrs.put("nativeCpuParityStoragePaths", regionPlan.nodePlans().stream()
+                            .map(PreparedExecution::nativeCpuParityStoragePaths)
+                            .toList());
+                    attrs.put("nativeCpuParityLayoutCapabilities", regionPlan.nodePlans().stream()
+                            .map(PreparedExecution::nativeCpuParityLayoutCapabilities)
+                            .toList());
+                    attrs.put("nativeCpuParityResultResidencies", regionPlan.nodePlans().stream()
+                            .map(PreparedExecution::nativeCpuParityResultResidencies)
+                            .toList());
+                    attrs.put("nativeCpuParityAutoEligible", regionPlan.nodePlans().stream()
+                            .map(nodePlan -> NativeCpuParityMatrix.isAutoEligible(nodePlan.opType(), nodePlan.dataType()))
+                            .toList());
+                    attrs.put("nativeCpuRegionLayoutClasses", regionPlan.nodePlans().stream()
+                            .map(backend.lowering.region.RegionNodePlan::layoutClass)
+                            .toList());
+                    attrs.put("nativeCpuRegionInputLayoutClasses", regionPlan.nodePlans().stream()
+                            .map(backend.lowering.region.RegionNodePlan::inputLayoutClasses)
+                            .toList());
+                    attrs.put("nativeCpuRegionOutputLayoutClasses", regionPlan.nodePlans().stream()
+                            .map(backend.lowering.region.RegionNodePlan::outputLayoutClass)
+                            .toList());
+                    attrs.put("nativeCpuLayoutClassCounts", stringCounts(regionPlan.nodePlans().stream()
+                            .map(backend.lowering.region.RegionNodePlan::layoutClass)
+                            .toList()));
+                    attrs.put("nativeCpuStridedNodeCount", nativeCpuStridedNodeCount(regionPlan.nodePlans()));
+                    attrs.put("nativeCpuStridedMaterializationCount", regionPlan.nodePlans().stream()
+                            .filter(nodePlan -> !nodePlan.materializationReason().isBlank())
+                            .count());
+                    attrs.put("nativeCpuStridedFallbackReasons", regionPlan.nodePlans().stream()
+                            .map(backend.lowering.region.RegionNodePlan::materializationReason)
+                            .filter(reason -> reason != null && !reason.isBlank())
+                            .distinct()
+                            .toList());
                     attrs.put("nativeCpuRegionExecutionKinds", regionPlan.nodePlans().stream()
                             .map(nodePlan -> nodePlan.executionKind().name())
                             .toList());
@@ -675,9 +715,22 @@ public final class PreparedExecution implements AutoCloseable {
                             .map(backend.lowering.region.RegionNodePlan::reason)
                             .toList());
                     attrs.put("nativeCpuRegionSegmentScalarNodes", regionPlan.nodePlans().stream()
-                            .filter(nodePlan -> "SEGMENT_SCALAR".equals(nodePlan.physicalKernel()))
+                            .filter(PreparedExecution::isSegmentScalarNodePlan)
                             .map(backend.lowering.region.RegionNodePlan::nodeId)
                             .toList());
+                    attrs.put("nativeCpuRegionBf16PromotedNodes", regionPlan.nodePlans().stream()
+                            .filter(PreparedExecution::isBf16PromotedRegionNodePlan)
+                            .map(backend.lowering.region.RegionNodePlan::nodeId)
+                            .toList());
+                    attrs.put("nativeCpuRegionBf16PromotedSegmentScalarNodes", regionPlan.nodePlans().stream()
+                            .filter(PreparedExecution::isBf16PromotedRegionNodePlan)
+                            .filter(PreparedExecution::isSegmentScalarNodePlan)
+                            .map(backend.lowering.region.RegionNodePlan::nodeId)
+                            .toList());
+                    if (regionPlan.nodePlans().stream().anyMatch(PreparedExecution::isBf16PromotedRegionNodePlan)) {
+                        attrs.put("nativeCpuRegionBf16StoragePrecision", "BF16");
+                        attrs.put("nativeCpuRegionBf16ComputePrecision", "F32_PROMOTED");
+                    }
                     attrs.put("nativeCpuRegionFallbackPlanCount", payload.fallbackPlans().size());
                 }
             }
@@ -966,6 +1019,40 @@ public final class PreparedExecution implements AutoCloseable {
         attrs.put("nativeCpuRegionRejectedOp", node.operation() == null
                 ? "UNKNOWN"
                 : node.operation().opType().name());
+        var parity = NativeCpuParityMatrix.entryFor(
+                node.operation() == null ? operations.Operation.OpType.UNKNOWN : node.operation().opType(),
+                node.dataType()
+        );
+        attrs.put("nativeCpuParityStoragePaths", List.of(parity.storagePaths().stream()
+                .map(Enum::name)
+                .sorted()
+                .toList()));
+        attrs.put("nativeCpuParityLayoutCapabilities", List.of(parity.layoutCapabilities().stream()
+                .map(Enum::name)
+                .sorted()
+                .toList()));
+        attrs.put("nativeCpuParityResultResidencies", List.of(parity.resultResidencies().stream()
+                .map(Enum::name)
+                .sorted()
+                .toList()));
+        attrs.put("nativeCpuParityAutoEligible", List.of(parity.autoEligible()));
+        String layoutClass = nodeLayoutClassName(node);
+        List<String> inputLayoutClasses = node.inputTensors().stream()
+                .map(PreparedExecution::tensorLayoutClassName)
+                .toList();
+        ArrayList<String> rejectionLayoutClasses = new ArrayList<>();
+        rejectionLayoutClasses.add(layoutClass);
+        rejectionLayoutClasses.addAll(inputLayoutClasses);
+        attrs.put("nativeCpuRegionLayoutClasses", List.of(layoutClass));
+        attrs.put("nativeCpuRegionInputLayoutClasses", inputLayoutClasses);
+        attrs.put("nativeCpuRegionOutputLayoutClasses", List.of(layoutClass));
+        attrs.put("nativeCpuLayoutClassCounts", stringCounts(rejectionLayoutClasses));
+        attrs.put("nativeCpuStridedNodeCount",
+                isDenseOrViewLayout(layoutClass) && !reason.startsWith("native-layout-") ? 0 : 1);
+        attrs.put("nativeCpuStridedMaterializationCount",
+                reason.startsWith("native-layout-materialization-required:") ? 1 : 0);
+        attrs.put("nativeCpuStridedFallbackReasons",
+                reason.startsWith("native-layout-") ? List.of(reason) : List.of());
     }
 
     private static String nativeRegionRejectionReason(
@@ -980,6 +1067,10 @@ public final class PreparedExecution implements AutoCloseable {
                 && node.operation() != null
                 && (node.operation().opType() == operations.Operation.OpType.MATMUL
                 || node.operation().opType() == operations.Operation.OpType.LINEAR);
+        String layoutReason = nativeLayoutRejectionReason(node, providerOp);
+        if (!layoutReason.isBlank()) {
+            return layoutReason;
+        }
         if (providerOp && runtimeConfig.blas().provider() == backend.blas.BlasProvider.NONE) {
             return "native-cpu-region-provider-unavailable:" + opLabel;
         }
@@ -994,6 +1085,164 @@ public final class PreparedExecution implements AutoCloseable {
                     : "native-cpu-region-rejected:" + planReason;
         }
         return "native-cpu-region-rejected:no-region-selected";
+    }
+
+    private static String nativeLayoutRejectionReason(CompiledNode node, boolean providerOp) {
+        if (node == null || node.operation() == null) {
+            return "";
+        }
+        String opLabel = node.operation().opType().name().toLowerCase(Locale.ROOT);
+        String outputLayout = nodeLayoutClassName(node);
+        if ("UNSUPPORTED_LAYOUT".equals(outputLayout)) {
+            return "native-layout-unsupported:node-" + node.id();
+        }
+        for (Tensor input : node.inputTensors()) {
+            String inputLayout = tensorLayoutClassName(input);
+            if ("DENSE_CONTIGUOUS".equals(inputLayout)) {
+                continue;
+            }
+            if ("UNSUPPORTED_LAYOUT".equals(inputLayout)) {
+                return "native-layout-unsupported:input:" + opLabel;
+            }
+            if (providerOp) {
+                return "native-layout-materialization-required:provider-dense-input";
+            }
+            if ("OFFSET_CONTIGUOUS".equals(inputLayout)) {
+                return "native-layout-materialization-required:offset-input:" + opLabel;
+            }
+            if ("BROADCAST_READ_DENSE_WRITE".equals(inputLayout)
+                    || "LAST_DIM_BIAS_BROADCAST".equals(inputLayout)) {
+                return "native-layout-materialization-required:broadcast-input:" + opLabel;
+            }
+            return "native-layout-unsupported:strided-input:" + opLabel;
+        }
+        if (!isDenseOrViewLayout(outputLayout)) {
+            return "native-layout-unsupported:strided-output:" + opLabel;
+        }
+        return "";
+    }
+
+    private static Map<String, Integer> stringCounts(List<String> values) {
+        LinkedHashMap<String, Integer> counts = new LinkedHashMap<>();
+        if (values == null) {
+            return counts;
+        }
+        for (String value : values) {
+            String key = value == null || value.isBlank() ? "UNKNOWN" : value;
+            counts.merge(key, 1, Integer::sum);
+        }
+        return counts;
+    }
+
+    private static long nativeCpuStridedNodeCount(List<backend.lowering.region.RegionNodePlan> nodePlans) {
+        if (nodePlans == null) {
+            return 0L;
+        }
+        return nodePlans.stream()
+                .filter(nodePlan -> nodePlan != null && !isDenseOrViewLayout(nodePlan.layoutClass()))
+                .count();
+    }
+
+    private static boolean isSegmentScalarNodePlan(backend.lowering.region.RegionNodePlan nodePlan) {
+        if (nodePlan == null) {
+            return false;
+        }
+        String physicalKernel = nodePlan.physicalKernel();
+        String segmentKernelFamily = nodePlan.segmentKernelFamily();
+        return "SEGMENT_SCALAR".equals(physicalKernel)
+                || "SEGMENT_DENSE_SCALAR".equals(segmentKernelFamily)
+                || "SEGMENT_STRIDED_SCALAR".equals(segmentKernelFamily);
+    }
+
+    private static List<String> nativeCpuParityStoragePaths(backend.lowering.region.RegionNodePlan nodePlan) {
+        if (nodePlan == null) {
+            return List.of();
+        }
+        return NativeCpuParityMatrix.entryFor(nodePlan.opType(), nodePlan.dataType()).storagePaths().stream()
+                .map(Enum::name)
+                .sorted()
+                .toList();
+    }
+
+    private static List<String> nativeCpuParityLayoutCapabilities(backend.lowering.region.RegionNodePlan nodePlan) {
+        if (nodePlan == null) {
+            return List.of();
+        }
+        return NativeCpuParityMatrix.entryFor(nodePlan.opType(), nodePlan.dataType()).layoutCapabilities().stream()
+                .map(Enum::name)
+                .sorted()
+                .toList();
+    }
+
+    private static List<String> nativeCpuParityResultResidencies(backend.lowering.region.RegionNodePlan nodePlan) {
+        if (nodePlan == null) {
+            return List.of();
+        }
+        return NativeCpuParityMatrix.entryFor(nodePlan.opType(), nodePlan.dataType()).resultResidencies().stream()
+                .map(Enum::name)
+                .sorted()
+                .toList();
+    }
+
+    private static boolean isBf16PromotedRegionNodePlan(backend.lowering.region.RegionNodePlan nodePlan) {
+        if (nodePlan == null || nodePlan.dataType() != tensor.DataType.BFLOAT16) {
+            return false;
+        }
+        return switch (nodePlan.opType()) {
+            case ADD, SUB, MUL, DIV, MIN, MAX, MUL_SCALAR, NEG, RELU, ABS, CLAMP_MIN, CLAMP_MAX, WHERE, SUM, MEAN -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean isDenseOrViewLayout(String layoutClass) {
+        return "DENSE_CONTIGUOUS".equals(layoutClass) || "VIEW_ALIAS_ONLY".equals(layoutClass);
+    }
+
+    private static String nodeLayoutClassName(CompiledNode node) {
+        if (node == null) {
+            return NativeCpuLayoutClass.UNSUPPORTED_LAYOUT.name();
+        }
+        return layoutClassName(
+                node.id(),
+                node.dataType(),
+                node.shape(),
+                node.strides(),
+                node.storageOffset()
+        );
+    }
+
+    private static String tensorLayoutClassName(Tensor tensor) {
+        if (tensor == null) {
+            return NativeCpuLayoutClass.UNSUPPORTED_LAYOUT.name();
+        }
+        return layoutClassName(
+                0,
+                tensor.getDataType(),
+                tensor.getShapeUnsafe(),
+                tensor.getStridesUnsafe(),
+                tensor.getStorageOffsetUnsafe()
+        );
+    }
+
+    private static String layoutClassName(
+            int nodeId,
+            tensor.DataType dataType,
+            int[] shape,
+            int[] strides,
+            int storageOffset
+    ) {
+        try {
+            return TensorPhysicalView.of(
+                    Math.max(0, nodeId),
+                    dataType,
+                    shape,
+                    strides,
+                    storageOffset,
+                    NativeCpuStorageFamily.CPU_NATIVE
+            ).layoutClass().name();
+        } catch (RuntimeException ignored) {
+            return NativeCpuLayoutClass.UNSUPPORTED_LAYOUT.name();
+        }
     }
 
     private static Tensor safeRuntimeTensor(ExecutionContext context, int nodeId) {

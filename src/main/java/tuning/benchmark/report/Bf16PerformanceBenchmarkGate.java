@@ -5,6 +5,7 @@ import tensor.DataType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Fail-fast evaluator for Wave 8 BF16 performance truth evidence.
@@ -33,8 +34,12 @@ public final class Bf16PerformanceBenchmarkGate {
             }
             for (var step : trace.run().steps()) {
                 if (step == null || step.metadata() == null || step.metadata().matMul() == null) {
+                    if (step != null && step.metadata() != null) {
+                        evaluateNonBlasBf16(candidate.entry().name(), step.metadata().attributes(), failures);
+                    }
                     continue;
                 }
+                evaluateNonBlasBf16(candidate.entry().name(), step.metadata().attributes(), failures);
                 evaluateMatMul(candidate.entry().name(), step.metadata().matMul(), failures);
             }
             for (var optimizer : trace.run().nativeOptimizers()) {
@@ -101,10 +106,35 @@ public final class Bf16PerformanceBenchmarkGate {
         }
     }
 
+    private static void evaluateNonBlasBf16(String candidateName, Map<String, Object> attrs, List<String> failures) {
+        if (attrs == null || attrs.isEmpty()) {
+            return;
+        }
+        boolean promotedStep = "BF16".equals(String.valueOf(attrs.getOrDefault("storagePrecision", "")))
+                || "F32_PROMOTED".equals(String.valueOf(attrs.getOrDefault("computePrecision", "")));
+        if (promotedStep
+                && (!"BF16".equals(String.valueOf(attrs.getOrDefault("storagePrecision", "")))
+                || !"F32_PROMOTED".equals(String.valueOf(attrs.getOrDefault("computePrecision", ""))))) {
+            failures.add("BF16 non-BLAS promoted step missing BF16/F32_PROMOTED precision contract for " + candidateName);
+        }
+        int regionPromotedNodes = collectionSize(attrs.get("nativeCpuRegionBf16PromotedNodes"));
+        if (regionPromotedNodes > 0) {
+            if (!"BF16".equals(String.valueOf(attrs.getOrDefault("nativeCpuRegionBf16StoragePrecision", "")))
+                    || !"F32_PROMOTED".equals(String.valueOf(attrs.getOrDefault("nativeCpuRegionBf16ComputePrecision", "")))) {
+                failures.add("BF16 native region promoted nodes missing BF16/F32_PROMOTED precision contract for "
+                        + candidateName);
+            }
+        }
+    }
+
     private static boolean isBf16MatMul(MatMulTraceMetadata matMul) {
         return !matMul.bf16ContinuationRoute().isBlank()
                 || !matMul.bf16OutputRoute().isBlank()
                 || !matMul.bf16ComputePrecision().isBlank()
                 || !matMul.bf16OutputPrecision().isBlank();
+    }
+
+    private static int collectionSize(Object value) {
+        return value instanceof java.util.Collection<?> collection ? collection.size() : 0;
     }
 }

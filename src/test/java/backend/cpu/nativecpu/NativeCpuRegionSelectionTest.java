@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -69,8 +70,48 @@ class NativeCpuRegionSelectionTest {
         assertEquals("native-cpu-region-provider-unavailable:matmul", matmulAttrs.get("nativeCpuRegionFallbackReason"));
         assertEquals(1, matmulAttrs.get("nativeCpuRegionNodeCount"));
         assertEquals("MATMUL", matmulAttrs.get("nativeCpuRegionRejectedOp"));
+        assertEquals(List.of(true), matmulAttrs.get("nativeCpuParityAutoEligible"));
+        assertNestedContains(matmulAttrs, "nativeCpuParityStoragePaths", "CPU_NATIVE_REGION_PROVIDER");
+        assertNestedContains(matmulAttrs, "nativeCpuParityResultResidencies", "CPU_NATIVE");
         assertTrue(trace.steps().stream()
                 .noneMatch(step -> "SELECTED".equals(step.metadata().attributes().get("nativeCpuRegionDecision"))));
+    }
+
+    @Test
+    void cpuNativeProviderRejectsStridedInputWithLayoutMaterializationReason() {
+        Tensor leftBase = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "leftBase", DataType.FLOAT32);
+        Tensor left = leftBase.transpose();
+        Tensor right = new Tensor(new float[]{7f, 8f, 9f, 10f}, new int[]{2, 2}, null, "right", DataType.FLOAT32);
+        Tensor out = left.matmul(right).relu();
+
+        var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
+                .executeTraced(
+                        disabledBlasRuntime(CpuStorageProfile.CPU_NATIVE),
+                        ExecutionMode.FORWARD,
+                        PublicationPolicy.NONE
+                );
+
+        Map<String, Object> matmulAttrs = trace.steps().stream()
+                .filter(step -> "MATMUL".equals(step.opType()))
+                .map(step -> step.metadata().attributes())
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals("REJECTED", matmulAttrs.get("nativeCpuRegionDecision"));
+        assertEquals("native-layout-materialization-required:provider-dense-input",
+                matmulAttrs.get("nativeCpuRegionReason"));
+        assertEquals(1, matmulAttrs.get("nativeCpuStridedNodeCount"));
+        assertEquals(1, matmulAttrs.get("nativeCpuStridedMaterializationCount"));
+        assertEquals(List.of("native-layout-materialization-required:provider-dense-input"),
+                matmulAttrs.get("nativeCpuStridedFallbackReasons"));
+        assertEquals(List.of(true), matmulAttrs.get("nativeCpuParityAutoEligible"));
+        assertNestedContains(matmulAttrs, "nativeCpuParityStoragePaths", "CPU_NATIVE_REGION_PROVIDER");
+        assertNestedContains(matmulAttrs, "nativeCpuParityLayoutCapabilities", "DENSE");
+        @SuppressWarnings("unchecked")
+        Map<String, Integer> layoutClassCounts =
+                (Map<String, Integer>) matmulAttrs.get("nativeCpuLayoutClassCounts");
+        assertEquals(2, layoutClassCounts.get("DENSE_CONTIGUOUS"));
+        assertEquals(1, layoutClassCounts.get("TRANSPOSE_2D_READ_DENSE_WRITE"));
     }
 
     private static RuntimeConfig disabledBlasRuntime(CpuStorageProfile profile) {
@@ -95,5 +136,13 @@ class NativeCpuRegionSelectionTest {
     private static CompileConfig noSemanticLinearFusion() {
         return CompileConfig.inference()
                 .withSemanticCanonicalization(SemanticCanonicalizationConfig.disabled());
+    }
+
+    private static void assertNestedContains(Map<String, Object> attrs, String key, String expected) {
+        Object value = attrs.get(key);
+        assertTrue(value instanceof List<?>, key + " should be a nested list");
+        @SuppressWarnings("unchecked")
+        List<List<String>> rows = (List<List<String>>) value;
+        assertTrue(rows.stream().anyMatch(row -> row.contains(expected)), key + " missing " + expected + ": " + rows);
     }
 }

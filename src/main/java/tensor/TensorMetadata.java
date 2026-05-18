@@ -96,11 +96,7 @@ public final class TensorMetadata {
     }
 
     public int getFlatSize() {
-        int size = 1;
-        for (int dimension : shape) {
-            size *= dimension;
-        }
-        return size;
+        return TensorShape.checkedFlatSize(shape);
     }
 
     public String getLabel() {
@@ -209,24 +205,11 @@ public final class TensorMetadata {
     }
 
     public static int[] computeStrides(int[] shape) {
-        int[] normalizedShape = normalizeShape(shape);
-        int[] strides = new int[normalizedShape.length];
-        int stride = 1;
-        for (int i = normalizedShape.length - 1; i >= 0; i--) {
-            strides[i] = stride;
-            stride *= normalizedShape[i];
-        }
-        return strides;
+        return TensorShape.contiguousStrides(shape);
     }
 
     private static int[] normalizeShape(int[] shape) {
-        if (shape == null) {
-            throw new IllegalArgumentException("Shape cannot be null.");
-        }
-        if (shape.length == 0) {
-            return new int[]{1};
-        }
-        return shape.clone();
+        return TensorShape.normalize(shape);
     }
 
     private static int normalizeStorageOffset(int storageOffset) {

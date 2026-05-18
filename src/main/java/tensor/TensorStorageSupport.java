@@ -1,7 +1,5 @@
 package tensor;
 
-import backend.cpu.kernels.CpuDTypeOps;
-
 final class TensorStorageSupport {
     private TensorStorageSupport() {
     }
@@ -44,7 +42,7 @@ final class TensorStorageSupport {
         }
         short[] converted = new short[size];
         for (int i = 0; i < size; i++) {
-            converted[i] = CpuDTypeOps.toBFloat16Bits((float) source[i]);
+            converted[i] = BFloat16Bits.fromFloat((float) source[i]);
         }
         return new BFloat16Storage(converted);
     }
@@ -68,7 +66,7 @@ final class TensorStorageSupport {
             case BFLOAT16 -> {
                 short[] converted = new short[size];
                 for (int i = 0; i < size; i++) {
-                    converted[i] = CpuDTypeOps.toBFloat16Bits(source[i]);
+                    converted[i] = BFloat16Bits.fromFloat(source[i]);
                 }
                 yield new BFloat16Storage(converted);
             }
@@ -88,14 +86,14 @@ final class TensorStorageSupport {
             case FLOAT32 -> {
                 float[] converted = new float[size];
                 for (int i = 0; i < size; i++) {
-                    converted[i] = CpuDTypeOps.fromBFloat16Bits(source[i]);
+                    converted[i] = BFloat16Bits.toFloat(source[i]);
                 }
                 yield new Float32Storage(converted);
             }
             case FLOAT64 -> {
                 double[] converted = new double[size];
                 for (int i = 0; i < size; i++) {
-                    converted[i] = CpuDTypeOps.fromBFloat16Bits(source[i]);
+                    converted[i] = BFloat16Bits.toFloat(source[i]);
                 }
                 yield new Float64Storage(converted);
             }
@@ -150,7 +148,7 @@ final class TensorStorageSupport {
         return switch (storage.getType()) {
             case FLOAT64 -> ((Float64Storage) storage).getDoubleArray()[offset];
             case FLOAT32 -> ((Float32Storage) storage).getFloatArray()[offset];
-            case BFLOAT16 -> CpuDTypeOps.fromBFloat16Bits(((BFloat16Storage) storage).getShortArray()[offset]);
+            case BFLOAT16 -> BFloat16Bits.toFloat(((BFloat16Storage) storage).getShortArray()[offset]);
             case INT32 -> ((Int32Storage) storage).getIntArray()[offset];
             case INT64 -> ((Int64Storage) storage).getLongArray()[offset];
             case BOOL -> ((BoolStorage) storage).getByteArray()[offset] == 0 ? 0.0d : 1.0d;
@@ -167,7 +165,7 @@ final class TensorStorageSupport {
         switch (storage.getType()) {
             case FLOAT64 -> ((Float64Storage) storage).getDoubleArray()[offset] = value;
             case FLOAT32 -> ((Float32Storage) storage).getFloatArray()[offset] = (float) value;
-            case BFLOAT16 -> ((BFloat16Storage) storage).getShortArray()[offset] = CpuDTypeOps.toBFloat16Bits((float) value);
+            case BFLOAT16 -> ((BFloat16Storage) storage).getShortArray()[offset] = BFloat16Bits.fromFloat((float) value);
             case INT32 -> {
                 long integral = Math.round(value);
                 if (Math.abs(value - integral) > 1e-9) {
@@ -197,27 +195,80 @@ final class TensorStorageSupport {
     }
 
     static float[] float32Data(TensorStorage storage) {
-        return storage instanceof Float32Storage s ? s.getFloatArray() : null;
+        float[] data = float32DataOrNull(storage);
+        if (data == null) {
+            throw unsupportedArrayStorage(DataType.FLOAT32, storage);
+        }
+        return data;
     }
 
     static double[] float64Data(TensorStorage storage) {
-        return storage instanceof Float64Storage s ? s.getDoubleArray() : null;
+        double[] data = float64DataOrNull(storage);
+        if (data == null) {
+            throw unsupportedArrayStorage(DataType.FLOAT64, storage);
+        }
+        return data;
     }
 
     static short[] bfloat16Data(TensorStorage storage) {
-        return storage instanceof BFloat16Storage s ? s.getShortArray() : null;
+        short[] data = bfloat16DataOrNull(storage);
+        if (data == null) {
+            throw unsupportedArrayStorage(DataType.BFLOAT16, storage);
+        }
+        return data;
     }
 
     static int[] int32Data(TensorStorage storage) {
-        return storage instanceof Int32Storage s ? s.getIntArray() : null;
+        int[] data = int32DataOrNull(storage);
+        if (data == null) {
+            throw unsupportedArrayStorage(DataType.INT32, storage);
+        }
+        return data;
     }
 
     static long[] int64Data(TensorStorage storage) {
-        return storage instanceof Int64Storage s ? s.getLongArray() : null;
+        long[] data = int64DataOrNull(storage);
+        if (data == null) {
+            throw unsupportedArrayStorage(DataType.INT64, storage);
+        }
+        return data;
     }
 
     static byte[] boolData(TensorStorage storage) {
+        byte[] data = boolDataOrNull(storage);
+        if (data == null) {
+            throw unsupportedArrayStorage(DataType.BOOL, storage);
+        }
+        return data;
+    }
+
+    static float[] float32DataOrNull(TensorStorage storage) {
+        return storage instanceof Float32Storage s ? s.getFloatArray() : null;
+    }
+
+    static double[] float64DataOrNull(TensorStorage storage) {
+        return storage instanceof Float64Storage s ? s.getDoubleArray() : null;
+    }
+
+    static short[] bfloat16DataOrNull(TensorStorage storage) {
+        return storage instanceof BFloat16Storage s ? s.getShortArray() : null;
+    }
+
+    static int[] int32DataOrNull(TensorStorage storage) {
+        return storage instanceof Int32Storage s ? s.getIntArray() : null;
+    }
+
+    static long[] int64DataOrNull(TensorStorage storage) {
+        return storage instanceof Int64Storage s ? s.getLongArray() : null;
+    }
+
+    static byte[] boolDataOrNull(TensorStorage storage) {
         return storage instanceof BoolStorage s ? s.getByteArray() : null;
+    }
+
+    private static UnsupportedOperationException unsupportedArrayStorage(DataType expected, TensorStorage storage) {
+        String actual = storage == null ? "null" : storage.getClass().getSimpleName() + "/" + storage.getType();
+        return new UnsupportedOperationException(expected + " array storage required, actual=" + actual);
     }
 
     static int logicalFlatIndexToStorageOffset(TensorMetadata metadata, int logicalIndex) {

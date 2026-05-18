@@ -44,9 +44,23 @@ public final class NativeCpuNonBlasBenchmarkGate {
                     continue;
                 }
                 int segmentScalarNodes = segmentScalarNodeCount(attrs);
-                if (segmentScalarNodes > 0) {
+                boolean measuredWinProof = NativeCpuRegionMeasuredWinEvidence.proven(attrs);
+                if (segmentScalarNodes > 0 && !measuredWinProof) {
                     failures.add("AUTO native CPU region selected slow segment scalar kernels for "
-                            + candidate.entry().name() + " count=" + segmentScalarNodes);
+                            + candidate.entry().name() + " count=" + segmentScalarNodes
+                            + " kernels=" + evidence(attrs, "nativeCpuRegionSegmentKernelFamilies")
+                            + " layouts=" + evidence(attrs, "nativeCpuLayoutClassCounts")
+                            + " nodes=" + evidence(attrs, "nativeCpuRegionSegmentScalarNodes")
+                            + " measuredWinProof=" + NativeCpuRegionMeasuredWinEvidence.describe(attrs));
+                }
+                int nonEligibleNodes = parityNonAutoEligibleNodeCount(attrs);
+                if (nonEligibleNodes > 0 && !measuredWinProof) {
+                    failures.add("AUTO native CPU region selected parity non-eligible nodes for "
+                            + candidate.entry().name() + " count=" + nonEligibleNodes
+                            + " parityAutoEligible=" + evidence(attrs, "nativeCpuParityAutoEligible")
+                            + " layouts=" + evidence(attrs, "nativeCpuLayoutClassCounts")
+                            + " resultResidencies=" + evidence(attrs, "nativeCpuParityResultResidencies")
+                            + " measuredWinProof=" + NativeCpuRegionMeasuredWinEvidence.describe(attrs));
                 }
             }
         }
@@ -66,13 +80,27 @@ public final class NativeCpuNonBlasBenchmarkGate {
             return explicit;
         }
         Object kernels = attrs.get("nativeCpuRegionPhysicalKernels");
-        if (!(kernels instanceof Collection<?> collection)) {
-            return 0;
-        }
         int count = 0;
-        for (Object kernel : collection) {
-            if ("SEGMENT_SCALAR".equals(String.valueOf(kernel))) {
-                count++;
+        if (kernels instanceof Collection<?> collection) {
+            for (Object kernel : collection) {
+                String value = String.valueOf(kernel);
+                if ("SEGMENT_SCALAR".equals(value)
+                        || "SEGMENT_DENSE_SCALAR".equals(value)
+                        || "SEGMENT_STRIDED_SCALAR".equals(value)) {
+                    count++;
+                }
+            }
+        }
+        if (count > 0) {
+            return count;
+        }
+        Object families = attrs.get("nativeCpuRegionSegmentKernelFamilies");
+        if (families instanceof Collection<?> familyCollection) {
+            for (Object family : familyCollection) {
+                String value = String.valueOf(family);
+                if ("SEGMENT_DENSE_SCALAR".equals(value) || "SEGMENT_STRIDED_SCALAR".equals(value)) {
+                    count++;
+                }
             }
         }
         return count;
@@ -80,5 +108,28 @@ public final class NativeCpuNonBlasBenchmarkGate {
 
     private static int collectionSize(Object value) {
         return value instanceof Collection<?> collection ? collection.size() : 0;
+    }
+
+    private static int parityNonAutoEligibleNodeCount(Map<String, Object> attrs) {
+        Object values = attrs.get("nativeCpuParityAutoEligible");
+        if (!(values instanceof Collection<?> collection)) {
+            return 0;
+        }
+        int count = 0;
+        for (Object value : collection) {
+            if (Boolean.FALSE.equals(value) || "false".equalsIgnoreCase(String.valueOf(value))) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static String evidence(Map<String, Object> attrs, String key) {
+        Object value = attrs == null ? null : attrs.get(key);
+        if (value == null) {
+            return "[]";
+        }
+        String text = String.valueOf(value);
+        return text.isBlank() ? "[]" : text;
     }
 }

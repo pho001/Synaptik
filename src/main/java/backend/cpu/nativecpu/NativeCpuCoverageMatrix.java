@@ -90,7 +90,6 @@ public final class NativeCpuCoverageMatrix {
             return NativeCpuCoverageLayoutScope.VIEW_ONLY;
         }
         if (fact.status() == NativeCpuKernelPerformanceStatus.ARRAY_ONLY
-                || fact.dataType() == DataType.BOOL
                 || fact.dataType() == DataType.INT32
                 || fact.dataType() == DataType.INT64) {
             return NativeCpuCoverageLayoutScope.ARRAY_ONLY;

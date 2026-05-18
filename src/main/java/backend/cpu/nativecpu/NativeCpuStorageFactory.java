@@ -2,6 +2,7 @@ package backend.cpu.nativecpu;
 
 import tensor.DataType;
 import tensor.NativeBFloat16Storage;
+import tensor.NativeBoolStorage;
 import tensor.NativeFloat32Storage;
 import tensor.NativeFloat64Storage;
 import tensor.NativeTensorStorage;
@@ -33,7 +34,8 @@ public final class NativeCpuStorageFactory {
             case FLOAT32 -> new NativeFloat32Storage(elements, allocation);
             case FLOAT64 -> new NativeFloat64Storage(elements, allocation);
             case BFLOAT16 -> new NativeBFloat16Storage(elements, allocation);
-            case BOOL, INT32, INT64 -> throw new UnsupportedOperationException("Native CPU storage MVP supports only FLOAT32, FLOAT64, and BFLOAT16. dtype=" + dataType);
+            case BOOL -> new NativeBoolStorage(elements, allocation);
+            case INT32, INT64 -> throw new UnsupportedOperationException("Native CPU storage MVP supports FLOAT32, FLOAT64, BFLOAT16, and BOOL masks. dtype=" + dataType);
         };
     }
 

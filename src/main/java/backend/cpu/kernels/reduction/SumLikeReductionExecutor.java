@@ -28,6 +28,9 @@ final class SumLikeReductionExecutor {
 
     static void executeBF16(SumLikeReduction reduction, Tensor input, Tensor node, int dimension, CpuKernelContext context) {
         validate(reduction, input, node, context);
+        if (NativeCpuReductionExecutor.tryRunSumLike(opType(reduction), input, node, dimension, context)) {
+            return;
+        }
         float[] continuation = context.inputFloatContinuation(0, input.getFlatDataSize());
         if (continuation != null) {
             SumLoops.executeF32ToBF16(input, continuation, node, dimension, context);

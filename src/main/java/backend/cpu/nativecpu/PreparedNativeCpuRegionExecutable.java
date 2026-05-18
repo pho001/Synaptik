@@ -4,6 +4,12 @@ import backend.ComputeBackend;
 import backend.cpu.CpuBackend;
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.kernels.elementwise.unary.support.CpuPowSupport;
+import backend.cpu.kernels.elementwise.where.WhereElementwiseKernel;
+import backend.cpu.nativecpu.layout.NativeCpuStorageFamily;
+import backend.cpu.nativecpu.layout.NativeSegmentStridedKernels;
+import backend.cpu.nativecpu.layout.NativeSegmentView;
+import backend.cpu.nativecpu.layout.TensorPhysicalView;
 import backend.cpu.region.PreparedCpuRegionExecutable;
 import backend.lowering.region.RegionExecutionGroup;
 import backend.lowering.region.RegionExecutionKind;
@@ -16,9 +22,16 @@ import config.runtime.NativeCpuFailurePolicy;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedNodeExecution;
 import operations.Operation;
+import operations.elementwise.unary.clampMax;
+import operations.elementwise.unary.clampMin;
 import operations.elementwise.unary.mulScalar;
+import operations.elementwise.unary.pow;
 import operations.linalg.linear;
 import operations.reduction.mean;
+import operations.reduction.reduceAll;
+import operations.reduction.reduceAny;
+import operations.reduction.reduceMax;
+import operations.reduction.reduceMin;
 import operations.reduction.sum;
 import tensor.BroadcastPlan;
 import tensor.BroadcastPlanner;
@@ -49,6 +62,22 @@ import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
  */
 public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegionExecutable {
     private static final CpuBackend CPU_BACKEND = new CpuBackend();
+    private static final WhereElementwiseKernel REGION_WHERE_KERNEL = new WhereElementwiseKernel() {
+        @Override
+        public double applyF64(byte condition, double ifTrue, double ifFalse) {
+            return condition != 0 ? ifTrue : ifFalse;
+        }
+
+        @Override
+        public float applyF32(byte condition, float ifTrue, float ifFalse) {
+            return condition != 0 ? ifTrue : ifFalse;
+        }
+
+        @Override
+        public float applyBF16(byte condition, float ifTrue, float ifFalse) {
+            return condition != 0 ? ifTrue : ifFalse;
+        }
+    };
 
     private final RegionExecutionPlan regionExecutionPlan;
     private final List<PreparedNodeExecution> nativeSteps;
@@ -171,30 +200,43 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         if (op.opType() == Operation.OpType.CONTIGUOUS) {
             return tryExecuteContiguousCopy(step, context, op);
         }
-        if (step.compiledNode().dataType() == DataType.BOOL && isCompareOp(op.opType())) {
-            return tryExecuteCompare(step, context, op);
+        if (step.compiledNode().dataType() == DataType.BOOL) {
+            if (isCompareOp(op.opType())) {
+                return tryExecuteCompare(step, context, op);
+            }
+            return switch (op.opType()) {
+                case LOGICAL_NOT -> tryExecuteSegmentUnary(step, context, op);
+                case LOGICAL_AND, LOGICAL_OR -> tryExecuteSegmentBinary(step, context, op);
+                case REDUCE_ALL, REDUCE_ANY -> tryExecuteSegmentReduction(step, context, op);
+                default -> false;
+            };
         }
         return switch (step.compiledNode().dataType()) {
             case FLOAT32 -> switch (op.opType()) {
                 case LINEAR -> tryExecuteLinearF32(step, context, op);
-                case RELU, NEG, LOG, EXP, FAST_EXP, SQRT, ABS, TANH, FAST_TANH, SIGMOID, INV, MUL_SCALAR ->
+                case RELU, NEG, LOG, EXP, FAST_EXP, SQRT, ABS, TANH, FAST_TANH, SIGMOID, INV, MUL_SCALAR,
+                     CLAMP_MIN, CLAMP_MAX, FLOOR, CEIL, SIGN, POW ->
                         tryExecuteUnaryF32(step, context, op);
-                case ADD, SUB, MUL, DIV -> tryExecuteBroadcastBinaryF32(step, context, op);
-                case SUM, MEAN -> tryExecuteReductionF32(step, context, op);
+                case ADD, SUB, MUL, DIV, MIN, MAX, POW_TENSOR -> tryExecuteBroadcastBinaryF32(step, context, op);
+                case SUM, MEAN, REDUCE_MIN, REDUCE_MAX -> tryExecuteReductionF32(step, context, op);
                 case WHERE -> tryExecuteWhereF32(step, context, op);
                 default -> false;
             };
             case FLOAT64 -> switch (op.opType()) {
                 case LINEAR -> tryExecuteLinearF64(step, context, op);
-                case NEG, MUL_SCALAR, RELU, LOG, EXP, FAST_EXP, SQRT, ABS, TANH, FAST_TANH, SIGMOID, INV ->
+                case NEG, MUL_SCALAR, RELU, LOG, EXP, FAST_EXP, SQRT, ABS, TANH, FAST_TANH, SIGMOID, INV,
+                     CLAMP_MIN, CLAMP_MAX, FLOOR, CEIL, SIGN, POW ->
                         tryExecuteUnaryF64(step, context, op);
-                case ADD, SUB, MUL, DIV -> tryExecuteBroadcastBinaryF64(step, context, op);
-                case SUM, MEAN -> tryExecuteReductionF64(step, context, op);
+                case ADD, SUB, MUL, DIV, MIN, MAX, POW_TENSOR -> tryExecuteBroadcastBinaryF64(step, context, op);
+                case SUM, MEAN, REDUCE_MIN, REDUCE_MAX -> tryExecuteReductionF64(step, context, op);
+                case WHERE -> tryExecuteWhereF64(step, context, op);
                 default -> false;
             };
             case BFLOAT16 -> switch (op.opType()) {
-                case NEG, MUL_SCALAR, RELU, ABS -> tryExecuteUnaryBF16(step, context, op);
-                case ADD, SUB, MUL, DIV -> tryExecuteBroadcastBinaryBF16(step, context, op);
+                case NEG, MUL_SCALAR, RELU, ABS, CLAMP_MIN, CLAMP_MAX -> tryExecuteUnaryBF16(step, context, op);
+                case ADD, SUB, MUL, DIV, MIN, MAX -> tryExecuteBroadcastBinaryBF16(step, context, op);
+                case SUM, MEAN -> tryExecuteSegmentReduction(step, context, op);
+                case WHERE -> tryExecuteWhereBF16(step, context, op);
                 default -> false;
             };
             default -> false;
@@ -202,6 +244,9 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
     }
 
     private boolean tryExecuteUnaryF64(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+        if (tryExecuteSegmentUnary(step, context, op)) {
+            return true;
+        }
         List<Integer> inputIds = inputIds(step);
         if (inputIds.size() != 1) {
             return false;
@@ -222,6 +267,9 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
     }
 
     private boolean tryExecuteUnaryBF16(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+        if (tryExecuteSegmentUnary(step, context, op)) {
+            return true;
+        }
         List<Integer> inputIds = inputIds(step);
         if (inputIds.size() != 1) {
             return false;
@@ -260,9 +308,6 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         Tensor out = context.runtimeTensorForNodeId(step.compiledNode().id());
         if (input.getDataType() != out.getDataType()) {
             throw new NativeRegionFallbackSignal("native-cpu-region-view-dtype-mismatch:" + opLabel(op));
-        }
-        if (input.getFlatDataSize() != out.getFlatDataSize()) {
-            throw new NativeRegionFallbackSignal("native-cpu-region-view-size-mismatch:" + opLabel(op));
         }
         try {
             context.aliasNativeStorage(
@@ -450,6 +495,9 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
     }
 
     private boolean tryExecuteUnaryF32(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+        if (tryExecuteSegmentUnary(step, context, op)) {
+            return true;
+        }
         List<Integer> inputIds = inputIds(step);
         if (inputIds.size() != 1) {
             return false;
@@ -473,6 +521,9 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
     }
 
     private boolean tryExecuteWhereF32(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+        if (tryExecuteSegmentWhere(step, context, op)) {
+            return true;
+        }
         List<Integer> inputIds = inputIds(step);
         if (inputIds.size() != 3) {
             return false;
@@ -536,10 +587,81 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         return true;
     }
 
+    private boolean tryExecuteWhereF64(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+        if (tryExecuteSegmentWhere(step, context, op)) {
+            return true;
+        }
+        List<Integer> inputIds = inputIds(step);
+        if (inputIds.size() != 3) {
+            return false;
+        }
+        int conditionNodeId = inputIds.get(0);
+        int trueNodeId = inputIds.get(1);
+        int falseNodeId = inputIds.get(2);
+        Tensor conditionTensor = context.runtimeTensorForNodeId(conditionNodeId);
+        Tensor trueTensor = context.runtimeTensorForNodeId(trueNodeId);
+        Tensor falseTensor = context.runtimeTensorForNodeId(falseNodeId);
+        Tensor outTensor = context.runtimeTensorForNodeId(step.compiledNode().id());
+        int outSize = outTensor.getFlatDataSize();
+        if (conditionTensor.getDataType() != DataType.BOOL
+                || trueTensor.getDataType() != DataType.FLOAT64
+                || falseTensor.getDataType() != DataType.FLOAT64) {
+            return false;
+        }
+        if (conditionTensor.hasStorageOffset()
+                || trueTensor.hasStorageOffset()
+                || falseTensor.hasStorageOffset()) {
+            return false;
+        }
+        WhereBroadcastPlan plan;
+        try {
+            plan = WhereBroadcastPlanner.plan(conditionTensor, trueTensor, falseTensor);
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
+        int[] outShape = plan.outShape();
+        int[] outStrides = plan.outStrides();
+        int[] condEffStrides = plan.condEffStrides();
+        int[] trueEffStrides = plan.trueEffStrides();
+        int[] falseEffStrides = plan.falseEffStrides();
+        if (flatSize(outShape) != outSize || !Arrays.equals(outShape, outTensor.getShapeUnsafe())) {
+            return false;
+        }
+        context.requireCpuReadable(conditionNodeId, CpuMaterializationReason.CPU_CONSUMER);
+        byte[] condition = conditionTensor.getBoolData();
+        NativeFloat64Storage ifTrue = requireF64Storage(context, trueNodeId, "native-cpu-region-where");
+        NativeFloat64Storage ifFalse = requireF64Storage(context, falseNodeId, "native-cpu-region-where");
+        NativeFloat64Storage out = allocateF64(context, step, opLabel(op));
+        for (int i = 0; i < outSize; i++) {
+            int conditionIndex = broadcastedFlatIndex(i, outShape, outStrides, condEffStrides);
+            int trueIndex = broadcastedFlatIndex(i, outShape, outStrides, trueEffStrides);
+            int falseIndex = broadcastedFlatIndex(i, outShape, outStrides, falseEffStrides);
+            out.setFloat64At(
+                    i,
+                    condition[conditionIndex] != 0
+                            ? ifTrue.getFloat64At(trueIndex)
+                            : ifFalse.getFloat64At(falseIndex)
+            );
+        }
+        context.attachNativeStorage(
+                step.compiledNode().id(),
+                out,
+                "native CPU region local WHERE wrote FLOAT64 output"
+        );
+        return true;
+    }
+
+    private boolean tryExecuteWhereBF16(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+        return tryExecuteSegmentWhere(step, context, op);
+    }
+
     private boolean tryExecuteCompare(PreparedNodeExecution step, ExecutionContext context, Operation op) {
         List<Integer> inputIds = inputIds(step);
         if (inputIds.size() != 2) {
             return false;
+        }
+        if (tryExecuteSegmentCompare(step, context, op)) {
+            return true;
         }
         Tensor outTensor = context.runtimeTensorForNodeId(step.compiledNode().id());
         Tensor leftTensor = context.runtimeTensorForNodeId(inputIds.get(0));
@@ -606,6 +728,9 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
     }
 
     private boolean tryExecuteReductionF32(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+        if (tryExecuteSegmentReduction(step, context, op)) {
+            return true;
+        }
         List<Integer> inputIds = inputIds(step);
         if (inputIds.size() != 1) {
             return false;
@@ -645,6 +770,9 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
     }
 
     private boolean tryExecuteReductionF64(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+        if (tryExecuteSegmentReduction(step, context, op)) {
+            return true;
+        }
         List<Integer> inputIds = inputIds(step);
         if (inputIds.size() != 1) {
             return false;
@@ -683,6 +811,9 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
     }
 
     private boolean tryExecuteBroadcastBinaryF32(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+        if (tryExecuteSegmentBinary(step, context, op)) {
+            return true;
+        }
         List<Integer> inputIds = inputIds(step);
         if (inputIds.size() != 2) {
             return false;
@@ -734,6 +865,9 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
     }
 
     private boolean tryExecuteBroadcastBinaryF64(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+        if (tryExecuteSegmentBinary(step, context, op)) {
+            return true;
+        }
         List<Integer> inputIds = inputIds(step);
         if (inputIds.size() != 2) {
             return false;
@@ -779,6 +913,9 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
     }
 
     private boolean tryExecuteBroadcastBinaryBF16(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+        if (tryExecuteSegmentBinary(step, context, op)) {
+            return true;
+        }
         List<Integer> inputIds = inputIds(step);
         if (inputIds.size() != 2) {
             return false;
@@ -825,6 +962,327 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         return true;
     }
 
+    private boolean tryExecuteSegmentUnary(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+        List<Integer> inputIds = inputIds(step);
+        DataType dataType = step.compiledNode().dataType();
+        if (op == null || inputIds.size() != 1 || !NativeSegmentStridedKernels.supportsUnary(op, dataType)) {
+            return false;
+        }
+        Tensor inputTensor = context.runtimeTensorForNodeId(inputIds.getFirst());
+        Tensor outTensor = context.runtimeTensorForNodeId(step.compiledNode().id());
+        if (!sameShape(inputTensor, outTensor)) {
+            return false;
+        }
+        try {
+            NativeSegmentView inputView = nativeSegmentView(context, inputIds.getFirst());
+            NativeSegmentOutput output = allocateSegmentOutput(context, step, opLabel(op));
+            NativeSegmentStridedKernels.runUnary(
+                    op,
+                    inputView,
+                    output.view(),
+                    context.useFastExpApprox(),
+                    context.useFastTanhApprox()
+            );
+            context.attachNativeStorage(
+                    step.compiledNode().id(),
+                    output.storage(),
+                    "native CPU region segment " + opLabel(op).toUpperCase() + " wrote " + dataType + " output"
+            );
+            return true;
+        } catch (RuntimeException ex) {
+            throw new NativeRegionFallbackSignal("native-cpu-region-segment-unary-failed:"
+                    + opLabel(op) + ":" + safeMessage(ex));
+        }
+    }
+
+    private boolean tryExecuteSegmentBinary(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+        List<Integer> inputIds = inputIds(step);
+        DataType dataType = step.compiledNode().dataType();
+        if (op == null || inputIds.size() != 2 || !NativeSegmentStridedKernels.supportsBinary(op, dataType)) {
+            return false;
+        }
+        Tensor leftTensor = context.runtimeTensorForNodeId(inputIds.get(0));
+        Tensor rightTensor = context.runtimeTensorForNodeId(inputIds.get(1));
+        Tensor outTensor = context.runtimeTensorForNodeId(step.compiledNode().id());
+        BroadcastPlan plan;
+        try {
+            plan = BroadcastPlanner.plan(leftTensor, rightTensor);
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
+        int[] outShape = plan.outShape();
+        if (plan.flatSize() != outTensor.getFlatDataSize()
+                || !Arrays.equals(outShape, outTensor.getShapeUnsafe())) {
+            return false;
+        }
+        try {
+            NativeSegmentView leftView = nativeSegmentView(context, inputIds.get(0), outShape, plan.aEffStrides());
+            NativeSegmentView rightView = nativeSegmentView(context, inputIds.get(1), outShape, plan.bEffStrides());
+            NativeSegmentOutput output = allocateSegmentOutput(context, step, opLabel(op));
+            NativeSegmentStridedKernels.runBinary(op, leftView, rightView, output.view());
+            context.attachNativeStorage(
+                    step.compiledNode().id(),
+                    output.storage(),
+                    "native CPU region segment " + opLabel(op).toUpperCase() + " wrote " + dataType + " output"
+            );
+            return true;
+        } catch (RuntimeException ex) {
+            throw new NativeRegionFallbackSignal("native-cpu-region-segment-binary-failed:"
+                    + opLabel(op) + ":" + safeMessage(ex));
+        }
+    }
+
+    private boolean tryExecuteSegmentWhere(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+        List<Integer> inputIds = inputIds(step);
+        DataType dataType = step.compiledNode().dataType();
+        if (op == null || op.opType() != Operation.OpType.WHERE || inputIds.size() != 3
+                || (dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64 && dataType != DataType.BFLOAT16)) {
+            return false;
+        }
+        int conditionNodeId = inputIds.get(0);
+        int trueNodeId = inputIds.get(1);
+        int falseNodeId = inputIds.get(2);
+        Tensor conditionTensor = context.runtimeTensorForNodeId(conditionNodeId);
+        Tensor trueTensor = context.runtimeTensorForNodeId(trueNodeId);
+        Tensor falseTensor = context.runtimeTensorForNodeId(falseNodeId);
+        Tensor outTensor = context.runtimeTensorForNodeId(step.compiledNode().id());
+        if (conditionTensor.getDataType() != DataType.BOOL
+                || trueTensor.getDataType() != dataType
+                || falseTensor.getDataType() != dataType) {
+            return false;
+        }
+        WhereBroadcastPlan plan;
+        try {
+            plan = WhereBroadcastPlanner.plan(conditionTensor, trueTensor, falseTensor);
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
+        int[] outShape = plan.outShape();
+        if (flatSize(outShape) != outTensor.getFlatDataSize()
+                || !Arrays.equals(outShape, outTensor.getShapeUnsafe())) {
+            return false;
+        }
+        try {
+            NativeSegmentView trueView = nativeSegmentView(context, trueNodeId, outShape, plan.trueEffStrides());
+            NativeSegmentView falseView = nativeSegmentView(context, falseNodeId, outShape, plan.falseEffStrides());
+            NativeSegmentOutput output = allocateSegmentOutput(context, step, opLabel(op));
+            NativeSegmentView nativeConditionView = nativeSegmentViewIfCurrent(
+                    context,
+                    conditionNodeId,
+                    outShape,
+                    plan.condEffStrides()
+            );
+            if (nativeConditionView != null) {
+                NativeSegmentStridedKernels.runWhere(
+                        REGION_WHERE_KERNEL,
+                        nativeConditionView,
+                        trueView,
+                        falseView,
+                        output.view()
+                );
+            } else {
+                context.requireCpuReadable(conditionNodeId, CpuMaterializationReason.CPU_CONSUMER);
+                byte[] condition = conditionTensor.getBoolData();
+                TensorPhysicalView conditionView = cpuArrayPhysicalView(
+                        conditionNodeId,
+                        conditionTensor,
+                        outShape,
+                        plan.condEffStrides()
+                );
+                NativeSegmentStridedKernels.runWhere(
+                        REGION_WHERE_KERNEL,
+                        condition,
+                        conditionView,
+                        trueView,
+                        falseView,
+                        output.view()
+                );
+            }
+            context.attachNativeStorage(
+                    step.compiledNode().id(),
+                    output.storage(),
+                    "native CPU region segment WHERE wrote " + dataType + " output"
+            );
+            return true;
+        } catch (RuntimeException ex) {
+            throw new NativeRegionFallbackSignal("native-cpu-region-segment-where-failed:"
+                    + safeMessage(ex));
+        }
+    }
+
+    private boolean tryExecuteSegmentCompare(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+        List<Integer> inputIds = inputIds(step);
+        if (op == null || inputIds.size() != 2) {
+            return false;
+        }
+        Tensor outTensor = context.runtimeTensorForNodeId(step.compiledNode().id());
+        Tensor leftTensor = context.runtimeTensorForNodeId(inputIds.get(0));
+        Tensor rightTensor = context.runtimeTensorForNodeId(inputIds.get(1));
+        DataType dataType = leftTensor.getDataType();
+        if (outTensor.getDataType() != DataType.BOOL
+                || dataType != rightTensor.getDataType()
+                || !NativeSegmentStridedKernels.supportsCompare(op, dataType)) {
+            return false;
+        }
+        BroadcastPlan plan;
+        try {
+            plan = BroadcastPlanner.plan(leftTensor, rightTensor);
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
+        int[] outShape = plan.outShape();
+        if (plan.flatSize() != outTensor.getFlatDataSize()
+                || !Arrays.equals(outShape, outTensor.getShapeUnsafe())) {
+            return false;
+        }
+        try {
+            NativeSegmentView leftView = nativeSegmentView(context, inputIds.get(0), outShape, plan.aEffStrides());
+            NativeSegmentView rightView = nativeSegmentView(context, inputIds.get(1), outShape, plan.bEffStrides());
+            if (hasRegionLocalConsumer(step.compiledNode().id())) {
+                NativeSegmentOutput output = allocateSegmentOutput(context, step, opLabel(op));
+                NativeSegmentStridedKernels.runCompare(op, leftView, rightView, output.view());
+                context.attachNativeStorage(
+                        step.compiledNode().id(),
+                        output.storage(),
+                        "native CPU region segment " + opLabel(op).toUpperCase() + " wrote BOOL_MASK_NATIVE output"
+                );
+                return true;
+            }
+            TensorPhysicalView outputView = cpuArrayPhysicalView(
+                    step.compiledNode().id(),
+                    outTensor,
+                    outShape,
+                    outTensor.getStridesUnsafe()
+            );
+            byte[] output = outTensor.getBoolData();
+            NativeSegmentStridedKernels.runCompare(op, leftView, rightView, output, outputView);
+            outTensor.markStorageModified();
+            context.markCpuCurrent(
+                    step.compiledNode().id(),
+                    "native CPU region segment " + opLabel(op).toUpperCase() + " wrote BOOL CPU array output"
+            );
+            return true;
+        } catch (RuntimeException ex) {
+            throw new NativeRegionFallbackSignal("native-cpu-region-segment-compare-failed:"
+                    + opLabel(op) + ":" + safeMessage(ex));
+        }
+    }
+
+    private boolean tryExecuteSegmentReduction(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+        if (op == null) {
+            return false;
+        }
+        List<Integer> inputIds = inputIds(step);
+        int dimension = reductionDimension(op);
+        DataType dataType = step.compiledNode().dataType();
+        if (inputIds.size() != 1
+                || dimension < -1
+                || !NativeSegmentStridedKernels.supportsReduction(op.opType(), dataType)) {
+            return false;
+        }
+        try {
+            NativeSegmentView inputView = nativeSegmentView(context, inputIds.getFirst());
+            NativeSegmentOutput output = allocateSegmentOutput(context, step, opLabel(op));
+            NativeSegmentStridedKernels.runReduction(op.opType(), inputView, output.view(), dimension);
+            context.attachNativeStorage(
+                    step.compiledNode().id(),
+                    output.storage(),
+                    "native CPU region segment " + opLabel(op).toUpperCase() + " wrote " + dataType + " output"
+            );
+            return true;
+        } catch (RuntimeException ex) {
+            throw new NativeRegionFallbackSignal("native-cpu-region-segment-reduction-failed:"
+                    + opLabel(op) + ":" + safeMessage(ex));
+        }
+    }
+
+    private NativeSegmentView nativeSegmentView(ExecutionContext context, int nodeId) {
+        Tensor tensor = context.runtimeTensorForNodeId(nodeId);
+        NativeTensorStorage storage = context.requireNativeReadable(nodeId, CpuMaterializationReason.CPU_CONSUMER);
+        return NativeSegmentView.from(physicalView(nodeId, tensor), storage);
+    }
+
+    private NativeSegmentView nativeSegmentView(
+            ExecutionContext context,
+            int nodeId,
+            int[] shape,
+            int[] effectiveStrides
+    ) {
+        Tensor tensor = context.runtimeTensorForNodeId(nodeId);
+        NativeTensorStorage storage = context.requireNativeReadable(nodeId, CpuMaterializationReason.CPU_CONSUMER);
+        return NativeSegmentView.from(physicalView(nodeId, tensor, shape, effectiveStrides), storage);
+    }
+
+    private NativeSegmentView nativeSegmentViewIfCurrent(
+            ExecutionContext context,
+            int nodeId,
+            int[] shape,
+            int[] effectiveStrides
+    ) {
+        var residency = context.residencyForNodeId(nodeId);
+        if (residency == null || !residency.nativeCurrent()) {
+            return null;
+        }
+        NativeTensorStorage storage = context.nativeStorageForNodeId(nodeId);
+        if (storage == null) {
+            return null;
+        }
+        Tensor tensor = context.runtimeTensorForNodeId(nodeId);
+        return NativeSegmentView.from(physicalView(nodeId, tensor, shape, effectiveStrides), storage);
+    }
+
+    private NativeSegmentOutput allocateSegmentOutput(
+            ExecutionContext context,
+            PreparedNodeExecution step,
+            String label
+    ) {
+        Tensor tensor = context.runtimeTensorForNodeId(step.compiledNode().id());
+        NativeTensorStorage storage = context.allocateNativeStorage(
+                tensor.getDataType(),
+                tensor.getFlatDataSize(),
+                "node-" + step.compiledNode().id() + ":" + tensor.getLabel() + ":native-region-segment-" + label
+        );
+        return new NativeSegmentOutput(NativeSegmentView.from(physicalView(step.compiledNode().id(), tensor), storage), storage);
+    }
+
+    private static TensorPhysicalView physicalView(int nodeId, Tensor tensor) {
+        return physicalView(nodeId, tensor, tensor.getShapeUnsafe(), tensor.getStridesUnsafe());
+    }
+
+    private static TensorPhysicalView physicalView(int nodeId, Tensor tensor, int[] shape, int[] strides) {
+        return TensorPhysicalView.of(
+                nodeId,
+                tensor.getDataType(),
+                shape,
+                strides,
+                tensor.getStorageOffsetUnsafe(),
+                NativeCpuStorageFamily.CPU_NATIVE
+        );
+    }
+
+    private static TensorPhysicalView cpuArrayPhysicalView(int nodeId, Tensor tensor, int[] shape, int[] strides) {
+        return TensorPhysicalView.of(
+                nodeId,
+                tensor.getDataType(),
+                shape,
+                strides,
+                tensor.getStorageOffsetUnsafe(),
+                NativeCpuStorageFamily.CPU_ARRAY
+        );
+    }
+
+    private static boolean sameShape(Tensor left, Tensor right) {
+        return left != null && right != null && Arrays.equals(left.getShapeUnsafe(), right.getShapeUnsafe());
+    }
+
+    private record NativeSegmentOutput(NativeSegmentView view, NativeTensorStorage storage) {
+    }
+
+    private boolean hasRegionLocalConsumer(int nodeId) {
+        return regionExecutionPlan.nodePlans().stream()
+                .anyMatch(plan -> plan.nodeId() != nodeId && plan.inputNodeIds().contains(nodeId));
+    }
+
     private static void addBiasInPlace(
             NativeFloat32Storage out,
             NativeFloat32Storage bias,
@@ -858,11 +1316,17 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
             case MUL_SCALAR -> value * ((mulScalar) op).getScalarF32();
             case NEG -> -value;
             case RELU -> Math.max(0.0f, value);
+            case CLAMP_MIN -> Math.max(value, ((clampMin) op).getMinValueF32());
+            case CLAMP_MAX -> Math.min(value, ((clampMax) op).getMaxValueF32());
             case LOG -> (float) Math.log(value);
             case EXP -> context.useFastExpApprox() ? FastTranscendentals.fastExpF32(value) : (float) Math.exp(value);
             case FAST_EXP -> FastTranscendentals.fastExpF32(value);
             case SQRT -> (float) Math.sqrt(value);
             case ABS -> Math.abs(value);
+            case FLOOR -> (float) Math.floor(value);
+            case CEIL -> (float) Math.ceil(value);
+            case SIGN -> Math.signum(value);
+            case POW -> CpuPowSupport.applyF32(value, ((pow) op).getExponentF32());
             case TANH -> context.useFastTanhApprox() ? FastTranscendentals.fastTanhF32(value) : (float) Math.tanh(value);
             case FAST_TANH -> FastTranscendentals.fastTanhF32(value);
             case SIGMOID -> 1.0f / (1.0f + (float) Math.exp(-value));
@@ -876,11 +1340,17 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
             case MUL_SCALAR -> value * ((mulScalar) op).getScalar();
             case NEG -> -value;
             case RELU -> Math.max(0.0d, value);
+            case CLAMP_MIN -> Math.max(value, ((clampMin) op).getMinValue());
+            case CLAMP_MAX -> Math.min(value, ((clampMax) op).getMaxValue());
             case LOG -> Math.log(value);
             case EXP -> context.useFastExpApprox() ? FastTranscendentals.fastExpF64(value) : Math.exp(value);
             case FAST_EXP -> FastTranscendentals.fastExpF64(value);
             case SQRT -> Math.sqrt(value);
             case ABS -> Math.abs(value);
+            case FLOOR -> Math.floor(value);
+            case CEIL -> Math.ceil(value);
+            case SIGN -> Math.signum(value);
+            case POW -> CpuPowSupport.applyF64(value, ((pow) op).getExponent());
             case TANH -> context.useFastTanhApprox() ? FastTranscendentals.fastTanhF64(value) : Math.tanh(value);
             case FAST_TANH -> FastTranscendentals.fastTanhF64(value);
             case SIGMOID -> 1.0d / (1.0d + Math.exp(-value));
@@ -894,6 +1364,8 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
             case MUL_SCALAR -> value * ((mulScalar) op).getScalarF32();
             case NEG -> -value;
             case RELU -> Math.max(0.0f, value);
+            case CLAMP_MIN -> Math.max(value, ((clampMin) op).getMinValueF32());
+            case CLAMP_MAX -> Math.min(value, ((clampMax) op).getMaxValueF32());
             case ABS -> Math.abs(value);
             default -> throw new NativeRegionFallbackSignal("native-cpu-region-unary-unsupported:" + opLabel(op));
         };
@@ -905,6 +1377,9 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
             case SUB -> left - right;
             case MUL -> left * right;
             case DIV -> left / right;
+            case MIN -> Math.min(left, right);
+            case MAX -> Math.max(left, right);
+            case POW_TENSOR -> CpuPowSupport.applyF32(left, right);
             default -> throw new NativeRegionFallbackSignal("native-cpu-region-binary-unsupported:"
                     + opType.name().toLowerCase());
         };
@@ -916,6 +1391,9 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
             case SUB -> left - right;
             case MUL -> left * right;
             case DIV -> left / right;
+            case MIN -> Math.min(left, right);
+            case MAX -> Math.max(left, right);
+            case POW_TENSOR -> CpuPowSupport.applyF64(left, right);
             default -> throw new NativeRegionFallbackSignal("native-cpu-region-binary-unsupported:"
                     + opType.name().toLowerCase());
         };
@@ -927,6 +1405,8 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
             case SUB -> left - right;
             case MUL -> left * right;
             case DIV -> left / right;
+            case MIN -> Math.min(left, right);
+            case MAX -> Math.max(left, right);
             default -> throw new NativeRegionFallbackSignal("native-cpu-region-binary-unsupported:"
                     + opType.name().toLowerCase());
         };
@@ -1149,6 +1629,18 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         if (op instanceof mean reduction) {
             return reduction.getDimension();
         }
+        if (op instanceof reduceAll reduction) {
+            return reduction.getDimension();
+        }
+        if (op instanceof reduceAny reduction) {
+            return reduction.getDimension();
+        }
+        if (op instanceof reduceMin reduction) {
+            return reduction.getDimension();
+        }
+        if (op instanceof reduceMax reduction) {
+            return reduction.getDimension();
+        }
         return Integer.MIN_VALUE;
     }
 
@@ -1334,6 +1826,10 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
     private static boolean supportsRegionLocalViewOp(Operation.OpType opType) {
         return opType == Operation.OpType.NOOP
                 || opType == Operation.OpType.RESHAPE
+                || opType == Operation.OpType.PERMUTE
+                || opType == Operation.OpType.EXPAND
+                || opType == Operation.OpType.SELECT
+                || opType == Operation.OpType.SLICE
                 || opType == Operation.OpType.EXPAND_DIMS
                 || opType == Operation.OpType.SQUEEZE;
     }

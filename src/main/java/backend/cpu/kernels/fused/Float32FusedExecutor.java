@@ -16,6 +16,8 @@ import jdk.incubator.vector.VectorSpecies;
 import backend.cpu.fused.plan.FusedOperation;
 import operations.Operation;
 import tensor.DataType;
+import tensor.BoolStorage;
+import tensor.Float32Storage;
 import tensor.Tensor;
 
 import java.util.ArrayList;
@@ -331,7 +333,7 @@ public final class Float32FusedExecutor {
     }
 
     private static boolean supportsVectorFastPath(FusedExpressionPlan plan, List<Tensor> inputs, Tensor out) {
-        if (out.getDataType() != DataType.FLOAT32 || out.getFloat32Data() == null || !out.isContiguous()) {
+        if (out.getDataType() != DataType.FLOAT32 || !(out.getStorage() instanceof Float32Storage) || !out.isContiguous()) {
             return false;
         }
         if (plan.outputNode().outputType() == DataType.BOOL) {
@@ -344,14 +346,14 @@ public final class Float32FusedExecutor {
                 return false;
             }
             if (inputPlan.dataType() == DataType.BOOL) {
-                if (input.getDataType() != DataType.BOOL || input.getBoolData() == null) {
+                if (input.getDataType() != DataType.BOOL || !(input.getStorage() instanceof BoolStorage)) {
                     return false;
                 }
                 continue;
             }
             if (inputPlan.dataType() != DataType.FLOAT32
                     || input.getDataType() != DataType.FLOAT32
-                    || input.getFloat32Data() == null) {
+                    || !(input.getStorage() instanceof Float32Storage)) {
                 return false;
             }
         }

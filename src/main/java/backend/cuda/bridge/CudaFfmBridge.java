@@ -8,7 +8,9 @@ import backend.accelerator.buffer.AcceleratorLayoutAbiV2Support;
 import backend.cuda.buffer.CudaBufferAllocator;
 import backend.cuda.buffer.CudaBufferBinding;
 import backend.cuda.buffer.CudaBufferHandle;
+import tensor.BoolStorage;
 import tensor.DataType;
+import tensor.Float32Storage;
 import tensor.Tensor;
 
 import java.lang.foreign.Arena;
@@ -265,9 +267,9 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                     throw new UnsupportedOperationException("CUDA FFM bridge received null external input.");
                 }
                 MemorySegment dataSeg;
-                if (tensor.getDataType() == DataType.FLOAT32 && tensor.getFloat32Data() != null) {
+                if (tensor.getDataType() == DataType.FLOAT32 && tensor.getStorage() instanceof Float32Storage) {
                     dataSeg = arena.allocateFrom(JAVA_FLOAT, tensor.getFloat32Data());
-                } else if (tensor.getDataType() == DataType.BOOL && tensor.getBoolData() != null) {
+                } else if (tensor.getDataType() == DataType.BOOL && tensor.getStorage() instanceof BoolStorage) {
                     dataSeg = arena.allocateFrom(JAVA_BYTE, tensor.getBoolData());
                 } else {
                     throw new UnsupportedOperationException("CUDA FFM bridge currently supports only FLOAT32/BOOL external inputs.");
@@ -277,7 +279,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
             MemorySegment outputSegs = arena.allocate(ADDRESS, resolvedOutputs.size());
             for (int i = 0; i < resolvedOutputs.size(); i++) {
                 Tensor out = resolvedOutputs.get(i);
-                float[] outData = out == null ? null : out.getFloat32Data();
+                float[] outData = out != null && out.getStorage() instanceof Float32Storage ? out.getFloat32Data() : null;
                 if (outData == null) {
                     throw new UnsupportedOperationException("CUDA FFM bridge currently supports only FLOAT32 output tensors with direct float[] storage.");
                 }

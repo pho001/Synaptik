@@ -6,6 +6,7 @@ import graph.execution.PreparedExecution;
 import org.junit.jupiter.api.Test;
 import operations.elementwise.binary.mul;
 import tensor.DataType;
+import tensor.Float64Storage;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 
@@ -88,5 +89,17 @@ public class TensorMutationGuardsTest {
         execution.execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{7.0, 10.0}, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void replaceStorageRejectsViewLayout() {
+        Tensor x = new Tensor(new double[]{
+                1.0, 2.0, 3.0,
+                4.0, 5.0, 6.0
+        }, new int[]{2, 3}, null, "x", DataType.FLOAT64);
+        Tensor selected = x.select(1, 1);
+
+        assertThrows(UnsupportedOperationException.class,
+                () -> TensorInternalAccess.replaceStorage(selected, new Float64Storage(2)));
     }
 }

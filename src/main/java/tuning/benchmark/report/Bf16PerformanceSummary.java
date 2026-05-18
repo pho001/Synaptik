@@ -15,6 +15,10 @@ public record Bf16PerformanceSummary(
         int bgemmOutputCount,
         int sbgemmContinuationCount,
         int promotedF32Count,
+        int promotedNonBlasStepCount,
+        int promotedNonBlasRegionNodeCount,
+        int promotedNonBlasSegmentScalarCount,
+        int promotedNonBlasArrayFallbackCount,
         int javaRouteCount,
         int unavailableRouteCount,
         boolean openblasSbgemmAvailable,
@@ -40,6 +44,10 @@ public record Bf16PerformanceSummary(
 
     public static Bf16PerformanceSummary empty() {
         return new Bf16PerformanceSummary(
+                0,
+                0,
+                0,
+                0,
                 0,
                 0,
                 0,
@@ -74,6 +82,10 @@ public record Bf16PerformanceSummary(
         int bgemm = 0;
         int sbgemm = 0;
         int promoted = 0;
+        int promotedNonBlasSteps = 0;
+        int promotedNonBlasRegionNodes = 0;
+        int promotedNonBlasSegmentScalar = 0;
+        int promotedNonBlasArrayFallback = 0;
         int javaRoute = 0;
         int unavailable = 0;
         boolean sbgemmAvailable = false;
@@ -86,6 +98,18 @@ public record Bf16PerformanceSummary(
         for (var step : run.steps()) {
             if (step == null || step.metadata() == null) {
                 continue;
+            }
+            var attrs = step.metadata().attributes();
+            if (isBf16PromotedNonBlasStep(attrs)) {
+                promotedNonBlasSteps++;
+                if ("CPU_ARRAY".equals(String.valueOf(attrs.getOrDefault("actualCpuStorage", "")))) {
+                    promotedNonBlasArrayFallback++;
+                }
+            }
+            int regionPromotedNodes = collectionSize(attrs.get("nativeCpuRegionBf16PromotedNodes"));
+            if (regionPromotedNodes > 0) {
+                promotedNonBlasRegionNodes += regionPromotedNodes;
+                promotedNonBlasSegmentScalar += collectionSize(attrs.get("nativeCpuRegionBf16PromotedSegmentScalarNodes"));
             }
             MatMulTraceMetadata matMul = step.metadata().matMul();
             if (matMul == null || !isBf16MatMul(matMul)) {
@@ -159,11 +183,16 @@ public record Bf16PerformanceSummary(
         }
 
         boolean present = matMulSteps > 0 || optimizerCount > 0;
+        present = present || promotedNonBlasSteps > 0 || promotedNonBlasRegionNodes > 0;
         return new Bf16PerformanceSummary(
                 matMulSteps,
                 bgemm,
                 sbgemm,
                 promoted,
+                promotedNonBlasSteps,
+                promotedNonBlasRegionNodes,
+                promotedNonBlasSegmentScalar,
+                promotedNonBlasArrayFallback,
                 javaRoute,
                 unavailable,
                 sbgemmAvailable,
@@ -187,6 +216,18 @@ public record Bf16PerformanceSummary(
                 || !matMul.bf16OutputRoute().isBlank()
                 || !matMul.bf16ComputePrecision().isBlank()
                 || !matMul.bf16OutputPrecision().isBlank();
+    }
+
+    private static boolean isBf16PromotedNonBlasStep(java.util.Map<String, Object> attrs) {
+        if (attrs == null || attrs.isEmpty()) {
+            return false;
+        }
+        return "BF16".equals(String.valueOf(attrs.getOrDefault("storagePrecision", "")))
+                && "F32_PROMOTED".equals(String.valueOf(attrs.getOrDefault("computePrecision", "")));
+    }
+
+    private static int collectionSize(Object value) {
+        return value instanceof java.util.Collection<?> collection ? collection.size() : 0;
     }
 
     private static void addReason(List<String> reasons, String reason) {
