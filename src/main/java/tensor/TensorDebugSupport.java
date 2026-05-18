@@ -40,6 +40,72 @@ final class TensorDebugSupport {
         return out;
     }
 
+    static float[] toFloat32ArrayCopy(Tensor tensor) {
+        requireDataType(tensor, DataType.FLOAT32, "toFloat32ArrayCopy()");
+        float[] storage = tensor.float32DataInternal();
+        int n = tensor.getFlatDataSize();
+        float[] out = new float[n];
+        for (int i = 0; i < n; i++) {
+            out[i] = storage[TensorStorageSupport.logicalFlatIndexToStorageOffset(tensor.metadataInternal(), i)];
+        }
+        return out;
+    }
+
+    static double[] toFloat64ArrayCopy(Tensor tensor) {
+        requireDataType(tensor, DataType.FLOAT64, "toFloat64ArrayCopy()");
+        double[] storage = tensor.float64DataInternal();
+        int n = tensor.getFlatDataSize();
+        double[] out = new double[n];
+        for (int i = 0; i < n; i++) {
+            out[i] = storage[TensorStorageSupport.logicalFlatIndexToStorageOffset(tensor.metadataInternal(), i)];
+        }
+        return out;
+    }
+
+    static short[] toBFloat16BitsArrayCopy(Tensor tensor) {
+        requireDataType(tensor, DataType.BFLOAT16, "toBFloat16BitsArrayCopy()");
+        short[] storage = tensor.bfloat16DataInternal();
+        int n = tensor.getFlatDataSize();
+        short[] out = new short[n];
+        for (int i = 0; i < n; i++) {
+            out[i] = storage[TensorStorageSupport.logicalFlatIndexToStorageOffset(tensor.metadataInternal(), i)];
+        }
+        return out;
+    }
+
+    static int[] toInt32ArrayCopy(Tensor tensor) {
+        requireDataType(tensor, DataType.INT32, "toInt32ArrayCopy()");
+        int[] storage = tensor.int32DataInternal();
+        int n = tensor.getFlatDataSize();
+        int[] out = new int[n];
+        for (int i = 0; i < n; i++) {
+            out[i] = storage[TensorStorageSupport.logicalFlatIndexToStorageOffset(tensor.metadataInternal(), i)];
+        }
+        return out;
+    }
+
+    static long[] toInt64ArrayCopy(Tensor tensor) {
+        requireDataType(tensor, DataType.INT64, "toInt64ArrayCopy()");
+        long[] storage = tensor.int64DataInternal();
+        int n = tensor.getFlatDataSize();
+        long[] out = new long[n];
+        for (int i = 0; i < n; i++) {
+            out[i] = storage[TensorStorageSupport.logicalFlatIndexToStorageOffset(tensor.metadataInternal(), i)];
+        }
+        return out;
+    }
+
+    static byte[] toBoolByteArrayCopy(Tensor tensor) {
+        requireDataType(tensor, DataType.BOOL, "toBoolByteArrayCopy()");
+        byte[] storage = tensor.boolDataInternal();
+        int n = tensor.getFlatDataSize();
+        byte[] out = new byte[n];
+        for (int i = 0; i < n; i++) {
+            out[i] = storage[TensorStorageSupport.logicalFlatIndexToStorageOffset(tensor.metadataInternal(), i)];
+        }
+        return out;
+    }
+
     static double[] toDoubleStorageOrderCopy(Tensor tensor) {
         int n = tensor.getStorageSize();
         double[] out = new double[n];
@@ -57,6 +123,12 @@ final class TensorDebugSupport {
             throw new UnsupportedOperationException("scalarAsDouble() is not supported for BOOL tensors.");
         }
         return tensor.getByFlatIndex(0);
+    }
+
+    private static void requireDataType(Tensor tensor, DataType expected, String operationName) {
+        if (tensor.getDataType() != expected) {
+            throw new UnsupportedOperationException(operationName + " is only supported for " + expected + " tensors.");
+        }
     }
 
     private static void buildTensorString(int[] shape, int[] strides, double[] data, int[] indices, int dim, StringBuilder sb) {

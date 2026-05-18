@@ -3669,8 +3669,8 @@ Contract:
 - `INT32/INT64 <-> other dtype` implicit conversion is not supported
 
 #### `getStorage()`
-Returns the backing storage object.
-This is mainly a runtime/testing accessor.
+Deprecated raw/unsafe compatibility accessor that returns the mutable backing storage object.
+Runtime and backend code should use `TensorInternalAccess.storage(...)`; normal callers should prefer logical copy helpers.
 
 #### `storageVersion()`
 Returns the backing storage version counter.
@@ -3681,26 +3681,50 @@ Marks backing storage as modified.
 This is mainly a runtime/layout helper after in-place low-level writes.
 
 #### `getFloat64Data()`
-Returns raw `double[]` backing storage when dtype is `FLOAT64`, otherwise `null`.
+Deprecated raw/unsafe compatibility accessor for mutable `FLOAT64` storage.
+Throws `UnsupportedOperationException` when storage is not `FLOAT64`; prefer `toFloat64ArrayCopy()` or `toDoubleArrayCopy()` for reads.
 
 #### `getFloat32Data()`
-Returns raw `float[]` backing storage when dtype is `FLOAT32`, otherwise `null`.
+Deprecated raw/unsafe compatibility accessor for mutable `FLOAT32` storage.
+Throws `UnsupportedOperationException` when storage is not `FLOAT32`; prefer `toFloat32ArrayCopy()` for reads.
 
 #### `getBFloat16Data()`
-Returns raw `short[]` backing storage when dtype is `BFLOAT16`, otherwise `null`.
+Deprecated raw/unsafe compatibility accessor for mutable `BFLOAT16` raw-bit storage.
+Throws `UnsupportedOperationException` when storage is not `BFLOAT16`; prefer `toBFloat16BitsArrayCopy()` for reads.
 
 #### `getInt32Data()`
-Returns raw `int[]` backing storage when dtype is `INT32`, otherwise `null`.
+Deprecated raw/unsafe compatibility accessor for mutable `INT32` storage.
+Throws `UnsupportedOperationException` when storage is not `INT32`; prefer `toInt32ArrayCopy()` for reads.
 
 #### `getInt64Data()`
-Returns raw `long[]` backing storage when dtype is `INT64`, otherwise `null`.
+Deprecated raw/unsafe compatibility accessor for mutable `INT64` storage.
+Throws `UnsupportedOperationException` when storage is not `INT64`; prefer `toInt64ArrayCopy()` for reads.
 
 #### `getBoolData()`
-Returns raw `byte[]` backing storage when dtype is `BOOL`, otherwise `null`.
+Deprecated raw/unsafe compatibility accessor for mutable `BOOL` byte storage.
+Throws `UnsupportedOperationException` when storage is not `BOOL`; prefer `toBooleanArrayCopy()` or `toBoolByteArrayCopy()` for reads.
 
 #### `getData()`
-Legacy `FLOAT64`-only raw accessor.
-Prefer typed accessors or logical copies in new code.
+Deprecated legacy `FLOAT64`-only raw accessor.
+Prefer `toFloat64ArrayCopy()` or `toDoubleArrayCopy()` in new code.
+
+#### `toFloat32ArrayCopy()`
+Returns a logical row-major `float[]` copy for `FLOAT32` tensors.
+
+#### `toFloat64ArrayCopy()`
+Returns a logical row-major `double[]` copy for `FLOAT64` tensors.
+
+#### `toBFloat16BitsArrayCopy()`
+Returns a logical row-major `short[]` copy of raw BFLOAT16 bit patterns.
+
+#### `toInt32ArrayCopy()`
+Returns a logical row-major `int[]` copy for `INT32` tensors.
+
+#### `toInt64ArrayCopy()`
+Returns a logical row-major `long[]` copy for `INT64` tensors.
+
+#### `toBoolByteArrayCopy()`
+Returns a logical row-major `byte[]` copy for `BOOL` tensors.
 
 ### Data mutation / logical reads
 

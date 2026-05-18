@@ -3,6 +3,7 @@ import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
+import tensor.BFloat16Bits;
 import tensor.DataType;
 import tensor.BFloat16Storage;
 import tensor.Float32Storage;
@@ -129,5 +130,37 @@ public class TensorStorageDataTypeTest {
 
         assertThrows(UnsupportedOperationException.class, f64::getFloat32Data);
         assertThrows(UnsupportedOperationException.class, f32::getFloat64Data);
+    }
+
+    @Test
+    void typedCopyHelpersReturnLogicalRowMajorCopies() {
+        Tensor f32 = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f
+        }, new int[]{2, 3}, null, "f32", DataType.FLOAT32);
+        Tensor f32View = f32.select(1, 1);
+
+        float[] f32Copy = f32View.toFloat32ArrayCopy();
+        f32Copy[0] = -99f;
+
+        assertArrayEquals(new float[]{2f, 5f}, f32View.toFloat32ArrayCopy(), 0f);
+
+        Tensor i32 = new Tensor(new int[]{
+                1, 2, 3,
+                4, 5, 6
+        }, new int[]{2, 3}, null, "i32", DataType.INT32);
+        assertArrayEquals(new int[]{2, 5}, i32.select(1, 1).toInt32ArrayCopy());
+
+        Tensor bool = new Tensor(new byte[]{
+                1, 0, 1,
+                0, 1, 0
+        }, new int[]{2, 3}, null, "bool", DataType.BOOL);
+        assertArrayEquals(new byte[]{0, 1}, bool.select(1, 1).toBoolByteArrayCopy());
+
+        Tensor bf16 = new Tensor(new float[]{1.0f, -2.0f}, new int[]{2}, null, "bf16", DataType.BFLOAT16);
+        assertArrayEquals(new short[]{
+                BFloat16Bits.fromFloat(1.0f),
+                BFloat16Bits.fromFloat(-2.0f)
+        }, bf16.toBFloat16BitsArrayCopy());
     }
 }

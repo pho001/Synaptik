@@ -58,6 +58,38 @@ public final class TensorInternalAccess {
         target.replaceStorageInternal(storage);
     }
 
+    public static TensorStorage storage(Tensor tensor) {
+        return tensor.storageInternal();
+    }
+
+    public static float[] float32Data(Tensor tensor) {
+        return tensor.float32DataInternal();
+    }
+
+    public static double[] float64Data(Tensor tensor) {
+        return tensor.float64DataInternal();
+    }
+
+    public static short[] bfloat16Data(Tensor tensor) {
+        return tensor.bfloat16DataInternal();
+    }
+
+    public static int[] int32Data(Tensor tensor) {
+        return tensor.int32DataInternal();
+    }
+
+    public static long[] int64Data(Tensor tensor) {
+        return tensor.int64DataInternal();
+    }
+
+    public static byte[] boolData(Tensor tensor) {
+        return tensor.boolDataInternal();
+    }
+
+    public static void markStorageModified(Tensor tensor) {
+        tensor.markStorageModifiedInternal();
+    }
+
     public static List<Tensor> prevTensors(Tensor tensor) {
         return tensor.prevTensorsRef();
     }

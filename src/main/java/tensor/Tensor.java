@@ -817,7 +817,7 @@ public class Tensor {
         if (index < 0 || index >= getFlatDataSize()) {
             throw new IndexOutOfBoundsException("Index out of bounds.");
         }
-        return getInt64Data()[TensorStorageSupport.logicalFlatIndexToStorageOffset(metadata, index)];
+        return int64DataInternal()[TensorStorageSupport.logicalFlatIndexToStorageOffset(metadata, index)];
     }
 
     /**
@@ -833,8 +833,8 @@ public class Tensor {
         }
         int offset = TensorStorageSupport.logicalFlatIndexToStorageOffset(metadata, index);
         return switch (metadata.getDataType()) {
-            case INT32 -> getInt32Data()[offset];
-            case INT64 -> getInt64Data()[offset];
+            case INT32 -> int32DataInternal()[offset];
+            case INT64 -> int64DataInternal()[offset];
             default -> throw new UnsupportedOperationException("getIntegralByFlatIndex() is only supported for INT32/INT64 tensors.");
         };
     }
@@ -1158,12 +1158,17 @@ public class Tensor {
     }
 
     /**
-     * Returns the backing storage object.
+     * Returns the mutable backing storage object.
+     *
+     * <p>This is a raw/unsafe compatibility API. Prefer logical copy helpers such as
+     * {@link #toDoubleArrayCopy()}, {@link #toFloat32ArrayCopy()}, {@link #toInt32ArrayCopy()},
+     * or internal runtime access through {@link TensorInternalAccess}.</p>
      *
      * @return mutable storage backing this tensor
      */
+    @Deprecated(since = "0.1", forRemoval = false)
     public TensorStorage getStorage() {
-        return storage;
+        return storageInternal();
     }
 
     /**
@@ -1182,67 +1187,93 @@ public class Tensor {
      * storage getter if downstream caches rely on storage versions.</p>
      */
     public void markStorageModified() {
-        TensorStorageSupport.markModified(storage);
+        markStorageModifiedInternal();
     }
 
     /**
      * Returns the mutable FLOAT32 backing array.
      *
+     * <p>This is a raw/unsafe compatibility API. Direct writes require
+     * {@link #markStorageModified()} afterward. Prefer {@link #toFloat32ArrayCopy()} for reads.</p>
+     *
      * @return storage-order float array
      * @throws UnsupportedOperationException if the tensor storage is not FLOAT32
      */
+    @Deprecated(since = "0.1", forRemoval = false)
     public float[] getFloat32Data() {
-        return TensorStorageSupport.float32Data(storage);
+        return float32DataInternal();
     }
 
     /**
      * Returns the mutable FLOAT64 backing array.
      *
+     * <p>This is a raw/unsafe compatibility API. Direct writes require
+     * {@link #markStorageModified()} afterward. Prefer {@link #toFloat64ArrayCopy()} or
+     * {@link #toDoubleArrayCopy()} for reads.</p>
+     *
      * @return storage-order double array
      * @throws UnsupportedOperationException if the tensor storage is not FLOAT64
      */
+    @Deprecated(since = "0.1", forRemoval = false)
     public double[] getFloat64Data() {
-        return TensorStorageSupport.float64Data(storage);
+        return float64DataInternal();
     }
 
     /**
      * Returns the mutable BFLOAT16 backing array.
      *
+     * <p>This is a raw/unsafe compatibility API. Direct writes require
+     * {@link #markStorageModified()} afterward. Prefer {@link #toBFloat16BitsArrayCopy()} for reads.</p>
+     *
      * @return storage-order raw bfloat16 bit array
      * @throws UnsupportedOperationException if the tensor storage is not BFLOAT16
      */
+    @Deprecated(since = "0.1", forRemoval = false)
     public short[] getBFloat16Data() {
-        return TensorStorageSupport.bfloat16Data(storage);
+        return bfloat16DataInternal();
     }
 
     /**
      * Returns the mutable INT32 backing array.
      *
+     * <p>This is a raw/unsafe compatibility API. Direct writes require
+     * {@link #markStorageModified()} afterward. Prefer {@link #toInt32ArrayCopy()} for reads.</p>
+     *
      * @return storage-order int array
      * @throws UnsupportedOperationException if the tensor storage is not INT32
      */
+    @Deprecated(since = "0.1", forRemoval = false)
     public int[] getInt32Data() {
-        return TensorStorageSupport.int32Data(storage);
+        return int32DataInternal();
     }
 
     /**
      * Returns the mutable INT64 backing array.
      *
+     * <p>This is a raw/unsafe compatibility API. Direct writes require
+     * {@link #markStorageModified()} afterward. Prefer {@link #toInt64ArrayCopy()} for reads.</p>
+     *
      * @return storage-order long array
      * @throws UnsupportedOperationException if the tensor storage is not INT64
      */
+    @Deprecated(since = "0.1", forRemoval = false)
     public long[] getInt64Data() {
-        return TensorStorageSupport.int64Data(storage);
+        return int64DataInternal();
     }
 
     /**
      * Returns the mutable BOOL backing array.
      *
+     * <p>This is a raw/unsafe compatibility API. Direct writes require
+     * {@link #markStorageModified()} afterward. Prefer {@link #toBooleanArrayCopy()} or
+     * {@link #toBoolByteArrayCopy()} for reads.</p>
+     *
      * @return storage-order byte array where non-zero values are true
      * @throws UnsupportedOperationException if the tensor storage is not BOOL
      */
+    @Deprecated(since = "0.1", forRemoval = false)
     public byte[] getBoolData() {
-        return TensorStorageSupport.boolData(storage);
+        return boolDataInternal();
     }
 
     /**
@@ -1261,14 +1292,18 @@ public class Tensor {
     /**
      * Returns mutable double storage for FLOAT64 tensors.
      *
+     * <p>This is a raw/unsafe compatibility API. Prefer {@link #toFloat64ArrayCopy()}
+     * or {@link #toDoubleArrayCopy()} for reads.</p>
+     *
      * @return storage-order double array
      * @throws UnsupportedOperationException if this tensor is not FLOAT64
      */
+    @Deprecated(since = "0.1", forRemoval = false)
     public double[] getData() {
         if (metadata.getDataType() != DataType.FLOAT64) {
             throw new UnsupportedOperationException("getData() is only supported for FLOAT64 tensors. Use typed storage getters or toDoubleArrayCopy().");
         }
-        return getFloat64Data();
+        return float64DataInternal();
     }
 
     /**
@@ -1337,6 +1372,66 @@ public class Tensor {
      */
     public boolean[] toBooleanArrayCopy() {
         return TensorDebugSupport.toBooleanArrayCopy(this);
+    }
+
+    /**
+     * Copies logical FLOAT32 values into a new row-major array.
+     *
+     * @return logical row-major float array
+     * @throws UnsupportedOperationException if this tensor is not FLOAT32
+     */
+    public float[] toFloat32ArrayCopy() {
+        return TensorDebugSupport.toFloat32ArrayCopy(this);
+    }
+
+    /**
+     * Copies logical FLOAT64 values into a new row-major array.
+     *
+     * @return logical row-major double array
+     * @throws UnsupportedOperationException if this tensor is not FLOAT64
+     */
+    public double[] toFloat64ArrayCopy() {
+        return TensorDebugSupport.toFloat64ArrayCopy(this);
+    }
+
+    /**
+     * Copies logical BFLOAT16 raw bit patterns into a new row-major array.
+     *
+     * @return logical row-major raw BFLOAT16 bit array
+     * @throws UnsupportedOperationException if this tensor is not BFLOAT16
+     */
+    public short[] toBFloat16BitsArrayCopy() {
+        return TensorDebugSupport.toBFloat16BitsArrayCopy(this);
+    }
+
+    /**
+     * Copies logical INT32 values into a new row-major array.
+     *
+     * @return logical row-major int array
+     * @throws UnsupportedOperationException if this tensor is not INT32
+     */
+    public int[] toInt32ArrayCopy() {
+        return TensorDebugSupport.toInt32ArrayCopy(this);
+    }
+
+    /**
+     * Copies logical INT64 values into a new row-major array.
+     *
+     * @return logical row-major long array
+     * @throws UnsupportedOperationException if this tensor is not INT64
+     */
+    public long[] toInt64ArrayCopy() {
+        return TensorDebugSupport.toInt64ArrayCopy(this);
+    }
+
+    /**
+     * Copies logical BOOL storage bytes into a new row-major array.
+     *
+     * @return logical row-major byte array where non-zero values are true
+     * @throws UnsupportedOperationException if this tensor is not BOOL
+     */
+    public byte[] toBoolByteArrayCopy() {
+        return TensorDebugSupport.toBoolByteArrayCopy(this);
     }
 
     /**
@@ -2921,6 +3016,42 @@ public class Tensor {
 
     void setByStorageOffset(int offset, double value) {
         TensorStorageSupport.setByStorageOffset(storage, getStorageSize(), offset, value);
+    }
+
+    TensorMetadata metadataInternal() {
+        return metadata;
+    }
+
+    TensorStorage storageInternal() {
+        return storage;
+    }
+
+    float[] float32DataInternal() {
+        return TensorStorageSupport.float32Data(storage);
+    }
+
+    double[] float64DataInternal() {
+        return TensorStorageSupport.float64Data(storage);
+    }
+
+    short[] bfloat16DataInternal() {
+        return TensorStorageSupport.bfloat16Data(storage);
+    }
+
+    int[] int32DataInternal() {
+        return TensorStorageSupport.int32Data(storage);
+    }
+
+    long[] int64DataInternal() {
+        return TensorStorageSupport.int64Data(storage);
+    }
+
+    byte[] boolDataInternal() {
+        return TensorStorageSupport.boolData(storage);
+    }
+
+    void markStorageModifiedInternal() {
+        TensorStorageSupport.markModified(storage);
     }
 
     void aliasRuntimeFromInternal(Tensor source) {
