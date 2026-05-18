@@ -119,7 +119,7 @@ public final class TensorRemap {
                         + src.getDataType() + ", dst=" + dst.getDataType());
             }
             applyConverted(src, dst, plan, parallelThreshold);
-            dst.markStorageModified();
+            TensorInternalAccess.markStorageModified(dst);
             return;
         }
         switch (src.getDataType()) {
@@ -130,7 +130,7 @@ public final class TensorRemap {
             case INT64 -> applyI64(src, dst, plan, parallelThreshold);
             case BOOL -> applyBool(src, dst, plan, parallelThreshold);
         }
-        dst.markStorageModified();
+        TensorInternalAccess.markStorageModified(dst);
     }
 
     private static void applyConverted(Tensor src, Tensor dst, RemapPlan plan, int parallelThreshold) {
@@ -167,16 +167,16 @@ public final class TensorRemap {
     }
 
     private static void sequentialApplyF64(Tensor src, Tensor dst, RemapPlan plan) {
-        double[] srcData = src.getFloat64Data();
-        double[] dstData = dst.getFloat64Data();
+        double[] srcData = TensorInternalAccess.float64Data(src);
+        double[] dstData = TensorInternalAccess.float64Data(dst);
         walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, plan.srcBaseOffset, plan.dstBaseOffset, 0, plan.logicalSize, (srcOffset, dstOffset) -> {
             dstData[dstOffset] = srcData[srcOffset];
         });
     }
 
     private static void parallelApplyF64(Tensor src, Tensor dst, RemapPlan plan) {
-        double[] srcData = src.getFloat64Data();
-        double[] dstData = dst.getFloat64Data();
+        double[] srcData = TensorInternalAccess.float64Data(src);
+        double[] dstData = TensorInternalAccess.float64Data(dst);
         parallelForRanges(plan.logicalSize, (start, end) -> {
             walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, plan.srcBaseOffset, plan.dstBaseOffset, start, end, (srcOffset, dstOffset) -> {
                 dstData[dstOffset] = srcData[srcOffset];
@@ -204,16 +204,16 @@ public final class TensorRemap {
     }
 
     private static void sequentialApplyF32(Tensor src, Tensor dst, RemapPlan plan) {
-        float[] srcData = src.getFloat32Data();
-        float[] dstData = dst.getFloat32Data();
+        float[] srcData = TensorInternalAccess.float32Data(src);
+        float[] dstData = TensorInternalAccess.float32Data(dst);
         walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, plan.srcBaseOffset, plan.dstBaseOffset, 0, plan.logicalSize, (srcOffset, dstOffset) -> {
             dstData[dstOffset] = srcData[srcOffset];
         });
     }
 
     private static void parallelApplyF32(Tensor src, Tensor dst, RemapPlan plan) {
-        float[] srcData = src.getFloat32Data();
-        float[] dstData = dst.getFloat32Data();
+        float[] srcData = TensorInternalAccess.float32Data(src);
+        float[] dstData = TensorInternalAccess.float32Data(dst);
         parallelForRanges(plan.logicalSize, (start, end) -> {
             walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, plan.srcBaseOffset, plan.dstBaseOffset, start, end, (srcOffset, dstOffset) -> {
                 dstData[dstOffset] = srcData[srcOffset];
@@ -266,16 +266,16 @@ public final class TensorRemap {
     }
 
     private static void sequentialApplyF16(Tensor src, Tensor dst, RemapPlan plan) {
-        short[] srcData = src.getBFloat16Data();
-        short[] dstData = dst.getBFloat16Data();
+        short[] srcData = TensorInternalAccess.bfloat16Data(src);
+        short[] dstData = TensorInternalAccess.bfloat16Data(dst);
         walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, plan.srcBaseOffset, plan.dstBaseOffset, 0, plan.logicalSize, (srcOffset, dstOffset) -> {
             dstData[dstOffset] = srcData[srcOffset];
         });
     }
 
     private static void parallelApplyF16(Tensor src, Tensor dst, RemapPlan plan) {
-        short[] srcData = src.getBFloat16Data();
-        short[] dstData = dst.getBFloat16Data();
+        short[] srcData = TensorInternalAccess.bfloat16Data(src);
+        short[] dstData = TensorInternalAccess.bfloat16Data(dst);
         parallelForRanges(plan.logicalSize, (start, end) -> {
             walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, plan.srcBaseOffset, plan.dstBaseOffset, start, end, (srcOffset, dstOffset) -> {
                 dstData[dstOffset] = srcData[srcOffset];
@@ -284,32 +284,32 @@ public final class TensorRemap {
     }
 
     private static void sequentialApplyBool(Tensor src, Tensor dst, RemapPlan plan) {
-        byte[] srcData = src.getBoolData();
-        byte[] dstData = dst.getBoolData();
+        byte[] srcData = TensorInternalAccess.boolData(src);
+        byte[] dstData = TensorInternalAccess.boolData(dst);
         walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, plan.srcBaseOffset, plan.dstBaseOffset, 0, plan.logicalSize, (srcOffset, dstOffset) -> {
             dstData[dstOffset] = srcData[srcOffset];
         });
     }
 
     private static void sequentialApplyI32(Tensor src, Tensor dst, RemapPlan plan) {
-        int[] srcData = src.getInt32Data();
-        int[] dstData = dst.getInt32Data();
+        int[] srcData = TensorInternalAccess.int32Data(src);
+        int[] dstData = TensorInternalAccess.int32Data(dst);
         walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, plan.srcBaseOffset, plan.dstBaseOffset, 0, plan.logicalSize, (srcOffset, dstOffset) -> {
             dstData[dstOffset] = srcData[srcOffset];
         });
     }
 
     private static void sequentialApplyI64(Tensor src, Tensor dst, RemapPlan plan) {
-        long[] srcData = src.getInt64Data();
-        long[] dstData = dst.getInt64Data();
+        long[] srcData = TensorInternalAccess.int64Data(src);
+        long[] dstData = TensorInternalAccess.int64Data(dst);
         walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, plan.srcBaseOffset, plan.dstBaseOffset, 0, plan.logicalSize, (srcOffset, dstOffset) -> {
             dstData[dstOffset] = srcData[srcOffset];
         });
     }
 
     private static void parallelApplyBool(Tensor src, Tensor dst, RemapPlan plan) {
-        byte[] srcData = src.getBoolData();
-        byte[] dstData = dst.getBoolData();
+        byte[] srcData = TensorInternalAccess.boolData(src);
+        byte[] dstData = TensorInternalAccess.boolData(dst);
         parallelForRanges(plan.logicalSize, (start, end) -> {
             walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, plan.srcBaseOffset, plan.dstBaseOffset, start, end, (srcOffset, dstOffset) -> {
                 dstData[dstOffset] = srcData[srcOffset];
@@ -318,8 +318,8 @@ public final class TensorRemap {
     }
 
     private static void parallelApplyI32(Tensor src, Tensor dst, RemapPlan plan) {
-        int[] srcData = src.getInt32Data();
-        int[] dstData = dst.getInt32Data();
+        int[] srcData = TensorInternalAccess.int32Data(src);
+        int[] dstData = TensorInternalAccess.int32Data(dst);
         parallelForRanges(plan.logicalSize, (start, end) -> {
             walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, plan.srcBaseOffset, plan.dstBaseOffset, start, end, (srcOffset, dstOffset) -> {
                 dstData[dstOffset] = srcData[srcOffset];
@@ -328,8 +328,8 @@ public final class TensorRemap {
     }
 
     private static void parallelApplyI64(Tensor src, Tensor dst, RemapPlan plan) {
-        long[] srcData = src.getInt64Data();
-        long[] dstData = dst.getInt64Data();
+        long[] srcData = TensorInternalAccess.int64Data(src);
+        long[] dstData = TensorInternalAccess.int64Data(dst);
         parallelForRanges(plan.logicalSize, (start, end) -> {
             walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, plan.srcBaseOffset, plan.dstBaseOffset, start, end, (srcOffset, dstOffset) -> {
                 dstData[dstOffset] = srcData[srcOffset];
@@ -395,8 +395,8 @@ public final class TensorRemap {
     }
 
     private static boolean tryFastCopyF64(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
-        double[] srcData = TensorStorageSupport.float64DataOrNull(src.getStorage());
-        double[] dstData = TensorStorageSupport.float64DataOrNull(dst.getStorage());
+        double[] srcData = TensorStorageSupport.float64DataOrNull(TensorInternalAccess.storage(src));
+        double[] dstData = TensorStorageSupport.float64DataOrNull(TensorInternalAccess.storage(dst));
         if (srcData == null || dstData == null) {
             return false;
         }
@@ -408,8 +408,8 @@ public final class TensorRemap {
     }
 
     private static boolean tryFastCopyF32(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
-        float[] srcData = TensorStorageSupport.float32DataOrNull(src.getStorage());
-        float[] dstData = TensorStorageSupport.float32DataOrNull(dst.getStorage());
+        float[] srcData = TensorStorageSupport.float32DataOrNull(TensorInternalAccess.storage(src));
+        float[] dstData = TensorStorageSupport.float32DataOrNull(TensorInternalAccess.storage(dst));
         if (srcData == null || dstData == null) {
             return false;
         }
@@ -421,8 +421,8 @@ public final class TensorRemap {
     }
 
     private static boolean tryFastCopyF16(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
-        short[] srcData = TensorStorageSupport.bfloat16DataOrNull(src.getStorage());
-        short[] dstData = TensorStorageSupport.bfloat16DataOrNull(dst.getStorage());
+        short[] srcData = TensorStorageSupport.bfloat16DataOrNull(TensorInternalAccess.storage(src));
+        short[] dstData = TensorStorageSupport.bfloat16DataOrNull(TensorInternalAccess.storage(dst));
         if (srcData == null || dstData == null) {
             return false;
         }
@@ -434,8 +434,8 @@ public final class TensorRemap {
     }
 
     private static boolean tryFastCopyBool(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
-        byte[] srcData = TensorStorageSupport.boolDataOrNull(src.getStorage());
-        byte[] dstData = TensorStorageSupport.boolDataOrNull(dst.getStorage());
+        byte[] srcData = TensorStorageSupport.boolDataOrNull(TensorInternalAccess.storage(src));
+        byte[] dstData = TensorStorageSupport.boolDataOrNull(TensorInternalAccess.storage(dst));
         if (srcData == null || dstData == null) {
             return false;
         }
@@ -447,8 +447,8 @@ public final class TensorRemap {
     }
 
     private static boolean tryFastCopyI32(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
-        int[] srcData = TensorStorageSupport.int32DataOrNull(src.getStorage());
-        int[] dstData = TensorStorageSupport.int32DataOrNull(dst.getStorage());
+        int[] srcData = TensorStorageSupport.int32DataOrNull(TensorInternalAccess.storage(src));
+        int[] dstData = TensorStorageSupport.int32DataOrNull(TensorInternalAccess.storage(dst));
         if (srcData == null || dstData == null) {
             return false;
         }
@@ -460,8 +460,8 @@ public final class TensorRemap {
     }
 
     private static boolean tryFastCopyI64(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
-        long[] srcData = TensorStorageSupport.int64DataOrNull(src.getStorage());
-        long[] dstData = TensorStorageSupport.int64DataOrNull(dst.getStorage());
+        long[] srcData = TensorStorageSupport.int64DataOrNull(TensorInternalAccess.storage(src));
+        long[] dstData = TensorStorageSupport.int64DataOrNull(TensorInternalAccess.storage(dst));
         if (srcData == null || dstData == null) {
             return false;
         }

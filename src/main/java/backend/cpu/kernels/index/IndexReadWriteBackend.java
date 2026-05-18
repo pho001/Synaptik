@@ -1,5 +1,7 @@
 package backend.cpu.kernels.index;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.*;
 import operations.index.ScatterReduction;
 
@@ -13,8 +15,8 @@ final class IndexReadWriteBackend {
 
     public static void runF64(Tensor input, Tensor indices, Tensor out, int dimension) {
         validateGather(input, indices, out, dimension);
-        double[] in = input.getFloat64Data();
-        double[] dst = out.getFloat64Data();
+        double[] in = TensorInternalAccess.float64Data(input);
+        double[] dst = TensorInternalAccess.float64Data(out);
         forEachGather(input, indices, out, dimension, (baseIn, baseOut, axisStrideIn, axisStrideOut, axisIndex) ->
                 dst[baseOut] = in[baseIn + axisIndex * axisStrideIn]
         );
@@ -22,8 +24,8 @@ final class IndexReadWriteBackend {
 
     public static void runF32(Tensor input, Tensor indices, Tensor out, int dimension) {
         validateGather(input, indices, out, dimension);
-        float[] in = input.getFloat32Data();
-        float[] dst = out.getFloat32Data();
+        float[] in = TensorInternalAccess.float32Data(input);
+        float[] dst = TensorInternalAccess.float32Data(out);
         forEachGather(input, indices, out, dimension, (baseIn, baseOut, axisStrideIn, axisStrideOut, axisIndex) ->
                 dst[baseOut] = in[baseIn + axisIndex * axisStrideIn]
         );
@@ -31,8 +33,8 @@ final class IndexReadWriteBackend {
 
     public static void runBF16(Tensor input, Tensor indices, Tensor out, int dimension) {
         validateGather(input, indices, out, dimension);
-        short[] in = input.getBFloat16Data();
-        short[] dst = out.getBFloat16Data();
+        short[] in = TensorInternalAccess.bfloat16Data(input);
+        short[] dst = TensorInternalAccess.bfloat16Data(out);
         forEachGather(input, indices, out, dimension, (baseIn, baseOut, axisStrideIn, axisStrideOut, axisIndex) ->
                 dst[baseOut] = in[baseIn + axisIndex * axisStrideIn]
         );
@@ -40,8 +42,8 @@ final class IndexReadWriteBackend {
 
     public static void runBOOL(Tensor input, Tensor indices, Tensor out, int dimension) {
         validateGather(input, indices, out, dimension);
-        byte[] in = input.getBoolData();
-        byte[] dst = out.getBoolData();
+        byte[] in = TensorInternalAccess.boolData(input);
+        byte[] dst = TensorInternalAccess.boolData(out);
         forEachGather(input, indices, out, dimension, (baseIn, baseOut, axisStrideIn, axisStrideOut, axisIndex) ->
                 dst[baseOut] = in[baseIn + axisIndex * axisStrideIn]
         );
@@ -49,8 +51,8 @@ final class IndexReadWriteBackend {
 
     public static void runI32(Tensor input, Tensor indices, Tensor out, int dimension) {
         validateGather(input, indices, out, dimension);
-        int[] in = input.getInt32Data();
-        int[] dst = out.getInt32Data();
+        int[] in = TensorInternalAccess.int32Data(input);
+        int[] dst = TensorInternalAccess.int32Data(out);
         forEachGather(input, indices, out, dimension, (baseIn, baseOut, axisStrideIn, axisStrideOut, axisIndex) ->
                 dst[baseOut] = in[baseIn + axisIndex * axisStrideIn]
         );
@@ -58,8 +60,8 @@ final class IndexReadWriteBackend {
 
     public static void runI64(Tensor input, Tensor indices, Tensor out, int dimension) {
         validateGather(input, indices, out, dimension);
-        long[] in = input.getInt64Data();
-        long[] dst = out.getInt64Data();
+        long[] in = TensorInternalAccess.int64Data(input);
+        long[] dst = TensorInternalAccess.int64Data(out);
         forEachGather(input, indices, out, dimension, (baseIn, baseOut, axisStrideIn, axisStrideOut, axisIndex) ->
                 dst[baseOut] = in[baseIn + axisIndex * axisStrideIn]
         );
@@ -67,7 +69,7 @@ final class IndexReadWriteBackend {
 
     public static void gatherAxisF64(Tensor input, Tensor indices, Tensor out, int axis) {
         validateGatherAxis(input, indices, out, axis);
-        double[] dst = out.getFloat64Data();
+        double[] dst = TensorInternalAccess.float64Data(out);
         forEachGatherAxis(input, indices, out, axis, (sourceLogical, outLogical) ->
                 dst[outLogical] = input.getByFlatIndex(sourceLogical)
         );
@@ -75,7 +77,7 @@ final class IndexReadWriteBackend {
 
     public static void gatherAxisF32(Tensor input, Tensor indices, Tensor out, int axis) {
         validateGatherAxis(input, indices, out, axis);
-        float[] dst = out.getFloat32Data();
+        float[] dst = TensorInternalAccess.float32Data(out);
         forEachGatherAxis(input, indices, out, axis, (sourceLogical, outLogical) ->
                 dst[outLogical] = (float) input.getByFlatIndex(sourceLogical)
         );
@@ -83,7 +85,7 @@ final class IndexReadWriteBackend {
 
     public static void gatherAxisBF16(Tensor input, Tensor indices, Tensor out, int axis) {
         validateGatherAxis(input, indices, out, axis);
-        short[] dst = out.getBFloat16Data();
+        short[] dst = TensorInternalAccess.bfloat16Data(out);
         forEachGatherAxis(input, indices, out, axis, (sourceLogical, outLogical) ->
                 dst[outLogical] = CpuDTypeOps.toBFloat16Bits((float) input.getByFlatIndex(sourceLogical))
         );
@@ -91,7 +93,7 @@ final class IndexReadWriteBackend {
 
     public static void gatherAxisBOOL(Tensor input, Tensor indices, Tensor out, int axis) {
         validateGatherAxis(input, indices, out, axis);
-        byte[] dst = out.getBoolData();
+        byte[] dst = TensorInternalAccess.boolData(out);
         forEachGatherAxis(input, indices, out, axis, (sourceLogical, outLogical) ->
                 dst[outLogical] = input.getByFlatIndex(sourceLogical) == 0.0d ? (byte) 0 : (byte) 1
         );
@@ -99,7 +101,7 @@ final class IndexReadWriteBackend {
 
     public static void gatherAxisI32(Tensor input, Tensor indices, Tensor out, int axis) {
         validateGatherAxis(input, indices, out, axis);
-        int[] dst = out.getInt32Data();
+        int[] dst = TensorInternalAccess.int32Data(out);
         forEachGatherAxis(input, indices, out, axis, (sourceLogical, outLogical) ->
                 dst[outLogical] = (int) input.getByFlatIndex(sourceLogical)
         );
@@ -107,7 +109,7 @@ final class IndexReadWriteBackend {
 
     public static void gatherAxisI64(Tensor input, Tensor indices, Tensor out, int axis) {
         validateGatherAxis(input, indices, out, axis);
-        long[] dst = out.getInt64Data();
+        long[] dst = TensorInternalAccess.int64Data(out);
         forEachGatherAxis(input, indices, out, axis, (sourceLogical, outLogical) ->
                 dst[outLogical] = input.getInt64ByFlatIndex(sourceLogical)
         );
@@ -115,8 +117,8 @@ final class IndexReadWriteBackend {
 
     public static void gatherNdF64(Tensor input, Tensor indices, Tensor out, int batchDims) {
         validateGatherNd(input, indices, out, batchDims);
-        double[] in = input.getFloat64Data();
-        double[] dst = out.getFloat64Data();
+        double[] in = TensorInternalAccess.float64Data(input);
+        double[] dst = TensorInternalAccess.float64Data(out);
         forEachGatherNd(input, indices, out, batchDims, (sourceOffset, outOffset) ->
                 dst[outOffset] = in[sourceOffset]
         );
@@ -124,8 +126,8 @@ final class IndexReadWriteBackend {
 
     public static void gatherNdF32(Tensor input, Tensor indices, Tensor out, int batchDims) {
         validateGatherNd(input, indices, out, batchDims);
-        float[] in = input.getFloat32Data();
-        float[] dst = out.getFloat32Data();
+        float[] in = TensorInternalAccess.float32Data(input);
+        float[] dst = TensorInternalAccess.float32Data(out);
         forEachGatherNd(input, indices, out, batchDims, (sourceOffset, outOffset) ->
                 dst[outOffset] = in[sourceOffset]
         );
@@ -133,8 +135,8 @@ final class IndexReadWriteBackend {
 
     public static void gatherNdBF16(Tensor input, Tensor indices, Tensor out, int batchDims) {
         validateGatherNd(input, indices, out, batchDims);
-        short[] in = input.getBFloat16Data();
-        short[] dst = out.getBFloat16Data();
+        short[] in = TensorInternalAccess.bfloat16Data(input);
+        short[] dst = TensorInternalAccess.bfloat16Data(out);
         forEachGatherNd(input, indices, out, batchDims, (sourceOffset, outOffset) ->
                 dst[outOffset] = in[sourceOffset]
         );
@@ -142,8 +144,8 @@ final class IndexReadWriteBackend {
 
     public static void gatherNdBOOL(Tensor input, Tensor indices, Tensor out, int batchDims) {
         validateGatherNd(input, indices, out, batchDims);
-        byte[] in = input.getBoolData();
-        byte[] dst = out.getBoolData();
+        byte[] in = TensorInternalAccess.boolData(input);
+        byte[] dst = TensorInternalAccess.boolData(out);
         forEachGatherNd(input, indices, out, batchDims, (sourceOffset, outOffset) ->
                 dst[outOffset] = in[sourceOffset]
         );
@@ -151,8 +153,8 @@ final class IndexReadWriteBackend {
 
     public static void gatherNdI32(Tensor input, Tensor indices, Tensor out, int batchDims) {
         validateGatherNd(input, indices, out, batchDims);
-        int[] in = input.getInt32Data();
-        int[] dst = out.getInt32Data();
+        int[] in = TensorInternalAccess.int32Data(input);
+        int[] dst = TensorInternalAccess.int32Data(out);
         forEachGatherNd(input, indices, out, batchDims, (sourceOffset, outOffset) ->
                 dst[outOffset] = in[sourceOffset]
         );
@@ -160,8 +162,8 @@ final class IndexReadWriteBackend {
 
     public static void gatherNdI64(Tensor input, Tensor indices, Tensor out, int batchDims) {
         validateGatherNd(input, indices, out, batchDims);
-        long[] in = input.getInt64Data();
-        long[] dst = out.getInt64Data();
+        long[] in = TensorInternalAccess.int64Data(input);
+        long[] dst = TensorInternalAccess.int64Data(out);
         forEachGatherNd(input, indices, out, batchDims, (sourceOffset, outOffset) ->
                 dst[outOffset] = in[sourceOffset]
         );
@@ -169,9 +171,9 @@ final class IndexReadWriteBackend {
 
     public static void gatherNdGradF64(Tensor indices, Tensor outGrad, Tensor node, int batchDims) {
         validateGatherNdGrad(indices, outGrad, node, batchDims);
-        java.util.Arrays.fill(node.getFloat64Data(), 0.0d);
-        double[] grad = outGrad.getFloat64Data();
-        double[] dst = node.getFloat64Data();
+        java.util.Arrays.fill(TensorInternalAccess.float64Data(node), 0.0d);
+        double[] grad = TensorInternalAccess.float64Data(outGrad);
+        double[] dst = TensorInternalAccess.float64Data(node);
         forEachGatherNd(node, indices, outGrad, batchDims, (targetOffset, gradOffset) ->
                 dst[targetOffset] += grad[gradOffset]
         );
@@ -179,9 +181,9 @@ final class IndexReadWriteBackend {
 
     public static void gatherNdGradF32(Tensor indices, Tensor outGrad, Tensor node, int batchDims) {
         validateGatherNdGrad(indices, outGrad, node, batchDims);
-        java.util.Arrays.fill(node.getFloat32Data(), 0.0f);
-        float[] grad = outGrad.getFloat32Data();
-        float[] dst = node.getFloat32Data();
+        java.util.Arrays.fill(TensorInternalAccess.float32Data(node), 0.0f);
+        float[] grad = TensorInternalAccess.float32Data(outGrad);
+        float[] dst = TensorInternalAccess.float32Data(node);
         forEachGatherNd(node, indices, outGrad, batchDims, (targetOffset, gradOffset) ->
                 dst[targetOffset] += grad[gradOffset]
         );
@@ -189,9 +191,9 @@ final class IndexReadWriteBackend {
 
     public static void gatherNdGradBF16(Tensor indices, Tensor outGrad, Tensor node, int batchDims) {
         validateGatherNdGrad(indices, outGrad, node, batchDims);
-        java.util.Arrays.fill(node.getBFloat16Data(), CpuDTypeOps.toBFloat16Bits(0.0f));
-        short[] grad = outGrad.getBFloat16Data();
-        short[] dst = node.getBFloat16Data();
+        java.util.Arrays.fill(TensorInternalAccess.bfloat16Data(node), CpuDTypeOps.toBFloat16Bits(0.0f));
+        short[] grad = TensorInternalAccess.bfloat16Data(outGrad);
+        short[] dst = TensorInternalAccess.bfloat16Data(node);
         forEachGatherNd(node, indices, outGrad, batchDims, (targetOffset, gradOffset) -> {
             float acc = CpuDTypeOps.fromBFloat16Bits(dst[targetOffset]) + CpuDTypeOps.fromBFloat16Bits(grad[gradOffset]);
             dst[targetOffset] = CpuDTypeOps.toBFloat16Bits(acc);
@@ -200,8 +202,8 @@ final class IndexReadWriteBackend {
 
     public static void takeAlongAxisF64(Tensor input, Tensor indices, Tensor out, int dimension) {
         validateTakeAlongAxis(input, indices, out, dimension);
-        double[] in = input.getFloat64Data();
-        double[] dst = out.getFloat64Data();
+        double[] in = TensorInternalAccess.float64Data(input);
+        double[] dst = TensorInternalAccess.float64Data(out);
         forEachTakeAlongAxis(input, indices, out, dimension, (baseIn, outOffset, axisStrideIn, axisIndex) ->
                 dst[outOffset] = in[baseIn + axisIndex * axisStrideIn]
         );
@@ -209,8 +211,8 @@ final class IndexReadWriteBackend {
 
     public static void takeAlongAxisF32(Tensor input, Tensor indices, Tensor out, int dimension) {
         validateTakeAlongAxis(input, indices, out, dimension);
-        float[] in = input.getFloat32Data();
-        float[] dst = out.getFloat32Data();
+        float[] in = TensorInternalAccess.float32Data(input);
+        float[] dst = TensorInternalAccess.float32Data(out);
         forEachTakeAlongAxis(input, indices, out, dimension, (baseIn, outOffset, axisStrideIn, axisIndex) ->
                 dst[outOffset] = in[baseIn + axisIndex * axisStrideIn]
         );
@@ -218,8 +220,8 @@ final class IndexReadWriteBackend {
 
     public static void takeAlongAxisF16(Tensor input, Tensor indices, Tensor out, int dimension) {
         validateTakeAlongAxis(input, indices, out, dimension);
-        short[] in = input.getBFloat16Data();
-        short[] dst = out.getBFloat16Data();
+        short[] in = TensorInternalAccess.bfloat16Data(input);
+        short[] dst = TensorInternalAccess.bfloat16Data(out);
         forEachTakeAlongAxis(input, indices, out, dimension, (baseIn, outOffset, axisStrideIn, axisIndex) ->
                 dst[outOffset] = in[baseIn + axisIndex * axisStrideIn]
         );
@@ -227,8 +229,8 @@ final class IndexReadWriteBackend {
 
     public static void takeAlongAxisBOOL(Tensor input, Tensor indices, Tensor out, int dimension) {
         validateTakeAlongAxis(input, indices, out, dimension);
-        byte[] in = input.getBoolData();
-        byte[] dst = out.getBoolData();
+        byte[] in = TensorInternalAccess.boolData(input);
+        byte[] dst = TensorInternalAccess.boolData(out);
         forEachTakeAlongAxis(input, indices, out, dimension, (baseIn, outOffset, axisStrideIn, axisIndex) ->
                 dst[outOffset] = in[baseIn + axisIndex * axisStrideIn]
         );
@@ -236,8 +238,8 @@ final class IndexReadWriteBackend {
 
     public static void takeAlongAxisI32(Tensor input, Tensor indices, Tensor out, int dimension) {
         validateTakeAlongAxis(input, indices, out, dimension);
-        int[] in = input.getInt32Data();
-        int[] dst = out.getInt32Data();
+        int[] in = TensorInternalAccess.int32Data(input);
+        int[] dst = TensorInternalAccess.int32Data(out);
         forEachTakeAlongAxis(input, indices, out, dimension, (baseIn, outOffset, axisStrideIn, axisIndex) ->
                 dst[outOffset] = in[baseIn + axisIndex * axisStrideIn]
         );
@@ -245,8 +247,8 @@ final class IndexReadWriteBackend {
 
     public static void takeAlongAxisI64(Tensor input, Tensor indices, Tensor out, int dimension) {
         validateTakeAlongAxis(input, indices, out, dimension);
-        long[] in = input.getInt64Data();
-        long[] dst = out.getInt64Data();
+        long[] in = TensorInternalAccess.int64Data(input);
+        long[] dst = TensorInternalAccess.int64Data(out);
         forEachTakeAlongAxis(input, indices, out, dimension, (baseIn, outOffset, axisStrideIn, axisIndex) ->
                 dst[outOffset] = in[baseIn + axisIndex * axisStrideIn]
         );
@@ -254,8 +256,8 @@ final class IndexReadWriteBackend {
 
     public static void scatterF64(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
         validateScatter(indices, outGrad, node, dimension);
-        double[] grad = outGrad.getFloat64Data();
-        double[] dst = node.getFloat64Data();
+        double[] grad = TensorInternalAccess.float64Data(outGrad);
+        double[] dst = TensorInternalAccess.float64Data(node);
         forEachScatter(indices, outGrad, node, dimension, (baseNode, baseGrad, axisStrideNode, axisStrideGrad, axisIndex) ->
                 dst[baseNode + axisIndex * axisStrideNode] += grad[baseGrad]
         );
@@ -263,8 +265,8 @@ final class IndexReadWriteBackend {
 
     public static void scatterF32(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
         validateScatter(indices, outGrad, node, dimension);
-        float[] grad = outGrad.getFloat32Data();
-        float[] dst = node.getFloat32Data();
+        float[] grad = TensorInternalAccess.float32Data(outGrad);
+        float[] dst = TensorInternalAccess.float32Data(node);
         forEachScatter(indices, outGrad, node, dimension, (baseNode, baseGrad, axisStrideNode, axisStrideGrad, axisIndex) ->
                 dst[baseNode + axisIndex * axisStrideNode] += grad[baseGrad]
         );
@@ -272,8 +274,8 @@ final class IndexReadWriteBackend {
 
     public static void scatterBF16(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
         validateScatter(indices, outGrad, node, dimension);
-        short[] grad = outGrad.getBFloat16Data();
-        short[] dst = node.getBFloat16Data();
+        short[] grad = TensorInternalAccess.bfloat16Data(outGrad);
+        short[] dst = TensorInternalAccess.bfloat16Data(node);
         forEachScatter(indices, outGrad, node, dimension, (baseNode, baseGrad, axisStrideNode, axisStrideGrad, axisIndex) -> {
             float acc = CpuDTypeOps.fromBFloat16Bits(dst[baseNode + axisIndex * axisStrideNode]) + CpuDTypeOps.fromBFloat16Bits(grad[baseGrad]);
             dst[baseNode + axisIndex * axisStrideNode] = CpuDTypeOps.toBFloat16Bits(acc);
@@ -282,8 +284,8 @@ final class IndexReadWriteBackend {
 
     public static void gatherAxisGradF64(Tensor indices, Tensor outGrad, Tensor node, int axis) {
         validateGatherAxisGrad(indices, outGrad, node, axis);
-        java.util.Arrays.fill(node.getFloat64Data(), 0.0d);
-        double[] dst = node.getFloat64Data();
+        java.util.Arrays.fill(TensorInternalAccess.float64Data(node), 0.0d);
+        double[] dst = TensorInternalAccess.float64Data(node);
         forEachGatherAxisGrad(indices, outGrad, node, axis, (sourceLogical, outLogical) ->
                 dst[sourceLogical] += outGrad.getByFlatIndex(outLogical)
         );
@@ -291,8 +293,8 @@ final class IndexReadWriteBackend {
 
     public static void gatherAxisGradF32(Tensor indices, Tensor outGrad, Tensor node, int axis) {
         validateGatherAxisGrad(indices, outGrad, node, axis);
-        java.util.Arrays.fill(node.getFloat32Data(), 0.0f);
-        float[] dst = node.getFloat32Data();
+        java.util.Arrays.fill(TensorInternalAccess.float32Data(node), 0.0f);
+        float[] dst = TensorInternalAccess.float32Data(node);
         forEachGatherAxisGrad(indices, outGrad, node, axis, (sourceLogical, outLogical) ->
                 dst[sourceLogical] += (float) outGrad.getByFlatIndex(outLogical)
         );
@@ -300,8 +302,8 @@ final class IndexReadWriteBackend {
 
     public static void gatherAxisGradBF16(Tensor indices, Tensor outGrad, Tensor node, int axis) {
         validateGatherAxisGrad(indices, outGrad, node, axis);
-        java.util.Arrays.fill(node.getBFloat16Data(), CpuDTypeOps.toBFloat16Bits(0.0f));
-        short[] dst = node.getBFloat16Data();
+        java.util.Arrays.fill(TensorInternalAccess.bfloat16Data(node), CpuDTypeOps.toBFloat16Bits(0.0f));
+        short[] dst = TensorInternalAccess.bfloat16Data(node);
         forEachGatherAxisGrad(indices, outGrad, node, axis, (sourceLogical, outLogical) -> {
             float acc = CpuDTypeOps.fromBFloat16Bits(dst[sourceLogical]) + (float) outGrad.getByFlatIndex(outLogical);
             dst[sourceLogical] = CpuDTypeOps.toBFloat16Bits(acc);
@@ -311,7 +313,7 @@ final class IndexReadWriteBackend {
     public static void scatterAxisAddF64(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis) {
         validateScatterAxisAdd(data, indices, updates, out, axis);
         out.copyDataFrom(data);
-        double[] dst = out.getFloat64Data();
+        double[] dst = TensorInternalAccess.float64Data(out);
         forEachGatherAxisGrad(indices, updates, out, axis, (targetLogical, updateLogical) ->
                 dst[targetLogical] += updates.getByFlatIndex(updateLogical)
         );
@@ -320,7 +322,7 @@ final class IndexReadWriteBackend {
     public static void scatterAxisAddF32(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis) {
         validateScatterAxisAdd(data, indices, updates, out, axis);
         out.copyDataFrom(data);
-        float[] dst = out.getFloat32Data();
+        float[] dst = TensorInternalAccess.float32Data(out);
         forEachGatherAxisGrad(indices, updates, out, axis, (targetLogical, updateLogical) ->
                 dst[targetLogical] += (float) updates.getByFlatIndex(updateLogical)
         );
@@ -329,7 +331,7 @@ final class IndexReadWriteBackend {
     public static void scatterAxisAddBF16(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis) {
         validateScatterAxisAdd(data, indices, updates, out, axis);
         out.copyDataFrom(data);
-        short[] dst = out.getBFloat16Data();
+        short[] dst = TensorInternalAccess.bfloat16Data(out);
         forEachGatherAxisGrad(indices, updates, out, axis, (targetLogical, updateLogical) -> {
             float acc = CpuDTypeOps.fromBFloat16Bits(dst[targetLogical]) + (float) updates.getByFlatIndex(updateLogical);
             dst[targetLogical] = CpuDTypeOps.toBFloat16Bits(acc);
@@ -339,8 +341,8 @@ final class IndexReadWriteBackend {
     public static void scatterAddF64(Tensor base, Tensor indices, Tensor src, Tensor out, int dimension) {
         validateScatterAdd(base, indices, src, out, dimension);
         out.copyDataFrom(base);
-        double[] srcData = src.getFloat64Data();
-        double[] dst = out.getFloat64Data();
+        double[] srcData = TensorInternalAccess.float64Data(src);
+        double[] dst = TensorInternalAccess.float64Data(out);
         forEachScatter(indices, src, out, dimension, (baseNode, baseGrad, axisStrideNode, axisStrideGrad, axisIndex) ->
                 dst[baseNode + axisIndex * axisStrideNode] += srcData[baseGrad]
         );
@@ -349,8 +351,8 @@ final class IndexReadWriteBackend {
     public static void scatterAddF32(Tensor base, Tensor indices, Tensor src, Tensor out, int dimension) {
         validateScatterAdd(base, indices, src, out, dimension);
         out.copyDataFrom(base);
-        float[] srcData = src.getFloat32Data();
-        float[] dst = out.getFloat32Data();
+        float[] srcData = TensorInternalAccess.float32Data(src);
+        float[] dst = TensorInternalAccess.float32Data(out);
         forEachScatter(indices, src, out, dimension, (baseNode, baseGrad, axisStrideNode, axisStrideGrad, axisIndex) ->
                 dst[baseNode + axisIndex * axisStrideNode] += srcData[baseGrad]
         );
@@ -359,8 +361,8 @@ final class IndexReadWriteBackend {
     public static void scatterAddBF16(Tensor base, Tensor indices, Tensor src, Tensor out, int dimension) {
         validateScatterAdd(base, indices, src, out, dimension);
         out.copyDataFrom(base);
-        short[] srcData = src.getBFloat16Data();
-        short[] dst = out.getBFloat16Data();
+        short[] srcData = TensorInternalAccess.bfloat16Data(src);
+        short[] dst = TensorInternalAccess.bfloat16Data(out);
         forEachScatter(indices, src, out, dimension, (baseNode, baseGrad, axisStrideNode, axisStrideGrad, axisIndex) -> {
             float acc = CpuDTypeOps.fromBFloat16Bits(dst[baseNode + axisIndex * axisStrideNode]) + CpuDTypeOps.fromBFloat16Bits(srcData[baseGrad]);
             dst[baseNode + axisIndex * axisStrideNode] = CpuDTypeOps.toBFloat16Bits(acc);
@@ -370,8 +372,8 @@ final class IndexReadWriteBackend {
     public static void scatterElementsF64(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, ScatterReduction reduction) {
         ScatterReduction effectiveReduction = validateScatterElements(data, indices, updates, out, axis, reduction);
         out.copyDataFrom(data);
-        double[] updateData = updates.getFloat64Data();
-        double[] dst = out.getFloat64Data();
+        double[] updateData = TensorInternalAccess.float64Data(updates);
+        double[] dst = TensorInternalAccess.float64Data(out);
         scatterDuplicateState(out, effectiveReduction, "scatterElements", state ->
                 forEachScatterElements(data, indices, updates, out, axis, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
@@ -382,8 +384,8 @@ final class IndexReadWriteBackend {
     public static void scatterElementsF32(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, ScatterReduction reduction) {
         ScatterReduction effectiveReduction = validateScatterElements(data, indices, updates, out, axis, reduction);
         out.copyDataFrom(data);
-        float[] updateData = updates.getFloat32Data();
-        float[] dst = out.getFloat32Data();
+        float[] updateData = TensorInternalAccess.float32Data(updates);
+        float[] dst = TensorInternalAccess.float32Data(out);
         scatterDuplicateState(out, effectiveReduction, "scatterElements", state ->
                 forEachScatterElements(data, indices, updates, out, axis, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
@@ -394,8 +396,8 @@ final class IndexReadWriteBackend {
     public static void scatterElementsBF16(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, ScatterReduction reduction) {
         ScatterReduction effectiveReduction = validateScatterElements(data, indices, updates, out, axis, reduction);
         out.copyDataFrom(data);
-        short[] updateData = updates.getBFloat16Data();
-        short[] dst = out.getBFloat16Data();
+        short[] updateData = TensorInternalAccess.bfloat16Data(updates);
+        short[] dst = TensorInternalAccess.bfloat16Data(out);
         scatterDuplicateState(out, effectiveReduction, "scatterElements", state ->
                 forEachScatterElements(data, indices, updates, out, axis, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
@@ -408,8 +410,8 @@ final class IndexReadWriteBackend {
     public static void scatterElementsBOOL(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, ScatterReduction reduction) {
         ScatterReduction effectiveReduction = validateScatterElements(data, indices, updates, out, axis, reduction);
         out.copyDataFrom(data);
-        byte[] updateData = updates.getBoolData();
-        byte[] dst = out.getBoolData();
+        byte[] updateData = TensorInternalAccess.boolData(updates);
+        byte[] dst = TensorInternalAccess.boolData(out);
         scatterDuplicateState(out, effectiveReduction, "scatterElements", state ->
                 forEachScatterElements(data, indices, updates, out, axis, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
@@ -420,8 +422,8 @@ final class IndexReadWriteBackend {
     public static void scatterElementsI32(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, ScatterReduction reduction) {
         ScatterReduction effectiveReduction = validateScatterElements(data, indices, updates, out, axis, reduction);
         out.copyDataFrom(data);
-        int[] updateData = updates.getInt32Data();
-        int[] dst = out.getInt32Data();
+        int[] updateData = TensorInternalAccess.int32Data(updates);
+        int[] dst = TensorInternalAccess.int32Data(out);
         scatterDuplicateState(out, effectiveReduction, "scatterElements", state ->
                 forEachScatterElements(data, indices, updates, out, axis, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
@@ -432,8 +434,8 @@ final class IndexReadWriteBackend {
     public static void scatterElementsI64(Tensor data, Tensor indices, Tensor updates, Tensor out, int axis, ScatterReduction reduction) {
         ScatterReduction effectiveReduction = validateScatterElements(data, indices, updates, out, axis, reduction);
         out.copyDataFrom(data);
-        long[] updateData = updates.getInt64Data();
-        long[] dst = out.getInt64Data();
+        long[] updateData = TensorInternalAccess.int64Data(updates);
+        long[] dst = TensorInternalAccess.int64Data(out);
         scatterDuplicateState(out, effectiveReduction, "scatterElements", state ->
                 forEachScatterElements(data, indices, updates, out, axis, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
@@ -444,8 +446,8 @@ final class IndexReadWriteBackend {
     public static void scatterNdF64(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims) {
         ScatterReduction effectiveReduction = validateScatterNd(data, indices, updates, out, reduction, batchDims);
         out.copyDataFrom(data);
-        double[] updateData = updates.getFloat64Data();
-        double[] dst = out.getFloat64Data();
+        double[] updateData = TensorInternalAccess.float64Data(updates);
+        double[] dst = TensorInternalAccess.float64Data(out);
         scatterDuplicateState(out, effectiveReduction, "scatterNd", state ->
                 forEachScatterNd(data, indices, updates, out, batchDims, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
@@ -456,8 +458,8 @@ final class IndexReadWriteBackend {
     public static void scatterNdF32(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims) {
         ScatterReduction effectiveReduction = validateScatterNd(data, indices, updates, out, reduction, batchDims);
         out.copyDataFrom(data);
-        float[] updateData = updates.getFloat32Data();
-        float[] dst = out.getFloat32Data();
+        float[] updateData = TensorInternalAccess.float32Data(updates);
+        float[] dst = TensorInternalAccess.float32Data(out);
         scatterDuplicateState(out, effectiveReduction, "scatterNd", state ->
                 forEachScatterNd(data, indices, updates, out, batchDims, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
@@ -468,8 +470,8 @@ final class IndexReadWriteBackend {
     public static void scatterNdBF16(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims) {
         ScatterReduction effectiveReduction = validateScatterNd(data, indices, updates, out, reduction, batchDims);
         out.copyDataFrom(data);
-        short[] updateData = updates.getBFloat16Data();
-        short[] dst = out.getBFloat16Data();
+        short[] updateData = TensorInternalAccess.bfloat16Data(updates);
+        short[] dst = TensorInternalAccess.bfloat16Data(out);
         scatterDuplicateState(out, effectiveReduction, "scatterNd", state ->
                 forEachScatterNd(data, indices, updates, out, batchDims, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
@@ -482,8 +484,8 @@ final class IndexReadWriteBackend {
     public static void scatterNdBOOL(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims) {
         ScatterReduction effectiveReduction = validateScatterNd(data, indices, updates, out, reduction, batchDims);
         out.copyDataFrom(data);
-        byte[] updateData = updates.getBoolData();
-        byte[] dst = out.getBoolData();
+        byte[] updateData = TensorInternalAccess.boolData(updates);
+        byte[] dst = TensorInternalAccess.boolData(out);
         scatterDuplicateState(out, effectiveReduction, "scatterNd", state ->
                 forEachScatterNd(data, indices, updates, out, batchDims, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
@@ -494,8 +496,8 @@ final class IndexReadWriteBackend {
     public static void scatterNdI32(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims) {
         ScatterReduction effectiveReduction = validateScatterNd(data, indices, updates, out, reduction, batchDims);
         out.copyDataFrom(data);
-        int[] updateData = updates.getInt32Data();
-        int[] dst = out.getInt32Data();
+        int[] updateData = TensorInternalAccess.int32Data(updates);
+        int[] dst = TensorInternalAccess.int32Data(out);
         scatterDuplicateState(out, effectiveReduction, "scatterNd", state ->
                 forEachScatterNd(data, indices, updates, out, batchDims, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
@@ -506,8 +508,8 @@ final class IndexReadWriteBackend {
     public static void scatterNdI64(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims) {
         ScatterReduction effectiveReduction = validateScatterNd(data, indices, updates, out, reduction, batchDims);
         out.copyDataFrom(data);
-        long[] updateData = updates.getInt64Data();
-        long[] dst = out.getInt64Data();
+        long[] updateData = TensorInternalAccess.int64Data(updates);
+        long[] dst = TensorInternalAccess.int64Data(out);
         scatterDuplicateState(out, effectiveReduction, "scatterNd", state ->
                 forEachScatterNd(data, indices, updates, out, batchDims, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
@@ -517,8 +519,8 @@ final class IndexReadWriteBackend {
 
     public static void takeAlongAxisScatterF64(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
         validateTakeAlongAxisScatter(indices, outGrad, node, dimension);
-        double[] grad = outGrad.getFloat64Data();
-        double[] dst = node.getFloat64Data();
+        double[] grad = TensorInternalAccess.float64Data(outGrad);
+        double[] dst = TensorInternalAccess.float64Data(node);
         forEachTakeAlongAxisScatter(indices, outGrad, node, dimension, (baseNode, gradOffset, axisStrideNode, axisIndex) ->
                 dst[baseNode + axisIndex * axisStrideNode] += grad[gradOffset]
         );
@@ -526,8 +528,8 @@ final class IndexReadWriteBackend {
 
     public static void takeAlongAxisScatterF32(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
         validateTakeAlongAxisScatter(indices, outGrad, node, dimension);
-        float[] grad = outGrad.getFloat32Data();
-        float[] dst = node.getFloat32Data();
+        float[] grad = TensorInternalAccess.float32Data(outGrad);
+        float[] dst = TensorInternalAccess.float32Data(node);
         forEachTakeAlongAxisScatter(indices, outGrad, node, dimension, (baseNode, gradOffset, axisStrideNode, axisIndex) ->
                 dst[baseNode + axisIndex * axisStrideNode] += grad[gradOffset]
         );
@@ -535,8 +537,8 @@ final class IndexReadWriteBackend {
 
     public static void takeAlongAxisScatterBF16(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
         validateTakeAlongAxisScatter(indices, outGrad, node, dimension);
-        short[] grad = outGrad.getBFloat16Data();
-        short[] dst = node.getBFloat16Data();
+        short[] grad = TensorInternalAccess.bfloat16Data(outGrad);
+        short[] dst = TensorInternalAccess.bfloat16Data(node);
         forEachTakeAlongAxisScatter(indices, outGrad, node, dimension, (baseNode, gradOffset, axisStrideNode, axisIndex) -> {
             float acc = CpuDTypeOps.fromBFloat16Bits(dst[baseNode + axisIndex * axisStrideNode]) + CpuDTypeOps.fromBFloat16Bits(grad[gradOffset]);
             dst[baseNode + axisIndex * axisStrideNode] = CpuDTypeOps.toBFloat16Bits(acc);

@@ -1,5 +1,7 @@
 package backend.cpu.kernels.reduction;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuKernelContext;
 import operations.Operation;
@@ -14,12 +16,12 @@ import java.util.List;
 public final class CpuArgMaxKernel implements CpuKernel {
     @Override
     public void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        argMax(op, inputs, node, node.getInt32Data(), null);
+        argMax(op, inputs, node, TensorInternalAccess.int32Data(node), null);
     }
 
     @Override
     public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        argMax(op, inputs, node, null, node.getInt64Data());
+        argMax(op, inputs, node, null, TensorInternalAccess.int64Data(node));
     }
 
     private static void argMax(Operation op, List<Tensor> inputs, Tensor node, int[] bestIndices32, long[] bestIndices64) {
@@ -75,6 +77,6 @@ public final class CpuArgMaxKernel implements CpuKernel {
                 }
             }
         }
-        node.markStorageModified();
+        TensorInternalAccess.markStorageModified(node);
     }
 }

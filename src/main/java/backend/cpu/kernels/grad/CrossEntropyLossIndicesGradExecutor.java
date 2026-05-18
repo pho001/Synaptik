@@ -1,5 +1,7 @@
 package backend.cpu.kernels.grad;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.CpuThreadPool;
@@ -22,9 +24,9 @@ final class CrossEntropyLossIndicesGradExecutor {
 
     static void executeF64(crossEntropyLossIndicesGrad grad, Tensor logits, Tensor targetIndices, Tensor sampleScale, Tensor node, CpuKernelContext context) {
         validate(grad, logits, targetIndices, sampleScale, node, context);
-        double[] logitsData = logits.getFloat64Data();
-        double[] scaleData = sampleScale.getFloat64Data();
-        double[] out = node.getFloat64Data();
+        double[] logitsData = TensorInternalAccess.float64Data(logits);
+        double[] scaleData = TensorInternalAccess.float64Data(sampleScale);
+        double[] out = TensorInternalAccess.float64Data(node);
         runGroups(logits, targetIndices, sampleScale, node, grad.getClassDimension(), context,
                 (baseLogits, targetOffset, scaleOffset, outOffset, axisStride, axisSize, outAxisStride) ->
                         computeGroupF64(logitsData, scaleData, out, baseLogits, targetOffset, scaleOffset, outOffset, axisStride, axisSize, outAxisStride, targetIndices));
@@ -32,9 +34,9 @@ final class CrossEntropyLossIndicesGradExecutor {
 
     static void executeF32(crossEntropyLossIndicesGrad grad, Tensor logits, Tensor targetIndices, Tensor sampleScale, Tensor node, CpuKernelContext context) {
         validate(grad, logits, targetIndices, sampleScale, node, context);
-        float[] logitsData = logits.getFloat32Data();
-        float[] scaleData = sampleScale.getFloat32Data();
-        float[] out = node.getFloat32Data();
+        float[] logitsData = TensorInternalAccess.float32Data(logits);
+        float[] scaleData = TensorInternalAccess.float32Data(sampleScale);
+        float[] out = TensorInternalAccess.float32Data(node);
         runGroups(logits, targetIndices, sampleScale, node, grad.getClassDimension(), context,
                 (baseLogits, targetOffset, scaleOffset, outOffset, axisStride, axisSize, outAxisStride) ->
                         computeGroupF32(logitsData, scaleData, out, baseLogits, targetOffset, scaleOffset, outOffset, axisStride, axisSize, outAxisStride, targetIndices));
@@ -42,9 +44,9 @@ final class CrossEntropyLossIndicesGradExecutor {
 
     static void executeBF16(crossEntropyLossIndicesGrad grad, Tensor logits, Tensor targetIndices, Tensor sampleScale, Tensor node, CpuKernelContext context) {
         validate(grad, logits, targetIndices, sampleScale, node, context);
-        short[] logitsData = logits.getBFloat16Data();
-        short[] scaleData = sampleScale.getBFloat16Data();
-        short[] out = node.getBFloat16Data();
+        short[] logitsData = TensorInternalAccess.bfloat16Data(logits);
+        short[] scaleData = TensorInternalAccess.bfloat16Data(sampleScale);
+        short[] out = TensorInternalAccess.bfloat16Data(node);
         runGroups(logits, targetIndices, sampleScale, node, grad.getClassDimension(), context,
                 (baseLogits, targetOffset, scaleOffset, outOffset, axisStride, axisSize, outAxisStride) ->
                         computeGroupBF16(logitsData, scaleData, out, baseLogits, targetOffset, scaleOffset, outOffset, axisStride, axisSize, outAxisStride, targetIndices));
@@ -421,11 +423,11 @@ final class CrossEntropyLossIndicesGradExecutor {
 
     private static int readIndex(Tensor targetIndices, int storageOffset) {
         return switch (targetIndices.getDataType()) {
-            case INT32 -> targetIndices.getInt32Data()[storageOffset];
-            case INT64 -> Math.toIntExact(targetIndices.getInt64Data()[storageOffset]);
-            case FLOAT64 -> toIntegralIndex(targetIndices.getFloat64Data()[storageOffset]);
-            case FLOAT32 -> toIntegralIndex(targetIndices.getFloat32Data()[storageOffset]);
-            case BFLOAT16 -> toIntegralIndex(CpuDTypeOps.fromBFloat16Bits(targetIndices.getBFloat16Data()[storageOffset]));
+            case INT32 -> TensorInternalAccess.int32Data(targetIndices)[storageOffset];
+            case INT64 -> Math.toIntExact(TensorInternalAccess.int64Data(targetIndices)[storageOffset]);
+            case FLOAT64 -> toIntegralIndex(TensorInternalAccess.float64Data(targetIndices)[storageOffset]);
+            case FLOAT32 -> toIntegralIndex(TensorInternalAccess.float32Data(targetIndices)[storageOffset]);
+            case BFLOAT16 -> toIntegralIndex(CpuDTypeOps.fromBFloat16Bits(TensorInternalAccess.bfloat16Data(targetIndices)[storageOffset]));
             case BOOL -> throw new IllegalArgumentException("Target indices must be numeric integral values");
         };
     }

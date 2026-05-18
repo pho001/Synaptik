@@ -1,5 +1,7 @@
 package backend.cuda.bridge;
 
+import tensor.TensorInternalAccess;
+
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;
 import backend.accelerator.dag.AcceleratorDagSpec;
@@ -267,10 +269,10 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                     throw new UnsupportedOperationException("CUDA FFM bridge received null external input.");
                 }
                 MemorySegment dataSeg;
-                if (tensor.getDataType() == DataType.FLOAT32 && tensor.getStorage() instanceof Float32Storage) {
-                    dataSeg = arena.allocateFrom(JAVA_FLOAT, tensor.getFloat32Data());
-                } else if (tensor.getDataType() == DataType.BOOL && tensor.getStorage() instanceof BoolStorage) {
-                    dataSeg = arena.allocateFrom(JAVA_BYTE, tensor.getBoolData());
+                if (tensor.getDataType() == DataType.FLOAT32 && TensorInternalAccess.storage(tensor) instanceof Float32Storage) {
+                    dataSeg = arena.allocateFrom(JAVA_FLOAT, TensorInternalAccess.float32Data(tensor));
+                } else if (tensor.getDataType() == DataType.BOOL && TensorInternalAccess.storage(tensor) instanceof BoolStorage) {
+                    dataSeg = arena.allocateFrom(JAVA_BYTE, TensorInternalAccess.boolData(tensor));
                 } else {
                     throw new UnsupportedOperationException("CUDA FFM bridge currently supports only FLOAT32/BOOL external inputs.");
                 }
@@ -279,7 +281,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
             MemorySegment outputSegs = arena.allocate(ADDRESS, resolvedOutputs.size());
             for (int i = 0; i < resolvedOutputs.size(); i++) {
                 Tensor out = resolvedOutputs.get(i);
-                float[] outData = out != null && out.getStorage() instanceof Float32Storage ? out.getFloat32Data() : null;
+                float[] outData = out != null && TensorInternalAccess.storage(out) instanceof Float32Storage ? TensorInternalAccess.float32Data(out) : null;
                 if (outData == null) {
                     throw new UnsupportedOperationException("CUDA FFM bridge currently supports only FLOAT32 output tensors with direct float[] storage.");
                 }
@@ -296,7 +298,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
             if (status == 0) {
                 for (int i = 0; i < resolvedOutputs.size(); i++) {
                     Tensor out = resolvedOutputs.get(i);
-                    float[] outData = out.getFloat32Data();
+                    float[] outData = TensorInternalAccess.float32Data(out);
                     MemorySegment.ofArray(outData).copyFrom(outputSegs.getAtIndex(ADDRESS, i).reinterpret((long) outData.length * JAVA_FLOAT.byteSize()));
                     out.markDataViewStale();
                 }

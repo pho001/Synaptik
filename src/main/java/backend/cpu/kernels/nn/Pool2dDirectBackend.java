@@ -1,5 +1,7 @@
 package backend.cpu.kernels.nn;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.*;
 
 import operations.nn.pool.avgPool2d;
@@ -14,24 +16,24 @@ final class Pool2dDirectBackend {
     }
 
     static void maxForwardF64(maxPool2d op, Tensor input, Tensor out, int[] argmaxWorkspace) {
-        runMaxForwardF64(input.getFloat64Data(), input.getShapeUnsafe(), out.getFloat64Data(), out.getShapeUnsafe(), op.getOptions(), argmaxWorkspace);
+        runMaxForwardF64(TensorInternalAccess.float64Data(input), input.getShapeUnsafe(), TensorInternalAccess.float64Data(out), out.getShapeUnsafe(), op.getOptions(), argmaxWorkspace);
     }
 
     static void maxForwardF32(maxPool2d op, Tensor input, Tensor out, int[] argmaxWorkspace) {
-        runMaxForwardF32(input.getFloat32Data(), input.getShapeUnsafe(), out.getFloat32Data(), out.getShapeUnsafe(), op.getOptions(), argmaxWorkspace);
+        runMaxForwardF32(TensorInternalAccess.float32Data(input), input.getShapeUnsafe(), TensorInternalAccess.float32Data(out), out.getShapeUnsafe(), op.getOptions(), argmaxWorkspace);
     }
 
     static void maxForwardBF16(maxPool2d op, Tensor input, Tensor out, int[] argmaxWorkspace) {
-        runMaxForwardF16(input.getBFloat16Data(), input.getShapeUnsafe(), out.getBFloat16Data(), out.getShapeUnsafe(), op.getOptions(), argmaxWorkspace);
+        runMaxForwardF16(TensorInternalAccess.bfloat16Data(input), input.getShapeUnsafe(), TensorInternalAccess.bfloat16Data(out), out.getShapeUnsafe(), op.getOptions(), argmaxWorkspace);
     }
 
     static void maxBackwardInputF64(maxPool2dBackwardInput op, Tensor outGrad, Tensor source, Tensor gradInput) {
         runMaxBackwardInputF64(
-                source.getFloat64Data(),
+                TensorInternalAccess.float64Data(source),
                 source.getShapeUnsafe(),
-                outGrad.getFloat64Data(),
+                TensorInternalAccess.float64Data(outGrad),
                 outGrad.getShapeUnsafe(),
-                gradInput.getFloat64Data(),
+                TensorInternalAccess.float64Data(gradInput),
                 op.getInputShape(),
                 op.getOptions()
         );
@@ -39,11 +41,11 @@ final class Pool2dDirectBackend {
 
     static void maxBackwardInputF32(maxPool2dBackwardInput op, Tensor outGrad, Tensor source, Tensor gradInput) {
         runMaxBackwardInputF32(
-                source.getFloat32Data(),
+                TensorInternalAccess.float32Data(source),
                 source.getShapeUnsafe(),
-                outGrad.getFloat32Data(),
+                TensorInternalAccess.float32Data(outGrad),
                 outGrad.getShapeUnsafe(),
-                gradInput.getFloat32Data(),
+                TensorInternalAccess.float32Data(gradInput),
                 op.getInputShape(),
                 op.getOptions()
         );
@@ -51,38 +53,38 @@ final class Pool2dDirectBackend {
 
     static void maxBackwardInputBF16(maxPool2dBackwardInput op, Tensor outGrad, Tensor source, Tensor gradInput) {
         runMaxBackwardInputF16(
-                source.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(source),
                 source.getShapeUnsafe(),
-                outGrad.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(outGrad),
                 outGrad.getShapeUnsafe(),
-                gradInput.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(gradInput),
                 op.getInputShape(),
                 op.getOptions()
         );
     }
 
     static void avgForwardF64(avgPool2d op, Tensor input, Tensor out) {
-        runAvgForwardF64(input.getFloat64Data(), input.getShapeUnsafe(), out.getFloat64Data(), out.getShapeUnsafe(), op.getOptions());
+        runAvgForwardF64(TensorInternalAccess.float64Data(input), input.getShapeUnsafe(), TensorInternalAccess.float64Data(out), out.getShapeUnsafe(), op.getOptions());
     }
 
     static void avgForwardF32(avgPool2d op, Tensor input, Tensor out) {
-        runAvgForwardF32(input.getFloat32Data(), input.getShapeUnsafe(), out.getFloat32Data(), out.getShapeUnsafe(), op.getOptions());
+        runAvgForwardF32(TensorInternalAccess.float32Data(input), input.getShapeUnsafe(), TensorInternalAccess.float32Data(out), out.getShapeUnsafe(), op.getOptions());
     }
 
     static void avgForwardBF16(avgPool2d op, Tensor input, Tensor out) {
-        runAvgForwardF16(input.getBFloat16Data(), input.getShapeUnsafe(), out.getBFloat16Data(), out.getShapeUnsafe(), op.getOptions());
+        runAvgForwardF16(TensorInternalAccess.bfloat16Data(input), input.getShapeUnsafe(), TensorInternalAccess.bfloat16Data(out), out.getShapeUnsafe(), op.getOptions());
     }
 
     static void avgBackwardInputF64(avgPool2dBackwardInput op, Tensor outGrad, Tensor gradInput) {
-        runAvgBackwardInputF64(outGrad.getFloat64Data(), outGrad.getShapeUnsafe(), gradInput.getFloat64Data(), op.getInputShape(), op.getOptions());
+        runAvgBackwardInputF64(TensorInternalAccess.float64Data(outGrad), outGrad.getShapeUnsafe(), TensorInternalAccess.float64Data(gradInput), op.getInputShape(), op.getOptions());
     }
 
     static void avgBackwardInputF32(avgPool2dBackwardInput op, Tensor outGrad, Tensor gradInput) {
-        runAvgBackwardInputF32(outGrad.getFloat32Data(), outGrad.getShapeUnsafe(), gradInput.getFloat32Data(), op.getInputShape(), op.getOptions());
+        runAvgBackwardInputF32(TensorInternalAccess.float32Data(outGrad), outGrad.getShapeUnsafe(), TensorInternalAccess.float32Data(gradInput), op.getInputShape(), op.getOptions());
     }
 
     static void avgBackwardInputBF16(avgPool2dBackwardInput op, Tensor outGrad, Tensor gradInput) {
-        runAvgBackwardInputF16(outGrad.getBFloat16Data(), outGrad.getShapeUnsafe(), gradInput.getBFloat16Data(), op.getInputShape(), op.getOptions());
+        runAvgBackwardInputF16(TensorInternalAccess.bfloat16Data(outGrad), outGrad.getShapeUnsafe(), TensorInternalAccess.bfloat16Data(gradInput), op.getInputShape(), op.getOptions());
     }
 
     private static void runMaxForwardF64(double[] input, int[] inputShape, double[] out, int[] outShape, Pool2dOptions options, int[] argmaxWorkspace) {

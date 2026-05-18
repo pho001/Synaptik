@@ -1,5 +1,7 @@
 package backend.cpu.kernels.fused;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.*;
 
 import backend.cpu.kernels.fused.FusedExecutionOptions;
@@ -123,9 +125,9 @@ public final class Float32FusedExecutor {
             }
 
             if (outputNode.outputType() == DataType.BOOL) {
-                out.getBoolData()[outBaseOffset + index] = bools[outputNode.index()] ? (byte) 1 : (byte) 0;
+                TensorInternalAccess.boolData(out)[outBaseOffset + index] = bools[outputNode.index()] ? (byte) 1 : (byte) 0;
             } else {
-                out.getFloat32Data()[outBaseOffset + index] = values[outputNode.index()];
+                TensorInternalAccess.float32Data(out)[outBaseOffset + index] = values[outputNode.index()];
             }
             for (InputAccessor accessor : accessors) {
                 accessor.step();
@@ -147,8 +149,8 @@ public final class Float32FusedExecutor {
 
         Object[] values = new Object[plan.nodeCount()];
         FusedNodePlan outputNode = plan.outputNode();
-        float[] outData = out.getFloat32Data();
-        byte[] outBoolData = out.getBoolData();
+        float[] outData = TensorInternalAccess.float32Data(out);
+        byte[] outBoolData = TensorInternalAccess.boolData(out);
         int outBaseOffset = out.getStorageOffsetUnsafe();
         int width = SPECIES.length();
         int upperBound = endExclusive - ((endExclusive - startInclusive) % width);
@@ -333,7 +335,7 @@ public final class Float32FusedExecutor {
     }
 
     private static boolean supportsVectorFastPath(FusedExpressionPlan plan, List<Tensor> inputs, Tensor out) {
-        if (out.getDataType() != DataType.FLOAT32 || !(out.getStorage() instanceof Float32Storage) || !out.isContiguous()) {
+        if (out.getDataType() != DataType.FLOAT32 || !(TensorInternalAccess.storage(out) instanceof Float32Storage) || !out.isContiguous()) {
             return false;
         }
         if (plan.outputNode().outputType() == DataType.BOOL) {
@@ -346,14 +348,14 @@ public final class Float32FusedExecutor {
                 return false;
             }
             if (inputPlan.dataType() == DataType.BOOL) {
-                if (input.getDataType() != DataType.BOOL || !(input.getStorage() instanceof BoolStorage)) {
+                if (input.getDataType() != DataType.BOOL || !(TensorInternalAccess.storage(input) instanceof BoolStorage)) {
                     return false;
                 }
                 continue;
             }
             if (inputPlan.dataType() != DataType.FLOAT32
                     || input.getDataType() != DataType.FLOAT32
-                    || !(input.getStorage() instanceof Float32Storage)) {
+                    || !(TensorInternalAccess.storage(input) instanceof Float32Storage)) {
                 return false;
             }
         }
@@ -378,9 +380,9 @@ public final class Float32FusedExecutor {
     private sealed interface InputAccessor permits NumericInputAccessor, BoolInputAccessor {
         static InputAccessor create(FusedExternalInputPlan plan, Tensor tensor, int start) {
             if (plan.dataType() == DataType.BOOL) {
-                return new BoolInputAccessor(plan, tensor.getBoolData(), start);
+                return new BoolInputAccessor(plan, TensorInternalAccess.boolData(tensor), start);
             }
-            return new NumericInputAccessor(plan, tensor.getFloat32Data(), start);
+            return new NumericInputAccessor(plan, TensorInternalAccess.float32Data(tensor), start);
         }
 
         default float floatValue() {
@@ -486,12 +488,12 @@ public final class Float32FusedExecutor {
                 throw new IllegalArgumentException("Vector F32 accessor requires linear input");
             }
             if (plan.dataType() == DataType.BOOL) {
-                return new VectorInputAccessor(null, tensor.getBoolData(), true, plan.storageOffset());
+                return new VectorInputAccessor(null, TensorInternalAccess.boolData(tensor), true, plan.storageOffset());
             }
             if (plan.dataType() != DataType.FLOAT32) {
                 throw new IllegalArgumentException("Vector F32 accessor requires F32/BOOL input");
             }
-            return new VectorInputAccessor(tensor.getFloat32Data(), null, false, plan.storageOffset());
+            return new VectorInputAccessor(TensorInternalAccess.float32Data(tensor), null, false, plan.storageOffset());
         }
 
         Object load(int logicalIndex) {

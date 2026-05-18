@@ -1,5 +1,7 @@
 package backend.cpu.kernels.reduction;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.*;
 
 import backend.cpu.kernels.CpuDTypeOps;
@@ -16,14 +18,14 @@ final class MinMaxReduceLoops {
         int[] shape = input.getShapeUnsafe();
         ReductionTraversal.validateDimension(shape, dimension);
 
-        double[] out = node.getFloat64Data();
+        double[] out = TensorInternalAccess.float64Data(node);
         if (out == null) {
             throw new IllegalStateException("F64 output storage is missing");
         }
 
         if (dimension == -1) {
             out[node.getStorageOffsetUnsafe()] = reduceAllF64(
-                    input.getFloat64Data(),
+                    TensorInternalAccess.float64Data(input),
                     shape,
                     input.getStridesUnsafe(),
                     input.getStorageOffsetUnsafe(),
@@ -34,7 +36,7 @@ final class MinMaxReduceLoops {
             return;
         }
         reduceAxisF64(
-                input.getFloat64Data(),
+                TensorInternalAccess.float64Data(input),
                 shape,
                 input.getStridesUnsafe(),
                 input.getStorageOffsetUnsafe(),
@@ -51,8 +53,8 @@ final class MinMaxReduceLoops {
         int[] shape = input.getShapeUnsafe();
         ReductionTraversal.validateDimension(shape, dimension);
 
-        float[] in = input.getFloat32Data();
-        float[] out = node.getFloat32Data();
+        float[] in = TensorInternalAccess.float32Data(input);
+        float[] out = TensorInternalAccess.float32Data(node);
         if (in == null || out == null) {
             throw new IllegalStateException("F32 storage is missing");
         }
@@ -76,8 +78,8 @@ final class MinMaxReduceLoops {
         int[] shape = input.getShapeUnsafe();
         ReductionTraversal.validateDimension(shape, dimension);
 
-        short[] in = input.getBFloat16Data();
-        short[] out = node.getBFloat16Data();
+        short[] in = TensorInternalAccess.bfloat16Data(input);
+        short[] out = TensorInternalAccess.bfloat16Data(node);
         if (in == null || out == null) {
             throw new IllegalStateException("BF16 storage is missing");
         }

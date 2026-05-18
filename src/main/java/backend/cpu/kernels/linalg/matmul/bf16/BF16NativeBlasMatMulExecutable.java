@@ -1,5 +1,7 @@
 package backend.cpu.kernels.linalg.matmul.bf16;
 
+import tensor.TensorInternalAccess;
+
 import backend.blas.OpenBlasFfmBridge;
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
@@ -132,11 +134,11 @@ public final class BF16NativeBlasMatMulExecutable implements PreparedMatMulExecu
         }
         requireCpuReadableInputs(context);
         BF16MatMulJavaBackend.run(
-                a.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(a),
                 a.getShapeUnsafe(),
-                b.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(b),
                 b.getShapeUnsafe(),
-                node.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(node),
                 node.getShapeUnsafe(),
                 hints
         );

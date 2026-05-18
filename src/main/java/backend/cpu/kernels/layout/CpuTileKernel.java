@@ -1,5 +1,7 @@
 package backend.cpu.kernels.layout;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuKernelContext;
@@ -60,12 +62,12 @@ public final class CpuTileKernel implements CpuKernel {
                 inputLogical += (coord % inputShape[d]) * inputDenseStrides[d];
             }
             if (node.getDataType() == tensor.DataType.INT64) {
-                node.getInt64Data()[outLogical] = input.getInt64ByFlatIndex(inputLogical);
+                TensorInternalAccess.int64Data(node)[outLogical] = input.getInt64ByFlatIndex(inputLogical);
                 continue;
             }
             write(node, outLogical, input.getByFlatIndex(inputLogical));
         }
-        node.markStorageModified();
+        TensorInternalAccess.markStorageModified(node);
     }
 
     private static Tensor requireSingleInput(List<Tensor> inputs) {
@@ -77,12 +79,12 @@ public final class CpuTileKernel implements CpuKernel {
 
     private static void write(Tensor out, int index, double value) {
         switch (out.getDataType()) {
-            case FLOAT64 -> out.getFloat64Data()[index] = value;
-            case FLOAT32 -> out.getFloat32Data()[index] = (float) value;
-            case BFLOAT16 -> out.getBFloat16Data()[index] = CpuDTypeOps.toBFloat16Bits((float) value);
-            case INT32 -> out.getInt32Data()[index] = (int) value;
-            case INT64 -> out.getInt64Data()[index] = (long) value;
-            case BOOL -> out.getBoolData()[index] = value == 0.0d ? (byte) 0 : (byte) 1;
+            case FLOAT64 -> TensorInternalAccess.float64Data(out)[index] = value;
+            case FLOAT32 -> TensorInternalAccess.float32Data(out)[index] = (float) value;
+            case BFLOAT16 -> TensorInternalAccess.bfloat16Data(out)[index] = CpuDTypeOps.toBFloat16Bits((float) value);
+            case INT32 -> TensorInternalAccess.int32Data(out)[index] = (int) value;
+            case INT64 -> TensorInternalAccess.int64Data(out)[index] = (long) value;
+            case BOOL -> TensorInternalAccess.boolData(out)[index] = value == 0.0d ? (byte) 0 : (byte) 1;
         }
     }
 }

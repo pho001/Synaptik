@@ -1,5 +1,7 @@
 package backend.cpu.kernels.linalg.matmul.bf16;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.CpuNodeWorkspace;
 import backend.cpu.kernels.linalg.matmul.blas.MatMulBlasBackend;
@@ -23,8 +25,8 @@ abstract class AbstractBF16MatMulExecutable implements PreparedMatMulExecutable 
         lastBlasSymbol = "";
         int[] as = a.getShapeUnsafe();
         int[] bs = b.getShapeUnsafe();
-        short[] ad = a.getBFloat16Data();
-        short[] bd = b.getBFloat16Data();
+        short[] ad = TensorInternalAccess.bfloat16Data(a);
+        short[] bd = TensorInternalAccess.bfloat16Data(b);
         float[] leftContinuation = context.inputFloatContinuation(0, a.getFlatDataSize());
         float[] rightContinuation = context.inputFloatContinuation(1, b.getFlatDataSize());
         if (publishFloatContinuation && tryExecuteToFloat(a, b, node, context, as, bs, ad, bd, leftContinuation, rightContinuation)) {
@@ -89,7 +91,7 @@ abstract class AbstractBF16MatMulExecutable implements PreparedMatMulExecutable 
         if (tryBackendToBFloat16(node, context, as, bs, ad, bd)) {
             return;
         }
-        BF16MatMulJavaBackend.run(ad, as, bd, bs, node.getBFloat16Data(), node.getShapeUnsafe(), hints);
+        BF16MatMulJavaBackend.run(ad, as, bd, bs, TensorInternalAccess.bfloat16Data(node), node.getShapeUnsafe(), hints);
     }
 
     private boolean tryPackedToFloat(
@@ -114,7 +116,7 @@ abstract class AbstractBF16MatMulExecutable implements PreparedMatMulExecutable 
         if (leftContinuation != null) {
             backend.cpu.kernels.linalg.matmul.f32.F32MatMulJavaBackend.runPacked(leftContinuation, a.getShapeUnsafe(), packed, out, node.getShapeUnsafe(), hints);
         } else {
-            BF16MatMulJavaBackend.runPackedToFloat(a.getBFloat16Data(), a.getShapeUnsafe(), packed, out, node.getShapeUnsafe(), hints);
+            BF16MatMulJavaBackend.runPackedToFloat(TensorInternalAccess.bfloat16Data(a), a.getShapeUnsafe(), packed, out, node.getShapeUnsafe(), hints);
         }
         workspace.publishFloatContinuation(node.getFlatDataSize());
         return true;
@@ -166,10 +168,10 @@ abstract class AbstractBF16MatMulExecutable implements PreparedMatMulExecutable 
             return false;
         }
         if (leftContinuation != null) {
-            BF16MatMulJavaBackend.runPackedF32ToBF16(leftContinuation, a.getShapeUnsafe(), packed, node.getBFloat16Data(), node.getShapeUnsafe(), hints);
+            BF16MatMulJavaBackend.runPackedF32ToBF16(leftContinuation, a.getShapeUnsafe(), packed, TensorInternalAccess.bfloat16Data(node), node.getShapeUnsafe(), hints);
             return true;
         }
-        BF16MatMulJavaBackend.runPacked(a.getBFloat16Data(), a.getShapeUnsafe(), packed, node.getBFloat16Data(), node.getShapeUnsafe(), hints);
+        BF16MatMulJavaBackend.runPacked(TensorInternalAccess.bfloat16Data(a), a.getShapeUnsafe(), packed, TensorInternalAccess.bfloat16Data(node), node.getShapeUnsafe(), hints);
         return true;
     }
 
@@ -182,11 +184,11 @@ abstract class AbstractBF16MatMulExecutable implements PreparedMatMulExecutable 
             float[] rightContinuation
     ) {
         if (leftContinuation != null && rightContinuation != null) {
-            BF16MatMulJavaBackend.runF32ToBF16(leftContinuation, as, rightContinuation, bs, node.getBFloat16Data(), node.getShapeUnsafe(), hints);
+            BF16MatMulJavaBackend.runF32ToBF16(leftContinuation, as, rightContinuation, bs, TensorInternalAccess.bfloat16Data(node), node.getShapeUnsafe(), hints);
             return true;
         }
         if (leftContinuation != null) {
-            BF16MatMulJavaBackend.runF32LeftBF16RightToBF16(leftContinuation, as, bd, bs, node.getBFloat16Data(), node.getShapeUnsafe(), hints);
+            BF16MatMulJavaBackend.runF32LeftBF16RightToBF16(leftContinuation, as, bd, bs, TensorInternalAccess.bfloat16Data(node), node.getShapeUnsafe(), hints);
             return true;
         }
         return false;

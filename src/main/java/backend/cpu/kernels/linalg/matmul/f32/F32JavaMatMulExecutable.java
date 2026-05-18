@@ -1,5 +1,7 @@
 package backend.cpu.kernels.linalg.matmul.f32;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
@@ -16,12 +18,12 @@ public final class F32JavaMatMulExecutable implements PreparedMatMulExecutable {
 
     @Override
     public void execute(Tensor a, Tensor b, Tensor node, CpuKernelContext context) {
-        float[] out = node.getFloat32Data();
+        float[] out = TensorInternalAccess.float32Data(node);
         Arrays.fill(out, 0.0f);
         F32MatMulJavaBackend.run(
-                a.getFloat32Data(),
+                TensorInternalAccess.float32Data(a),
                 a.getShapeUnsafe(),
-                b.getFloat32Data(),
+                TensorInternalAccess.float32Data(b),
                 b.getShapeUnsafe(),
                 out,
                 node.getShapeUnsafe(),

@@ -1,5 +1,7 @@
 package backend.cuda.lowering;
 
+import tensor.TensorInternalAccess;
+
 import backend.cuda.CudaDTypeRolePolicy;
 import graph.CompiledNode;
 import graph.optimizer.partition.PartitionPlanningContext;
@@ -106,7 +108,7 @@ public final class CudaPartitionSupport {
         }
         int[] data;
         try {
-            data = indices.semanticTensor().getInt32Data();
+            data = TensorInternalAccess.int32Data(indices.semanticTensor());
         } catch (RuntimeException ex) {
             return "UNSUPPORTED_BOUNDS_CHECK: GPU_CUDA " + opType + " index bounds require readable INT32 storage";
         }

@@ -1,5 +1,7 @@
 package backend.cpu.kernels.linalg.matmul.common;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
 import tensor.Tensor;
@@ -18,11 +20,11 @@ public final class PackedLinearWeightCache {
         if (weight == null || hints == null || !weight.isContiguous() || weight.getShapeUnsafe().length != 2) {
             return null;
         }
-        float[] data = weight.getFloat32Data();
+        float[] data = TensorInternalAccess.float32Data(weight);
         if (data == null) {
             return null;
         }
-        TensorStorage storage = weight.getStorage();
+        TensorStorage storage = TensorInternalAccess.storage(weight);
         long version = weight.storageVersion();
         int[] shape = weight.getShapeUnsafe();
         int baseOffset = weight.getStorageOffsetUnsafe();
@@ -45,11 +47,11 @@ public final class PackedLinearWeightCache {
         if (weight == null || hints == null || !weight.isContiguous() || weight.getShapeUnsafe().length != 2) {
             return null;
         }
-        double[] data = weight.getFloat64Data();
+        double[] data = TensorInternalAccess.float64Data(weight);
         if (data == null) {
             return null;
         }
-        TensorStorage storage = weight.getStorage();
+        TensorStorage storage = TensorInternalAccess.storage(weight);
         long version = weight.storageVersion();
         int[] shape = weight.getShapeUnsafe();
         int baseOffset = weight.getStorageOffsetUnsafe();
@@ -72,11 +74,11 @@ public final class PackedLinearWeightCache {
         if (weight == null || hints == null || !weight.isContiguous() || weight.getShapeUnsafe().length != 2) {
             return null;
         }
-        short[] data = weight.getBFloat16Data();
+        short[] data = TensorInternalAccess.bfloat16Data(weight);
         if (data == null) {
             return null;
         }
-        TensorStorage storage = weight.getStorage();
+        TensorStorage storage = TensorInternalAccess.storage(weight);
         long version = weight.storageVersion();
         int[] shape = weight.getShapeUnsafe();
         int baseOffset = weight.getStorageOffsetUnsafe();

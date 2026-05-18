@@ -1,5 +1,7 @@
 package backend.cpu.kernels.layout;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuDTypeOps;
 import operations.layout.sliceGrad;
 import operations.layout.sliceScatterAdd;
@@ -54,7 +56,7 @@ final class LayoutGradExecutor {
             }
             add(node, inputLogical, updates.getByFlatIndex(logical));
         }
-        node.markStorageModified();
+        TensorInternalAccess.markStorageModified(node);
     }
 
     private static void validateShape(int[] actual, int[] expected, String message) {
@@ -76,19 +78,19 @@ final class LayoutGradExecutor {
 
     private static void zero(Tensor node) {
         switch (node.getDataType()) {
-            case FLOAT64 -> java.util.Arrays.fill(node.getFloat64Data(), 0.0d);
-            case FLOAT32 -> java.util.Arrays.fill(node.getFloat32Data(), 0.0f);
-            case BFLOAT16 -> java.util.Arrays.fill(node.getBFloat16Data(), CpuDTypeOps.toBFloat16Bits(0.0f));
+            case FLOAT64 -> java.util.Arrays.fill(TensorInternalAccess.float64Data(node), 0.0d);
+            case FLOAT32 -> java.util.Arrays.fill(TensorInternalAccess.float32Data(node), 0.0f);
+            case BFLOAT16 -> java.util.Arrays.fill(TensorInternalAccess.bfloat16Data(node), CpuDTypeOps.toBFloat16Bits(0.0f));
             case INT32, BOOL -> throw new IllegalArgumentException("sliceGrad requires floating output dtype.");
         }
     }
 
     private static void add(Tensor node, int index, double value) {
         switch (node.getDataType()) {
-            case FLOAT64 -> node.getFloat64Data()[index] += value;
-            case FLOAT32 -> node.getFloat32Data()[index] += (float) value;
+            case FLOAT64 -> TensorInternalAccess.float64Data(node)[index] += value;
+            case FLOAT32 -> TensorInternalAccess.float32Data(node)[index] += (float) value;
             case BFLOAT16 -> {
-                short[] data = node.getBFloat16Data();
+                short[] data = TensorInternalAccess.bfloat16Data(node);
                 float acc = CpuDTypeOps.fromBFloat16Bits(data[index]) + (float) value;
                 data[index] = CpuDTypeOps.toBFloat16Bits(acc);
             }

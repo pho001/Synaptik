@@ -1,5 +1,7 @@
 package backend.cpu.kernels.linalg;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuKernelContext;
 import operations.Operation;
@@ -13,25 +15,25 @@ public final class CpuScaledDotProductAttentionWeightsKernel implements CpuKerne
     @Override
     public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor cached = requireCachedWeights(op, inputs, node, context);
-        System.arraycopy(cached.getFloat64Data(), 0, node.getFloat64Data(), 0, node.getFlatDataSize());
+        System.arraycopy(TensorInternalAccess.float64Data(cached), 0, TensorInternalAccess.float64Data(node), 0, node.getFlatDataSize());
     }
 
     @Override
     public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor cached = requireCachedWeights(op, inputs, node, context);
-        System.arraycopy(cached.getFloat32Data(), 0, node.getFloat32Data(), 0, node.getFlatDataSize());
+        System.arraycopy(TensorInternalAccess.float32Data(cached), 0, TensorInternalAccess.float32Data(node), 0, node.getFlatDataSize());
     }
 
     @Override
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor cached = requireCachedWeights(op, inputs, node, context);
         if (cached.getDataType() == tensor.DataType.BFLOAT16) {
-            System.arraycopy(cached.getBFloat16Data(), 0, node.getBFloat16Data(), 0, node.getFlatDataSize());
+            System.arraycopy(TensorInternalAccess.bfloat16Data(cached), 0, TensorInternalAccess.bfloat16Data(node), 0, node.getFlatDataSize());
             return;
         }
         if (cached.getDataType() == tensor.DataType.FLOAT32) {
-            float[] src = cached.getFloat32Data();
-            short[] dst = node.getBFloat16Data();
+            float[] src = TensorInternalAccess.float32Data(cached);
+            short[] dst = TensorInternalAccess.bfloat16Data(node);
             for (int i = 0; i < dst.length; i++) {
                 dst[i] = backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(src[i]);
             }

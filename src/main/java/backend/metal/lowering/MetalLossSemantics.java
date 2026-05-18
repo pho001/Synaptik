@@ -1,5 +1,7 @@
 package backend.metal.lowering;
 
+import tensor.TensorInternalAccess;
+
 import graph.CompiledNode;
 import graph.optimizer.partition.PartitionPlanningContext;
 import operations.Operation;
@@ -192,10 +194,10 @@ final class MetalLossSemantics {
 
     private static String targetBoundsReason(CompiledNode targets, int classCount, Integer ignoreIndex) {
         Tensor tensor = targets.semanticTensor();
-        if (tensor == null || tensor.getDataType() != DataType.INT32 || tensor.getInt32Data() == null) {
+        if (tensor == null || tensor.getDataType() != DataType.INT32 || TensorInternalAccess.int32Data(tensor) == null) {
             return "UNSUPPORTED_INDEX_SEMANTICS: GPU_METAL index-target loss requires statically inspectable INT32 targets before native execution";
         }
-        int[] values = tensor.getInt32Data();
+        int[] values = TensorInternalAccess.int32Data(tensor);
         int offset = tensor.getStorageOffsetUnsafe();
         int size = tensor.getFlatDataSize();
         for (int i = 0; i < size; i++) {

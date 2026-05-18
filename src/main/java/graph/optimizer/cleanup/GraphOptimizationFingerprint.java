@@ -1,5 +1,7 @@
 package graph.optimizer.cleanup;
 
+import tensor.TensorInternalAccess;
+
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -61,8 +63,8 @@ public record GraphOptimizationFingerprint(String value) {
         DataType dataType = tensor.getDataType();
         return switch (dataType) {
             case BOOL -> Arrays.hashCode(tensor.toBooleanArrayCopy());
-            case INT32 -> Arrays.hashCode(tensor.getInt32Data());
-            case INT64 -> Arrays.hashCode(tensor.getInt64Data());
+            case INT32 -> Arrays.hashCode(TensorInternalAccess.int32Data(tensor));
+            case INT64 -> Arrays.hashCode(TensorInternalAccess.int64Data(tensor));
             case FLOAT32, FLOAT64, BFLOAT16 -> Arrays.hashCode(tensor.toDoubleArrayCopy());
         };
     }

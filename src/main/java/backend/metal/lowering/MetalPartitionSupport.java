@@ -1,5 +1,7 @@
 package backend.metal.lowering;
 
+import tensor.TensorInternalAccess;
+
 import backend.ComputeBackend;
 import backend.accelerator.lowering.GpuLoweringCoverageEntry;
 import backend.accelerator.lowering.GpuLoweringCoverageMatrix;
@@ -465,7 +467,7 @@ public final class MetalPartitionSupport {
         }
         int[] data;
         try {
-            data = indices.semanticTensor().getInt32Data();
+            data = TensorInternalAccess.int32Data(indices.semanticTensor());
         } catch (RuntimeException ex) {
             return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index bounds require readable INT32 storage";
         }
@@ -587,7 +589,7 @@ public final class MetalPartitionSupport {
         }
         int[] data;
         try {
-            data = indices.semanticTensor().getInt32Data();
+            data = TensorInternalAccess.int32Data(indices.semanticTensor());
         } catch (RuntimeException ex) {
             return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index bounds require readable INT32 storage";
         }

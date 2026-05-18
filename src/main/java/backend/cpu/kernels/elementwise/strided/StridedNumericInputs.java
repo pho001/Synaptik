@@ -1,5 +1,7 @@
 package backend.cpu.kernels.elementwise.strided;
 
+import tensor.TensorInternalAccess;
+
 import tensor.Tensor;
 
 import java.util.List;
@@ -57,7 +59,7 @@ final class StridedNumericInputs {
     }
 
     static F64 prepareF64(List<Tensor> inputs, Tensor node) {
-        double[] out = node.getFloat64Data();
+        double[] out = TensorInternalAccess.float64Data(node);
         if (out == null) {
             return null;
         }
@@ -75,13 +77,13 @@ final class StridedNumericInputs {
         int bBaseOffset = 0;
         if (!inputs.isEmpty()) {
             Tensor ta = inputs.get(0);
-            a = ta.getFloat64Data();
+            a = TensorInternalAccess.float64Data(ta);
             aStrides = ta.getStridesUnsafe();
             aBaseOffset = ta.getStorageOffsetUnsafe();
         }
         if (inputs.size() > 1) {
             Tensor tb = inputs.get(1);
-            b = tb.getFloat64Data();
+            b = TensorInternalAccess.float64Data(tb);
             bStrides = tb.getStridesUnsafe();
             bBaseOffset = tb.getStorageOffsetUnsafe();
         }
@@ -89,7 +91,7 @@ final class StridedNumericInputs {
     }
 
     static F32 prepareF32(List<Tensor> inputs, Tensor node) {
-        float[] out = node.getFloat32Data();
+        float[] out = TensorInternalAccess.float32Data(node);
         if (out == null) {
             return null;
         }
@@ -107,13 +109,13 @@ final class StridedNumericInputs {
         int bBaseOffset = 0;
         if (!inputs.isEmpty()) {
             Tensor ta = inputs.get(0);
-            a = ta.getFloat32Data();
+            a = TensorInternalAccess.float32Data(ta);
             aStrides = ta.getStridesUnsafe();
             aBaseOffset = ta.getStorageOffsetUnsafe();
         }
         if (inputs.size() > 1) {
             Tensor tb = inputs.get(1);
-            b = tb.getFloat32Data();
+            b = TensorInternalAccess.float32Data(tb);
             bStrides = tb.getStridesUnsafe();
             bBaseOffset = tb.getStorageOffsetUnsafe();
         }
@@ -121,7 +123,7 @@ final class StridedNumericInputs {
     }
 
     static BF16 prepareBF16(List<Tensor> inputs, Tensor node) {
-        short[] out = node.getBFloat16Data();
+        short[] out = TensorInternalAccess.bfloat16Data(node);
         if (out == null) {
             return null;
         }
@@ -139,13 +141,13 @@ final class StridedNumericInputs {
         int bBaseOffset = 0;
         if (!inputs.isEmpty()) {
             Tensor ta = inputs.get(0);
-            a = ta.getBFloat16Data();
+            a = TensorInternalAccess.bfloat16Data(ta);
             aStrides = ta.getStridesUnsafe();
             aBaseOffset = ta.getStorageOffsetUnsafe();
         }
         if (inputs.size() > 1) {
             Tensor tb = inputs.get(1);
-            b = tb.getBFloat16Data();
+            b = TensorInternalAccess.bfloat16Data(tb);
             bStrides = tb.getStridesUnsafe();
             bBaseOffset = tb.getStorageOffsetUnsafe();
         }

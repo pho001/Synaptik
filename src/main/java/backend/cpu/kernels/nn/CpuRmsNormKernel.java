@@ -1,5 +1,7 @@
 package backend.cpu.kernels.nn;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuKernelContext;
@@ -61,9 +63,9 @@ public final class CpuRmsNormKernel implements CpuKernel {
 
     private static void executeF64(rmsNorm norm, Tensor input, Tensor gamma, Tensor node, CpuKernelContext context) {
         validateLayout(input, gamma, node, norm.getNormalizedRank());
-        double[] in = input.getFloat64Data();
-        double[] weights = gamma.getFloat64Data();
-        double[] out = node.getFloat64Data();
+        double[] in = TensorInternalAccess.float64Data(input);
+        double[] weights = TensorInternalAccess.float64Data(gamma);
+        double[] out = TensorInternalAccess.float64Data(node);
         NormShape shape = resolveNormShape(input, gamma, node, norm.getNormalizedRank());
         runGroups(shape, context, group -> applyGroupF64(
                 in,
@@ -79,9 +81,9 @@ public final class CpuRmsNormKernel implements CpuKernel {
 
     private static void executeF32(rmsNorm norm, Tensor input, Tensor gamma, Tensor node, CpuKernelContext context) {
         validateLayout(input, gamma, node, norm.getNormalizedRank());
-        float[] in = input.getFloat32Data();
-        float[] weights = gamma.getFloat32Data();
-        float[] out = node.getFloat32Data();
+        float[] in = TensorInternalAccess.float32Data(input);
+        float[] weights = TensorInternalAccess.float32Data(gamma);
+        float[] out = TensorInternalAccess.float32Data(node);
         NormShape shape = resolveNormShape(input, gamma, node, norm.getNormalizedRank());
         runGroups(shape, context, group -> applyGroupF32(
                 in,
@@ -97,10 +99,10 @@ public final class CpuRmsNormKernel implements CpuKernel {
 
     private static void executeBF16(rmsNorm norm, Tensor input, Tensor gamma, Tensor node, CpuKernelContext context) {
         validateLayout(input, gamma, node, norm.getNormalizedRank());
-        short[] in = input.getBFloat16Data();
+        short[] in = TensorInternalAccess.bfloat16Data(input);
         NormShape shape = resolveNormShape(input, gamma, node, norm.getNormalizedRank());
-        float[] weights = decodeBFloat16(gamma.getBFloat16Data(), gamma.getStorageOffsetUnsafe(), shape.normalizedSize());
-        short[] out = node.getBFloat16Data();
+        float[] weights = decodeBFloat16(TensorInternalAccess.bfloat16Data(gamma), gamma.getStorageOffsetUnsafe(), shape.normalizedSize());
+        short[] out = TensorInternalAccess.bfloat16Data(node);
         runGroups(shape, context, group -> applyGroupBF16(
                 in,
                 weights,
@@ -126,8 +128,8 @@ public final class CpuRmsNormKernel implements CpuKernel {
             throw new IllegalArgumentException("RmsNorm BF16 continuation input cannot be null.");
         }
         NormShape shape = resolveNormShape(input, gamma, node, norm.getNormalizedRank());
-        float[] weights = decodeBFloat16(gamma.getBFloat16Data(), gamma.getStorageOffsetUnsafe(), shape.normalizedSize());
-        short[] out = node.getBFloat16Data();
+        float[] weights = decodeBFloat16(TensorInternalAccess.bfloat16Data(gamma), gamma.getStorageOffsetUnsafe(), shape.normalizedSize());
+        short[] out = TensorInternalAccess.bfloat16Data(node);
         runGroups(shape, context, group -> applyGroupF32ToBF16(
                 inputContinuation,
                 weights,
@@ -152,9 +154,9 @@ public final class CpuRmsNormKernel implements CpuKernel {
         if (out == null || out.length < node.getFlatDataSize()) {
             throw new IllegalArgumentException("RmsNorm float continuation output is missing or too small.");
         }
-        short[] in = input.getBFloat16Data();
+        short[] in = TensorInternalAccess.bfloat16Data(input);
         NormShape shape = resolveNormShape(input, gamma, node, norm.getNormalizedRank());
-        float[] weights = decodeBFloat16(gamma.getBFloat16Data(), gamma.getStorageOffsetUnsafe(), shape.normalizedSize());
+        float[] weights = decodeBFloat16(TensorInternalAccess.bfloat16Data(gamma), gamma.getStorageOffsetUnsafe(), shape.normalizedSize());
         runGroups(shape, context, group -> applyGroupBF16ToF32(
                 in,
                 weights,
@@ -184,7 +186,7 @@ public final class CpuRmsNormKernel implements CpuKernel {
             throw new IllegalArgumentException("RmsNorm float continuation output is missing or too small.");
         }
         NormShape shape = resolveNormShape(input, gamma, node, norm.getNormalizedRank());
-        float[] weights = decodeBFloat16(gamma.getBFloat16Data(), gamma.getStorageOffsetUnsafe(), shape.normalizedSize());
+        float[] weights = decodeBFloat16(TensorInternalAccess.bfloat16Data(gamma), gamma.getStorageOffsetUnsafe(), shape.normalizedSize());
         runGroups(shape, context, group -> applyGroupF32(
                 inputContinuation,
                 weights,

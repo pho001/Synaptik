@@ -1,5 +1,7 @@
 package backend.cpu.nativecpu;
 
+import tensor.TensorInternalAccess;
+
 import backend.ComputeBackend;
 import backend.cpu.CpuBackend;
 import backend.cpu.kernels.CpuDTypeOps;
@@ -561,7 +563,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
             return false;
         }
         context.requireCpuReadable(conditionNodeId, CpuMaterializationReason.CPU_CONSUMER);
-        byte[] condition = conditionTensor.getBoolData();
+        byte[] condition = TensorInternalAccess.boolData(conditionTensor);
         NativeFloat32Storage ifTrue = requireF32Storage(context, trueNodeId, "native-cpu-region-where");
         NativeFloat32Storage ifFalse = requireF32Storage(context, falseNodeId, "native-cpu-region-where");
         NativeFloat32Storage out = allocateF32(context, step, opLabel(op));
@@ -628,7 +630,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
             return false;
         }
         context.requireCpuReadable(conditionNodeId, CpuMaterializationReason.CPU_CONSUMER);
-        byte[] condition = conditionTensor.getBoolData();
+        byte[] condition = TensorInternalAccess.boolData(conditionTensor);
         NativeFloat64Storage ifTrue = requireF64Storage(context, trueNodeId, "native-cpu-region-where");
         NativeFloat64Storage ifFalse = requireF64Storage(context, falseNodeId, "native-cpu-region-where");
         NativeFloat64Storage out = allocateF64(context, step, opLabel(op));
@@ -689,7 +691,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         if (plan.flatSize() != outSize || !Arrays.equals(outShape, outTensor.getShapeUnsafe())) {
             return false;
         }
-        byte[] out = outTensor.getBoolData();
+        byte[] out = TensorInternalAccess.boolData(outTensor);
         if (leftTensor.getDataType() == DataType.FLOAT32) {
             NativeFloat32Storage left = requireF32Storage(context, inputIds.get(0), "native-cpu-region-" + opLabel(op));
             NativeFloat32Storage right = requireF32Storage(context, inputIds.get(1), "native-cpu-region-" + opLabel(op));
@@ -719,7 +721,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
                 );
             }
         }
-        outTensor.markStorageModified();
+        TensorInternalAccess.markStorageModified(outTensor);
         context.markCpuCurrent(
                 step.compiledNode().id(),
                 "native CPU region local " + opLabel(op).toUpperCase() + " wrote BOOL CPU array output"
@@ -1082,7 +1084,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
                 );
             } else {
                 context.requireCpuReadable(conditionNodeId, CpuMaterializationReason.CPU_CONSUMER);
-                byte[] condition = conditionTensor.getBoolData();
+                byte[] condition = TensorInternalAccess.boolData(conditionTensor);
                 TensorPhysicalView conditionView = cpuArrayPhysicalView(
                         conditionNodeId,
                         conditionTensor,
@@ -1154,9 +1156,9 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
                     outShape,
                     outTensor.getStridesUnsafe()
             );
-            byte[] output = outTensor.getBoolData();
+            byte[] output = TensorInternalAccess.boolData(outTensor);
             NativeSegmentStridedKernels.runCompare(op, leftView, rightView, output, outputView);
-            outTensor.markStorageModified();
+            TensorInternalAccess.markStorageModified(outTensor);
             context.markCpuCurrent(
                     step.compiledNode().id(),
                     "native CPU region segment " + opLabel(op).toUpperCase() + " wrote BOOL CPU array output"

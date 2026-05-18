@@ -83,9 +83,9 @@ public final class TensorBroadcastOps {
     }
 
     private static Tensor minMaxGradF32(Tensor first, Tensor second, Tensor outGrad, BroadcastPlan plan, boolean forFirst, boolean isMax) {
-        float[] a = first.getFloat32Data();
-        float[] b = second.getFloat32Data();
-        float[] og = outGrad.getFloat32Data();
+        float[] a = TensorInternalAccess.float32Data(first);
+        float[] b = TensorInternalAccess.float32Data(second);
+        float[] og = TensorInternalAccess.float32Data(outGrad);
         float[] grad = new float[(forFirst ? first : second).getFlatDataSize()];
         accumulateMinMaxGrad(og.length, plan, isMax, forFirst,
                 i -> a[i], i -> b[i], i -> og[i], (idx, val) -> grad[idx] += (float) val);
@@ -94,9 +94,9 @@ public final class TensorBroadcastOps {
     }
 
     private static Tensor minMaxGradF16(Tensor first, Tensor second, Tensor outGrad, BroadcastPlan plan, boolean forFirst, boolean isMax) {
-        short[] a = first.getBFloat16Data();
-        short[] b = second.getBFloat16Data();
-        short[] og = outGrad.getBFloat16Data();
+        short[] a = TensorInternalAccess.bfloat16Data(first);
+        short[] b = TensorInternalAccess.bfloat16Data(second);
+        short[] og = TensorInternalAccess.bfloat16Data(outGrad);
         float[] gradAcc = new float[(forFirst ? first : second).getFlatDataSize()];
         accumulateMinMaxGrad(og.length, plan, isMax, forFirst,
                 i -> BFloat16Bits.toFloat(a[i]),

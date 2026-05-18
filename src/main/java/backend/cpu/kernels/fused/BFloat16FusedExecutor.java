@@ -1,5 +1,7 @@
 package backend.cpu.kernels.fused;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.*;
 import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
 
@@ -123,9 +125,9 @@ public final class BFloat16FusedExecutor {
             }
 
             if (outputNode.outputType() == DataType.BOOL) {
-                out.getBoolData()[outBaseOffset + index] = bools[outputNode.index()] ? (byte) 1 : (byte) 0;
+                TensorInternalAccess.boolData(out)[outBaseOffset + index] = bools[outputNode.index()] ? (byte) 1 : (byte) 0;
             } else {
-                out.getBFloat16Data()[outBaseOffset + index] = CpuDTypeOps.toBFloat16Bits(values[outputNode.index()]);
+                TensorInternalAccess.bfloat16Data(out)[outBaseOffset + index] = CpuDTypeOps.toBFloat16Bits(values[outputNode.index()]);
             }
             for (InputAccessor accessor : accessors) {
                 accessor.step();
@@ -148,7 +150,7 @@ public final class BFloat16FusedExecutor {
 
         FloatVector[] values = new FloatVector[plan.nodeCount()];
         FusedNodePlan outputNode = plan.outputNode();
-        short[] outData = out.getBFloat16Data();
+        short[] outData = TensorInternalAccess.bfloat16Data(out);
         int outBaseOffset = out.getStorageOffsetUnsafe();
         int width = SPECIES.length();
         int upperBound = endExclusive - ((endExclusive - startInclusive) % width);
@@ -323,7 +325,7 @@ public final class BFloat16FusedExecutor {
     }
 
     private static boolean supportsVectorFastPath(FusedExpressionPlan plan, List<Tensor> inputs, Tensor out) {
-        if (out.getDataType() != DataType.BFLOAT16 || !(out.getStorage() instanceof BFloat16Storage) || !out.isContiguous()) {
+        if (out.getDataType() != DataType.BFLOAT16 || !(TensorInternalAccess.storage(out) instanceof BFloat16Storage) || !out.isContiguous()) {
             return false;
         }
         if (plan.outputNode().outputType() == DataType.BOOL) {
@@ -335,7 +337,7 @@ public final class BFloat16FusedExecutor {
             if (inputPlan.dataType() != DataType.BFLOAT16
                     || !inputPlan.isLinearAccess()
                     || input.getDataType() != DataType.BFLOAT16
-                    || !(input.getStorage() instanceof BFloat16Storage)) {
+                    || !(TensorInternalAccess.storage(input) instanceof BFloat16Storage)) {
                 return false;
             }
         }
@@ -382,12 +384,12 @@ public final class BFloat16FusedExecutor {
     private sealed interface InputAccessor permits NumericInputAccessor, BoolInputAccessor, ContinuationInputAccessor {
         static InputAccessor create(FusedExternalInputPlan plan, Tensor tensor, float[] continuation, int start) {
             if (plan.dataType() == DataType.BOOL) {
-                return new BoolInputAccessor(plan, tensor.getBoolData(), start);
+                return new BoolInputAccessor(plan, TensorInternalAccess.boolData(tensor), start);
             }
             if (continuation != null && plan.dataType() == DataType.BFLOAT16 && plan.isLinearAccess()) {
                 return new ContinuationInputAccessor(plan, continuation, start);
             }
-            return new NumericInputAccessor(plan, tensor.getBFloat16Data(), start);
+            return new NumericInputAccessor(plan, TensorInternalAccess.bfloat16Data(tensor), start);
         }
 
         default float floatValue() {
@@ -514,7 +516,7 @@ public final class BFloat16FusedExecutor {
             if (plan.dataType() != DataType.BFLOAT16 || !plan.isLinearAccess()) {
                 throw new IllegalArgumentException("Vector BF16 accessor requires linear BF16 input");
             }
-            return new VectorInputAccessor(tensor.getBFloat16Data(), continuation, plan.storageOffset());
+            return new VectorInputAccessor(TensorInternalAccess.bfloat16Data(tensor), continuation, plan.storageOffset());
         }
 
         FloatVector load(int logicalIndex) {

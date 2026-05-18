@@ -1,5 +1,7 @@
 package onnx;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuDTypeOps;
 import com.google.protobuf.ByteString;
 import tensor.DataType;
@@ -276,7 +278,7 @@ final class OnnxTensorProtoUtil {
 
     private static short[] logicalBfloat16(Tensor tensor) {
         if (tensor.isContiguous() && !tensor.hasStorageOffset()) {
-            return Arrays.copyOf(tensor.getBFloat16Data(), tensor.getFlatDataSize());
+            return Arrays.copyOf(TensorInternalAccess.bfloat16Data(tensor), tensor.getFlatDataSize());
         }
         double[] values = tensor.toDoubleArrayCopy();
         short[] out = new short[values.length];
@@ -288,7 +290,7 @@ final class OnnxTensorProtoUtil {
 
     private static int[] logicalInt32(Tensor tensor) {
         if (tensor.isContiguous() && !tensor.hasStorageOffset()) {
-            return Arrays.copyOf(tensor.getInt32Data(), tensor.getFlatDataSize());
+            return Arrays.copyOf(TensorInternalAccess.int32Data(tensor), tensor.getFlatDataSize());
         }
         double[] values = tensor.toDoubleArrayCopy();
         int[] out = new int[values.length];
@@ -300,7 +302,7 @@ final class OnnxTensorProtoUtil {
 
     private static long[] logicalInt64(Tensor tensor) {
         if (tensor.isContiguous() && !tensor.hasStorageOffset()) {
-            return Arrays.copyOf(tensor.getInt64Data(), tensor.getFlatDataSize());
+            return Arrays.copyOf(TensorInternalAccess.int64Data(tensor), tensor.getFlatDataSize());
         }
         long[] out = new long[tensor.getFlatDataSize()];
         for (int i = 0; i < out.length; i++) {

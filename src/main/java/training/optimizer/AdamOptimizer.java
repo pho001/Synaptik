@@ -1,5 +1,7 @@
 package training.optimizer;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.nativecpu.NativeCpuAllocator;
 import backend.cpu.nativecpu.NativeCpuMaterializer;
@@ -133,8 +135,8 @@ public final class AdamOptimizer extends AbstractTrainableOptimizer {
         Tensor parameter = context.executionContext().runtimeTensorForNodeId(ref.parameterNode().id());
         Tensor gradient = context.executionContext().runtimeTensorForNodeId(gradientNodeId);
         updateCpu(parameter, gradient, ref.parameterNode());
-        parameter.markStorageModified();
-        ref.parameterNode().sourceTensor().markStorageModified();
+        TensorInternalAccess.markStorageModified(parameter);
+        TensorInternalAccess.markStorageModified(ref.parameterNode().sourceTensor());
         context.executionContext().markCpuCurrent(ref.parameterNode().id(), "optimizer CPU Adam update");
         clearNativeState(ref.parameterNode().sourceTensor());
     }
@@ -261,7 +263,7 @@ public final class AdamOptimizer extends AbstractTrainableOptimizer {
         Tensor v = new Tensor(ref.parameterNode().shape(), null, "adam_v_sync", DataType.FLOAT32);
         metal.allocator().readToCpu(metal.firstMoment(), m, backend.memory.CpuMaterializationReason.OPTIMIZER_STEP);
         metal.allocator().readToCpu(metal.secondMoment(), v, backend.memory.CpuMaterializationReason.OPTIMIZER_STEP);
-        cpuStates.put(source, CpuAdamState.fromFloat32(m.getFloat32Data(), v.getFloat32Data()));
+        cpuStates.put(source, CpuAdamState.fromFloat32(TensorInternalAccess.float32Data(m), TensorInternalAccess.float32Data(v)));
         metal.allocator().destroy(metal.firstMoment().handle());
         metal.allocator().destroy(metal.secondMoment().handle());
     }
@@ -282,18 +284,18 @@ public final class AdamOptimizer extends AbstractTrainableOptimizer {
         CpuAdamState state = cpuStates.computeIfAbsent(node.sourceTensor(), ignored -> CpuAdamState.zeros(parameter.getFlatDataSize()));
         switch (parameter.getDataType()) {
             case FLOAT32 -> {
-                float[] p = parameter.getFloat32Data();
-                float[] g = gradient.getFloat32Data();
+                float[] p = TensorInternalAccess.float32Data(parameter);
+                float[] g = TensorInternalAccess.float32Data(gradient);
                 updateFloatArray(p, g, state);
             }
             case FLOAT64 -> {
-                double[] p = parameter.getFloat64Data();
-                double[] g = gradient.getFloat64Data();
+                double[] p = TensorInternalAccess.float64Data(parameter);
+                double[] g = TensorInternalAccess.float64Data(gradient);
                 updateDoubleArray(p, g, state);
             }
             case BFLOAT16 -> {
-                short[] p = parameter.getBFloat16Data();
-                short[] g = gradient.getBFloat16Data();
+                short[] p = TensorInternalAccess.bfloat16Data(parameter);
+                short[] g = TensorInternalAccess.bfloat16Data(gradient);
                 updateBFloat16Array(p, g, state);
             }
             case INT32, BOOL -> throw new UnsupportedOperationException(

@@ -1,5 +1,7 @@
 package backend.cpu.fused.exec;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.fused.codegen.FusedDTypeOps;
 import backend.cpu.fused.codegen.FusedExpressionPlan;
 import backend.cpu.fused.codegen.FusedExternalInputPlan;
@@ -64,7 +66,7 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
             FusedNodePlan output = plan.outputNode();
             int storageIndex = outputStorageIndex(out, index);
             if (output.outputType() == DataType.BOOL) {
-                out.getBoolData()[storageIndex] = boolValues[output.index()] ? (byte) 1 : (byte) 0;
+                TensorInternalAccess.boolData(out)[storageIndex] = boolValues[output.index()] ? (byte) 1 : (byte) 0;
             } else {
                 storeNumeric(out, storageIndex, numericValues[output.index()]);
             }
@@ -194,7 +196,7 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
             if (input.getDataType() != DataType.BOOL) {
                 throw new UnsupportedOperationException("Fused bool ref must use BOOL external input.");
             }
-            return input.getBoolData()[storageIndex(plan.inputs().get(ref), index)] != 0;
+            return TensorInternalAccess.boolData(input)[storageIndex(plan.inputs().get(ref), index)] != 0;
         }
         int nodeIndex = ref - plan.inputCount();
         if (plan.nodes().get(nodeIndex).outputType() != DataType.BOOL) {
@@ -238,23 +240,23 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
 
     private double loadNumeric(Tensor input, int storageIndex) {
         return switch (input.getDataType()) {
-            case FLOAT64 -> input.getFloat64Data()[storageIndex];
-            case FLOAT32 -> input.getFloat32Data()[storageIndex];
-            case BFLOAT16 -> CpuDTypeOps.fromBFloat16Bits(input.getBFloat16Data()[storageIndex]);
-            case BOOL -> input.getBoolData()[storageIndex] == 0 ? 0.0d : 1.0d;
-            case INT32 -> input.getInt32Data()[storageIndex];
-            case INT64 -> input.getInt64Data()[storageIndex];
+            case FLOAT64 -> TensorInternalAccess.float64Data(input)[storageIndex];
+            case FLOAT32 -> TensorInternalAccess.float32Data(input)[storageIndex];
+            case BFLOAT16 -> CpuDTypeOps.fromBFloat16Bits(TensorInternalAccess.bfloat16Data(input)[storageIndex]);
+            case BOOL -> TensorInternalAccess.boolData(input)[storageIndex] == 0 ? 0.0d : 1.0d;
+            case INT32 -> TensorInternalAccess.int32Data(input)[storageIndex];
+            case INT64 -> TensorInternalAccess.int64Data(input)[storageIndex];
         };
     }
 
     private void storeNumeric(Tensor out, int storageIndex, double value) {
         switch (out.getDataType()) {
-            case FLOAT64 -> out.getFloat64Data()[storageIndex] = value;
-            case FLOAT32 -> out.getFloat32Data()[storageIndex] = (float) value;
-            case BFLOAT16 -> out.getBFloat16Data()[storageIndex] = CpuDTypeOps.toBFloat16Bits((float) value);
-            case BOOL -> out.getBoolData()[storageIndex] = value == 0.0d ? (byte) 0 : (byte) 1;
-            case INT32 -> out.getInt32Data()[storageIndex] = (int) value;
-            case INT64 -> out.getInt64Data()[storageIndex] = (long) value;
+            case FLOAT64 -> TensorInternalAccess.float64Data(out)[storageIndex] = value;
+            case FLOAT32 -> TensorInternalAccess.float32Data(out)[storageIndex] = (float) value;
+            case BFLOAT16 -> TensorInternalAccess.bfloat16Data(out)[storageIndex] = CpuDTypeOps.toBFloat16Bits((float) value);
+            case BOOL -> TensorInternalAccess.boolData(out)[storageIndex] = value == 0.0d ? (byte) 0 : (byte) 1;
+            case INT32 -> TensorInternalAccess.int32Data(out)[storageIndex] = (int) value;
+            case INT64 -> TensorInternalAccess.int64Data(out)[storageIndex] = (long) value;
         }
     }
 

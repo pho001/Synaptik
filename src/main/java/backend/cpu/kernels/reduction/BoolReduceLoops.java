@@ -1,5 +1,7 @@
 package backend.cpu.kernels.reduction;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.*;
 
 import tensor.Tensor;
@@ -12,8 +14,8 @@ final class BoolReduceLoops {
         int[] shape = input.getShapeUnsafe();
         ReductionTraversal.validateDimension(shape, dimension);
 
-        byte[] in = input.getBoolData();
-        byte[] out = node.getBoolData();
+        byte[] in = TensorInternalAccess.boolData(input);
+        byte[] out = TensorInternalAccess.boolData(node);
         if (in == null || out == null) {
             throw new IllegalStateException("BOOL storage is missing");
         }

@@ -1,5 +1,7 @@
 package backend.cpu.kernels.linalg;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.*;
 import backend.cpu.kernels.linalg.matmul.bf16.BF16MatMulJavaBackend;
 import backend.cpu.kernels.linalg.matmul.blas.MatMulBlasBackend;
@@ -91,9 +93,9 @@ final class LinearExecutor {
         int m = as[as.length - 2];
         int k = as[as.length - 1];
         int n = bs[bs.length - 1];
-        short[] ad = input.getBFloat16Data();
-        short[] bd = weight.getBFloat16Data();
-        short[] od = out.getBFloat16Data();
+        short[] ad = TensorInternalAccess.bfloat16Data(input);
+        short[] bd = TensorInternalAccess.bfloat16Data(weight);
+        short[] od = TensorInternalAccess.bfloat16Data(out);
         float[] tmp = context.cpuWorkspace().requireFloatWorkspace();
 
         boolean executed = (as.length == 2 && bs.length == 2 && hints.useBlas()
@@ -104,7 +106,7 @@ final class LinearExecutor {
             return false;
         }
 
-        addBiasAndMaterializeBF16(tmp, od, bias.getBFloat16Data(), biasFeatureCount(bias), od.length);
+        addBiasAndMaterializeBF16(tmp, od, TensorInternalAccess.bfloat16Data(bias), biasFeatureCount(bias), od.length);
         return true;
     }
 
@@ -125,7 +127,7 @@ final class LinearExecutor {
         }
 
         if (bias != null) {
-            addBiasInPlace(tmp, bias.getBFloat16Data(), biasFeatureCount(bias), out.getFlatDataSize());
+            addBiasInPlace(tmp, TensorInternalAccess.bfloat16Data(bias), biasFeatureCount(bias), out.getFlatDataSize());
         }
         context.cpuWorkspace().publishFloatContinuation(out.getFlatDataSize());
         return true;
@@ -144,8 +146,8 @@ final class LinearExecutor {
         int m = as[as.length - 2];
         int k = as[as.length - 1];
         int n = bs[bs.length - 1];
-        short[] ad = input.getBFloat16Data();
-        short[] bd = weight.getBFloat16Data();
+        short[] ad = TensorInternalAccess.bfloat16Data(input);
+        short[] bd = TensorInternalAccess.bfloat16Data(weight);
         float[] inputContinuation = context.inputFloatContinuation(0, input.getFlatDataSize());
 
         if (!hints.useBlas() && !hints.useBatchedBlas()
@@ -186,9 +188,9 @@ final class LinearExecutor {
         if (packed == null) {
             return false;
         }
-        double[] outData = out.getFloat64Data();
+        double[] outData = TensorInternalAccess.float64Data(out);
         Arrays.fill(outData, 0.0d);
-        F64MatMulJavaBackend.runPacked(input.getFloat64Data(), input.getShapeUnsafe(), packed, outData, out.getShapeUnsafe(), hints);
+        F64MatMulJavaBackend.runPacked(TensorInternalAccess.float64Data(input), input.getShapeUnsafe(), packed, outData, out.getShapeUnsafe(), hints);
         return true;
     }
 
@@ -204,9 +206,9 @@ final class LinearExecutor {
         if (packed == null) {
             return false;
         }
-        float[] outData = out.getFloat32Data();
+        float[] outData = TensorInternalAccess.float32Data(out);
         Arrays.fill(outData, 0.0f);
-        F32MatMulJavaBackend.runPacked(input.getFloat32Data(), input.getShapeUnsafe(), packed, outData, out.getShapeUnsafe(), hints);
+        F32MatMulJavaBackend.runPacked(TensorInternalAccess.float32Data(input), input.getShapeUnsafe(), packed, outData, out.getShapeUnsafe(), hints);
         return true;
     }
 
@@ -222,13 +224,13 @@ final class LinearExecutor {
         if (packed == null) {
             return false;
         }
-        BF16MatMulJavaBackend.runPacked(input.getBFloat16Data(), input.getShapeUnsafe(), packed, out.getBFloat16Data(), out.getShapeUnsafe(), hints);
+        BF16MatMulJavaBackend.runPacked(TensorInternalAccess.bfloat16Data(input), input.getShapeUnsafe(), packed, TensorInternalAccess.bfloat16Data(out), out.getShapeUnsafe(), hints);
         return true;
     }
 
     private static void addBiasF64(Tensor out, Tensor bias) {
-        double[] outData = out.getFloat64Data();
-        double[] biasData = bias.getFloat64Data();
+        double[] outData = TensorInternalAccess.float64Data(out);
+        double[] biasData = TensorInternalAccess.float64Data(bias);
         int outFeatures = biasFeatureCount(bias);
         int width = F64.length();
         int vectorLimit = outFeatures - (outFeatures % width);
@@ -246,8 +248,8 @@ final class LinearExecutor {
     }
 
     private static void addBiasF32(Tensor out, Tensor bias) {
-        float[] outData = out.getFloat32Data();
-        float[] biasData = bias.getFloat32Data();
+        float[] outData = TensorInternalAccess.float32Data(out);
+        float[] biasData = TensorInternalAccess.float32Data(bias);
         int outFeatures = biasFeatureCount(bias);
         int width = F32.length();
         int vectorLimit = outFeatures - (outFeatures % width);
@@ -265,8 +267,8 @@ final class LinearExecutor {
     }
 
     private static void addBiasBF16(Tensor out, Tensor bias) {
-        short[] outData = out.getBFloat16Data();
-        short[] biasData = bias.getBFloat16Data();
+        short[] outData = TensorInternalAccess.bfloat16Data(out);
+        short[] biasData = TensorInternalAccess.bfloat16Data(bias);
         int outFeatures = biasFeatureCount(bias);
         for (int i = 0; i < outData.length; i++) {
             float value = CpuDTypeOps.fromBFloat16Bits(outData[i]) + CpuDTypeOps.fromBFloat16Bits(biasData[i % outFeatures]);

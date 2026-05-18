@@ -1,5 +1,7 @@
 package backend.cpu.kernels.elementwise.strided;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuKernelContext;
 import operations.Operation;
 import tensor.Tensor;
@@ -59,7 +61,7 @@ public final class CpuStridedElementWise {
             boolean useFastTanhApprox
     ) {
         if (op.opType() == Operation.OpType.WHERE) {
-            StridedWhereLoops.forwardF32(inputs, node, node.getFloat32Data());
+            StridedWhereLoops.forwardF32(inputs, node, TensorInternalAccess.float32Data(node));
             return;
         }
         StridedNumericInputs.F32 prepared = StridedNumericInputs.prepareF32(inputs, node);
@@ -77,7 +79,7 @@ public final class CpuStridedElementWise {
             boolean useFastTanhApprox
     ) {
         if (op.opType() == Operation.OpType.WHERE) {
-            StridedWhereLoops.forwardBF16(inputs, node, node.getBFloat16Data());
+            StridedWhereLoops.forwardBF16(inputs, node, TensorInternalAccess.bfloat16Data(node));
             return;
         }
         StridedNumericInputs.BF16 prepared = StridedNumericInputs.prepareBF16(inputs, node);

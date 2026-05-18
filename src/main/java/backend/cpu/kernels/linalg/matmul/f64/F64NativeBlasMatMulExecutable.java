@@ -1,5 +1,7 @@
 package backend.cpu.kernels.linalg.matmul.f64;
 
+import tensor.TensorInternalAccess;
+
 import backend.blas.OpenBlasFfmBridge;
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
@@ -122,12 +124,12 @@ public final class F64NativeBlasMatMulExecutable implements PreparedMatMulExecut
             throw new IllegalStateException("Native CPU execution required but FLOAT64 matmul fell back to Java: " + lastFallbackReason);
         }
         requireCpuReadableInputs(context);
-        double[] out = node.getFloat64Data();
+        double[] out = TensorInternalAccess.float64Data(node);
         Arrays.fill(out, 0.0d);
         F64MatMulJavaBackend.run(
-                a.getFloat64Data(),
+                TensorInternalAccess.float64Data(a),
                 a.getShapeUnsafe(),
-                b.getFloat64Data(),
+                TensorInternalAccess.float64Data(b),
                 b.getShapeUnsafe(),
                 out,
                 node.getShapeUnsafe(),

@@ -1,5 +1,7 @@
 package backend.cpu.kernels.layout;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuKernelContext;
@@ -61,12 +63,12 @@ public final class CpuPadKernel implements CpuKernel {
                 outLogical += (coord + before[d]) * outDenseStrides[d];
             }
             if (node.getDataType() == tensor.DataType.INT64) {
-                node.getInt64Data()[outLogical] = input.getInt64ByFlatIndex(logical);
+                TensorInternalAccess.int64Data(node)[outLogical] = input.getInt64ByFlatIndex(logical);
                 continue;
             }
             write(node, outLogical, input.getByFlatIndex(logical));
         }
-        node.markStorageModified();
+        TensorInternalAccess.markStorageModified(node);
     }
 
     private static Tensor requireSingleInput(List<Tensor> inputs) {
@@ -78,23 +80,23 @@ public final class CpuPadKernel implements CpuKernel {
 
     private static void fill(Tensor out, double value) {
         switch (out.getDataType()) {
-            case FLOAT64 -> Arrays.fill(out.getFloat64Data(), value);
-            case FLOAT32 -> Arrays.fill(out.getFloat32Data(), (float) value);
-            case BFLOAT16 -> Arrays.fill(out.getBFloat16Data(), CpuDTypeOps.toBFloat16Bits((float) value));
-            case INT32 -> Arrays.fill(out.getInt32Data(), (int) value);
-            case INT64 -> Arrays.fill(out.getInt64Data(), (long) value);
-            case BOOL -> Arrays.fill(out.getBoolData(), value == 0.0d ? (byte) 0 : (byte) 1);
+            case FLOAT64 -> Arrays.fill(TensorInternalAccess.float64Data(out), value);
+            case FLOAT32 -> Arrays.fill(TensorInternalAccess.float32Data(out), (float) value);
+            case BFLOAT16 -> Arrays.fill(TensorInternalAccess.bfloat16Data(out), CpuDTypeOps.toBFloat16Bits((float) value));
+            case INT32 -> Arrays.fill(TensorInternalAccess.int32Data(out), (int) value);
+            case INT64 -> Arrays.fill(TensorInternalAccess.int64Data(out), (long) value);
+            case BOOL -> Arrays.fill(TensorInternalAccess.boolData(out), value == 0.0d ? (byte) 0 : (byte) 1);
         }
     }
 
     private static void write(Tensor out, int index, double value) {
         switch (out.getDataType()) {
-            case FLOAT64 -> out.getFloat64Data()[index] = value;
-            case FLOAT32 -> out.getFloat32Data()[index] = (float) value;
-            case BFLOAT16 -> out.getBFloat16Data()[index] = CpuDTypeOps.toBFloat16Bits((float) value);
-            case INT32 -> out.getInt32Data()[index] = (int) value;
-            case INT64 -> out.getInt64Data()[index] = (long) value;
-            case BOOL -> out.getBoolData()[index] = value == 0.0d ? (byte) 0 : (byte) 1;
+            case FLOAT64 -> TensorInternalAccess.float64Data(out)[index] = value;
+            case FLOAT32 -> TensorInternalAccess.float32Data(out)[index] = (float) value;
+            case BFLOAT16 -> TensorInternalAccess.bfloat16Data(out)[index] = CpuDTypeOps.toBFloat16Bits((float) value);
+            case INT32 -> TensorInternalAccess.int32Data(out)[index] = (int) value;
+            case INT64 -> TensorInternalAccess.int64Data(out)[index] = (long) value;
+            case BOOL -> TensorInternalAccess.boolData(out)[index] = value == 0.0d ? (byte) 0 : (byte) 1;
         }
     }
 }

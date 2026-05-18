@@ -1,5 +1,7 @@
 package onnx;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuDTypeOps;
 import operations.reduction.ArgMaxTiePolicy;
 import tensor.DataType;
@@ -1314,7 +1316,7 @@ final class OnnxGraphImporter {
         }
         Tensor tensor = tensors.get(name);
         if (tensor != null && tensor.getDataType() == DataType.INT32) {
-            int[] values = tensor.getInt32Data();
+            int[] values = TensorInternalAccess.int32Data(tensor);
             long[] out = new long[values.length];
             for (int i = 0; i < values.length; i++) {
                 out[i] = values[i];

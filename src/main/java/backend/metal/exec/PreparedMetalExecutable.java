@@ -1,5 +1,7 @@
 package backend.metal.exec;
 
+import tensor.TensorInternalAccess;
+
 import backend.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferBindings;
 import backend.accelerator.buffer.AcceleratorBufferDecision;
@@ -511,10 +513,10 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
             return MetalMpsCapabilities.unsupportedDTypeMessage(tensor.getDataType());
         }
         return switch (tensor.getDataType()) {
-            case FLOAT32 -> tensor.getFloat32Data() == null ? "missing direct float[] storage" : "";
-            case BFLOAT16 -> tensor.getBFloat16Data() == null ? "missing direct bfloat16 short[] storage" : "";
-            case BOOL -> tensor.getBoolData() == null ? "missing direct bool[] storage" : "";
-            case INT64 -> tensor.getInt64Data() == null ? "missing direct int64 long[] storage" : "";
+            case FLOAT32 -> TensorInternalAccess.float32Data(tensor) == null ? "missing direct float[] storage" : "";
+            case BFLOAT16 -> TensorInternalAccess.bfloat16Data(tensor) == null ? "missing direct bfloat16 short[] storage" : "";
+            case BOOL -> TensorInternalAccess.boolData(tensor) == null ? "missing direct bool[] storage" : "";
+            case INT64 -> TensorInternalAccess.int64Data(tensor) == null ? "missing direct int64 long[] storage" : "";
             default -> MetalMpsCapabilities.unsupportedDTypeMessage(tensor.getDataType());
         };
     }
@@ -533,9 +535,9 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
             return MetalMpsCapabilities.unsupportedDTypeMessage(tensor.getDataType());
         }
         return switch (tensor.getDataType()) {
-            case FLOAT32 -> tensor.getFloat32Data() == null ? "missing direct float[] storage" : "";
-            case BFLOAT16 -> tensor.getBFloat16Data() == null ? "missing direct bfloat16 short[] storage" : "";
-            case BOOL -> tensor.getBoolData() == null ? "missing direct bool[] storage" : "";
+            case FLOAT32 -> TensorInternalAccess.float32Data(tensor) == null ? "missing direct float[] storage" : "";
+            case BFLOAT16 -> TensorInternalAccess.bfloat16Data(tensor) == null ? "missing direct bfloat16 short[] storage" : "";
+            case BOOL -> TensorInternalAccess.boolData(tensor) == null ? "missing direct bool[] storage" : "";
             default -> MetalMpsCapabilities.unsupportedDTypeMessage(tensor.getDataType());
         };
     }

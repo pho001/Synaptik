@@ -1,5 +1,7 @@
 package backend.cpu.kernels.layout;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuKernelContext;
@@ -55,42 +57,42 @@ public final class CpuCastKernel implements CpuKernel {
         }
         switch (node.getDataType()) {
             case FLOAT64 -> {
-                double[] out = node.getFloat64Data();
+                double[] out = TensorInternalAccess.float64Data(node);
                 for (int i = 0; i < size; i++) {
                     out[i] = input.getByFlatIndex(i);
                 }
             }
             case FLOAT32 -> {
-                float[] out = node.getFloat32Data();
+                float[] out = TensorInternalAccess.float32Data(node);
                 for (int i = 0; i < size; i++) {
                     out[i] = (float) input.getByFlatIndex(i);
                 }
             }
             case BFLOAT16 -> {
-                short[] out = node.getBFloat16Data();
+                short[] out = TensorInternalAccess.bfloat16Data(node);
                 for (int i = 0; i < size; i++) {
                     out[i] = CpuDTypeOps.toBFloat16Bits((float) input.getByFlatIndex(i));
                 }
             }
             case INT32 -> {
-                int[] out = node.getInt32Data();
+                int[] out = TensorInternalAccess.int32Data(node);
                 for (int i = 0; i < size; i++) {
                     out[i] = (int) input.getByFlatIndex(i);
                 }
             }
             case INT64 -> {
-                long[] out = node.getInt64Data();
+                long[] out = TensorInternalAccess.int64Data(node);
                 for (int i = 0; i < size; i++) {
                     out[i] = (long) input.getByFlatIndex(i);
                 }
             }
             case BOOL -> {
-                byte[] out = node.getBoolData();
+                byte[] out = TensorInternalAccess.boolData(node);
                 for (int i = 0; i < size; i++) {
                     out[i] = input.getByFlatIndex(i) == 0.0d ? (byte) 0 : (byte) 1;
                 }
             }
         }
-        node.markStorageModified();
+        TensorInternalAccess.markStorageModified(node);
     }
 }

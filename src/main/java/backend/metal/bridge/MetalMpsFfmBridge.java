@@ -1,5 +1,7 @@
 package backend.metal.bridge;
 
+import tensor.TensorInternalAccess;
+
 import backend.metal.MetalMpsCapabilities;
 import backend.accelerator.buffer.AcceleratorLayoutAbiV2Descriptor;
 import backend.accelerator.buffer.AcceleratorLayoutAbiV2Support;
@@ -630,8 +632,8 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                 MemorySegment dataSeg;
                 long copyStart = System.nanoTime();
                 dataSeg = switch (tensor.getDataType()) {
-                    case FLOAT32 -> arena.allocateFrom(JAVA_FLOAT, tensor.getFloat32Data());
-                    case BOOL -> arena.allocateFrom(JAVA_BYTE, tensor.getBoolData());
+                    case FLOAT32 -> arena.allocateFrom(JAVA_FLOAT, TensorInternalAccess.float32Data(tensor));
+                    case BOOL -> arena.allocateFrom(JAVA_BYTE, TensorInternalAccess.boolData(tensor));
                     default -> throw new UnsupportedOperationException(MetalMpsCapabilities.unsupportedDTypeMessage(tensor.getDataType()));
                 };
                 javaToNativeCopyNs += System.nanoTime() - copyStart;
@@ -641,7 +643,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
             MemorySegment outputLengths = arena.allocate(JAVA_INT, resolvedOutputs.size());
             for (int i = 0; i < resolvedOutputs.size(); i++) {
                 Tensor out = resolvedOutputs.get(i);
-                float[] outData = out == null ? null : out.getFloat32Data();
+                float[] outData = out == null ? null : TensorInternalAccess.float32Data(out);
                 if (outData == null) {
                     throw new UnsupportedOperationException("Metal MPS FFM bridge currently supports only FLOAT32 output tensors with direct float[] storage.");
                 }
@@ -664,7 +666,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
             if (status == 0) {
                 for (int i = 0; i < resolvedOutputs.size(); i++) {
                     Tensor out = resolvedOutputs.get(i);
-                    float[] outData = out.getFloat32Data();
+                    float[] outData = TensorInternalAccess.float32Data(out);
                     long copyStart = System.nanoTime();
                     MemorySegment.ofArray(outData).copyFrom(outputSegs.getAtIndex(ADDRESS, i).reinterpret((long) outData.length * JAVA_FLOAT.byteSize()));
                     nativeToJavaCopyNs += System.nanoTime() - copyStart;

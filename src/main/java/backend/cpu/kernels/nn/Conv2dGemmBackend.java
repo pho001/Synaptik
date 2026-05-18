@@ -1,5 +1,7 @@
 package backend.cpu.kernels.nn;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.*;
 import backend.cpu.kernels.nn.conv2d.plan.ResolvedConv2dHints;
 
@@ -35,11 +37,11 @@ final class Conv2dGemmBackend {
 
     static void backwardWeightF64(conv2dBackwardWeight op, Tensor input, Tensor outGrad, Tensor gradWeight) {
         runBackwardWeightF64(
-                input.getFloat64Data(),
+                TensorInternalAccess.float64Data(input),
                 input.getShapeUnsafe(),
-                outGrad.getFloat64Data(),
+                TensorInternalAccess.float64Data(outGrad),
                 outGrad.getShapeUnsafe(),
-                gradWeight.getFloat64Data(),
+                TensorInternalAccess.float64Data(gradWeight),
                 op.getWeightShape(),
                 op.getOptions(),
                 null,
@@ -49,11 +51,11 @@ final class Conv2dGemmBackend {
 
     static void backwardWeightF64(conv2dBackwardWeightGemm op, Tensor input, Tensor outGrad, Tensor gradWeight, CpuKernelContext context) {
         runBackwardWeightF64(
-                input.getFloat64Data(),
+                TensorInternalAccess.float64Data(input),
                 input.getShapeUnsafe(),
-                outGrad.getFloat64Data(),
+                TensorInternalAccess.float64Data(outGrad),
                 outGrad.getShapeUnsafe(),
-                gradWeight.getFloat64Data(),
+                TensorInternalAccess.float64Data(gradWeight),
                 op.getWeightShape(),
                 op.getOptions(),
                 context,
@@ -63,11 +65,11 @@ final class Conv2dGemmBackend {
 
     static void backwardWeightF32(conv2dBackwardWeight op, Tensor input, Tensor outGrad, Tensor gradWeight) {
         runBackwardWeightF32(
-                input.getFloat32Data(),
+                TensorInternalAccess.float32Data(input),
                 input.getShapeUnsafe(),
-                outGrad.getFloat32Data(),
+                TensorInternalAccess.float32Data(outGrad),
                 outGrad.getShapeUnsafe(),
-                gradWeight.getFloat32Data(),
+                TensorInternalAccess.float32Data(gradWeight),
                 op.getWeightShape(),
                 op.getOptions(),
                 null,
@@ -77,11 +79,11 @@ final class Conv2dGemmBackend {
 
     static void backwardWeightF32(conv2dBackwardWeightGemm op, Tensor input, Tensor outGrad, Tensor gradWeight, CpuKernelContext context) {
         runBackwardWeightF32(
-                input.getFloat32Data(),
+                TensorInternalAccess.float32Data(input),
                 input.getShapeUnsafe(),
-                outGrad.getFloat32Data(),
+                TensorInternalAccess.float32Data(outGrad),
                 outGrad.getShapeUnsafe(),
-                gradWeight.getFloat32Data(),
+                TensorInternalAccess.float32Data(gradWeight),
                 op.getWeightShape(),
                 op.getOptions(),
                 context,
@@ -91,11 +93,11 @@ final class Conv2dGemmBackend {
 
     static void backwardWeightBF16(conv2dBackwardWeight op, Tensor input, Tensor outGrad, Tensor gradWeight) {
         runBackwardWeightBF16(
-                input.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(input),
                 input.getShapeUnsafe(),
-                outGrad.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(outGrad),
                 outGrad.getShapeUnsafe(),
-                gradWeight.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(gradWeight),
                 op.getWeightShape(),
                 op.getOptions(),
                 null,
@@ -105,11 +107,11 @@ final class Conv2dGemmBackend {
 
     static void backwardWeightBF16(conv2dBackwardWeightGemm op, Tensor input, Tensor outGrad, Tensor gradWeight, CpuKernelContext context) {
         runBackwardWeightBF16(
-                input.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(input),
                 input.getShapeUnsafe(),
-                outGrad.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(outGrad),
                 outGrad.getShapeUnsafe(),
-                gradWeight.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(gradWeight),
                 op.getWeightShape(),
                 op.getOptions(),
                 context,
@@ -119,11 +121,11 @@ final class Conv2dGemmBackend {
 
     static void backwardInputF64(conv2dBackwardInput op, Tensor weight, Tensor outGrad, Tensor gradInput) {
         runBackwardInputF64(
-                weight.getFloat64Data(),
+                TensorInternalAccess.float64Data(weight),
                 weight.getShapeUnsafe(),
-                outGrad.getFloat64Data(),
+                TensorInternalAccess.float64Data(outGrad),
                 outGrad.getShapeUnsafe(),
-                gradInput.getFloat64Data(),
+                TensorInternalAccess.float64Data(gradInput),
                 op.getInputShape(),
                 op.getOptions(),
                 null,
@@ -133,11 +135,11 @@ final class Conv2dGemmBackend {
 
     static void backwardInputF64(conv2dBackwardInputGemm op, Tensor weight, Tensor outGrad, Tensor gradInput, CpuKernelContext context) {
         runBackwardInputF64(
-                weight.getFloat64Data(),
+                TensorInternalAccess.float64Data(weight),
                 weight.getShapeUnsafe(),
-                outGrad.getFloat64Data(),
+                TensorInternalAccess.float64Data(outGrad),
                 outGrad.getShapeUnsafe(),
-                gradInput.getFloat64Data(),
+                TensorInternalAccess.float64Data(gradInput),
                 op.getInputShape(),
                 op.getOptions(),
                 context,
@@ -147,11 +149,11 @@ final class Conv2dGemmBackend {
 
     static void backwardInputF32(conv2dBackwardInput op, Tensor weight, Tensor outGrad, Tensor gradInput) {
         runBackwardInputF32(
-                weight.getFloat32Data(),
+                TensorInternalAccess.float32Data(weight),
                 weight.getShapeUnsafe(),
-                outGrad.getFloat32Data(),
+                TensorInternalAccess.float32Data(outGrad),
                 outGrad.getShapeUnsafe(),
-                gradInput.getFloat32Data(),
+                TensorInternalAccess.float32Data(gradInput),
                 op.getInputShape(),
                 op.getOptions(),
                 null,
@@ -161,11 +163,11 @@ final class Conv2dGemmBackend {
 
     static void backwardInputF32(conv2dBackwardInputGemm op, Tensor weight, Tensor outGrad, Tensor gradInput, CpuKernelContext context) {
         runBackwardInputF32(
-                weight.getFloat32Data(),
+                TensorInternalAccess.float32Data(weight),
                 weight.getShapeUnsafe(),
-                outGrad.getFloat32Data(),
+                TensorInternalAccess.float32Data(outGrad),
                 outGrad.getShapeUnsafe(),
-                gradInput.getFloat32Data(),
+                TensorInternalAccess.float32Data(gradInput),
                 op.getInputShape(),
                 op.getOptions(),
                 context,
@@ -175,11 +177,11 @@ final class Conv2dGemmBackend {
 
     static void backwardInputBF16(conv2dBackwardInput op, Tensor weight, Tensor outGrad, Tensor gradInput) {
         runBackwardInputBF16(
-                weight.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(weight),
                 weight.getShapeUnsafe(),
-                outGrad.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(outGrad),
                 outGrad.getShapeUnsafe(),
-                gradInput.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(gradInput),
                 op.getInputShape(),
                 op.getOptions(),
                 null,
@@ -189,11 +191,11 @@ final class Conv2dGemmBackend {
 
     static void backwardInputBF16(conv2dBackwardInputGemm op, Tensor weight, Tensor outGrad, Tensor gradInput, CpuKernelContext context) {
         runBackwardInputBF16(
-                weight.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(weight),
                 weight.getShapeUnsafe(),
-                outGrad.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(outGrad),
                 outGrad.getShapeUnsafe(),
-                gradInput.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(gradInput),
                 op.getInputShape(),
                 op.getOptions(),
                 context,
@@ -202,18 +204,18 @@ final class Conv2dGemmBackend {
     }
 
     static void forwardF64(conv2dGemm op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
-        runF64(input.getFloat64Data(), input.getShapeUnsafe(), weight.getFloat64Data(), weight.getShapeUnsafe(),
-                bias == null ? null : bias.getFloat64Data(), out.getFloat64Data(), out.getShapeUnsafe(), op.getOptions(), context, out);
+        runF64(TensorInternalAccess.float64Data(input), input.getShapeUnsafe(), TensorInternalAccess.float64Data(weight), weight.getShapeUnsafe(),
+                bias == null ? null : TensorInternalAccess.float64Data(bias), TensorInternalAccess.float64Data(out), out.getShapeUnsafe(), op.getOptions(), context, out);
     }
 
     static void forwardF32(conv2dGemm op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
-        runF32(input.getFloat32Data(), input.getShapeUnsafe(), weight.getFloat32Data(), weight.getShapeUnsafe(),
-                bias == null ? null : bias.getFloat32Data(), out.getFloat32Data(), out.getShapeUnsafe(), op.getOptions(), context, out);
+        runF32(TensorInternalAccess.float32Data(input), input.getShapeUnsafe(), TensorInternalAccess.float32Data(weight), weight.getShapeUnsafe(),
+                bias == null ? null : TensorInternalAccess.float32Data(bias), TensorInternalAccess.float32Data(out), out.getShapeUnsafe(), op.getOptions(), context, out);
     }
 
     static void forwardBF16(conv2dGemm op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
-        runBF16(input.getBFloat16Data(), input.getShapeUnsafe(), weight.getBFloat16Data(), weight.getShapeUnsafe(),
-                bias == null ? null : bias.getBFloat16Data(), out.getBFloat16Data(),
+        runBF16(TensorInternalAccess.bfloat16Data(input), input.getShapeUnsafe(), TensorInternalAccess.bfloat16Data(weight), weight.getShapeUnsafe(),
+                bias == null ? null : TensorInternalAccess.bfloat16Data(bias), TensorInternalAccess.bfloat16Data(out),
                 out.getShapeUnsafe(),
                 context == null || context.cpuWorkspace() == null ? null : context.cpuWorkspace().requireFloatWorkspace(),
                 op.getOptions(),

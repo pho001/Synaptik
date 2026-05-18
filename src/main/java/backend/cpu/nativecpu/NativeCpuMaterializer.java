@@ -1,5 +1,7 @@
 package backend.cpu.nativecpu;
 
+import tensor.TensorInternalAccess;
+
 import tensor.BFloat16Storage;
 import tensor.DataType;
 import tensor.Float32Storage;
@@ -54,14 +56,14 @@ public final class NativeCpuMaterializer {
             case BOOL -> copyBoolNativeToArray(source, target);
             case INT32, INT64 -> throw new UnsupportedOperationException("native -> array MVP supports only FLOAT32, FLOAT64, BFLOAT16, and BOOL masks. dtype=" + target.getDataType());
         }
-        target.markStorageModified();
+        TensorInternalAccess.markStorageModified(target);
     }
 
     private static void copyF32ArrayToNative(Tensor source, NativeTensorStorage target) {
         if (!(target instanceof NativeFloat32Storage)) {
             throw typeMismatch(source.getDataType(), target.getType());
         }
-        float[] data = source.getFloat32Data();
+        float[] data = TensorInternalAccess.float32Data(source);
         if (data == null) {
             throw new IllegalStateException("FLOAT32 source does not expose CPU array storage.");
         }
@@ -72,7 +74,7 @@ public final class NativeCpuMaterializer {
         if (!(target instanceof NativeFloat64Storage)) {
             throw typeMismatch(source.getDataType(), target.getType());
         }
-        double[] data = source.getFloat64Data();
+        double[] data = TensorInternalAccess.float64Data(source);
         if (data == null) {
             throw new IllegalStateException("FLOAT64 source does not expose CPU array storage.");
         }
@@ -83,7 +85,7 @@ public final class NativeCpuMaterializer {
         if (!(target instanceof NativeBFloat16Storage)) {
             throw typeMismatch(source.getDataType(), target.getType());
         }
-        short[] data = source.getBFloat16Data();
+        short[] data = TensorInternalAccess.bfloat16Data(source);
         if (data == null) {
             throw new IllegalStateException("BFLOAT16 source does not expose CPU array storage.");
         }
@@ -94,7 +96,7 @@ public final class NativeCpuMaterializer {
         if (!(target instanceof NativeBoolStorage)) {
             throw typeMismatch(source.getDataType(), target.getType());
         }
-        byte[] data = source.getBoolData();
+        byte[] data = TensorInternalAccess.boolData(source);
         if (data == null) {
             throw new IllegalStateException("BOOL source does not expose CPU array storage.");
         }
@@ -108,7 +110,7 @@ public final class NativeCpuMaterializer {
         if (!(source instanceof NativeFloat32Storage)) {
             throw typeMismatch(target.getDataType(), source.getType());
         }
-        float[] data = target.getFloat32Data();
+        float[] data = TensorInternalAccess.float32Data(target);
         if (data == null) {
             throw new IllegalStateException("FLOAT32 target does not expose CPU array storage.");
         }
@@ -119,7 +121,7 @@ public final class NativeCpuMaterializer {
         if (!(source instanceof NativeFloat64Storage)) {
             throw typeMismatch(target.getDataType(), source.getType());
         }
-        double[] data = target.getFloat64Data();
+        double[] data = TensorInternalAccess.float64Data(target);
         if (data == null) {
             throw new IllegalStateException("FLOAT64 target does not expose CPU array storage.");
         }
@@ -130,7 +132,7 @@ public final class NativeCpuMaterializer {
         if (!(source instanceof NativeBFloat16Storage)) {
             throw typeMismatch(target.getDataType(), source.getType());
         }
-        short[] data = target.getBFloat16Data();
+        short[] data = TensorInternalAccess.bfloat16Data(target);
         if (data == null) {
             throw new IllegalStateException("BFLOAT16 target does not expose CPU array storage.");
         }
@@ -141,7 +143,7 @@ public final class NativeCpuMaterializer {
         if (!(source instanceof NativeBoolStorage)) {
             throw typeMismatch(target.getDataType(), source.getType());
         }
-        byte[] data = target.getBoolData();
+        byte[] data = TensorInternalAccess.boolData(target);
         if (data == null) {
             throw new IllegalStateException("BOOL target does not expose CPU array storage.");
         }

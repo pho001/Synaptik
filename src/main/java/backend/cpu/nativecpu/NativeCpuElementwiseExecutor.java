@@ -1,5 +1,7 @@
 package backend.cpu.nativecpu;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.elementwise.ElementwiseLoops;
@@ -306,7 +308,7 @@ public final class NativeCpuElementwiseExecutor {
             return true;
         }
         try {
-            byte[] condition = inputs.get(0).getBoolData();
+            byte[] condition = TensorInternalAccess.boolData(inputs.get(0));
             NativeTensorStorage out;
             if (branchDataType == DataType.FLOAT64) {
                 NativeFloat64Storage ifTrue = requireF64NativeInput(context, 1, "WHERE");

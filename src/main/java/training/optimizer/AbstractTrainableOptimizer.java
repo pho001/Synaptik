@@ -1,5 +1,7 @@
 package training.optimizer;
 
+import tensor.TensorInternalAccess;
+
 import backend.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.memory.CpuMaterializationReason;
@@ -101,7 +103,7 @@ abstract class AbstractTrainableOptimizer implements TrainingOptimizer {
             Tensor parameter = entry.getKey();
             OwnedMetalBinding owned = entry.getValue();
             owned.allocator().readToCpu(owned.binding(), parameter, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
-            parameter.markStorageModified();
+            TensorInternalAccess.markStorageModified(parameter);
         }
     }
 

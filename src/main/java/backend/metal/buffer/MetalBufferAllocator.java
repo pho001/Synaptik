@@ -1,5 +1,7 @@
 package backend.metal.buffer;
 
+import tensor.TensorInternalAccess;
+
 import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
 import backend.accelerator.buffer.AcceleratorLayoutAbiV2Descriptor;
@@ -101,7 +103,7 @@ public final class MetalBufferAllocator {
         validateCommonInput(tensor);
         return switch (tensor.getDataType()) {
             case FLOAT32 -> {
-                float[] data = tensor.getFloat32Data();
+                float[] data = TensorInternalAccess.float32Data(tensor);
                 if (data == null) {
                     throw new UnsupportedOperationException("Metal FLOAT32 input tensor has no direct float[] storage.");
                 }
@@ -113,7 +115,7 @@ public final class MetalBufferAllocator {
                 }
             }
             case BFLOAT16 -> {
-                short[] data = tensor.getBFloat16Data();
+                short[] data = TensorInternalAccess.bfloat16Data(tensor);
                 if (data == null) {
                     throw new UnsupportedOperationException("Metal BFLOAT16 input tensor has no direct short[] storage.");
                 }
@@ -125,7 +127,7 @@ public final class MetalBufferAllocator {
                 }
             }
             case INT32 -> {
-                int[] data = tensor.getInt32Data();
+                int[] data = TensorInternalAccess.int32Data(tensor);
                 if (data == null) {
                     throw new UnsupportedOperationException("Metal INT32 index tensor has no direct int[] storage.");
                 }
@@ -189,7 +191,7 @@ public final class MetalBufferAllocator {
         if (tensor.getDataType() != DataType.BOOL) {
             throw new UnsupportedOperationException("Metal predicate buffer inputs require BOOL tensors; got " + tensor.getDataType());
         }
-        byte[] data = tensor.getBoolData();
+        byte[] data = TensorInternalAccess.boolData(tensor);
         if (data == null) {
             throw new UnsupportedOperationException("Metal BOOL predicate tensor has no direct byte[] storage.");
         }
@@ -285,31 +287,31 @@ public final class MetalBufferAllocator {
         if (binding.layout().layoutClass() == AcceleratorBufferLayoutClass.BROADCAST_ZERO_STRIDE_VIEW) {
             materializePhysicalViewStorage(binding, destination);
         } else if (binding.layout().dataType() == DataType.FLOAT32) {
-            float[] data = destination.getFloat32Data();
+            float[] data = TensorInternalAccess.float32Data(destination);
             if (data == null) {
                 throw new UnsupportedOperationException("Destination FLOAT32 tensor has no direct float[] storage.");
             }
             materializeFloat32(binding, destination, destinationLayout, data);
         } else if (binding.layout().dataType() == DataType.BFLOAT16) {
-            short[] data = destination.getBFloat16Data();
+            short[] data = TensorInternalAccess.bfloat16Data(destination);
             if (data == null) {
                 throw new UnsupportedOperationException("Destination BFLOAT16 tensor has no direct short[] storage.");
             }
             materializeBFloat16(binding, destination, destinationLayout, data);
         } else if (binding.layout().dataType() == DataType.BOOL) {
-            byte[] data = destination.getBoolData();
+            byte[] data = TensorInternalAccess.boolData(destination);
             if (data == null) {
                 throw new UnsupportedOperationException("Destination BOOL tensor has no direct byte[] storage.");
             }
             materializeBool(binding, destination, destinationLayout, data);
         } else if (binding.layout().dataType() == DataType.INT32) {
-            int[] data = destination.getInt32Data();
+            int[] data = TensorInternalAccess.int32Data(destination);
             if (data == null) {
                 throw new UnsupportedOperationException("Destination INT32 tensor has no direct int[] storage.");
             }
             materializeInt32(binding, destination, destinationLayout, data);
         } else {
-            long[] data = destination.getInt64Data();
+            long[] data = TensorInternalAccess.int64Data(destination);
             if (data == null) {
                 throw new UnsupportedOperationException("Destination INT64 tensor has no direct long[] storage.");
             }
@@ -425,7 +427,7 @@ public final class MetalBufferAllocator {
         int physicalElements = checkedPhysicalElementCount(binding.layout(), physicalBytes);
         switch (binding.layout().dataType()) {
             case FLOAT32 -> {
-                float[] data = destination.getFloat32Data();
+                float[] data = TensorInternalAccess.float32Data(destination);
                 if (data == null) {
                     throw new UnsupportedOperationException("Destination FLOAT32 tensor has no direct float[] storage.");
                 }
@@ -439,7 +441,7 @@ public final class MetalBufferAllocator {
                 }
             }
             case BFLOAT16 -> {
-                short[] data = destination.getBFloat16Data();
+                short[] data = TensorInternalAccess.bfloat16Data(destination);
                 if (data == null) {
                     throw new UnsupportedOperationException("Destination BFLOAT16 tensor has no direct short[] storage.");
                 }
@@ -453,7 +455,7 @@ public final class MetalBufferAllocator {
                 }
             }
             case BOOL -> {
-                byte[] data = destination.getBoolData();
+                byte[] data = TensorInternalAccess.boolData(destination);
                 if (data == null) {
                     throw new UnsupportedOperationException("Destination BOOL tensor has no direct byte[] storage.");
                 }
@@ -467,7 +469,7 @@ public final class MetalBufferAllocator {
                 }
             }
             case INT32 -> {
-                int[] data = destination.getInt32Data();
+                int[] data = TensorInternalAccess.int32Data(destination);
                 if (data == null) {
                     throw new UnsupportedOperationException("Destination INT32 tensor has no direct int[] storage.");
                 }
@@ -481,7 +483,7 @@ public final class MetalBufferAllocator {
                 }
             }
             case INT64 -> {
-                long[] data = destination.getInt64Data();
+                long[] data = TensorInternalAccess.int64Data(destination);
                 if (data == null) {
                     throw new UnsupportedOperationException("Destination INT64 tensor has no direct long[] storage.");
                 }

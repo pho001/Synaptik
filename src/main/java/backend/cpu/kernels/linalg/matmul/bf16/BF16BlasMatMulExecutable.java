@@ -1,5 +1,7 @@
 package backend.cpu.kernels.linalg.matmul.bf16;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.CpuNodeWorkspace;
 import backend.cpu.kernels.linalg.matmul.blas.MatMulBlasBackend;
@@ -40,7 +42,7 @@ public final class BF16BlasMatMulExecutable extends AbstractBF16MatMulExecutable
         int n = bs[bs.length - 1];
         CpuNodeWorkspace workspace = context.cpuWorkspace();
         float[] tmp = workspace == null ? null : workspace.requireFloatWorkspace();
-        if (!MatMulBlasBackend.tryBlasBF16(ad, bd, node.getBFloat16Data(), tmp, m, n, k)) {
+        if (!MatMulBlasBackend.tryBlasBF16(ad, bd, TensorInternalAccess.bfloat16Data(node), tmp, m, n, k)) {
             return false;
         }
         recordBlasSymbol("cblas_bgemm");

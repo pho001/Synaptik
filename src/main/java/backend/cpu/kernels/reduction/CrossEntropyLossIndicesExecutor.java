@@ -1,5 +1,7 @@
 package backend.cpu.kernels.reduction;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.CpuThreadPool;
@@ -23,9 +25,9 @@ final class CrossEntropyLossIndicesExecutor {
 
     static void executeF64(crossEntropyLossIndices loss, Tensor logits, Tensor targetIndices, Tensor node, CpuKernelContext context) {
         validate(loss, logits, targetIndices, node, context);
-        double[] logitsData = logits.getFloat64Data();
+        double[] logitsData = TensorInternalAccess.float64Data(logits);
         if (loss.getReduction() == LossReduction.NONE) {
-            double[] out = node.getFloat64Data();
+            double[] out = TensorInternalAccess.float64Data(node);
             runGroups(logits, targetIndices, node, loss, context, (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
                 SampleResult result = computeLossF64(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
                 out[outOffset] = result.valid() ? result.loss() : 0.0d;
@@ -34,14 +36,14 @@ final class CrossEntropyLossIndicesExecutor {
         }
         ReductionResult result = reduceGroups(logits, targetIndices, loss, context, (baseLogits, targetOffset, axisStride, axisSize) ->
                 computeLossF64(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex()));
-        node.getFloat64Data()[node.getStorageOffsetUnsafe()] = finalizeReduction(result, loss.getReduction(), targetIndices.getFlatDataSize());
+        TensorInternalAccess.float64Data(node)[node.getStorageOffsetUnsafe()] = finalizeReduction(result, loss.getReduction(), targetIndices.getFlatDataSize());
     }
 
     static void executeF32(crossEntropyLossIndices loss, Tensor logits, Tensor targetIndices, Tensor node, CpuKernelContext context) {
         validate(loss, logits, targetIndices, node, context);
-        float[] logitsData = logits.getFloat32Data();
+        float[] logitsData = TensorInternalAccess.float32Data(logits);
         if (loss.getReduction() == LossReduction.NONE) {
-            float[] out = node.getFloat32Data();
+            float[] out = TensorInternalAccess.float32Data(node);
             runGroups(logits, targetIndices, node, loss, context, (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
                 SampleResult result = computeLossF32(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
                 out[outOffset] = result.valid() ? (float) result.loss() : 0.0f;
@@ -50,14 +52,14 @@ final class CrossEntropyLossIndicesExecutor {
         }
         ReductionResult result = reduceGroups(logits, targetIndices, loss, context, (baseLogits, targetOffset, axisStride, axisSize) ->
                 computeLossF32(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex()));
-        node.getFloat32Data()[node.getStorageOffsetUnsafe()] = (float) finalizeReduction(result, loss.getReduction(), targetIndices.getFlatDataSize());
+        TensorInternalAccess.float32Data(node)[node.getStorageOffsetUnsafe()] = (float) finalizeReduction(result, loss.getReduction(), targetIndices.getFlatDataSize());
     }
 
     static void executeBF16(crossEntropyLossIndices loss, Tensor logits, Tensor targetIndices, Tensor node, CpuKernelContext context) {
         validate(loss, logits, targetIndices, node, context);
-        short[] logitsData = logits.getBFloat16Data();
+        short[] logitsData = TensorInternalAccess.bfloat16Data(logits);
         if (loss.getReduction() == LossReduction.NONE) {
-            short[] out = node.getBFloat16Data();
+            short[] out = TensorInternalAccess.bfloat16Data(node);
             runGroups(logits, targetIndices, node, loss, context, (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
                 SampleResult result = computeLossBF16(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
                 out[outOffset] = CpuDTypeOps.toBFloat16Bits(result.valid() ? (float) result.loss() : 0.0f);
@@ -66,7 +68,7 @@ final class CrossEntropyLossIndicesExecutor {
         }
         ReductionResult result = reduceGroups(logits, targetIndices, loss, context, (baseLogits, targetOffset, axisStride, axisSize) ->
                 computeLossBF16(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex()));
-        node.getBFloat16Data()[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toBFloat16Bits((float) finalizeReduction(result, loss.getReduction(), targetIndices.getFlatDataSize()));
+        TensorInternalAccess.bfloat16Data(node)[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toBFloat16Bits((float) finalizeReduction(result, loss.getReduction(), targetIndices.getFlatDataSize()));
     }
 
     static void executeF32ToBF16(crossEntropyLossIndices loss, Tensor logits, float[] logitsData, Tensor targetIndices, Tensor node, CpuKernelContext context) {
@@ -75,7 +77,7 @@ final class CrossEntropyLossIndicesExecutor {
             throw new IllegalArgumentException("Float continuation logits cannot be null");
         }
         if (loss.getReduction() == LossReduction.NONE) {
-            short[] out = node.getBFloat16Data();
+            short[] out = TensorInternalAccess.bfloat16Data(node);
             runGroups(logits, targetIndices, node, loss, context, (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
                 SampleResult result = computeLossF32(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
                 out[outOffset] = CpuDTypeOps.toBFloat16Bits(result.valid() ? (float) result.loss() : 0.0f);
@@ -84,7 +86,7 @@ final class CrossEntropyLossIndicesExecutor {
         }
         ReductionResult result = reduceGroups(logits, targetIndices, loss, context, (baseLogits, targetOffset, axisStride, axisSize) ->
                 computeLossF32(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex()));
-        node.getBFloat16Data()[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toBFloat16Bits((float) finalizeReduction(result, loss.getReduction(), targetIndices.getFlatDataSize()));
+        TensorInternalAccess.bfloat16Data(node)[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toBFloat16Bits((float) finalizeReduction(result, loss.getReduction(), targetIndices.getFlatDataSize()));
     }
 
     private static void validate(crossEntropyLossIndices loss, Tensor logits, Tensor targetIndices, Tensor node, CpuKernelContext context) {
@@ -474,11 +476,11 @@ final class CrossEntropyLossIndicesExecutor {
 
     private static int readIndex(Tensor targetIndices, int storageOffset) {
         return switch (targetIndices.getDataType()) {
-            case INT32 -> targetIndices.getInt32Data()[storageOffset];
-            case INT64 -> Math.toIntExact(targetIndices.getInt64Data()[storageOffset]);
-            case FLOAT64 -> toIntegralIndex(targetIndices.getFloat64Data()[storageOffset]);
-            case FLOAT32 -> toIntegralIndex(targetIndices.getFloat32Data()[storageOffset]);
-            case BFLOAT16 -> toIntegralIndex(CpuDTypeOps.fromBFloat16Bits(targetIndices.getBFloat16Data()[storageOffset]));
+            case INT32 -> TensorInternalAccess.int32Data(targetIndices)[storageOffset];
+            case INT64 -> Math.toIntExact(TensorInternalAccess.int64Data(targetIndices)[storageOffset]);
+            case FLOAT64 -> toIntegralIndex(TensorInternalAccess.float64Data(targetIndices)[storageOffset]);
+            case FLOAT32 -> toIntegralIndex(TensorInternalAccess.float32Data(targetIndices)[storageOffset]);
+            case BFLOAT16 -> toIntegralIndex(CpuDTypeOps.fromBFloat16Bits(TensorInternalAccess.bfloat16Data(targetIndices)[storageOffset]));
             case BOOL -> throw new IllegalArgumentException("Target indices must be numeric integral values");
         };
     }

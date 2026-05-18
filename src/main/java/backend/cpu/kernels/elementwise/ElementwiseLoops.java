@@ -1,5 +1,7 @@
 package backend.cpu.kernels.elementwise;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuExecutionMode;
 import backend.cpu.kernels.CpuKernelContext;
@@ -30,18 +32,18 @@ public final class ElementwiseLoops {
         ResolvedBroadcastPlan plan = context.broadcastPlan();
         ResolvedDispatchHints hints = hintsOrDefault(context.dispatchHints(), out.getFlatDataSize());
         switch (out.getDataType()) {
-            case FLOAT64 -> runBinaryF64(kernel, left.getFloat64Data(), right.getFloat64Data(), out.getFloat64Data(), plan, hints);
-            case FLOAT32 -> runBinaryF32(kernel, left.getFloat32Data(), right.getFloat32Data(), out.getFloat32Data(), plan, hints);
+            case FLOAT64 -> runBinaryF64(kernel, TensorInternalAccess.float64Data(left), TensorInternalAccess.float64Data(right), TensorInternalAccess.float64Data(out), plan, hints);
+            case FLOAT32 -> runBinaryF32(kernel, TensorInternalAccess.float32Data(left), TensorInternalAccess.float32Data(right), TensorInternalAccess.float32Data(out), plan, hints);
             case BFLOAT16 -> {
                 float[] leftContinuation = context.inputFloatContinuation(0, left.getFlatDataSize());
                 float[] rightContinuation = context.inputFloatContinuation(1, right.getFlatDataSize());
                 runBinaryBF16(
                         kernel,
-                        left.getBFloat16Data(),
-                        right.getBFloat16Data(),
+                        TensorInternalAccess.bfloat16Data(left),
+                        TensorInternalAccess.bfloat16Data(right),
                         leftContinuation,
                         rightContinuation,
-                        out.getBFloat16Data(),
+                        TensorInternalAccess.bfloat16Data(out),
                         plan,
                         hints,
                         context
@@ -54,15 +56,15 @@ public final class ElementwiseLoops {
     public static void runUnary(UnaryElementwiseKernel kernel, Tensor input, Tensor out, CpuKernelContext context) {
         ResolvedDispatchHints hints = hintsOrDefault(context.dispatchHints(), out.getFlatDataSize());
         switch (out.getDataType()) {
-            case FLOAT64 -> runUnaryF64(kernel, input.getFloat64Data(), out.getFloat64Data(), hints);
-            case FLOAT32 -> runUnaryF32(kernel, input.getFloat32Data(), out.getFloat32Data(), hints);
+            case FLOAT64 -> runUnaryF64(kernel, TensorInternalAccess.float64Data(input), TensorInternalAccess.float64Data(out), hints);
+            case FLOAT32 -> runUnaryF32(kernel, TensorInternalAccess.float32Data(input), TensorInternalAccess.float32Data(out), hints);
             case BFLOAT16 -> {
                 float[] continuation = context.inputFloatContinuation(0, out.getFlatDataSize());
                 runUnaryBF16(
                         kernel,
-                        input.getBFloat16Data(),
+                        TensorInternalAccess.bfloat16Data(input),
                         continuation,
-                        out.getBFloat16Data(),
+                        TensorInternalAccess.bfloat16Data(out),
                         hints,
                         context
                 );
@@ -81,16 +83,16 @@ public final class ElementwiseLoops {
     ) {
         ResolvedDispatchHints hints = hintsOrDefault(context.dispatchHints(), out.getFlatDataSize());
         switch (out.getDataType()) {
-            case FLOAT64 -> runScalarUnaryF64(kernel, input.getFloat64Data(), parameterF64, out.getFloat64Data(), hints);
-            case FLOAT32 -> runScalarUnaryF32(kernel, input.getFloat32Data(), parameterF32, out.getFloat32Data(), hints);
+            case FLOAT64 -> runScalarUnaryF64(kernel, TensorInternalAccess.float64Data(input), parameterF64, TensorInternalAccess.float64Data(out), hints);
+            case FLOAT32 -> runScalarUnaryF32(kernel, TensorInternalAccess.float32Data(input), parameterF32, TensorInternalAccess.float32Data(out), hints);
             case BFLOAT16 -> {
                 float[] continuation = context.inputFloatContinuation(0, out.getFlatDataSize());
                 runScalarUnaryBF16(
                         kernel,
-                        input.getBFloat16Data(),
+                        TensorInternalAccess.bfloat16Data(input),
                         continuation,
                         parameterF32,
-                        out.getBFloat16Data(),
+                        TensorInternalAccess.bfloat16Data(out),
                         hints,
                         context
                 );
@@ -103,9 +105,9 @@ public final class ElementwiseLoops {
         ResolvedBroadcastPlan plan = context.broadcastPlan();
         ResolvedDispatchHints hints = hintsOrDefault(context.dispatchHints(), out.getFlatDataSize());
         switch (left.getDataType()) {
-            case FLOAT64 -> runCompareF64(kernel, left.getFloat64Data(), right.getFloat64Data(), out.getBoolData(), plan, hints);
-            case FLOAT32 -> runCompareF32(kernel, left.getFloat32Data(), right.getFloat32Data(), out.getBoolData(), plan, hints);
-            case BFLOAT16 -> runCompareBF16(kernel, left.getBFloat16Data(), right.getBFloat16Data(), out.getBoolData(), plan, hints);
+            case FLOAT64 -> runCompareF64(kernel, TensorInternalAccess.float64Data(left), TensorInternalAccess.float64Data(right), TensorInternalAccess.boolData(out), plan, hints);
+            case FLOAT32 -> runCompareF32(kernel, TensorInternalAccess.float32Data(left), TensorInternalAccess.float32Data(right), TensorInternalAccess.boolData(out), plan, hints);
+            case BFLOAT16 -> runCompareBF16(kernel, TensorInternalAccess.bfloat16Data(left), TensorInternalAccess.bfloat16Data(right), TensorInternalAccess.boolData(out), plan, hints);
             case INT32, INT64, BOOL -> throw unsupported(left.getDataType(), "compare elementwise kernel");
         }
     }
@@ -113,9 +115,9 @@ public final class ElementwiseLoops {
     public static void runLogicalBinary(LogicalBinaryElementwiseKernel kernel, Tensor left, Tensor right, Tensor out, CpuKernelContext context) {
         ResolvedBroadcastPlan plan = context.broadcastPlan();
         ResolvedDispatchHints hints = hintsOrDefault(context.dispatchHints(), out.getFlatDataSize());
-        byte[] leftData = left.getBoolData();
-        byte[] rightData = right.getBoolData();
-        byte[] outData = out.getBoolData();
+        byte[] leftData = TensorInternalAccess.boolData(left);
+        byte[] rightData = TensorInternalAccess.boolData(right);
+        byte[] outData = TensorInternalAccess.boolData(out);
         if (plan != null && !plan.isNoBroadcast()) {
             runBroadcast(outData.length, hints, (start, end) -> scalarBroadcastLogicalBinary(kernel, leftData, rightData, outData, plan, start, end));
             return;
@@ -128,7 +130,7 @@ public final class ElementwiseLoops {
     public static void runLogicalUnary(LogicalUnaryElementwiseKernel kernel, Tensor input, Tensor out, CpuKernelContext context) {
         ResolvedDispatchHints hints = hintsOrDefault(context.dispatchHints(), out.getFlatDataSize());
         runDirect(out.getFlatDataSize(), hints, false,
-                (start, end) -> scalarDirectLogicalUnary(kernel, input.getBoolData(), out.getBoolData(), start, end),
+                (start, end) -> scalarDirectLogicalUnary(kernel, TensorInternalAccess.boolData(input), TensorInternalAccess.boolData(out), start, end),
                 null);
     }
 
@@ -136,16 +138,16 @@ public final class ElementwiseLoops {
         ResolvedWhereBroadcastPlan plan = context.whereBroadcastPlan();
         ResolvedDispatchHints hints = hintsOrDefault(context.dispatchHints(), out.getFlatDataSize());
         switch (out.getDataType()) {
-            case FLOAT64 -> runWhereF64(kernel, condition.getBoolData(), ifTrue.getFloat64Data(), ifFalse.getFloat64Data(), out.getFloat64Data(), plan, hints);
-            case FLOAT32 -> runWhereF32(kernel, condition.getBoolData(), ifTrue.getFloat32Data(), ifFalse.getFloat32Data(), out.getFloat32Data(), plan, hints);
+            case FLOAT64 -> runWhereF64(kernel, TensorInternalAccess.boolData(condition), TensorInternalAccess.float64Data(ifTrue), TensorInternalAccess.float64Data(ifFalse), TensorInternalAccess.float64Data(out), plan, hints);
+            case FLOAT32 -> runWhereF32(kernel, TensorInternalAccess.boolData(condition), TensorInternalAccess.float32Data(ifTrue), TensorInternalAccess.float32Data(ifFalse), TensorInternalAccess.float32Data(out), plan, hints);
             case BFLOAT16 -> runWhereBF16(
                     kernel,
-                    condition.getBoolData(),
-                    ifTrue.getBFloat16Data(),
-                    ifFalse.getBFloat16Data(),
+                    TensorInternalAccess.boolData(condition),
+                    TensorInternalAccess.bfloat16Data(ifTrue),
+                    TensorInternalAccess.bfloat16Data(ifFalse),
                     context.inputFloatContinuation(1, ifTrue.getFlatDataSize()),
                     context.inputFloatContinuation(2, ifFalse.getFlatDataSize()),
-                    out.getBFloat16Data(),
+                    TensorInternalAccess.bfloat16Data(out),
                     plan,
                     hints,
                     context

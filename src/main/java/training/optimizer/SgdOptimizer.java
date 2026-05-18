@@ -1,5 +1,7 @@
 package training.optimizer;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.nativecpu.NativeCpuAllocator;
 import backend.cpu.nativecpu.NativeCpuMaterializer;
 import backend.cpu.nativecpu.NativeCpuStorageFactory;
@@ -95,8 +97,8 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
         Tensor parameter = context.executionContext().runtimeTensorForNodeId(ref.parameterNode().id());
         Tensor gradient = context.executionContext().runtimeTensorForNodeId(gradientNodeId);
         updateCpu(parameter, gradient, learningRate, ref.parameterNode());
-        parameter.markStorageModified();
-        ref.parameterNode().sourceTensor().markStorageModified();
+        TensorInternalAccess.markStorageModified(parameter);
+        TensorInternalAccess.markStorageModified(ref.parameterNode().sourceTensor());
         context.executionContext().markCpuCurrent(ref.parameterNode().id(), "optimizer CPU SGD update");
     }
 
@@ -195,22 +197,22 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
         }
         switch (parameter.getDataType()) {
             case FLOAT32 -> {
-                float[] p = parameter.getFloat32Data();
-                float[] g = gradient.getFloat32Data();
+                float[] p = TensorInternalAccess.float32Data(parameter);
+                float[] g = TensorInternalAccess.float32Data(gradient);
                 for (int i = 0; i < p.length; i++) {
                     p[i] -= learningRate * g[i];
                 }
             }
             case FLOAT64 -> {
-                double[] p = parameter.getFloat64Data();
-                double[] g = gradient.getFloat64Data();
+                double[] p = TensorInternalAccess.float64Data(parameter);
+                double[] g = TensorInternalAccess.float64Data(gradient);
                 for (int i = 0; i < p.length; i++) {
                     p[i] -= (double) learningRate * g[i];
                 }
             }
             case BFLOAT16 -> {
-                short[] p = parameter.getBFloat16Data();
-                short[] g = gradient.getBFloat16Data();
+                short[] p = TensorInternalAccess.bfloat16Data(parameter);
+                short[] g = TensorInternalAccess.bfloat16Data(gradient);
                 for (int i = 0; i < p.length; i++) {
                     float updated = CpuDTypeOps.fromBFloat16Bits(p[i])
                             - learningRate * CpuDTypeOps.fromBFloat16Bits(g[i]);

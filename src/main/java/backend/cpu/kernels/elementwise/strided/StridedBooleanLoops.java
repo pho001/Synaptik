@@ -1,5 +1,7 @@
 package backend.cpu.kernels.elementwise.strided;
 
+import tensor.TensorInternalAccess;
+
 import operations.Operation;
 import tensor.Tensor;
 
@@ -10,7 +12,7 @@ final class StridedBooleanLoops {
     }
 
     static void forward(Operation op, List<Tensor> inputs, Tensor node) {
-        byte[] out = node.getBoolData();
+        byte[] out = TensorInternalAccess.boolData(node);
         if (out == null) {
             return;
         }
@@ -23,7 +25,7 @@ final class StridedBooleanLoops {
 
         if (op.opType() == Operation.OpType.LOGICAL_NOT) {
             Tensor ta = inputs.getFirst();
-            byte[] a = ta.getBoolData();
+            byte[] a = TensorInternalAccess.boolData(ta);
             int[] aStrides = ta.getStridesUnsafe();
             int aBaseOffset = ta.getStorageOffsetUnsafe();
             if (rank == 1) {
@@ -37,8 +39,8 @@ final class StridedBooleanLoops {
         Tensor ta = inputs.get(0);
         Tensor tb = inputs.get(1);
         if (ta.getDataType() == tensor.DataType.BOOL) {
-            byte[] a = ta.getBoolData();
-            byte[] b = tb.getBoolData();
+            byte[] a = TensorInternalAccess.boolData(ta);
+            byte[] b = TensorInternalAccess.boolData(tb);
             int[] aStrides = ta.getStridesUnsafe();
             int[] bStrides = tb.getStridesUnsafe();
             int aBaseOffset = ta.getStorageOffsetUnsafe();
@@ -53,8 +55,8 @@ final class StridedBooleanLoops {
 
         switch (ta.getDataType()) {
             case FLOAT64 -> {
-                double[] a = ta.getFloat64Data();
-                double[] b = tb.getFloat64Data();
+                double[] a = TensorInternalAccess.float64Data(ta);
+                double[] b = TensorInternalAccess.float64Data(tb);
                 int[] aStrides = ta.getStridesUnsafe();
                 int[] bStrides = tb.getStridesUnsafe();
                 int aBaseOffset = ta.getStorageOffsetUnsafe();
@@ -66,8 +68,8 @@ final class StridedBooleanLoops {
                 genericCompareF64(op, a, b, aStrides, bStrides, aBaseOffset, bBaseOffset, out, outShape, outStrides, outBaseOffset, logicalSize);
             }
             case FLOAT32 -> {
-                float[] a = ta.getFloat32Data();
-                float[] b = tb.getFloat32Data();
+                float[] a = TensorInternalAccess.float32Data(ta);
+                float[] b = TensorInternalAccess.float32Data(tb);
                 int[] aStrides = ta.getStridesUnsafe();
                 int[] bStrides = tb.getStridesUnsafe();
                 int aBaseOffset = ta.getStorageOffsetUnsafe();
@@ -79,8 +81,8 @@ final class StridedBooleanLoops {
                 genericCompareF32(op, a, b, aStrides, bStrides, aBaseOffset, bBaseOffset, out, outShape, outStrides, outBaseOffset, logicalSize);
             }
             case BFLOAT16 -> {
-                short[] a = ta.getBFloat16Data();
-                short[] b = tb.getBFloat16Data();
+                short[] a = TensorInternalAccess.bfloat16Data(ta);
+                short[] b = TensorInternalAccess.bfloat16Data(tb);
                 int[] aStrides = ta.getStridesUnsafe();
                 int[] bStrides = tb.getStridesUnsafe();
                 int aBaseOffset = ta.getStorageOffsetUnsafe();

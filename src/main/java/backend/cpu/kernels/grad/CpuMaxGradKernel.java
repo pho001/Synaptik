@@ -1,5 +1,7 @@
 package backend.cpu.kernels.grad;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.*;
 
 import operations.Operation;
@@ -14,10 +16,10 @@ public final class CpuMaxGradKernel implements CpuKernel {
     public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         maxGrad gradOp = (maxGrad) op;
         runF64(
-                inputs.get(0).getFloat64Data(), inputs.get(0).getStorageOffsetUnsafe(),
-                inputs.get(1).getFloat64Data(), inputs.get(1).getStorageOffsetUnsafe(),
-                inputs.get(2).getFloat64Data(), inputs.get(2).getStorageOffsetUnsafe(),
-                node.getFloat64Data(), node.getStorageOffsetUnsafe(),
+                TensorInternalAccess.float64Data(inputs.get(0)), inputs.get(0).getStorageOffsetUnsafe(),
+                TensorInternalAccess.float64Data(inputs.get(1)), inputs.get(1).getStorageOffsetUnsafe(),
+                TensorInternalAccess.float64Data(inputs.get(2)), inputs.get(2).getStorageOffsetUnsafe(),
+                TensorInternalAccess.float64Data(node), node.getStorageOffsetUnsafe(),
                 gradOp.getBroadcastPlan(), gradOp.isForFirstInput()
         );
     }
@@ -26,10 +28,10 @@ public final class CpuMaxGradKernel implements CpuKernel {
     public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         maxGrad gradOp = (maxGrad) op;
         runF32(
-                inputs.get(0).getFloat32Data(), inputs.get(0).getStorageOffsetUnsafe(),
-                inputs.get(1).getFloat32Data(), inputs.get(1).getStorageOffsetUnsafe(),
-                inputs.get(2).getFloat32Data(), inputs.get(2).getStorageOffsetUnsafe(),
-                node.getFloat32Data(), node.getStorageOffsetUnsafe(),
+                TensorInternalAccess.float32Data(inputs.get(0)), inputs.get(0).getStorageOffsetUnsafe(),
+                TensorInternalAccess.float32Data(inputs.get(1)), inputs.get(1).getStorageOffsetUnsafe(),
+                TensorInternalAccess.float32Data(inputs.get(2)), inputs.get(2).getStorageOffsetUnsafe(),
+                TensorInternalAccess.float32Data(node), node.getStorageOffsetUnsafe(),
                 gradOp.getBroadcastPlan(), gradOp.isForFirstInput()
         );
     }
@@ -38,10 +40,10 @@ public final class CpuMaxGradKernel implements CpuKernel {
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         maxGrad gradOp = (maxGrad) op;
         runBF16(
-                inputs.get(0).getBFloat16Data(), inputs.get(0).getStorageOffsetUnsafe(),
-                inputs.get(1).getBFloat16Data(), inputs.get(1).getStorageOffsetUnsafe(),
-                inputs.get(2).getBFloat16Data(), inputs.get(2).getStorageOffsetUnsafe(),
-                node.getBFloat16Data(), node.getStorageOffsetUnsafe(),
+                TensorInternalAccess.bfloat16Data(inputs.get(0)), inputs.get(0).getStorageOffsetUnsafe(),
+                TensorInternalAccess.bfloat16Data(inputs.get(1)), inputs.get(1).getStorageOffsetUnsafe(),
+                TensorInternalAccess.bfloat16Data(inputs.get(2)), inputs.get(2).getStorageOffsetUnsafe(),
+                TensorInternalAccess.bfloat16Data(node), node.getStorageOffsetUnsafe(),
                 gradOp.getBroadcastPlan(), gradOp.isForFirstInput()
         );
     }

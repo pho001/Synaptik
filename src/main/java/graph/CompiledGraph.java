@@ -1,5 +1,7 @@
 package graph;
 
+import tensor.TensorInternalAccess;
+
 import backend.runtime.ExecutionMode;
 import backend.prepare.PreparedExecutionBuilder;
 import config.compile.CompileConfig;
@@ -416,11 +418,11 @@ public class CompiledGraph {
                 continue;
             }
             switch (gradient.getDataType()) {
-                case FLOAT64 -> java.util.Arrays.fill(gradient.getFloat64Data(), 0.0d);
-                case FLOAT32 -> java.util.Arrays.fill(gradient.getFloat32Data(), 0.0f);
-                case BFLOAT16 -> java.util.Arrays.fill(gradient.getBFloat16Data(), (short) 0);
-                case INT32 -> java.util.Arrays.fill(gradient.getInt32Data(), 0);
-                case BOOL -> java.util.Arrays.fill(gradient.getBoolData(), (byte) 0);
+                case FLOAT64 -> java.util.Arrays.fill(TensorInternalAccess.float64Data(gradient), 0.0d);
+                case FLOAT32 -> java.util.Arrays.fill(TensorInternalAccess.float32Data(gradient), 0.0f);
+                case BFLOAT16 -> java.util.Arrays.fill(TensorInternalAccess.bfloat16Data(gradient), (short) 0);
+                case INT32 -> java.util.Arrays.fill(TensorInternalAccess.int32Data(gradient), 0);
+                case BOOL -> java.util.Arrays.fill(TensorInternalAccess.boolData(gradient), (byte) 0);
             }
         }
     }

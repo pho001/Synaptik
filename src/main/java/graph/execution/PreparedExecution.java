@@ -1706,7 +1706,7 @@ public final class PreparedExecution implements AutoCloseable {
             }
             executionState.requireCpuReadable(publishNodeId, CpuMaterializationReason.GRAPH_OUTPUT);
             Tensor runtimePublished = executionState.runtimeTensorForNodeId(publishNodeId);
-            if (publishTarget.getStorage() == runtimePublished.getStorage()) {
+            if (TensorInternalAccess.storage(publishTarget) == TensorInternalAccess.storage(runtimePublished)) {
                 repairSemanticAliasChain(rootTensor);
                 return;
             }
@@ -1855,9 +1855,9 @@ public final class PreparedExecution implements AutoCloseable {
 
     private static void fillGradientOnes(Tensor gradient) {
         switch (gradient.getDataType()) {
-            case FLOAT64 -> Arrays.fill(gradient.getFloat64Data(), 1.0);
-            case FLOAT32 -> Arrays.fill(gradient.getFloat32Data(), 1.0f);
-            case BFLOAT16 -> Arrays.fill(gradient.getBFloat16Data(), CpuDTypeOps.toBFloat16Bits(1.0f));
+            case FLOAT64 -> Arrays.fill(TensorInternalAccess.float64Data(gradient), 1.0);
+            case FLOAT32 -> Arrays.fill(TensorInternalAccess.float32Data(gradient), 1.0f);
+            case BFLOAT16 -> Arrays.fill(TensorInternalAccess.bfloat16Data(gradient), CpuDTypeOps.toBFloat16Bits(1.0f));
             case INT32, BOOL -> throw new UnsupportedOperationException("INT32/BOOL tensors do not support gradient seeding.");
         }
     }

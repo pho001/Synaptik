@@ -1,5 +1,7 @@
 package backend.cpu.kernels.reduction;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
 import jdk.incubator.vector.DoubleVector;
@@ -18,9 +20,9 @@ final class SoftmaxGradExecutor {
 
     static void executeSoftmaxF64(Tensor softmaxOut, Tensor outGrad, Tensor node, int dimension, CpuKernelContext context) {
         validate(softmaxOut, outGrad, node, dimension, context, "softmaxGrad");
-        double[] primary = softmaxOut.getFloat64Data();
-        double[] grad = outGrad.getFloat64Data();
-        double[] out = node.getFloat64Data();
+        double[] primary = TensorInternalAccess.float64Data(softmaxOut);
+        double[] grad = TensorInternalAccess.float64Data(outGrad);
+        double[] out = TensorInternalAccess.float64Data(node);
         SoftmaxGradTraversal.runGroups(
                 softmaxOut.getShapeUnsafe(),
                 softmaxOut.getStridesUnsafe(),
@@ -38,9 +40,9 @@ final class SoftmaxGradExecutor {
 
     static void executeSoftmaxF32(Tensor softmaxOut, Tensor outGrad, Tensor node, int dimension, CpuKernelContext context) {
         validate(softmaxOut, outGrad, node, dimension, context, "softmaxGrad");
-        float[] primary = softmaxOut.getFloat32Data();
-        float[] grad = outGrad.getFloat32Data();
-        float[] out = node.getFloat32Data();
+        float[] primary = TensorInternalAccess.float32Data(softmaxOut);
+        float[] grad = TensorInternalAccess.float32Data(outGrad);
+        float[] out = TensorInternalAccess.float32Data(node);
         SoftmaxGradTraversal.runGroups(
                 softmaxOut.getShapeUnsafe(),
                 softmaxOut.getStridesUnsafe(),
@@ -64,7 +66,7 @@ final class SoftmaxGradExecutor {
                 outGrad,
                 null,
                 node,
-                node.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(node),
                 null,
                 dimension,
                 context
@@ -87,7 +89,7 @@ final class SoftmaxGradExecutor {
                 outGrad,
                 gradContinuation,
                 node,
-                node.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(node),
                 null,
                 dimension,
                 context
@@ -131,8 +133,8 @@ final class SoftmaxGradExecutor {
             int dimension,
             CpuKernelContext context
     ) {
-        short[] primary = softmaxOut.getBFloat16Data();
-        short[] grad = outGrad.getBFloat16Data();
+        short[] primary = TensorInternalAccess.bfloat16Data(softmaxOut);
+        short[] grad = TensorInternalAccess.bfloat16Data(outGrad);
         int primaryBaseOffset = primaryContinuation == null ? softmaxOut.getStorageOffsetUnsafe() : 0;
         int gradBaseOffset = gradContinuation == null ? outGrad.getStorageOffsetUnsafe() : 0;
         int[] outStrides = node != null ? node.getStridesUnsafe() : softmaxOut.getStridesUnsafe();
@@ -155,9 +157,9 @@ final class SoftmaxGradExecutor {
 
     static void executeLogSoftmaxF64(Tensor logSoftmaxOut, Tensor outGrad, Tensor node, int dimension, CpuKernelContext context) {
         validate(logSoftmaxOut, outGrad, node, dimension, context, "logSoftmaxGrad");
-        double[] primary = logSoftmaxOut.getFloat64Data();
-        double[] grad = outGrad.getFloat64Data();
-        double[] out = node.getFloat64Data();
+        double[] primary = TensorInternalAccess.float64Data(logSoftmaxOut);
+        double[] grad = TensorInternalAccess.float64Data(outGrad);
+        double[] out = TensorInternalAccess.float64Data(node);
         SoftmaxGradTraversal.runGroups(
                 logSoftmaxOut.getShapeUnsafe(),
                 logSoftmaxOut.getStridesUnsafe(),
@@ -175,9 +177,9 @@ final class SoftmaxGradExecutor {
 
     static void executeLogSoftmaxF32(Tensor logSoftmaxOut, Tensor outGrad, Tensor node, int dimension, CpuKernelContext context) {
         validate(logSoftmaxOut, outGrad, node, dimension, context, "logSoftmaxGrad");
-        float[] primary = logSoftmaxOut.getFloat32Data();
-        float[] grad = outGrad.getFloat32Data();
-        float[] out = node.getFloat32Data();
+        float[] primary = TensorInternalAccess.float32Data(logSoftmaxOut);
+        float[] grad = TensorInternalAccess.float32Data(outGrad);
+        float[] out = TensorInternalAccess.float32Data(node);
         SoftmaxGradTraversal.runGroups(
                 logSoftmaxOut.getShapeUnsafe(),
                 logSoftmaxOut.getStridesUnsafe(),
@@ -201,7 +203,7 @@ final class SoftmaxGradExecutor {
                 outGrad,
                 null,
                 node,
-                node.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(node),
                 null,
                 dimension,
                 context
@@ -224,7 +226,7 @@ final class SoftmaxGradExecutor {
                 outGrad,
                 gradContinuation,
                 node,
-                node.getBFloat16Data(),
+                TensorInternalAccess.bfloat16Data(node),
                 null,
                 dimension,
                 context
@@ -268,8 +270,8 @@ final class SoftmaxGradExecutor {
             int dimension,
             CpuKernelContext context
     ) {
-        short[] primary = logSoftmaxOut.getBFloat16Data();
-        short[] grad = outGrad.getBFloat16Data();
+        short[] primary = TensorInternalAccess.bfloat16Data(logSoftmaxOut);
+        short[] grad = TensorInternalAccess.bfloat16Data(outGrad);
         int primaryBaseOffset = primaryContinuation == null ? logSoftmaxOut.getStorageOffsetUnsafe() : 0;
         int gradBaseOffset = gradContinuation == null ? outGrad.getStorageOffsetUnsafe() : 0;
         int[] outStrides = node != null ? node.getStridesUnsafe() : logSoftmaxOut.getStridesUnsafe();

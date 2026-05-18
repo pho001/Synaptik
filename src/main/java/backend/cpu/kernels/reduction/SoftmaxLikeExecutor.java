@@ -1,5 +1,7 @@
 package backend.cpu.kernels.reduction;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuKernelContext;
 import tensor.Tensor;
 
@@ -9,8 +11,8 @@ final class SoftmaxLikeExecutor {
     static void executeF64(SoftmaxLikeReduction reduction, Tensor input, Tensor node, int dimension, CpuKernelContext context) {
         validate(reduction, input, node, context);
         SoftmaxLikeTraversal.validateShapes(input.getShapeUnsafe(), node.getShapeUnsafe(), dimension, label(reduction));
-        double[] in = input.getFloat64Data();
-        double[] out = node.getFloat64Data();
+        double[] in = TensorInternalAccess.float64Data(input);
+        double[] out = TensorInternalAccess.float64Data(node);
         SoftmaxLikeTraversal.runGroups(input.getShapeUnsafe(), input.getStridesUnsafe(), input.getStorageOffsetUnsafe(), node.getStridesUnsafe(), node.getStorageOffsetUnsafe(), dimension, context,
                 (baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize) ->
                         reduction.computeF64(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize));
@@ -19,8 +21,8 @@ final class SoftmaxLikeExecutor {
     static void executeF32(SoftmaxLikeReduction reduction, Tensor input, Tensor node, int dimension, CpuKernelContext context) {
         validate(reduction, input, node, context);
         SoftmaxLikeTraversal.validateShapes(input.getShapeUnsafe(), node.getShapeUnsafe(), dimension, label(reduction));
-        float[] in = input.getFloat32Data();
-        float[] out = node.getFloat32Data();
+        float[] in = TensorInternalAccess.float32Data(input);
+        float[] out = TensorInternalAccess.float32Data(node);
         SoftmaxLikeTraversal.runGroups(input.getShapeUnsafe(), input.getStridesUnsafe(), input.getStorageOffsetUnsafe(), node.getStridesUnsafe(), node.getStorageOffsetUnsafe(), dimension, context,
                 (baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize) ->
                         reduction.computeF32(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize));
@@ -29,8 +31,8 @@ final class SoftmaxLikeExecutor {
     static void executeBF16(SoftmaxLikeReduction reduction, Tensor input, Tensor node, int dimension, CpuKernelContext context) {
         validate(reduction, input, node, context);
         SoftmaxLikeTraversal.validateShapes(input.getShapeUnsafe(), node.getShapeUnsafe(), dimension, label(reduction));
-        short[] in = input.getBFloat16Data();
-        short[] out = node.getBFloat16Data();
+        short[] in = TensorInternalAccess.bfloat16Data(input);
+        short[] out = TensorInternalAccess.bfloat16Data(node);
         SoftmaxLikeTraversal.runGroups(input.getShapeUnsafe(), input.getStridesUnsafe(), input.getStorageOffsetUnsafe(), node.getStridesUnsafe(), node.getStorageOffsetUnsafe(), dimension, context,
                 (baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize) ->
                         reduction.computeBF16(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize));
@@ -39,7 +41,7 @@ final class SoftmaxLikeExecutor {
     static void executeF32ToBF16(SoftmaxLikeReduction reduction, Tensor input, float[] in, Tensor node, int dimension, CpuKernelContext context) {
         validate(reduction, input, node, context);
         SoftmaxLikeTraversal.validateShapes(input.getShapeUnsafe(), node.getShapeUnsafe(), dimension, label(reduction));
-        short[] out = node.getBFloat16Data();
+        short[] out = TensorInternalAccess.bfloat16Data(node);
         if (in == null) {
             throw new IllegalArgumentException("Float continuation input cannot be null");
         }

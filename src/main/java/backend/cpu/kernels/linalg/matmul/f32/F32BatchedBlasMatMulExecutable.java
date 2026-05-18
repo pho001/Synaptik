@@ -1,5 +1,7 @@
 package backend.cpu.kernels.linalg.matmul.f32;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.linalg.matmul.blas.MatMulBlasBackend;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
@@ -22,9 +24,9 @@ public final class F32BatchedBlasMatMulExecutable implements PreparedMatMulExecu
         int m = as[as.length - 2];
         int k = as[as.length - 1];
         int n = bs[bs.length - 1];
-        float[] ad = a.getFloat32Data();
-        float[] bd = b.getFloat32Data();
-        float[] out = node.getFloat32Data();
+        float[] ad = TensorInternalAccess.float32Data(a);
+        float[] bd = TensorInternalAccess.float32Data(b);
+        float[] out = TensorInternalAccess.float32Data(node);
         if (MatMulBlasBackend.tryBatchedBlasF32(ad, as, bd, bs, out, node.getShapeUnsafe(), m, n, k)) {
             return;
         }

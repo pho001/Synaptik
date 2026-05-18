@@ -1,5 +1,7 @@
 package backend.cpu.kernels.fused;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.*;
 
 import backend.cpu.kernels.fused.FusedExecutionOptions;
@@ -124,9 +126,9 @@ public final class Float64FusedExecutor {
             }
 
             if (outputNode.outputType() == DataType.BOOL) {
-                out.getBoolData()[outBaseOffset + index] = bools[outputNode.index()] ? (byte) 1 : (byte) 0;
+                TensorInternalAccess.boolData(out)[outBaseOffset + index] = bools[outputNode.index()] ? (byte) 1 : (byte) 0;
             } else {
-                out.getFloat64Data()[outBaseOffset + index] = values[outputNode.index()];
+                TensorInternalAccess.float64Data(out)[outBaseOffset + index] = values[outputNode.index()];
             }
             for (InputAccessor accessor : accessors) {
                 accessor.step();
@@ -148,8 +150,8 @@ public final class Float64FusedExecutor {
 
         Object[] values = new Object[plan.nodeCount()];
         FusedNodePlan outputNode = plan.outputNode();
-        double[] outData = out.getFloat64Data();
-        byte[] outBoolData = out.getBoolData();
+        double[] outData = TensorInternalAccess.float64Data(out);
+        byte[] outBoolData = TensorInternalAccess.boolData(out);
         int outBaseOffset = out.getStorageOffsetUnsafe();
         int width = SPECIES.length();
         int upperBound = endExclusive - ((endExclusive - startInclusive) % width);
@@ -331,7 +333,7 @@ public final class Float64FusedExecutor {
     }
 
     private static boolean supportsVectorFastPath(FusedExpressionPlan plan, List<Tensor> inputs, Tensor out) {
-        if (out.getDataType() != DataType.FLOAT64 || !(out.getStorage() instanceof Float64Storage) || !out.isContiguous()) {
+        if (out.getDataType() != DataType.FLOAT64 || !(TensorInternalAccess.storage(out) instanceof Float64Storage) || !out.isContiguous()) {
             return false;
         }
         if (plan.outputNode().outputType() == DataType.BOOL) {
@@ -344,14 +346,14 @@ public final class Float64FusedExecutor {
                 return false;
             }
             if (inputPlan.dataType() == DataType.BOOL) {
-                if (input.getDataType() != DataType.BOOL || !(input.getStorage() instanceof BoolStorage)) {
+                if (input.getDataType() != DataType.BOOL || !(TensorInternalAccess.storage(input) instanceof BoolStorage)) {
                     return false;
                 }
                 continue;
             }
             if (inputPlan.dataType() != DataType.FLOAT64
                     || input.getDataType() != DataType.FLOAT64
-                    || !(input.getStorage() instanceof Float64Storage)) {
+                    || !(TensorInternalAccess.storage(input) instanceof Float64Storage)) {
                 return false;
             }
         }
@@ -376,9 +378,9 @@ public final class Float64FusedExecutor {
     private sealed interface InputAccessor permits NumericInputAccessor, BoolInputAccessor {
         static InputAccessor create(FusedExternalInputPlan plan, Tensor tensor, int start) {
             if (plan.dataType() == DataType.BOOL) {
-                return new BoolInputAccessor(plan, tensor.getBoolData(), start);
+                return new BoolInputAccessor(plan, TensorInternalAccess.boolData(tensor), start);
             }
-            return new NumericInputAccessor(plan, tensor.getFloat64Data(), start);
+            return new NumericInputAccessor(plan, TensorInternalAccess.float64Data(tensor), start);
         }
 
         default double doubleValue() {
@@ -484,12 +486,12 @@ public final class Float64FusedExecutor {
                 throw new IllegalArgumentException("Vector F64 accessor requires linear input");
             }
             if (plan.dataType() == DataType.BOOL) {
-                return new VectorInputAccessor(null, tensor.getBoolData(), true, plan.storageOffset());
+                return new VectorInputAccessor(null, TensorInternalAccess.boolData(tensor), true, plan.storageOffset());
             }
             if (plan.dataType() != DataType.FLOAT64) {
                 throw new IllegalArgumentException("Vector F64 accessor requires F64/BOOL input");
             }
-            return new VectorInputAccessor(tensor.getFloat64Data(), null, false, plan.storageOffset());
+            return new VectorInputAccessor(TensorInternalAccess.float64Data(tensor), null, false, plan.storageOffset());
         }
 
         Object load(int logicalIndex) {

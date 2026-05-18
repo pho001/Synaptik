@@ -1,5 +1,7 @@
 package backend.cpu.nativecpu;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.elementwise.compare.CompareElementwiseKernel;
@@ -72,7 +74,7 @@ public final class NativeCpuCompareExecutor {
             return fallback(context, fact, "native-kernel-ineligible:" + opLabel(op) + "-shape");
         }
         try {
-            byte[] out = node.getBoolData();
+            byte[] out = TensorInternalAccess.boolData(node);
             if (left.getDataType() == DataType.FLOAT64) {
                 runCompareF64(kernel, requireF64NativeInput(context, 0, opLabel(op).toUpperCase()),
                         requireF64NativeInput(context, 1, opLabel(op).toUpperCase()), out, node.getFlatDataSize());
@@ -83,7 +85,7 @@ public final class NativeCpuCompareExecutor {
                 runCompareF32(kernel, requireF32NativeInput(context, 0, opLabel(op).toUpperCase()),
                         requireF32NativeInput(context, 1, opLabel(op).toUpperCase()), out, node.getFlatDataSize());
             }
-            node.markStorageModified();
+            TensorInternalAccess.markStorageModified(node);
             publishTrace(context, fact, "CPU_ARRAY", "");
             return true;
         } catch (Throwable t) {

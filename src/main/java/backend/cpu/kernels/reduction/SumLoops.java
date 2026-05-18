@@ -1,5 +1,7 @@
 package backend.cpu.kernels.reduction;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.*;
 
 import backend.cpu.kernels.CpuKernelContext;
@@ -33,7 +35,7 @@ public final class SumLoops {
 
         int logicalSize = logicalSize(shape);
         int expectedOut = (dimension == -1) ? 1 : (logicalSize / shape[dimension]);
-        double[] out = node.getFloat64Data();
+        double[] out = TensorInternalAccess.float64Data(node);
         if (out == null || out.length != expectedOut) {
             throw new IllegalArgumentException("Output tensor has wrong size for sum reduction");
         }
@@ -56,12 +58,12 @@ public final class SumLoops {
 
         int logicalSize = logicalSize(shape);
         int expectedOut = (dimension == -1) ? 1 : (logicalSize / shape[dimension]);
-        float[] out = node.getFloat32Data();
+        float[] out = TensorInternalAccess.float32Data(node);
         if (out == null || out.length != expectedOut) {
             throw new IllegalArgumentException("Output tensor has wrong size for sum reduction");
         }
 
-        float[] in = input.getFloat32Data();
+        float[] in = TensorInternalAccess.float32Data(input);
         if (in == null) {
             throw new IllegalStateException("F32 input storage is missing");
         }
@@ -84,12 +86,12 @@ public final class SumLoops {
 
         int logicalSize = logicalSize(shape);
         int expectedOut = (dimension == -1) ? 1 : (logicalSize / shape[dimension]);
-        short[] out = node.getBFloat16Data();
+        short[] out = TensorInternalAccess.bfloat16Data(node);
         if (out == null || out.length != expectedOut) {
             throw new IllegalArgumentException("Output tensor has wrong size for sum reduction");
         }
 
-        short[] in = input.getBFloat16Data();
+        short[] in = TensorInternalAccess.bfloat16Data(input);
         if (in == null) {
             throw new IllegalStateException("BF16 input storage is missing");
         }
@@ -112,7 +114,7 @@ public final class SumLoops {
 
         int logicalSize = logicalSize(shape);
         int expectedOut = (dimension == -1) ? 1 : (logicalSize / shape[dimension]);
-        short[] out = node.getBFloat16Data();
+        short[] out = TensorInternalAccess.bfloat16Data(node);
         if (out == null || out.length != expectedOut) {
             throw new IllegalArgumentException("Output tensor has wrong size for sum reduction");
         }
@@ -137,11 +139,11 @@ public final class SumLoops {
         if (!input.isContiguous() || input.hasStorageOffset()) {
             if (logicalSize >= materializeThreshold(context)) {
                 Tensor contiguous = materializeContiguous(input);
-                return sumAllContiguous(contiguous.getFloat64Data(), logicalSize, context);
+                return sumAllContiguous(TensorInternalAccess.float64Data(contiguous), logicalSize, context);
             }
             return sumAllStrided(input, logicalSize, context);
         }
-        return sumAllContiguous(input.getFloat64Data(), logicalSize, context);
+        return sumAllContiguous(TensorInternalAccess.float64Data(input), logicalSize, context);
     }
 
     private static double sumAllContiguous(double[] data, int logicalSize, CpuKernelContext context) {
@@ -179,7 +181,7 @@ public final class SumLoops {
         int[] shape = input.getShapeUnsafe();
         int[] strides = input.getStridesUnsafe();
         int[] denseStrides = denseStrides(shape);
-        double[] data = input.getFloat64Data();
+        double[] data = TensorInternalAccess.float64Data(input);
         int baseOffset = input.getStorageOffsetUnsafe();
         SumAccuracyMode accuracy = reductionAccuracy(context);
         CpuExecutionMode mode = reductionMode(context);
@@ -203,7 +205,7 @@ public final class SumLoops {
         if (!input.isContiguous() || input.hasStorageOffset()) {
             if (logicalSize >= materializeThreshold(context)) {
                 Tensor contiguous = materializeContiguousTyped(input, context, DataType.FLOAT32);
-                float[] c = contiguous.getFloat32Data();
+                float[] c = TensorInternalAccess.float32Data(contiguous);
                 return sumAllContiguousF32(c, logicalSize, context);
             }
             return sumAllStridedF32(input, data, logicalSize, context);
@@ -267,7 +269,7 @@ public final class SumLoops {
         if (!input.isContiguous() || input.hasStorageOffset()) {
             if (logicalSize >= materializeThreshold(context)) {
                 Tensor contiguous = materializeContiguousTyped(input, context, DataType.BFLOAT16);
-                short[] c = contiguous.getBFloat16Data();
+                short[] c = TensorInternalAccess.bfloat16Data(contiguous);
                 return sumAllContiguousBF16(c, logicalSize, context);
             }
             return sumAllStridedBF16(input, data, logicalSize, context);
@@ -349,7 +351,7 @@ public final class SumLoops {
         int[] strides = input.getStridesUnsafe();
         int reducedDim = shape[dimension];
         int outSize = out.length;
-        double[] data = input.getFloat64Data();
+        double[] data = TensorInternalAccess.float64Data(input);
         int inputBaseOffset = input.getStorageOffsetUnsafe();
 
         boolean canVectorizeLastDim = (dimension == shape.length - 1)
@@ -386,11 +388,11 @@ public final class SumLoops {
             CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
                 int start = chunk * chunkSize;
                 int end = Math.min(start + chunkSize, outSize);
-                reduceOutputRange(input.getFloat64Data(), out, start, end, shape, strides, input.getStorageOffsetUnsafe(), dimension, reducedDim, false, reductionAccuracy(context), outBaseOffset);
+                reduceOutputRange(TensorInternalAccess.float64Data(input), out, start, end, shape, strides, input.getStorageOffsetUnsafe(), dimension, reducedDim, false, reductionAccuracy(context), outBaseOffset);
             });
             return;
         }
-        reduceOutputRange(input.getFloat64Data(), out, 0, outSize, shape, strides, input.getStorageOffsetUnsafe(), dimension, reducedDim, false, reductionAccuracy(context), outBaseOffset);
+        reduceOutputRange(TensorInternalAccess.float64Data(input), out, 0, outSize, shape, strides, input.getStorageOffsetUnsafe(), dimension, reducedDim, false, reductionAccuracy(context), outBaseOffset);
     }
 
     private static void sumAxisF32(Tensor input, float[] data, float[] out, int logicalSize, int dimension, CpuKernelContext context, int outBaseOffset) {
@@ -403,7 +405,7 @@ public final class SumLoops {
         if (!input.isContiguous() || input.hasStorageOffset()) {
             if (logicalSize >= materializeThreshold(context)) {
                 Tensor contiguous = materializeContiguousTyped(input, context, DataType.FLOAT32);
-                sumAxisContiguousF32(contiguous.getFloat32Data(), contiguous.getShapeUnsafe(), contiguous.getStridesUnsafe(), contiguous.getStorageOffsetUnsafe(), out, outBaseOffset, dimension, context);
+                sumAxisContiguousF32(TensorInternalAccess.float32Data(contiguous), contiguous.getShapeUnsafe(), contiguous.getStridesUnsafe(), contiguous.getStorageOffsetUnsafe(), out, outBaseOffset, dimension, context);
                 return;
             }
             sumAxisStridedF32(data, shape, input.getStridesUnsafe(), input.getStorageOffsetUnsafe(), out, outBaseOffset, dimension, context);
@@ -463,7 +465,7 @@ public final class SumLoops {
         if (!input.isContiguous() || input.hasStorageOffset()) {
             if (logicalSize >= materializeThreshold(context)) {
                 Tensor contiguous = materializeContiguousTyped(input, context, DataType.BFLOAT16);
-                sumAxisContiguousBF16(contiguous.getBFloat16Data(), contiguous.getShapeUnsafe(), contiguous.getStridesUnsafe(), contiguous.getStorageOffsetUnsafe(), out, outBaseOffset, dimension, context);
+                sumAxisContiguousBF16(TensorInternalAccess.bfloat16Data(contiguous), contiguous.getShapeUnsafe(), contiguous.getStridesUnsafe(), contiguous.getStorageOffsetUnsafe(), out, outBaseOffset, dimension, context);
                 return;
             }
             sumAxisStridedBF16(data, shape, input.getStridesUnsafe(), input.getStorageOffsetUnsafe(), out, outBaseOffset, dimension, context);
@@ -1063,7 +1065,7 @@ public final class SumLoops {
 
     private static Tensor materializeContiguous(Tensor input) {
         Tensor contiguous = new Tensor(input.getShapeUnsafe(), null, input.getLabel() + "_sum_contiguous_tmp", DataType.FLOAT64);
-        double[] src = input.getFloat64Data();
+        double[] src = TensorInternalAccess.float64Data(input);
         double[] dst = contiguous.getData();
         int[] shape = input.getShapeUnsafe();
         int[] strides = input.getStridesUnsafe();

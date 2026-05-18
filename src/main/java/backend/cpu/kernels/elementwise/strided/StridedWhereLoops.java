@@ -1,5 +1,7 @@
 package backend.cpu.kernels.elementwise.strided;
 
+import tensor.TensorInternalAccess;
+
 import tensor.Tensor;
 
 import java.util.List;
@@ -9,13 +11,13 @@ final class StridedWhereLoops {
     }
 
     static void forwardF64(List<Tensor> inputs, Tensor node) {
-        double[] out = node.getFloat64Data();
+        double[] out = TensorInternalAccess.float64Data(node);
         if (out == null) {
             return;
         }
-        byte[] cond = inputs.get(0).getBoolData();
-        double[] ifTrue = inputs.get(1).getFloat64Data();
-        double[] ifFalse = inputs.get(2).getFloat64Data();
+        byte[] cond = TensorInternalAccess.boolData(inputs.get(0));
+        double[] ifTrue = TensorInternalAccess.float64Data(inputs.get(1));
+        double[] ifFalse = TensorInternalAccess.float64Data(inputs.get(2));
         int[] outShape = node.getShapeUnsafe();
         int[] outStrides = node.getStridesUnsafe();
         int[] condStrides = inputs.get(0).getStridesUnsafe();
@@ -45,9 +47,9 @@ final class StridedWhereLoops {
     }
 
     static void forwardF32(List<Tensor> inputs, Tensor node, float[] out) {
-        byte[] cond = inputs.get(0).getBoolData();
-        float[] ifTrue = inputs.get(1).getFloat32Data();
-        float[] ifFalse = inputs.get(2).getFloat32Data();
+        byte[] cond = TensorInternalAccess.boolData(inputs.get(0));
+        float[] ifTrue = TensorInternalAccess.float32Data(inputs.get(1));
+        float[] ifFalse = TensorInternalAccess.float32Data(inputs.get(2));
         int[] outShape = node.getShapeUnsafe();
         int[] outStrides = node.getStridesUnsafe();
         int[] condStrides = inputs.get(0).getStridesUnsafe();
@@ -77,9 +79,9 @@ final class StridedWhereLoops {
     }
 
     static void forwardBF16(List<Tensor> inputs, Tensor node, short[] out) {
-        byte[] cond = inputs.get(0).getBoolData();
-        short[] ifTrue = inputs.get(1).getBFloat16Data();
-        short[] ifFalse = inputs.get(2).getBFloat16Data();
+        byte[] cond = TensorInternalAccess.boolData(inputs.get(0));
+        short[] ifTrue = TensorInternalAccess.bfloat16Data(inputs.get(1));
+        short[] ifFalse = TensorInternalAccess.bfloat16Data(inputs.get(2));
         int[] outShape = node.getShapeUnsafe();
         int[] outStrides = node.getStridesUnsafe();
         int[] condStrides = inputs.get(0).getStridesUnsafe();

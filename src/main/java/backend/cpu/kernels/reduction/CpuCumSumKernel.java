@@ -1,5 +1,7 @@
 package backend.cpu.kernels.reduction;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuKernelContext;
@@ -64,7 +66,7 @@ public final class CpuCumSumKernel implements CpuKernel {
                     scanForwardLongLine(input, node, line, axis, axisSize, denseStrides, scan.isExclusive());
                 }
             }
-            node.markStorageModified();
+            TensorInternalAccess.markStorageModified(node);
             return;
         }
         for (int line = 0; line < lineCount; line++) {
@@ -74,7 +76,7 @@ public final class CpuCumSumKernel implements CpuKernel {
                 scanForwardLine(input, node, line, axis, axisSize, denseStrides, scan.isExclusive());
             }
         }
-        node.markStorageModified();
+        TensorInternalAccess.markStorageModified(node);
     }
 
     private static void scanForwardLine(
@@ -186,17 +188,17 @@ public final class CpuCumSumKernel implements CpuKernel {
     private static void write(Tensor out, int logical, double value) {
         int offset = out.getStorageOffsetUnsafe() + logical;
         switch (out.getDataType()) {
-            case FLOAT64 -> out.getFloat64Data()[offset] = value;
-            case FLOAT32 -> out.getFloat32Data()[offset] = (float) value;
-            case BFLOAT16 -> out.getBFloat16Data()[offset] = CpuDTypeOps.toBFloat16Bits((float) value);
-            case INT32 -> out.getInt32Data()[offset] = (int) value;
-            case INT64 -> out.getInt64Data()[offset] = (long) value;
+            case FLOAT64 -> TensorInternalAccess.float64Data(out)[offset] = value;
+            case FLOAT32 -> TensorInternalAccess.float32Data(out)[offset] = (float) value;
+            case BFLOAT16 -> TensorInternalAccess.bfloat16Data(out)[offset] = CpuDTypeOps.toBFloat16Bits((float) value);
+            case INT32 -> TensorInternalAccess.int32Data(out)[offset] = (int) value;
+            case INT64 -> TensorInternalAccess.int64Data(out)[offset] = (long) value;
             case BOOL -> throw new IllegalArgumentException("CumSum requires floating or integer output.");
         }
     }
 
     private static void writeLong(Tensor out, int logical, long value) {
         int offset = out.getStorageOffsetUnsafe() + logical;
-        out.getInt64Data()[offset] = value;
+        TensorInternalAccess.int64Data(out)[offset] = value;
     }
 }

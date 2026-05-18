@@ -1,5 +1,7 @@
 package backend.cpu.kernels.reduction;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuDTypeOps;
 import tensor.Tensor;
 
@@ -20,7 +22,7 @@ enum SumLikeReduction {
     MEAN {
         @Override
         void finalizeF64(Tensor node, Tensor input, int dimension) {
-            double[] out = node.getFloat64Data();
+            double[] out = TensorInternalAccess.float64Data(node);
             double scale = 1.0d / divisor(input, dimension);
             int baseOffset = node.getStorageOffsetUnsafe();
             for (int i = 0; i < node.getFlatDataSize(); i++) {
@@ -30,7 +32,7 @@ enum SumLikeReduction {
 
         @Override
         void finalizeF32(Tensor node, Tensor input, int dimension) {
-            float[] out = node.getFloat32Data();
+            float[] out = TensorInternalAccess.float32Data(node);
             float scale = 1.0f / divisor(input, dimension);
             int baseOffset = node.getStorageOffsetUnsafe();
             for (int i = 0; i < node.getFlatDataSize(); i++) {
@@ -40,7 +42,7 @@ enum SumLikeReduction {
 
         @Override
         void finalizeBF16(Tensor node, Tensor input, int dimension) {
-            short[] out = node.getBFloat16Data();
+            short[] out = TensorInternalAccess.bfloat16Data(node);
             float scale = 1.0f / divisor(input, dimension);
             int baseOffset = node.getStorageOffsetUnsafe();
             for (int i = 0; i < node.getFlatDataSize(); i++) {

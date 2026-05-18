@@ -1,5 +1,7 @@
 package backend.cpu.kernels.linalg;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.CpuThreadPool;
@@ -48,20 +50,20 @@ final class ScaledDotProductAttentionExecutor {
         ScaledDotProductAttentionRuntimeCache runtimeCache = prepareRuntimeCache(context, node, scoresShape);
         ResolvedScaledDotProductAttentionPlan plan = requirePlan(context, node);
         executeDirectF64(
-                query.getFloat64Data(),
+                TensorInternalAccess.float64Data(query),
                 query.getShapeUnsafe(),
-                key.getFloat64Data(),
+                TensorInternalAccess.float64Data(key),
                 key.getShapeUnsafe(),
-                value.getFloat64Data(),
+                TensorInternalAccess.float64Data(value),
                 value.getShapeUnsafe(),
-                mask == null ? null : mask.getBoolData(),
+                mask == null ? null : TensorInternalAccess.boolData(mask),
                 mask == null ? null : mask.getShapeUnsafe(),
-                node.getFloat64Data(),
+                TensorInternalAccess.float64Data(node),
                 node.getShapeUnsafe(),
                 attention.getScale(),
                 plan.forwardDirectHints(),
                 context.useFastExpApprox(),
-                runtimeCache == null ? null : runtimeCache.weights().getFloat64Data()
+                runtimeCache == null ? null : TensorInternalAccess.float64Data(runtimeCache.weights())
         );
     }
 
@@ -75,20 +77,20 @@ final class ScaledDotProductAttentionExecutor {
         ScaledDotProductAttentionRuntimeCache runtimeCache = prepareRuntimeCache(context, node, scoresShape);
         ResolvedScaledDotProductAttentionPlan plan = requirePlan(context, node);
         executeDirectF32(
-                query.getFloat32Data(),
+                TensorInternalAccess.float32Data(query),
                 query.getShapeUnsafe(),
-                key.getFloat32Data(),
+                TensorInternalAccess.float32Data(key),
                 key.getShapeUnsafe(),
-                value.getFloat32Data(),
+                TensorInternalAccess.float32Data(value),
                 value.getShapeUnsafe(),
-                mask == null ? null : mask.getBoolData(),
+                mask == null ? null : TensorInternalAccess.boolData(mask),
                 mask == null ? null : mask.getShapeUnsafe(),
-                node.getFloat32Data(),
+                TensorInternalAccess.float32Data(node),
                 node.getShapeUnsafe(),
                 (float) attention.getScale(),
                 plan.forwardDirectHints(),
                 context.useFastExpApprox(),
-                runtimeCache == null ? null : runtimeCache.weights().getFloat32Data(),
+                runtimeCache == null ? null : TensorInternalAccess.float32Data(runtimeCache.weights()),
                 null
         );
     }
@@ -119,21 +121,21 @@ final class ScaledDotProductAttentionExecutor {
                 keyShape,
                 valueF32,
                 valueShape,
-                mask == null ? null : mask.getBoolData(),
+                mask == null ? null : TensorInternalAccess.boolData(mask),
                 mask == null ? null : mask.getShapeUnsafe(),
                 outF32,
                 node.getShapeUnsafe(),
                 (float) attention.getScale(),
                 plan.forwardDirectHints(),
                 context.useFastExpApprox(),
-                runtimeCache == null ? null : runtimeCache.weights().getFloat32Data(),
+                runtimeCache == null ? null : TensorInternalAccess.float32Data(runtimeCache.weights()),
                 null
         );
         if (context.publishFloatContinuation() && context.cpuWorkspace() != null) {
             context.cpuWorkspace().publishFloatContinuation(node.getFlatDataSize());
             return;
         }
-        writeBF16(outF32, node.getBFloat16Data());
+        writeBF16(outF32, TensorInternalAccess.bfloat16Data(node));
     }
 
     static void executeBackwardF64(
@@ -151,7 +153,7 @@ final class ScaledDotProductAttentionExecutor {
             case KEY -> runtimeCache.keyGrad();
             case VALUE -> runtimeCache.valueGrad();
         };
-        System.arraycopy(cached.getFloat64Data(), 0, node.getFloat64Data(), 0, node.getFlatDataSize());
+        System.arraycopy(TensorInternalAccess.float64Data(cached), 0, TensorInternalAccess.float64Data(node), 0, node.getFlatDataSize());
     }
 
     static void executeBackwardF32(
@@ -169,7 +171,7 @@ final class ScaledDotProductAttentionExecutor {
             case KEY -> runtimeCache.keyGrad();
             case VALUE -> runtimeCache.valueGrad();
         };
-        System.arraycopy(cached.getFloat32Data(), 0, node.getFloat32Data(), 0, node.getFlatDataSize());
+        System.arraycopy(TensorInternalAccess.float32Data(cached), 0, TensorInternalAccess.float32Data(node), 0, node.getFlatDataSize());
     }
 
     static void executeBackwardBF16(
@@ -189,11 +191,11 @@ final class ScaledDotProductAttentionExecutor {
         };
         if (context.publishFloatContinuation() && context.cpuWorkspace() != null) {
             float[] out = context.cpuWorkspace().requireFloatWorkspace();
-            System.arraycopy(cached.getFloat32Data(), 0, out, 0, node.getFlatDataSize());
+            System.arraycopy(TensorInternalAccess.float32Data(cached), 0, out, 0, node.getFlatDataSize());
             context.cpuWorkspace().publishFloatContinuation(node.getFlatDataSize());
             return;
         }
-        writeBF16(cached.getFloat32Data(), node.getBFloat16Data());
+        writeBF16(TensorInternalAccess.float32Data(cached), TensorInternalAccess.bfloat16Data(node));
     }
 
     private static void executeDirectF32(
@@ -647,9 +649,9 @@ final class ScaledDotProductAttentionExecutor {
 
         Tensor dScores = runtimeCache.requireDScores(weights.getShapeUnsafe(), DataType.FLOAT64);
         computeSoftmaxGradRowsF64(
-                weights.getFloat64Data(),
-                dWeights.getFloat64Data(),
-                dScores.getFloat64Data(),
+                TensorInternalAccess.float64Data(weights),
+                TensorInternalAccess.float64Data(dWeights),
+                TensorInternalAccess.float64Data(dScores),
                 weights.getShapeUnsafe(),
                 spec.scale(),
                 requireAttentionHints(plan.backwardSoftmaxGradHints(), "attention backward softmax")
@@ -675,9 +677,9 @@ final class ScaledDotProductAttentionExecutor {
 
         Tensor dScores = runtimeCache.requireDScores(weights.getShapeUnsafe(), DataType.FLOAT32);
         computeSoftmaxGradRowsF32(
-                weights.getFloat32Data(),
-                dWeights.getFloat32Data(),
-                dScores.getFloat32Data(),
+                TensorInternalAccess.float32Data(weights),
+                TensorInternalAccess.float32Data(dWeights),
+                TensorInternalAccess.float32Data(dScores),
                 weights.getShapeUnsafe(),
                 (float) spec.scale(),
                 requireAttentionHints(plan.backwardSoftmaxGradHints(), "attention backward softmax")
@@ -709,9 +711,9 @@ final class ScaledDotProductAttentionExecutor {
 
         Tensor dScores = runtimeCache.requireDScores(weights.getShapeUnsafe(), DataType.FLOAT32);
         computeSoftmaxGradRowsF32(
-                weights.getFloat32Data(),
-                dWeights.getFloat32Data(),
-                dScores.getFloat32Data(),
+                TensorInternalAccess.float32Data(weights),
+                TensorInternalAccess.float32Data(dWeights),
+                TensorInternalAccess.float32Data(dScores),
                 weights.getShapeUnsafe(),
                 (float) spec.scale(),
                 requireAttentionHints(plan.backwardSoftmaxGradHints(), "attention backward softmax")
@@ -1431,9 +1433,9 @@ final class ScaledDotProductAttentionExecutor {
     }
 
     private static void runMatMulF64(Tensor a, Tensor b, Tensor out, ResolvedMatMulHints hints) {
-        double[] ad = a.getFloat64Data();
-        double[] bd = b.getFloat64Data();
-        double[] od = out.getFloat64Data();
+        double[] ad = TensorInternalAccess.float64Data(a);
+        double[] bd = TensorInternalAccess.float64Data(b);
+        double[] od = TensorInternalAccess.float64Data(out);
         int[] as = a.getShapeUnsafe();
         int[] bs = b.getShapeUnsafe();
         int m = as[as.length - 2];
@@ -1450,9 +1452,9 @@ final class ScaledDotProductAttentionExecutor {
     }
 
     private static void runMatMulF32(Tensor a, Tensor b, Tensor out, ResolvedMatMulHints hints) {
-        float[] ad = a.getFloat32Data();
-        float[] bd = b.getFloat32Data();
-        float[] od = out.getFloat32Data();
+        float[] ad = TensorInternalAccess.float32Data(a);
+        float[] bd = TensorInternalAccess.float32Data(b);
+        float[] od = TensorInternalAccess.float32Data(out);
         int[] as = a.getShapeUnsafe();
         int[] bs = b.getShapeUnsafe();
         int m = as[as.length - 2];
@@ -1469,33 +1471,33 @@ final class ScaledDotProductAttentionExecutor {
     }
 
     private static void runMatMulRightTransposedF64(Tensor a, Tensor b, Tensor out, ResolvedMatMulHints hints) {
-        double[] ad = a.getFloat64Data();
-        double[] bd = b.getFloat64Data();
-        double[] od = out.getFloat64Data();
+        double[] ad = TensorInternalAccess.float64Data(a);
+        double[] bd = TensorInternalAccess.float64Data(b);
+        double[] od = TensorInternalAccess.float64Data(out);
         Arrays.fill(od, 0.0d);
         F64MatMulJavaBackend.runRightTransposed(ad, a.getShapeUnsafe(), bd, b.getShapeUnsafe(), od, out.getShapeUnsafe(), hints);
     }
 
     private static void runMatMulRightTransposedF32(Tensor a, Tensor b, Tensor out, ResolvedMatMulHints hints) {
-        float[] ad = a.getFloat32Data();
-        float[] bd = b.getFloat32Data();
-        float[] od = out.getFloat32Data();
+        float[] ad = TensorInternalAccess.float32Data(a);
+        float[] bd = TensorInternalAccess.float32Data(b);
+        float[] od = TensorInternalAccess.float32Data(out);
         Arrays.fill(od, 0.0f);
         F32MatMulJavaBackend.runRightTransposed(ad, a.getShapeUnsafe(), bd, b.getShapeUnsafe(), od, out.getShapeUnsafe(), hints);
     }
 
     private static void runMatMulLeftTransposedF64(Tensor a, Tensor b, Tensor out, ResolvedMatMulHints hints) {
-        double[] ad = a.getFloat64Data();
-        double[] bd = b.getFloat64Data();
-        double[] od = out.getFloat64Data();
+        double[] ad = TensorInternalAccess.float64Data(a);
+        double[] bd = TensorInternalAccess.float64Data(b);
+        double[] od = TensorInternalAccess.float64Data(out);
         Arrays.fill(od, 0.0d);
         F64MatMulJavaBackend.runLeftTransposed(ad, a.getShapeUnsafe(), bd, b.getShapeUnsafe(), od, out.getShapeUnsafe(), hints);
     }
 
     private static void runMatMulLeftTransposedF32(Tensor a, Tensor b, Tensor out, ResolvedMatMulHints hints) {
-        float[] ad = a.getFloat32Data();
-        float[] bd = b.getFloat32Data();
-        float[] od = out.getFloat32Data();
+        float[] ad = TensorInternalAccess.float32Data(a);
+        float[] bd = TensorInternalAccess.float32Data(b);
+        float[] od = TensorInternalAccess.float32Data(out);
         Arrays.fill(od, 0.0f);
         F32MatMulJavaBackend.runLeftTransposed(ad, a.getShapeUnsafe(), bd, b.getShapeUnsafe(), od, out.getShapeUnsafe(), hints);
     }
@@ -1647,7 +1649,7 @@ final class ScaledDotProductAttentionExecutor {
         if (continuation != null) {
             return continuation;
         }
-        return toPreparedF32(tensor, null, label).getFloat32Data();
+        return TensorInternalAccess.float32Data(toPreparedF32(tensor, null, label));
     }
 
     private static Tensor toPreparedF32(Tensor tensor, float[] continuation, String label) {
@@ -1659,7 +1661,7 @@ final class ScaledDotProductAttentionExecutor {
             return new Tensor(continuation, shape, List.of(), label, DataType.FLOAT32);
         }
         if (tensor.getDataType() == DataType.BFLOAT16) {
-            return new Tensor(toF32(tensor.getBFloat16Data()), shape, List.of(), label, DataType.FLOAT32);
+            return new Tensor(toF32(TensorInternalAccess.bfloat16Data(tensor)), shape, List.of(), label, DataType.FLOAT32);
         }
         throw new IllegalArgumentException("Expected BF16/F32 tensor for attention F32 preparation, got " + tensor.getDataType());
     }

@@ -1,5 +1,7 @@
 package backend.cpu.kernels.reduction;
 
+import tensor.TensorInternalAccess;
+
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuKernelContext;
@@ -47,7 +49,7 @@ public final class CpuReduceProdKernel implements CpuKernel {
                     : outputLogicalIndex(logical, shape, inputDenseStrides, outShape.length, outDenseStrides, dimension);
             multiply(node, outLogical, input.getByFlatIndex(logical));
         }
-        node.markStorageModified();
+        TensorInternalAccess.markStorageModified(node);
     }
 
     private static int outputLogicalIndex(
@@ -76,9 +78,9 @@ public final class CpuReduceProdKernel implements CpuKernel {
 
     private static void fill(Tensor out, double value) {
         switch (out.getDataType()) {
-            case FLOAT64 -> Arrays.fill(out.getFloat64Data(), value);
-            case FLOAT32 -> Arrays.fill(out.getFloat32Data(), (float) value);
-            case BFLOAT16 -> Arrays.fill(out.getBFloat16Data(), CpuDTypeOps.toBFloat16Bits((float) value));
+            case FLOAT64 -> Arrays.fill(TensorInternalAccess.float64Data(out), value);
+            case FLOAT32 -> Arrays.fill(TensorInternalAccess.float32Data(out), (float) value);
+            case BFLOAT16 -> Arrays.fill(TensorInternalAccess.bfloat16Data(out), CpuDTypeOps.toBFloat16Bits((float) value));
             case INT32, BOOL -> throw new IllegalArgumentException("ReduceProd requires floating output.");
         }
     }
@@ -86,10 +88,10 @@ public final class CpuReduceProdKernel implements CpuKernel {
     private static void multiply(Tensor out, int logical, double value) {
         int index = out.getStorageOffsetUnsafe() + logical;
         switch (out.getDataType()) {
-            case FLOAT64 -> out.getFloat64Data()[index] *= value;
-            case FLOAT32 -> out.getFloat32Data()[index] *= (float) value;
+            case FLOAT64 -> TensorInternalAccess.float64Data(out)[index] *= value;
+            case FLOAT32 -> TensorInternalAccess.float32Data(out)[index] *= (float) value;
             case BFLOAT16 -> {
-                short[] data = out.getBFloat16Data();
+                short[] data = TensorInternalAccess.bfloat16Data(out);
                 data[index] = CpuDTypeOps.toBFloat16Bits(CpuDTypeOps.fromBFloat16Bits(data[index]) * (float) value);
             }
             case INT32, BOOL -> throw new IllegalArgumentException("ReduceProd requires floating output.");

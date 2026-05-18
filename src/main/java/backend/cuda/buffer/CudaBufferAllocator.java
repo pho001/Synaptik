@@ -1,5 +1,7 @@
 package backend.cuda.buffer;
 
+import tensor.TensorInternalAccess;
+
 import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
 import backend.memory.CpuMaterializationReason;
@@ -69,7 +71,7 @@ public final class CudaBufferAllocator {
         Objects.requireNonNull(tensor, "tensor cannot be null");
         AcceleratorBufferLayout layout = AcceleratorBufferLayout.fromTensor(tensor);
         validateDenseFloat32(layout, "CUDA buffer inputs");
-        float[] data = tensor.getFloat32Data();
+        float[] data = TensorInternalAccess.float32Data(tensor);
         if (data == null) {
             throw new UnsupportedOperationException("CUDA FLOAT32 input tensor has no direct float[] storage.");
         }
@@ -107,7 +109,7 @@ public final class CudaBufferAllocator {
         }
         AcceleratorBufferLayout destinationLayout = AcceleratorBufferLayout.fromTensor(destination);
         validateSameLayout(binding.layout(), destinationLayout);
-        float[] data = destination.getFloat32Data();
+        float[] data = TensorInternalAccess.float32Data(destination);
         if (data == null) {
             throw new UnsupportedOperationException("Destination FLOAT32 tensor has no direct float[] storage.");
         }
