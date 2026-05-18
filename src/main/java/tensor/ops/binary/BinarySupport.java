@@ -7,11 +7,35 @@ final class BinarySupport {
     private BinarySupport() {
     }
 
+    static boolean isScalarConstant(Tensor tensor, double expected) {
+        return tensor.getOperation() == null
+                && !tensor.getRequiresGrad()
+                && tensor.getFlatDataSize() == 1
+                && Math.abs(tensor.scalarAsDouble() - expected) < 1e-12;
+    }
+
+    static boolean isNonZeroScalarConstant(Tensor tensor) {
+        return tensor.getOperation() == null
+                && !tensor.getRequiresGrad()
+                && tensor.getFlatDataSize() == 1
+                && Double.compare(tensor.scalarAsDouble(), 0.0d) != 0;
+    }
+
     static void accumulateGradient(Tensor input, Tensor gradientDelta) {
         if (input.getGradient() == null) {
             TensorInternalAccess.setGradient(input, gradientDelta);
         } else {
             TensorInternalAccess.setGradient(input, input.getGradient().add(gradientDelta));
         }
+    }
+
+    static Tensor minMaxElementwiseGrad(Tensor first, Tensor second, Tensor outGrad, boolean isMax, boolean forFirst) {
+        Tensor tie = first.equalTo(second);
+        Tensor wins = forFirst
+                ? (isMax ? first.greaterThan(second) : first.lessThan(second))
+                : (isMax ? second.greaterThan(first) : second.lessThan(first));
+        Tensor zero = Tensor.zerosLike(outGrad);
+        Tensor half = outGrad.mul(0.5d);
+        return Tensor.where(tie, half, Tensor.where(wins, outGrad, zero));
     }
 }

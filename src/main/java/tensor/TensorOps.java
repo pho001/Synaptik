@@ -1,22 +1,88 @@
 package tensor;
 
 import operations.index.ScatterReduction;
-import tensor.ops.binary.TensorBinaryOps;
-import tensor.ops.bool.TensorBoolOps;
-import tensor.ops.compare.TensorCompareOps;
-import tensor.ops.conv.TensorConvOps;
-import tensor.ops.dtype.TensorDTypeOps;
-import tensor.ops.index.TensorIndexOps;
-import tensor.ops.layout.TensorLayoutOps;
-import tensor.ops.linalg.TensorAttentionOps;
-import tensor.ops.linalg.TensorLinearOps;
-import tensor.ops.linalg.TensorMatMulOps;
-import tensor.ops.loss.TensorLossOps;
-import tensor.ops.normalization.TensorNormalizationOps;
-import tensor.ops.pool.TensorPoolOps;
-import tensor.ops.reduction.TensorReduceOps;
-import tensor.ops.select.TensorSelectOps;
-import tensor.ops.unary.TensorUnaryOps;
+import tensor.ops.binary.AddOp;
+import tensor.ops.binary.DivOp;
+import tensor.ops.binary.MaxOp;
+import tensor.ops.binary.MinOp;
+import tensor.ops.binary.MulOp;
+import tensor.ops.binary.PowTensorOp;
+import tensor.ops.binary.SubOp;
+import tensor.ops.bool.LogicalAndOp;
+import tensor.ops.bool.LogicalNotOp;
+import tensor.ops.bool.LogicalOrOp;
+import tensor.ops.compare.EqualToOp;
+import tensor.ops.compare.GreaterOrEqualOp;
+import tensor.ops.compare.GreaterThanOp;
+import tensor.ops.compare.LessOrEqualOp;
+import tensor.ops.compare.LessThanOp;
+import tensor.ops.compare.NotEqualToOp;
+import tensor.ops.conv.Conv2dOp;
+import tensor.ops.dtype.CastOp;
+import tensor.ops.index.GatherNdOp;
+import tensor.ops.index.GatherOp;
+import tensor.ops.index.ScatterAddOp;
+import tensor.ops.index.ScatterAxisAddOp;
+import tensor.ops.index.ScatterElementsOp;
+import tensor.ops.index.ScatterNdOp;
+import tensor.ops.index.SelectOp;
+import tensor.ops.index.TakeAlongAxisOp;
+import tensor.ops.layout.ConcatOp;
+import tensor.ops.layout.ContiguousOp;
+import tensor.ops.layout.ExpandDimsOp;
+import tensor.ops.layout.ExpandOp;
+import tensor.ops.layout.PadOp;
+import tensor.ops.layout.PermuteOp;
+import tensor.ops.layout.ReshapeOp;
+import tensor.ops.layout.SliceOp;
+import tensor.ops.layout.SqueezeOp;
+import tensor.ops.layout.StackOp;
+import tensor.ops.layout.TileOp;
+import tensor.ops.layout.UnstackOp;
+import tensor.ops.linalg.LinearOp;
+import tensor.ops.linalg.MatMulOp;
+import tensor.ops.linalg.ScaledDotProductAttentionOp;
+import tensor.ops.loss.CrossEntropyLossFromIndicesOp;
+import tensor.ops.loss.DenseCrossEntropyLossOp;
+import tensor.ops.loss.DenseNllLossOp;
+import tensor.ops.loss.NllLossFromIndicesOp;
+import tensor.ops.normalization.BatchNormOp;
+import tensor.ops.normalization.LayerNormOp;
+import tensor.ops.normalization.RmsNormOp;
+import tensor.ops.pool.AvgPool2dOp;
+import tensor.ops.pool.MaxPool2dOp;
+import tensor.ops.reduction.AllOp;
+import tensor.ops.reduction.AnyOp;
+import tensor.ops.reduction.ArgMaxOp;
+import tensor.ops.reduction.CumSumOp;
+import tensor.ops.reduction.LogSoftmaxOp;
+import tensor.ops.reduction.MeanOp;
+import tensor.ops.reduction.ProdOp;
+import tensor.ops.reduction.ReduceMaxOp;
+import tensor.ops.reduction.ReduceMinOp;
+import tensor.ops.reduction.SoftmaxOp;
+import tensor.ops.reduction.SumOp;
+import tensor.ops.select.WhereOp;
+import tensor.ops.unary.AbsOp;
+import tensor.ops.unary.CeilOp;
+import tensor.ops.unary.ClampMaxOp;
+import tensor.ops.unary.ClampMinOp;
+import tensor.ops.unary.ClampOp;
+import tensor.ops.unary.ErfOp;
+import tensor.ops.unary.ExpOp;
+import tensor.ops.unary.FastExpOp;
+import tensor.ops.unary.FastTanhOp;
+import tensor.ops.unary.FloorOp;
+import tensor.ops.unary.InvOp;
+import tensor.ops.unary.LogOp;
+import tensor.ops.unary.MulScalarOp;
+import tensor.ops.unary.NegOp;
+import tensor.ops.unary.PowScalarOp;
+import tensor.ops.unary.ReluOp;
+import tensor.ops.unary.SigmoidOp;
+import tensor.ops.unary.SignOp;
+import tensor.ops.unary.SqrtOp;
+import tensor.ops.unary.TanhOp;
 import tensor.loss.LossReduction;
 import tensor.options.AttentionOptions;
 import tensor.options.Conv2dOptions;
@@ -37,31 +103,31 @@ public final class TensorOps {
     private TensorOps() {}
 
     public static Tensor contiguous(Tensor input) {
-        return TensorLayoutOps.contiguous(input);
+        return ContiguousOp.build(input);
     }
 
     public static Tensor reshape(Tensor input, int[] newShape) {
-        return TensorLayoutOps.reshape(input, newShape);
+        return ReshapeOp.build(input, newShape);
     }
 
     public static Tensor expand(Tensor input, int[] newShape) {
-        return TensorLayoutOps.expand(input, newShape);
+        return ExpandOp.build(input, newShape);
     }
 
     public static Tensor permute(Tensor input, int[] axes) {
-        return TensorLayoutOps.permute(input, axes);
+        return PermuteOp.build(input, axes);
     }
 
     public static Tensor expandDims(Tensor input, int axis) {
-        return TensorLayoutOps.expandDims(input, axis);
+        return ExpandDimsOp.build(input, axis);
     }
 
     public static Tensor squeeze(Tensor input, int axis) {
-        return TensorLayoutOps.squeeze(input, axis);
+        return SqueezeOp.build(input, axis);
     }
 
     public static Tensor slice(Tensor input, int[] starts, int[] ends, int[] axes, int[] steps) {
-        return TensorLayoutOps.slice(input, starts, ends, axes, steps);
+        return SliceOp.build(input, starts, ends, axes, steps);
     }
 
     /**
@@ -78,7 +144,7 @@ public final class TensorOps {
      * @return sliced tensor view
      */
     public static Tensor sliceAxis(Tensor input, int axis, int fromInclusive, int toExclusive) {
-        return TensorLayoutOps.slice(
+        return SliceOp.build(
                 input,
                 new int[]{fromInclusive},
                 new int[]{toExclusive},
@@ -88,7 +154,7 @@ public final class TensorOps {
     }
 
     public static Tensor concat(int axis, List<Tensor> inputs) {
-        return TensorLayoutOps.concat(axis, inputs);
+        return ConcatOp.build(axis, inputs);
     }
 
     /**
@@ -103,7 +169,7 @@ public final class TensorOps {
      * @return tensor with one additional axis
      */
     public static Tensor stack(int axis, List<Tensor> inputs) {
-        return TensorLayoutOps.stack(axis, inputs);
+        return StackOp.build(axis, inputs);
     }
 
     /**
@@ -114,79 +180,79 @@ public final class TensorOps {
      * @return one tensor per position along {@code axis}
      */
     public static Tensor[] unstack(Tensor input, int axis) {
-        return TensorLayoutOps.unstack(input, axis);
+        return UnstackOp.build(input, axis);
     }
 
     public static Tensor pad(Tensor input, int[] before, int[] after, double constantValue) {
-        return TensorLayoutOps.pad(input, before, after, constantValue);
+        return PadOp.build(input, before, after, constantValue);
     }
 
     public static Tensor tile(Tensor input, int[] repeats) {
-        return TensorLayoutOps.tile(input, repeats);
+        return TileOp.build(input, repeats);
     }
 
     public static Tensor cast(Tensor input, DataType targetType) {
-        return TensorDTypeOps.cast(input, targetType);
+        return CastOp.build(input, targetType);
     }
 
     public static Tensor add(Tensor first, Tensor second) {
-        return TensorBinaryOps.add(first, second);
+        return AddOp.build(first, second);
     }
 
     public static Tensor sub(Tensor first, Tensor second) {
-        return TensorBinaryOps.sub(first, second);
+        return SubOp.build(first, second);
     }
 
     public static Tensor mul(Tensor first, Tensor second) {
-        return TensorBinaryOps.mul(first, second);
+        return MulOp.build(first, second);
     }
 
     public static Tensor div(Tensor first, Tensor second) {
-        return TensorBinaryOps.div(first, second);
+        return DivOp.build(first, second);
     }
 
     public static Tensor min(Tensor first, Tensor second) {
-        return TensorBinaryOps.min(first, second);
+        return MinOp.build(first, second);
     }
 
     public static Tensor max(Tensor first, Tensor second) {
-        return TensorBinaryOps.max(first, second);
+        return MaxOp.build(first, second);
     }
 
     public static Tensor pow(Tensor first, Tensor second) {
-        return TensorBinaryOps.pow(first, second);
+        return PowTensorOp.build(first, second);
     }
 
     public static Tensor greaterThan(Tensor first, Tensor second) {
-        return TensorCompareOps.greaterThan(first, second);
+        return GreaterThanOp.build(first, second);
     }
 
     public static Tensor lessThan(Tensor first, Tensor second) {
-        return TensorCompareOps.lessThan(first, second);
+        return LessThanOp.build(first, second);
     }
 
     public static Tensor greaterOrEqual(Tensor first, Tensor second) {
-        return TensorCompareOps.greaterOrEqual(first, second);
+        return GreaterOrEqualOp.build(first, second);
     }
 
     public static Tensor lessOrEqual(Tensor first, Tensor second) {
-        return TensorCompareOps.lessOrEqual(first, second);
+        return LessOrEqualOp.build(first, second);
     }
 
     public static Tensor equalTo(Tensor first, Tensor second) {
-        return TensorCompareOps.equalTo(first, second);
+        return EqualToOp.build(first, second);
     }
 
     public static Tensor notEqualTo(Tensor first, Tensor second) {
-        return TensorCompareOps.notEqualTo(first, second);
+        return NotEqualToOp.build(first, second);
     }
 
     public static Tensor where(Tensor condition, Tensor ifTrue, Tensor ifFalse) {
-        return TensorSelectOps.where(condition, ifTrue, ifFalse);
+        return WhereOp.build(condition, ifTrue, ifFalse);
     }
 
     public static Tensor select(Tensor input, int dimension, int index) {
-        return TensorIndexOps.select(input, dimension, index);
+        return SelectOp.build(input, dimension, index);
     }
 
     public static Tensor minimum(Tensor first, Tensor second) {
@@ -198,23 +264,23 @@ public final class TensorOps {
     }
 
     public static Tensor logicalAnd(Tensor first, Tensor second) {
-        return TensorBoolOps.logicalAnd(first, second);
+        return LogicalAndOp.build(first, second);
     }
 
     public static Tensor logicalOr(Tensor first, Tensor second) {
-        return TensorBoolOps.logicalOr(first, second);
+        return LogicalOrOp.build(first, second);
     }
 
     public static Tensor logicalNot(Tensor input) {
-        return TensorBoolOps.logicalNot(input);
+        return LogicalNotOp.build(input);
     }
 
     public static Tensor gather(Tensor input, Tensor indices, int dimension) {
-        return TensorIndexOps.gather(input, indices, dimension);
+        return GatherOp.build(input, indices, dimension);
     }
 
     public static Tensor gatherAxis(Tensor input, Tensor indices, int axis) {
-        return TensorIndexOps.gatherAxis(input, indices, axis);
+        return GatherOp.buildAxis(input, indices, axis);
     }
 
     /**
@@ -229,7 +295,7 @@ public final class TensorOps {
      * @return gathered tensor
      */
     public static Tensor take(Tensor input, int axis, Tensor indices) {
-        return TensorIndexOps.take(input, axis, indices);
+        return GatherOp.take(input, axis, indices);
     }
 
     /**
@@ -241,55 +307,55 @@ public final class TensorOps {
      * @return gathered tensor
      */
     public static Tensor take(Tensor input, int axis, int[] indices) {
-        return TensorIndexOps.take(input, axis, indices);
+        return GatherOp.take(input, axis, indices);
     }
 
     public static Tensor gatherNd(Tensor input, Tensor indices) {
-        return TensorIndexOps.gatherNd(input, indices);
+        return GatherNdOp.build(input, indices);
     }
 
     public static Tensor gatherNd(Tensor input, Tensor indices, int batchDims) {
-        return TensorIndexOps.gatherNd(input, indices, batchDims);
+        return GatherNdOp.build(input, indices, batchDims);
     }
 
     public static Tensor scatterAdd(Tensor base, Tensor indices, Tensor src, int dimension) {
-        return TensorIndexOps.scatterAdd(base, indices, src, dimension);
+        return ScatterAddOp.build(base, indices, src, dimension);
     }
 
     public static Tensor scatterElements(Tensor data, Tensor indices, Tensor updates, int axis) {
-        return TensorIndexOps.scatterElements(data, indices, updates, axis, ScatterReduction.NONE);
+        return ScatterElementsOp.build(data, indices, updates, axis, ScatterReduction.NONE);
     }
 
     public static Tensor scatterElements(Tensor data, Tensor indices, Tensor updates, int axis, ScatterReduction reduction) {
-        return TensorIndexOps.scatterElements(data, indices, updates, axis, reduction);
+        return ScatterElementsOp.build(data, indices, updates, axis, reduction);
     }
 
     public static Tensor scatterNd(Tensor data, Tensor indices, Tensor updates) {
-        return TensorIndexOps.scatterNd(data, indices, updates, ScatterReduction.NONE);
+        return ScatterNdOp.build(data, indices, updates, ScatterReduction.NONE);
     }
 
     public static Tensor scatterNd(Tensor data, Tensor indices, Tensor updates, ScatterReduction reduction) {
-        return TensorIndexOps.scatterNd(data, indices, updates, reduction);
+        return ScatterNdOp.build(data, indices, updates, reduction);
     }
 
     public static Tensor scatterNd(Tensor data, Tensor indices, Tensor updates, ScatterReduction reduction, int batchDims) {
-        return TensorIndexOps.scatterNd(data, indices, updates, reduction, batchDims);
+        return ScatterNdOp.build(data, indices, updates, reduction, batchDims);
     }
 
     public static Tensor scatterAxisAdd(Tensor data, Tensor indices, Tensor updates, int axis) {
-        return TensorIndexOps.scatterAxisAdd(data, indices, updates, axis);
+        return ScatterAxisAddOp.build(data, indices, updates, axis);
     }
 
     public static Tensor takeAlongAxis(Tensor input, Tensor indices, int dimension) {
-        return TensorIndexOps.takeAlongAxis(input, indices, dimension);
+        return TakeAlongAxisOp.build(input, indices, dimension);
     }
 
     public static Tensor abs(Tensor input) {
-        return TensorUnaryOps.abs(input);
+        return AbsOp.build(input);
     }
 
     public static Tensor matmul(Tensor first, Tensor second) {
-        return TensorMatMulOps.matmul(first, second);
+        return MatMulOp.build(first, second);
     }
 
     /**
@@ -304,7 +370,7 @@ public final class TensorOps {
      * @return projected tensor
      */
     public static Tensor linear(Tensor input, Tensor weight) {
-        return TensorLinearOps.linear(input, weight);
+        return LinearOp.build(input, weight);
     }
 
     /**
@@ -321,115 +387,115 @@ public final class TensorOps {
      * @return projected tensor plus broadcast bias
      */
     public static Tensor linear(Tensor input, Tensor weight, Tensor bias) {
-        return TensorLinearOps.linear(input, weight, bias);
+        return LinearOp.build(input, weight, bias);
     }
 
     public static Tensor conv2d(Tensor input, Tensor weight, Conv2dOptions options) {
-        return TensorConvOps.conv2d(input, weight, options);
+        return Conv2dOp.build(input, weight, options);
     }
 
     public static Tensor conv2d(Tensor input, Tensor weight, Tensor bias, Conv2dOptions options) {
-        return TensorConvOps.conv2d(input, weight, bias, options);
+        return Conv2dOp.build(input, weight, bias, options);
     }
 
     public static Tensor maxPool2d(Tensor input, Pool2dOptions options) {
-        return TensorPoolOps.maxPool2d(input, options);
+        return MaxPool2dOp.build(input, options);
     }
 
     public static Tensor avgPool2d(Tensor input, Pool2dOptions options) {
-        return TensorPoolOps.avgPool2d(input, options);
+        return AvgPool2dOp.build(input, options);
     }
 
     public static Tensor scaledDotProductAttention(Tensor query, Tensor key, Tensor value, AttentionOptions options) {
-        return TensorAttentionOps.scaledDotProductAttention(query, key, value, options);
+        return ScaledDotProductAttentionOp.build(query, key, value, options);
     }
 
     public static Tensor scaledDotProductAttention(Tensor query, Tensor key, Tensor value, Tensor mask, AttentionOptions options) {
-        return TensorAttentionOps.scaledDotProductAttention(query, key, value, mask, options);
+        return ScaledDotProductAttentionOp.build(query, key, value, mask, options);
     }
 
     public static Tensor neg(Tensor input) {
-        return TensorUnaryOps.neg(input);
+        return NegOp.build(input);
     }
 
     public static Tensor log(Tensor input) {
-        return TensorUnaryOps.log(input);
+        return LogOp.build(input);
     }
 
     public static Tensor exp(Tensor input) {
-        return TensorUnaryOps.exp(input);
+        return ExpOp.build(input);
     }
 
     public static Tensor fastExp(Tensor input) {
-        return TensorUnaryOps.fastExp(input);
+        return FastExpOp.build(input);
     }
 
     public static Tensor erf(Tensor input) {
-        return TensorUnaryOps.erf(input);
+        return ErfOp.build(input);
     }
 
     public static Tensor fastTanh(Tensor input) {
-        return TensorUnaryOps.fastTanh(input);
+        return FastTanhOp.build(input);
     }
 
     public static Tensor relu(Tensor input) {
-        return TensorUnaryOps.relu(input);
+        return ReluOp.build(input);
     }
 
     public static Tensor clamp(Tensor input, double minValue, double maxValue) {
-        return TensorUnaryOps.clamp(input, minValue, maxValue);
+        return ClampOp.build(input, minValue, maxValue);
     }
 
     public static Tensor clampMin(Tensor input, double minValue) {
-        return TensorUnaryOps.clampMin(input, minValue);
+        return ClampMinOp.build(input, minValue);
     }
 
     public static Tensor clampMax(Tensor input, double maxValue) {
-        return TensorUnaryOps.clampMax(input, maxValue);
+        return ClampMaxOp.build(input, maxValue);
     }
 
     public static Tensor pow(Tensor input, double exponent) {
-        return TensorUnaryOps.pow(input, exponent);
+        return PowScalarOp.build(input, exponent);
     }
 
     public static Tensor mulScalar(Tensor input, double scalar) {
-        return TensorUnaryOps.mulScalar(input, scalar);
+        return MulScalarOp.build(input, scalar);
     }
 
     public static Tensor inv(Tensor input) {
-        return TensorUnaryOps.inv(input);
+        return InvOp.build(input);
     }
 
     public static Tensor sqrt(Tensor input) {
-        return TensorUnaryOps.sqrt(input);
+        return SqrtOp.build(input);
     }
 
     public static Tensor floor(Tensor input) {
-        return TensorUnaryOps.floor(input);
+        return FloorOp.build(input);
     }
 
     public static Tensor ceil(Tensor input) {
-        return TensorUnaryOps.ceil(input);
+        return CeilOp.build(input);
     }
 
     public static Tensor sign(Tensor input) {
-        return TensorUnaryOps.sign(input);
+        return SignOp.build(input);
     }
 
     public static Tensor sigmoid(Tensor input) {
-        return TensorUnaryOps.sigmoid(input);
+        return SigmoidOp.build(input);
     }
 
     public static Tensor tanh(Tensor input) {
-        return TensorUnaryOps.tanh(input);
+        return TanhOp.build(input);
     }
 
     public static Tensor sum(Tensor input, int dimension) {
-        return TensorReduceOps.sum(input, dimension);
+        return SumOp.build(input, dimension);
     }
 
     public static Tensor sum(Tensor input, int dimension, boolean keepDims) {
-        return TensorReduceOps.sum(input, dimension, keepDims);
+        return SumOp.build(input, dimension, keepDims);
     }
 
     /**
@@ -441,19 +507,19 @@ public final class TensorOps {
      * @return masked sum with {@code dimension} removed
      */
     public static Tensor sum(Tensor input, int dimension, Tensor mask) {
-        return TensorReduceOps.sum(input, dimension, mask);
+        return SumOp.buildMasked(input, dimension, mask);
     }
 
     public static Tensor sumAll(Tensor input) {
-        return TensorReduceOps.sumAll(input);
+        return SumOp.buildAll(input);
     }
 
     public static Tensor mean(Tensor input, int dimension) {
-        return TensorReduceOps.mean(input, dimension);
+        return MeanOp.build(input, dimension);
     }
 
     public static Tensor mean(Tensor input, int dimension, boolean keepDims) {
-        return TensorReduceOps.mean(input, dimension, keepDims);
+        return MeanOp.build(input, dimension, keepDims);
     }
 
     /**
@@ -468,99 +534,99 @@ public final class TensorOps {
      * @return masked mean with {@code dimension} removed
      */
     public static Tensor mean(Tensor input, int dimension, Tensor mask) {
-        return TensorReduceOps.mean(input, dimension, mask);
+        return MeanOp.buildMasked(input, dimension, mask);
     }
 
     public static Tensor meanAll(Tensor input) {
-        return TensorReduceOps.meanAll(input);
+        return MeanOp.buildAll(input);
     }
 
     public static Tensor prod(Tensor input, int dimension) {
-        return TensorReduceOps.prod(input, dimension);
+        return ProdOp.build(input, dimension);
     }
 
     public static Tensor prod(Tensor input, int dimension, boolean keepDims) {
-        return TensorReduceOps.prod(input, dimension, keepDims);
+        return ProdOp.build(input, dimension, keepDims);
     }
 
     public static Tensor prodAll(Tensor input) {
-        return TensorReduceOps.prodAll(input);
+        return ProdOp.buildAll(input);
     }
 
     public static Tensor argMax(Tensor input, int dimension) {
-        return TensorReduceOps.argMax(input, dimension);
+        return ArgMaxOp.build(input, dimension);
     }
 
     public static Tensor argMax(Tensor input, int dimension, boolean keepDims) {
-        return TensorReduceOps.argMax(input, dimension, keepDims);
+        return ArgMaxOp.build(input, dimension, keepDims);
     }
 
     public static Tensor argMax(Tensor input, int dimension, boolean keepDims, operations.reduction.ArgMaxTiePolicy tiePolicy) {
-        return TensorReduceOps.argMax(input, dimension, keepDims, tiePolicy);
+        return ArgMaxOp.build(input, dimension, keepDims, tiePolicy);
     }
 
     public static Tensor cumSum(Tensor input, int axis) {
-        return TensorReduceOps.cumSum(input, axis);
+        return CumSumOp.build(input, axis);
     }
 
     public static Tensor cumSum(Tensor input, int axis, boolean exclusive, boolean reverse) {
-        return TensorReduceOps.cumSum(input, axis, exclusive, reverse);
+        return CumSumOp.build(input, axis, exclusive, reverse);
     }
 
     public static Tensor softmax(Tensor input, int dimension) {
-        return TensorReduceOps.softmax(input, dimension);
+        return SoftmaxOp.build(input, dimension);
     }
 
     public static Tensor logSoftmax(Tensor input, int dimension) {
-        return TensorReduceOps.logSoftmax(input, dimension);
+        return LogSoftmaxOp.build(input, dimension);
     }
 
     public static Tensor min(Tensor input, int dimension) {
-        return TensorReduceOps.min(input, dimension);
+        return ReduceMinOp.build(input, dimension);
     }
 
     public static Tensor min(Tensor input, int dimension, boolean keepDims) {
-        return TensorReduceOps.min(input, dimension, keepDims);
+        return ReduceMinOp.build(input, dimension, keepDims);
     }
 
     public static Tensor minAll(Tensor input) {
-        return TensorReduceOps.minAll(input);
+        return ReduceMinOp.buildAll(input);
     }
 
     public static Tensor max(Tensor input, int dimension) {
-        return TensorReduceOps.max(input, dimension);
+        return ReduceMaxOp.build(input, dimension);
     }
 
     public static Tensor max(Tensor input, int dimension, boolean keepDims) {
-        return TensorReduceOps.max(input, dimension, keepDims);
+        return ReduceMaxOp.build(input, dimension, keepDims);
     }
 
     public static Tensor maxAll(Tensor input) {
-        return TensorReduceOps.maxAll(input);
+        return ReduceMaxOp.buildAll(input);
     }
 
     public static Tensor all(Tensor input, int dimension) {
-        return TensorReduceOps.all(input, dimension);
+        return AllOp.build(input, dimension);
     }
 
     public static Tensor all(Tensor input, int dimension, boolean keepDims) {
-        return TensorReduceOps.all(input, dimension, keepDims);
+        return AllOp.build(input, dimension, keepDims);
     }
 
     public static Tensor allAll(Tensor input) {
-        return TensorReduceOps.allAll(input);
+        return AllOp.buildAll(input);
     }
 
     public static Tensor any(Tensor input, int dimension) {
-        return TensorReduceOps.any(input, dimension);
+        return AnyOp.build(input, dimension);
     }
 
     public static Tensor any(Tensor input, int dimension, boolean keepDims) {
-        return TensorReduceOps.any(input, dimension, keepDims);
+        return AnyOp.build(input, dimension, keepDims);
     }
 
     public static Tensor anyAll(Tensor input) {
-        return TensorReduceOps.anyAll(input);
+        return AnyOp.buildAll(input);
     }
 
     /**
@@ -581,10 +647,10 @@ public final class TensorOps {
             Tensor input,
             Tensor gamma,
             Tensor beta,
-            int channelDimension,
-            double epsilon
+        int channelDimension,
+        double epsilon
     ) {
-        return TensorNormalizationOps.batchNorm(input, gamma, beta, channelDimension, epsilon);
+        return BatchNormOp.build(input, gamma, beta, channelDimension, epsilon);
     }
 
     /**
@@ -609,10 +675,10 @@ public final class TensorOps {
             Tensor beta,
             Tensor mean,
             Tensor variance,
-            int channelDimension,
-            double epsilon
+        int channelDimension,
+        double epsilon
     ) {
-        return TensorNormalizationOps.batchNorm(input, gamma, beta, mean, variance, channelDimension, epsilon);
+        return BatchNormOp.build(input, gamma, beta, mean, variance, channelDimension, epsilon);
     }
 
     /**
@@ -631,10 +697,10 @@ public final class TensorOps {
     public static Tensor layerNorm(
             Tensor input,
             Tensor gamma,
-            Tensor beta,
-            double epsilon
+        Tensor beta,
+        double epsilon
     ) {
-        return TensorNormalizationOps.layerNorm(input, gamma, beta, epsilon);
+        return LayerNormOp.build(input, gamma, beta, epsilon);
     }
 
     /**
@@ -650,18 +716,18 @@ public final class TensorOps {
      */
     public static Tensor rmsNorm(
             Tensor input,
-            Tensor gamma,
-            double epsilon
+        Tensor gamma,
+        double epsilon
     ) {
-        return TensorNormalizationOps.rmsNorm(input, gamma, epsilon);
+        return RmsNormOp.build(input, gamma, epsilon);
     }
 
     public static Tensor nllLoss(Tensor logProbs, Tensor targets, int classDimension) {
-        return TensorLossOps.nllLoss(logProbs, targets, classDimension);
+        return DenseNllLossOp.build(logProbs, targets, classDimension);
     }
 
     public static Tensor crossEntropyLoss(Tensor logits, Tensor targets, int classDimension) {
-        return TensorLossOps.crossEntropyLoss(logits, targets, classDimension);
+        return DenseCrossEntropyLossOp.build(logits, targets, classDimension);
     }
 
     /**
@@ -674,39 +740,39 @@ public final class TensorOps {
      * @return shape {@code [1]} mean loss normalized by valid mask count
      */
     public static Tensor crossEntropyLoss(Tensor logits, Tensor targets, int classDimension, Tensor mask) {
-        return TensorLossOps.crossEntropyLoss(logits, targets, classDimension, mask);
+        return DenseCrossEntropyLossOp.build(logits, targets, classDimension, mask);
     }
 
     public static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension) {
-        return TensorLossOps.nllLossFromIndices(logProbs, targetIndices, classDimension);
+        return NllLossFromIndicesOp.build(logProbs, targetIndices, classDimension);
     }
 
     public static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension, LossReduction reduction) {
-        return TensorLossOps.nllLossFromIndices(logProbs, targetIndices, classDimension, reduction);
+        return NllLossFromIndicesOp.build(logProbs, targetIndices, classDimension, reduction);
     }
 
     public static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension, Tensor classWeights, LossReduction reduction) {
-        return TensorLossOps.nllLossFromIndices(logProbs, targetIndices, classDimension, classWeights, reduction);
+        return NllLossFromIndicesOp.build(logProbs, targetIndices, classDimension, classWeights, reduction);
     }
 
     public static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension, int ignoreIndex) {
-        return TensorLossOps.nllLossFromIndices(logProbs, targetIndices, classDimension, ignoreIndex);
+        return NllLossFromIndicesOp.build(logProbs, targetIndices, classDimension, ignoreIndex);
     }
 
     public static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension, int ignoreIndex, LossReduction reduction) {
-        return TensorLossOps.nllLossFromIndices(logProbs, targetIndices, classDimension, ignoreIndex, reduction);
+        return NllLossFromIndicesOp.build(logProbs, targetIndices, classDimension, ignoreIndex, reduction);
     }
 
     public static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension, int ignoreIndex, Tensor classWeights, LossReduction reduction) {
-        return TensorLossOps.nllLossFromIndices(logProbs, targetIndices, classDimension, ignoreIndex, classWeights, reduction);
+        return NllLossFromIndicesOp.build(logProbs, targetIndices, classDimension, ignoreIndex, classWeights, reduction);
     }
 
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension) {
-        return TensorLossOps.crossEntropyLossFromIndices(logits, targetIndices, classDimension);
+        return CrossEntropyLossFromIndicesOp.build(logits, targetIndices, classDimension);
     }
 
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, LossReduction reduction) {
-        return TensorLossOps.crossEntropyLossFromIndices(logits, targetIndices, classDimension, reduction);
+        return CrossEntropyLossFromIndicesOp.build(logits, targetIndices, classDimension, reduction);
     }
 
     /**
@@ -719,22 +785,22 @@ public final class TensorOps {
      * @return shape {@code [1]} mean loss normalized by valid mask count
      */
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, Tensor mask) {
-        return TensorLossOps.crossEntropyLossFromIndices(logits, targetIndices, classDimension, mask);
+        return CrossEntropyLossFromIndicesOp.build(logits, targetIndices, classDimension, mask);
     }
 
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, Tensor classWeights, LossReduction reduction) {
-        return TensorLossOps.crossEntropyLossFromIndices(logits, targetIndices, classDimension, classWeights, reduction);
+        return CrossEntropyLossFromIndicesOp.build(logits, targetIndices, classDimension, classWeights, reduction);
     }
 
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, int ignoreIndex) {
-        return TensorLossOps.crossEntropyLossFromIndices(logits, targetIndices, classDimension, ignoreIndex);
+        return CrossEntropyLossFromIndicesOp.build(logits, targetIndices, classDimension, ignoreIndex);
     }
 
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, int ignoreIndex, LossReduction reduction) {
-        return TensorLossOps.crossEntropyLossFromIndices(logits, targetIndices, classDimension, ignoreIndex, reduction);
+        return CrossEntropyLossFromIndicesOp.build(logits, targetIndices, classDimension, ignoreIndex, reduction);
     }
 
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, int ignoreIndex, Tensor classWeights, LossReduction reduction) {
-        return TensorLossOps.crossEntropyLossFromIndices(logits, targetIndices, classDimension, ignoreIndex, classWeights, reduction);
+        return CrossEntropyLossFromIndicesOp.build(logits, targetIndices, classDimension, ignoreIndex, classWeights, reduction);
     }
 }

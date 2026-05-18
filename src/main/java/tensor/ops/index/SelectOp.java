@@ -1,0 +1,48 @@
+package tensor.ops.index;
+
+import operations.layout.select;
+import tensor.Tensor;
+import tensor.TensorInternalAccess;
+import tensor.TensorLayoutTransform;
+import tensor.TensorPrimitiveBuilder;
+
+/**
+ * Graph-building definition for axis {@code select}.
+ */
+public final class SelectOp {
+    private SelectOp() {
+    }
+
+    public static Tensor build(Tensor input, int dimension, int index) {
+        if (input == null) {
+            throw new IllegalArgumentException("select input cannot be null");
+        }
+        int[] inputShape = input.getShape();
+        int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, inputShape.length);
+        int normalizedIndex = IndexSupport.normalizeIndex(index, inputShape[normalizedDimension]);
+        int[] outShape = IndexSupport.reduceShape(inputShape, normalizedDimension);
+        int[] outStrides = IndexSupport.reduceStrides(input.getStridesUnsafe(), normalizedDimension);
+        int outStorageOffset = input.getStorageOffsetUnsafe() + normalizedIndex * input.getStridesUnsafe()[normalizedDimension];
+
+        Tensor out = TensorPrimitiveBuilder.unaryView(
+                input,
+                outShape,
+                outStrides,
+                outStorageOffset,
+                new select(normalizedDimension, normalizedIndex),
+                "select",
+                input.getDataType()
+        );
+        TensorInternalAccess.setBackwardFunction(out, () -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null || !input.getRequiresGrad()) {
+                return;
+            }
+            Tensor zeroBase = Tensor.zerosLike(input);
+            Tensor indices = IndexSupport.constantIndexTensor(IndexSupport.reduceShape(input.getShapeUnsafe(), normalizedDimension), normalizedIndex);
+            Tensor grad = zeroBase.scatterAdd(indices, outGrad, normalizedDimension);
+            IndexSupport.accumulateGradient(input, grad);
+        });
+        return out;
+    }
+}

@@ -3,6 +3,7 @@ package tensor.ops.normalization;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
+import tensor.TensorDataTypeUtil;
 
 final class NormalizationSupport {
     private NormalizationSupport() {
@@ -62,5 +63,68 @@ final class NormalizationSupport {
         if (!(epsilon > 0.0)) {
             throw new IllegalArgumentException(opName + " epsilon must be positive.");
         }
+    }
+
+    static Tensor normalizeWithStats(
+            Tensor input,
+            Tensor gamma,
+            Tensor beta,
+            Tensor mean,
+            Tensor variance,
+            int channelDimension,
+            double epsilon
+    ) {
+        int[] broadcastShape = new int[input.getShapeUnsafe().length];
+        java.util.Arrays.fill(broadcastShape, 1);
+        broadcastShape[channelDimension] = input.getShapeUnsafe()[channelDimension];
+
+        Tensor meanView = mean.reshape(broadcastShape);
+        Tensor varianceView = variance.reshape(broadcastShape);
+        Tensor gammaView = gamma.reshape(broadcastShape);
+        Tensor betaView = beta.reshape(broadcastShape);
+        Tensor epsilonTensor = Tensor.scalar(epsilon, TensorDataTypeUtil.promote(input.getDataType(), gamma.getDataType()));
+
+        return input
+                .sub(meanView)
+                .div(varianceView.add(epsilonTensor).sqrt())
+                .mul(gammaView)
+                .add(betaView);
+    }
+
+    static Tensor reduceAllButOne(Tensor input, int preservedAxis) {
+        Tensor reduced = input;
+        for (int axis = 0; axis < input.getShapeUnsafe().length; axis++) {
+            if (axis == preservedAxis) {
+                continue;
+            }
+            reduced = reduced.mean(axis, true);
+        }
+        return reduced.reshape(new int[]{input.getShapeUnsafe()[preservedAxis]});
+    }
+
+    static Tensor reshapeChannelParameter(int[] inputShape, int channelDimension, Tensor parameter) {
+        int[] broadcastShape = new int[inputShape.length];
+        java.util.Arrays.fill(broadcastShape, 1);
+        broadcastShape[channelDimension] = inputShape[channelDimension];
+        return parameter.reshape(broadcastShape);
+    }
+
+    static Tensor reduceTrailingKeepDims(Tensor input, int normalizedRank) {
+        int inputRank = input.getShapeUnsafe().length;
+        int startAxis = inputRank - normalizedRank;
+        Tensor reduced = input;
+        for (int axis = startAxis; axis < inputRank; axis++) {
+            reduced = reduced.mean(axis, true);
+        }
+        return reduced;
+    }
+
+    static Tensor reduceLeadingKeepDims(Tensor input, int trailingRank) {
+        int reductions = input.getShapeUnsafe().length - trailingRank;
+        Tensor reduced = input;
+        for (int i = 0; i < reductions; i++) {
+            reduced = reduced.sum(i, true);
+        }
+        return reduced;
     }
 }

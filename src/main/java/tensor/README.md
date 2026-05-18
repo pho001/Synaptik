@@ -43,35 +43,48 @@ Ordinary modeling code usually starts there.
 
 ## Internal Family Split
 
-The public surface is implemented through family-specific builders under `tensor.ops.*`.
+The public surface is implemented by operation-specific builders under
+`tensor.ops.*`. There are no `Tensor<Family>Ops` compatibility facades in this
+layer. `Tensor` and `TensorOps` call the concrete operation classes directly,
+for example:
 
-Current families:
+- [ops/binary/AddOp.java](../tensor/ops/binary/AddOp.java)
+- [ops/binary/MulOp.java](../tensor/ops/binary/MulOp.java)
+- [ops/layout/ReshapeOp.java](../tensor/ops/layout/ReshapeOp.java)
+- [ops/linalg/MatMulOp.java](../tensor/ops/linalg/MatMulOp.java)
+- [ops/loss/CrossEntropyLossFromIndicesOp.java](../tensor/ops/loss/CrossEntropyLossFromIndicesOp.java)
 
-- unary:
-  - [ops/unary/TensorUnaryOps.java](../tensor/ops/unary/TensorUnaryOps.java)
-- binary:
-  - [ops/binary/TensorBinaryOps.java](../tensor/ops/binary/TensorBinaryOps.java)
-- compare:
-  - [ops/compare/TensorCompareOps.java](../tensor/ops/compare/TensorCompareOps.java)
-- bool:
-  - [ops/bool/TensorBoolOps.java](../tensor/ops/bool/TensorBoolOps.java)
-- select:
-  - [ops/select/TensorSelectOps.java](../tensor/ops/select/TensorSelectOps.java)
-- layout:
-  - [ops/layout/TensorLayoutOps.java](../tensor/ops/layout/TensorLayoutOps.java)
-- index:
-  - [ops/index/TensorIndexOps.java](../tensor/ops/index/TensorIndexOps.java)
-- reduction:
-  - [ops/reduction/TensorReduceOps.java](../tensor/ops/reduction/TensorReduceOps.java)
-- linalg:
-  - [ops/linalg/TensorMatMulOps.java](../tensor/ops/linalg/TensorMatMulOps.java)
-  - [ops/linalg/TensorLinearOps.java](../tensor/ops/linalg/TensorLinearOps.java)
-  - [ops/linalg/TensorAttentionOps.java](../tensor/ops/linalg/TensorAttentionOps.java)
-- conv / pool / normalization / loss:
-  - [ops/conv/TensorConvOps.java](../tensor/ops/conv/TensorConvOps.java)
-  - [ops/pool/TensorPoolOps.java](../tensor/ops/pool/TensorPoolOps.java)
-  - [ops/normalization/TensorNormalizationOps.java](../tensor/ops/normalization/TensorNormalizationOps.java)
-  - [ops/loss/TensorLossOps.java](../tensor/ops/loss/TensorLossOps.java)
+Each operation class owns the public graph-building contract for one operation:
+shape and dtype validation, primitive descriptor creation, view/materialization
+choice where relevant, and backward graph wiring.
+
+Family packages now contain concrete operation classes plus package-private
+support/spec helpers:
+
+- `ops/unary`: `NegOp`, `AbsOp`, `LogOp`, `ExpOp`, `FastExpOp`, `ErfOp`,
+  `PowScalarOp`, `MulScalarOp`, `InvOp`, `SqrtOp`, `FloorOp`, `CeilOp`,
+  `SignOp`, `SigmoidOp`, `TanhOp`, `FastTanhOp`, `ReluOp`, `ClampOp`,
+  `ClampMinOp`, `ClampMaxOp`
+- `ops/binary`: `AddOp`, `SubOp`, `MulOp`, `DivOp`, `PowTensorOp`, `MinOp`,
+  `MaxOp`
+- `ops/compare`: `GreaterThanOp`, `LessThanOp`, `GreaterOrEqualOp`,
+  `LessOrEqualOp`, `EqualToOp`, `NotEqualToOp`
+- `ops/bool`: `LogicalAndOp`, `LogicalOrOp`, `LogicalNotOp`
+- `ops/select`: `WhereOp`
+- `ops/layout`: `ContiguousOp`, `ReshapeOp`, `ExpandOp`, `SliceOp`,
+  `ConcatOp`, `StackOp`, `UnstackOp`, `PadOp`, `TileOp`, `PermuteOp`,
+  `ExpandDimsOp`, `SqueezeOp`
+- `ops/index`: `SelectOp`, `GatherOp`, `GatherNdOp`, `ScatterAddOp`,
+  `ScatterElementsOp`, `ScatterNdOp`, `ScatterAxisAddOp`, `TakeAlongAxisOp`
+- `ops/reduction`: `SumOp`, `MeanOp`, `ProdOp`, `ArgMaxOp`, `CumSumOp`,
+  `SoftmaxOp`, `LogSoftmaxOp`, `ReduceMinOp`, `ReduceMaxOp`, `AllOp`, `AnyOp`
+- `ops/linalg`: `MatMulOp`, `LinearOp`, `ScaledDotProductAttentionOp`
+- `ops/conv`: `Conv2dOp`
+- `ops/pool`: `MaxPool2dOp`, `AvgPool2dOp`
+- `ops/normalization`: `BatchNormOp`, `LayerNormOp`, `RmsNormOp`
+- `ops/loss`: `DenseNllLossOp`, `DenseCrossEntropyLossOp`,
+  `NllLossFromIndicesOp`, `CrossEntropyLossFromIndicesOp`
+- `ops/dtype`: `CastOp`
 
 This split matters because Synaptik does not want one giant mixed `Tensor` implementation file to own:
 

@@ -13,6 +13,71 @@ import tensor.loss.LossReduction;
 import tensor.options.AttentionOptions;
 import tensor.options.Conv2dOptions;
 import tensor.options.Pool2dOptions;
+import tensor.ops.binary.AddOp;
+import tensor.ops.binary.DivOp;
+import tensor.ops.binary.MaxOp;
+import tensor.ops.binary.MinOp;
+import tensor.ops.binary.MulOp;
+import tensor.ops.binary.PowTensorOp;
+import tensor.ops.binary.SubOp;
+import tensor.ops.compare.EqualToOp;
+import tensor.ops.compare.GreaterOrEqualOp;
+import tensor.ops.compare.GreaterThanOp;
+import tensor.ops.compare.LessOrEqualOp;
+import tensor.ops.compare.LessThanOp;
+import tensor.ops.compare.NotEqualToOp;
+import tensor.ops.index.GatherNdOp;
+import tensor.ops.index.GatherOp;
+import tensor.ops.index.ScatterAddOp;
+import tensor.ops.index.ScatterAxisAddOp;
+import tensor.ops.index.ScatterElementsOp;
+import tensor.ops.index.ScatterNdOp;
+import tensor.ops.index.SelectOp;
+import tensor.ops.index.TakeAlongAxisOp;
+import tensor.ops.layout.ConcatOp;
+import tensor.ops.layout.ContiguousOp;
+import tensor.ops.layout.ExpandDimsOp;
+import tensor.ops.layout.ExpandOp;
+import tensor.ops.layout.PadOp;
+import tensor.ops.layout.PermuteOp;
+import tensor.ops.layout.ReshapeOp;
+import tensor.ops.layout.SliceOp;
+import tensor.ops.layout.SqueezeOp;
+import tensor.ops.layout.StackOp;
+import tensor.ops.layout.TileOp;
+import tensor.ops.layout.UnstackOp;
+import tensor.ops.linalg.MatMulOp;
+import tensor.ops.reduction.AllOp;
+import tensor.ops.reduction.AnyOp;
+import tensor.ops.reduction.ArgMaxOp;
+import tensor.ops.reduction.CumSumOp;
+import tensor.ops.reduction.LogSoftmaxOp;
+import tensor.ops.reduction.MeanOp;
+import tensor.ops.reduction.ProdOp;
+import tensor.ops.reduction.ReduceMaxOp;
+import tensor.ops.reduction.ReduceMinOp;
+import tensor.ops.reduction.SoftmaxOp;
+import tensor.ops.reduction.SumOp;
+import tensor.ops.unary.AbsOp;
+import tensor.ops.unary.CeilOp;
+import tensor.ops.unary.ClampMaxOp;
+import tensor.ops.unary.ClampMinOp;
+import tensor.ops.unary.ClampOp;
+import tensor.ops.unary.ErfOp;
+import tensor.ops.unary.ExpOp;
+import tensor.ops.unary.FastExpOp;
+import tensor.ops.unary.FastTanhOp;
+import tensor.ops.unary.FloorOp;
+import tensor.ops.unary.InvOp;
+import tensor.ops.unary.LogOp;
+import tensor.ops.unary.MulScalarOp;
+import tensor.ops.unary.NegOp;
+import tensor.ops.unary.PowScalarOp;
+import tensor.ops.unary.ReluOp;
+import tensor.ops.unary.SigmoidOp;
+import tensor.ops.unary.SignOp;
+import tensor.ops.unary.SqrtOp;
+import tensor.ops.unary.TanhOp;
 
 import java.util.*;
 
@@ -1612,7 +1677,7 @@ public class Tensor {
      * @return contiguous tensor; input storage may be copied by the operation
      */
     public Tensor contiguous(){
-        return TensorOps.contiguous(this);
+        return ContiguousOp.build(this);
     }
 
     /**
@@ -1628,7 +1693,7 @@ public class Tensor {
      * @throws IllegalArgumentException if the requested shape is invalid or changes element count
      */
     public Tensor reshape(int... newShape) {
-        return TensorOps.reshape(this, newShape);
+        return ReshapeOp.build(this, newShape);
     }
 
     /**
@@ -1644,7 +1709,7 @@ public class Tensor {
      * @throws IllegalArgumentException if shapes are not broadcast-compatible
      */
     public Tensor expand(int... newShape) {
-        return TensorOps.expand(this, newShape);
+        return ExpandOp.build(this, newShape);
     }
 
     /**
@@ -1655,7 +1720,7 @@ public class Tensor {
      * @throws IllegalArgumentException if axes are duplicated, missing, or out of range
      */
     public Tensor permute(int... axes) {
-        return TensorOps.permute(this, axes);
+        return PermuteOp.build(this, axes);
     }
 
     /**
@@ -1679,7 +1744,7 @@ public class Tensor {
      * @return view with one additional dimension
      */
     public Tensor expandDims(int axis) {
-        return TensorOps.expandDims(this, axis);
+        return ExpandDimsOp.build(this, axis);
     }
 
     /**
@@ -1690,11 +1755,11 @@ public class Tensor {
      * @throws IllegalArgumentException if the selected dimension is not size 1
      */
     public Tensor squeeze(int axis) {
-        return TensorOps.squeeze(this, axis);
+        return SqueezeOp.build(this, axis);
     }
 
     public Tensor slice(int[] starts, int[] ends, int[] axes, int[] steps) {
-        return TensorOps.slice(this, starts, ends, axes, steps);
+        return SliceOp.build(this, starts, ends, axes, steps);
     }
 
     /**
@@ -1709,15 +1774,15 @@ public class Tensor {
      * @return sliced tensor view
      */
     public Tensor sliceAxis(int axis, int fromInclusive, int toExclusive) {
-        return TensorOps.sliceAxis(this, axis, fromInclusive, toExclusive);
+        return SliceOp.build(this, new int[]{fromInclusive}, new int[]{toExclusive}, new int[]{axis}, new int[]{1});
     }
 
     public Tensor pad(int[] before, int[] after, double constantValue) {
-        return TensorOps.pad(this, before, after, constantValue);
+        return PadOp.build(this, before, after, constantValue);
     }
 
     public Tensor tile(int... repeats) {
-        return TensorOps.tile(this, repeats);
+        return TileOp.build(this, repeats);
     }
 
     public Tensor cast(DataType targetType) {
@@ -1728,7 +1793,7 @@ public class Tensor {
         if (inputs == null) {
             throw new IllegalArgumentException("concat inputs cannot be null");
         }
-        return TensorOps.concat(axis, List.of(inputs));
+        return ConcatOp.build(axis, List.of(inputs));
     }
 
     /**
@@ -1748,7 +1813,7 @@ public class Tensor {
         if (inputs == null) {
             throw new IllegalArgumentException("stack inputs cannot be null");
         }
-        return TensorOps.stack(axis, Arrays.asList(inputs));
+        return StackOp.build(axis, Arrays.asList(inputs));
     }
 
     /**
@@ -1758,7 +1823,7 @@ public class Tensor {
      * @return broadcasted sum tensor
      */
     public Tensor add (Tensor second){
-        return TensorOps.add(this, second);
+        return AddOp.build(this, second);
 
     }
 
@@ -1769,7 +1834,7 @@ public class Tensor {
      * @return broadcasted difference tensor
      */
     public Tensor sub (Tensor second){
-        return TensorOps.sub(this, second);
+        return SubOp.build(this, second);
     }
 
     /**
@@ -1779,7 +1844,7 @@ public class Tensor {
      * @return broadcasted product tensor
      */
     public Tensor mul (Tensor second){
-        return TensorOps.mul(this, second);
+        return MulOp.build(this, second);
 
     }
 
@@ -1790,7 +1855,7 @@ public class Tensor {
      * @return broadcasted quotient tensor
      */
     public Tensor div (Tensor second){
-        return TensorOps.div(this, second);
+        return DivOp.build(this, second);
     }
 
     /**
@@ -1800,7 +1865,7 @@ public class Tensor {
      * @return broadcasted minimum tensor
      */
     public Tensor min(Tensor second) {
-        return TensorOps.min(this, second);
+        return MinOp.build(this, second);
     }
 
     /**
@@ -1810,7 +1875,7 @@ public class Tensor {
      * @return broadcasted maximum tensor
      */
     public Tensor max(Tensor second) {
-        return TensorOps.max(this, second);
+        return MaxOp.build(this, second);
     }
 
     /**
@@ -1820,7 +1885,7 @@ public class Tensor {
      * @return broadcasted power tensor
      */
     public Tensor pow(Tensor exponent) {
-        return TensorOps.pow(this, exponent);
+        return PowTensorOp.build(this, exponent);
     }
 
     /**
@@ -1830,7 +1895,7 @@ public class Tensor {
      * @return broadcasted BOOL tensor
      */
     public Tensor greaterThan(Tensor second) {
-        return TensorOps.greaterThan(this, second);
+        return GreaterThanOp.build(this, second);
     }
 
     /**
@@ -1840,7 +1905,7 @@ public class Tensor {
      * @return broadcasted BOOL tensor
      */
     public Tensor lessThan(Tensor second) {
-        return TensorOps.lessThan(this, second);
+        return LessThanOp.build(this, second);
     }
 
     /**
@@ -1850,7 +1915,7 @@ public class Tensor {
      * @return broadcasted BOOL tensor
      */
     public Tensor greaterOrEqual(Tensor second) {
-        return TensorOps.greaterOrEqual(this, second);
+        return GreaterOrEqualOp.build(this, second);
     }
 
     /**
@@ -1860,7 +1925,7 @@ public class Tensor {
      * @return broadcasted BOOL tensor
      */
     public Tensor lessOrEqual(Tensor second) {
-        return TensorOps.lessOrEqual(this, second);
+        return LessOrEqualOp.build(this, second);
     }
 
     /**
@@ -1870,7 +1935,7 @@ public class Tensor {
      * @return broadcasted BOOL tensor
      */
     public Tensor equalTo(Tensor second) {
-        return TensorOps.equalTo(this, second);
+        return EqualToOp.build(this, second);
     }
 
     /**
@@ -1880,7 +1945,7 @@ public class Tensor {
      * @return broadcasted BOOL tensor
      */
     public Tensor notEqualTo(Tensor second) {
-        return TensorOps.notEqualTo(this, second);
+        return NotEqualToOp.build(this, second);
     }
 
     /**
@@ -1909,7 +1974,7 @@ public class Tensor {
      * @return strided view of the selected slice
      */
     public Tensor select(int dimension, int index) {
-        return TensorOps.select(this, dimension, index);
+        return SelectOp.build(this, dimension, index);
     }
 
     /**
@@ -1975,7 +2040,7 @@ public class Tensor {
      * @return gathered tensor
      */
     public Tensor gather(Tensor indices, int dimension) {
-        return TensorOps.gather(this, indices, dimension);
+        return GatherOp.build(this, indices, dimension);
     }
 
     /**
@@ -1986,7 +2051,7 @@ public class Tensor {
      * @return gathered tensor with shape {@code dataShape[:axis] + indicesShape + dataShape[axis + 1:]}
      */
     public Tensor gatherAxis(Tensor indices, int axis) {
-        return TensorOps.gatherAxis(this, indices, axis);
+        return GatherOp.buildAxis(this, indices, axis);
     }
 
     /**
@@ -2000,7 +2065,7 @@ public class Tensor {
      * @return gathered tensor
      */
     public Tensor take(int axis, Tensor indices) {
-        return TensorOps.take(this, axis, indices);
+        return GatherOp.take(this, axis, indices);
     }
 
     /**
@@ -2014,7 +2079,7 @@ public class Tensor {
      * @return gathered tensor
      */
     public Tensor take(int axis, int[] indices) {
-        return TensorOps.take(this, axis, indices);
+        return GatherOp.take(this, axis, indices);
     }
 
     /**
@@ -2028,7 +2093,7 @@ public class Tensor {
      * @return one tensor per position along {@code axis}
      */
     public Tensor[] unstack(int axis) {
-        return TensorOps.unstack(this, axis);
+        return UnstackOp.build(this, axis);
     }
 
     /**
@@ -2042,7 +2107,7 @@ public class Tensor {
      * @return gathered tensor with tuple-indexed values or slices
      */
     public Tensor gatherNd(Tensor indices) {
-        return TensorOps.gatherNd(this, indices);
+        return GatherNdOp.build(this, indices);
     }
 
     /**
@@ -2057,7 +2122,7 @@ public class Tensor {
      * @return gathered tensor with tuple-indexed values or slices
      */
     public Tensor gatherNd(Tensor indices, int batchDims) {
-        return TensorOps.gatherNd(this, indices, batchDims);
+        return GatherNdOp.build(this, indices, batchDims);
     }
 
     /**
@@ -2069,7 +2134,7 @@ public class Tensor {
      * @return tensor containing this tensor plus scattered additions
      */
     public Tensor scatterAdd(Tensor indices, Tensor src, int dimension) {
-        return TensorOps.scatterAdd(this, indices, src, dimension);
+        return ScatterAddOp.build(this, indices, src, dimension);
     }
 
     /**
@@ -2081,7 +2146,7 @@ public class Tensor {
      * @return tensor with this tensor's shape and scattered updates
      */
     public Tensor scatterElements(Tensor indices, Tensor updates, int axis) {
-        return TensorOps.scatterElements(this, indices, updates, axis);
+        return ScatterElementsOp.build(this, indices, updates, axis, ScatterReduction.NONE);
     }
 
     /**
@@ -2094,7 +2159,7 @@ public class Tensor {
      * @return tensor with this tensor's shape and scattered updates
      */
     public Tensor scatterElements(Tensor indices, Tensor updates, int axis, ScatterReduction reduction) {
-        return TensorOps.scatterElements(this, indices, updates, axis, reduction);
+        return ScatterElementsOp.build(this, indices, updates, axis, reduction);
     }
 
     /**
@@ -2109,7 +2174,7 @@ public class Tensor {
      * @return tensor with this tensor's shape and scattered updates
      */
     public Tensor scatterNd(Tensor indices, Tensor updates) {
-        return TensorOps.scatterNd(this, indices, updates);
+        return ScatterNdOp.build(this, indices, updates, ScatterReduction.NONE);
     }
 
     /**
@@ -2121,7 +2186,7 @@ public class Tensor {
      * @return tensor with this tensor's shape and scattered updates
      */
     public Tensor scatterNd(Tensor indices, Tensor updates, ScatterReduction reduction) {
-        return TensorOps.scatterNd(this, indices, updates, reduction);
+        return ScatterNdOp.build(this, indices, updates, reduction);
     }
 
     /**
@@ -2135,7 +2200,7 @@ public class Tensor {
      * @return tensor with this tensor's shape and scattered updates
      */
     public Tensor scatterNd(Tensor indices, Tensor updates, ScatterReduction reduction, int batchDims) {
-        return TensorOps.scatterNd(this, indices, updates, reduction, batchDims);
+        return ScatterNdOp.build(this, indices, updates, reduction, batchDims);
     }
 
     /**
@@ -2147,7 +2212,7 @@ public class Tensor {
      * @return tensor with this tensor's shape and scattered additions
      */
     public Tensor scatterAxisAdd(Tensor indices, Tensor updates, int axis) {
-        return TensorOps.scatterAxisAdd(this, indices, updates, axis);
+        return ScatterAxisAddOp.build(this, indices, updates, axis);
     }
 
     /**
@@ -2158,7 +2223,7 @@ public class Tensor {
      * @return gathered tensor with shape {@code indices.getShape()}
      */
     public Tensor takeAlongAxis(Tensor indices, int dimension) {
-        return TensorOps.takeAlongAxis(this, indices, dimension);
+        return TakeAlongAxisOp.build(this, indices, dimension);
     }
 
     /**
@@ -2167,7 +2232,7 @@ public class Tensor {
      * @return shape-preserving absolute value tensor
      */
     public Tensor abs() {
-        return TensorOps.abs(this);
+        return AbsOp.build(this);
     }
 
     /**
@@ -2177,7 +2242,7 @@ public class Tensor {
      * @return matrix product tensor
      */
     public Tensor matmul(Tensor second) {
-        return TensorOps.matmul(this, second);
+        return MatMulOp.build(this, second);
     }
 
     /**
@@ -2285,7 +2350,7 @@ public class Tensor {
      * @return shape-preserving negated tensor
      */
     public Tensor neg (){
-        return TensorOps.neg(this);
+        return NegOp.build(this);
 
     }
 
@@ -2295,7 +2360,7 @@ public class Tensor {
      * @return shape-preserving log tensor
      */
     public Tensor log (){
-        return TensorOps.log(this);
+        return LogOp.build(this);
     }
 
     /**
@@ -2304,7 +2369,7 @@ public class Tensor {
      * @return shape-preserving exponential tensor
      */
     public Tensor exp (){
-        return TensorOps.exp(this);
+        return ExpOp.build(this);
     }
 
     /**
@@ -2313,7 +2378,7 @@ public class Tensor {
      * @return shape-preserving error-function tensor
      */
     public Tensor erf() {
-        return TensorOps.erf(this);
+        return ErfOp.build(this);
     }
 
     /**
@@ -2322,7 +2387,7 @@ public class Tensor {
      * @return shape-preserving approximate exponential tensor
      */
     public Tensor fastExp() {
-        return TensorOps.fastExp(this);
+        return FastExpOp.build(this);
     }
 
     /**
@@ -2331,7 +2396,7 @@ public class Tensor {
      * @return shape-preserving approximate tanh tensor
      */
     public Tensor fastTanh() {
-        return TensorOps.fastTanh(this);
+        return FastTanhOp.build(this);
     }
 
     /**
@@ -2343,7 +2408,7 @@ public class Tensor {
      * @throws IllegalArgumentException if {@code minValue > maxValue}
      */
     public Tensor clamp(double minValue, double maxValue) {
-        return TensorOps.clamp(this, minValue, maxValue);
+        return ClampOp.build(this, minValue, maxValue);
     }
 
     /**
@@ -2353,7 +2418,7 @@ public class Tensor {
      * @return shape-preserving clamped tensor
      */
     public Tensor clampMin(double minValue) {
-        return TensorOps.clampMin(this, minValue);
+        return ClampMinOp.build(this, minValue);
     }
 
     /**
@@ -2363,7 +2428,7 @@ public class Tensor {
      * @return shape-preserving clamped tensor
      */
     public Tensor clampMax(double maxValue) {
-        return TensorOps.clampMax(this, maxValue);
+        return ClampMaxOp.build(this, maxValue);
     }
 
     /**
@@ -2373,7 +2438,7 @@ public class Tensor {
      * @return shape-preserving power tensor
      */
     public Tensor pow(double exp) {
-        return TensorOps.pow(this, exp);
+        return PowScalarOp.build(this, exp);
     }
 
     /**
@@ -2383,7 +2448,7 @@ public class Tensor {
      * @return shape-preserving scaled tensor
      */
     public Tensor mul(double scalar) {
-        return TensorOps.mulScalar(this, scalar);
+        return MulScalarOp.build(this, scalar);
     }
 
     /**
@@ -2392,7 +2457,7 @@ public class Tensor {
      * @return shape-preserving reciprocal tensor
      */
     public Tensor inv() {
-        return TensorOps.inv(this);
+        return InvOp.build(this);
     }
 
     /**
@@ -2410,19 +2475,19 @@ public class Tensor {
      * @return shape-preserving square-root tensor
      */
     public Tensor sqrt() {
-        return TensorOps.sqrt(this);
+        return SqrtOp.build(this);
     }
 
     public Tensor floor() {
-        return TensorOps.floor(this);
+        return FloorOp.build(this);
     }
 
     public Tensor ceil() {
-        return TensorOps.ceil(this);
+        return CeilOp.build(this);
     }
 
     public Tensor sign() {
-        return TensorOps.sign(this);
+        return SignOp.build(this);
     }
 
     /**
@@ -2431,7 +2496,7 @@ public class Tensor {
      * @return shape-preserving sigmoid tensor
      */
     public Tensor sigmoid() {
-        return TensorOps.sigmoid(this);
+        return SigmoidOp.build(this);
     }
 
     /**
@@ -2440,7 +2505,7 @@ public class Tensor {
      * @return shape-preserving tanh tensor
      */
     public Tensor tanh() {
-        return TensorOps.tanh(this);
+        return TanhOp.build(this);
     }
 
     /**
@@ -2449,7 +2514,7 @@ public class Tensor {
      * @return shape-preserving ReLU tensor
      */
     public Tensor relu() {
-        return TensorOps.relu(this);
+        return ReluOp.build(this);
     }
 
 
@@ -2460,7 +2525,7 @@ public class Tensor {
      * @return reduced sum tensor
      */
     public Tensor sum(int dimension){
-        return TensorOps.sum(this, dimension);
+        return SumOp.build(this, dimension);
 
     }
 
@@ -2472,7 +2537,7 @@ public class Tensor {
      * @return reduced sum tensor
      */
     public Tensor sum(int dimension, boolean keepDims) {
-        return TensorOps.sum(this, dimension, keepDims);
+        return SumOp.build(this, dimension, keepDims);
     }
 
     /**
@@ -2488,7 +2553,7 @@ public class Tensor {
      * @return masked sum tensor
      */
     public Tensor sum(int dimension, Tensor mask) {
-        return TensorOps.sum(this, dimension, mask);
+        return SumOp.buildMasked(this, dimension, mask);
     }
 
     /**
@@ -2497,7 +2562,7 @@ public class Tensor {
      * @return scalar-like sum tensor
      */
     public Tensor sum(){
-        return TensorOps.sumAll(this);
+        return SumOp.buildAll(this);
     }
 
     /**
@@ -2507,7 +2572,7 @@ public class Tensor {
      * @return reduced mean tensor
      */
     public Tensor mean(int dimension) {
-        return TensorOps.mean(this, dimension);
+        return MeanOp.build(this, dimension);
     }
 
     /**
@@ -2518,7 +2583,7 @@ public class Tensor {
      * @return reduced mean tensor
      */
     public Tensor mean(int dimension, boolean keepDims) {
-        return TensorOps.mean(this, dimension, keepDims);
+        return MeanOp.build(this, dimension, keepDims);
     }
 
     /**
@@ -2534,7 +2599,7 @@ public class Tensor {
      * @return masked mean tensor
      */
     public Tensor mean(int dimension, Tensor mask) {
-        return TensorOps.mean(this, dimension, mask);
+        return MeanOp.buildMasked(this, dimension, mask);
     }
 
     /**
@@ -2543,31 +2608,31 @@ public class Tensor {
      * @return scalar-like mean tensor
      */
     public Tensor mean() {
-        return TensorOps.meanAll(this);
+        return MeanOp.buildAll(this);
     }
 
     public Tensor prod(int dimension) {
-        return TensorOps.prod(this, dimension);
+        return ProdOp.build(this, dimension);
     }
 
     public Tensor prod(int dimension, boolean keepDims) {
-        return TensorOps.prod(this, dimension, keepDims);
+        return ProdOp.build(this, dimension, keepDims);
     }
 
     public Tensor prod() {
-        return TensorOps.prodAll(this);
+        return ProdOp.buildAll(this);
     }
 
     public Tensor argMax(int dimension) {
-        return TensorOps.argMax(this, dimension);
+        return ArgMaxOp.build(this, dimension);
     }
 
     public Tensor argMax(int dimension, boolean keepDims) {
-        return TensorOps.argMax(this, dimension, keepDims);
+        return ArgMaxOp.build(this, dimension, keepDims);
     }
 
     public Tensor argMax(int dimension, boolean keepDims, operations.reduction.ArgMaxTiePolicy tiePolicy) {
-        return TensorOps.argMax(this, dimension, keepDims, tiePolicy);
+        return ArgMaxOp.build(this, dimension, keepDims, tiePolicy);
     }
 
     /**
@@ -2577,7 +2642,7 @@ public class Tensor {
      * @return shape-preserving cumulative sum tensor
      */
     public Tensor cumSum(int axis) {
-        return TensorOps.cumSum(this, axis);
+        return CumSumOp.build(this, axis);
     }
 
     /**
@@ -2589,7 +2654,7 @@ public class Tensor {
      * @return shape-preserving cumulative sum tensor
      */
     public Tensor cumSum(int axis, boolean exclusive, boolean reverse) {
-        return TensorOps.cumSum(this, axis, exclusive, reverse);
+        return CumSumOp.build(this, axis, exclusive, reverse);
     }
 
     /**
@@ -2599,7 +2664,7 @@ public class Tensor {
      * @return shape-preserving softmax tensor
      */
     public Tensor softmax(int dimension) {
-        return TensorOps.softmax(this, dimension);
+        return SoftmaxOp.build(this, dimension);
     }
 
     /**
@@ -2609,7 +2674,7 @@ public class Tensor {
      * @return shape-preserving log-softmax tensor
      */
     public Tensor logSoftmax(int dimension) {
-        return TensorOps.logSoftmax(this, dimension);
+        return LogSoftmaxOp.build(this, dimension);
     }
 
     /**
@@ -2881,7 +2946,7 @@ public class Tensor {
      * @return reduced minimum tensor
      */
     public Tensor min(int dimension) {
-        return TensorOps.min(this, dimension);
+        return ReduceMinOp.build(this, dimension);
     }
 
     /**
@@ -2892,7 +2957,7 @@ public class Tensor {
      * @return reduced minimum tensor
      */
     public Tensor min(int dimension, boolean keepDims) {
-        return TensorOps.min(this, dimension, keepDims);
+        return ReduceMinOp.build(this, dimension, keepDims);
     }
 
     /**
@@ -2901,7 +2966,7 @@ public class Tensor {
      * @return shape {@code [1]} minimum tensor
      */
     public Tensor min() {
-        return TensorOps.minAll(this);
+        return ReduceMinOp.buildAll(this);
     }
 
     /**
@@ -2911,7 +2976,7 @@ public class Tensor {
      * @return reduced maximum tensor
      */
     public Tensor max(int dimension) {
-        return TensorOps.max(this, dimension);
+        return ReduceMaxOp.build(this, dimension);
     }
 
     /**
@@ -2922,7 +2987,7 @@ public class Tensor {
      * @return reduced maximum tensor
      */
     public Tensor max(int dimension, boolean keepDims) {
-        return TensorOps.max(this, dimension, keepDims);
+        return ReduceMaxOp.build(this, dimension, keepDims);
     }
 
     /**
@@ -2931,7 +2996,7 @@ public class Tensor {
      * @return shape {@code [1]} maximum tensor
      */
     public Tensor max() {
-        return TensorOps.maxAll(this);
+        return ReduceMaxOp.buildAll(this);
     }
 
     /**
@@ -2941,7 +3006,7 @@ public class Tensor {
      * @return reduced BOOL tensor
      */
     public Tensor all(int dimension) {
-        return TensorOps.all(this, dimension);
+        return AllOp.build(this, dimension);
     }
 
     /**
@@ -2952,7 +3017,7 @@ public class Tensor {
      * @return reduced BOOL tensor
      */
     public Tensor all(int dimension, boolean keepDims) {
-        return TensorOps.all(this, dimension, keepDims);
+        return AllOp.build(this, dimension, keepDims);
     }
 
     /**
@@ -2961,7 +3026,7 @@ public class Tensor {
      * @return shape {@code [1]} BOOL tensor
      */
     public Tensor all() {
-        return TensorOps.allAll(this);
+        return AllOp.buildAll(this);
     }
 
     /**
@@ -2971,7 +3036,7 @@ public class Tensor {
      * @return reduced BOOL tensor
      */
     public Tensor any(int dimension) {
-        return TensorOps.any(this, dimension);
+        return AnyOp.build(this, dimension);
     }
 
     /**
@@ -2982,7 +3047,7 @@ public class Tensor {
      * @return reduced BOOL tensor
      */
     public Tensor any(int dimension, boolean keepDims) {
-        return TensorOps.any(this, dimension, keepDims);
+        return AnyOp.build(this, dimension, keepDims);
     }
 
     /**
@@ -2991,7 +3056,7 @@ public class Tensor {
      * @return shape {@code [1]} BOOL tensor
      */
     public Tensor any() {
-        return TensorOps.anyAll(this);
+        return AnyOp.buildAll(this);
     }
 
 
