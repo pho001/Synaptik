@@ -196,8 +196,10 @@ public final class GraphCompiler {
                     return artifacts();
                 }
 
-                if (rootTensor.getDataType() == tensor.DataType.BOOL || rootTensor.getDataType() == tensor.DataType.INT32) {
-                    throw new UnsupportedOperationException("BOOL/INT32 root tensors do not support backward execution.");
+                if (rootTensor.getDataType() == tensor.DataType.BOOL
+                        || rootTensor.getDataType() == tensor.DataType.INT32
+                        || rootTensor.getDataType() == tensor.DataType.INT64) {
+                    throw new UnsupportedOperationException("BOOL/INT32/INT64 root tensors do not support backward execution.");
                 }
 
                 Tensor actualForwardRoot = requireForwardRoot();

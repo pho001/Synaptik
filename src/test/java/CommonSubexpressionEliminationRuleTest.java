@@ -42,6 +42,34 @@ public class CommonSubexpressionEliminationRuleTest {
     }
 
     @Test
+    void keepsDistinctReduceAnyAxesWithSameOutputShape() {
+        Tensor x = new Tensor(new byte[]{1, 0, 0, 1}, new int[]{2, 2}, null, "x");
+
+        Tensor axis0 = x.any(0, false);
+        Tensor axis1 = x.any(1, false);
+        Tensor root = new Tensor(new int[]{1}, List.of(axis0, axis1), new noop(), "root");
+
+        List<Tensor> optimized = new CommonSubexpressionEliminationRule(CseConfig.aggressiveDefaults())
+                .apply(root.topologicalSort());
+
+        assertEquals(2, countOps(optimized, Operation.OpType.REDUCE_ANY));
+    }
+
+    @Test
+    void keepsDistinctReduceAllKeepDimsVariants() {
+        Tensor x = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{2, 2}, null, "x");
+
+        Tensor noKeepDims = x.all(1, false);
+        Tensor keepDims = x.all(1, true);
+        Tensor root = new Tensor(new int[]{1}, List.of(noKeepDims, keepDims), new noop(), "root");
+
+        List<Tensor> optimized = new CommonSubexpressionEliminationRule(CseConfig.aggressiveDefaults())
+                .apply(root.topologicalSort());
+
+        assertEquals(2, countOps(optimized, Operation.OpType.REDUCE_ALL));
+    }
+
+    @Test
     void keepsDistinctPermuteLayoutsInAggressiveMode() {
         Tensor x = new Tensor(
                 new double[]{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0},

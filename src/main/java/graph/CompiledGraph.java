@@ -422,6 +422,7 @@ public class CompiledGraph {
                 case FLOAT32 -> java.util.Arrays.fill(TensorInternalAccess.float32Data(gradient), 0.0f);
                 case BFLOAT16 -> java.util.Arrays.fill(TensorInternalAccess.bfloat16Data(gradient), (short) 0);
                 case INT32 -> java.util.Arrays.fill(TensorInternalAccess.int32Data(gradient), 0);
+                case INT64 -> throw new UnsupportedOperationException("INT64 tensors do not support gradients.");
                 case BOOL -> java.util.Arrays.fill(TensorInternalAccess.boolData(gradient), (byte) 0);
             }
         }

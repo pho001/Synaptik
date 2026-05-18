@@ -8,6 +8,8 @@ import tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CompiledGraphIdempotencyTest {
     @Test
@@ -65,5 +67,18 @@ public class CompiledGraphIdempotencyTest {
         assertEquals(operations.Operation.OpType.ADD, add.getOperation().opType());
         assertEquals(operations.Operation.OpType.MUL, out.getOperation().opType());
         assertSame(add, out.getPrevTensors().getFirst());
+    }
+
+    @Test
+    void trainingCompileRejectsInt64BackwardRoot() {
+        Tensor indices = new Tensor(new long[]{1L, 2L}, new int[]{2}, null, "indices", DataType.INT64);
+        indices.setRequiresGrad(true);
+
+        UnsupportedOperationException error = assertThrows(
+                UnsupportedOperationException.class,
+                () -> CompiledGraph.compile(indices, CompileConfig.training())
+        );
+
+        assertTrue(error.getMessage().contains("INT64"));
     }
 }

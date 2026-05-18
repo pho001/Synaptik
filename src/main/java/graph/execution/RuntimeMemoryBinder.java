@@ -1,7 +1,7 @@
 package graph.execution;
 
+import graph.AliasViewPolicy;
 import graph.CompiledNode;
-import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.optimizer.memory.MemoryPlan;
 import graph.optimizer.memory.RegionMemoryBinding;
@@ -76,15 +76,7 @@ final class RuntimeMemoryBinder {
         if (node == null || node.operation() == null || node.inputIds().isEmpty()) {
             return false;
         }
-        boolean aliases = switch (node.operation().opType()) {
-            case NOOP, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE -> true;
-            case RESHAPE -> {
-                CompiledTensorDescriptor source = descriptorIndex.byNodeId(node.inputIds().getFirst());
-                yield source.contiguous();
-            }
-            default -> false;
-        };
-        if (!aliases) {
+        if (!AliasViewPolicy.aliasesInput0AtRuntime(node, descriptorIndex)) {
             return false;
         }
         Tensor sourceRuntime = executionState.runtimeTensorForNodeId(node.inputIds().getFirst());

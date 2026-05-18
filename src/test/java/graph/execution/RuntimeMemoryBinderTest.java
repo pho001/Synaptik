@@ -91,6 +91,28 @@ class RuntimeMemoryBinderTest {
     }
 
     @Test
+    void typedSlotBindingPreservesSliceAliasViewSkip() {
+        Tensor input = new Tensor(
+                new float[]{1f, 2f, 3f, 4f},
+                new int[]{2, 2},
+                null,
+                "input",
+                DataType.FLOAT32
+        );
+        Tensor slice = input.slice(new int[]{0, 0}, new int[]{2, 1}, new int[]{0, 1}, new int[]{1, 1});
+        Tensor peer = new Tensor(new int[]{2}, List.of(input), new TestOperation(Operation.OpType.ADD), "peer", DataType.FLOAT32);
+        Tensor root = new Tensor(new int[]{2}, List.of(slice, peer), new TestOperation(Operation.OpType.ADD), "root", DataType.FLOAT32);
+        List<CompiledNode> nodes = CompiledNode.snapshot(root.topologicalSort());
+        ExecutionState state = ExecutionState.create(nodes, CompiledTensorDescriptorBuilder.build(nodes), Map.of(), nodes.getLast().id());
+        MemoryPlan memoryPlan = memoryPlanFor(nodes, List.of("peer", slice.getLabel()), DataType.FLOAT32);
+
+        RuntimeMemoryBinder.bind(memoryPlan, nodes, CompiledTensorDescriptorBuilder.build(nodes), state);
+
+        assertSame(runtimeTensor(nodes, state, "input").getFloat32Data(), runtimeTensor(nodes, state, slice.getLabel()).getFloat32Data());
+        assertNotSame(runtimeTensor(nodes, state, slice.getLabel()).getFloat32Data(), runtimeTensor(nodes, state, "peer").getFloat32Data());
+    }
+
+    @Test
     void typedSlotBindingPreservesFloat32AndFloat64Behavior() {
         RuntimeBindingFixture f32 = runtimeBindingFixture(DataType.FLOAT32, new TestOperation(Operation.OpType.ADD));
         RuntimeMemoryBinder.bind(f32.memoryPlan(), f32.nodes(), CompiledTensorDescriptorBuilder.build(f32.nodes()), f32.state());
@@ -201,8 +223,10 @@ class RuntimeMemoryBinderTest {
         Map<RegionValueRef, Integer> regionSlotByValueRef = new HashMap<>();
         Map<Tensor, RegionValueRef> tensorToRegionValueRef = new IdentityHashMap<>();
         int slotId = 7;
+        int slotSize = 0;
         for (String label : labels) {
             CompiledNode node = nodeByLabel(nodes, label);
+            slotSize = Math.max(slotSize, node.flatDataSize());
             RegionValueRef valueRef = RegionValueRef.ofNode(node.id());
             regionMemoryBindings.put(valueRef, new RegionMemoryBinding(
                     valueRef,
@@ -227,7 +251,7 @@ class RuntimeMemoryBinderTest {
                 Map.of(),
                 regionMemoryBindings,
                 regionSlotByValueRef,
-                Map.of(slotId, 4),
+                Map.of(slotId, slotSize),
                 tensorToRegionValueRef,
                 List.of(),
                 Map.of()

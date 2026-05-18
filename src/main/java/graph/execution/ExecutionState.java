@@ -18,6 +18,7 @@ import backend.memory.StorageResidency;
 import backend.memory.TensorResidencyState;
 import config.runtime.DeviceTransferPolicy;
 import config.runtime.NativeCpuMemoryConfig;
+import graph.AliasViewPolicy;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
@@ -257,14 +258,7 @@ public final class ExecutionState {
         if (node == null || node.operation() == null || node.inputIds().isEmpty()) {
             return false;
         }
-        return switch (node.operation().opType()) {
-            case NOOP, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE -> true;
-            case RESHAPE -> {
-                CompiledTensorDescriptor source = descriptorIndex.byNodeId(node.inputIds().getFirst());
-                yield source.contiguous();
-            }
-            default -> false;
-        };
+        return AliasViewPolicy.aliasesInput0AtRuntime(node, descriptorIndex);
     }
 
     /**

@@ -1,5 +1,6 @@
 package graph.optimizer.memory;
 
+import graph.AliasViewPolicy;
 import graph.optimizer.region.OptimizedRegion;
 import graph.optimizer.region.ExecutionUnit;
 import graph.optimizer.region.MaterializationDecision;
@@ -392,7 +393,7 @@ public final class MemoryPlanner {
         Tensor current = tensor;
         while (current != null) {
             lastUseByTensor.merge(current, terminalPublishStep, Math::max);
-            if (!aliasesInput0AtRuntime(current)) {
+            if (!AliasViewPolicy.aliasesInput0AtRuntime(current)) {
                 return;
             }
             List<Tensor> inputs = current.getPrevTensors();
@@ -829,7 +830,7 @@ public final class MemoryPlanner {
     }
 
     private static Tensor resolveStorageOwner(Tensor tensor, Map<Tensor, Tensor> storageOwnerByTensor) {
-        if (!aliasesInput0AtRuntime(tensor)) {
+        if (!AliasViewPolicy.aliasesInput0AtRuntime(tensor)) {
             return tensor;
         }
         Tensor input0 = tensor.getPrevTensors().get(0);
@@ -842,7 +843,7 @@ public final class MemoryPlanner {
             Set<Tensor> gradientTargets,
             Set<Tensor> savedForwardOwners
     ) {
-        if (aliasesInput0AtRuntime(tensor)) {
+        if (AliasViewPolicy.aliasesInput0AtRuntime(tensor)) {
             return MemoryRole.VIEW_ALIAS;
         }
         if (tensor.getOperation() == null) {
@@ -870,21 +871,6 @@ public final class MemoryPlanner {
             }
         }
         return sortedGraph.size() - 1;
-    }
-
-    private static boolean aliasesInput0AtRuntime(Tensor tensor) {
-        if (tensor == null || tensor.getOperation() == null) {
-            return false;
-        }
-        List<Tensor> inputs = tensor.getPrevTensors();
-        if (inputs == null || inputs.isEmpty()) {
-            return false;
-        }
-        return switch (tensor.getOperation().opType()) {
-            case NOOP, EXPAND, SELECT, SLICE, PERMUTE, EXPAND_DIMS, SQUEEZE -> true;
-            case RESHAPE -> inputs.get(0).isContiguous();
-            default -> false;
-        };
     }
 
     private record SlotAssignment(

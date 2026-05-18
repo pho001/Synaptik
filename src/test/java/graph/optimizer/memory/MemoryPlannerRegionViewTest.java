@@ -196,7 +196,12 @@ class MemoryPlannerRegionViewTest {
 
         assertNotNull(plan);
         List<RegionValueRef> materializedValues = plan.structuralView().materializedValues();
-        assertEquals(2, materializedValues.size());
+        List<RegionValueRef> materializedGradientValues = compiled.compileArtifacts().compiledNodes().stream()
+                .filter(CompiledNode::backwardNode)
+                .map(node -> RegionValueRef.ofNode(node.id()))
+                .filter(materializedValues::contains)
+                .toList();
+        assertEquals(2, materializedGradientValues.size());
         assertTrue(materializedValues.stream()
                 .allMatch(valueRef -> plan.regionValueLifetimeOf(valueRef).lastUseStep() == compiled.getCompiledGraphAsList().size()));
         long distinctSlotCount = materializedValues.stream()

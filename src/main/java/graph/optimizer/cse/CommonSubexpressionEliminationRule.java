@@ -54,6 +54,8 @@ import operations.reduction.reduceMax;
 import operations.reduction.reduceMaxGrad;
 import operations.reduction.reduceMin;
 import operations.reduction.reduceMinGrad;
+import operations.reduction.reduceAll;
+import operations.reduction.reduceAny;
 import operations.reduction.reduceProd;
 import operations.reduction.argMax;
 import operations.layout.reshape;
@@ -267,6 +269,8 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case CROSS_ENTROPY_LOSS_INDICES_GRAD -> new AxisSignature(((crossEntropyLossIndicesGrad) op).getClassDimension());
             case REDUCE_MIN -> new ReductionSignature(((reduceMin) op).getDimension(), ((reduceMin) op).keepDims());
             case REDUCE_MAX -> new ReductionSignature(((reduceMax) op).getDimension(), ((reduceMax) op).keepDims());
+            case REDUCE_ALL -> new ReductionSignature(((reduceAll) op).getDimension(), ((reduceAll) op).keepDims());
+            case REDUCE_ANY -> new ReductionSignature(((reduceAny) op).getDimension(), ((reduceAny) op).keepDims());
             case REDUCE_PROD -> new ReductionSignature(((reduceProd) op).getDimension(), ((reduceProd) op).keepDims());
             case CUMSUM -> IntArrayValue.copyOf(new int[]{
                     ((cumSum) op).getAxis(),
