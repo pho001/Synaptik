@@ -1798,6 +1798,7 @@ PreparedExecution prepared = compiled.prepare(RuntimeConfig.inferenceDefaults())
 PrepareTrace prepareTrace = prepared.prepareTrace();
 // prepareTrace.forwardStepCount() tells how many executable forward steps were prepared.
 // prepareTrace.backendSelection() explains accelerator selection/rejection.
+// prepareTrace.backendDiagnostics() carries prepare-time backend contributor summaries.
 
 RunTrace runTrace = prepared.executeTraced(ExecutionMode.FORWARD);
 // runTrace.durationNs() is total run duration.
@@ -1860,6 +1861,7 @@ This is useful when a graph did not produce the accelerator or fused region you 
 | `forwardStepCount` | Number of prepared forward steps that will execute in `FORWARD` mode. |
 | `backwardStepCount` | Number of backward steps prepared for `FORWARD_BACKWARD` mode. |
 | `backendSelection` | Accelerator/backend selection decisions. |
+| `backendDiagnostics` | Backend contributor diagnostics captured during preparation. |
 
 Backend selection trace tracks:
 

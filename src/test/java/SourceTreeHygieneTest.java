@@ -588,6 +588,18 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void preparedExecutionDoesNotOwnBackendTraceAttributeDetails() throws IOException {
+        Path preparedExecution = Path.of("src/main/java/graph/execution/PreparedExecution.java");
+        String source = Files.readString(preparedExecution);
+        assertTrue(source.contains("BackendRunTraceContributors"),
+                "PreparedExecution should delegate backend-specific trace attributes to contributors.");
+        assertTrue(!source.contains("\"metalBridgeAvailable\""), "Metal trace attributes belong in the Metal trace contributor.");
+        assertTrue(!source.contains("\"cudaBridgeAvailable\""), "CUDA trace attributes belong in the CUDA trace contributor.");
+        assertTrue(!source.contains("\"nativeCpuRegionId\""), "Native CPU trace attributes belong in the CPU trace contributor.");
+        assertTrue(!source.contains("\"acceleratorBufferMode\""), "Accelerator buffer trace attributes belong in the accelerator trace contributor.");
+    }
+
+    @Test
     void backendRootContainsOnlyFacadeFiles() throws IOException {
         Set<String> allowedRootFiles = Set.of(
                 "ApproxMode.java",

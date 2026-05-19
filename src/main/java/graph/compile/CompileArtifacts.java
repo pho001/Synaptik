@@ -89,8 +89,8 @@ public record CompileArtifacts(
     /**
      * Returns finalized lowering input for prepare-time backend lowering.
      *
-     * @return lowering input, or {@code null} when no planned partitions require lowering
-     * @throws IllegalStateException if planned partitions exist but optimized regions or memory plan are missing
+     * @return lowering input, or {@code null} when no planned optimized regions require lowering
+     * @throws IllegalStateException if planned optimized regions exist but memory plan is missing
      */
     public LoweringInput loweringInput() {
         if (!requiresLoweringInput()) {
@@ -103,7 +103,7 @@ public record CompileArtifacts(
     }
 
     public boolean requiresLoweringInput() {
-        return !plannedPartitions.isEmpty();
+        return !plannedPartitions.isEmpty() && !optimizedRegions.isEmpty();
     }
 
     private Map<String, PartitionPlan> planByPartitionId() {

@@ -168,6 +168,7 @@ public class PreparedExecutionBuildTest {
 
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
 
+        assertFalse(execution.prepareTrace().backendDiagnostics().isEmpty());
         var selectedDecision = execution.prepareTrace().backendSelection().decisions().stream()
                 .filter(decision -> decision.selected()
                         && decision.selectedBackend() == ComputeBackend.GPU_METAL)

@@ -178,7 +178,7 @@ Phase 3 uses static named presets only. The accelerator planner scores candidate
 
 Planner summaries live in compile partition traces. `CompileTrace.partitionPlanning()` exposes selected candidates and bounded top rejected finalists through `PartitionDecisionTrace` cost summaries, so planner acceptance, rejection, split, and CPU fallback decisions can be diagnosed without replaying the graph.
 
-Backend selection summaries live in prepare traces. `PrepareTrace.backendSelection()` carries the selected backend candidate, the selected static cost summary, and bounded rejected finalists through `BackendSelectionDecisionTrace`.
+Backend selection summaries live in prepare traces. `PrepareTrace.backendSelection()` carries the selected backend candidate, the selected static cost summary, and bounded rejected finalists through `BackendSelectionDecisionTrace`; `PrepareTrace.backendDiagnostics()` carries backend contributor summaries.
 
 Benchmark reports summarize selected candidates and top rejected finalists. Text reports print a compact `backendSelectionCost:` section, and JSON reports expose `trace.backendSelectionCost.selected` plus `trace.backendSelectionCost.rejectedFinalists`.
 

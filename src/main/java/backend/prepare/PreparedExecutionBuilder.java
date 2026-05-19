@@ -88,7 +88,8 @@ public final class PreparedExecutionBuilder {
                         System.nanoTime() - t0,
                         forwardSteps.size(),
                         backwardSteps.size(),
-                        selection.trace()
+                        selection.trace(),
+                        BackendPrepareTraceContributors.diagnostics(selection, loweringInput)
                 )
         );
     }
