@@ -1,46 +1,50 @@
 # AR Stage
 
-`AR` is the composite rewrite and lowering stage.
+`AR` is the cleanup rewrite stage.
 
 Despite the short name, it is not "just algebraic simplification".
 It is the place where the compiler:
 
 - canonicalizes decomposed patterns
 - removes local algebraic noise
-- lowers recognizable graph shapes into specialized primitives
+- leaves policy-sensitive lowering to the optional lowering stage
 
-In practice, `AR` is the semantic cleanup stage of the compiler.
+In practice, `AR` is the semantic cleanup stage of the compiler. Optional lowering is configured from the same
+`RewriteConfig`, but `OptimizerFactory` wires it as a separate stage after cleanup.
 
 ## Entry Points
 
-- stage wrapper:
-  - [rewrite/RewriteRule.java](./rewrite/RewriteRule.java)
+- algebraic rule:
+  - [rewrite/algebraic/AlgebraicSimplificationRule.java](./rewrite/algebraic/AlgebraicSimplificationRule.java)
 - shared rewrite base:
-  - [rewrite/AbstractRewriteRule.java](./rewrite/AbstractRewriteRule.java)
+  - [rewrite/LocalTensorRewriteRule.java](./rewrite/LocalTensorRewriteRule.java)
 - configuration root:
   - [../../config/optimizer/RewriteConfig.java](../../config/optimizer/RewriteConfig.java)
 
-## Current Delegate Order
+## Current Rule Order
 
-The current delegate order is:
+The current cleanup rewrite order is:
 
-1. optional `PiecewiseLoweringRewrite`
-2. `AlgebraicRewrite`
-3. `LinearLoweringRewrite`
-4. `LossLoweringRewrite`
-5. `ReductionLoweringRewrite`
-6. optional `Conv2dLoweringRewrite`
+1. optional `PiecewiseCanonicalizationRule`
+2. `AlgebraicSimplificationRule`
+
+The optional lowering order is:
+
+1. `LinearLoweringRule`
+2. `LossForwardLoweringRule`
+3. `LossBackwardSpecializationRule`
+4. optional `Conv2dGemmLoweringRule`
 
 That order is intentional:
 
 - piecewise repair first
 - local algebraic cleanup second
-- structural lowerings after the graph is cleaner
+- structural lowerings in the separate lowering stage after cleanup
 - conv2d lowering last because it is more policy-sensitive
 
 ## Generic Rewrite Mechanics
 
-Most subpasses inherit the same shape from `AbstractRewriteRule`:
+Most subpasses inherit the same shape from `LocalTensorRewriteRule`:
 
 1. remember observable roots
 2. walk the graph in topological order
@@ -55,7 +59,7 @@ This lets each subpass stay a local matcher instead of re-implementing whole-gra
 
 File:
 
-- [rewrite/PiecewiseLoweringRewrite.java](./rewrite/PiecewiseLoweringRewrite.java)
+- [rewrite/canonical/PiecewiseCanonicalizationRule.java](./rewrite/canonical/PiecewiseCanonicalizationRule.java)
 
 This pass is optional and disabled by default unless its config enables specific branches.
 
@@ -130,7 +134,7 @@ Worked value example:
 
 File:
 
-- [rewrite/AlgebraicRewrite.java](./rewrite/AlgebraicRewrite.java)
+- [rewrite/algebraic/AlgebraicSimplificationRule.java](./rewrite/algebraic/AlgebraicSimplificationRule.java)
 
 This pass contains the highest number of local identities.
 It is heavily feature-gated with system properties for targeted experiments, but the defaults enable the normal rule set.
@@ -226,7 +230,7 @@ Worked example:
 
 File:
 
-- [rewrite/LinearLoweringRewrite.java](./rewrite/LinearLoweringRewrite.java)
+- [rewrite/lowering/LinearLoweringRule.java](./rewrite/lowering/LinearLoweringRule.java)
 
 Pattern:
 
@@ -259,8 +263,8 @@ Worked shape example:
 
 Files:
 
-- [rewrite/LossForwardLoweringRewrite.java](./rewrite/LossForwardLoweringRewrite.java)
-- [rewrite/LossBackwardLoweringRewrite.java](./rewrite/LossBackwardLoweringRewrite.java)
+- [rewrite/lowering/LossForwardLoweringRule.java](./rewrite/lowering/LossForwardLoweringRule.java)
+- [rewrite/lowering/LossBackwardSpecializationRule.java](./rewrite/lowering/LossBackwardSpecializationRule.java)
 
 ### Forward pattern
 
@@ -293,45 +297,6 @@ crossEntropyLossIndicesGrad(logits, targetIndices, sampleScale, classDimension)
 
 This reduces the amount of decomposed scatter/add/softmax machinery left in the runtime graph.
 
-## Reduction Lowering
-
-File:
-
-- [rewrite/ReductionLoweringRewrite.java](./rewrite/ReductionLoweringRewrite.java)
-
-Currently implemented:
-
-- decomposed softmax backward -> `SOFTMAX_GRAD`
-- decomposed log-softmax backward -> `LOG_SOFTMAX_GRAD`
-
-### Softmax grad pattern
-
-The pass recognizes the classic form:
-
-```text
-softmaxOut * (outGrad - sum(outGrad * softmaxOut, keepDims=true))
-```
-
-and lowers it to:
-
-```text
-softmaxGrad(softmaxOut, outGrad, dimension)
-```
-
-### Log-softmax grad pattern
-
-The pass recognizes:
-
-```text
-outGrad - exp(logSoftmaxOut) * sum(outGrad, keepDims=true)
-```
-
-and lowers it to:
-
-```text
-logSoftmaxGrad(logSoftmaxOut, outGrad, dimension)
-```
-
 ## Attention
 
 Attention is intentionally not lowered by this graph rewrite stage. The public
@@ -352,7 +317,7 @@ The matcher is dtype-limited to:
 
 File:
 
-- [rewrite/Conv2dLoweringRewrite.java](./rewrite/Conv2dLoweringRewrite.java)
+- [rewrite/lowering/Conv2dGemmLoweringRule.java](./rewrite/lowering/Conv2dGemmLoweringRule.java)
 
 This pass is policy-controlled through `Conv2dLoweringConfig`.
 

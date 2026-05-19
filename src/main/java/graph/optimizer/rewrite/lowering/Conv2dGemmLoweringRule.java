@@ -1,7 +1,8 @@
-package graph.optimizer.rewrite;
+package graph.optimizer.rewrite.lowering;
 
 import config.optimizer.Conv2dLoweringConfig;
 import config.optimizer.Conv2dLoweringMode;
+import graph.optimizer.rewrite.LocalTensorRewriteRule;
 import operations.Operation;
 import operations.nn.conv.conv2d;
 import operations.nn.conv.conv2dBackwardInput;
@@ -16,13 +17,13 @@ import java.util.List;
 /**
  * Lowers convolution operations to GEMM-backed convolution operations according to configured heuristics.
  */
-public class Conv2dLoweringRewrite extends AbstractRewriteRule {
+public final class Conv2dGemmLoweringRule extends LocalTensorRewriteRule {
     private final Conv2dLoweringConfig config;
 
     /**
      * Creates a convolution lowering rewrite with default configuration.
      */
-    public Conv2dLoweringRewrite() {
+    public Conv2dGemmLoweringRule() {
         this(Conv2dLoweringConfig.defaults());
     }
 
@@ -31,7 +32,7 @@ public class Conv2dLoweringRewrite extends AbstractRewriteRule {
      *
      * @param config lowering configuration, or {@code null} for defaults
      */
-    public Conv2dLoweringRewrite(Conv2dLoweringConfig config) {
+    public Conv2dGemmLoweringRule(Conv2dLoweringConfig config) {
         this.config = config == null ? Conv2dLoweringConfig.defaults() : config;
     }
 
@@ -87,7 +88,7 @@ public class Conv2dLoweringRewrite extends AbstractRewriteRule {
         return switch (config.mode()) {
             case OFF -> false;
             case ALWAYS -> true;
-            case HEURISTIC -> Conv2dLoweringHeuristics.shouldLower(tensor, conv);
+            case HEURISTIC -> Conv2dGemmLoweringHeuristics.shouldLower(tensor, conv);
         };
     }
 
@@ -95,7 +96,7 @@ public class Conv2dLoweringRewrite extends AbstractRewriteRule {
         return switch (config.mode()) {
             case OFF -> false;
             case ALWAYS -> true;
-            case HEURISTIC -> Conv2dLoweringHeuristics.shouldLower(tensor, conv);
+            case HEURISTIC -> Conv2dGemmLoweringHeuristics.shouldLower(tensor, conv);
         };
     }
 
@@ -103,7 +104,7 @@ public class Conv2dLoweringRewrite extends AbstractRewriteRule {
         return switch (config.mode()) {
             case OFF -> false;
             case ALWAYS -> true;
-            case HEURISTIC -> Conv2dLoweringHeuristics.shouldLower(tensor, conv);
+            case HEURISTIC -> Conv2dGemmLoweringHeuristics.shouldLower(tensor, conv);
         };
     }
 }

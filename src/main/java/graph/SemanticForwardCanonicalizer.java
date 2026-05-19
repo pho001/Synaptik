@@ -1,7 +1,7 @@
 package graph;
 
 import config.optimizer.RewriteConfig;
-import operations.Operation;
+import graph.optimizer.rewrite.canonical.PiecewisePatternLowerer;
 import operations.elementwise.where.where;
 import operations.layout.noop;
 import operations.reduction.mean;
@@ -26,6 +26,7 @@ public final class SemanticForwardCanonicalizer {
     private static final int ZERO_TENSOR_SCAN_LIMIT = 4096;
 
     private final RewriteConfig config;
+    private final PiecewisePatternLowerer piecewiseLowerer;
 
     /**
      * Creates a canonicalizer.
@@ -34,6 +35,10 @@ public final class SemanticForwardCanonicalizer {
      */
     public SemanticForwardCanonicalizer(RewriteConfig config) {
         this.config = config == null ? RewriteConfig.defaults() : config;
+        this.piecewiseLowerer = new PiecewisePatternLowerer(
+                this.config.piecewiseLowering(),
+                ZERO_TENSOR_SCAN_LIMIT
+        );
     }
 
     /**
@@ -114,62 +119,9 @@ public final class SemanticForwardCanonicalizer {
 
     private Tensor tryPiecewiseLowering(Tensor tensor, Tensor[] inputs) {
         return switch (tensor.getOperation().opType()) {
-            case WHERE -> tryWherePatterns(inputs);
+            case WHERE -> inputs.length == 3 ? piecewiseLowerer.lowerWhere(inputs[0], inputs[1], inputs[2]) : null;
             default -> null;
         };
-    }
-
-    private Tensor tryWherePatterns(Tensor[] inputs) {
-        if (inputs.length != 3) {
-            return null;
-        }
-        Tensor condition = inputs[0];
-        Tensor ifTrue = inputs[1];
-        Tensor ifFalse = inputs[2];
-
-        if (config.piecewiseLowering().reluLikeWhere()) {
-            Tensor relu = tryLowerRelu(condition, ifTrue, ifFalse);
-            if (relu != null) {
-                return relu;
-            }
-        }
-        if (config.piecewiseLowering().clampLikeWhere()) {
-            Tensor clamp = tryLowerClamp(condition, ifTrue, ifFalse);
-            if (clamp != null) {
-                return clamp;
-            }
-        }
-        return null;
-    }
-
-    private Tensor tryLowerRelu(Tensor condition, Tensor ifTrue, Tensor ifFalse) {
-        if (!isOp(condition, Operation.OpType.GT)) {
-            return null;
-        }
-        Tensor source = condition.getPrevTensors().get(0);
-        Tensor threshold = condition.getPrevTensors().get(1);
-        if (source == ifTrue && isConstant(threshold, 0.0) && isZeroTensorLike(ifFalse, source)) {
-            return source.relu();
-        }
-        return null;
-    }
-
-    private Tensor tryLowerClamp(Tensor condition, Tensor ifTrue, Tensor ifFalse) {
-        if (isOp(condition, Operation.OpType.LT)) {
-            Tensor source = condition.getPrevTensors().get(0);
-            Tensor threshold = condition.getPrevTensors().get(1);
-            if (source == ifFalse && isScalarConstantLike(ifTrue, threshold)) {
-                return source.clampMin(threshold.scalarAsDouble());
-            }
-        }
-        if (isOp(condition, Operation.OpType.GT)) {
-            Tensor source = condition.getPrevTensors().get(0);
-            Tensor threshold = condition.getPrevTensors().get(1);
-            if (source == ifFalse && isScalarConstantLike(ifTrue, threshold)) {
-                return source.clampMax(threshold.scalarAsDouble());
-            }
-        }
-        return null;
     }
 
     private Tensor rebuildEquivalent(Tensor original, Tensor[] inputs) {
@@ -205,50 +157,6 @@ public final class SemanticForwardCanonicalizer {
             throw new IllegalStateException("System forward output must have exactly one input.");
         }
         return inputs.get(0);
-    }
-
-    private static boolean isOp(Tensor tensor, Operation.OpType type) {
-        return tensor != null && tensor.getOperation() != null && tensor.getOperation().opType() == type;
-    }
-
-    private static boolean isConstant(Tensor tensor, double expected) {
-        return tensor != null
-                && tensor.getOperation() == null
-                && tensor.getFlatDataSize() == 1
-                && Math.abs(tensor.scalarAsDouble() - expected) < 1e-12;
-    }
-
-    private static boolean isScalarConstantLike(Tensor candidate, Tensor reference) {
-        return candidate != null
-                && reference != null
-                && candidate.getOperation() == null
-                && reference.getOperation() == null
-                && candidate.getFlatDataSize() == 1
-                && reference.getFlatDataSize() == 1
-                && candidate.getDataType() == reference.getDataType()
-                && Math.abs(candidate.scalarAsDouble() - reference.scalarAsDouble()) < 1e-12;
-    }
-
-    private static boolean isZeroTensorLike(Tensor candidate, Tensor reference) {
-        if (candidate == null || reference == null) {
-            return false;
-        }
-        if (candidate.getOperation() != null || candidate.getDataType() != reference.getDataType()) {
-            return false;
-        }
-        if (!java.util.Arrays.equals(candidate.getShapeUnsafe(), reference.getShapeUnsafe())) {
-            return false;
-        }
-        if (candidate.getFlatDataSize() > ZERO_TENSOR_SCAN_LIMIT) {
-            return false;
-        }
-        double[] values = candidate.toDoubleArrayCopy();
-        for (double value : values) {
-            if (Math.abs(value) > 1e-12) {
-                return false;
-            }
-        }
-        return true;
     }
 
     public record Result(

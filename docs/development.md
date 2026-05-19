@@ -388,11 +388,11 @@ Add changes by ownership:
 
 `OptimizerFactory.create(...)` maps graph optimization config to concrete rules:
 
-- `AR` -> `new RewriteRule(config.rewrite())`
+- `AR` -> optional `PiecewiseCanonicalizationRule` and `AlgebraicSimplificationRule`
 - `CF` -> `new ConstantFoldingRule()`
 - `CSE` -> `new CommonSubexpressionEliminationRule(config.cse())`
 - `DCE` -> `new DeadCodeEliminationRule()`
-- `LOWER` -> `new LoweringRule(config.rewrite())`
+- `LOWER` -> optional `LinearLoweringRule`, loss lowering rules, and optional `Conv2dGemmLoweringRule`
 
 When a new operation has semantic parameters, update CSE signature handling in `CommonSubexpressionEliminationRule.parameterKey(...)`; otherwise structurally different instances may collapse incorrectly or identical instances may fail to collapse.
 

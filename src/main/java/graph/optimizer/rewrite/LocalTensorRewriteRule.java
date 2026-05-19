@@ -2,6 +2,7 @@ package graph.optimizer.rewrite;
 
 import graph.optimizer.OptimizationRule;
 import graph.optimizer.OptimizerGraphSupport;
+import graph.optimizer.intent.BackendIntentPropagator;
 import graph.optimizer.state.OptimizerState;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
@@ -18,7 +19,7 @@ import java.util.Map;
  * {@link #rewriteTensor(Tensor)}, preserves backward markings, fixes gradient references, and rebuilds the observable
  * closure by default. Subclasses only decide whether a tensor should be replaced.
  */
-public abstract class AbstractRewriteRule implements OptimizationRule {
+public abstract class LocalTensorRewriteRule implements OptimizationRule {
     /**
      * Applies the rewrite to every tensor in topological order.
      *
@@ -36,6 +37,7 @@ public abstract class AbstractRewriteRule implements OptimizationRule {
             OptimizerGraphSupport.rewriteInputs(tensor, replacements);
             Tensor rewritten = rewriteTensor(tensor);
             if (rewritten != tensor) {
+                BackendIntentPropagator.preserve(rewritten, tensor);
                 if (tensor.isBackward()) {
                     TensorInternalAccess.setBackward(rewritten, true);
                 }

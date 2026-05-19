@@ -1,4 +1,4 @@
-package graph.optimizer.rewrite;
+package graph.optimizer.rewrite.canonical;
 
 import config.optimizer.PiecewiseLoweringConfig;
 import operations.Operation;
@@ -8,95 +8,91 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Optional canonicalization pass for externally imported or manually decomposed graphs.
- *
- * <p>Internal Tensor builders should prefer creating the specialized surface op directly
- * instead of relying on this rewrite as a repair step.
+ * Shared matcher for optional piecewise canonical forms.
  */
-public final class PiecewiseLoweringRewrite extends AbstractRewriteRule {
-    private final PiecewiseLoweringConfig config;
+public final class PiecewisePatternLowerer {
+    public static final int UNBOUNDED_ZERO_SCAN = -1;
 
-    /**
-     * Creates a piecewise lowering rewrite.
-     *
-     * @param config piecewise lowering configuration, or {@code null} for defaults
-     */
-    public PiecewiseLoweringRewrite(PiecewiseLoweringConfig config) {
-        this.config = config == null ? PiecewiseLoweringConfig.defaults() : config;
+    private final PiecewiseLoweringConfig config;
+    private final int zeroTensorScanLimit;
+
+    public PiecewisePatternLowerer(PiecewiseLoweringConfig config) {
+        this(config, UNBOUNDED_ZERO_SCAN);
     }
 
-    @Override
-    protected Tensor rewriteTensor(Tensor tensor) {
-        Operation op = tensor.getOperation();
+    public PiecewisePatternLowerer(PiecewiseLoweringConfig config, int zeroTensorScanLimit) {
+        this.config = config == null ? PiecewiseLoweringConfig.defaults() : config;
+        this.zeroTensorScanLimit = zeroTensorScanLimit;
+    }
+
+    public Tensor lower(Tensor tensor) {
+        Operation op = tensor == null ? null : tensor.getOperation();
         if (op == null) {
-            return tensor;
+            return null;
         }
         return switch (op.opType()) {
-            case INV -> config.canonicalSigmoid() ? rewriteCanonicalSigmoid(tensor) : tensor;
-            case WHERE -> rewriteWherePattern(tensor);
-            default -> tensor;
+            case INV -> config.canonicalSigmoid() ? lowerCanonicalSigmoid(tensor) : null;
+            case WHERE -> lowerWhere(tensor);
+            default -> null;
         };
     }
 
-    private Tensor rewriteCanonicalSigmoid(Tensor tensor) {
+    public Tensor lowerWhere(Tensor tensor) {
+        List<Tensor> inputs = tensor == null ? null : tensor.getPrevTensors();
+        if (inputs == null || inputs.size() != 3) {
+            return null;
+        }
+        return lowerWhere(inputs.get(0), inputs.get(1), inputs.get(2));
+    }
+
+    public Tensor lowerWhere(Tensor condition, Tensor ifTrue, Tensor ifFalse) {
+        if (config.reluLikeWhere()) {
+            Tensor relu = lowerRelu(condition, ifTrue, ifFalse);
+            if (relu != null) {
+                return relu;
+            }
+        }
+        if (config.clampLikeWhere()) {
+            Tensor clamp = lowerClamp(condition, ifTrue, ifFalse);
+            if (clamp != null) {
+                return clamp;
+            }
+        }
+        return null;
+    }
+
+    private Tensor lowerCanonicalSigmoid(Tensor tensor) {
         List<Tensor> inputs = tensor.getPrevTensors();
         if (inputs == null || inputs.size() != 1) {
-            return tensor;
+            return null;
         }
         Tensor add = inputs.get(0);
         if (!isOp(add, Operation.OpType.ADD)) {
-            return tensor;
+            return null;
         }
         Tensor left = add.getPrevTensors().get(0);
         Tensor right = add.getPrevTensors().get(1);
         Tensor expNode = isConstant(left, 1.0) ? right : isConstant(right, 1.0) ? left : null;
         if (expNode == null || !isOp(expNode, Operation.OpType.EXP)) {
-            return tensor;
+            return null;
         }
         Tensor source = extractNegatedSource(expNode.getPrevTensors().get(0));
-        if (source == null) {
-            return tensor;
-        }
-        return source.sigmoid();
+        return source == null ? null : source.sigmoid();
     }
 
-    private Tensor rewriteWherePattern(Tensor tensor) {
-        List<Tensor> inputs = tensor.getPrevTensors();
-        if (inputs == null || inputs.size() != 3) {
-            return tensor;
-        }
-        Tensor condition = inputs.get(0);
-        Tensor ifTrue = inputs.get(1);
-        Tensor ifFalse = inputs.get(2);
-
-        if (config.reluLikeWhere()) {
-            Tensor relu = tryLowerRelu(condition, ifTrue, ifFalse);
-            if (relu != condition) {
-                return relu;
-            }
-        }
-        if (config.clampLikeWhere()) {
-            Tensor clamp = tryLowerClamp(condition, ifTrue, ifFalse);
-            if (clamp != condition) {
-                return clamp;
-            }
-        }
-        return tensor;
-    }
-
-    private Tensor tryLowerRelu(Tensor condition, Tensor ifTrue, Tensor ifFalse) {
+    private Tensor lowerRelu(Tensor condition, Tensor ifTrue, Tensor ifFalse) {
         if (!isOp(condition, Operation.OpType.GT)) {
-            return condition;
+            return null;
         }
         Tensor source = condition.getPrevTensors().get(0);
         Tensor threshold = condition.getPrevTensors().get(1);
         if (source == ifTrue && isConstant(threshold, 0.0) && isZeroTensorLike(ifFalse, source)) {
             return source.relu();
         }
-        return condition;
+        return null;
     }
 
-    private Tensor tryLowerClamp(Tensor condition, Tensor ifTrue, Tensor ifFalse) {
+    private Tensor lowerClamp(Tensor condition, Tensor ifTrue, Tensor ifFalse) {
         if (isOp(condition, Operation.OpType.LT)) {
             Tensor source = condition.getPrevTensors().get(0);
             Tensor threshold = condition.getPrevTensors().get(1);
@@ -111,7 +107,7 @@ public final class PiecewiseLoweringRewrite extends AbstractRewriteRule {
                 return source.clampMax(threshold.scalarAsDouble());
             }
         }
-        return condition;
+        return null;
     }
 
     private static Tensor extractNegatedSource(Tensor tensor) {
@@ -137,17 +133,17 @@ public final class PiecewiseLoweringRewrite extends AbstractRewriteRule {
                 && Math.abs(candidate.scalarAsDouble() - reference.scalarAsDouble()) < 1e-12;
     }
 
-    private static boolean isZeroTensorLike(Tensor candidate, Tensor reference) {
+    private boolean isZeroTensorLike(Tensor candidate, Tensor reference) {
         if (candidate == null || reference == null) {
             return false;
         }
-        if (candidate.getOperation() != null) {
-            return false;
-        }
-        if (candidate.getDataType() != reference.getDataType()) {
+        if (candidate.getOperation() != null || candidate.getDataType() != reference.getDataType()) {
             return false;
         }
         if (!Arrays.equals(candidate.getShapeUnsafe(), reference.getShapeUnsafe())) {
+            return false;
+        }
+        if (zeroTensorScanLimit >= 0 && candidate.getFlatDataSize() > zeroTensorScanLimit) {
             return false;
         }
         double[] values = candidate.toDoubleArrayCopy();

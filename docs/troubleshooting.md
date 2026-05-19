@@ -438,11 +438,12 @@ backend region is missing
 Graph optimization mapping is in `src/main/java/graph/optimizer/OptimizerFactory.java`:
 
 ```text
-AR    -> graph.optimizer.rewrite.RewriteRule
+AR    -> graph.optimizer.rewrite.canonical.PiecewiseCanonicalizationRule
+AR    -> graph.optimizer.rewrite.algebraic.AlgebraicSimplificationRule
 CF    -> graph.optimizer.cf.ConstantFoldingRule
 CSE   -> graph.optimizer.cse.CommonSubexpressionEliminationRule
 DCE   -> graph.optimizer.dce.DeadCodeEliminationRule
-LOWER -> graph.optimizer.rewrite.LoweringRule
+LOWER -> graph.optimizer.rewrite.lowering.*Rule
 ```
 
 Backend planning, region optimization, and memory planning are separate compile phases. If the bug is about CPU natural regions, Metal/CUDA ownership, fused execution units, or memory handoff, start with [Backend Planning And Regions](backend-planning-and-regions.md#diagnostics-checklist) rather than graph optimizer stage order.

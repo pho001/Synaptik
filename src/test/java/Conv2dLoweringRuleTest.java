@@ -5,7 +5,7 @@ import config.optimizer.Conv2dLoweringMode;
 import config.optimizer.RewriteConfig;
 import graph.CompiledGraph;
 import graph.optimizer.GraphOptimizer;
-import graph.optimizer.rewrite.Conv2dLoweringRewrite;
+import graph.optimizer.rewrite.lowering.Conv2dGemmLoweringRule;
 import org.junit.jupiter.api.Test;
 import tensor.CompileMode;
 import tensor.options.Conv2dOptions;
@@ -34,7 +34,7 @@ public class Conv2dLoweringRuleTest {
         }, new int[]{1, 1, 2, 2}, null, "weight", DataType.FLOAT64);
 
         Tensor root = input.conv2d(weight, Conv2dOptions.defaults());
-        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dLoweringRewrite(Conv2dLoweringConfig.always()));
+        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dGemmLoweringRule(Conv2dLoweringConfig.always()));
         List<Tensor> optimized = optimizer.optimize(root.topologicalSort());
 
         Tensor lowered = optimized.stream()
@@ -85,7 +85,7 @@ public class Conv2dLoweringRuleTest {
         }, new int[]{1, 1, 2, 2}, null, "weight", DataType.FLOAT64);
 
         Tensor root = input.conv2d(weight, Conv2dOptions.defaults());
-        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dLoweringRewrite(
+        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dGemmLoweringRule(
                 new Conv2dLoweringConfig(Conv2dLoweringMode.OFF)
         ));
         List<Tensor> optimized = optimizer.optimize(root.topologicalSort());
@@ -102,7 +102,7 @@ public class Conv2dLoweringRuleTest {
         Tensor weight = new Tensor(new double[64 * 1 * 3 * 3], new int[]{64, 1, 3, 3}, null, "weight", DataType.FLOAT64);
         Tensor root = input.conv2d(weight, new Conv2dOptions(1, 1, 1, 1, 1, 1, 64));
 
-        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dLoweringRewrite(
+        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dGemmLoweringRule(
                 new Conv2dLoweringConfig(Conv2dLoweringMode.HEURISTIC)
         ));
         List<Tensor> optimized = optimizer.optimize(root.topologicalSort());
@@ -119,7 +119,7 @@ public class Conv2dLoweringRuleTest {
         Tensor weight = new Tensor(new double[256 * 256], new int[]{256, 256, 1, 1}, null, "weight", DataType.FLOAT64);
         Tensor root = input.conv2d(weight, Conv2dOptions.defaults());
 
-        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dLoweringRewrite(
+        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dGemmLoweringRule(
                 new Conv2dLoweringConfig(Conv2dLoweringMode.HEURISTIC)
         ));
         List<Tensor> optimized = optimizer.optimize(root.topologicalSort());
@@ -140,7 +140,7 @@ public class Conv2dLoweringRuleTest {
         Tensor loss = input.conv2d(weight, Conv2dOptions.defaults().withPadding(1, 1)).sum();
         CompiledGraph compiled = CompiledGraph.compile(
                 loss,
-                new GraphOptimizer().addRule(new Conv2dLoweringRewrite(Conv2dLoweringConfig.always())),
+                new GraphOptimizer().addRule(new Conv2dGemmLoweringRule(Conv2dLoweringConfig.always())),
                 CompileMode.AUTO
         );
 

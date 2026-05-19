@@ -1,4 +1,4 @@
-package graph.optimizer.rewrite;
+package graph.optimizer.rewrite.lowering;
 
 import operations.nn.conv.conv2d;
 import operations.nn.conv.conv2dBackwardInput;
@@ -6,8 +6,8 @@ import operations.nn.conv.conv2dBackwardWeight;
 import tensor.options.Conv2dOptions;
 import tensor.Tensor;
 
-final class Conv2dLoweringHeuristics {
-    private Conv2dLoweringHeuristics() {
+final class Conv2dGemmLoweringHeuristics {
+    private Conv2dGemmLoweringHeuristics() {
     }
 
     static boolean shouldLower(Tensor tensor, conv2d conv) {

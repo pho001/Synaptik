@@ -179,8 +179,10 @@ This is safe before backend planning because the identity is mathematical and ba
 
 Source area:
 
-- `src/main/java/graph/optimizer/rewrite/RewriteRule.java`
-- `src/main/java/graph/optimizer/rewrite/AlgebraicRewrite.java`
+- `src/main/java/graph/optimizer/rewrite/canonical/PiecewiseCanonicalizationRule.java`
+- `src/main/java/graph/optimizer/rewrite/canonical/PiecewisePatternLowerer.java`
+- `src/main/java/graph/optimizer/rewrite/algebraic/AlgebraicSimplificationRule.java`
+- `src/main/java/graph/optimizer/rewrite/algebraic/*Simplifier.java`
 
 ### CF
 
@@ -260,8 +262,10 @@ Important current detail: `SCALED_DOT_PRODUCT_ATTENTION` is increasingly represe
 
 Source area:
 
-- `src/main/java/graph/optimizer/rewrite/LoweringRule.java`
-- `src/main/java/graph/optimizer/rewrite/*LoweringRewrite.java`
+- `src/main/java/graph/optimizer/rewrite/lowering/LinearLoweringRule.java`
+- `src/main/java/graph/optimizer/rewrite/lowering/LossForwardLoweringRule.java`
+- `src/main/java/graph/optimizer/rewrite/lowering/LossBackwardSpecializationRule.java`
+- `src/main/java/graph/optimizer/rewrite/lowering/Conv2dGemmLoweringRule.java`
 
 ## Snapshot Safety
 

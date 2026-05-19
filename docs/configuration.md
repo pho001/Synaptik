@@ -651,41 +651,41 @@ This section covers build, core runtime, optimizer, native bridge, diagnostic, a
 | `cg.cpu.fused.profile` | `false` | Enables fused execution profiler collection. | `backend/cpu/kernels/fused/FusedExecutionProfiler.java` |
 | `cg.math.forceExactTranscendentals` | `false` | Forces utility fast transcendental methods to call exact `Math` functions. | `utils/FastTranscendentals.java` |
 | `cg.optimizer.enableMemoryReuse` | `true` | Enables memory reuse in memory optimizer rule. | `graph/optimizer/memory/MemoryOptimizerRule.java` |
-| `cg.optimizer.ar.disableAllTransforms` | `false` | Disables all algebraic rewrite transforms. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableRebuildTopologicalClosure` | `false` | Disables AR topological closure rebuild. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disablePow2ToMul` | `false` | Disables `pow(x, 2)` to multiply rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableAddSelfToMul2` | `false` | Disables `x + x` rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableAddNegToZero` | `false` | Disables add-negative-to-zero rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableAddNegNegToNegAdd` | `false` | Disables negative-add rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableAddLogLogToLogMul` | `false` | Disables log-add rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableSubNegToAdd` | `false` | Disables subtract-negative rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableDivConstToMulRecip` | `false` | Disables division-by-constant reciprocal rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableDivMulScalarByConst` | `false` | Disables scalar division rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableDivInvToMul` | `false` | Disables division-by-inverse rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableDivOneToInv` | `false` | Disables reciprocal rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableMulScalarAssoc` | `false` | Disables scalar multiplication association rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableMulScalarNegPush` | `false` | Disables scalar negative pushdown rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableMulScalarConstFold` | `false` | Disables scalar constant folding rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableAddSubFactorize` | `false` | Disables add/sub factorization rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableMulInvToOne` | `false` | Disables inverse multiplication rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableMulNegNegToMul` | `false` | Disables double-negative multiply rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableMulExpExpToExpAdd` | `false` | Disables exp multiplication rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableNegSubSwap` | `false` | Disables negative subtraction swap rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableNegMulScalarPush` | `false` | Disables negative scalar pushdown rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disablePowPowFlatten` | `false` | Disables power flattening rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disablePowInvToNegExp` | `false` | Disables inverse power rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableLogPowToMulLog` | `false` | Disables log-power rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableLogInvToNegLog` | `false` | Disables log-inverse rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableLogSqrtToHalfLog` | `false` | Disables log-sqrt rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableExpLogCancel` | `false` | Disables exp-log cancellation. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableInvSigmoidPattern` | `false` | Disables inverse sigmoid pattern rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableInvPowToNegExp` | `false` | Disables inverse power to negative exponent rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableInvExpToExpNeg` | `false` | Disables inverse exp rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableInvNegPush` | `false` | Disables inverse negative push rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableClampMinIdentity` | `false` | Disables clamp-min identity rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableClampMinFlatten` | `false` | Disables clamp-min flatten rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableClampMaxIdentity` | `false` | Disables clamp-max identity rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
-| `cg.optimizer.ar.disableClampMaxFlatten` | `false` | Disables clamp-max flatten rewrite. | `graph/optimizer/rewrite/AlgebraicRewrite.java` |
+| `cg.optimizer.ar.disableAllTransforms` | `false` | Disables all algebraic rewrite transforms. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableRebuildTopologicalClosure` | `false` | Disables AR topological closure rebuild. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disablePow2ToMul` | `false` | Disables `pow(x, 2)` to multiply rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableAddSelfToMul2` | `false` | Disables `x + x` rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableAddNegToZero` | `false` | Disables add-negative-to-zero rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableAddNegNegToNegAdd` | `false` | Disables negative-add rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableAddLogLogToLogMul` | `false` | Disables log-add rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableSubNegToAdd` | `false` | Disables subtract-negative rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableDivConstToMulRecip` | `false` | Disables division-by-constant reciprocal rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableDivMulScalarByConst` | `false` | Disables scalar division rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableDivInvToMul` | `false` | Disables division-by-inverse rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableDivOneToInv` | `false` | Disables reciprocal rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableMulScalarAssoc` | `false` | Disables scalar multiplication association rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableMulScalarNegPush` | `false` | Disables scalar negative pushdown rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableMulScalarConstFold` | `false` | Disables scalar constant folding rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableAddSubFactorize` | `false` | Disables add/sub factorization rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableMulInvToOne` | `false` | Disables inverse multiplication rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableMulNegNegToMul` | `false` | Disables double-negative multiply rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableMulExpExpToExpAdd` | `false` | Disables exp multiplication rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableNegSubSwap` | `false` | Disables negative subtraction swap rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableNegMulScalarPush` | `false` | Disables negative scalar pushdown rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disablePowPowFlatten` | `false` | Disables power flattening rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disablePowInvToNegExp` | `false` | Disables inverse power rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableLogPowToMulLog` | `false` | Disables log-power rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableLogInvToNegLog` | `false` | Disables log-inverse rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableLogSqrtToHalfLog` | `false` | Disables log-sqrt rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableExpLogCancel` | `false` | Disables exp-log cancellation. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableInvSigmoidPattern` | `false` | Disables inverse sigmoid pattern rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableInvPowToNegExp` | `false` | Disables inverse power to negative exponent rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableInvExpToExpNeg` | `false` | Disables inverse exp rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableInvNegPush` | `false` | Disables inverse negative push rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableClampMinIdentity` | `false` | Disables clamp-min identity rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableClampMinFlatten` | `false` | Disables clamp-min flatten rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableClampMaxIdentity` | `false` | Disables clamp-max identity rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
+| `cg.optimizer.ar.disableClampMaxFlatten` | `false` | Disables clamp-max flatten rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
 
 ### Diagnostic And Benchmark CLI Properties
 

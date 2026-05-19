@@ -1,5 +1,6 @@
-package graph.optimizer.rewrite;
+package graph.optimizer.rewrite.lowering;
 
+import graph.optimizer.rewrite.LocalTensorRewriteRule;
 import operations.Operation;
 import operations.linalg.linear;
 import operations.linalg.matmul;
@@ -11,7 +12,7 @@ import java.util.List;
 /**
  * Lowers {@code matmul + bias} patterns to the specialized linear operation.
  */
-public class LinearLoweringRewrite extends AbstractRewriteRule {
+public final class LinearLoweringRule extends LocalTensorRewriteRule {
     @Override
     protected Tensor rewriteTensor(Tensor tensor) {
         Operation op = tensor.getOperation();

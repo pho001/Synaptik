@@ -2,13 +2,19 @@ package graph.optimizer;
 
 import config.compile.GraphOptimizationConfig;
 import config.compile.SemanticCanonicalizationConfig;
+import config.optimizer.Conv2dLoweringMode;
+import config.optimizer.RewriteConfig;
 import graph.optimizer.cf.ConstantFoldingRule;
 import graph.optimizer.cleanup.CleanupFixpointRule;
 import graph.optimizer.cse.CommonSubexpressionEliminationRule;
 import graph.optimizer.dce.DeadCodeEliminationRule;
 import graph.SemanticForwardCanonicalizer;
-import graph.optimizer.rewrite.LoweringRule;
-import graph.optimizer.rewrite.RewriteRule;
+import graph.optimizer.rewrite.algebraic.AlgebraicSimplificationRule;
+import graph.optimizer.rewrite.canonical.PiecewiseCanonicalizationRule;
+import graph.optimizer.rewrite.lowering.Conv2dGemmLoweringRule;
+import graph.optimizer.rewrite.lowering.LinearLoweringRule;
+import graph.optimizer.rewrite.lowering.LossBackwardSpecializationRule;
+import graph.optimizer.rewrite.lowering.LossForwardLoweringRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,8 +36,9 @@ public final class OptimizerFactory {
         Objects.requireNonNull(config, "config cannot be null");
         List<OptimizationRule> rules = new ArrayList<>();
         List<OptimizationRule> cleanup = new ArrayList<>(4);
+        int rewriteCleanupRules = 0;
         if (config.algebraicRewrite()) {
-            cleanup.add(new RewriteRule(config.rewrite()));
+            rewriteCleanupRules = addCleanupRewriteRules(cleanup, config.rewrite());
         }
         if (config.constantFolding()) {
             cleanup.add(new ConstantFoldingRule());
@@ -42,9 +49,9 @@ public final class OptimizerFactory {
         if (config.deadCodeElimination()) {
             cleanup.add(new DeadCodeEliminationRule());
         }
-        flushCleanup(rules, cleanup);
+        flushCleanup(rules, cleanup, rewriteCleanupRules == cleanup.size());
         if (config.optionalLowering()) {
-            rules.add(new LoweringRule(config.rewrite()));
+            addLoweringRules(rules, config.rewrite());
         }
         return new GraphOptimizer(rules);
     }
@@ -60,16 +67,46 @@ public final class OptimizerFactory {
         return config.enabled() ? new SemanticForwardCanonicalizer(config.rewrite()) : null;
     }
 
-    private static void flushCleanup(List<OptimizationRule> rules, List<OptimizationRule> cleanup) {
+    private static void flushCleanup(
+            List<OptimizationRule> rules,
+            List<OptimizationRule> cleanup,
+            boolean rewriteOnly
+    ) {
         if (cleanup.isEmpty()) {
             return;
         }
-        if (cleanup.size() == 1) {
-            rules.add(cleanup.getFirst());
+        if (cleanup.size() == 1 || rewriteOnly) {
+            rules.addAll(cleanup);
         } else {
             rules.add(new CleanupFixpointRule(cleanup));
         }
         cleanup.clear();
+    }
+
+    private static int addCleanupRewriteRules(List<OptimizationRule> rules, RewriteConfig config) {
+        RewriteConfig resolved = config == null ? RewriteConfig.defaults() : config;
+        int added = 0;
+        if (resolved.piecewiseLowering().anyEnabled()) {
+            rules.add(new PiecewiseCanonicalizationRule(resolved.piecewiseLowering()));
+            added++;
+        }
+        if (resolved.algebraic().enabled()) {
+            rules.add(new AlgebraicSimplificationRule());
+            added++;
+        }
+        return added;
+    }
+
+    private static void addLoweringRules(List<OptimizationRule> rules, RewriteConfig config) {
+        RewriteConfig resolved = config == null ? RewriteConfig.defaults() : config;
+        if (resolved.linearLowering().enabled()) {
+            rules.add(new LinearLoweringRule());
+        }
+        rules.add(new LossForwardLoweringRule());
+        rules.add(new LossBackwardSpecializationRule());
+        if (resolved.conv2dLowering().mode() != Conv2dLoweringMode.OFF) {
+            rules.add(new Conv2dGemmLoweringRule(resolved.conv2dLowering()));
+        }
     }
 
 }

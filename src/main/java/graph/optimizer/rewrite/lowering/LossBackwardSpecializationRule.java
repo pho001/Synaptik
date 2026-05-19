@@ -1,4 +1,4 @@
-package graph.optimizer.rewrite;
+package graph.optimizer.rewrite.lowering;
 
 import operations.Operation;
 import operations.index.scatterAdd;
@@ -6,7 +6,7 @@ import operations.layout.expand;
 import operations.layout.expandDims;
 import operations.loss.crossEntropyLossIndicesGrad;
 import operations.reduction.softmax;
-import graph.optimizer.intent.BackendIntentPropagator;
+import graph.optimizer.rewrite.LocalTensorRewriteRule;
 import tensor.Tensor;
 
 import java.util.List;
@@ -21,7 +21,7 @@ import java.util.List;
  * If this becomes a CPU specialization again, keep it as an explicit
  * specialization decision rather than semantic graph lowering.</p>
  */
-public final class LossBackwardLoweringRewrite extends AbstractRewriteRule {
+public final class LossBackwardSpecializationRule extends LocalTensorRewriteRule {
     @Override
     protected Tensor rewriteTensor(Tensor tensor) {
         Operation op = tensor.getOperation();
@@ -47,7 +47,6 @@ public final class LossBackwardLoweringRewrite extends AbstractRewriteRule {
                 tensor.getDataType()
         );
         lowered.setRequiresGrad(tensor.getRequiresGrad());
-        BackendIntentPropagator.preserve(lowered, tensor);
         return lowered;
     }
 

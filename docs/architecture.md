@@ -153,11 +153,11 @@ Meanings:
 
 | Stage | Implementation | Responsibility |
 |---|---|---|
-| `AR` | `graph.optimizer.rewrite.RewriteRule` | Algebraic simplification and light canonical rewrites. |
+| `AR` | `graph.optimizer.rewrite.canonical.PiecewiseCanonicalizationRule`, `graph.optimizer.rewrite.algebraic.AlgebraicSimplificationRule` | Algebraic simplification and light canonical rewrites. |
 | `CF` | `graph.optimizer.cf.ConstantFoldingRule` | Conservative constant-only graph folding. |
 | `CSE` | `graph.optimizer.cse.CommonSubexpressionEliminationRule` | Structural common-subexpression elimination. |
 | `DCE` | `graph.optimizer.dce.DeadCodeEliminationRule` | Remove nodes not reachable from observable roots. |
-| `LOWER` | `graph.optimizer.rewrite.LoweringRule` | Optional backend-neutral graph lowering. |
+| `LOWER` | `graph.optimizer.rewrite.lowering.*Rule` | Optional backend-neutral graph lowering. |
 
 Execution planning is separate:
 

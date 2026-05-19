@@ -1,6 +1,6 @@
 package graph.optimizer.cf;
 
-import graph.optimizer.rewrite.AbstractRewriteRule;
+import graph.optimizer.rewrite.LocalTensorRewriteRule;
 import operations.Operation;
 import operations.elementwise.unary.clampMax;
 import operations.elementwise.unary.clampMin;
@@ -16,7 +16,7 @@ import java.util.List;
 /**
  * Deterministic compile-time evaluation of small pure constant subgraphs.
  */
-public final class ConstantFoldingRule extends AbstractRewriteRule {
+public final class ConstantFoldingRule extends LocalTensorRewriteRule {
     private static final int MAX_FOLD_ELEMENTS = Integer.getInteger("cg.optimizer.cf.maxElements", 4096);
 
     @Override

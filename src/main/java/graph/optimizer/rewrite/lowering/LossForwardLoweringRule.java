@@ -1,5 +1,6 @@
-package graph.optimizer.rewrite;
+package graph.optimizer.rewrite.lowering;
 
+import graph.optimizer.rewrite.LocalTensorRewriteRule;
 import operations.Operation;
 import operations.index.gather;
 import operations.reduction.logSoftmax;
@@ -13,7 +14,7 @@ import java.util.List;
 /**
  * Lowers forward loss patterns to specialized loss operations.
  */
-public final class LossForwardLoweringRewrite extends AbstractRewriteRule {
+public final class LossForwardLoweringRule extends LocalTensorRewriteRule {
     @Override
     protected Tensor rewriteTensor(Tensor tensor) {
         Operation op = tensor.getOperation();
