@@ -120,7 +120,7 @@ public class SourceTreeHygieneTest {
 
     @Test
     void runtimeMemoryBinderDoesNotUseGlobalMigrationGuards() throws IOException {
-        Path binder = Path.of("src/main/java/graph/execution/RuntimeMemoryBinder.java");
+        Path binder = Path.of("src/main/java/graph/execution/residency/RuntimeMemoryBinder.java");
         String source = Files.readString(binder);
         assertTrue(!source.contains("containsPhase12BinderExcludedFamily"), "RuntimeMemoryBinder must not disable binding for a whole graph.");
         assertTrue(!source.contains("skipRuntimeBinding"), "RuntimeMemoryBinder skip policy must be explicit and named.");
@@ -611,7 +611,7 @@ public class SourceTreeHygieneTest {
     @Test
     void preparedExecutionDoesNotOwnBackendTraceAttributeDetails() throws IOException {
         String preparedExecution = Files.readString(Path.of("src/main/java/graph/execution/PreparedExecution.java"));
-        String stepTracer = Files.readString(Path.of("src/main/java/graph/execution/StepExecutionTracer.java"));
+        String stepTracer = Files.readString(Path.of("src/main/java/graph/execution/trace/contrib/StepExecutionTracer.java"));
         assertTrue(stepTracer.contains("BackendRunTraceContributors"),
                 "StepExecutionTracer should delegate backend-specific trace attributes to contributors.");
         assertTrue(!preparedExecution.contains("BackendRunTraceContributors"),

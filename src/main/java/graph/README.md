@@ -80,7 +80,12 @@ Contains:
   - [execution/PreparedNodeExecution.java](../graph/execution/PreparedNodeExecution.java)
   - [execution/plan/CompiledNodeExecutionMetadata.java](../graph/execution/plan/CompiledNodeExecutionMetadata.java)
   - [execution/state/ExecutionState.java](../graph/execution/state/ExecutionState.java)
+  - [execution/state/RuntimeTensorStore.java](../graph/execution/state/RuntimeTensorStore.java)
+  - [execution/state/RuntimeWorkspaceStore.java](../graph/execution/state/RuntimeWorkspaceStore.java)
+  - [execution/state/RuntimeMaterializationService.java](../graph/execution/state/RuntimeMaterializationService.java)
+  - [execution/state/RuntimeResourceRegistry.java](../graph/execution/state/RuntimeResourceRegistry.java)
   - [execution/residency/RuntimeResidencyStore.java](../graph/execution/residency/RuntimeResidencyStore.java)
+  - [execution/residency/RuntimeMemoryBinder.java](../graph/execution/residency/RuntimeMemoryBinder.java)
   - [execution/publication/ExecutionPublisher.java](../graph/execution/publication/ExecutionPublisher.java)
 - traces:
   - [execution/trace/CompileTrace.java](../graph/execution/trace/CompileTrace.java)

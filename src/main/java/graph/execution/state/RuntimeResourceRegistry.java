@@ -1,6 +1,14 @@
 package graph.execution.state;
 
+import backend.cpu.nativecpu.NativeCpuAllocator;
+import backend.cpu.nativecpu.NativeCpuMemoryPool;
+import backend.cpu.nativecpu.NativeCpuMemoryStats;
+import backend.cpu.nativecpu.NativeCpuStorageFactory;
 import backend.memory.ExecutionResource;
+import config.runtime.NativeCpuMemoryConfig;
+import graph.execution.trace.NativeCpuMemoryTrace;
+import tensor.DataType;
+import tensor.storage.NativeTensorStorage;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,6 +19,17 @@ import java.util.Objects;
  */
 final class RuntimeResourceRegistry {
     private final List<ExecutionResource> executionResources = new ArrayList<>();
+    private NativeCpuAllocator nativeCpuAllocator = new NativeCpuAllocator();
+    private NativeCpuStorageFactory nativeCpuStorageFactory = new NativeCpuStorageFactory(nativeCpuAllocator);
+
+    void configureNativeCpuMemory(NativeCpuMemoryConfig config, NativeCpuMemoryPool preparedPool) {
+        nativeCpuAllocator = new NativeCpuAllocator(config, new NativeCpuMemoryStats(), preparedPool);
+        nativeCpuStorageFactory = new NativeCpuStorageFactory(nativeCpuAllocator);
+    }
+
+    NativeTensorStorage allocateNativeStorage(DataType dataType, int elements, String label) {
+        return nativeCpuStorageFactory.allocate(dataType, elements, label);
+    }
 
     void registerResource(ExecutionResource resource) {
         executionResources.add(Objects.requireNonNull(resource, "resource cannot be null"));
@@ -29,8 +48,32 @@ final class RuntimeResourceRegistry {
             }
         }
         executionResources.clear();
+        nativeCpuAllocator.drainRunLocalPool();
         if (closeFailure != null) {
             throw closeFailure;
         }
+    }
+
+    NativeCpuMemoryTrace nativeCpuMemoryTrace() {
+        var snapshot = nativeCpuAllocator.statsSnapshot();
+        return new NativeCpuMemoryTrace(
+                snapshot.allocationCount(),
+                snapshot.releaseCount(),
+                snapshot.retainCount(),
+                snapshot.allocationFailureCount(),
+                nativeCpuAllocator.requestedPoolPolicy().name(),
+                nativeCpuAllocator.effectivePoolPolicy().name(),
+                snapshot.requestedBytes(),
+                snapshot.allocatedBytes(),
+                snapshot.currentLiveBytes(),
+                snapshot.peakLiveBytes(),
+                snapshot.retainedBytes(),
+                snapshot.poolHitCount(),
+                snapshot.poolMissCount(),
+                snapshot.pooledBytes(),
+                snapshot.reusedBytes(),
+                snapshot.discardedBytes(),
+                snapshot.wastedBytes()
+        );
     }
 }
