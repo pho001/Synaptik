@@ -283,7 +283,7 @@ Source:
 - `src/main/java/config/compile/MemoryPlanningConfig.java`
 - `src/main/java/graph/optimizer/memory/MemoryPlanner.java`
 - `src/main/java/graph/optimizer/memory/MemoryPlan.java`
-- `src/main/java/graph/execution/RuntimeMemoryBinder.java`
+- `src/main/java/graph/execution/residency/RuntimeMemoryBinder.java`
 
 Example:
 

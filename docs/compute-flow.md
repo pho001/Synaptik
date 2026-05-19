@@ -89,7 +89,7 @@ sequenceDiagram
 | Semantic tensor graph | `Tensor` constructors and `tensor.ops.*` builders | [`Tensor.java`](../src/main/java/tensor/Tensor.java), [`TensorPrimitiveBuilder.java`](../src/main/java/tensor/internal/TensorPrimitiveBuilder.java) | Shape, dtype, storage/layout, operation descriptor, predecessor tensors, backward lambda | User-owned mutable graph |
 | Compile artifact | `CompiledGraph.compile(...)` and `GraphCompiler.compile()` | [`CompiledGraph.java`](../src/main/java/graph/CompiledGraph.java), [`GraphCompiler.java`](../src/main/java/graph/compile/GraphCompiler.java), [`CompileArtifacts.java`](../src/main/java/graph/compile/CompileArtifacts.java) | Immutable `CompiledNode` snapshots, final graph order, gradient bindings, partition plans, optimizer state, memory plan | Reusable for prepares with compatible runtime configs |
 | Prepared artifact | `CompiledGraph.prepare(...)` | [`PreparedExecutionBuilder.java`](../src/main/java/backend/prepare/PreparedExecutionBuilder.java), [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java) | Ordered executable steps, backend metadata, CPU plans, fused/accelerator executables, prepare trace | Reusable for repeated runs with the same graph contract |
-| Per-run state | `PreparedExecution.execute(...)` | [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java), [`ExecutionContext.java`](../src/main/java/backend/runtime/ExecutionContext.java) | Runtime tensors, runtime input links, forked workspaces, prepared input tensors, runtime trace side channels | New for each execute call |
+| Per-run state | `PreparedExecution.execute(...)` | [`ExecutionState.java`](../src/main/java/graph/execution/state/ExecutionState.java), [`ExecutionContext.java`](../src/main/java/backend/runtime/ExecutionContext.java) | Runtime tensors, runtime input links, forked workspaces, residency/storage bindings, materialization traces, runtime trace side channels | New for each execute call |
 | Backend dispatch | `ComputeEngine.compute(...)` | [`ComputeEngine.java`](../src/main/java/backend/ComputeEngine.java), [`CpuBackend.java`](../src/main/java/backend/cpu/CpuBackend.java) | Backend selection at execution time from prepared metadata | Stateless dispatcher |
 
 ## Artifact Lifetimes And Storage
@@ -104,8 +104,8 @@ The compute flow has several kinds of "storage". Some are Java objects kept in m
 | Leaf tensor data | Storage arrays inside user `Tensor` objects | User-controlled | Tensor constructors, `setData`, `copyDataFrom`, runtime publish | Provides inputs and receives output/gradient publications. |
 | Compile artifacts | Fields inside a `CompiledGraph` instance | As long as the `CompiledGraph` object is retained | `GraphCompiler.compile()` | Freezes graph topology, optimizer products, compiled nodes, partitions, memory plan, and gradient bindings. |
 | Prepare artifacts | Fields inside a `PreparedExecution` instance | As long as the `PreparedExecution` object is retained | `PreparedExecutionBuilder.prepare(...)` | Stores executable step order, backend metadata, prepared kernels/executables, workspaces templates, and prepare trace. |
-| Per-run tensors | `ExecutionState.runtimeTensorByNodeId` | One `execute(...)` call | `ExecutionState.create(...)` | Isolates runtime mutation from reusable prepared metadata. |
-| Per-run workspaces | Forked `CpuNodeWorkspace` objects in `ExecutionState` | One `execute(...)` call | `ExecutionState.create(...)` | Prevents repeated runs from sharing mutable workspace buffers. |
+| Per-run tensors | `RuntimeTensorStore` behind `ExecutionState` | One `execute(...)` call | `ExecutionState.create(...)` | Isolates runtime mutation from reusable prepared metadata. |
+| Per-run workspaces | `RuntimeWorkspaceStore` behind `ExecutionState` | One `execute(...)` call | `ExecutionState.create(...)` | Prevents repeated runs from sharing mutable workspace buffers. |
 | Memory-plan slot buffers | Local maps inside `RuntimeMemoryBinder.bind(...)`, then attached to runtime tensors | One `execute(...)` call | `RuntimeMemoryBinder` | Reuses storage across compatible optimized-region intermediates. |
 | Execution context side state | `ExecutionContext.runtimeStateIndex` and `convTraceIndex` | One `execute(...)` call | `ExecutionContext.fromRuntimeConfig(...)`, kernels | Lets kernels publish runtime state and trace metadata while the run is in progress. |
 | Compile/prepare/run traces | `CompileTrace`, `PrepareTrace`, `RunTrace` objects | Returned or accessible through graph/prepared objects | Compile, prepare, `executeTraced(...)` | Explains what happened without changing execution semantics. |
@@ -228,7 +228,7 @@ The prepared schedule is reused, but the runtime state is fresh. This is why rep
 | `CompiledGraph` | Hold compile artifacts and compile trace. | Runtime backend-specific execution state. |
 | `PreparedExecutionBuilder` | Convert compile artifacts plus runtime config into prepared executable steps. | Mutating user tensors. |
 | `PreparedExecution` | Execute prepared steps, publish root data, publish gradients, optionally return `RunTrace`. | Persisting traces to disk automatically. |
-| `ExecutionState` | Hold per-run runtime tensors, workspaces, prepared input tensors, and tensor-to-node mapping. | Surviving across runs. |
+| `ExecutionState` | Expose per-run runtime tensors, workspaces, residency/storage bindings, materialization, traces, and resources through one execution entrypoint. | Surviving across runs or becoming public tensor API. |
 | `ExecutionContext` | Provide kernels with runtime config flags, metadata lookup, runtime tensors, workspaces, and trace side channels. | Owning compile artifacts. |
 | `ComputeEngine` | Dispatch one prepared step to the selected backend. | Deciding graph optimization or memory planning. |
 
@@ -867,19 +867,37 @@ This is reusable state. It is safe to retain one `PreparedExecution` and call `e
 ```java
 ExecutionState executionState = ExecutionState.create(
         allNodes,
+        descriptorIndex,
         metadataIndex,
         forwardOutputNode.id()
 );
 ```
 
-It tracks four maps:
+`ExecutionState` is the public per-run entrypoint used by the runner, publisher, and backend `ExecutionContext`. Its
+implementation is deliberately split into concrete run-scoped runtime classes:
 
-| Map | Key | Value | Used by |
-|---|---|---|---|
-| `runtimeTensorByNodeId` | compiled node id | runtime `Tensor` | Kernels, root publishing, gradient publishing. |
-| `cpuWorkspaceByNodeId` | compiled node id | forked `CpuNodeWorkspace` | CPU kernels needing scratch or prepared state. |
-| `preparedInputTensorByKey` | `(nodeId, inputIndex)` | runtime tensor for a prepared input | CPU layout preparation and materialization paths. |
-| `runtimeNodeIdByTensor` | runtime tensor identity | compiled node id | Context lookup and trace metadata. |
+| Runtime component | Tracks | Used by |
+|---|---|---|
+| `RuntimeTensorStore` | `nodeId -> runtime Tensor` and runtime tensor identity back to compiled node id. | Kernels, root publishing, gradient publishing, trace lookup. |
+| `RuntimeWorkspaceStore` | forked CPU workspaces and prepared input tensors keyed by `(nodeId, inputIndex)`. | CPU kernels needing scratch buffers or prepared layout inputs. |
+| `RuntimeResidencyStore` | `TensorResidencyState` per node, device/native materializers by backend id, CPU materialization traces, host/device transfer traces. | Residency checks, lazy materialization, run observability. |
+| `DeviceBindingRegistry` | active device buffer bindings and reserved writable output bindings by node id. | Accelerator handoff, output-buffer reuse, CPU materialization. |
+| `NativeCpuStorageRegistry` | native CPU storage bindings by node id. | Native BLAS/storage execution and native-to-array publication. |
+| `RuntimeResourceRegistry` | run-owned execution resources, native CPU allocator/factory, native memory trace counters. | Resource cleanup and native CPU memory accounting. |
+| `RuntimeMaterializationService` | CPU/native/device materialization flow over the stores above. | `requireCpuReadable(...)`, `requireNativeReadable(...)`, and transfer trace recording. |
+
+Another way to read the same split is by responsibility rather than by class name:
+
+| Runtime concern | Concrete owner | Example |
+|---|---|---|
+| Value identity | `RuntimeTensorStore` | Node `17` resolves to this run's runtime tensor, not to the semantic source tensor from compile time. |
+| Scratch and prepared CPU inputs | `RuntimeWorkspaceStore` | A CPU layout plan gets a per-run prepared input tensor for `(nodeId=17, inputIndex=0)`. |
+| Physical storage and residency truth | `RuntimeResidencyStore`, `DeviceBindingRegistry`, `NativeCpuStorageRegistry` | Node `17` may be CPU-array current, native-CPU current, or device-owned with an active `DeviceBufferBinding`. |
+| Actions over storage | `RuntimeMemoryBinder`, `RuntimeMaterializationService`, `RuntimeResourceRegistry` | Memory-plan slots are bound at run start; a device-owned value is copied back only when a CPU boundary asks for it; owned resources are closed at run end. |
+
+The state package should not grow compile-time ownership. It does not own graph topology, optimizer products,
+backend-selection decisions, or public device state on `Tensor`. Those stay in compile artifacts, prepared metadata,
+backend implementations, and user-visible tensors respectively.
 
 The runtime tensor map is the main execution memory. For every compiled node, `ExecutionState.create(...)` constructs a runtime tensor with the compiled shape, strides, storage offset, operation, label, and dtype:
 
@@ -967,7 +985,7 @@ It tracks:
 | `mode` | Lets kernels know whether the run is forward-only or forward/backward. |
 | `useFastExpApprox` / `useFastTanhApprox` | Runtime approximation flags derived from `RuntimeConfig.approximation()` and whether backward is enabled. |
 | `metadataIndex` | Lets kernels/prepared operations look up metadata for compiled node ids. |
-| `executionState` | Lets kernels resolve runtime tensors, workspaces, and prepared input tensors. |
+| `executionState` | Lets kernels and backend helpers access runtime tensors/workspaces, residency state, device/native bindings, materialization, run-owned resources, and transfer traces. |
 | `runtimeStateIndex` | Per-run identity map from runtime tensor to arbitrary runtime state. |
 | `convTraceIndex` | Per-run map from node id to convolution trace metadata. |
 | `residency` via `residencyForNodeId(...)` | Per-run state describing whether a compiled node's newest value is CPU-current or device-current. |
@@ -998,16 +1016,45 @@ ConvTraceMetadata trace = context.convTraceForNodeId(node.id());
 
 and attaches the result to `StepExecutionMetadata`.
 
-Storage residency is a side channel used by Metal observability and native buffer execution. The Metal-specific buffer
-ABI and Objective-C shim are covered in [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi) and
-[Metal Backend: Objective-C Native Shim](metal-backend.md#objective-c-native-shim); this section focuses on how the compute
-runtime tracks the resulting state. `ExecutionState`
-allocates one `TensorResidencyState` per compiled node. `ExecutionContext.residencyForNodeId(...)` exposes that state to
+Storage residency is a runtime side channel used by accelerator/native-buffer execution and observability. Metal is one
+concrete implementation of that contract; its buffer ABI and Objective-C shim are covered in
+[Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi) and
+[Metal Backend: Objective-C Native Shim](metal-backend.md#objective-c-native-shim). This section focuses on how the compute
+runtime tracks residency independent of a specific accelerator backend. `ExecutionState`
+creates one `TensorResidencyState` per compiled node through `RuntimeResidencyStore`. `ExecutionContext.residencyForNodeId(...)` exposes that state to
 prepared executables, and `ExecutionContext.markCpuCurrent(...)` records the normal CPU-array result after a step writes
 Java tensor storage. `ExecutionContext.markDeviceCurrent(...)` is the corresponding state transition for a device
 writer, and `ExecutionState.requireCpuReadable(...)` is the safety check used before CPU publication.
 `ExecutionState.attachDeviceBufferBinding(...)` is the Java-side bridge between residency metadata and a concrete
 backend buffer descriptor.
+
+For one execution run, the runtime state changes roughly like this:
+
+```text
+PreparedExecution.execute(...)
+  -> ExecutionState.create(...)
+       RuntimeTensorStore creates one runtime tensor per compiled node
+       RuntimeWorkspaceStore forks CPU workspaces and prepared inputs
+       RuntimeResidencyStore initializes per-node residency
+
+  -> RuntimeMemoryBinder.bind(...)
+       applies the compile-time MemoryPlan to this run's runtime tensors
+
+  -> backend step writes node 42
+       CPU backend:
+         markCpuCurrent(42, "cpu step wrote output")
+       accelerator backend with reusable output:
+         attachDeviceBufferBinding(42, binding, DEVICE_OWNED, "metal buffer output")
+
+  -> publication or a later CPU step requests node 42
+       requireCpuReadable(42, GRAPH_OUTPUT or CPU_CONSUMER)
+       RuntimeMaterializationService finds the active binding and materializer
+       materializer copies/synchronizes bytes into CPU-visible storage
+       RuntimeResidencyStore records CpuMaterializationTrace and HostDeviceTransferTrace
+```
+
+This is the central safety invariant: a CPU reader never trusts runtime tensor arrays just because a `Tensor` object
+exists. It trusts them only when residency says CPU storage is current, or after a materializer has made it current.
 
 The legacy Metal bridge still copies outputs back into Java arrays, so a legacy successful Metal step ends like this:
 
@@ -1108,7 +1155,7 @@ an accelerator step. Without explicit state, the Metal buffer path could write o
 array still contains yesterday's bytes. Then root publication, gradient publication, or a CPU kernel could read stale
 data and silently return the wrong result.
 
-The implementation keeps the state per compiled node inside `ExecutionState`, not on public `Tensor` objects. That is
+The implementation keeps the state per compiled node behind `ExecutionState`, not on public `Tensor` objects. That is
 why repeated executions can have independent runtime storage even when they reuse the same `PreparedExecution`.
 
 State transitions implemented today:
@@ -2130,13 +2177,18 @@ Phase 25 applies the same rule to forward SDPA. Metal direct unmasked `SCALED_DO
 - [`LoweringPipeline.java`](../src/main/java/backend/lowering/LoweringPipeline.java): optimized region lowering.
 - [`CpuNodePreparer.java`](../src/main/java/backend/cpu/prepare/CpuNodePreparer.java): CPU kernel/plan/workspace/fused metadata preparation.
 - [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java): run loop, tracing, root publishing, gradient publishing.
-- [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java): per-run tensors, runtime inputs, workspaces, prepared input tensors, residency state, and device buffer binding registry.
+- [`ExecutionState.java`](../src/main/java/graph/execution/state/ExecutionState.java): public per-run runtime state entrypoint used by execution, publication, and backend contexts.
+- [`RuntimeTensorStore.java`](../src/main/java/graph/execution/state/RuntimeTensorStore.java): runtime tensors, runtime input links, and tensor/node-id lookup.
+- [`RuntimeWorkspaceStore.java`](../src/main/java/graph/execution/state/RuntimeWorkspaceStore.java): forked CPU workspaces and prepared input tensors.
+- [`RuntimeMaterializationService.java`](../src/main/java/graph/execution/state/RuntimeMaterializationService.java): CPU/native/device materialization flow and transfer trace recording.
+- [`RuntimeResourceRegistry.java`](../src/main/java/graph/execution/state/RuntimeResourceRegistry.java): run-owned resources, native CPU storage allocation, and native memory trace counters.
+- [`RuntimeResidencyStore.java`](../src/main/java/graph/execution/residency/RuntimeResidencyStore.java): per-node residency, backend materializers, and residency-related traces.
 - [`TensorResidencyState.java`](../src/main/java/backend/memory/TensorResidencyState.java): CPU/device current flags and residency transitions.
 - [`CpuMaterializationReason.java`](../src/main/java/backend/memory/CpuMaterializationReason.java): explicit reasons for forced CPU-readable storage.
 - [`CpuMaterializationTrace.java`](../src/main/java/graph/execution/trace/CpuMaterializationTrace.java): run-trace entries for CPU materialization requests and completed synchronizations.
 - [`DeviceBufferBinding.java`](../src/main/java/backend/memory/DeviceBufferBinding.java): backend-neutral runtime contract for device-visible buffers.
 - [`MetalBufferBinding.java`](../src/main/java/backend/metal/buffer/MetalBufferBinding.java): Metal-specific device buffer binding descriptor.
-- [`RuntimeMemoryBinder.java`](../src/main/java/graph/execution/RuntimeMemoryBinder.java): runtime storage aliasing from memory plan.
+- [`RuntimeMemoryBinder.java`](../src/main/java/graph/execution/residency/RuntimeMemoryBinder.java): runtime storage aliasing from memory plan.
 - [`ComputeEngine.java`](../src/main/java/backend/ComputeEngine.java): execution-time backend dispatcher.
 - [`CpuBackend.java`](../src/main/java/backend/cpu/CpuBackend.java): CPU runtime input resolution, layout plan application, dtype kernel dispatch.
 - [`PreparedExecutionBuildTest.java`](../src/test/java/PreparedExecutionBuildTest.java): prepared execution, backend selection, accelerator lowering, fused metadata coverage.

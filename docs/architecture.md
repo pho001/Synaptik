@@ -67,8 +67,8 @@ The most important architectural rule is that each lifecycle artifact owns diffe
 | Semantic tensor graph | `src/main/java/tensor/Tensor.java`, `src/main/java/tensor/ops/*` | Shape, dtype, storage, operation descriptor, predecessor edges, public API, backward builders | CPU dispatch hints, compiled node ids, runtime workspaces |
 | Primitive descriptor | `src/main/java/operations/Operation.java`, `src/main/java/operations/**` | Immutable operation identity and semantic parameters | Kernel code, mutable runtime state, compile/runtime policy |
 | Compile artifact | `src/main/java/graph/CompiledGraph.java`, `src/main/java/graph/compile/CompileArtifacts.java` | Compiled node snapshots, forward/backward boundary, optimizer state, memory plan, partition plans | Per-run execution state |
-| Prepared artifact | `src/main/java/graph/execution/PreparedExecution.java`, `src/main/java/graph/execution/CompiledNodeExecutionMetadata.java` | Ordered execution steps, prepared backend metadata, prepared fused/accelerator executables | Graph rewriting |
-| Runtime context | `src/main/java/backend/runtime/ExecutionContext.java`, `src/main/java/graph/execution/ExecutionState.java` | Per-run tensors, metadata index, workspaces, auxiliary runtime caches | Semantic graph ownership |
+| Prepared artifact | `src/main/java/graph/execution/PreparedExecution.java`, `src/main/java/graph/execution/plan/CompiledNodeExecutionMetadata.java` | Ordered execution steps, prepared backend metadata, prepared fused/accelerator executables | Graph rewriting |
+| Runtime context | `src/main/java/backend/runtime/ExecutionContext.java`, `src/main/java/graph/execution/state/ExecutionState.java` | Per-run tensors, metadata index, workspaces, residency/storage bindings, auxiliary runtime caches | Semantic graph ownership |
 
 ## Graph Construction
 
@@ -479,7 +479,7 @@ The important ownership split is:
 | Layer | Knows about | Does not know about |
 |---|---|---|
 | Public `Tensor` | Semantic value, dtype, shape, Java storage arrays | Metal buffer lifetime, native ownership, graph node ids |
-| `ExecutionState` | Runtime node id, runtime tensor, residency, optional `DeviceBufferBinding` | Objective-C object model, MPSGraph encoding details |
+| `ExecutionState` | Runtime node id, runtime tensor lookup, residency, optional `DeviceBufferBinding` | Objective-C object model, MPSGraph encoding details |
 | `MetalBufferBinding` | Node id, dtype, shape, byte count, access intent, opaque handle | Public graph semantics, compile policy |
 | Native Metal shim | Native handles, MPSGraphTensorData construction, command execution | Java `Tensor` object graph |
 
@@ -603,11 +603,13 @@ The no-argument CLI default is `full f64`.
 
 Layout is first-class in both semantic tensors and runtime execution. `TensorMetadata` stores shape, strides, storage offset, dtype, and label. Layout operations such as reshape, permute, expand, squeeze, select, and contiguous are explicit operation descriptors under `src/main/java/operations/layout` and public builders under `src/main/java/tensor/ops/layout`.
 
-The memory planning compile phase produces a `MemoryPlan` under `src/main/java/graph/optimizer/memory`. `PreparedExecution` passes that plan to `RuntimeMemoryBinder` before running steps. This keeps allocation/reuse decisions tied to compile artifacts while per-run storage lives in `ExecutionState`.
+The memory planning compile phase produces a `MemoryPlan` under `src/main/java/graph/optimizer/memory`. `PreparedExecution` passes that plan to `RuntimeMemoryBinder` before running steps. This keeps allocation/reuse decisions tied to compile artifacts while per-run storage lives behind `ExecutionState`.
+
+`ExecutionState` is the public per-run entrypoint; it does not keep every runtime concern inline. Runtime tensor identity and input rewiring live in `RuntimeTensorStore`, CPU workspaces and prepared inputs live in `RuntimeWorkspaceStore`, CPU/native/device materialization lives in `RuntimeMaterializationService`, run-owned resources and native CPU allocation live in `RuntimeResourceRegistry`, and residency/binding state is split between `RuntimeResidencyStore`, `DeviceBindingRegistry`, and `NativeCpuStorageRegistry`. These concrete run-scoped classes are not new lifecycle artifacts, not public user API, and not places to store compile-time topology or optimizer decisions.
 
 The architecture supports view-like behavior without treating every layout operation as a dense copy. The CPU layout kernels under `src/main/java/backend/cpu/kernels/layout` include alias/view, expand, permute, contiguous, reshape-like, and noop paths.
 
-Runtime storage residency is represented separately from semantic tensor storage. `ExecutionState` now creates a
+Runtime storage residency is represented separately from semantic tensor storage. `ExecutionState` creates a
 `backend.memory.TensorResidencyState` for each compiled node. That state records whether the CPU array representation
 is current, whether a device representation is current, which backend owns the device representation, and why the last
 transition happened. The residency enum is:

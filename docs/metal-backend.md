@@ -115,7 +115,7 @@ flowchart LR
 | Bridge stats | [`MetalMpsBridgeExecutionStats.java`](../src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionStats.java), [`MetalMpsBridgeExecutionPath.java`](../src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionPath.java) |
 | Java buffer contract | [`MetalBufferBinding.java`](../src/main/java/backend/metal/buffer/MetalBufferBinding.java), [`MetalBufferHandle.java`](../src/main/java/backend/metal/buffer/MetalBufferHandle.java), [`MetalBufferAccess.java`](../src/main/java/backend/metal/buffer/MetalBufferAccess.java) |
 | Buffer allocation and CPU readback | [`MetalBufferAllocator.java`](../src/main/java/backend/metal/buffer/MetalBufferAllocator.java), [`MetalDeviceToCpuMaterializer.java`](../src/main/java/backend/metal/buffer/MetalDeviceToCpuMaterializer.java) |
-| Resource lifetime | [`MetalBufferResource.java`](../src/main/java/backend/metal/buffer/MetalBufferResource.java), [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java) |
+| Resource lifetime | [`MetalBufferResource.java`](../src/main/java/backend/metal/buffer/MetalBufferResource.java), [`ExecutionState.java`](../src/main/java/graph/execution/state/ExecutionState.java), [`RuntimeResourceRegistry.java`](../src/main/java/graph/execution/state/RuntimeResourceRegistry.java) |
 | Native shim | [`synaptik_apple_mps_stub.m`](../src/main/native/apple/synaptik_apple_mps_stub.m) |
 | Build task | [`build.gradle`](../build.gradle), [`scripts/build-metal-mps-shim.sh`](../scripts/build-metal-mps-shim.sh) |
 
@@ -508,7 +508,7 @@ checked before execution so an older `.dylib` cannot silently claim layout-aware
 
 ### Materialization
 
-CPU publication uses `ExecutionState.requireCpuReadable(...)`. If a value is `DEVICE_OWNED`, CPU-stale, and has an active Metal binding, the registered `MetalDeviceToCpuMaterializer` calls `MetalBufferAllocator.readToCpu(...)`, which calls native `synaptik_apple_mps_read_buffer(...)` and copies the result into the destination Java `float[]`.
+CPU publication uses `ExecutionState.requireCpuReadable(...)`. If a value is `DEVICE_OWNED`, CPU-stale, and has an active Metal binding, the registered `MetalDeviceToCpuMaterializer` calls `MetalBufferAllocator.readToCpu(...)`, which calls native `synaptik_apple_mps_read_buffer(...)` and copies the result into the destination Java `float[]`. The public entrypoint remains `ExecutionState`/`ExecutionContext`; the concrete CPU/native/device transfer flow is implemented by `RuntimeMaterializationService`.
 
 Materialization reasons are explained in [Compute Flow: Device-owned materialization path](compute-flow.md#device-owned-materialization-path). For Metal, the common reasons are:
 

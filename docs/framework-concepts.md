@@ -69,7 +69,7 @@ Layout operations are explicit API calls rather than one generic view call:
 - `permute`, `transpose`, `select`, `expandDims`, and `squeeze` remap layout.
 - `contiguous` materializes dense storage when needed.
 
-At runtime, alias-like nodes are repaired after execution so semantic view tensors still reflect the source storage chain. Source: [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java), [`RuntimeMemoryBinder.java`](../src/main/java/graph/execution/RuntimeMemoryBinder.java).
+At runtime, alias-like nodes are repaired after execution so semantic view tensors still reflect the source storage chain. Source: [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java), [`RuntimeMemoryBinder.java`](../src/main/java/graph/execution/residency/RuntimeMemoryBinder.java).
 
 ## Broadcasting
 
@@ -109,13 +109,13 @@ flowchart LR
 
 ### Prepare
 
-`CompiledGraph.prepare(runtimeConfig)` turns compile-time structure into executable metadata. It selects backend plans, lowers optimized regions, dispatches backend-specific preparers, resolves CPU kernels, creates CPU execution plans, prepares fused executables, assigns workspaces, and splits prepared steps into forward and backward lists. Source: [`PreparedExecutionBuilder.java`](../src/main/java/backend/prepare/PreparedExecutionBuilder.java), [`BackendPrepareDispatcher.java`](../src/main/java/backend/prepare/BackendPrepareDispatcher.java), [`CpuNodePreparer.java`](../src/main/java/backend/cpu/prepare/CpuNodePreparer.java), [`CompiledNodeExecutionMetadata.java`](../src/main/java/graph/execution/CompiledNodeExecutionMetadata.java).
+`CompiledGraph.prepare(runtimeConfig)` turns compile-time structure into executable metadata. It selects backend plans, lowers optimized regions, dispatches backend-specific preparers, resolves CPU kernels, creates CPU execution plans, prepares fused executables, assigns workspaces, and splits prepared steps into forward and backward lists. Source: [`PreparedExecutionBuilder.java`](../src/main/java/backend/prepare/PreparedExecutionBuilder.java), [`BackendPrepareDispatcher.java`](../src/main/java/backend/prepare/BackendPrepareDispatcher.java), [`CpuNodePreparer.java`](../src/main/java/backend/cpu/prepare/CpuNodePreparer.java), [`CompiledNodeExecutionMetadata.java`](../src/main/java/graph/execution/plan/CompiledNodeExecutionMetadata.java).
 
 Prepare is the stage to reuse in hot loops when graph structure and runtime policy stay stable. Tests verify repeated prepare creates independent prepared executions with independent step views and detached gradient publication. Source: [`PreparedExecutionBuildTest.java`](../src/test/java/PreparedExecutionBuildTest.java).
 
 ### Execute
 
-`PreparedExecution.execute(mode)` creates a per-run `ExecutionState`, binds memory reuse slots, builds an `ExecutionContext`, runs prepared forward and optional backward steps through `ComputeEngine`, publishes forward data back to the semantic root, and publishes detached gradient tensors back to trainable semantic tensors. Source: [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java), [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java), [`ExecutionContext.java`](../src/main/java/backend/runtime/ExecutionContext.java), [`ComputeEngine.java`](../src/main/java/backend/ComputeEngine.java).
+`PreparedExecution.execute(mode)` creates a per-run `ExecutionState`, binds memory reuse slots, builds an `ExecutionContext`, runs prepared forward and optional backward steps through `ComputeEngine`, publishes forward data back to the semantic root, and publishes detached gradient tensors back to trainable semantic tensors. Source: [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java), [`ExecutionState.java`](../src/main/java/graph/execution/state/ExecutionState.java), [`ExecutionContext.java`](../src/main/java/backend/runtime/ExecutionContext.java), [`ComputeEngine.java`](../src/main/java/backend/ComputeEngine.java).
 
 ## Autodiff
 

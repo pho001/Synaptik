@@ -178,9 +178,9 @@ Key execution classes:
 
 - `graph.execution.PreparedExecution` owns prepared forward/backward steps and run execution.
 - `graph.execution.PreparedNodeExecution` pairs a compiled node with prepared metadata.
-- `graph.execution.CompiledNodeExecutionMetadata` carries backend, kernel, CPU plan, fused executable, workspace, accelerator executable, execution operation, execution inputs, and partition role.
-- `graph.execution.ExecutionState` owns per-run tensors and runtime outputs.
-- `graph.execution.RuntimeMemoryBinder` binds memory-plan decisions for a run.
+- `graph.execution.plan.CompiledNodeExecutionMetadata` carries backend, kernel, CPU plan, fused executable, workspace, accelerator executable, execution operation, execution inputs, and partition role.
+- `graph.execution.state.ExecutionState` is the public per-run runtime state entrypoint; concrete runtime tensors, workspaces, materialization, resources, residency, and storage bindings are split across run-scoped state/residency helpers.
+- `graph.execution.residency.RuntimeMemoryBinder` binds compile-time memory-plan decisions onto per-run runtime tensors.
 
 The package also owns trace records under `graph/execution/trace`, including `CompileTrace`, `PrepareTrace`, and `RunTrace`.
 

@@ -538,7 +538,7 @@ Compile-time memory planning computes lifetimes and reusable slots. Runtime bind
 
 - [`MemoryPlanner.java`](../src/main/java/graph/optimizer/memory/MemoryPlanner.java)
 - [`MemoryOptimizerRule.java`](../src/main/java/graph/optimizer/memory/MemoryOptimizerRule.java)
-- [`RuntimeMemoryBinder.java`](../src/main/java/graph/execution/RuntimeMemoryBinder.java)
+- [`RuntimeMemoryBinder.java`](../src/main/java/graph/execution/residency/RuntimeMemoryBinder.java)
 - [`MemoryPlannerSummaryTest.java`](../src/test/java/MemoryPlannerSummaryTest.java)
 - [`RuntimeMemoryBinderTest.java`](../src/test/java/graph/execution/RuntimeMemoryBinderTest.java)
 

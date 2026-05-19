@@ -72,11 +72,11 @@ Project-specific terms used in Synaptik, with source references.
 
 **Compiled graph**: Facade around compiled artifacts with prepare and execute helpers. Source: [`CompiledGraph.java`](../src/main/java/graph/CompiledGraph.java).
 
-**CPU materialization reason**: Explicit reason why execution needs CPU-readable tensor storage, such as graph output publication, gradient publication, CPU consumer, public data access, or CPU fallback. It is a residency/trace contract, not a copy implementation. Source: [`CpuMaterializationReason.java`](../src/main/java/backend/memory/CpuMaterializationReason.java), [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java), [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java).
+**CPU materialization reason**: Explicit reason why execution needs CPU-readable tensor storage, such as graph output publication, gradient publication, CPU consumer, public data access, or CPU fallback. It is a residency/trace contract, not a copy implementation. Source: [`CpuMaterializationReason.java`](../src/main/java/backend/memory/CpuMaterializationReason.java), [`ExecutionState.java`](../src/main/java/graph/execution/state/ExecutionState.java), [`RuntimeMaterializationService.java`](../src/main/java/graph/execution/state/RuntimeMaterializationService.java), [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java).
 
-**CPU materialization trace**: Run-trace entry that records a failed or completed request for CPU-readable tensor storage, including node id, reason, source backend/residency, logical bytes, duration, completion flag, and diagnostic detail. Source: [`CpuMaterializationTrace.java`](../src/main/java/graph/execution/trace/CpuMaterializationTrace.java), [`RunTrace.java`](../src/main/java/graph/execution/trace/RunTrace.java), [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java).
+**CPU materialization trace**: Run-trace entry that records a failed or completed request for CPU-readable tensor storage, including node id, reason, source backend/residency, logical bytes, duration, completion flag, and diagnostic detail. Source: [`CpuMaterializationTrace.java`](../src/main/java/graph/execution/trace/CpuMaterializationTrace.java), [`RunTrace.java`](../src/main/java/graph/execution/trace/RunTrace.java), [`RuntimeMaterializationService.java`](../src/main/java/graph/execution/state/RuntimeMaterializationService.java).
 
-**Device-to-CPU materializer**: Per-run backend hook that synchronizes an active device buffer binding into a runtime tensor's CPU-visible storage when a CPU consumer, graph output publication, gradient publication, or public data access needs current CPU bytes. Source: [`DeviceToCpuMaterializer.java`](../src/main/java/backend/memory/DeviceToCpuMaterializer.java), [`CpuMaterializationResult.java`](../src/main/java/backend/memory/CpuMaterializationResult.java), [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java).
+**Device-to-CPU materializer**: Per-run backend hook that synchronizes an active device buffer binding into a runtime tensor's CPU-visible storage when a CPU consumer, graph output publication, gradient publication, or public data access needs current CPU bytes. Source: [`DeviceToCpuMaterializer.java`](../src/main/java/backend/memory/DeviceToCpuMaterializer.java), [`CpuMaterializationResult.java`](../src/main/java/backend/memory/CpuMaterializationResult.java), [`RuntimeMaterializationService.java`](../src/main/java/graph/execution/state/RuntimeMaterializationService.java).
 
 **Compiled node**: Immutable compile-time snapshot of a tensor node. Source: [`CompiledNode.java`](../src/main/java/graph/CompiledNode.java).
 
@@ -94,7 +94,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Detached gradient publication**: Copying runtime gradient tensors back to semantic tensors without aliasing runtime buffers. Source: [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java).
 
-**Device buffer binding**: Backend-neutral runtime descriptor that associates a compiled node with a usable device-visible buffer. Metal implements it through `MetalBufferBinding`, while execution state stores only the small common contract. A binding can be reserved for a future writable output without marking the value current, or attached after execution as the active current value. Source: [`DeviceBufferBinding.java`](../src/main/java/backend/memory/DeviceBufferBinding.java), [`MetalBufferBinding.java`](../src/main/java/backend/metal/buffer/MetalBufferBinding.java), [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java).
+**Device buffer binding**: Backend-neutral runtime descriptor that associates a compiled node with a usable device-visible buffer. Metal implements it through `MetalBufferBinding`, while execution state stores only the small common contract. A binding can be reserved for a future writable output without marking the value current, or attached after execution as the active current value. Source: [`DeviceBufferBinding.java`](../src/main/java/backend/memory/DeviceBufferBinding.java), [`MetalBufferBinding.java`](../src/main/java/backend/metal/buffer/MetalBufferBinding.java), [`ExecutionState.java`](../src/main/java/graph/execution/state/ExecutionState.java), [`DeviceBindingRegistry.java`](../src/main/java/graph/execution/residency/DeviceBindingRegistry.java).
 
 **Dispatch hints**: Prepared elementwise/fused execution mode metadata such as scalar/vector/parallel mode, vector width, workers, and chunk sizes. Source: [`ResolvedDispatchHints.java`](../src/main/java/backend/cpu/kernels/elementwise/plan/ResolvedDispatchHints.java), [`CpuExecutionPlanner.java`](../src/main/java/backend/cpu/kernels/plan/CpuExecutionPlanner.java).
 
@@ -108,7 +108,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Execution profile**: Runnable profile combining dtype, execution mode, compile config, runtime config, and workload metadata. Source: [`ExecutionProfile.java`](../src/main/java/config/profile/ExecutionProfile.java).
 
-**Execution state**: Per-run runtime tensor storage and metadata state built for prepared execution. Source: [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java).
+**Execution state**: Per-run runtime tensor, workspace, residency, binding, materialization, trace, and resource state built for prepared execution. `ExecutionState` is the public runtime entrypoint; concrete state ownership is split across run-scoped store/service classes. Source: [`ExecutionState.java`](../src/main/java/graph/execution/state/ExecutionState.java), [`RuntimeTensorStore.java`](../src/main/java/graph/execution/state/RuntimeTensorStore.java), [`RuntimeMaterializationService.java`](../src/main/java/graph/execution/state/RuntimeMaterializationService.java), [`RuntimeResidencyStore.java`](../src/main/java/graph/execution/residency/RuntimeResidencyStore.java).
 
 ## F
 
@@ -210,11 +210,11 @@ Project-specific terms used in Synaptik, with source references.
 
 **Runtime config**: Runtime/backend policy used by prepare and execution. Source: [`RuntimeConfig.java`](../src/main/java/config/runtime/RuntimeConfig.java).
 
-**Runtime memory binder**: Execution-start binder that aliases view nodes and assigns slot arrays from `MemoryPlan` to runtime tensors. Source: [`RuntimeMemoryBinder.java`](../src/main/java/graph/execution/RuntimeMemoryBinder.java).
+**Runtime memory binder**: Execution-start binder that applies compile-time `MemoryPlan` slot decisions to per-run runtime tensors. Source: [`RuntimeMemoryBinder.java`](../src/main/java/graph/execution/residency/RuntimeMemoryBinder.java).
 
 **Run trace**: Execution-mode timing plus optional per-step trace metadata. Source: [`RunTrace.java`](../src/main/java/graph/execution/trace/RunTrace.java), [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java).
 
-**Runtime storage residency**: Per-run state describing where the newest value for a compiled node is materialized: normal CPU array, host-shared device buffer, or device-owned buffer. Source: [`StorageResidency.java`](../src/main/java/backend/memory/StorageResidency.java), [`TensorResidencyState.java`](../src/main/java/backend/memory/TensorResidencyState.java), [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java).
+**Runtime storage residency**: Per-run state describing where the newest value for a compiled node is materialized: normal CPU array, host-shared device buffer, or device-owned buffer. Source: [`StorageResidency.java`](../src/main/java/backend/memory/StorageResidency.java), [`TensorResidencyState.java`](../src/main/java/backend/memory/TensorResidencyState.java), [`RuntimeResidencyStore.java`](../src/main/java/graph/execution/residency/RuntimeResidencyStore.java), [`ExecutionState.java`](../src/main/java/graph/execution/state/ExecutionState.java).
 
 ## S
 
