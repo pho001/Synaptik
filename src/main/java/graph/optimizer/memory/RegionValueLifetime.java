@@ -1,7 +1,7 @@
 package graph.optimizer.memory;
 
 import graph.optimizer.region.MaterializationDecision;
-import graph.optimizer.region.RegionValueRef;
+import graph.optimizer.GraphValueRef;
 import graph.optimizer.region.ValueTypeContract;
 
 import java.util.LinkedHashSet;
@@ -11,7 +11,7 @@ import java.util.Objects;
 /**
  * Lifetime of a region value across optimized execution units.
  *
- * @param valueRef region value reference
+ * @param valueRef graph value reference
  * @param birthStep unit step where the value is produced
  * @param lastUseStep last unit or graph step that consumes the value
  * @param elementCount value size in elements
@@ -23,7 +23,7 @@ import java.util.Objects;
  * @param consumerUnitIds consuming unit ids
  */
 public record RegionValueLifetime(
-        RegionValueRef valueRef,
+        GraphValueRef valueRef,
         int birthStep,
         int lastUseStep,
         int elementCount,

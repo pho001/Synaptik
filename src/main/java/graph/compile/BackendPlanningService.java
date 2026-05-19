@@ -14,7 +14,6 @@ import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.execution.trace.PartitionCompileTrace;
 import graph.execution.trace.PartitionDecisionTrace;
 import graph.optimizer.partition.AnchorBasedPartitionPlanner;
-import graph.optimizer.partition.BackendCandidatePartition;
 import graph.optimizer.partition.CpuNaturalExecutionRegionPlanner;
 import graph.optimizer.partition.GreedyMaxRegionPartitionPlanner;
 import graph.optimizer.partition.Partition;
@@ -25,7 +24,8 @@ import graph.optimizer.partition.PartitionPlanningContext;
 import graph.optimizer.partition.PartitionPlanningRequest;
 import graph.optimizer.partition.PartitionPlanningResult;
 import graph.optimizer.partition.PartitionTarget;
-import graph.optimizer.partition.PartitionValueRef;
+import graph.optimizer.GraphValueRef;
+import graph.optimizer.partition.PlannedPartition;
 import graph.optimizer.partition.ScoredCandidatePartitionPlanner;
 
 import java.util.ArrayList;
@@ -71,8 +71,6 @@ public final class BackendPlanningService {
             return new BackendPlanningResult(
                     jobs,
                     List.of(),
-                    List.of(),
-                    List.of(),
                     PartitionCompileTrace.empty(),
                     diagnostics
             );
@@ -85,7 +83,7 @@ public final class BackendPlanningService {
                 request.descriptorIndex(),
                 buildConsumerMap(request.compiledNodes())
         );
-        Set<PartitionValueRef> requiredMaterialized = requiredMaterializedValueRefs(
+        Set<GraphValueRef> requiredMaterialized = requiredMaterializedValueRefs(
                 request.forwardOutput(),
                 request.gradientBindings()
         );
@@ -115,13 +113,11 @@ public final class BackendPlanningService {
                 plansByPartitionId,
                 mergeTrace(jobs, traces)
         );
-        List<BackendCandidatePartition> candidates = backendSelectionCandidates(planning);
+        List<PlannedPartition> plannedPartitions = plannedPartitions(planning);
         validateRequired(config, explicitTargets, planning.partitions(), diagnostics);
         return new BackendPlanningResult(
                 jobs,
-                planning.partitions(),
-                planning.attachedPlans(),
-                candidates,
+                plannedPartitions,
                 planning.trace(),
                 diagnostics
         );
@@ -205,31 +201,30 @@ public final class BackendPlanningService {
         );
     }
 
-    private static List<BackendCandidatePartition> backendSelectionCandidates(PartitionPlanningResult planning) {
+    private static List<PlannedPartition> plannedPartitions(PartitionPlanningResult planning) {
         return planning.partitions().stream()
                 .map(partition -> Map.entry(partition, planning.planForPartition(partition.partitionId())))
                 .filter(entry -> entry.getValue() != null)
-                .filter(entry -> entry.getValue().backend() != ComputeBackend.CPU)
-                .map(partition -> new BackendCandidatePartition(
+                .map(partition -> new PlannedPartition(
                         partition.getKey(),
-                        Set.of(partition.getValue().backend()),
-                        partition.getValue()
+                        partition.getValue(),
+                        Set.of(partition.getValue().backend())
                 ))
                 .toList();
     }
 
-    private static Set<PartitionValueRef> requiredMaterializedValueRefs(
+    private static Set<GraphValueRef> requiredMaterializedValueRefs(
             CompiledNode forwardOutput,
             Map<?, CompiledGradientBinding> gradientBindings
     ) {
-        LinkedHashSet<PartitionValueRef> required = new LinkedHashSet<>();
+        LinkedHashSet<GraphValueRef> required = new LinkedHashSet<>();
         if (forwardOutput != null && !forwardOutput.inputIds().isEmpty()) {
-            required.add(PartitionValueRef.ofNode(forwardOutput.inputIds().getFirst()));
+            required.add(GraphValueRef.node(forwardOutput.inputIds().getFirst()));
         }
         if (gradientBindings != null) {
             for (CompiledGradientBinding binding : gradientBindings.values()) {
                 if (binding instanceof CompiledGradientBinding.NodeBinding nodeBinding) {
-                    required.add(PartitionValueRef.ofNode(nodeBinding.nodeId()));
+                    required.add(GraphValueRef.node(nodeBinding.nodeId()));
                 }
             }
         }

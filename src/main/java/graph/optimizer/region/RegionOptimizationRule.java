@@ -19,7 +19,7 @@ import java.util.Objects;
 public class RegionOptimizationRule implements OptimizationRule {
     private final FuseConfig config;
     private final CpuFusionConfig cpuFusionConfig;
-    private final RegionOptimizer regionOptimizer;
+    private final DefaultRegionOptimizer regionOptimizer;
 
     /**
      * Creates a region optimization rule with training fusion defaults.

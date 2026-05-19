@@ -11,9 +11,7 @@ public final class BackendPlanningReportRenderer {
         BackendPlanningResult resolved = result == null ? BackendPlanningResult.empty() : result;
         StringBuilder out = new StringBuilder();
         out.append("backendPlanning.jobs=").append(resolved.jobs().size()).append('\n');
-        out.append("backendPlanning.partitions=").append(resolved.partitions().size()).append('\n');
-        out.append("backendPlanning.backendPlans=").append(resolved.backendPlans().size()).append('\n');
-        out.append("backendPlanning.candidates=").append(resolved.backendSelectionCandidates().size()).append('\n');
+        out.append("backendPlanning.plannedPartitions=").append(resolved.plannedPartitions().size()).append('\n');
         for (BackendPlanningDiagnostic diagnostic : resolved.diagnostics()) {
             out.append("diagnostic.")
                     .append(diagnostic.severity().name())

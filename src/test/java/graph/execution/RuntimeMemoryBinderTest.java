@@ -15,7 +15,7 @@ import graph.optimizer.memory.MemoryPlannerPolicy;
 import graph.optimizer.memory.RegionMemoryBinding;
 import graph.optimizer.memory.RegionMemoryBindingKind;
 import graph.optimizer.memory.StructuralMemoryView;
-import graph.optimizer.region.RegionValueRef;
+import graph.optimizer.GraphValueRef;
 import operations.Operation;
 import operations.layout.noop;
 import org.junit.jupiter.api.Test;
@@ -183,7 +183,7 @@ class RuntimeMemoryBinderTest {
     }
 
     private static boolean hasSingleUseRegionBinding(MemoryPlan memoryPlan, CompiledNode node) {
-        RegionValueRef valueRef = memoryPlan.regionValueRefOf(node.semanticTensor());
+        GraphValueRef valueRef = memoryPlan.graphValueRefOf(node.semanticTensor());
         if (valueRef == null) {
             return false;
         }
@@ -219,15 +219,15 @@ class RuntimeMemoryBinderTest {
     }
 
     private static MemoryPlan memoryPlanFor(List<CompiledNode> nodes, List<String> labels, DataType dataType) {
-        Map<RegionValueRef, RegionMemoryBinding> regionMemoryBindings = new HashMap<>();
-        Map<RegionValueRef, Integer> regionSlotByValueRef = new HashMap<>();
-        Map<Tensor, RegionValueRef> tensorToRegionValueRef = new IdentityHashMap<>();
+        Map<GraphValueRef, RegionMemoryBinding> regionMemoryBindings = new HashMap<>();
+        Map<GraphValueRef, Integer> regionSlotByValueRef = new HashMap<>();
+        Map<Tensor, GraphValueRef> tensorToGraphValueRef = new IdentityHashMap<>();
         int slotId = 7;
         int slotSize = 0;
         for (String label : labels) {
             CompiledNode node = nodeByLabel(nodes, label);
             slotSize = Math.max(slotSize, node.flatDataSize());
-            RegionValueRef valueRef = RegionValueRef.ofNode(node.id());
+            GraphValueRef valueRef = GraphValueRef.node(node.id());
             regionMemoryBindings.put(valueRef, new RegionMemoryBinding(
                     valueRef,
                     RegionMemoryBindingKind.MATERIALIZED,
@@ -237,7 +237,7 @@ class RuntimeMemoryBinderTest {
                     true
             ));
             regionSlotByValueRef.put(valueRef, slotId);
-            tensorToRegionValueRef.put(node.semanticTensor(), valueRef);
+            tensorToGraphValueRef.put(node.semanticTensor(), valueRef);
         }
         return new MemoryPlan(
                 Map.of(),
@@ -252,7 +252,7 @@ class RuntimeMemoryBinderTest {
                 regionMemoryBindings,
                 regionSlotByValueRef,
                 Map.of(slotId, slotSize),
-                tensorToRegionValueRef,
+                tensorToGraphValueRef,
                 List.of(),
                 Map.of()
         );

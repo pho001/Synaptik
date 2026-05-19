@@ -45,8 +45,7 @@ import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.optimizer.region.ExecutionUnit;
 import graph.optimizer.region.ExecutionUnitKind;
 import graph.optimizer.region.RegionOptimizationTrace;
-import graph.optimizer.partition.PartitionValueRef;
-import graph.optimizer.region.RegionValueRef;
+import graph.optimizer.GraphValueRef;
 import operations.Operation;
 import tensor.DataType;
 
@@ -241,15 +240,15 @@ public final class CpuRegionLowerer implements RegionLowerer {
 
     private ExecutionUnit singleNodeUnit(LoweringRequest request, int nodeId) {
         CompiledNode node = request.context().compiledNode(nodeId);
-        List<RegionValueRef> inputRefs = node == null
+        List<GraphValueRef> inputRefs = node == null
                 ? List.of()
-                : node.inputIds().stream().map(RegionValueRef::ofNode).toList();
+                : node.inputIds().stream().map(GraphValueRef::node).toList();
         return new ExecutionUnit(
                 request.region().regionId() + "-unit-" + nodeId + "-native-split",
                 ExecutionUnitKind.UNIT_KERNEL,
                 request.region().target(),
                 inputRefs,
-                List.of(RegionValueRef.ofNode(nodeId)),
+                List.of(GraphValueRef.node(nodeId)),
                 List.of(),
                 List.of(),
                 List.of(nodeId),
@@ -940,19 +939,12 @@ public final class CpuRegionLowerer implements RegionLowerer {
         );
     }
 
-    private static int nodeIdFromRef(RegionValueRef ref) {
-        if (ref == null || ref.valueId() == null || !ref.valueId().startsWith("node-")) {
-            return -1;
-        }
-        try {
-            return Integer.parseInt(ref.valueId().substring("node-".length()));
-        } catch (NumberFormatException ignored) {
-            return -1;
-        }
+    private static int nodeIdFromRef(GraphValueRef ref) {
+        return ref == null ? -1 : ref.nodeId();
     }
 
-    private static int nodeIdFromPartitionRef(PartitionValueRef ref) {
-        return ref == null ? -1 : ref.producerNodeId();
+    private static int nodeIdFromPartitionRef(GraphValueRef ref) {
+        return nodeIdFromRef(ref);
     }
 
     private static String nonBlank(String value, String fallback) {

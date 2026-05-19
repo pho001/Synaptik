@@ -1,13 +1,19 @@
 package backend.lowering.region;
 
-import backend.cpu.fused.plan.FusedOperationPreparation;
-
 import java.util.Objects;
 
 public record CpuFusedRegionPayload(
-        FusedOperationPreparation preparation
+        Object preparation
 ) implements RegionBackendPayload {
     public CpuFusedRegionPayload {
         preparation = Objects.requireNonNull(preparation, "preparation cannot be null");
+    }
+
+    public <T> T requirePreparation(Class<T> preparationType) {
+        Objects.requireNonNull(preparationType, "preparationType cannot be null");
+        if (!preparationType.isInstance(preparation)) {
+            throw new IllegalStateException("CPU fused region payload requires " + preparationType.getSimpleName());
+        }
+        return preparationType.cast(preparation);
     }
 }

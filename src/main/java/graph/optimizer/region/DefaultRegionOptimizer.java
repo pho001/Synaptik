@@ -4,7 +4,7 @@ import graph.CompiledNode;
 import graph.optimizer.partition.Partition;
 import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.partition.PartitionValue;
-import graph.optimizer.partition.PartitionValueRef;
+import graph.optimizer.GraphValueRef;
 
 import java.util.List;
 
@@ -14,7 +14,7 @@ import java.util.List;
  * <p>The optimizer delegates execution unit selection to a target-specific policy, then derives region values and their
  * transport kinds from partition outputs, required materialization, and unit-to-unit value flow.
  */
-public final class DefaultRegionOptimizer implements RegionOptimizer {
+public final class DefaultRegionOptimizer {
     private final RegionOptimizationPolicy cpuPolicy;
     private final RegionOptimizationPolicy genericPolicy;
 
@@ -46,7 +46,6 @@ public final class DefaultRegionOptimizer implements RegionOptimizer {
      * @param context compiled node and fusion context
      * @return optimized region with execution units and value transport metadata
      */
-    @Override
     public OptimizedRegion optimize(Partition partition, RegionOptimizationContext context) {
         if (partition == null) {
             throw new IllegalArgumentException("partition cannot be null");
@@ -75,7 +74,7 @@ public final class DefaultRegionOptimizer implements RegionOptimizer {
                 partition.target(),
                 units,
                 regionValues,
-                partition.requiredMaterializedValueRefs().stream().map(RegionOptimizationUnitSupport::toRegionValueRef).toList(),
+                partition.requiredMaterializedValueRefs(),
                 trace
         );
     }
@@ -90,14 +89,14 @@ public final class DefaultRegionOptimizer implements RegionOptimizer {
             RegionOptimizationContext context,
             List<ExecutionUnit> units
     ) {
-        PartitionValueRef ref = value.ref();
+        GraphValueRef ref = value.ref();
         ValueTransportKind transportKind = partition.requiredMaterializedValueRefs().contains(ref)
                 ? ValueTransportKind.MATERIALIZED
                 : (isExecutionUnitContinuation(ref, units) || partition.outputValueRefs().contains(ref)
                     ? ValueTransportKind.CONTINUATION
                     : ValueTransportKind.VIRTUAL);
         return new RegionValue(
-                RegionOptimizationUnitSupport.toRegionValueRef(ref),
+                ref,
                 ref,
                 contextSemanticTensor(context, value.producerNodeId()),
                 value.producerNodeId(),
@@ -108,8 +107,8 @@ public final class DefaultRegionOptimizer implements RegionOptimizer {
         );
     }
 
-    private boolean isExecutionUnitContinuation(PartitionValueRef ref, List<ExecutionUnit> units) {
-        RegionValueRef valueRef = RegionOptimizationUnitSupport.toRegionValueRef(ref);
+    private boolean isExecutionUnitContinuation(GraphValueRef ref, List<ExecutionUnit> units) {
+        GraphValueRef valueRef = ref;
         int producerUnits = 0;
         int consumerUnits = 0;
         for (ExecutionUnit unit : units) {

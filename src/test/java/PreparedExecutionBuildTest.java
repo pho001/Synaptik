@@ -143,10 +143,8 @@ public class PreparedExecutionBuildTest {
                 .withGraphOptimization(config.compile.GraphOptimizationConfig.noGraphOptimization());
         CompiledGraph compiled = CompiledGraph.compile(out, partitionOnly);
 
-        assertFalse(compiled.compileArtifacts().backendSelectionCandidates().isEmpty());
-        assertNotNull(compiled.compileArtifacts().optimizerState());
-        assertFalse(compiled.compileArtifacts().optimizerState().optimizedRegions().isEmpty());
-        assertNotNull(compiled.compileArtifacts().optimizerState().memoryPlan());
+        assertFalse(compiled.compileArtifacts().plannedPartitions().isEmpty());
+        assertFalse(compiled.compileArtifacts().optimizedRegions().isEmpty());
         assertNotNull(compiled.compileArtifacts().memoryPlan());
     }
 
@@ -163,10 +161,10 @@ public class PreparedExecutionBuildTest {
         assertTrue(compiled.compileArtifacts().compiledNodes().stream()
                 .filter(node -> node.operation() != null)
                 .allMatch(node -> node.backend() == ComputeBackend.CPU));
-        assertTrue(compiled.compileArtifacts().backendSelectionCandidates().stream()
-                .anyMatch(candidate -> candidate.plan() != null
-                        && candidate.plan().backend() == ComputeBackend.GPU_METAL
-                        && candidate.nodeIds().size() >= 2));
+        assertTrue(compiled.compileArtifacts().plannedPartitions().stream()
+                .anyMatch(partition -> partition.plan() != null
+                        && partition.plan().backend() == ComputeBackend.GPU_METAL
+                        && partition.nodeIds().size() >= 2));
 
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
 

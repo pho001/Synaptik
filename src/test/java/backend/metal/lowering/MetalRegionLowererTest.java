@@ -32,7 +32,7 @@ import graph.optimizer.partition.PartitionPlannerStrategy;
 import graph.optimizer.partition.PartitionPlanningContext;
 import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.partition.PartitionValue;
-import graph.optimizer.partition.PartitionValueRef;
+import graph.optimizer.GraphValueRef;
 import graph.optimizer.region.DefaultRegionOptimizer;
 import graph.optimizer.region.ExecutionUnitKind;
 import graph.optimizer.region.OptimizedRegion;
@@ -94,7 +94,7 @@ class MetalRegionLowererTest {
         PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
                 Set.of(linearNodeId, reluNodeId),
                 context,
-                Set.of(PartitionValueRef.ofNode(reluNodeId))
+                Set.of(GraphValueRef.node(reluNodeId))
         );
         assertNotNull(candidate);
         MetalPartitionPlan attachedPlan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, context);
@@ -115,12 +115,12 @@ class MetalRegionLowererTest {
                 "metal-linear-bias-activation",
                 PartitionTarget.GPU_METAL,
                 candidate.orderedNodeIds(),
-                candidate.orderedNodeIds().stream().map(id -> new PartitionValue(PartitionValueRef.ofNode(id), id)).toList(),
+                candidate.orderedNodeIds().stream().map(id -> new PartitionValue(GraphValueRef.node(id), id)).toList(),
                 List.of(new PartitionEdge(linearNodeId, reluNodeId)),
                 candidate.externalInputIds(),
-                candidate.outputNodeIds().stream().map(PartitionValueRef::ofNode).toList(),
+                candidate.outputNodeIds().stream().map(GraphValueRef::node).toList(),
                 candidate.anchorNodeId(),
-                List.of(PartitionValueRef.ofNode(reluNodeId)),
+                List.of(GraphValueRef.node(reluNodeId)),
                 List.of(),
                 List.of(PartitionBoundaryReason.NONE),
                 attachedPlan.estimatedWork(),
@@ -168,7 +168,7 @@ class MetalRegionLowererTest {
                         && unit.orderedNodeIds().containsAll(List.of(linearNodeId, reluNodeId))));
         assertTrue(artifact.units().stream()
                 .flatMap(unit -> unit.traceEvents().stream())
-                .anyMatch(event -> event.contains("lowering-decision:")));
+                .anyMatch(event -> event.contains("region-unit-node:")));
     }
 
     @Test
@@ -198,7 +198,7 @@ class MetalRegionLowererTest {
         PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
                 Set.copyOf(selectedNodeIds),
                 planningContext,
-                Set.of(PartitionValueRef.ofNode(expNodeId))
+                Set.of(GraphValueRef.node(expNodeId))
         );
         assertNotNull(candidate);
         MetalPartitionPlan attachedPlan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, planningContext);
@@ -208,8 +208,8 @@ class MetalRegionLowererTest {
                 PartitionTarget.GPU_METAL,
                 candidate.orderedNodeIds(),
                 candidate.externalInputIds(),
-                candidate.outputNodeIds().stream().map(PartitionValueRef::ofNode).toList(),
-                List.of(PartitionValueRef.ofNode(expNodeId))
+                candidate.outputNodeIds().stream().map(GraphValueRef::node).toList(),
+                List.of(GraphValueRef.node(expNodeId))
         );
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(
                 partition,
@@ -235,7 +235,7 @@ class MetalRegionLowererTest {
         assertTrue(artifact.units().stream().anyMatch(unit -> unit.kind() == ExecutionUnitKind.FUSED_ELEMENTWISE));
         assertTrue(artifact.units().stream()
                 .flatMap(unit -> unit.traceEvents().stream())
-                .anyMatch(event -> event.contains("KEEP_AS_BACKEND_PRIMITIVE")));
+                .anyMatch(event -> event.contains("region-unit-node:")));
     }
 
     @Test
@@ -540,7 +540,7 @@ class MetalRegionLowererTest {
         PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
                 Set.of(matmulNodeId, logSoftmaxNodeId),
                 context,
-                Set.of(PartitionValueRef.ofNode(logSoftmaxNodeId))
+                Set.of(GraphValueRef.node(logSoftmaxNodeId))
         );
         assertNotNull(candidate);
 
@@ -1498,7 +1498,7 @@ class MetalRegionLowererTest {
         PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
                 Set.of(nodeId(convContext, Operation.OpType.CONV2D)),
                 convContext,
-                Set.of(PartitionValueRef.ofNode(nodeId(convContext, Operation.OpType.CONV2D)))
+                Set.of(GraphValueRef.node(nodeId(convContext, Operation.OpType.CONV2D)))
         );
         assertNotNull(candidate);
         MetalPartitionPlan plan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, convContext);
@@ -1706,7 +1706,7 @@ class MetalRegionLowererTest {
         assertNotNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
                 Set.of(compareNodeId),
                 context,
-                Set.of(PartitionValueRef.ofNode(compareNodeId))
+                Set.of(GraphValueRef.node(compareNodeId))
         ));
     }
 
@@ -1726,7 +1726,7 @@ class MetalRegionLowererTest {
         PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
                 Set.of(logicalNodeId, reduceNodeId),
                 context,
-                Set.of(PartitionValueRef.ofNode(reduceNodeId))
+                Set.of(GraphValueRef.node(reduceNodeId))
         );
 
         assertNotNull(candidate);
@@ -1762,19 +1762,19 @@ class MetalRegionLowererTest {
         PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
                 Set.of(2, 3),
                 planningContext,
-                Set.of(PartitionValueRef.ofNode(3))
+                Set.of(GraphValueRef.node(3))
         );
         var attachedPlan = adapter.tryCreatePlan(candidate, planningContext);
         Partition partition = new Partition(
                 "metal-partition",
                 PartitionTarget.GPU_METAL,
                 candidate.orderedNodeIds(),
-                candidate.orderedNodeIds().stream().map(id -> new PartitionValue(PartitionValueRef.ofNode(id), id)).toList(),
+                candidate.orderedNodeIds().stream().map(id -> new PartitionValue(GraphValueRef.node(id), id)).toList(),
                 List.of(new PartitionEdge(2, 3)),
                 candidate.externalInputIds(),
-                candidate.outputNodeIds().stream().map(PartitionValueRef::ofNode).toList(),
+                candidate.outputNodeIds().stream().map(GraphValueRef::node).toList(),
                 candidate.anchorNodeId(),
-                List.of(PartitionValueRef.ofNode(3)),
+                List.of(GraphValueRef.node(3)),
                 List.of(),
                 List.of(PartitionBoundaryReason.NONE),
                 attachedPlan.estimatedWork(),
@@ -1835,7 +1835,7 @@ class MetalRegionLowererTest {
         PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
                 Set.of(2, 3, 4),
                 planningContext,
-                Set.of(PartitionValueRef.ofNode(4))
+                Set.of(GraphValueRef.node(4))
         );
         assertNotNull(candidate);
         var attachedPlan = adapter.tryCreatePlan(candidate, planningContext);
@@ -1845,12 +1845,12 @@ class MetalRegionLowererTest {
                 "metal-elementwise-partition",
                 PartitionTarget.GPU_METAL,
                 candidate.orderedNodeIds(),
-                candidate.orderedNodeIds().stream().map(id -> new PartitionValue(PartitionValueRef.ofNode(id), id)).toList(),
+                candidate.orderedNodeIds().stream().map(id -> new PartitionValue(GraphValueRef.node(id), id)).toList(),
                 List.of(new PartitionEdge(2, 3), new PartitionEdge(3, 4)),
                 candidate.externalInputIds(),
-                candidate.outputNodeIds().stream().map(PartitionValueRef::ofNode).toList(),
+                candidate.outputNodeIds().stream().map(GraphValueRef::node).toList(),
                 candidate.anchorNodeId(),
-                List.of(PartitionValueRef.ofNode(4)),
+                List.of(GraphValueRef.node(4)),
                 List.of(),
                 List.of(PartitionBoundaryReason.NONE),
                 attachedPlan.estimatedWork(),
@@ -1930,7 +1930,7 @@ class MetalRegionLowererTest {
         PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
                 Set.copyOf(selectedNodeIds),
                 planningContext,
-                Set.of(PartitionValueRef.ofNode(expNodeId))
+                Set.of(GraphValueRef.node(expNodeId))
         );
         assertNotNull(candidate);
         MetalPartitionPlan attachedPlan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, planningContext);
@@ -1941,8 +1941,8 @@ class MetalRegionLowererTest {
                 PartitionTarget.GPU_METAL,
                 candidate.orderedNodeIds(),
                 candidate.externalInputIds(),
-                candidate.outputNodeIds().stream().map(PartitionValueRef::ofNode).toList(),
-                List.of(PartitionValueRef.ofNode(expNodeId))
+                candidate.outputNodeIds().stream().map(GraphValueRef::node).toList(),
+                List.of(GraphValueRef.node(expNodeId))
         );
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(
                 partition,
@@ -1995,7 +1995,7 @@ class MetalRegionLowererTest {
         PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
                 Set.copyOf(selectedNodeIds),
                 planningContext,
-                Set.of(PartitionValueRef.ofNode(reluNodeId))
+                Set.of(GraphValueRef.node(reluNodeId))
         );
         assertNotNull(candidate);
         MetalPartitionPlan plan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, planningContext);
@@ -2046,7 +2046,7 @@ class MetalRegionLowererTest {
         assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
                 operationNodeIds(context),
                 context,
-                Set.of(PartitionValueRef.ofNode(nodeId(context, Operation.OpType.RELU)))
+                Set.of(GraphValueRef.node(nodeId(context, Operation.OpType.RELU)))
         ));
     }
 
@@ -2064,7 +2064,7 @@ class MetalRegionLowererTest {
         PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
                 operationNodeIds(context),
                 context,
-                Set.of(PartitionValueRef.ofNode(nodeId(context, Operation.OpType.RELU)))
+                Set.of(GraphValueRef.node(nodeId(context, Operation.OpType.RELU)))
         );
 
         assertNotNull(candidate);
@@ -2084,7 +2084,7 @@ class MetalRegionLowererTest {
         assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
                 operationNodeIds(context),
                 context,
-                Set.of(PartitionValueRef.ofNode(nodeId(context, Operation.OpType.CONTIGUOUS)))
+                Set.of(GraphValueRef.node(nodeId(context, Operation.OpType.CONTIGUOUS)))
         ));
     }
 
@@ -2101,7 +2101,7 @@ class MetalRegionLowererTest {
         PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
                 operationNodeIds(context),
                 context,
-                Set.of(PartitionValueRef.ofNode(nodeId(context, Operation.OpType.WHERE)))
+                Set.of(GraphValueRef.node(nodeId(context, Operation.OpType.WHERE)))
         );
 
         assertNotNull(candidate);
@@ -2120,7 +2120,7 @@ class MetalRegionLowererTest {
         assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
                 operationNodeIds(context),
                 context,
-                Set.of(PartitionValueRef.ofNode(nodeId(context, Operation.OpType.WHERE)))
+                Set.of(GraphValueRef.node(nodeId(context, Operation.OpType.WHERE)))
         ));
     }
 
@@ -2147,7 +2147,7 @@ class MetalRegionLowererTest {
         PartitionCandidate candidate = new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
                 Set.copyOf(selectedNodeIds),
                 context,
-                Set.of(PartitionValueRef.ofNode(sdpaNodeId))
+                Set.of(GraphValueRef.node(sdpaNodeId))
         );
 
         assertNotNull(candidate);
@@ -2173,7 +2173,7 @@ class MetalRegionLowererTest {
         assertNotNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
                 Set.of(sdpaNodeId),
                 context,
-                Set.of(PartitionValueRef.ofNode(sdpaNodeId))
+                Set.of(GraphValueRef.node(sdpaNodeId))
         ));
     }
 
@@ -2221,7 +2221,7 @@ class MetalRegionLowererTest {
         PartitionCandidate candidate = new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
                 Set.of(sdpaNodeId),
                 context,
-                Set.of(PartitionValueRef.ofNode(sdpaNodeId))
+                Set.of(GraphValueRef.node(sdpaNodeId))
         );
         assertNotNull(candidate);
 
@@ -2258,7 +2258,7 @@ class MetalRegionLowererTest {
         PartitionCandidate candidate = new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
                 Set.of(sdpaNodeId),
                 context,
-                Set.of(PartitionValueRef.ofNode(sdpaNodeId))
+                Set.of(GraphValueRef.node(sdpaNodeId))
         );
         assertNotNull(candidate);
 
@@ -2346,7 +2346,7 @@ class MetalRegionLowererTest {
         assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
                 Set.of(sdpaNodeId),
                 context,
-                Set.of(PartitionValueRef.ofNode(sdpaNodeId))
+                Set.of(GraphValueRef.node(sdpaNodeId))
         ));
     }
 
@@ -2355,11 +2355,11 @@ class MetalRegionLowererTest {
             PartitionTarget target,
             List<Integer> orderedNodeIds,
             List<Integer> externalInputNodeIds,
-            List<PartitionValueRef> outputValueRefs,
-            List<PartitionValueRef> requiredMaterialized
+            List<GraphValueRef> outputValueRefs,
+            List<GraphValueRef> requiredMaterialized
     ) {
         List<PartitionValue> values = orderedNodeIds.stream()
-                .map(nodeId -> new PartitionValue(PartitionValueRef.ofNode(nodeId), nodeId))
+                .map(nodeId -> new PartitionValue(GraphValueRef.node(nodeId), nodeId))
                 .toList();
         List<PartitionEdge> internalEdges = orderedNodeIds.size() < 2
                 ? List.of()
@@ -2438,7 +2438,7 @@ class MetalRegionLowererTest {
         PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
                 Set.of(nodeId),
                 context,
-                Set.of(PartitionValueRef.ofNode(nodeId))
+                Set.of(GraphValueRef.node(nodeId))
         );
         assertNotNull(candidate);
         MetalPartitionPlan plan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, context);

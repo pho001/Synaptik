@@ -1,6 +1,6 @@
 package graph.optimizer.region;
 
-import graph.optimizer.partition.PartitionValueRef;
+import graph.optimizer.GraphValueRef;
 import tensor.Tensor;
 
 /**
@@ -16,8 +16,8 @@ import tensor.Tensor;
  * @param requiredMaterialized whether graph semantics require materialized storage at the region boundary
  */
 public record RegionValue(
-        RegionValueRef ref,
-        PartitionValueRef sourceValueRef,
+        GraphValueRef ref,
+        GraphValueRef sourceValueRef,
         Tensor semanticTensor,
         int producerNodeId,
         int elementCount,

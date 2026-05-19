@@ -9,6 +9,7 @@ import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.CompiledNode;
+import graph.optimizer.GraphValueRef;
 import graph.optimizer.partition.cost.AcceleratorPartitionScoreModel;
 import graph.optimizer.region.DefaultRegionOptimizer;
 import graph.optimizer.region.ExecutionUnitKind;
@@ -49,7 +50,7 @@ class CpuNaturalExecutionRegionPlannerTest {
                 context,
                 new AcceleratorPartitionScoreModel.PlannerPolicy(64, 512, 1, 1, 1, 1, 1, 1),
                 new CpuRegionLegalityAdapter(),
-                Set.of(PartitionValueRef.ofNode(nodes.size() - 1))
+                Set.of(GraphValueRef.node(nodes.size() - 1))
         ));
 
         assertEquals(1, result.partitions().size());

@@ -2,22 +2,35 @@ package backend.select;
 
 import graph.execution.trace.BackendSelectionTrace;
 import graph.optimizer.partition.PartitionPlan;
+import graph.optimizer.partition.PlannedPartition;
 
 import java.util.List;
 
 /**
  * Result of backend selection after partition planning.
  *
- * @param selectedPlans partition plans accepted for backend execution
+ * @param selectedPartitions planned partitions accepted for backend execution
  * @param trace diagnostic trace explaining backend selection decisions
  */
 public record BackendSelectionResult(
-        List<PartitionPlan> selectedPlans,
+        List<PlannedPartition> selectedPartitions,
         BackendSelectionTrace trace
 ) {
     public BackendSelectionResult {
-        selectedPlans = List.copyOf(selectedPlans == null ? List.of() : selectedPlans);
+        selectedPartitions = List.copyOf(selectedPartitions == null ? List.of() : selectedPartitions);
         trace = trace == null ? BackendSelectionTrace.empty() : trace;
+    }
+
+    /**
+     * Returns selected backend plans derived from selected planned partitions.
+     *
+     * @return selected plans
+     */
+    public List<PartitionPlan> selectedPlans() {
+        return selectedPartitions.stream()
+                .map(PlannedPartition::plan)
+                .filter(java.util.Objects::nonNull)
+                .toList();
     }
 
     /**

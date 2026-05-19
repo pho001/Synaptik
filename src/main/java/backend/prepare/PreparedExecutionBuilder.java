@@ -4,6 +4,7 @@ import backend.accelerator.exec.PartitionExecutionRole;
 import backend.select.BackendSelectionResult;
 import backend.select.DefaultBackendSelectionPolicy;
 import backend.lowering.BackendCapabilities;
+import backend.lowering.LoweringInput;
 import backend.lowering.LoweringContext;
 import backend.lowering.LoweringPipeline;
 import backend.partition.BackendPartitionDescriptorRegistry;
@@ -13,13 +14,11 @@ import graph.execution.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedNodeExecution;
 import graph.execution.trace.PrepareTrace;
-import graph.optimizer.partition.BackendCandidatePartition;
 import graph.optimizer.partition.PartitionPlan;
-import graph.optimizer.state.OptimizerState;
+import graph.optimizer.partition.PlannedPartition;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -43,11 +42,11 @@ public final class PreparedExecutionBuilder {
                 consumers
         );
         BackendSelectionResult selection = new DefaultBackendSelectionPolicy().select(
-                artifacts.backendSelectionCandidates(),
+                artifacts.plannedPartitions(),
                 runtimeConfig
         );
         context.publishBackendPlans(selection.selectedPlans());
-        OptimizerState loweringInput = artifacts.requireLoweringReadyOptimizerState();
+        LoweringInput loweringInput = artifacts.loweringInput();
         publishLoweredRegions(artifacts, compiledNodes, context, runtimeConfig, selection, loweringInput);
         BackendPrepareDispatcher dispatcher = BackendPrepareDispatcher.from(runtimeConfig);
 
@@ -100,14 +99,14 @@ public final class PreparedExecutionBuilder {
             BackendPrepareContext context,
             config.runtime.RuntimeConfig runtimeConfig,
             BackendSelectionResult selection,
-            OptimizerState loweringInput
+            LoweringInput loweringInput
     ) {
         if (loweringInput == null || loweringInput.optimizedRegions().isEmpty() || loweringInput.memoryPlan() == null) {
             return;
         }
         LoweringPipeline pipeline = new LoweringPipeline(BackendPartitionDescriptorRegistry.defaults().lowerers());
         Map<String, PartitionPlan> selectedPlansByPartitionId =
-                selectedPlansByPartitionId(artifacts, selection);
+                selectedPlansByPartitionId(selection);
         Set<backend.ComputeBackend> supportedBackends = new java.util.LinkedHashSet<>();
         supportedBackends.add(backend.ComputeBackend.CPU);
         for (PartitionPlan plan : selectedPlansByPartitionId.values()) {
@@ -128,25 +127,20 @@ public final class PreparedExecutionBuilder {
         context.publishLoweredRegions(lowered.lowered().loweredRegions());
     }
 
-    private static Map<String, PartitionPlan> selectedPlansByPartitionId(
-            CompileArtifacts artifacts,
-            BackendSelectionResult selection
-    ) {
-        if (selection == null || selection.selectedPlans().isEmpty()) {
+    private static Map<String, PartitionPlan> selectedPlansByPartitionId(BackendSelectionResult selection) {
+        if (selection == null || selection.selectedPartitions().isEmpty()) {
             return Map.of();
         }
-        IdentityHashMap<PartitionPlan, String> partitionIdByPlan = new IdentityHashMap<>();
-        for (BackendCandidatePartition candidate : artifacts.backendSelectionCandidates()) {
-            if (candidate == null || candidate.plan() == null || candidate.partition() == null) {
+        HashMap<String, PartitionPlan> out = new HashMap<>();
+        for (PlannedPartition selectedPartition : selection.selectedPartitions()) {
+            if (selectedPartition == null
+                    || selectedPartition.partition() == null
+                    || selectedPartition.plan() == null) {
                 continue;
             }
-            partitionIdByPlan.put(candidate.plan(), candidate.partition().partitionId());
-        }
-        HashMap<String, PartitionPlan> out = new HashMap<>();
-        for (PartitionPlan selectedPlan : selection.selectedPlans()) {
-            String partitionId = partitionIdByPlan.get(selectedPlan);
+            String partitionId = selectedPartition.partition().partitionId();
             if (partitionId != null && !partitionId.isBlank()) {
-                out.put(partitionId, selectedPlan);
+                out.put(partitionId, selectedPartition.plan());
             }
         }
         return Map.copyOf(out);

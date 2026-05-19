@@ -1,6 +1,6 @@
 package graph.optimizer.memory;
 
-import graph.optimizer.region.RegionValueRef;
+import graph.optimizer.GraphValueRef;
 
 import java.util.List;
 import java.util.Objects;
@@ -16,9 +16,9 @@ import java.util.Objects;
  */
 public record StructuralMemoryView(
         List<String> optimizedRegionIds,
-        List<RegionValueRef> materializedValues,
-        List<RegionValueRef> continuationValues,
-        List<RegionValueRef> virtualValues,
+        List<GraphValueRef> materializedValues,
+        List<GraphValueRef> continuationValues,
+        List<GraphValueRef> virtualValues,
         List<StructuralValueFlow> valueFlows
 ) {
     public StructuralMemoryView {
@@ -39,9 +39,9 @@ public record StructuralMemoryView(
      */
     public StructuralMemoryView(
             List<String> optimizedRegionIds,
-            List<RegionValueRef> materializedValues,
-            List<RegionValueRef> continuationValues,
-            List<RegionValueRef> virtualValues
+            List<GraphValueRef> materializedValues,
+            List<GraphValueRef> continuationValues,
+            List<GraphValueRef> virtualValues
     ) {
         this(optimizedRegionIds, materializedValues, continuationValues, virtualValues, List.of());
     }
@@ -49,10 +49,10 @@ public record StructuralMemoryView(
     /**
      * Finds flow metadata for a region value.
      *
-     * @param valueRef region value reference
+     * @param valueRef graph value reference
      * @return matching flow, or {@code null} when absent
      */
-    public StructuralValueFlow flowOf(RegionValueRef valueRef) {
+    public StructuralValueFlow flowOf(GraphValueRef valueRef) {
         Objects.requireNonNull(valueRef, "valueRef cannot be null");
         for (StructuralValueFlow flow : valueFlows) {
             if (flow.valueRef().equals(valueRef)) {

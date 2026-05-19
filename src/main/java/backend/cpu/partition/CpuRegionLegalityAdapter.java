@@ -6,7 +6,7 @@ import graph.optimizer.partition.PartitionCandidate;
 import graph.optimizer.partition.PartitionPlan;
 import graph.optimizer.partition.PartitionPlanningContext;
 import graph.optimizer.partition.PartitionTarget;
-import graph.optimizer.partition.PartitionValueRef;
+import graph.optimizer.GraphValueRef;
 import graph.optimizer.partition.RegionLegalityAdapter;
 
 import java.util.LinkedHashSet;
@@ -59,7 +59,7 @@ public final class CpuRegionLegalityAdapter implements RegionLegalityAdapter {
     public PartitionCandidate tryCreateStructuralCandidate(
             Set<Integer> selectedNodeIds,
             PartitionPlanningContext context,
-            Set<PartitionValueRef> requiredMaterializedValueRefs
+            Set<GraphValueRef> requiredMaterializedValueRefs
     ) {
         if (selectedNodeIds == null || selectedNodeIds.isEmpty()) {
             return null;
@@ -125,7 +125,7 @@ public final class CpuRegionLegalityAdapter implements RegionLegalityAdapter {
             Set<Integer> selectedNodeIds,
             List<Integer> orderedNodeIds,
             PartitionPlanningContext context,
-            Set<PartitionValueRef> requiredMaterializedValueRefs
+            Set<GraphValueRef> requiredMaterializedValueRefs
     ) {
         LinkedHashSet<Integer> outputs = new LinkedHashSet<>();
         for (int nodeId : selectedNodeIds) {
@@ -144,7 +144,7 @@ public final class CpuRegionLegalityAdapter implements RegionLegalityAdapter {
         }
         if (requiredMaterializedValueRefs != null) {
             for (int nodeId : orderedNodeIds) {
-                if (requiredMaterializedValueRefs.contains(PartitionValueRef.ofNode(nodeId))) {
+                if (requiredMaterializedValueRefs.contains(GraphValueRef.node(nodeId))) {
                     outputs.add(nodeId);
                 }
             }

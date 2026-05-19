@@ -169,7 +169,7 @@ public final class CpuNodePreparer {
     private FusedOperationPreparation fusedPreparation(LoweredExecutionUnit loweredUnit) {
         if (loweredUnit.artifact() instanceof RegionExecutionPlan plan
                 && plan.backendPayload() instanceof CpuFusedRegionPayload payload) {
-            return payload.preparation();
+            return payload.requirePreparation(FusedOperationPreparation.class);
         }
         return loweredUnit.requireArtifact(FusedOperationPreparation.class);
     }

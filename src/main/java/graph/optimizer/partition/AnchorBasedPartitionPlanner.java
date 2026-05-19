@@ -1,5 +1,7 @@
 package graph.optimizer.partition;
 
+import graph.optimizer.GraphValueRef;
+
 import graph.CompiledNode;
 import graph.execution.trace.PartitionCompileTrace;
 import graph.execution.trace.PartitionDecisionTrace;
@@ -154,7 +156,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
             default -> 2_000;
         };
         if (allowsMixedTrainingPhases(request)) {
-            if (request.requiredMaterializedValueRefs().contains(PartitionValueRef.ofNode(node.id()))) {
+            if (request.requiredMaterializedValueRefs().contains(GraphValueRef.node(node.id()))) {
                 priority += 30_000;
             }
             if (request.context().consumersFor(node.id()).isEmpty()) {
@@ -646,11 +648,11 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
                 .map(ignored -> PartitionBoundaryReason.fromReason(reason))
                 .toList();
         List<PartitionValue> values = candidate.orderedNodeIds().stream()
-                .map(nodeId -> new PartitionValue(PartitionValueRef.ofNode(nodeId), nodeId))
+                .map(nodeId -> new PartitionValue(GraphValueRef.node(nodeId), nodeId))
                 .toList();
-        List<PartitionValueRef> outputValueRefs = candidate.outputNodeIds().stream().map(PartitionValueRef::ofNode).toList();
-        List<PartitionValueRef> requiredMaterialized = candidate.outputNodeIds().stream()
-                .map(PartitionValueRef::ofNode)
+        List<GraphValueRef> outputValueRefs = candidate.outputNodeIds().stream().map(GraphValueRef::node).toList();
+        List<GraphValueRef> requiredMaterialized = candidate.outputNodeIds().stream()
+                .map(GraphValueRef::node)
                 .filter(request.requiredMaterializedValueRefs()::contains)
                 .toList();
         PartitionDecisionTrace trace = new PartitionDecisionTrace(

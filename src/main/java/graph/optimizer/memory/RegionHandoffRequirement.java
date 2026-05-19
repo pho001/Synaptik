@@ -1,7 +1,7 @@
 package graph.optimizer.memory;
 
 import graph.optimizer.region.MaterializationDecision;
-import graph.optimizer.region.RegionValueRef;
+import graph.optimizer.GraphValueRef;
 import tensor.DataType;
 
 import java.util.Objects;
@@ -9,7 +9,7 @@ import java.util.Objects;
 /**
  * Requirement for moving a region value from a producer unit to a consumer unit.
  *
- * @param valueRef region value reference
+ * @param valueRef graph value reference
  * @param producerRegionId producer region id
  * @param producerUnitId producer execution unit id
  * @param consumerRegionId consumer region id
@@ -18,7 +18,7 @@ import java.util.Objects;
  * @param decision materialization decision for the handoff value
  */
 public record RegionHandoffRequirement(
-        RegionValueRef valueRef,
+        GraphValueRef valueRef,
         String producerRegionId,
         String producerUnitId,
         String consumerRegionId,

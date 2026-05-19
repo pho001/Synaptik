@@ -584,7 +584,7 @@ public class SourceTreeHygieneTest {
         String source = Files.readString(builder);
         assertTrue(!source.contains("MemoryPlanner"), "prepare must consume compile artifacts instead of rebuilding memory plans.");
         assertTrue(!source.contains("DefaultRegionOptimizer"), "prepare must consume compile artifacts instead of rebuilding optimized regions.");
-        assertTrue(source.contains("requireLoweringReadyOptimizerState"), "prepare must rely on CompileArtifacts lowering-ready contract.");
+        assertTrue(source.contains("loweringInput"), "prepare must rely on CompileArtifacts lowering input contract.");
     }
 
     @Test

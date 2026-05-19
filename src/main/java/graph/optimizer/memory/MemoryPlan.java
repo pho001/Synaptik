@@ -1,6 +1,6 @@
 package graph.optimizer.memory;
 
-import graph.optimizer.region.RegionValueRef;
+import graph.optimizer.GraphValueRef;
 import tensor.Tensor;
 
 import java.util.ArrayList;
@@ -31,13 +31,13 @@ public final class MemoryPlan {
     private final MemoryPlannerPolicy policy;
     private final MemoryPlanSummary summary;
     private final StructuralMemoryView structuralView;
-    private final Map<RegionValueRef, RegionValueLifetime> regionValueLifetimes;
-    private final Map<RegionValueRef, MaterializationPlanEntry> materializationPlan;
-    private final Map<RegionValueRef, RegionMemoryBinding> regionMemoryBindings;
-    private final Map<RegionValueRef, Integer> regionSlotByValueRef;
+    private final Map<GraphValueRef, RegionValueLifetime> regionValueLifetimes;
+    private final Map<GraphValueRef, MaterializationPlanEntry> materializationPlan;
+    private final Map<GraphValueRef, RegionMemoryBinding> regionMemoryBindings;
+    private final Map<GraphValueRef, Integer> regionSlotByValueRef;
     private final Map<Integer, Integer> regionSlotUseCounts;
     private final Map<Integer, Integer> regionSlotSizes;
-    private final Map<Tensor, RegionValueRef> tensorToRegionValueRef;
+    private final Map<Tensor, GraphValueRef> tensorToGraphValueRef;
     private final List<RegionHandoffRequirement> handoffRequirements;
     private final Map<Tensor, RuntimeMemoryBindingPolicy> runtimeBindingPolicies;
 
@@ -56,7 +56,7 @@ public final class MemoryPlan {
      * @param regionMemoryBindings memory binding decisions for region values
      * @param regionSlotByValueRef region slot id by value ref
      * @param regionSlotSizes element size for each region slot
-     * @param tensorToRegionValueRef mapping from semantic tensor to region value ref
+     * @param tensorToGraphValueRef mapping from semantic tensor to graph value ref
      * @param handoffRequirements region value handoff requirements
      * @param runtimeBindingPolicies per-tensor runtime binding policy
      */
@@ -68,12 +68,12 @@ public final class MemoryPlan {
             MemoryPlannerPolicy policy,
             MemoryPlanSummary summary,
             StructuralMemoryView structuralView,
-            Map<RegionValueRef, RegionValueLifetime> regionValueLifetimes,
-            Map<RegionValueRef, MaterializationPlanEntry> materializationPlan,
-            Map<RegionValueRef, RegionMemoryBinding> regionMemoryBindings,
-            Map<RegionValueRef, Integer> regionSlotByValueRef,
+            Map<GraphValueRef, RegionValueLifetime> regionValueLifetimes,
+            Map<GraphValueRef, MaterializationPlanEntry> materializationPlan,
+            Map<GraphValueRef, RegionMemoryBinding> regionMemoryBindings,
+            Map<GraphValueRef, Integer> regionSlotByValueRef,
             Map<Integer, Integer> regionSlotSizes,
-            Map<Tensor, RegionValueRef> tensorToRegionValueRef,
+            Map<Tensor, GraphValueRef> tensorToGraphValueRef,
             List<RegionHandoffRequirement> handoffRequirements,
             Map<Tensor, RuntimeMemoryBindingPolicy> runtimeBindingPolicies
     ) {
@@ -90,7 +90,7 @@ public final class MemoryPlan {
         this.regionSlotByValueRef = Map.copyOf(Objects.requireNonNull(regionSlotByValueRef, "regionSlotByValueRef cannot be null"));
         this.regionSlotUseCounts = Map.copyOf(buildRegionSlotUseCounts(this.regionSlotByValueRef));
         this.regionSlotSizes = Map.copyOf(Objects.requireNonNull(regionSlotSizes, "regionSlotSizes cannot be null"));
-        this.tensorToRegionValueRef = Map.copyOf(Objects.requireNonNull(tensorToRegionValueRef, "tensorToRegionValueRef cannot be null"));
+        this.tensorToGraphValueRef = Map.copyOf(Objects.requireNonNull(tensorToGraphValueRef, "tensorToGraphValueRef cannot be null"));
         this.handoffRequirements = List.copyOf(Objects.requireNonNull(handoffRequirements, "handoffRequirements cannot be null"));
         this.runtimeBindingPolicies = Map.copyOf(Objects.requireNonNull(runtimeBindingPolicies, "runtimeBindingPolicies cannot be null"));
     }
@@ -199,10 +199,10 @@ public final class MemoryPlan {
     /**
      * Returns lifetime metadata for a region value.
      *
-     * @param valueRef region value reference
+     * @param valueRef graph value reference
      * @return region value lifetime
      */
-    public RegionValueLifetime regionValueLifetimeOf(RegionValueRef valueRef) {
+    public RegionValueLifetime regionValueLifetimeOf(GraphValueRef valueRef) {
         RegionValueLifetime lifetime = regionValueLifetimes.get(valueRef);
         if (lifetime == null) {
             throw new IllegalArgumentException("Missing region value lifetime for: " + valueRef.valueId());
@@ -213,10 +213,10 @@ public final class MemoryPlan {
     /**
      * Returns materialization metadata for a region value.
      *
-     * @param valueRef region value reference
+     * @param valueRef graph value reference
      * @return materialization plan entry
      */
-    public MaterializationPlanEntry materializationPlanOf(RegionValueRef valueRef) {
+    public MaterializationPlanEntry materializationPlanOf(GraphValueRef valueRef) {
         MaterializationPlanEntry entry = materializationPlan.get(valueRef);
         if (entry == null) {
             throw new IllegalArgumentException("Missing materialization plan entry for: " + valueRef.valueId());
@@ -227,10 +227,10 @@ public final class MemoryPlan {
     /**
      * Returns memory binding metadata for a region value.
      *
-     * @param valueRef region value reference
+     * @param valueRef graph value reference
      * @return region memory binding
      */
-    public RegionMemoryBinding regionMemoryBindingOf(RegionValueRef valueRef) {
+    public RegionMemoryBinding regionMemoryBindingOf(GraphValueRef valueRef) {
         RegionMemoryBinding binding = regionMemoryBindings.get(valueRef);
         if (binding == null) {
             throw new IllegalArgumentException("Missing region memory binding for: " + valueRef.valueId());
@@ -243,7 +243,7 @@ public final class MemoryPlan {
      *
      * @return immutable lifetime map
      */
-    public Map<RegionValueRef, RegionValueLifetime> regionValueLifetimes() {
+    public Map<GraphValueRef, RegionValueLifetime> regionValueLifetimes() {
         return regionValueLifetimes;
     }
 
@@ -252,7 +252,7 @@ public final class MemoryPlan {
      *
      * @return immutable materialization map
      */
-    public Map<RegionValueRef, MaterializationPlanEntry> materializationPlan() {
+    public Map<GraphValueRef, MaterializationPlanEntry> materializationPlan() {
         return materializationPlan;
     }
 
@@ -261,17 +261,17 @@ public final class MemoryPlan {
      *
      * @return immutable binding map
      */
-    public Map<RegionValueRef, RegionMemoryBinding> regionMemoryBindings() {
+    public Map<GraphValueRef, RegionMemoryBinding> regionMemoryBindings() {
         return regionMemoryBindings;
     }
 
     /**
      * Returns the region slot id for a value.
      *
-     * @param valueRef region value reference
+     * @param valueRef graph value reference
      * @return slot id, or {@code null} when the value has no region slot
      */
-    public Integer regionSlotIdOf(RegionValueRef valueRef) {
+    public Integer regionSlotIdOf(GraphValueRef valueRef) {
         return regionSlotByValueRef.get(valueRef);
     }
 
@@ -304,7 +304,7 @@ public final class MemoryPlan {
      *
      * @return immutable region slot map
      */
-    public Map<RegionValueRef, Integer> regionSlotByValueRef() {
+    public Map<GraphValueRef, Integer> regionSlotByValueRef() {
         return regionSlotByValueRef;
     }
 
@@ -317,7 +317,7 @@ public final class MemoryPlan {
         return regionSlotSizes;
     }
 
-    private static Map<Integer, Integer> buildRegionSlotUseCounts(Map<RegionValueRef, Integer> slotByValueRef) {
+    private static Map<Integer, Integer> buildRegionSlotUseCounts(Map<GraphValueRef, Integer> slotByValueRef) {
         TreeMap<Integer, Integer> counts = new TreeMap<>();
         for (Integer slotId : slotByValueRef.values()) {
             if (slotId != null) {
@@ -328,13 +328,13 @@ public final class MemoryPlan {
     }
 
     /**
-     * Returns region value reference associated with a tensor.
+     * Returns graph value reference associated with a tensor.
      *
      * @param tensor semantic tensor
-     * @return region value ref, or {@code null} when the tensor is not region-owned
+     * @return graph value ref, or {@code null} when the tensor is not region-owned
      */
-    public RegionValueRef regionValueRefOf(Tensor tensor) {
-        return tensorToRegionValueRef.get(tensor);
+    public GraphValueRef graphValueRefOf(Tensor tensor) {
+        return tensorToGraphValueRef.get(tensor);
     }
 
     /**
@@ -346,9 +346,9 @@ public final class MemoryPlan {
      * @return runtime slot id, or {@code null} if no slot is assigned
      */
     public Integer runtimeSlotIdOf(Tensor tensor) {
-        RegionValueRef regionValueRef = regionValueRefOf(tensor);
-        if (regionValueRef != null) {
-            Integer regionSlotId = regionSlotIdOf(regionValueRef);
+        GraphValueRef graphValueRef = graphValueRefOf(tensor);
+        if (graphValueRef != null) {
+            Integer regionSlotId = regionSlotIdOf(graphValueRef);
             if (regionSlotId != null) {
                 return regionSlotId;
             }
@@ -367,8 +367,8 @@ public final class MemoryPlan {
         if (runtimeSlotId == null) {
             throw new IllegalArgumentException("Missing runtime slot for tensor: " + tensor.getLabel());
         }
-        RegionValueRef regionValueRef = regionValueRefOf(tensor);
-        if (regionValueRef != null && regionSlotIdOf(regionValueRef) != null && regionSlotIdOf(regionValueRef).equals(runtimeSlotId)) {
+        GraphValueRef graphValueRef = graphValueRefOf(tensor);
+        if (graphValueRef != null && regionSlotIdOf(graphValueRef) != null && regionSlotIdOf(graphValueRef).equals(runtimeSlotId)) {
             return regionSlotSize(runtimeSlotId);
         }
         return slotSize(runtimeSlotId);
@@ -492,10 +492,10 @@ public final class MemoryPlan {
         sb.append("regionBindings=").append(regionMemoryBindings.size()).append('\n');
         sb.append("regionSlots=").append(regionSlotSizes.size()).append('\n');
         sb.append("handoffRequirements=").append(handoffRequirements.size()).append('\n');
-        List<Map.Entry<RegionValueRef, RegionValueLifetime>> entries = new ArrayList<>(regionValueLifetimes.entrySet());
+        List<Map.Entry<GraphValueRef, RegionValueLifetime>> entries = new ArrayList<>(regionValueLifetimes.entrySet());
         entries.sort(Comparator.comparingInt(e -> e.getValue().birthStep()));
-        for (Map.Entry<RegionValueRef, RegionValueLifetime> entry : entries) {
-            RegionValueRef valueRef = entry.getKey();
+        for (Map.Entry<GraphValueRef, RegionValueLifetime> entry : entries) {
+            GraphValueRef valueRef = entry.getKey();
             RegionValueLifetime lifetime = entry.getValue();
             MaterializationPlanEntry materializationEntry = materializationPlan.get(valueRef);
             RegionMemoryBinding binding = regionMemoryBindings.get(valueRef);

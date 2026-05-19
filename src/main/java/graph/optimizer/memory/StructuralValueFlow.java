@@ -1,7 +1,7 @@
 package graph.optimizer.memory;
 
 import graph.optimizer.region.MaterializationDecision;
-import graph.optimizer.region.RegionValueRef;
+import graph.optimizer.GraphValueRef;
 
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -10,7 +10,7 @@ import java.util.Objects;
 /**
  * Producer and consumer flow for one region value.
  *
- * @param valueRef region value reference
+ * @param valueRef graph value reference
  * @param decision materialization decision
  * @param producerRegionId producing region id
  * @param producerUnitId producing unit id
@@ -18,7 +18,7 @@ import java.util.Objects;
  * @param consumerUnitIds consuming unit ids
  */
 public record StructuralValueFlow(
-        RegionValueRef valueRef,
+        GraphValueRef valueRef,
         MaterializationDecision decision,
         String producerRegionId,
         String producerUnitId,

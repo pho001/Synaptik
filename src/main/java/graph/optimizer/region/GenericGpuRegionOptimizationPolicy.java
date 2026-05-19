@@ -2,7 +2,7 @@ package graph.optimizer.region;
 
 import graph.CompiledNode;
 import graph.optimizer.partition.Partition;
-import graph.optimizer.partition.PartitionValueRef;
+import graph.optimizer.GraphValueRef;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +29,7 @@ public final class GenericGpuRegionOptimizationPolicy implements RegionOptimizat
         }
         List<ExecutionUnit> out = new ArrayList<>(partition.orderedNodeIds().size());
         Set<Integer> selected = Set.copyOf(partition.orderedNodeIds());
-        Set<PartitionValueRef> materialized = Set.copyOf(partition.requiredMaterializedValueRefs());
+        Set<GraphValueRef> materialized = Set.copyOf(partition.requiredMaterializedValueRefs());
         int index = 0;
         while (index < partition.orderedNodeIds().size()) {
             int nodeId = partition.orderedNodeIds().get(index);

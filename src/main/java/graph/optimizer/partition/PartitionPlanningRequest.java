@@ -1,5 +1,7 @@
 package graph.optimizer.partition;
 
+import graph.optimizer.GraphValueRef;
+
 import config.optimizer.CpuRegionConfig;
 import config.optimizer.MetalTransferModel;
 import graph.CompiledNode;
@@ -30,7 +32,7 @@ public record PartitionPlanningRequest(
         AcceleratorPartitionScoreModel.PlannerPolicy policy,
         RegionLegalityAdapter adapter,
         PartitionSourcePolicy sourcePolicy,
-        Set<PartitionValueRef> requiredMaterializedValueRefs,
+        Set<GraphValueRef> requiredMaterializedValueRefs,
         CpuRegionConfig cpuRegionConfig,
         MetalTransferModel metalTransferModel
 ) {
@@ -40,7 +42,7 @@ public record PartitionPlanningRequest(
             PartitionPlanningContext context,
             AcceleratorPartitionScoreModel.PlannerPolicy policy,
             RegionLegalityAdapter adapter,
-            Set<PartitionValueRef> requiredMaterializedValueRefs
+            Set<GraphValueRef> requiredMaterializedValueRefs
     ) {
         this(
                 strategy,
@@ -62,7 +64,7 @@ public record PartitionPlanningRequest(
             AcceleratorPartitionScoreModel.PlannerPolicy policy,
             RegionLegalityAdapter adapter,
             PartitionSourcePolicy sourcePolicy,
-            Set<PartitionValueRef> requiredMaterializedValueRefs,
+            Set<GraphValueRef> requiredMaterializedValueRefs,
             CpuRegionConfig cpuRegionConfig
     ) {
         this(
@@ -84,7 +86,7 @@ public record PartitionPlanningRequest(
             PartitionPlanningContext context,
             AcceleratorPartitionScoreModel.PlannerPolicy policy,
             RegionLegalityAdapter adapter,
-            Set<PartitionValueRef> requiredMaterializedValueRefs,
+            Set<GraphValueRef> requiredMaterializedValueRefs,
             CpuRegionConfig cpuRegionConfig
     ) {
         this(

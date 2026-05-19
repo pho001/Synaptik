@@ -9,7 +9,7 @@ import graph.optimizer.partition.PartitionEdge;
 import graph.optimizer.partition.PartitionPlannerStrategy;
 import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.partition.PartitionValue;
-import graph.optimizer.partition.PartitionValueRef;
+import graph.optimizer.GraphValueRef;
 import graph.optimizer.state.OptimizerState;
 import org.junit.jupiter.api.Test;
 import operations.Operation;
@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class RegionOptimizationRuleTest {
     @Test
-    void regionOptimizationRuleUsesRegionOptimizerWhenPartitionsArePresent() {
+    void regionOptimizationRuleUsesDefaultRegionOptimizerWhenPartitionsArePresent() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "b", DataType.FLOAT32);
         Tensor add = a.add(b);
@@ -34,14 +34,14 @@ class RegionOptimizationRuleTest {
                 PartitionTarget.CPU,
                 List.of(2, 3),
                 List.of(
-                        new PartitionValue(PartitionValueRef.ofNode(2), 2),
-                        new PartitionValue(PartitionValueRef.ofNode(3), 3)
+                        new PartitionValue(GraphValueRef.node(2), 2),
+                        new PartitionValue(GraphValueRef.node(3), 3)
                 ),
                 List.of(new PartitionEdge(2, 3)),
                 List.of(0, 1),
-                List.of(PartitionValueRef.ofNode(3)),
+                List.of(GraphValueRef.node(3)),
                 2,
-                List.of(PartitionValueRef.ofNode(3)),
+                List.of(GraphValueRef.node(3)),
                 List.of(),
                 List.of(PartitionBoundaryReason.NONE),
                 2L,
@@ -89,14 +89,14 @@ class RegionOptimizationRuleTest {
                 PartitionTarget.GPU_METAL,
                 List.of(2, 3),
                 List.of(
-                        new PartitionValue(PartitionValueRef.ofNode(2), 2),
-                        new PartitionValue(PartitionValueRef.ofNode(3), 3)
+                        new PartitionValue(GraphValueRef.node(2), 2),
+                        new PartitionValue(GraphValueRef.node(3), 3)
                 ),
                 List.of(new PartitionEdge(2, 3)),
                 List.of(0, 1),
-                List.of(PartitionValueRef.ofNode(3)),
+                List.of(GraphValueRef.node(3)),
                 2,
-                List.of(PartitionValueRef.ofNode(3)),
+                List.of(GraphValueRef.node(3)),
                 List.of(),
                 List.of(PartitionBoundaryReason.NONE),
                 2L,

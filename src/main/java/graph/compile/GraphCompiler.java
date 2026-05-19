@@ -16,9 +16,8 @@ import graph.optimizer.intent.BackendIntentPropagator;
 import graph.optimizer.memory.MemoryPlan;
 import graph.optimizer.memory.MemoryPlanner;
 import graph.optimizer.memory.MemoryPlannerPolicy;
-import graph.optimizer.partition.BackendCandidatePartition;
-import graph.optimizer.partition.Partition;
 import graph.optimizer.partition.PartitionPlan;
+import graph.optimizer.partition.PlannedPartition;
 import graph.optimizer.region.DefaultRegionOptimizer;
 import graph.optimizer.region.OptimizedRegion;
 import graph.optimizer.region.RegionOptimizationContext;
@@ -133,7 +132,7 @@ public final class GraphCompiler {
                 session.forwardGraphSize(),
                 artifacts.supportsBackward(),
                 artifacts.partitionPlanningTrace(),
-                artifacts.optimizerState() == null ? OptimizerTrace.empty() : artifacts.optimizerState().trace()
+                session.optimizerTrace()
         );
         return new Result(artifacts, trace);
     }
@@ -163,9 +162,8 @@ public final class GraphCompiler {
         private CompiledNode compiledForwardOutput;
         private MemoryPlan compiledMemoryPlan;
         private OptimizerState compiledOptimizerState;
-        private List<Partition> compiledPartitions = List.of();
-        private List<PartitionPlan> compiledBackendPlans = List.of();
-        private List<BackendCandidatePartition> compiledBackendSelectionCandidates = List.of();
+        private List<OptimizedRegion> compiledOptimizedRegions = List.of();
+        private List<PlannedPartition> compiledPlannedPartitions = List.of();
         private PartitionCompileTrace compiledPartitionPlanningTrace = PartitionCompileTrace.empty();
         private Tensor forwardOutput;
         private int forwardEndIndex = -1;
@@ -182,19 +180,7 @@ public final class GraphCompiler {
                 if (!compiledSupportsBackward) {
                     List<Tensor> optimizedForward = optimizeWorkingGraph(forwardGraph, sourceTensors);
                     finalGraph.addAll(optimizedForward);
-                    forwardEndIndex = finalGraph.indexOf(forwardOutput);
-                    if (forwardEndIndex == -1) {
-                        throw new IllegalStateException("Forward output node not found in inference finalGraph.");
-                    }
-                    mapComputedForwardRootForPublish(sourceTensors);
-                    rebuildCompiledNodeSnapshot(sourceTensors);
-                    forwardSeedGradient = GradientBindingCollector.captureForwardSeedGradient(
-                            requireForwardRoot(),
-                            compiledNodeByTensor
-                    );
-                    rebuildPartitionPlanningSnapshot();
-                    completeLoweringReadyOptimizerState();
-                    return artifacts();
+                    return finishCompile(sourceTensors, false, "inference finalGraph");
                 }
 
                 GradientDTypePolicy.requireGradientSupported(rootTensor.getDataType(), "Backward execution");
@@ -213,25 +199,35 @@ public final class GraphCompiler {
                 List<Tensor> optimized = optimizeWorkingGraph(finalGraph, sourceTensors);
                 finalGraph.clear();
                 finalGraph.addAll(optimized);
-                forwardEndIndex = finalGraph.indexOf(forwardOutput);
-                if (forwardEndIndex == -1) {
-                    throw new IllegalStateException("Forward output node not found in finalGraph.");
-                }
-                mapComputedForwardRootForPublish(sourceTensors);
-                rebuildCompiledNodeSnapshot(sourceTensors);
+                return finishCompile(sourceTensors, true, "finalGraph");
+            }
+        }
+
+        private CompileArtifacts finishCompile(
+                Map<Tensor, Tensor> sourceTensors,
+                boolean captureGradients,
+                String graphDescription
+        ) {
+            forwardEndIndex = finalGraph.indexOf(forwardOutput);
+            if (forwardEndIndex == -1) {
+                throw new IllegalStateException("Forward output node not found in " + graphDescription + ".");
+            }
+            mapComputedForwardRootForPublish(sourceTensors);
+            rebuildCompiledNodeSnapshot(sourceTensors);
+            if (captureGradients) {
                 compiledGradients = GradientBindingCollector.captureCompiledGradients(
                         finalGraph,
                         sourceTensors,
                         compiledNodeByTensor
                 );
-                forwardSeedGradient = GradientBindingCollector.captureForwardSeedGradient(
-                        requireForwardRoot(),
-                        compiledNodeByTensor
-                );
-                rebuildPartitionPlanningSnapshot();
-                completeLoweringReadyOptimizerState();
-                return artifacts();
             }
+            forwardSeedGradient = GradientBindingCollector.captureForwardSeedGradient(
+                    requireForwardRoot(),
+                    compiledNodeByTensor
+            );
+            rebuildPartitionPlanningSnapshot();
+            finalizeCompilePlanningArtifacts();
+            return artifacts();
         }
 
         private int forwardGraphSize() {
@@ -248,10 +244,8 @@ public final class GraphCompiler {
                     forwardSeedGradient,
                     compiledForwardOutput,
                     compiledMemoryPlan,
-                    compiledOptimizerState,
-                    compiledPartitions,
-                    compiledBackendPlans,
-                    compiledBackendSelectionCandidates,
+                    compiledOptimizedRegions,
+                    compiledPlannedPartitions,
                     compiledSupportsBackward,
                     forwardEndIndex,
                     compiledPartitionPlanningTrace
@@ -350,15 +344,18 @@ public final class GraphCompiler {
                     compiledGradients,
                     backendPartitionDescriptors
             ));
-            compiledPartitions = planning.partitions();
-            compiledBackendPlans = planning.backendPlans();
-            compiledBackendSelectionCandidates = planning.backendSelectionCandidates();
+            compiledPlannedPartitions = planning.plannedPartitions();
             compiledPartitionPlanningTrace = planning.trace();
         }
 
-        private void completeLoweringReadyOptimizerState() {
-            List<OptimizedRegion> optimizedRegions = compileConfig.regionOptimization().enabled()
-                    ? compiledPartitions.stream()
+        private OptimizerTrace optimizerTrace() {
+            return compiledOptimizerState == null ? OptimizerTrace.empty() : compiledOptimizerState.trace();
+        }
+
+        private void finalizeCompilePlanningArtifacts() {
+            compiledOptimizedRegions = compileConfig.regionOptimization().enabled()
+                    ? compiledPlannedPartitions.stream()
+                            .map(PlannedPartition::partition)
                             .map(partition -> new DefaultRegionOptimizer().optimize(
                                     partition,
                                     new RegionOptimizationContext(
@@ -372,31 +369,34 @@ public final class GraphCompiler {
             OptimizerState base = compiledOptimizerState == null
                     ? OptimizerState.ofGraph(finalGraph, compiledForwardOutput.semanticTensor())
                     : compiledOptimizerState;
-            OptimizerState loweringReady = base
+            OptimizerState planningState = base
                     .withExecutionMetadata(
                             compiledSupportsBackward ? ExecutionMode.FORWARD_BACKWARD : ExecutionMode.FORWARD,
                             compiledSupportsBackward,
                             forwardEndIndex
                     )
-                    .withPartitions(compiledPartitions, planByPartitionId())
-                    .withOptimizedRegions(optimizedRegions);
-            boolean memoryRequired = !compiledPartitions.isEmpty();
+                    .withPartitions(
+                            compiledPlannedPartitions.stream().map(PlannedPartition::partition).toList(),
+                            planByPartitionId()
+                    )
+                    .withOptimizedRegions(compiledOptimizedRegions);
+            boolean memoryRequired = !compiledPlannedPartitions.isEmpty();
             compiledOptimizerState = (compileConfig.memoryPlanning().enabled() || memoryRequired)
-                    ? loweringReady.withMemoryPlan(MemoryPlanner.plan(
-                            loweringReady,
+                    ? planningState.withMemoryPlan(MemoryPlanner.plan(
+                            planningState,
                             MemoryPlannerPolicy.fromConfig(compileConfig.memoryPlanning().memory())
                     ))
-                    : loweringReady;
+                    : planningState;
             compiledMemoryPlan = compiledOptimizerState.memoryPlan();
         }
 
         private Map<String, PartitionPlan> planByPartitionId() {
             java.util.HashMap<String, PartitionPlan> out = new java.util.HashMap<>();
-            for (BackendCandidatePartition candidate : compiledBackendSelectionCandidates) {
-                if (candidate == null || candidate.partition() == null || candidate.plan() == null) {
+            for (PlannedPartition plannedPartition : compiledPlannedPartitions) {
+                if (plannedPartition == null || plannedPartition.partition() == null || plannedPartition.plan() == null) {
                     continue;
                 }
-                out.put(candidate.partition().partitionId(), candidate.plan());
+                out.put(plannedPartition.partition().partitionId(), plannedPartition.plan());
             }
             return Map.copyOf(out);
         }

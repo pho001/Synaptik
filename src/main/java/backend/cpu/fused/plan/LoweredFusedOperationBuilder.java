@@ -32,7 +32,7 @@ public final class LoweredFusedOperationBuilder {
         }
         if (loweredUnit.artifact() instanceof RegionExecutionPlan plan
                 && plan.backendPayload() instanceof CpuFusedRegionPayload payload) {
-            return payload.preparation();
+            return payload.requirePreparation(FusedOperationPreparation.class);
         }
         return build(loweredUnit.orderedNodeIds(), compiledNodeResolver);
     }

@@ -1,5 +1,7 @@
 package graph.optimizer.partition;
 
+import graph.optimizer.GraphValueRef;
+
 /**
  * Value produced by a node inside a partition.
  *
@@ -7,7 +9,7 @@ package graph.optimizer.partition;
  * @param producerNodeId node id that produces the value
  */
 public record PartitionValue(
-        PartitionValueRef ref,
+        GraphValueRef ref,
         int producerNodeId
 ) {
     public PartitionValue {

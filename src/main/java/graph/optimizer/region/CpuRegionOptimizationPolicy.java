@@ -3,7 +3,7 @@ package graph.optimizer.region;
 import config.optimizer.CpuFusionMode;
 import graph.CompiledNode;
 import graph.optimizer.partition.Partition;
-import graph.optimizer.partition.PartitionValueRef;
+import graph.optimizer.GraphValueRef;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +35,7 @@ public final class CpuRegionOptimizationPolicy implements RegionOptimizationPoli
     private List<ExecutionUnit> buildMixedCpuUnits(Partition partition, RegionOptimizationContext context) {
         List<ExecutionUnit> out = new ArrayList<>(partition.orderedNodeIds().size());
         Set<Integer> selected = Set.copyOf(partition.orderedNodeIds());
-        Set<PartitionValueRef> materialized = Set.copyOf(partition.requiredMaterializedValueRefs());
+        Set<GraphValueRef> materialized = Set.copyOf(partition.requiredMaterializedValueRefs());
         List<Integer> ordered = partition.orderedNodeIds();
         int index = 0;
         while (index < ordered.size()) {
@@ -59,9 +59,9 @@ public final class CpuRegionOptimizationPolicy implements RegionOptimizationPoli
                 chain.add(candidateId);
                 cursor++;
             }
-            List<RegionValueRef> chainOutputs = RegionOptimizationUnitSupport.unitOutputsForChain(partition, chain, context);
+            List<GraphValueRef> chainOutputs = RegionOptimizationUnitSupport.unitOutputsForChain(partition, chain, context);
             boolean singlePublishedOutput = chainOutputs.size() == 1
-                    && chainOutputs.getFirst().equals(RegionValueRef.ofNode(chain.getLast()));
+                    && chainOutputs.getFirst().equals(GraphValueRef.node(chain.getLast()));
             if (chain.size() > 1 && singlePublishedOutput) {
                 out.add(RegionOptimizationUnitSupport.buildFusedSubchainUnit(partition, chain, context, materialized, chainOutputs));
                 index = cursor;

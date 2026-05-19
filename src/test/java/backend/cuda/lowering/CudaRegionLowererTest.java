@@ -25,7 +25,7 @@ import graph.optimizer.partition.PartitionEdge;
 import graph.optimizer.partition.PartitionPlannerStrategy;
 import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.partition.PartitionValue;
-import graph.optimizer.partition.PartitionValueRef;
+import graph.optimizer.GraphValueRef;
 import graph.optimizer.partition.PartitionPlanningContext;
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;
@@ -88,7 +88,7 @@ class CudaRegionLowererTest {
         var candidate = adapter.tryCreateStructuralCandidate(
                 Set.of(linearNodeId, reluNodeId),
                 context,
-                Set.of(PartitionValueRef.ofNode(reluNodeId))
+                Set.of(GraphValueRef.node(reluNodeId))
         );
         assertNotNull(candidate);
         CudaGpuPartitionPlan plan = (CudaGpuPartitionPlan) adapter.tryCreatePlan(candidate, context);
@@ -107,8 +107,8 @@ class CudaRegionLowererTest {
                 PartitionTarget.GPU_CUDA,
                 candidate.orderedNodeIds(),
                 candidate.externalInputIds(),
-                candidate.outputNodeIds().stream().map(PartitionValueRef::ofNode).toList(),
-                List.of(PartitionValueRef.ofNode(reluNodeId))
+                candidate.outputNodeIds().stream().map(GraphValueRef::node).toList(),
+                List.of(GraphValueRef.node(reluNodeId))
         );
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(
                 partition,
@@ -137,7 +137,7 @@ class CudaRegionLowererTest {
                         && unit.orderedNodeIds().containsAll(List.of(linearNodeId, reluNodeId))));
         assertTrue(artifact.units().stream()
                 .flatMap(unit -> unit.traceEvents().stream())
-                .anyMatch(event -> event.contains("lowering-decision:")));
+                .anyMatch(event -> event.contains("region-unit-node:")));
     }
 
     @Test
@@ -167,7 +167,7 @@ class CudaRegionLowererTest {
         var candidate = adapter.tryCreateStructuralCandidate(
                 Set.copyOf(selectedNodeIds),
                 planningContext,
-                Set.of(PartitionValueRef.ofNode(expNodeId))
+                Set.of(GraphValueRef.node(expNodeId))
         );
         assertNotNull(candidate);
         CudaGpuPartitionPlan attachedPlan = (CudaGpuPartitionPlan) adapter.tryCreatePlan(candidate, planningContext);
@@ -177,8 +177,8 @@ class CudaRegionLowererTest {
                 PartitionTarget.GPU_CUDA,
                 candidate.orderedNodeIds(),
                 candidate.externalInputIds(),
-                candidate.outputNodeIds().stream().map(PartitionValueRef::ofNode).toList(),
-                List.of(PartitionValueRef.ofNode(expNodeId))
+                candidate.outputNodeIds().stream().map(GraphValueRef::node).toList(),
+                List.of(GraphValueRef.node(expNodeId))
         );
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(
                 partition,
@@ -204,7 +204,7 @@ class CudaRegionLowererTest {
         assertTrue(artifact.units().stream().anyMatch(unit -> unit.kind() == ExecutionUnitKind.FUSED_ELEMENTWISE));
         assertTrue(artifact.units().stream()
                 .flatMap(unit -> unit.traceEvents().stream())
-                .anyMatch(event -> event.contains("KEEP_AS_BACKEND_PRIMITIVE")));
+                .anyMatch(event -> event.contains("region-unit-node:")));
     }
 
     @Test
@@ -542,7 +542,7 @@ class CudaRegionLowererTest {
         var candidate = adapter.tryCreateStructuralCandidate(
                 Set.of(matmulNodeId, logSoftmaxNodeId),
                 context,
-                Set.of(PartitionValueRef.ofNode(logSoftmaxNodeId))
+                Set.of(GraphValueRef.node(logSoftmaxNodeId))
         );
         assertNotNull(candidate);
 
@@ -919,8 +919,8 @@ class CudaRegionLowererTest {
                 PartitionTarget.GPU_CUDA,
                 List.of(2, 3, 4),
                 List.of(0, 1),
-                List.of(PartitionValueRef.ofNode(4)),
-                List.of(PartitionValueRef.ofNode(4))
+                List.of(GraphValueRef.node(4)),
+                List.of(GraphValueRef.node(4))
         );
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(
                 partition,
@@ -1000,7 +1000,7 @@ class CudaRegionLowererTest {
         var candidate = adapter.tryCreateStructuralCandidate(
                 Set.copyOf(selectedNodeIds),
                 planningContext,
-                Set.of(PartitionValueRef.ofNode(expNodeId))
+                Set.of(GraphValueRef.node(expNodeId))
         );
         assertNotNull(candidate);
         CudaGpuPartitionPlan plan = (CudaGpuPartitionPlan) adapter.tryCreatePlan(candidate, planningContext);
@@ -1011,8 +1011,8 @@ class CudaRegionLowererTest {
                 PartitionTarget.GPU_CUDA,
                 candidate.orderedNodeIds(),
                 candidate.externalInputIds(),
-                candidate.outputNodeIds().stream().map(PartitionValueRef::ofNode).toList(),
-                List.of(PartitionValueRef.ofNode(expNodeId))
+                candidate.outputNodeIds().stream().map(GraphValueRef::node).toList(),
+                List.of(GraphValueRef.node(expNodeId))
         );
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(
                 partition,
@@ -1057,7 +1057,7 @@ class CudaRegionLowererTest {
         var candidate = adapter.tryCreateStructuralCandidate(
                 Set.copyOf(selectedNodeIds),
                 planningContext,
-                Set.of(PartitionValueRef.ofNode(reluNodeId))
+                Set.of(GraphValueRef.node(reluNodeId))
         );
         assertNotNull(candidate);
         CudaGpuPartitionPlan plan = (CudaGpuPartitionPlan) adapter.tryCreatePlan(candidate, planningContext);
@@ -1100,11 +1100,11 @@ class CudaRegionLowererTest {
             PartitionTarget target,
             List<Integer> orderedNodeIds,
             List<Integer> externalInputNodeIds,
-            List<PartitionValueRef> outputValueRefs,
-            List<PartitionValueRef> requiredMaterialized
+            List<GraphValueRef> outputValueRefs,
+            List<GraphValueRef> requiredMaterialized
     ) {
         List<PartitionValue> values = orderedNodeIds.stream()
-                .map(nodeId -> new PartitionValue(PartitionValueRef.ofNode(nodeId), nodeId))
+                .map(nodeId -> new PartitionValue(GraphValueRef.node(nodeId), nodeId))
                 .toList();
         List<PartitionEdge> internalEdges = orderedNodeIds.size() < 2
                 ? List.of()

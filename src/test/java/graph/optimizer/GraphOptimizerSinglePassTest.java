@@ -41,12 +41,11 @@ public class GraphOptimizerSinglePassTest {
         Tensor out = a.add(b).relu();
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
-        OptimizerState optimized = compiled.compileArtifacts().requireLoweringReadyOptimizerState();
 
         assertEquals(1, compiled.compileArtifacts().partitions().size());
-        assertEquals(1, optimized.optimizedRegions().size());
-        assertEquals(PartitionTarget.CPU, optimized.partitions().getFirst().target());
-        assertEquals(1, optimized.memoryPlan().structuralView().optimizedRegionIds().size());
+        assertEquals(1, compiled.compileArtifacts().optimizedRegions().size());
+        assertEquals(PartitionTarget.CPU, compiled.compileArtifacts().partitions().getFirst().target());
+        assertEquals(1, compiled.compileArtifacts().memoryPlan().structuralView().optimizedRegionIds().size());
     }
 
     private static List<Tensor> buildGraph() {

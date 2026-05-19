@@ -84,9 +84,9 @@ final class TransformerMetalPartitionAnalysisTest {
                                 .toList())));
 
         System.out.println("PLANS");
-        compiled.compileArtifacts().backendSelectionCandidates().stream()
-                .filter(candidate -> candidate.plan() instanceof MetalPartitionPlan)
-                .map(candidate -> (MetalPartitionPlan) candidate.plan())
+        compiled.compileArtifacts().plannedPartitions().stream()
+                .filter(partition -> partition.plan() instanceof MetalPartitionPlan)
+                .map(partition -> (MetalPartitionPlan) partition.plan())
                 .forEach(plan -> System.out.println("anchor=" + plan.anchorNodeId()
                         + " nodes=" + plan.nodeIds()
                         + " subgraphExternal=" + plan.externalInputNodeIds()

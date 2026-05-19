@@ -654,7 +654,7 @@ flowchart TD
     Snapshot["CompiledNode.snapshot"]
     Gradients["GradientBindingCollector"]
     Partition["BackendPlanningService"]
-    LowerReady["completeLoweringReadyOptimizerState"]
+    LowerReady["finalizeCompilePlanningArtifacts"]
     Artifacts["CompileArtifacts"]
 
     Root --> Forward --> Canon --> BackwardDecision
@@ -673,7 +673,7 @@ Prepare performs runtime-dependent work:
 
 1. Build a consumer map for compiled nodes.
 2. Create a `BackendPrepareContext` with runtime config, backward support, compiled nodes, and consumers.
-3. Select non-CPU backend candidates with `DefaultBackendSelectionPolicy`.
+3. Select non-CPU planned partitions with `DefaultBackendSelectionPolicy`.
 4. Publish selected backend plans into the prepare context.
 5. Run `LoweringPipeline` when optimized regions and a memory plan exist.
 6. Create a `BackendPrepareDispatcher` from the runtime config.
@@ -712,18 +712,19 @@ flowchart TD
 
 ### Backend Selection
 
-Compile can attach backend plans to partitions. Prepare decides which non-CPU plans are active for this runtime:
+Compile emits planned partitions that keep each partition and attached backend plan together. Prepare decides which
+non-CPU planned partitions are active for this runtime:
 
 - Rejects missing plans as `missing-backend-plan`.
 - Rejects incompatible plans as `backend-not-compatible`.
 - Rejects disabled accelerators as `backend-disabled`.
 - Rejects unavailable required runtimes as `runtime-unavailable`.
 - Applies `AcceleratorPlanCostModel` and can reject small regions as `estimated-work-below-minimum`.
-- CPU plans are not added to `backendSelectionCandidates`; CPU execution is the fallback path.
+- CPU planned partitions are not selected by accelerator policy; CPU execution remains the fallback path.
 
 ### Lowering
 
-`LoweringPipeline` takes optimized regions, the memory plan, backend capabilities, and selected partition plans. It tries registered `RegionLowerer` implementations until one returns a `LoweredRegion`.
+`LoweringPipeline` takes `LoweringInput` with optimized regions, the memory plan, and selected partition plans. It tries registered `RegionLowerer` implementations until one returns a `LoweredRegion`.
 
 Current lowerer roles:
 
@@ -1489,7 +1490,7 @@ The binder walks compiled nodes and decides whether a runtime tensor can share a
 2. Skip leaves.
 3. Skip nodes whose memory binding policy disallows region binding.
 4. Preserve runtime alias views such as `NOOP`, `EXPAND`, `SELECT`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and contiguous `RESHAPE`.
-5. Look up the node's `RegionValueRef`.
+5. Look up the node's `GraphValueRef`.
 6. Look up the `RegionMemoryBinding`.
 7. Require a non-`NONE` binding kind.
 8. Require a slot id.
@@ -1864,10 +1865,10 @@ Backend selection trace tracks:
 
 | Field | Meaning |
 |---|---|
-| `totalCandidates` | Number of non-CPU backend candidates considered. |
+| `totalCandidates` | Number of non-CPU planned partitions considered. |
 | `selectedCount` | Number of accepted backend plans. |
-| `rejectedCount` | Number of rejected candidates. |
-| `decisions` | Per-candidate selection decisions. |
+| `rejectedCount` | Number of rejected planned partitions. |
+| `decisions` | Per-planned-partition selection decisions. |
 
 Example decision:
 

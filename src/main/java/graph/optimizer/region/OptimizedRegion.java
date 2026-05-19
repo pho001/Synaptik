@@ -1,5 +1,7 @@
 package graph.optimizer.region;
 
+import graph.optimizer.GraphValueRef;
+
 import graph.optimizer.partition.Partition;
 import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.partition.ExecutionRegionKind;
@@ -25,7 +27,7 @@ public record OptimizedRegion(
         PartitionTarget target,
         List<ExecutionUnit> executionUnits,
         List<RegionValue> regionValues,
-        List<RegionValueRef> materializedOutputs,
+        List<GraphValueRef> materializedOutputs,
         RegionOptimizationTrace trace
 ) {
     public OptimizedRegion {
@@ -51,7 +53,7 @@ public record OptimizedRegion(
             PartitionTarget target,
             List<ExecutionUnit> executionUnits,
             List<RegionValue> regionValues,
-            List<RegionValueRef> materializedOutputs,
+            List<GraphValueRef> materializedOutputs,
             RegionOptimizationTrace trace
     ) {
         this(

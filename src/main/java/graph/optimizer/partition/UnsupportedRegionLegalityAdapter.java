@@ -1,5 +1,7 @@
 package graph.optimizer.partition;
 
+import graph.optimizer.GraphValueRef;
+
 import graph.CompiledNode;
 
 import java.util.Set;
@@ -51,7 +53,7 @@ public final class UnsupportedRegionLegalityAdapter implements RegionLegalityAda
     public PartitionCandidate tryCreateStructuralCandidate(
             Set<Integer> selectedNodeIds,
             PartitionPlanningContext context,
-            Set<PartitionValueRef> requiredMaterializedValueRefs
+            Set<GraphValueRef> requiredMaterializedValueRefs
     ) {
         return null;
     }

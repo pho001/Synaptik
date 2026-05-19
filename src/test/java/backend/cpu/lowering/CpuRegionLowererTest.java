@@ -31,14 +31,14 @@ import graph.optimizer.partition.PartitionEdge;
 import graph.optimizer.partition.PartitionPlannerStrategy;
 import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.partition.PartitionValue;
-import graph.optimizer.partition.PartitionValueRef;
+import graph.optimizer.GraphValueRef;
 import graph.optimizer.region.DefaultRegionOptimizer;
 import graph.optimizer.region.ExecutionUnit;
 import graph.optimizer.region.ExecutionUnitKind;
 import graph.optimizer.region.OptimizedRegion;
 import graph.optimizer.region.RegionOptimizationContext;
 import graph.optimizer.region.RegionOptimizationTrace;
-import graph.optimizer.region.RegionValueRef;
+import graph.optimizer.GraphValueRef;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import operations.Operation;
@@ -66,8 +66,8 @@ class CpuRegionLowererTest {
                 PartitionTarget.CPU,
                 List.of(2, 3),
                 List.of(0, 1),
-                List.of(PartitionValueRef.ofNode(3)),
-                List.of(PartitionValueRef.ofNode(3))
+                List.of(GraphValueRef.node(3)),
+                List.of(GraphValueRef.node(3))
         );
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(partition, new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults()));
 
@@ -100,8 +100,8 @@ class CpuRegionLowererTest {
                 PartitionTarget.CPU,
                 List.of(2, 3),
                 List.of(0, 1),
-                List.of(PartitionValueRef.ofNode(3)),
-                List.of(PartitionValueRef.ofNode(3))
+                List.of(GraphValueRef.node(3)),
+                List.of(GraphValueRef.node(3))
         );
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(partition, new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults()));
 
@@ -142,8 +142,8 @@ class CpuRegionLowererTest {
                 PartitionTarget.CPU,
                 List.of(2, 3),
                 List.of(0, 1),
-                List.of(PartitionValueRef.ofNode(3)),
-                List.of(PartitionValueRef.ofNode(3))
+                List.of(GraphValueRef.node(3)),
+                List.of(GraphValueRef.node(3))
         );
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(partition, new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults()));
 
@@ -183,8 +183,8 @@ class CpuRegionLowererTest {
                 PartitionTarget.CPU,
                 List.of(2, 3, 4),
                 List.of(0, 1),
-                List.of(PartitionValueRef.ofNode(4)),
-                List.of(PartitionValueRef.ofNode(4))
+                List.of(GraphValueRef.node(4)),
+                List.of(GraphValueRef.node(4))
         );
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(partition, new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults()));
 
@@ -221,8 +221,8 @@ class CpuRegionLowererTest {
                 PartitionTarget.CPU,
                 List.of(2, 3),
                 List.of(0, 1),
-                List.of(PartitionValueRef.ofNode(2), PartitionValueRef.ofNode(3)),
-                List.of(PartitionValueRef.ofNode(2), PartitionValueRef.ofNode(3))
+                List.of(GraphValueRef.node(2), GraphValueRef.node(3)),
+                List.of(GraphValueRef.node(2), GraphValueRef.node(3))
         );
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(partition, new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults()));
 
@@ -261,8 +261,8 @@ class CpuRegionLowererTest {
                 PartitionTarget.CPU,
                 List.of(matmulNodeId, compareNodeId),
                 externalInputNodeIds,
-                List.of(PartitionValueRef.ofNode(compareNodeId)),
-                List.of(PartitionValueRef.ofNode(compareNodeId))
+                List.of(GraphValueRef.node(compareNodeId)),
+                List.of(GraphValueRef.node(compareNodeId))
         );
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(partition, new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults()));
 
@@ -317,8 +317,8 @@ class CpuRegionLowererTest {
                 PartitionTarget.CPU,
                 orderedNodeIds,
                 externalInputNodeIds(compiledNodes, orderedNodeIds),
-                List.of(PartitionValueRef.ofNode(addNodeId)),
-                List.of(PartitionValueRef.ofNode(addNodeId))
+                List.of(GraphValueRef.node(addNodeId)),
+                List.of(GraphValueRef.node(addNodeId))
         );
         OptimizedRegion region = new OptimizedRegion(
                 partition.partitionId(),
@@ -328,7 +328,7 @@ class CpuRegionLowererTest {
                         .map(nodeId -> singleOpUnit(partition, compiledNodes, nodeId, selectedNodeIds))
                         .toList(),
                 List.of(),
-                List.of(RegionValueRef.ofNode(addNodeId)),
+                List.of(GraphValueRef.node(addNodeId)),
                 new RegionOptimizationTrace(List.of("test-native-prefix-split"))
         );
 
@@ -370,8 +370,8 @@ class CpuRegionLowererTest {
                 PartitionTarget.CPU,
                 List.of(2, 3),
                 List.of(0, 1),
-                List.of(PartitionValueRef.ofNode(3)),
-                List.of(PartitionValueRef.ofNode(3))
+                List.of(GraphValueRef.node(3)),
+                List.of(GraphValueRef.node(3))
         );
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(partition, new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults()));
 
@@ -398,8 +398,8 @@ class CpuRegionLowererTest {
                 PartitionTarget.CPU,
                 List.of(1, 2, 3),
                 List.of(0),
-                List.of(PartitionValueRef.ofNode(3)),
-                List.of(PartitionValueRef.ofNode(3))
+                List.of(GraphValueRef.node(3)),
+                List.of(GraphValueRef.node(3))
         );
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(partition, new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults()));
 
@@ -416,7 +416,8 @@ class CpuRegionLowererTest {
         assertEquals(backend.lowering.LoweringFamily.FUSED_NATIVE, lowered.units().getLast().loweringFamily());
         assertEquals(List.of(0), lowered.units().getLast().inputNodeIds());
         RegionExecutionPlan regionPlan = assertInstanceOf(RegionExecutionPlan.class, lowered.units().getLast().artifact());
-        FusedOperationPreparation preparation = assertInstanceOf(CpuFusedRegionPayload.class, regionPlan.backendPayload()).preparation();
+        FusedOperationPreparation preparation = assertInstanceOf(CpuFusedRegionPayload.class, regionPlan.backendPayload())
+                .requirePreparation(FusedOperationPreparation.class);
         assertEquals(1, preparation.runtimeInputs().size());
         assertEquals(base, preparation.runtimeInputs().getFirst());
     }
@@ -426,11 +427,11 @@ class CpuRegionLowererTest {
             PartitionTarget target,
             List<Integer> orderedNodeIds,
             List<Integer> externalInputNodeIds,
-            List<PartitionValueRef> outputValueRefs,
-            List<PartitionValueRef> requiredMaterialized
+            List<GraphValueRef> outputValueRefs,
+            List<GraphValueRef> requiredMaterialized
     ) {
         List<PartitionValue> values = orderedNodeIds.stream()
-                .map(nodeId -> new PartitionValue(PartitionValueRef.ofNode(nodeId), nodeId))
+                .map(nodeId -> new PartitionValue(GraphValueRef.node(nodeId), nodeId))
                 .toList();
         List<PartitionEdge> internalEdges = orderedNodeIds.size() < 2
                 ? List.of()
@@ -527,16 +528,16 @@ class CpuRegionLowererTest {
                 partition.target(),
                 node.inputIds().stream()
                         .filter(selectedNodeIds::contains)
-                        .map(RegionValueRef::ofNode)
+                        .map(GraphValueRef::node)
                         .toList(),
-                List.of(RegionValueRef.ofNode(nodeId)),
-                partition.requiredMaterializedValueRefs().contains(PartitionValueRef.ofNode(nodeId))
-                        ? List.of(RegionValueRef.ofNode(nodeId))
+                List.of(GraphValueRef.node(nodeId)),
+                partition.requiredMaterializedValueRefs().contains(GraphValueRef.node(nodeId))
+                        ? List.of(GraphValueRef.node(nodeId))
                         : List.of(),
-                partition.outputValueRefs().contains(PartitionValueRef.ofNode(nodeId))
-                        || partition.requiredMaterializedValueRefs().contains(PartitionValueRef.ofNode(nodeId))
+                partition.outputValueRefs().contains(GraphValueRef.node(nodeId))
+                        || partition.requiredMaterializedValueRefs().contains(GraphValueRef.node(nodeId))
                         ? List.of()
-                        : List.of(RegionValueRef.ofNode(nodeId)),
+                        : List.of(GraphValueRef.node(nodeId)),
                 List.of(nodeId),
                 Math.max(1L, node.flatDataSize()),
                 node.inputIds().stream()

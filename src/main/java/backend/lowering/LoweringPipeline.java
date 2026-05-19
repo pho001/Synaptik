@@ -1,7 +1,6 @@
 package backend.lowering;
 
 import graph.optimizer.region.OptimizedRegion;
-import graph.optimizer.state.OptimizerState;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,33 +28,36 @@ public final class LoweringPipeline {
     /**
      * Lowers optimized regions into backend artifacts.
      *
-     * @param optimized optimizer state after partition/fusion/memory planning
+     * @param input lowering input after partition/fusion/memory planning
      * @param capabilities backend capabilities available for this prepare step
      * @param context lowering context containing runtime config and selected partition plans
      * @return lowering state containing artifacts and trace
-     * @throws IllegalStateException if the optimizer state has no finalized memory plan
+     * @throws IllegalStateException if the input has no finalized memory plan
      */
     public LoweringState lower(
-            OptimizerState optimized,
+            LoweringInput input,
             BackendCapabilities capabilities,
             LoweringContext context
     ) {
-        Objects.requireNonNull(optimized, "optimized cannot be null");
+        Objects.requireNonNull(input, "input cannot be null");
         Objects.requireNonNull(capabilities, "capabilities cannot be null");
         Objects.requireNonNull(context, "context cannot be null");
-        if (optimized.memoryPlan() == null) {
+        if (input.memoryPlan() == null) {
             throw new IllegalStateException("Lowering requires a finalized memory plan.");
         }
+        LoweringInput effectiveInput = context.partitionPlansById().isEmpty()
+                ? input
+                : input.withPartitionPlans(context.partitionPlansById());
         LoweringContext effectiveContext = context.withPartitionPlans(
                 context.partitionPlansById().isEmpty()
-                        ? optimized.partitionPlansById()
+                        ? input.partitionPlansById()
                         : context.partitionPlansById()
         );
         List<LoweredRegion> loweredRegions = new ArrayList<>();
         List<BackendWorkspaceRequirement> requirements = new ArrayList<>();
         List<String> events = new ArrayList<>();
-        for (OptimizedRegion region : optimized.optimizedRegions()) {
-            LoweringRequest request = new LoweringRequest(region, optimized.memoryPlan(), capabilities, effectiveContext);
+        for (OptimizedRegion region : effectiveInput.optimizedRegions()) {
+            LoweringRequest request = new LoweringRequest(region, effectiveInput.memoryPlan(), capabilities, effectiveContext);
             LoweringResult result = lowerRegion(request);
             if (result == null || result.loweredRegion() == null) {
                 continue;
@@ -65,7 +67,7 @@ public final class LoweringPipeline {
             events.add("lowered:" + region.regionId());
         }
         return new LoweringState(
-                optimized,
+                effectiveInput,
                 new LoweringArtifacts(loweredRegions, requirements),
                 new LoweringTrace(events)
         );

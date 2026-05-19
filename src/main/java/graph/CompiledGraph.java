@@ -10,20 +10,13 @@ import graph.compile.GraphCompiler;
 import graph.execution.PreparedExecution;
 import graph.execution.PublicationPolicy;
 import graph.execution.trace.CompileTrace;
-import graph.execution.trace.PartitionCompileTrace;
 import graph.execution.trace.RunTrace;
 import graph.optimizer.GraphOptimizer;
-import graph.optimizer.memory.MemoryPlan;
-import graph.optimizer.state.OptimizerState;
-import graph.optimizer.partition.BackendCandidatePartition;
-import graph.optimizer.partition.Partition;
-import graph.optimizer.partition.PartitionPlan;
 import tensor.CompileMode;
 import tensor.Tensor;
 import training.optimizer.TrainingOptimizer;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Public facade for compiling a tensor expression into an immutable execution plan.
@@ -482,54 +475,6 @@ public class CompiledGraph {
             throw new IllegalStateException("CompiledGraph has not been compiled.");
         }
         return artifacts;
-    }
-
-    Map<Tensor, CompiledGradientBinding> compiledGradients() {
-        return compileArtifacts().gradientBindings();
-    }
-
-    CompiledGradientBinding forwardSeedGradient() {
-        return compileArtifacts().forwardSeedGradient();
-    }
-
-    List<CompiledNode> compiledNodesView() {
-        return compileArtifacts().compiledNodes();
-    }
-
-    int forwardBoundaryNodeId() {
-        return compileArtifacts().forwardBoundaryNodeId();
-    }
-
-    CompiledNode compiledForwardOutputNode() {
-        return compileArtifacts().forwardOutputNode();
-    }
-
-    Map<Tensor, CompiledGradientBinding> compiledGradientBindings() {
-        return compileArtifacts().gradientBindings();
-    }
-
-    MemoryPlan compiledMemoryPlan() {
-        return compileArtifacts().memoryPlan();
-    }
-
-    OptimizerState compiledOptimizerState() {
-        return compileArtifacts().optimizerState();
-    }
-
-    List<PartitionPlan> compiledBackendPlansView() {
-        return compileArtifacts().backendPlans();
-    }
-
-    List<Partition> compiledPartitionsView() {
-        return compileArtifacts().partitions();
-    }
-
-    List<BackendCandidatePartition> compiledBackendSelectionCandidatesView() {
-        return compileArtifacts().backendSelectionCandidates();
-    }
-
-    PartitionCompileTrace compiledPartitionPlanningTrace() {
-        return compileArtifacts().partitionPlanningTrace();
     }
 
 }

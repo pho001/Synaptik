@@ -4,11 +4,7 @@ import graph.CompiledNode;
 import graph.optimizer.partition.Partition;
 import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.partition.PartitionValue;
-import graph.optimizer.partition.PartitionValueRef;
-import graph.optimizer.region.lowering.DefaultRegionLoweringPolicy;
-import graph.optimizer.region.lowering.RegionLoweringDecision;
-import graph.optimizer.region.lowering.RegionLoweringPolicy;
-import graph.optimizer.region.lowering.RegionLoweringPolicyContext;
+import graph.optimizer.GraphValueRef;
 import operations.Operation;
 
 import java.util.ArrayList;
@@ -17,8 +13,6 @@ import java.util.List;
 import java.util.Set;
 
 final class RegionOptimizationUnitSupport {
-    private static final RegionLoweringPolicy LOWERING_POLICY = new DefaultRegionLoweringPolicy();
-
     private RegionOptimizationUnitSupport() {
     }
 
@@ -46,22 +40,20 @@ final class RegionOptimizationUnitSupport {
     }
 
     static ExecutionUnit buildFusedUnit(Partition partition, RegionOptimizationContext context) {
-        List<RegionValueRef> outputs = partition.outputValueRefs().stream().map(RegionOptimizationUnitSupport::toRegionValueRef).toList();
-        Set<PartitionValueRef> outputSet = Set.copyOf(partition.outputValueRefs());
-        List<RegionValueRef> virtuals = partition.values().stream()
+        List<GraphValueRef> outputs = List.copyOf(partition.outputValueRefs());
+        Set<GraphValueRef> outputSet = Set.copyOf(partition.outputValueRefs());
+        List<GraphValueRef> virtuals = partition.values().stream()
                 .map(PartitionValue::ref)
                 .filter(ref -> !outputSet.contains(ref))
-                .map(RegionOptimizationUnitSupport::toRegionValueRef)
                 .toList();
-        List<RegionValueRef> materializedOutputs = partition.requiredMaterializedValueRefs().stream()
+        List<GraphValueRef> materializedOutputs = partition.requiredMaterializedValueRefs().stream()
                 .filter(outputSet::contains)
-                .map(RegionOptimizationUnitSupport::toRegionValueRef)
                 .toList();
         return new ExecutionUnit(
                 partition.partitionId() + "-unit-0",
                 ExecutionUnitKind.FUSED_ELEMENTWISE,
                 partition.target(),
-                partition.externalInputNodeIds().stream().map(RegionValueRef::ofNode).toList(),
+                partition.externalInputNodeIds().stream().map(GraphValueRef::node).toList(),
                 outputs,
                 materializedOutputs,
                 virtuals,
@@ -80,7 +72,7 @@ final class RegionOptimizationUnitSupport {
     static List<ExecutionUnit> buildSingleOpUnits(Partition partition, RegionOptimizationContext context) {
         List<ExecutionUnit> out = new ArrayList<>(partition.orderedNodeIds().size());
         Set<Integer> selected = Set.copyOf(partition.orderedNodeIds());
-        Set<PartitionValueRef> materialized = Set.copyOf(partition.requiredMaterializedValueRefs());
+        Set<GraphValueRef> materialized = Set.copyOf(partition.requiredMaterializedValueRefs());
         for (int nodeId : partition.orderedNodeIds()) {
             CompiledNode node = context.compiledNode(nodeId);
             if (node == null) {
@@ -96,18 +88,18 @@ final class RegionOptimizationUnitSupport {
             int nodeId,
             CompiledNode node,
             Set<Integer> selected,
-            Set<PartitionValueRef> materialized,
+            Set<GraphValueRef> materialized,
             RegionOptimizationContext context
     ) {
-        List<RegionValueRef> inputRefs = node.inputIds().stream()
+        List<GraphValueRef> inputRefs = node.inputIds().stream()
                 .filter(selected::contains)
-                .map(RegionValueRef::ofNode)
+                .map(GraphValueRef::node)
                 .toList();
-        PartitionValueRef selfRef = PartitionValueRef.ofNode(nodeId);
-        List<RegionValueRef> outputRefs = List.of(toRegionValueRef(selfRef));
+        GraphValueRef selfRef = GraphValueRef.node(nodeId);
+        List<GraphValueRef> outputRefs = List.of(selfRef);
         boolean continuationOutput = partition.outputValueRefs().contains(selfRef) && !materialized.contains(selfRef);
-        List<RegionValueRef> materializedOutputs = materialized.contains(selfRef) ? outputRefs : List.of();
-        List<RegionValueRef> virtualOutputs = materialized.contains(selfRef) || continuationOutput ? List.of() : outputRefs;
+        List<GraphValueRef> materializedOutputs = materialized.contains(selfRef) ? outputRefs : List.of();
+        List<GraphValueRef> virtualOutputs = materialized.contains(selfRef) || continuationOutput ? List.of() : outputRefs;
         return new ExecutionUnit(
                 partition.partitionId() + "-unit-" + nodeId,
                 ExecutionUnitKind.UNIT_KERNEL,
@@ -132,8 +124,8 @@ final class RegionOptimizationUnitSupport {
             Partition partition,
             List<Integer> chain,
             RegionOptimizationContext context,
-            Set<PartitionValueRef> materialized,
-            List<RegionValueRef> outputRefs
+            Set<GraphValueRef> materialized,
+            List<GraphValueRef> outputRefs
     ) {
         return buildSubchainUnit(
                 partition,
@@ -151,8 +143,8 @@ final class RegionOptimizationUnitSupport {
             Partition partition,
             List<Integer> chain,
             RegionOptimizationContext context,
-            Set<PartitionValueRef> materialized,
-            List<RegionValueRef> outputRefs
+            Set<GraphValueRef> materialized,
+            List<GraphValueRef> outputRefs
     ) {
         return buildSubchainUnit(
                 partition,
@@ -170,14 +162,14 @@ final class RegionOptimizationUnitSupport {
             Partition partition,
             List<Integer> chain,
             RegionOptimizationContext context,
-            Set<PartitionValueRef> materialized,
-            List<RegionValueRef> outputRefs,
+            Set<GraphValueRef> materialized,
+            List<GraphValueRef> outputRefs,
             ExecutionUnitKind kind,
             String unitSuffix,
             String tracePrefix
     ) {
         Set<Integer> chainSet = Set.copyOf(chain);
-        LinkedHashSet<RegionValueRef> inputRefs = new LinkedHashSet<>();
+        LinkedHashSet<GraphValueRef> inputRefs = new LinkedHashSet<>();
         LinkedHashSet<Integer> externalInputIds = new LinkedHashSet<>();
         for (int nodeId : chain) {
             CompiledNode node = context.compiledNode(nodeId);
@@ -186,15 +178,15 @@ final class RegionOptimizationUnitSupport {
             }
             for (int inputId : node.inputIds()) {
                 if (!chainSet.contains(inputId)) {
-                    inputRefs.add(RegionValueRef.ofNode(inputId));
+                    inputRefs.add(GraphValueRef.node(inputId));
                     externalInputIds.add(inputId);
                 }
             }
         }
-        List<RegionValueRef> materializedOutputs = outputRefs.stream()
-                .filter(ref -> materialized.contains(PartitionValueRef.ofNode(nodeIdFromRef(ref))))
+        List<GraphValueRef> materializedOutputs = outputRefs.stream()
+                .filter(materialized::contains)
                 .toList();
-        List<RegionValueRef> virtualOutputs = outputRefs.stream()
+        List<GraphValueRef> virtualOutputs = outputRefs.stream()
                 .filter(ref -> !materializedOutputs.contains(ref))
                 .toList();
         long estimatedWork = chain.stream()
@@ -233,33 +225,25 @@ final class RegionOptimizationUnitSupport {
         if (partition == null || nodeIds == null || nodeIds.isEmpty() || context == null) {
             return List.copyOf(events);
         }
-        RegionLoweringPolicyContext policyContext = new RegionLoweringPolicyContext(
-                partition.target(),
-                partition.partitionId(),
-                partition.orderedNodeIds(),
-                context
-        );
         for (int nodeId : nodeIds) {
             CompiledNode node = context.compiledNode(nodeId);
-            RegionLoweringDecision decision = LOWERING_POLICY.decide(policyContext, node);
-            events.add("lowering-decision:node=" + nodeId
-                    + ",semantic=" + decision.semanticLevel()
-                    + ",action=" + decision.action()
-                    + ",forms=" + decision.forms()
-                    + ",reason=" + decision.reason());
+            Operation.OpType opType = node == null || node.operation() == null ? null : node.operation().opType();
+            events.add("region-unit-node:node=" + nodeId
+                    + ",op=" + (opType == null ? "UNKNOWN" : opType.name())
+                    + ",target=" + partition.target().name());
         }
         return List.copyOf(events);
     }
 
-    static List<RegionValueRef> unitOutputsForChain(
+    static List<GraphValueRef> unitOutputsForChain(
             Partition partition,
             List<Integer> chain,
             RegionOptimizationContext context
     ) {
         Set<Integer> chainSet = Set.copyOf(chain);
-        LinkedHashSet<RegionValueRef> outputRefs = new LinkedHashSet<>();
+        LinkedHashSet<GraphValueRef> outputRefs = new LinkedHashSet<>();
         for (int nodeId : chain) {
-            boolean escapesUnit = partition.outputValueRefs().contains(PartitionValueRef.ofNode(nodeId));
+            boolean escapesUnit = partition.outputValueRefs().contains(GraphValueRef.node(nodeId));
             if (!escapesUnit) {
                 for (int candidateId : partition.orderedNodeIds()) {
                     if (chainSet.contains(candidateId)) {
@@ -273,11 +257,11 @@ final class RegionOptimizationUnitSupport {
                 }
             }
             if (escapesUnit) {
-                outputRefs.add(RegionValueRef.ofNode(nodeId));
+                outputRefs.add(GraphValueRef.node(nodeId));
             }
         }
         if (outputRefs.isEmpty()) {
-            outputRefs.add(RegionValueRef.ofNode(chain.getLast()));
+            outputRefs.add(GraphValueRef.node(chain.getLast()));
         }
         return List.copyOf(outputRefs);
     }
@@ -368,18 +352,4 @@ final class RegionOptimizationUnitSupport {
         return true;
     }
 
-    static RegionValueRef toRegionValueRef(PartitionValueRef ref) {
-        return RegionValueRef.ofNode(ref.producerNodeId());
-    }
-
-    private static int nodeIdFromRef(RegionValueRef ref) {
-        if (ref == null || ref.valueId() == null || !ref.valueId().startsWith("node-")) {
-            return -1;
-        }
-        try {
-            return Integer.parseInt(ref.valueId().substring("node-".length()));
-        } catch (NumberFormatException ignored) {
-            return -1;
-        }
-    }
 }

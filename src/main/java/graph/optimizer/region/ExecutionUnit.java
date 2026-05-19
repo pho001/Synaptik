@@ -1,5 +1,7 @@
 package graph.optimizer.region;
 
+import graph.optimizer.GraphValueRef;
+
 import graph.optimizer.partition.PartitionTarget;
 
 import java.util.List;
@@ -27,10 +29,10 @@ public record ExecutionUnit(
         String unitId,
         ExecutionUnitKind kind,
         PartitionTarget target,
-        List<RegionValueRef> inputValueRefs,
-        List<RegionValueRef> outputValueRefs,
-        List<RegionValueRef> materializedOutputs,
-        List<RegionValueRef> virtualOutputs,
+        List<GraphValueRef> inputValueRefs,
+        List<GraphValueRef> outputValueRefs,
+        List<GraphValueRef> materializedOutputs,
+        List<GraphValueRef> virtualOutputs,
         List<Integer> orderedNodeIds,
         long estimatedWork,
         List<Integer> requiredPreparedInputNodeIds,

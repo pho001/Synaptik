@@ -1,5 +1,7 @@
 package graph.optimizer.partition;
 
+import graph.optimizer.GraphValueRef;
+
 import graph.execution.trace.PartitionDecisionTrace;
 import graph.optimizer.partition.cost.AcceleratorPartitionScoreModel;
 
@@ -37,9 +39,9 @@ public record Partition(
         List<PartitionValue> values,
         List<PartitionEdge> internalEdges,
         List<Integer> externalInputNodeIds,
-        List<PartitionValueRef> outputValueRefs,
+        List<GraphValueRef> outputValueRefs,
         int anchorSeedNodeId,
-        List<PartitionValueRef> requiredMaterializedValueRefs,
+        List<GraphValueRef> requiredMaterializedValueRefs,
         List<PartitionEdge> boundaryEdges,
         List<PartitionBoundaryReason> boundaryReasons,
         long estimatedWork,
@@ -79,9 +81,9 @@ public record Partition(
             List<PartitionValue> values,
             List<PartitionEdge> internalEdges,
             List<Integer> externalInputNodeIds,
-            List<PartitionValueRef> outputValueRefs,
+            List<GraphValueRef> outputValueRefs,
             int anchorSeedNodeId,
-            List<PartitionValueRef> requiredMaterializedValueRefs,
+            List<GraphValueRef> requiredMaterializedValueRefs,
             List<PartitionEdge> boundaryEdges,
             List<PartitionBoundaryReason> boundaryReasons,
             long estimatedWork,

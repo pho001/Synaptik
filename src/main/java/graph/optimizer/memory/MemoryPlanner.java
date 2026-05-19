@@ -5,7 +5,7 @@ import graph.optimizer.region.OptimizedRegion;
 import graph.optimizer.region.ExecutionUnit;
 import graph.optimizer.region.MaterializationDecision;
 import graph.optimizer.region.RegionValue;
-import graph.optimizer.region.RegionValueRef;
+import graph.optimizer.GraphValueRef;
 import graph.optimizer.region.ValueTypeContract;
 import graph.optimizer.region.ValueTransportKind;
 import graph.optimizer.state.OptimizerState;
@@ -87,7 +87,7 @@ public final class MemoryPlanner {
                     artifacts.regionMemoryBindings(),
                     artifacts.regionSlotByValueRef(),
                     artifacts.regionSlotSizes(),
-                    artifacts.tensorToRegionValueRef(),
+                    artifacts.tensorToGraphValueRef(),
                     artifacts.handoffRequirements(),
                     Map.of());
         }
@@ -172,7 +172,7 @@ public final class MemoryPlanner {
                 artifacts.regionMemoryBindings(),
                 artifacts.regionSlotByValueRef(),
                 artifacts.regionSlotSizes(),
-                artifacts.tensorToRegionValueRef(),
+                artifacts.tensorToGraphValueRef(),
                 artifacts.handoffRequirements(),
                 runtimeBindingPolicies
         );
@@ -204,13 +204,13 @@ public final class MemoryPlanner {
         }
         Map<Tensor, Integer> graphLastUseByTensor = buildGraphLastUseByTensor(state);
         List<String> regionIds = optimizedRegions.stream().map(OptimizedRegion::regionId).toList();
-        LinkedHashSet<RegionValueRef> materialized = new LinkedHashSet<>();
-        LinkedHashSet<RegionValueRef> continuation = new LinkedHashSet<>();
-        LinkedHashSet<RegionValueRef> virtual = new LinkedHashSet<>();
-        LinkedHashMap<RegionValueRef, StructuralValueFlowBuilder> flowBuilders = new LinkedHashMap<>();
-        LinkedHashMap<RegionValueRef, RegionValueDescriptor> descriptors = new LinkedHashMap<>();
+        LinkedHashSet<GraphValueRef> materialized = new LinkedHashSet<>();
+        LinkedHashSet<GraphValueRef> continuation = new LinkedHashSet<>();
+        LinkedHashSet<GraphValueRef> virtual = new LinkedHashSet<>();
+        LinkedHashMap<GraphValueRef, StructuralValueFlowBuilder> flowBuilders = new LinkedHashMap<>();
+        LinkedHashMap<GraphValueRef, RegionValueDescriptor> descriptors = new LinkedHashMap<>();
         LinkedHashMap<String, Integer> unitStepById = new LinkedHashMap<>();
-        LinkedHashMap<RegionValueRef, Integer> producerStepByValue = new LinkedHashMap<>();
+        LinkedHashMap<GraphValueRef, Integer> producerStepByValue = new LinkedHashMap<>();
         int nextStep = 0;
 
         for (OptimizedRegion region : optimizedRegions) {
@@ -240,13 +240,13 @@ public final class MemoryPlanner {
             }
             for (ExecutionUnit unit : region.executionUnits()) {
                 unitStepById.put(unit.unitId(), nextStep++);
-                for (RegionValueRef outputValueRef : unit.outputValueRefs()) {
+                for (GraphValueRef outputValueRef : unit.outputValueRefs()) {
                     flowBuilders.computeIfAbsent(outputValueRef, ignored -> new StructuralValueFlowBuilder(outputValueRef))
                             .producerRegion(region.regionId())
                             .producerUnit(unit.unitId());
                     producerStepByValue.put(outputValueRef, unitStepById.get(unit.unitId()));
                 }
-                for (RegionValueRef inputValueRef : unit.inputValueRefs()) {
+                for (GraphValueRef inputValueRef : unit.inputValueRefs()) {
                     StructuralValueFlowBuilder builder = flowBuilders.get(inputValueRef);
                     if (builder == null) {
                         continue;
@@ -267,12 +267,12 @@ public final class MemoryPlanner {
                 List.copyOf(virtual),
                 valueFlows
         );
-        LinkedHashMap<RegionValueRef, RegionValueLifetime> regionValueLifetimes = new LinkedHashMap<>();
-        LinkedHashMap<RegionValueRef, MaterializationPlanEntry> materializationPlan = new LinkedHashMap<>();
-        LinkedHashMap<RegionValueRef, RegionMemoryBinding> regionMemoryBindings = new LinkedHashMap<>();
-        LinkedHashMap<RegionValueRef, Integer> regionSlotByValueRef = new LinkedHashMap<>();
+        LinkedHashMap<GraphValueRef, RegionValueLifetime> regionValueLifetimes = new LinkedHashMap<>();
+        LinkedHashMap<GraphValueRef, MaterializationPlanEntry> materializationPlan = new LinkedHashMap<>();
+        LinkedHashMap<GraphValueRef, RegionMemoryBinding> regionMemoryBindings = new LinkedHashMap<>();
+        LinkedHashMap<GraphValueRef, Integer> regionSlotByValueRef = new LinkedHashMap<>();
         LinkedHashMap<Integer, Integer> regionSlotSizes = new LinkedHashMap<>();
-        IdentityHashMap<Tensor, RegionValueRef> tensorToRegionValueRef = new IdentityHashMap<>();
+        IdentityHashMap<Tensor, GraphValueRef> tensorToGraphValueRef = new IdentityHashMap<>();
         ArrayList<RegionHandoffRequirement> handoffRequirements = new ArrayList<>();
 
         for (StructuralValueFlow flow : valueFlows) {
@@ -280,7 +280,7 @@ public final class MemoryPlanner {
             if (descriptor == null) {
                 continue;
             }
-            tensorToRegionValueRef.put(descriptor.semanticTensor(), flow.valueRef());
+            tensorToGraphValueRef.put(descriptor.semanticTensor(), flow.valueRef());
             int birthStep = producerStepByValue.getOrDefault(flow.valueRef(), 0);
             int lastUseStep = birthStep;
             for (String consumerUnitId : flow.consumerUnitIds()) {
@@ -349,7 +349,7 @@ public final class MemoryPlanner {
                 Map.copyOf(regionMemoryBindings),
                 Map.copyOf(regionSlotByValueRef),
                 Map.copyOf(regionSlotSizes),
-                Map.copyOf(tensorToRegionValueRef),
+                Map.copyOf(tensorToGraphValueRef),
                 List.copyOf(handoffRequirements)
         );
     }
@@ -411,8 +411,8 @@ public final class MemoryPlanner {
                 .toList();
         ArrayList<RegionBindingState> active = new ArrayList<>();
         ArrayList<RegionBindingState> free = new ArrayList<>();
-        LinkedHashMap<RegionValueRef, RegionMemoryBinding> bindings = new LinkedHashMap<>();
-        LinkedHashMap<RegionValueRef, Integer> slotByValueRef = new LinkedHashMap<>();
+        LinkedHashMap<GraphValueRef, RegionMemoryBinding> bindings = new LinkedHashMap<>();
+        LinkedHashMap<GraphValueRef, Integer> slotByValueRef = new LinkedHashMap<>();
         LinkedHashMap<Integer, Integer> slotSizes = new LinkedHashMap<>();
         int nextBindingId = 0;
         for (RegionValueLifetime lifetime : allocatable) {
@@ -515,14 +515,14 @@ public final class MemoryPlanner {
     }
 
     private static final class StructuralValueFlowBuilder {
-        private final RegionValueRef valueRef;
+        private final GraphValueRef valueRef;
         private MaterializationDecision decision = MaterializationDecision.MATERIALIZE;
         private String producerRegionId;
         private String producerUnitId;
         private final LinkedHashSet<String> consumerRegionIds = new LinkedHashSet<>();
         private final LinkedHashSet<String> consumerUnitIds = new LinkedHashSet<>();
 
-        private StructuralValueFlowBuilder(RegionValueRef valueRef) {
+        private StructuralValueFlowBuilder(GraphValueRef valueRef) {
             this.valueRef = valueRef;
         }
 
@@ -880,14 +880,14 @@ public final class MemoryPlanner {
     }
 
     private record BindingAssignment(
-            Map<RegionValueRef, RegionMemoryBinding> bindingsByValueRef,
-            Map<RegionValueRef, Integer> slotByValueRef,
+            Map<GraphValueRef, RegionMemoryBinding> bindingsByValueRef,
+            Map<GraphValueRef, Integer> slotByValueRef,
             Map<Integer, Integer> slotSizes
     ) {
     }
 
     private record RegionValueDescriptor(
-            RegionValueRef valueRef,
+            GraphValueRef valueRef,
             MaterializationDecision decision,
             ValueTypeContract typeContract,
             Tensor semanticTensor,
@@ -899,12 +899,12 @@ public final class MemoryPlanner {
 
     private record RegionValuePlanningArtifacts(
             StructuralMemoryView structuralView,
-            Map<RegionValueRef, RegionValueLifetime> regionValueLifetimes,
-            Map<RegionValueRef, MaterializationPlanEntry> materializationPlan,
-            Map<RegionValueRef, RegionMemoryBinding> regionMemoryBindings,
-            Map<RegionValueRef, Integer> regionSlotByValueRef,
+            Map<GraphValueRef, RegionValueLifetime> regionValueLifetimes,
+            Map<GraphValueRef, MaterializationPlanEntry> materializationPlan,
+            Map<GraphValueRef, RegionMemoryBinding> regionMemoryBindings,
+            Map<GraphValueRef, Integer> regionSlotByValueRef,
             Map<Integer, Integer> regionSlotSizes,
-            Map<Tensor, RegionValueRef> tensorToRegionValueRef,
+            Map<Tensor, GraphValueRef> tensorToGraphValueRef,
             List<RegionHandoffRequirement> handoffRequirements
     ) {
         private static RegionValuePlanningArtifacts empty() {

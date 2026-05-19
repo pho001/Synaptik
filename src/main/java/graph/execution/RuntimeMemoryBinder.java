@@ -6,7 +6,7 @@ import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.optimizer.memory.MemoryPlan;
 import graph.optimizer.memory.RegionMemoryBinding;
 import graph.optimizer.memory.RegionMemoryBindingKind;
-import graph.optimizer.region.RegionValueRef;
+import graph.optimizer.GraphValueRef;
 import tensor.storage.BFloat16Storage;
 import tensor.storage.BoolStorage;
 import tensor.DataType;
@@ -97,7 +97,7 @@ final class RuntimeMemoryBinder {
             Map<Integer, long[]> i64Slots,
             Map<Integer, byte[]> boolSlots
     ) {
-        RegionValueRef valueRef = memoryPlan.regionValueRefOf(semanticTensor);
+        GraphValueRef valueRef = memoryPlan.graphValueRefOf(semanticTensor);
         if (valueRef == null) {
             return false;
         }

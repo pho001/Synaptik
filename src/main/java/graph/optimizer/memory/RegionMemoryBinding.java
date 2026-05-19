@@ -1,6 +1,6 @@
 package graph.optimizer.memory;
 
-import graph.optimizer.region.RegionValueRef;
+import graph.optimizer.GraphValueRef;
 import tensor.DataType;
 
 import java.util.Objects;
@@ -8,7 +8,7 @@ import java.util.Objects;
 /**
  * Runtime memory binding selected for a region value.
  *
- * @param valueRef region value reference
+ * @param valueRef graph value reference
  * @param kind binding kind
  * @param bindingId slot or continuation id, absent for {@link RegionMemoryBindingKind#NONE}
  * @param storageType dtype used for storage
@@ -16,7 +16,7 @@ import java.util.Objects;
  * @param requiresAllocation whether runtime binding must allocate storage
  */
 public record RegionMemoryBinding(
-        RegionValueRef valueRef,
+        GraphValueRef valueRef,
         RegionMemoryBindingKind kind,
         Integer bindingId,
         DataType storageType,

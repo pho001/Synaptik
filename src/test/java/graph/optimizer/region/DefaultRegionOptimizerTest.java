@@ -9,7 +9,7 @@ import graph.optimizer.partition.PartitionEdge;
 import graph.optimizer.partition.PartitionPlannerStrategy;
 import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.partition.PartitionValue;
-import graph.optimizer.partition.PartitionValueRef;
+import graph.optimizer.GraphValueRef;
 import graph.optimizer.partition.cost.AcceleratorPartitionScoreModel;
 import graph.optimizer.region.lowering.OperationSemanticClassifier;
 import graph.optimizer.region.lowering.OperationSemanticLevel;
@@ -39,8 +39,8 @@ class DefaultRegionOptimizerTest {
                 PartitionTarget.CPU,
                 List.of(2, 3, 4),
                 List.of(0, 1),
-                List.of(PartitionValueRef.ofNode(4)),
-                List.of(PartitionValueRef.ofNode(4))
+                List.of(GraphValueRef.node(4)),
+                List.of(GraphValueRef.node(4))
         );
 
         DefaultRegionOptimizer optimizer = new DefaultRegionOptimizer();
@@ -50,7 +50,7 @@ class DefaultRegionOptimizerTest {
         assertEquals(ExecutionUnitKind.FUSED_ELEMENTWISE, region.executionUnits().getFirst().kind());
         assertEquals(ValueTransportKind.MATERIALIZED,
                 region.regionValues().stream()
-                        .filter(v -> v.ref().equals(RegionValueRef.ofNode(4)))
+                        .filter(v -> v.ref().equals(GraphValueRef.node(4)))
                         .findFirst().orElseThrow().transportKind());
     }
 
@@ -67,8 +67,8 @@ class DefaultRegionOptimizerTest {
                 PartitionTarget.CPU,
                 List.of(2, 3),
                 List.of(0, 1),
-                List.of(PartitionValueRef.ofNode(3)),
-                List.of(PartitionValueRef.ofNode(3))
+                List.of(GraphValueRef.node(3)),
+                List.of(GraphValueRef.node(3))
         );
 
         DefaultRegionOptimizer optimizer = new DefaultRegionOptimizer();
@@ -99,8 +99,8 @@ class DefaultRegionOptimizerTest {
                 PartitionTarget.GPU_METAL,
                 selectedNodeIds,
                 externalInputNodeIds(nodes, selectedNodeIds),
-                List.of(PartitionValueRef.ofNode(expNodeId)),
-                List.of(PartitionValueRef.ofNode(expNodeId))
+                List.of(GraphValueRef.node(expNodeId)),
+                List.of(GraphValueRef.node(expNodeId))
         );
 
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(
@@ -142,8 +142,8 @@ class DefaultRegionOptimizerTest {
                 PartitionTarget.GPU_CUDA,
                 selectedNodeIds,
                 externalInputNodeIds(nodes, selectedNodeIds),
-                List.of(PartitionValueRef.ofNode(expNodeId)),
-                List.of(PartitionValueRef.ofNode(expNodeId))
+                List.of(GraphValueRef.node(expNodeId)),
+                List.of(GraphValueRef.node(expNodeId))
         );
 
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(
@@ -179,8 +179,8 @@ class DefaultRegionOptimizerTest {
                 PartitionTarget.GPU_METAL,
                 selectedNodeIds,
                 externalInputNodeIds(nodes, selectedNodeIds),
-                List.of(PartitionValueRef.ofNode(reluNodeId)),
-                List.of(PartitionValueRef.ofNode(reluNodeId))
+                List.of(GraphValueRef.node(reluNodeId)),
+                List.of(GraphValueRef.node(reluNodeId))
         );
 
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(
@@ -194,7 +194,7 @@ class DefaultRegionOptimizerTest {
         assertEquals(ExecutionUnitKind.MATMUL_EPILOGUE, epilogue.kind());
         assertEquals(selectedNodeIds, epilogue.orderedNodeIds());
         assertTrue(epilogue.trace().events().stream().anyMatch(message -> message.contains("matmul-epilogue:")));
-        assertTrue(epilogue.trace().events().stream().anyMatch(message -> message.contains("FUSE_WITH_NEIGHBORS")));
+        assertTrue(epilogue.trace().events().stream().anyMatch(message -> message.contains("region-unit-node:")));
         assertFalse(epilogue.requiredPreparedInputNodeIds().contains(addNodeId));
         assertFalse(region.regionValues().stream()
                 .filter(value -> value.producerNodeId() == addNodeId)
@@ -219,8 +219,8 @@ class DefaultRegionOptimizerTest {
                 PartitionTarget.GPU_METAL,
                 selectedNodeIds,
                 externalInputNodeIds(nodes, selectedNodeIds),
-                List.of(PartitionValueRef.ofNode(sigmoidNodeId)),
-                List.of(PartitionValueRef.ofNode(sigmoidNodeId))
+                List.of(GraphValueRef.node(sigmoidNodeId)),
+                List.of(GraphValueRef.node(sigmoidNodeId))
         );
 
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(
@@ -231,7 +231,7 @@ class DefaultRegionOptimizerTest {
         assertEquals(1, region.executionUnits().size());
         ExecutionUnit unit = region.executionUnits().getFirst();
         assertEquals(ExecutionUnitKind.FUSED_ELEMENTWISE, unit.kind());
-        assertTrue(unit.trace().events().stream().anyMatch(message -> message.contains("FUSED_ELEMENTWISE")));
+        assertTrue(unit.trace().events().stream().anyMatch(message -> message.contains("region-unit-node:")));
         assertFalse(unit.orderedNodeIds().stream()
                 .map(nodes::get)
                 .map(CompiledNode::operation)
@@ -265,7 +265,7 @@ class DefaultRegionOptimizerTest {
                 PartitionTarget.CPU,
                 List.of(2, 3),
                 List.of(0, 1),
-                List.of(PartitionValueRef.ofNode(3)),
+                List.of(GraphValueRef.node(3)),
                 List.of()
         );
 
@@ -273,7 +273,7 @@ class DefaultRegionOptimizerTest {
         OptimizedRegion region = optimizer.optimize(partition, new RegionOptimizationContext(nodes, FuseConfig.inferenceDefaults()));
 
         RegionValue output = region.regionValues().stream()
-                .filter(v -> v.ref().equals(RegionValueRef.ofNode(3)))
+                .filter(v -> v.ref().equals(GraphValueRef.node(3)))
                 .findFirst()
                 .orElseThrow();
 
@@ -285,11 +285,11 @@ class DefaultRegionOptimizerTest {
             PartitionTarget target,
             List<Integer> orderedNodeIds,
             List<Integer> externalInputNodeIds,
-            List<PartitionValueRef> outputValueRefs,
-            List<PartitionValueRef> requiredMaterialized
+            List<GraphValueRef> outputValueRefs,
+            List<GraphValueRef> requiredMaterialized
     ) {
         List<PartitionValue> values = orderedNodeIds.stream()
-                .map(nodeId -> new PartitionValue(PartitionValueRef.ofNode(nodeId), nodeId))
+                .map(nodeId -> new PartitionValue(GraphValueRef.node(nodeId), nodeId))
                 .toList();
         List<PartitionEdge> internalEdges = orderedNodeIds.size() < 2
                 ? List.of()

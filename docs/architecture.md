@@ -135,7 +135,7 @@ sequenceDiagram
     O-->>GC: optimized graph/state
     GC->>GC: CompiledNode.snapshot(...)
     GC->>BP: plan backend ownership
-    BP-->>GC: partitions and backend candidates
+    BP-->>GC: planned partitions
     GC-->>CG: CompileArtifacts + CompileTrace
 ```
 

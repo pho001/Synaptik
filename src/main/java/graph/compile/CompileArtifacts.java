@@ -1,14 +1,15 @@
 package graph.compile;
 
+import backend.lowering.LoweringInput;
 import graph.CompiledGradientBinding;
 import graph.CompiledNode;
 import graph.execution.trace.PartitionCompileTrace;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.optimizer.memory.MemoryPlan;
-import graph.optimizer.partition.BackendCandidatePartition;
 import graph.optimizer.partition.Partition;
 import graph.optimizer.partition.PartitionPlan;
-import graph.optimizer.state.OptimizerState;
+import graph.optimizer.partition.PlannedPartition;
+import graph.optimizer.region.OptimizedRegion;
 import tensor.Tensor;
 
 import java.util.List;
@@ -19,8 +20,8 @@ import java.util.Objects;
  * Immutable output of graph compilation.
  *
  * <p>Artifacts are the boundary between compile and prepare. They contain the optimized tensor graph, stable
- * {@link CompiledNode} snapshots, gradient publication bindings, optional backend partition plans, the optimizer state
- * needed by lowering, and the memory plan consumed by runtime binding. Preparation must treat this record as read-only.
+ * {@link CompiledNode} snapshots, gradient publication bindings, planned backend partitions, optimized regions needed
+ * by lowering, and the memory plan consumed by runtime binding. Preparation must treat this record as read-only.
  *
  * @param rootTensor source root tensor that initiated compilation
  * @param finalGraph optimized tensors in execution order
@@ -30,10 +31,8 @@ import java.util.Objects;
  * @param forwardSeedGradient binding used to seed the root gradient for backward execution
  * @param forwardOutputNode compiled node that represents the forward output value
  * @param memoryPlan storage reuse and region handoff plan, if memory planning ran
- * @param optimizerState final optimizer state retained for prepare-time lowering
- * @param partitions accepted backend partitions
- * @param backendPlans backend-specific plans attached to accepted partitions
- * @param backendSelectionCandidates candidate partitions considered during backend selection
+ * @param optimizedRegions optimized regions derived from accepted partitions
+ * @param plannedPartitions accepted backend partitions with attached backend plans
  * @param supportsBackward whether the artifact bundle contains backward execution work
  * @param forwardBoundaryNodeId id of the last forward node in the compiled graph
  * @param partitionPlanningTrace partition planning diagnostics captured during compilation
@@ -47,10 +46,8 @@ public record CompileArtifacts(
         CompiledGradientBinding forwardSeedGradient,
         CompiledNode forwardOutputNode,
         MemoryPlan memoryPlan,
-        OptimizerState optimizerState,
-        List<Partition> partitions,
-        List<PartitionPlan> backendPlans,
-        List<BackendCandidatePartition> backendSelectionCandidates,
+        List<OptimizedRegion> optimizedRegions,
+        List<PlannedPartition> plannedPartitions,
         boolean supportsBackward,
         int forwardBoundaryNodeId,
         PartitionCompileTrace partitionPlanningTrace
@@ -61,35 +58,62 @@ public record CompileArtifacts(
         compiledNodes = List.copyOf(compiledNodes == null ? List.of() : compiledNodes);
         descriptorIndex = Objects.requireNonNull(descriptorIndex, "descriptorIndex cannot be null");
         gradientBindings = Map.copyOf(gradientBindings == null ? Map.of() : gradientBindings);
-        partitions = List.copyOf(partitions == null ? List.of() : partitions);
-        backendPlans = List.copyOf(backendPlans == null ? List.of() : backendPlans);
-        backendSelectionCandidates = List.copyOf(backendSelectionCandidates == null ? List.of() : backendSelectionCandidates);
+        optimizedRegions = List.copyOf(optimizedRegions == null ? List.of() : optimizedRegions);
+        plannedPartitions = List.copyOf(plannedPartitions == null ? List.of() : plannedPartitions);
         partitionPlanningTrace = partitionPlanningTrace == null ? PartitionCompileTrace.empty() : partitionPlanningTrace;
     }
 
     /**
-     * Returns whether prepare-time lowering requires a complete optimizer state.
+     * Returns accepted backend partitions.
      *
-     * @return {@code true} when backend candidates and partitions exist and optimized regions/memory plan must be
-     * present
+     * @return partitions derived from planned partitions
      */
-    public boolean requiresLoweringReadyOptimizerState() {
-        return !backendSelectionCandidates.isEmpty() && !partitions.isEmpty();
+    public List<Partition> partitions() {
+        return plannedPartitions.stream()
+                .map(PlannedPartition::partition)
+                .toList();
     }
 
     /**
-     * Returns optimizer state suitable for backend lowering, or fails if required state is incomplete.
+     * Returns non-null backend plans attached to accepted partitions.
      *
-     * @return optimizer state, possibly {@code null} when no lowering-ready state is required
-     * @throws IllegalStateException if partitions require optimized regions or memory planning data that is absent
+     * @return backend plans derived from planned partitions
      */
-    public OptimizerState requireLoweringReadyOptimizerState() {
-        if (!requiresLoweringReadyOptimizerState()) {
-            return optimizerState;
+    public List<PartitionPlan> backendPlans() {
+        return plannedPartitions.stream()
+                .map(PlannedPartition::plan)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    /**
+     * Returns finalized lowering input for prepare-time backend lowering.
+     *
+     * @return lowering input, or {@code null} when no planned partitions require lowering
+     * @throws IllegalStateException if planned partitions exist but optimized regions or memory plan are missing
+     */
+    public LoweringInput loweringInput() {
+        if (!requiresLoweringInput()) {
+            return null;
         }
-        if (optimizerState == null || optimizerState.optimizedRegions().isEmpty() || optimizerState.memoryPlan() == null) {
-            throw new IllegalStateException("Compile artifacts are missing lowering-ready optimizer state.");
+        if (optimizedRegions.isEmpty() || memoryPlan == null) {
+            throw new IllegalStateException("Compile artifacts are missing lowering input.");
         }
-        return optimizerState;
+        return new LoweringInput(optimizedRegions, memoryPlan, planByPartitionId());
+    }
+
+    public boolean requiresLoweringInput() {
+        return !plannedPartitions.isEmpty();
+    }
+
+    private Map<String, PartitionPlan> planByPartitionId() {
+        java.util.HashMap<String, PartitionPlan> out = new java.util.HashMap<>();
+        for (PlannedPartition plannedPartition : plannedPartitions) {
+            if (plannedPartition == null || plannedPartition.partition() == null || plannedPartition.plan() == null) {
+                continue;
+            }
+            out.put(plannedPartition.partition().partitionId(), plannedPartition.plan());
+        }
+        return Map.copyOf(out);
     }
 }

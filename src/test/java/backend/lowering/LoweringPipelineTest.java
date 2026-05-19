@@ -1,10 +1,7 @@
 package backend.lowering;
 
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
-
 import backend.ComputeBackend;
-import backend.runtime.ExecutionMode;
 import config.optimizer.FuseConfig;
 import graph.CompiledNode;
 import graph.execution.trace.PartitionDecisionTrace;
@@ -18,11 +15,10 @@ import graph.optimizer.partition.PartitionPlannerStrategy;
 import graph.optimizer.partition.PartitionPlan;
 import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.partition.PartitionValue;
-import graph.optimizer.partition.PartitionValueRef;
+import graph.optimizer.GraphValueRef;
 import graph.optimizer.region.DefaultRegionOptimizer;
 import graph.optimizer.region.OptimizedRegion;
 import graph.optimizer.region.RegionOptimizationContext;
-import graph.optimizer.state.OptimizerState;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -36,13 +32,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class LoweringPipelineTest {
     @Test
-    void loweringPipelineRequiresMemoryPlan() {
-        Tensor a = Tensor.scalar(1.0);
-        OptimizerState state = OptimizerState.ofGraph(List.of(a), a);
-        LoweringPipeline pipeline = new LoweringPipeline(List.of(request -> null));
-
-        assertThrows(IllegalStateException.class, () ->
-                pipeline.lower(state, BackendCapabilities.none(), new LoweringContext(null, List.of(), CompiledTensorDescriptorIndex.empty(), java.util.Map.of()))
+    void loweringInputRequiresMemoryPlan() {
+        assertThrows(NullPointerException.class, () ->
+                new LoweringInput(List.of(), null, java.util.Map.of())
         );
     }
 
@@ -60,19 +52,15 @@ class LoweringPipelineTest {
                 PartitionTarget.CPU,
                 List.of(2, 3),
                 List.of(0, 1),
-                List.of(PartitionValueRef.ofNode(3)),
-                List.of(PartitionValueRef.ofNode(3))
+                List.of(GraphValueRef.node(3)),
+                List.of(GraphValueRef.node(3))
         );
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(
                 partition,
                 new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults())
         );
         MemoryPlan memoryPlan = MemoryPlanner.plan(graph, MemoryPlannerPolicy.defaults());
-        OptimizerState optimized = OptimizerState.ofGraph(graph, out)
-                .withExecutionMetadata(ExecutionMode.FORWARD, false, graph.indexOf(out))
-                .withPartitions(List.of(partition))
-                .withOptimizedRegions(List.of(region))
-                .withMemoryPlan(memoryPlan);
+        LoweringInput input = new LoweringInput(List.of(region), memoryPlan, java.util.Map.of());
 
         RegionLowerer lowerer = request -> new LoweringResult(
                 new LoweredRegion(
@@ -91,12 +79,12 @@ class LoweringPipelineTest {
 
         LoweringPipeline pipeline = new LoweringPipeline(List.of(lowerer));
         LoweringState lowered = pipeline.lower(
-                optimized,
+                input,
                 new BackendCapabilities(Set.of(ComputeBackend.CPU)),
                 new LoweringContext(null, compiledNodes, CompiledTensorDescriptorBuilder.build(compiledNodes), java.util.Map.of())
         );
 
-        assertEquals(optimized, lowered.optimized());
+        assertEquals(input, lowered.input());
         assertEquals(1, lowered.lowered().loweredRegions().size());
         assertEquals(1, lowered.lowered().workspaceRequirements().size());
         assertFalse(lowered.trace().events().isEmpty());
@@ -115,19 +103,15 @@ class LoweringPipelineTest {
                 PartitionTarget.GPU_METAL,
                 List.of(2, 3),
                 List.of(0, 1),
-                List.of(PartitionValueRef.ofNode(3)),
-                List.of(PartitionValueRef.ofNode(3))
+                List.of(GraphValueRef.node(3)),
+                List.of(GraphValueRef.node(3))
         );
         OptimizedRegion region = new DefaultRegionOptimizer().optimize(
                 partition,
                 new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults())
         );
         MemoryPlan memoryPlan = MemoryPlanner.plan(graph, MemoryPlannerPolicy.defaults());
-        OptimizerState optimized = OptimizerState.ofGraph(graph, out)
-                .withExecutionMetadata(ExecutionMode.FORWARD, false, graph.indexOf(out))
-                .withPartitions(List.of(partition))
-                .withOptimizedRegions(List.of(region))
-                .withMemoryPlan(memoryPlan);
+        LoweringInput input = new LoweringInput(List.of(region), memoryPlan, java.util.Map.of());
 
         PartitionPlan selectedPlan = new PartitionPlan() {
             @Override
@@ -172,7 +156,7 @@ class LoweringPipelineTest {
 
         LoweringPipeline pipeline = new LoweringPipeline(List.of(lowerer));
         LoweringState lowered = pipeline.lower(
-                optimized,
+                input,
                 new BackendCapabilities(Set.of(ComputeBackend.GPU_METAL)),
                 new LoweringContext(null, compiledNodes, CompiledTensorDescriptorBuilder.build(compiledNodes), java.util.Map.of("metal-partition", selectedPlan))
         );
@@ -186,11 +170,11 @@ class LoweringPipelineTest {
             PartitionTarget target,
             List<Integer> orderedNodeIds,
             List<Integer> externalInputNodeIds,
-            List<PartitionValueRef> outputValueRefs,
-            List<PartitionValueRef> requiredMaterialized
+            List<GraphValueRef> outputValueRefs,
+            List<GraphValueRef> requiredMaterialized
     ) {
         List<PartitionValue> values = orderedNodeIds.stream()
-                .map(nodeId -> new PartitionValue(PartitionValueRef.ofNode(nodeId), nodeId))
+                .map(nodeId -> new PartitionValue(GraphValueRef.node(nodeId), nodeId))
                 .toList();
         List<PartitionEdge> internalEdges = orderedNodeIds.size() < 2
                 ? List.of()

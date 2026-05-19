@@ -294,7 +294,7 @@ Compile sees a forward DAG with leaf `a`, leaf `b`, `ADD`, `RELU`, and a system 
 
 - Compile maps canonicalized or lowered forward roots back to the original root so execution can publish results to the expected semantic tensor.
 - If the optimized graph no longer contains the forward output, compile fails.
-- Compile completes lowering-ready optimizer state when partition planning discovered backend candidates but the normal stage output lacks optimized regions or memory plan.
+- Compile finalizes region and memory planning artifacts when partition planning discovers planned partitions.
 
 **Misconceptions**
 
