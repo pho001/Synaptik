@@ -1,6 +1,6 @@
 package backend.cpu.kernels.layout.plan;
 
-import tensor.WhereBroadcastPlan;
+import tensor.layout.WhereBroadcastPlan;
 
 public final class ResolvedWhereBroadcastPlan {
     private final int[] outShape;

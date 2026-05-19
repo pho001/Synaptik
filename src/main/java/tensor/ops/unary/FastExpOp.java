@@ -3,9 +3,9 @@ package tensor.ops.unary;
 import operations.Operation;
 import operations.elementwise.unary.fastExp;
 import tensor.Tensor;
-import tensor.TensorDataTypeUtil;
+import tensor.dtype.TensorDataTypeUtil;
 import tensor.TensorInternalAccess;
-import tensor.TensorPrimitiveBuilder;
+import tensor.internal.TensorPrimitiveBuilder;
 
 /**
  * Graph-building definition for approximate elementwise {@code fastExp}.

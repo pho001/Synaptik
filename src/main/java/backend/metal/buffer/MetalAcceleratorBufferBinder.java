@@ -30,11 +30,11 @@ import graph.execution.trace.HostDeviceTransferTrace;
 import graph.execution.DeviceLayoutMaterializer;
 import operations.Operation;
 import tensor.DataType;
-import tensor.NativeFloat32Storage;
-import tensor.NativeTensorStorage;
+import tensor.storage.NativeFloat32Storage;
+import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;
 import tensor.TensorMetadata;
-import tensor.TensorRemap;
+import tensor.layout.TensorRemap;
 
 import java.util.ArrayList;
 import java.util.Arrays;

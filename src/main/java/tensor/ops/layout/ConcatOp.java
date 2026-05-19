@@ -3,8 +3,8 @@ package tensor.ops.layout;
 import operations.layout.concat;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
-import tensor.TensorLayoutTransform;
-import tensor.TensorPrimitiveBuilder;
+import tensor.layout.TensorLayoutTransform;
+import tensor.internal.TensorPrimitiveBuilder;
 
 import java.util.List;
 

@@ -6,7 +6,7 @@ import graph.execution.PreparedExecution;
 import org.junit.jupiter.api.Test;
 import operations.elementwise.binary.mul;
 import tensor.DataType;
-import tensor.Float64Storage;
+import tensor.storage.Float64Storage;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 

@@ -124,7 +124,7 @@ Use this table when updating docs.
 | Documentation claim | Source of truth |
 |---|---|
 | Tensor constructors, methods, storage accessors | `src/main/java/tensor/Tensor.java`, `tensor/ops/**`, `TensorOps.java` |
-| Sequence-friendly public tensor helpers | `Tensor.java`, `TensorOps.java`, `TensorDataFactory.java`, `TensorLayoutOps.java`, `TensorIndexOps.java`, `TensorReduceOps.java`, `TensorLinearOps.java`, `TensorLossOps.java`, `NdTensorSequencePrimitivesTest.java` |
+| Sequence-friendly public tensor helpers | `Tensor.java`, `TensorOps.java`, `TensorDataFactory.java`, concrete `tensor.ops.*` operation builders, `NdTensorSequencePrimitivesTest.java` |
 | DType support | `tensor/DataType.java`, storage classes, CPU dtype resolver, backend coverage matrices |
 | Compile config presets | `src/main/java/config/compile/CompileConfig.java` and sibling records |
 | Runtime config presets | `src/main/java/config/runtime/RuntimeConfig.java` and sibling records |

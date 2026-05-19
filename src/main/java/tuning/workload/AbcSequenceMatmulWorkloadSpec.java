@@ -84,6 +84,6 @@ public final class AbcSequenceMatmulWorkloadSpec implements WorkloadSpec {
         for (int i = 0; i < data.length; i++) {
             data[i] = base + Math.abs(Math.sin(seed * 0.01 + i * 0.031)) * amplitude + random.nextDouble() * 0.03;
         }
-        return tensor.TensorDataFactory.shapedTensor(label, data, requiresGrad, dataType, rows, cols);
+        return tensor.factory.TensorDataFactory.shapedTensor(label, data, requiresGrad, dataType, rows, cols);
     }
 }

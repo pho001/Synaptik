@@ -12,7 +12,7 @@ import backend.cpu.kernels.CpuThreadPool;
 import config.backend.SumAccuracyMode;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorRemap;
+import tensor.layout.TensorRemap;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;

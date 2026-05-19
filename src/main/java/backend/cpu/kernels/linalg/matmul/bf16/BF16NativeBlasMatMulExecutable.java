@@ -9,8 +9,8 @@ import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
 import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
 import backend.memory.CpuMaterializationReason;
 import config.runtime.NativeCpuFailurePolicy;
-import tensor.NativeBFloat16Storage;
-import tensor.NativeTensorStorage;
+import tensor.storage.NativeBFloat16Storage;
+import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;
 
 public final class BF16NativeBlasMatMulExecutable implements PreparedMatMulExecutable {

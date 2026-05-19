@@ -3,7 +3,7 @@ package tensor.ops.linalg;
 import operations.linalg.matmul;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorDataTypeUtil;
+import tensor.dtype.TensorDataTypeUtil;
 
 record MatMulSpec(
         int[] outShape,

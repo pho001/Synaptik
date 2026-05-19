@@ -3,11 +3,11 @@ import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import tensor.BFloat16Bits;
+import tensor.dtype.BFloat16Bits;
 import tensor.DataType;
-import tensor.BFloat16Storage;
-import tensor.Float32Storage;
-import tensor.Float64Storage;
+import tensor.storage.BFloat16Storage;
+import tensor.storage.Float32Storage;
+import tensor.storage.Float64Storage;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;
 

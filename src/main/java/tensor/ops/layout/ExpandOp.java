@@ -5,8 +5,8 @@ import operations.layout.expand;
 import tensor.Tensor;
 import tensor.TensorBroadcastOps;
 import tensor.TensorInternalAccess;
-import tensor.TensorLayoutTransform;
-import tensor.TensorPrimitiveBuilder;
+import tensor.layout.TensorLayoutTransform;
+import tensor.internal.TensorPrimitiveBuilder;
 
 /**
  * Graph-building definition for broadcast view {@code expand}.

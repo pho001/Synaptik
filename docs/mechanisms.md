@@ -41,7 +41,7 @@ Each operation call returns a new `Tensor` node. Leaf tensors hold user data; de
 **Where It Lives**
 
 - [`Tensor.java`](../src/main/java/tensor/Tensor.java)
-- [`TensorPrimitiveBuilder.java`](../src/main/java/tensor/TensorPrimitiveBuilder.java)
+- [`TensorPrimitiveBuilder.java`](../src/main/java/tensor/internal/TensorPrimitiveBuilder.java)
 - [`tensor.ops.*`](../src/main/java/tensor/ops)
 - [`operations/Operation.java`](../src/main/java/operations/Operation.java)
 
@@ -75,7 +75,7 @@ Values after execution are `[11.0, 22.0]`.
 
 **Internals**
 
-`TensorBinaryOps.add(...)` creates an `operations.elementwise.binary.add` descriptor containing a `BroadcastPlan`, then uses `TensorPrimitiveBuilder.binary(...)` to create the output node. The builder does not execute the add. It only records semantics and graph edges.
+`AddOp.build(...)` creates an `operations.elementwise.binary.add` descriptor containing a `BroadcastPlan`, then uses `TensorPrimitiveBuilder.binary(...)` to create the output node. The builder does not execute the add. It only records semantics and graph edges.
 
 **Edge Cases**
 
@@ -114,8 +114,8 @@ Shapes align from the right. Any axis with dimension `1` can repeat across the o
 
 **Where It Lives**
 
-- [`BroadcastPlanner.java`](../src/main/java/tensor/BroadcastPlanner.java)
-- [`BroadcastPlan.java`](../src/main/java/tensor/BroadcastPlan.java)
+- [`BroadcastPlanner.java`](../src/main/java/tensor/layout/BroadcastPlanner.java)
+- [`BroadcastPlan.java`](../src/main/java/tensor/layout/BroadcastPlan.java)
 - [`TensorBroadcastOps.java`](../src/main/java/tensor/TensorBroadcastOps.java)
 - [`BroadcastContractMatrixTest.java`](../src/test/java/BroadcastContractMatrixTest.java)
 
@@ -142,7 +142,7 @@ For `left + right`, a left value at `[row, 0, col]` is reused for all `3` middle
 
 **Internals**
 
-`BroadcastPlanner.plan(...)` returns effective strides and reduce axes. `TensorBinaryOps` stores that plan in operation descriptors such as `add`, `mul`, `min`, and `max`. The backward lambdas call `TensorBroadcastOps.sumToShape(outGrad, originalShape)`.
+`BroadcastPlanner.plan(...)` returns effective strides and reduce axes. Binary operation builders such as `AddOp`, `MulOp`, `MinOp`, and `MaxOp` store that plan in operation descriptors. The backward lambdas call `TensorBroadcastOps.sumToShape(outGrad, originalShape)`.
 
 **Edge Cases**
 

@@ -3,7 +3,7 @@ package tensor.ops.layout;
 import operations.layout.tile;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
-import tensor.TensorPrimitiveBuilder;
+import tensor.internal.TensorPrimitiveBuilder;
 
 /**
  * Graph-building definition for {@code tile}.

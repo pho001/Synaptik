@@ -7,11 +7,11 @@ import graph.optimizer.memory.MemoryPlan;
 import graph.optimizer.memory.RegionMemoryBinding;
 import graph.optimizer.memory.RegionMemoryBindingKind;
 import graph.optimizer.region.RegionValueRef;
-import tensor.BFloat16Storage;
-import tensor.BoolStorage;
+import tensor.storage.BFloat16Storage;
+import tensor.storage.BoolStorage;
 import tensor.DataType;
-import tensor.Int32Storage;
-import tensor.Int64Storage;
+import tensor.storage.Int32Storage;
+import tensor.storage.Int64Storage;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 

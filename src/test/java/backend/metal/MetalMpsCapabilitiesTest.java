@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import operations.Operation;
 import tensor.Tensor;
 import tensor.DataType;
-import tensor.TensorPrimitiveBuilder;
+import tensor.internal.TensorPrimitiveBuilder;
 
 import java.util.List;
 

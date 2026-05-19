@@ -1,7 +1,7 @@
 package operations.elementwise.binary;
 
 import operations.Operation;
-import tensor.BroadcastPlan;
+import tensor.layout.BroadcastPlan;
 
 /**
  * Divides the left tensor by the right tensor elementwise.

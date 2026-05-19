@@ -92,7 +92,7 @@ public final class MlpClassificationWorkloadSpec implements WorkloadSpec {
     }
 
     private static Tensor tensor(String label, int seed, DataType dataType, boolean requiresGrad, int... shape) {
-        return tensor.TensorDataFactory.shapedTensor(label, encodedData(flatSize(shape), seed), requiresGrad, dataType, shape);
+        return tensor.factory.TensorDataFactory.shapedTensor(label, encodedData(flatSize(shape), seed), requiresGrad, dataType, shape);
     }
 
     private static Tensor targetIndices(int batch, int classes) {

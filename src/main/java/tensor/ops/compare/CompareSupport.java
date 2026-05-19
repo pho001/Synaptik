@@ -1,10 +1,10 @@
 package tensor.ops.compare;
 
 import operations.Operation;
-import tensor.BroadcastPlan;
+import tensor.layout.BroadcastPlan;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorPrimitiveBuilder;
+import tensor.internal.TensorPrimitiveBuilder;
 
 final class CompareSupport {
     private CompareSupport() {

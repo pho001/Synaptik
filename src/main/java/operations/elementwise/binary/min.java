@@ -1,7 +1,7 @@
 package operations.elementwise.binary;
 
 import operations.Operation;
-import tensor.BroadcastPlan;
+import tensor.layout.BroadcastPlan;
 
 /**
  * Selects the elementwise minimum of two tensors.

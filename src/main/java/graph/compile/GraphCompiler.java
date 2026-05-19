@@ -5,6 +5,7 @@ import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import graph.CompiledGradientBinding;
 import graph.CompiledNode;
+import graph.GradientDTypePolicy;
 import graph.SemanticForwardCanonicalizer;
 import graph.execution.trace.CompileTrace;
 import graph.execution.trace.PartitionCompileTrace;
@@ -196,11 +197,7 @@ public final class GraphCompiler {
                     return artifacts();
                 }
 
-                if (rootTensor.getDataType() == tensor.DataType.BOOL
-                        || rootTensor.getDataType() == tensor.DataType.INT32
-                        || rootTensor.getDataType() == tensor.DataType.INT64) {
-                    throw new UnsupportedOperationException("BOOL/INT32/INT64 root tensors do not support backward execution.");
-                }
+                GradientDTypePolicy.requireGradientSupported(rootTensor.getDataType(), "Backward execution");
 
                 Tensor actualForwardRoot = requireForwardRoot();
                 BackwardGraphBuilder.Result backward = BackwardGraphBuilder.build(forwardGraph, actualForwardRoot);

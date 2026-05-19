@@ -26,16 +26,16 @@ Important scope note:
 - the later metadata/storage/graph-wiring sections also include low-level and runtime-oriented methods that still exist on `Tensor`
 - those low-level methods are real and supported, but they are not the recommended starting point for adding new user-facing tensor operations
 - low-level storage allocation/conversion and graph traversal internals are increasingly being pushed into package-private helpers such as:
-  - [src/main/java/tensor/TensorStorageSupport.java](../tensor/TensorStorageSupport.java)
-  - [src/main/java/tensor/TensorGraphTraversal.java](../tensor/TensorGraphTraversal.java)
+  - [src/main/java/tensor/storage/TensorStorageSupport.java](../tensor/storage/TensorStorageSupport.java)
+  - [src/main/java/tensor/internal/TensorGraphTraversal.java](../tensor/internal/TensorGraphTraversal.java)
   - [src/main/java/tensor/TensorDebugSupport.java](../tensor/TensorDebugSupport.java)
-  - [src/main/java/tensor/TensorExecutionSupport.java](../tensor/TensorExecutionSupport.java)
+  - [src/main/java/tensor/internal/TensorExecutionSupport.java](../tensor/internal/TensorExecutionSupport.java)
 
 Related construction helpers:
 
-- [src/main/java/tensor/TensorDataFactory.java](../tensor/TensorDataFactory.java)
+- [src/main/java/tensor/factory/TensorDataFactory.java](../tensor/factory/TensorDataFactory.java)
   - leaf constants and convenience tensor factories
-- [src/main/java/tensor/TensorPrimitiveBuilder.java](../tensor/TensorPrimitiveBuilder.java)
+- [src/main/java/tensor/internal/TensorPrimitiveBuilder.java](../tensor/internal/TensorPrimitiveBuilder.java)
   - shared primitive, no-grad, and alias/view node construction
 
 ## Reading Guide

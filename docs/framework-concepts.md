@@ -36,11 +36,11 @@ flowchart TD
 
 ## Tensors As Graph Nodes
 
-`tensor.Tensor` is both the public value object and the graph node type. A tensor carries shape, strides, storage offset, dtype, label, backing storage, predecessor tensors, an optional `Operation` descriptor, gradient state, backward builder state, and optional backend override. Source: [`Tensor.java`](../src/main/java/tensor/Tensor.java), [`TensorMetadata.java`](../src/main/java/tensor/TensorMetadata.java), [`TensorPrimitiveBuilder.java`](../src/main/java/tensor/TensorPrimitiveBuilder.java).
+`tensor.Tensor` is both the public value object and the graph node type. A tensor carries shape, strides, storage offset, dtype, label, backing storage, predecessor tensors, an optional `Operation` descriptor, gradient state, backward builder state, and optional backend override. Source: [`Tensor.java`](../src/main/java/tensor/Tensor.java), [`TensorMetadata.java`](../src/main/java/tensor/TensorMetadata.java), [`TensorPrimitiveBuilder.java`](../src/main/java/tensor/internal/TensorPrimitiveBuilder.java).
 
-Leaf tensors have no operation descriptor. Derived tensors are built by `tensor.ops.*` helpers through `TensorPrimitiveBuilder`, which creates a new `Tensor` with inputs and an immutable operation descriptor. For example, `TensorBinaryOps.add(first, second)` plans broadcasting, creates an `operations.elementwise.binary.add` descriptor, builds a binary tensor node, and attaches backward logic that reduces broadcast gradients back to each input shape. Source: [`TensorBinaryOps.java`](../src/main/java/tensor/ops/binary/TensorBinaryOps.java), [`add.java`](../src/main/java/operations/elementwise/binary/add.java).
+Leaf tensors have no operation descriptor. Derived tensors are built by `tensor.ops.*` helpers through `TensorPrimitiveBuilder`, which creates a new `Tensor` with inputs and an immutable operation descriptor. For example, `AddOp.build(first, second)` plans broadcasting, creates an `operations.elementwise.binary.add` descriptor, builds a binary tensor node, and attaches backward logic that reduces broadcast gradients back to each input shape. Source: [`AddOp.java`](../src/main/java/tensor/ops/binary/AddOp.java), [`add.java`](../src/main/java/operations/elementwise/binary/add.java).
 
-The graph is a DAG over object references, not a separate IR object during construction. `Tensor.topologicalSort()` delegates to graph traversal and gives compile a stable node order rooted at the requested output. Source: [`Tensor.java`](../src/main/java/tensor/Tensor.java), [`TensorGraphTraversal.java`](../src/main/java/tensor/TensorGraphTraversal.java).
+The graph is a DAG over object references, not a separate IR object during construction. `Tensor.topologicalSort()` delegates to graph traversal and gives compile a stable node order rooted at the requested output. Source: [`Tensor.java`](../src/main/java/tensor/Tensor.java), [`TensorGraphTraversal.java`](../src/main/java/tensor/internal/TensorGraphTraversal.java).
 
 ## Operation Descriptors
 
@@ -60,7 +60,7 @@ This split is deliberate: public graph construction belongs to `tensor`, primiti
 
 Tensor layout is explicit. `TensorMetadata` stores normalized shape, dense or custom strides, storage offset, dtype, and a computed `contiguous` flag. Dense strides are computed from the last dimension backward. Zero strides represent broadcast views, and nonzero storage offsets represent views into existing storage. Source: [`TensorMetadata.java`](../src/main/java/tensor/TensorMetadata.java).
 
-Storage is dtype-specific through `TensorStorage` implementations such as `Float64Storage`, `Float32Storage`, `BFloat16Storage`, `Int32Storage`, and `BoolStorage`. The storage interface exposes dtype, size, version, and mutation marking. Source: [`TensorStorage.java`](../src/main/java/tensor/TensorStorage.java), [`Float64Storage.java`](../src/main/java/tensor/Float64Storage.java), [`BoolStorage.java`](../src/main/java/tensor/BoolStorage.java).
+Storage is dtype-specific through `TensorStorage` implementations such as `Float64Storage`, `Float32Storage`, `BFloat16Storage`, `Int32Storage`, and `BoolStorage`. The storage interface exposes dtype, size, version, and mutation marking. Source: [`TensorStorage.java`](../src/main/java/tensor/storage/TensorStorage.java), [`Float64Storage.java`](../src/main/java/tensor/storage/Float64Storage.java), [`BoolStorage.java`](../src/main/java/tensor/storage/BoolStorage.java).
 
 Layout operations are explicit API calls rather than one generic view call:
 
@@ -73,7 +73,7 @@ At runtime, alias-like nodes are repaired after execution so semantic view tenso
 
 ## Broadcasting
 
-Broadcasting follows right-aligned trailing-axis rules. `BroadcastPlanner.plan(...)` aligns shapes to the same rank, accepts dimensions when equal or when one side is `1`, sets effective stride `0` for broadcast axes, and records reduction axes for backward. Source: [`BroadcastPlanner.java`](../src/main/java/tensor/BroadcastPlanner.java), [`BroadcastPlan.java`](../src/main/java/tensor/BroadcastPlan.java), [`TensorBroadcastOps.java`](../src/main/java/tensor/TensorBroadcastOps.java).
+Broadcasting follows right-aligned trailing-axis rules. `BroadcastPlanner.plan(...)` aligns shapes to the same rank, accepts dimensions when equal or when one side is `1`, sets effective stride `0` for broadcast axes, and records reduction axes for backward. Source: [`BroadcastPlanner.java`](../src/main/java/tensor/layout/BroadcastPlanner.java), [`BroadcastPlan.java`](../src/main/java/tensor/layout/BroadcastPlan.java), [`TensorBroadcastOps.java`](../src/main/java/tensor/TensorBroadcastOps.java).
 
 Concrete example:
 
@@ -119,7 +119,7 @@ Prepare is the stage to reuse in hot loops when graph structure and runtime poli
 
 ## Autodiff
 
-Autodiff is reverse-mode over the semantic tensor graph. Operation builders attach backward lambdas when the operation is differentiable. During training compile, `BackwardGraphBuilder` seeds the forward root gradient with ones, walks the forward graph in reverse order, invokes each node's backward builder, collects gradients for trainable leaves, and marks backward-only nodes. Source: [`BackwardGraphBuilder.java`](../src/main/java/graph/compile/BackwardGraphBuilder.java), [`TensorBinaryOps.java`](../src/main/java/tensor/ops/binary/TensorBinaryOps.java).
+Autodiff is reverse-mode over the semantic tensor graph. Operation builders attach backward lambdas when the operation is differentiable. During training compile, `BackwardGraphBuilder` seeds the forward root gradient with ones, walks the forward graph in reverse order, invokes each node's backward builder, collects gradients for trainable leaves, and marks backward-only nodes. Source: [`BackwardGraphBuilder.java`](../src/main/java/graph/compile/BackwardGraphBuilder.java), [`AddOp.java`](../src/main/java/tensor/ops/binary/AddOp.java).
 
 Worked example:
 

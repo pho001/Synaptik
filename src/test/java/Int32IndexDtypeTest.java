@@ -4,7 +4,7 @@ import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
-import tensor.Int32Storage;
+import tensor.storage.Int32Storage;
 import tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;

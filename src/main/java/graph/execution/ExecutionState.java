@@ -27,7 +27,7 @@ import graph.execution.trace.HostDeviceTransferKind;
 import graph.execution.trace.HostDeviceTransferTrace;
 import graph.execution.trace.NativeCpuMemoryTrace;
 import tensor.DataType;
-import tensor.NativeTensorStorage;
+import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 

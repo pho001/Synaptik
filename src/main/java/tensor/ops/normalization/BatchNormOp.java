@@ -1,7 +1,7 @@
 package tensor.ops.normalization;
 
 import tensor.Tensor;
-import tensor.TensorLayoutTransform;
+import tensor.layout.TensorLayoutTransform;
 
 /**
  * Graph-building definition for differentiable batch normalization.

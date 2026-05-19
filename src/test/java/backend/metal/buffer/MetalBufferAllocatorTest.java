@@ -5,7 +5,7 @@ import backend.memory.CpuMaterializationReason;
 import backend.memory.DeviceToCpuMaterializer;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
-import tensor.NativeFloat32Storage;
+import tensor.storage.NativeFloat32Storage;
 import tensor.Tensor;
 
 import java.lang.foreign.MemorySegment;

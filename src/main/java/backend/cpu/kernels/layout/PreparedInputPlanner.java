@@ -7,7 +7,7 @@ import backend.cpu.kernels.plan.CpuExecutionPlanner;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorRemap;
+import tensor.layout.TensorRemap;
 
 import java.util.ArrayList;
 import java.util.List;

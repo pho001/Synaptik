@@ -1,7 +1,7 @@
 package operations.elementwise.binary;
 import operations.Operation;
 
-import tensor.BroadcastPlan;
+import tensor.layout.BroadcastPlan;
 
 /**
  * Routes an upstream gradient through the selected operand of an elementwise

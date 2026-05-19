@@ -1,9 +1,9 @@
 import operations.layout.noop;
 import tensor.DataType;
-import tensor.BFloat16Storage;
-import tensor.Float32Storage;
-import tensor.Float64Storage;
-import tensor.Int64Storage;
+import tensor.storage.BFloat16Storage;
+import tensor.storage.Float32Storage;
+import tensor.storage.Float64Storage;
+import tensor.storage.Int64Storage;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;
 

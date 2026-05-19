@@ -39,6 +39,7 @@ import backend.lowering.region.RegionRole;
 import backend.lowering.region.RegionStorageContract;
 import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
+import graph.AliasViewPolicy;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.optimizer.region.ExecutionUnit;
@@ -965,15 +966,7 @@ public final class CpuRegionLowerer implements RegionLowerer {
             if (node == null || node.operation() == null || node.inputIds().isEmpty()) {
                 return current;
             }
-            boolean aliasView = switch (node.operation().opType()) {
-                case NOOP, EXPAND, SELECT, SLICE, PERMUTE, EXPAND_DIMS, SQUEEZE -> true;
-                case RESHAPE -> {
-                    CompiledTensorDescriptor input = request.context().descriptor(node.inputIds().getFirst());
-                    yield input != null && input.contiguous();
-                }
-                default -> false;
-            };
-            if (!aliasView) {
+            if (!AliasViewPolicy.aliasesInput0AtRuntime(node, request.context().descriptorIndex())) {
                 return current;
             }
             current = node.inputIds().getFirst();

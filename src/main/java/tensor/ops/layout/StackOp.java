@@ -1,7 +1,7 @@
 package tensor.ops.layout;
 
 import tensor.Tensor;
-import tensor.TensorLayoutTransform;
+import tensor.layout.TensorLayoutTransform;
 
 import java.util.ArrayList;
 import java.util.List;

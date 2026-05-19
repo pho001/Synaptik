@@ -1,7 +1,7 @@
 package operations.elementwise.compare;
 import operations.Operation;
 
-import tensor.BroadcastPlan;
+import tensor.layout.BroadcastPlan;
 
 /**
  * Performs an elementwise greater-than comparison.

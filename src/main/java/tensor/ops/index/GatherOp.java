@@ -5,8 +5,8 @@ import operations.index.gatherAxis;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
-import tensor.TensorLayoutTransform;
-import tensor.TensorPrimitiveBuilder;
+import tensor.layout.TensorLayoutTransform;
+import tensor.internal.TensorPrimitiveBuilder;
 
 /**
  * Graph-building definitions for axis gather and take aliases.

@@ -9,6 +9,13 @@ import operations.Operation;
 import operations.index.ScatterReduction;
 import operations.layout.noop;
 import tensor.factory.TensorArrayData;
+import tensor.factory.TensorDataFactory;
+import tensor.internal.TensorExecutionSupport;
+import tensor.internal.TensorGraphTraversal;
+import tensor.internal.TensorPiecewiseOps;
+import tensor.internal.TensorPrimitiveBuilder;
+import tensor.layout.TensorRemap;
+import tensor.layout.TensorShape;
 import tensor.loss.LossReduction;
 import tensor.options.AttentionOptions;
 import tensor.options.Conv2dOptions;
@@ -78,6 +85,8 @@ import tensor.ops.unary.SigmoidOp;
 import tensor.ops.unary.SignOp;
 import tensor.ops.unary.SqrtOp;
 import tensor.ops.unary.TanhOp;
+import tensor.storage.TensorStorage;
+import tensor.storage.TensorStorageSupport;
 
 import java.util.*;
 

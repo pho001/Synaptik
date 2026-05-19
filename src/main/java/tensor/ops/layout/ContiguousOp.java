@@ -3,7 +3,7 @@ package tensor.ops.layout;
 import operations.Operation;
 import operations.layout.contiguous;
 import tensor.Tensor;
-import tensor.TensorPrimitiveBuilder;
+import tensor.internal.TensorPrimitiveBuilder;
 
 /**
  * Graph-building definition for {@code contiguous}.

@@ -86,7 +86,7 @@ sequenceDiagram
 
 | Artifact | Created by | Main files | Owns | Reusable? |
 |---|---|---|---|---|
-| Semantic tensor graph | `Tensor` constructors and `tensor.ops.*` builders | [`Tensor.java`](../src/main/java/tensor/Tensor.java), [`TensorPrimitiveBuilder.java`](../src/main/java/tensor/TensorPrimitiveBuilder.java) | Shape, dtype, storage/layout, operation descriptor, predecessor tensors, backward lambda | User-owned mutable graph |
+| Semantic tensor graph | `Tensor` constructors and `tensor.ops.*` builders | [`Tensor.java`](../src/main/java/tensor/Tensor.java), [`TensorPrimitiveBuilder.java`](../src/main/java/tensor/internal/TensorPrimitiveBuilder.java) | Shape, dtype, storage/layout, operation descriptor, predecessor tensors, backward lambda | User-owned mutable graph |
 | Compile artifact | `CompiledGraph.compile(...)` and `GraphCompiler.compile()` | [`CompiledGraph.java`](../src/main/java/graph/CompiledGraph.java), [`GraphCompiler.java`](../src/main/java/graph/compile/GraphCompiler.java), [`CompileArtifacts.java`](../src/main/java/graph/compile/CompileArtifacts.java) | Immutable `CompiledNode` snapshots, final graph order, gradient bindings, partition plans, optimizer state, memory plan | Reusable for prepares with compatible runtime configs |
 | Prepared artifact | `CompiledGraph.prepare(...)` | [`PreparedExecutionBuilder.java`](../src/main/java/backend/prepare/PreparedExecutionBuilder.java), [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java) | Ordered executable steps, backend metadata, CPU plans, fused/accelerator executables, prepare trace | Reusable for repeated runs with the same graph contract |
 | Per-run state | `PreparedExecution.execute(...)` | [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java), [`ExecutionContext.java`](../src/main/java/backend/runtime/ExecutionContext.java) | Runtime tensors, runtime input links, forked workspaces, prepared input tensors, runtime trace side channels | New for each execute call |
@@ -238,9 +238,9 @@ The prepared schedule is reused, but the runtime state is fresh. This is why rep
 
 Public operation methods on `Tensor` delegate into `TensorOps`, then into family-specific builders:
 
-- `Tensor.add(...)` -> `TensorOps.add(...)` -> `TensorBinaryOps.add(...)`
-- `Tensor.relu()` -> `TensorOps.relu(...)` -> `TensorUnaryOps.relu(...)`
-- `Tensor.sum()` -> `TensorOps.sumAll(...)` -> `TensorReduceOps.sumAll(...)`
+- `Tensor.add(...)` -> `TensorOps.add(...)` -> `AddOp.build(...)`
+- `Tensor.relu()` -> `TensorOps.relu(...)` -> `ReluOp.build(...)`
+- `Tensor.sum()` -> `TensorOps.sumAll(...)` -> `SumOp.buildAll(...)`
 
 The operation builders validate shape/dtype rules, derive output metadata, build an `Operation`, and use `TensorPrimitiveBuilder` to create the output node. They do not run kernels during graph construction.
 
@@ -276,7 +276,7 @@ Without `compute(...)`, every caller would need to manually choose a compile con
 ### Where it lives in the code
 
 - Public methods: `src/main/java/tensor/Tensor.java`
-- Convenience execution logic: `src/main/java/tensor/TensorExecutionSupport.java`
+- Convenience execution logic: `src/main/java/tensor/internal/TensorExecutionSupport.java`
 - Options: `src/main/java/tensor/ComputeOptions.java`
 - Compile intent: `src/main/java/tensor/CompileMode.java`
 - Autotune policy: `src/main/java/tensor/AutotunePolicy.java`
@@ -2116,7 +2116,7 @@ Phase 25 applies the same rule to forward SDPA. Metal direct unmasked `SCALED_DO
 ## Source Map
 
 - [`Tensor.java`](../src/main/java/tensor/Tensor.java): public compute/compile/prepare entry points, graph node fields, operation methods, `forwardOutput()`.
-- [`TensorExecutionSupport.java`](../src/main/java/tensor/TensorExecutionSupport.java): default compile/runtime/profile selection for `Tensor.compute(...)`.
+- [`TensorExecutionSupport.java`](../src/main/java/tensor/internal/TensorExecutionSupport.java): default compile/runtime/profile selection for `Tensor.compute(...)`.
 - [`CompiledGraph.java`](../src/main/java/graph/CompiledGraph.java): compile facade, prepare facade, trace access, execute convenience methods.
 - [`GraphCompiler.java`](../src/main/java/graph/compile/GraphCompiler.java): compile session, backward decision, optimizer invocation, snapshots, partition planning, memory planning.
 - [`CompileArtifacts.java`](../src/main/java/graph/compile/CompileArtifacts.java): immutable compile output record.

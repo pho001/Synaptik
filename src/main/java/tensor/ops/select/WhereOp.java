@@ -4,11 +4,11 @@ import operations.elementwise.where.where;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorBroadcastOps;
-import tensor.TensorDataTypeUtil;
+import tensor.dtype.TensorDataTypeUtil;
 import tensor.TensorInternalAccess;
-import tensor.TensorPrimitiveBuilder;
-import tensor.WhereBroadcastPlan;
-import tensor.WhereBroadcastPlanner;
+import tensor.internal.TensorPrimitiveBuilder;
+import tensor.layout.WhereBroadcastPlan;
+import tensor.layout.WhereBroadcastPlanner;
 
 /**
  * Graph-building definition for conditional {@code where}.

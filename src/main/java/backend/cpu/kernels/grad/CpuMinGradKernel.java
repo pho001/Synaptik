@@ -6,7 +6,7 @@ import backend.cpu.kernels.*;
 
 import operations.Operation;
 import operations.elementwise.binary.minGrad;
-import tensor.BroadcastPlan;
+import tensor.layout.BroadcastPlan;
 import tensor.Tensor;
 
 import java.util.List;

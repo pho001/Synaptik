@@ -72,9 +72,9 @@ The most important architectural rule is that each lifecycle artifact owns diffe
 
 ## Graph Construction
 
-Public graph construction starts in `src/main/java/tensor/Tensor.java` and delegates family-specific work into `src/main/java/tensor/ops/*`. For example, binary operations are implemented through `tensor.ops.binary.TensorBinaryOps`, reductions through `tensor.ops.reduction.TensorReduceOps`, layout through `tensor.ops.layout.TensorLayoutOps`, and linalg through `tensor.ops.linalg.*`.
+Public graph construction starts in `src/main/java/tensor/Tensor.java` and delegates family-specific work into `src/main/java/tensor/ops/*`. For example, binary operations are implemented by concrete classes such as `tensor.ops.binary.AddOp`, reductions by classes such as `tensor.ops.reduction.SumOp`, layout by classes such as `tensor.ops.layout.ReshapeOp`, and linalg through `tensor.ops.linalg.*`.
 
-The public convenience execution methods are centralized in `src/main/java/tensor/TensorExecutionSupport.java`:
+The public convenience execution methods are centralized in `src/main/java/tensor/internal/TensorExecutionSupport.java`:
 
 - `Tensor.compile()` and `Tensor.compile(CompileMode)` call `CompiledGraph.compile(...)`.
 - `Tensor.compute()` defaults to `CompileMode.INFERENCE_ONLY`.
@@ -1091,7 +1091,7 @@ reports drift, not median/p95 runtime. Use `tuning.benchmark` for performance me
 
 The claims in this document were checked against source files and tests including:
 
-- lifecycle: `src/main/java/tensor/TensorExecutionSupport.java`, `src/main/java/graph/CompiledGraph.java`, `src/main/java/graph/compile/GraphCompiler.java`, `src/main/java/backend/prepare/PreparedExecutionBuilder.java`, `src/main/java/graph/execution/PreparedExecution.java`
+- lifecycle: `src/main/java/tensor/internal/TensorExecutionSupport.java`, `src/main/java/graph/CompiledGraph.java`, `src/main/java/graph/compile/GraphCompiler.java`, `src/main/java/backend/prepare/PreparedExecutionBuilder.java`, `src/main/java/graph/execution/PreparedExecution.java`
 - graph optimization and compile planning: `src/main/java/config/compile/CompileConfig.java`, `src/main/java/config/compile/GraphOptimizationConfig.java`, `src/main/java/config/compile/BackendPlanningConfig.java`, `src/main/java/graph/optimizer/OptimizerFactory.java`, `src/main/java/graph/compile/BackendPlanningService.java`
 - backend dispatch: `src/main/java/backend/ComputeEngine.java`, `src/main/java/backend/cpu/CpuBackend.java`, `src/main/java/backend/cpu/prepare/CpuNodePreparer.java`, `src/main/java/backend/cpu/registry/CpuKernelResolver.java`
 - tracing: `src/main/java/graph/execution/trace/*.java`, `src/main/java/backend/runtime/ExecutionContext.java`, `src/main/java/graph/execution/PreparedExecution.java`

@@ -417,13 +417,13 @@ Those belong respectively in:
 
 Several supporting classes exist to keep `Tensor` itself smaller:
 
-- [TensorPrimitiveBuilder.java](../tensor/TensorPrimitiveBuilder.java)
-- [TensorDataFactory.java](../tensor/TensorDataFactory.java)
+- [TensorPrimitiveBuilder.java](../tensor/internal/TensorPrimitiveBuilder.java)
+- [TensorDataFactory.java](../tensor/factory/TensorDataFactory.java)
 - [TensorBroadcastOps.java](../tensor/TensorBroadcastOps.java)
-- [TensorLayoutTransform.java](../tensor/TensorLayoutTransform.java)
-- [TensorGraphTraversal.java](../tensor/TensorGraphTraversal.java)
-- [TensorExecutionSupport.java](../tensor/TensorExecutionSupport.java)
-- [TensorStorageSupport.java](../tensor/TensorStorageSupport.java)
+- [TensorLayoutTransform.java](../tensor/layout/TensorLayoutTransform.java)
+- [TensorGraphTraversal.java](../tensor/internal/TensorGraphTraversal.java)
+- [TensorExecutionSupport.java](../tensor/internal/TensorExecutionSupport.java)
+- [TensorStorageSupport.java](../tensor/storage/TensorStorageSupport.java)
 - [factory/TensorArrayData.java](../tensor/factory/TensorArrayData.java)
 
 These are part of the package design, but they are not the first place to look when using the public API.

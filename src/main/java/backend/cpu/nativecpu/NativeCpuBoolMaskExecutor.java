@@ -14,8 +14,8 @@ import operations.Operation;
 import operations.reduction.reduceAll;
 import operations.reduction.reduceAny;
 import tensor.DataType;
-import tensor.NativeBoolStorage;
-import tensor.NativeTensorStorage;
+import tensor.storage.NativeBoolStorage;
+import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;
 
 import java.util.List;

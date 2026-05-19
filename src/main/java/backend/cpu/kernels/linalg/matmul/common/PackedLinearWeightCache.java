@@ -5,7 +5,7 @@ import tensor.TensorInternalAccess;
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
 import tensor.Tensor;
-import tensor.TensorStorage;
+import tensor.storage.TensorStorage;
 
 public final class PackedLinearWeightCache {
     public interface PackedFloatPanels {

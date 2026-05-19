@@ -3,8 +3,8 @@ package tensor.ops.unary;
 import operations.Operation;
 import operations.elementwise.unary.sign;
 import tensor.Tensor;
-import tensor.TensorDataTypeUtil;
-import tensor.TensorPrimitiveBuilder;
+import tensor.dtype.TensorDataTypeUtil;
+import tensor.internal.TensorPrimitiveBuilder;
 
 /**
  * Graph-building definition for elementwise {@code sign}.

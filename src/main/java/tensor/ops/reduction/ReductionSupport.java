@@ -9,8 +9,8 @@ import operations.reduction.reduceMin;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
-import tensor.TensorLayoutTransform;
-import tensor.TensorPrimitiveBuilder;
+import tensor.layout.TensorLayoutTransform;
+import tensor.internal.TensorPrimitiveBuilder;
 
 import java.util.ArrayList;
 import java.util.Arrays;

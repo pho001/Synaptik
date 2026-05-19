@@ -1,6 +1,6 @@
 package backend.cpu.kernels.layout.plan;
 
-import tensor.BroadcastPlan;
+import tensor.layout.BroadcastPlan;
 
 public final class ResolvedBroadcastPlan {
     private final int[] outShape;

@@ -18,8 +18,8 @@ import jdk.incubator.vector.VectorSpecies;
 import backend.cpu.fused.plan.FusedOperation;
 import operations.Operation;
 import tensor.DataType;
-import tensor.BoolStorage;
-import tensor.Float32Storage;
+import tensor.storage.BoolStorage;
+import tensor.storage.Float32Storage;
 import tensor.Tensor;
 
 import java.util.ArrayList;

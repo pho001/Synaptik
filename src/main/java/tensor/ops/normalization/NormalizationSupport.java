@@ -3,7 +3,7 @@ package tensor.ops.normalization;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
-import tensor.TensorDataTypeUtil;
+import tensor.dtype.TensorDataTypeUtil;
 
 final class NormalizationSupport {
     private NormalizationSupport() {

@@ -17,7 +17,7 @@ import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
 import backend.cpu.fused.plan.FusedOperation;
 import operations.Operation;
-import tensor.BFloat16Storage;
+import tensor.storage.BFloat16Storage;
 import tensor.DataType;
 import tensor.Tensor;
 

@@ -599,13 +599,13 @@ The invalid timesteps in `mask` contribute no data gradient to `x`.
 |---|---|---|
 | `Tensor.zeros`, `Tensor.ones`, `Tensor.randn`, `Tensor.arange` | `TensorDataFactory` | Leaf tensor construction |
 | `rank`, `size`, `lastDim`, `shapeEquals`, `shapeCopy` | `Tensor` metadata helpers | No graph node |
-| `linear` | `tensor.ops.linalg.TensorLinearOps`, `LinearSpec`, CPU `LinearExecutor` | Primitive `LINEAR`; N-D over leading axes |
-| `stack` | `tensor.ops.layout.TensorLayoutOps.stack` | Composes `expandDims` plus `concat` |
-| `unstack` | `tensor.ops.layout.TensorLayoutOps.unstack` | Composes `select` |
-| `sliceAxis` | `TensorOps.sliceAxis` -> `TensorLayoutOps.slice` | Static positive-step slice |
-| `take` | `TensorIndexOps.take` -> `gatherAxis` | Primitive `GATHER_AXIS` |
-| masked `sum` / `mean` | `TensorReduceOps` | Composes `where`, `sum`, `div`, `clampMin` |
-| masked cross entropy | `TensorLossOps` | Composes `logSoftmax`, class reduction, `where`, reduction |
+| `linear` | `tensor.ops.linalg.LinearOp`, `LinearSpec`, CPU `LinearExecutor` | Primitive `LINEAR`; N-D over leading axes |
+| `stack` | `tensor.ops.layout.StackOp` | Composes `expandDims` plus `concat` |
+| `unstack` | `tensor.ops.layout.UnstackOp` | Composes `select` |
+| `sliceAxis` | `TensorOps.sliceAxis` -> `SliceOp` | Static positive-step slice |
+| `take` | `GatherOp.take` -> `gatherAxis` | Primitive `GATHER_AXIS` |
+| masked `sum` / `mean` | `SumOp` / `MeanOp` | Composes `where`, `sum`, `div`, `clampMin` |
+| masked cross entropy | `DenseCrossEntropyLossOp` / `CrossEntropyLossFromIndicesOp` | Composes `logSoftmax`, class reduction, `where`, reduction |
 
 The composition-first rows are intentional. They avoid adding sequence-specific primitive kernels when existing tensor primitives already express the semantics.
 

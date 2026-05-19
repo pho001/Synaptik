@@ -3,10 +3,10 @@ package tensor.ops.loss;
 import operations.loss.crossEntropyLoss;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorDataTypeUtil;
+import tensor.dtype.TensorDataTypeUtil;
 import tensor.TensorInternalAccess;
-import tensor.TensorLayoutTransform;
-import tensor.TensorPrimitiveBuilder;
+import tensor.layout.TensorLayoutTransform;
+import tensor.internal.TensorPrimitiveBuilder;
 
 /**
  * Graph-building definition for dense-target cross-entropy loss.

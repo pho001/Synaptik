@@ -14,9 +14,9 @@ import config.runtime.CpuStorageProfile;
 import graph.CompiledNode;
 import backend.cpu.kernels.CpuDTypeOps;
 import tensor.DataType;
-import tensor.NativeBFloat16Storage;
-import tensor.NativeFloat32Storage;
-import tensor.NativeTensorStorage;
+import tensor.storage.NativeBFloat16Storage;
+import tensor.storage.NativeFloat32Storage;
+import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;
 
 import java.lang.foreign.MemorySegment;

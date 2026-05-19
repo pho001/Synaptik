@@ -60,7 +60,7 @@ final class LayoutSupport {
         int[] normalizedEnds = new int[count];
         boolean[] seen = new boolean[rank];
         for (int i = 0; i < count; i++) {
-            int axis = tensor.TensorLayoutTransform.normalizeAxis(normalizedAxes[i], rank);
+            int axis = tensor.layout.TensorLayoutTransform.normalizeAxis(normalizedAxes[i], rank);
             if (seen[axis]) {
                 throw new IllegalArgumentException("slice axes cannot contain duplicates.");
             }

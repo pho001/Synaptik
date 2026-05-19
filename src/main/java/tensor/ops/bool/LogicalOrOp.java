@@ -1,7 +1,7 @@
 package tensor.ops.bool;
 
 import operations.elementwise.logical.logicalOr;
-import tensor.BroadcastPlan;
+import tensor.layout.BroadcastPlan;
 import tensor.Tensor;
 
 /**

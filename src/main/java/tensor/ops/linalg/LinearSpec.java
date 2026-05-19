@@ -3,7 +3,7 @@ package tensor.ops.linalg;
 import operations.linalg.linear;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorDataTypeUtil;
+import tensor.dtype.TensorDataTypeUtil;
 
 /**
  * Validated execution contract for the public N-D linear projection.

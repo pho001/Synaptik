@@ -3,8 +3,8 @@ package backend.cpu.kernels.layout;
 import backend.cpu.kernels.CpuKernelContext;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
-import tensor.TensorLayoutTransform;
-import tensor.TensorRemap;
+import tensor.layout.TensorLayoutTransform;
+import tensor.layout.TensorRemap;
 
 import java.util.List;
 

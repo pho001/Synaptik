@@ -1,5 +1,9 @@
 package tensor;
 
+import tensor.dtype.BFloat16Bits;
+import tensor.layout.BroadcastPlan;
+import tensor.layout.BroadcastPlanner;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;

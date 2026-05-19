@@ -107,7 +107,7 @@ CSE signatures, fusion/accelerator integration, and tests, see [Adding A Tensor 
 Use an existing family as the template. For a binary elementwise op, compare:
 
 - Descriptor: `src/main/java/operations/elementwise/binary/add.java`
-- Builder/backward: `src/main/java/tensor/ops/binary/TensorBinaryOps.java`
+- Builder/backward: concrete operation classes under `src/main/java/tensor/ops/binary/`, such as `AddOp.java`
 - Public static facade: `src/main/java/tensor/TensorOps.java`
 - Instance method facade: `src/main/java/tensor/Tensor.java`
 - CPU kernel: `src/main/java/backend/cpu/kernels/elementwise/binary/CpuAddKernel.java`

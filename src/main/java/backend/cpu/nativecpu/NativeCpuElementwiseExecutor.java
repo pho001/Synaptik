@@ -21,10 +21,10 @@ import operations.elementwise.unary.clampMin;
 import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.pow;
 import tensor.DataType;
-import tensor.NativeBFloat16Storage;
-import tensor.NativeFloat32Storage;
-import tensor.NativeFloat64Storage;
-import tensor.NativeTensorStorage;
+import tensor.storage.NativeBFloat16Storage;
+import tensor.storage.NativeFloat32Storage;
+import tensor.storage.NativeFloat64Storage;
+import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;
 import utils.FastTranscendentals;
 

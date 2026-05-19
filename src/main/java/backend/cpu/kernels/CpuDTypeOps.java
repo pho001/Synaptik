@@ -1,7 +1,7 @@
 package backend.cpu.kernels;
 
 import tensor.DataType;
-import tensor.BFloat16Bits;
+import tensor.dtype.BFloat16Bits;
 import tensor.Tensor;
 
 public final class CpuDTypeOps {

@@ -7,8 +7,8 @@ import backend.memory.CpuMaterializationResult;
 import backend.memory.DeviceBufferBinding;
 import backend.memory.DeviceToNativeMaterializer;
 import tensor.DataType;
-import tensor.NativeFloat32Storage;
-import tensor.NativeTensorStorage;
+import tensor.storage.NativeFloat32Storage;
+import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;
 
 import java.util.Arrays;

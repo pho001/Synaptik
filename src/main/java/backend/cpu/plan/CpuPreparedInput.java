@@ -1,7 +1,7 @@
 package backend.cpu.plan;
 
 import tensor.Tensor;
-import tensor.TensorRemap;
+import tensor.layout.TensorRemap;
 
 import java.util.Objects;
 

@@ -2,8 +2,8 @@ package tensor.ops.reduction;
 
 import operations.reduction.reduceProd;
 import tensor.Tensor;
-import tensor.TensorLayoutTransform;
-import tensor.TensorPrimitiveBuilder;
+import tensor.layout.TensorLayoutTransform;
+import tensor.internal.TensorPrimitiveBuilder;
 
 /**
  * Graph-building definition for {@code prod} reductions.

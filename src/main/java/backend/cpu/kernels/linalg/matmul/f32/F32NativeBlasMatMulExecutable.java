@@ -9,8 +9,8 @@ import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
 import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
 import backend.memory.CpuMaterializationReason;
 import config.runtime.NativeCpuFailurePolicy;
-import tensor.NativeFloat32Storage;
-import tensor.NativeTensorStorage;
+import tensor.storage.NativeFloat32Storage;
+import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;
 
 import java.util.Arrays;

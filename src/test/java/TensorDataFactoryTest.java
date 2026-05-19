@@ -1,5 +1,5 @@
 import tensor.DataType;
-import tensor.TensorDataFactory;
+import tensor.factory.TensorDataFactory;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;
 

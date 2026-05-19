@@ -3,7 +3,7 @@ package tensor.ops.pool;
 import operations.nn.pool.avgPool2d;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
-import tensor.TensorPrimitiveBuilder;
+import tensor.internal.TensorPrimitiveBuilder;
 import tensor.options.Pool2dOptions;
 
 /**

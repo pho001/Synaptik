@@ -25,11 +25,11 @@ import operations.reduction.reduceAll;
 import operations.reduction.reduceAny;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
-import tensor.NativeBFloat16Storage;
-import tensor.NativeBoolStorage;
-import tensor.NativeFloat32Storage;
-import tensor.NativeFloat64Storage;
-import tensor.NativeTensorStorage;
+import tensor.storage.NativeBFloat16Storage;
+import tensor.storage.NativeBoolStorage;
+import tensor.storage.NativeFloat32Storage;
+import tensor.storage.NativeFloat64Storage;
+import tensor.storage.NativeTensorStorage;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;

@@ -1,11 +1,11 @@
 package tensor.ops.bool;
 
 import operations.Operation;
-import tensor.BroadcastPlan;
+import tensor.layout.BroadcastPlan;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorBroadcastOps;
-import tensor.TensorPrimitiveBuilder;
+import tensor.internal.TensorPrimitiveBuilder;
 
 final class BoolSupport {
     private BoolSupport() {

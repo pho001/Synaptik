@@ -1,7 +1,7 @@
 package operations.elementwise.binary;
 
 import operations.Operation;
-import tensor.BroadcastPlan;
+import tensor.layout.BroadcastPlan;
 
 /**
  * Raises each element of the left operand to the elementwise exponent from the

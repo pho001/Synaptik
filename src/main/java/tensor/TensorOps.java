@@ -1,6 +1,7 @@
 package tensor;
 
 import operations.index.ScatterReduction;
+import tensor.internal.TensorPiecewiseOps;
 import tensor.ops.binary.AddOp;
 import tensor.ops.binary.DivOp;
 import tensor.ops.binary.MaxOp;

@@ -3,12 +3,12 @@ package tensor.ops.binary;
 import graph.optimizer.intent.BackendIntentPropagator;
 import operations.Operation;
 import operations.elementwise.binary.max;
-import tensor.BroadcastPlan;
+import tensor.layout.BroadcastPlan;
 import tensor.Tensor;
 import tensor.TensorBroadcastOps;
-import tensor.TensorDataTypeUtil;
+import tensor.dtype.TensorDataTypeUtil;
 import tensor.TensorInternalAccess;
-import tensor.TensorPrimitiveBuilder;
+import tensor.internal.TensorPrimitiveBuilder;
 
 /**
  * Graph-building definition for elementwise {@code max}.

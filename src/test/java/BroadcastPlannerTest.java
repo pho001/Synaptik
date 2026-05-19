@@ -1,5 +1,5 @@
-import tensor.BroadcastPlan;
-import tensor.BroadcastPlanner;
+import tensor.layout.BroadcastPlan;
+import tensor.layout.BroadcastPlanner;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;

@@ -403,7 +403,7 @@ IllegalArgumentException: Broadcast mismatch at dim <n>: <a> vs <b>
 
 Source:
 
-- `src/main/java/tensor/BroadcastPlanner.java`
+- `src/main/java/tensor/layout/BroadcastPlanner.java`
 
 Fix path:
 

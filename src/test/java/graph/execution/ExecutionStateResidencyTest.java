@@ -20,8 +20,8 @@ import graph.CompiledGraph;
 import graph.CompiledNode;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
-import tensor.NativeFloat32Storage;
-import tensor.NativeTensorStorage;
+import tensor.storage.NativeFloat32Storage;
+import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;
 
 import java.util.HashMap;

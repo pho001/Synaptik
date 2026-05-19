@@ -4,9 +4,9 @@ import operations.Operation;
 import operations.layout.reshape;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
-import tensor.TensorLayoutTransform;
+import tensor.layout.TensorLayoutTransform;
 import tensor.TensorMetadata;
-import tensor.TensorPrimitiveBuilder;
+import tensor.internal.TensorPrimitiveBuilder;
 
 /**
  * Graph-building definition for {@code reshape}.

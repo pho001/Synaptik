@@ -3,11 +3,11 @@ package backend.cpu.kernels.layout;
 import backend.cpu.kernels.layout.plan.ResolvedBroadcastPlan;
 import backend.cpu.kernels.layout.plan.ResolvedWhereBroadcastPlan;
 import operations.Operation;
-import tensor.BroadcastPlan;
-import tensor.BroadcastPlanner;
+import tensor.layout.BroadcastPlan;
+import tensor.layout.BroadcastPlanner;
 import tensor.Tensor;
-import tensor.WhereBroadcastPlan;
-import tensor.WhereBroadcastPlanner;
+import tensor.layout.WhereBroadcastPlan;
+import tensor.layout.WhereBroadcastPlanner;
 
 import java.util.Arrays;
 import java.util.List;

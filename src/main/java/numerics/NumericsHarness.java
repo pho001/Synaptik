@@ -8,7 +8,7 @@ import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorDataFactory;
+import tensor.factory.TensorDataFactory;
 
 import java.util.ArrayList;
 import java.util.List;

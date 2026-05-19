@@ -2,15 +2,15 @@ package backend.cpu.nativecpu;
 
 import tensor.TensorInternalAccess;
 
-import tensor.BFloat16Storage;
+import tensor.storage.BFloat16Storage;
 import tensor.DataType;
-import tensor.Float32Storage;
-import tensor.Float64Storage;
-import tensor.NativeBFloat16Storage;
-import tensor.NativeBoolStorage;
-import tensor.NativeFloat32Storage;
-import tensor.NativeFloat64Storage;
-import tensor.NativeTensorStorage;
+import tensor.storage.Float32Storage;
+import tensor.storage.Float64Storage;
+import tensor.storage.NativeBFloat16Storage;
+import tensor.storage.NativeBoolStorage;
+import tensor.storage.NativeFloat32Storage;
+import tensor.storage.NativeFloat64Storage;
+import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;
 
 import java.lang.foreign.MemorySegment;

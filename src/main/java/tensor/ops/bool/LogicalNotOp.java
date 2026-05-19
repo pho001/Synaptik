@@ -3,7 +3,7 @@ package tensor.ops.bool;
 import operations.elementwise.logical.logicalNot;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorPrimitiveBuilder;
+import tensor.internal.TensorPrimitiveBuilder;
 
 /**
  * Graph-building definition for elementwise boolean {@code logical_not}.

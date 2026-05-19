@@ -31,6 +31,7 @@ import config.runtime.RuntimeConfig;
 import graph.AliasViewPolicy;
 import graph.CompiledNode;
 import graph.CompiledGradientBinding;
+import graph.GradientDTypePolicy;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.execution.trace.ComputeTraceMetadata;
 import graph.execution.trace.DispatchTraceMetadata;
@@ -1848,11 +1849,15 @@ public final class PreparedExecution implements AutoCloseable {
     }
 
     private static void fillGradientOnes(Tensor gradient) {
+        GradientDTypePolicy.requireGradientSupported(gradient.getDataType(), "Gradient seeding");
         switch (gradient.getDataType()) {
             case FLOAT64 -> Arrays.fill(TensorInternalAccess.float64Data(gradient), 1.0);
             case FLOAT32 -> Arrays.fill(TensorInternalAccess.float32Data(gradient), 1.0f);
             case BFLOAT16 -> Arrays.fill(TensorInternalAccess.bfloat16Data(gradient), CpuDTypeOps.toBFloat16Bits(1.0f));
-            case INT32, INT64, BOOL -> throw new UnsupportedOperationException("INT32/INT64/BOOL tensors do not support gradient seeding.");
+            case INT32, INT64, BOOL -> throw GradientDTypePolicy.unsupportedGradientDType(
+                    gradient.getDataType(),
+                    "Gradient seeding"
+            );
         }
     }
 

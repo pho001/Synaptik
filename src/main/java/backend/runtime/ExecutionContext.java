@@ -14,7 +14,7 @@ import graph.execution.ExecutionState;
 import graph.execution.trace.ConvTraceMetadata;
 import graph.execution.trace.HostDeviceTransferTrace;
 import tensor.DataType;
-import tensor.NativeTensorStorage;
+import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;
 
 import java.util.Collections;

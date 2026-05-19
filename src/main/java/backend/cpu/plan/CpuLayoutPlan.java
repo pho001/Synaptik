@@ -6,7 +6,7 @@ import backend.cpu.kernels.layout.plan.ResolvedBroadcastPlan;
 import backend.cpu.kernels.layout.plan.ResolvedWhereBroadcastPlan;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorRemap;
+import tensor.layout.TensorRemap;
 
 import java.util.ArrayList;
 import java.util.List;

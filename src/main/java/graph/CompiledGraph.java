@@ -417,13 +417,15 @@ public class CompiledGraph {
             if (gradient == null) {
                 continue;
             }
+            GradientDTypePolicy.requireGradientSupported(gradient.getDataType(), "zeroGrad");
             switch (gradient.getDataType()) {
                 case FLOAT64 -> java.util.Arrays.fill(TensorInternalAccess.float64Data(gradient), 0.0d);
                 case FLOAT32 -> java.util.Arrays.fill(TensorInternalAccess.float32Data(gradient), 0.0f);
                 case BFLOAT16 -> java.util.Arrays.fill(TensorInternalAccess.bfloat16Data(gradient), (short) 0);
-                case INT32 -> java.util.Arrays.fill(TensorInternalAccess.int32Data(gradient), 0);
-                case INT64 -> throw new UnsupportedOperationException("INT64 tensors do not support gradients.");
-                case BOOL -> java.util.Arrays.fill(TensorInternalAccess.boolData(gradient), (byte) 0);
+                case INT32, INT64, BOOL -> throw GradientDTypePolicy.unsupportedGradientDType(
+                        gradient.getDataType(),
+                        "zeroGrad"
+                );
             }
         }
     }

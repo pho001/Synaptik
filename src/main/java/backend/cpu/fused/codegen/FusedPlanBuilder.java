@@ -222,7 +222,7 @@ public final class FusedPlanBuilder {
         List<FusedExternalInputPlan> plans = new ArrayList<>(externalInputs.size());
         for (int i = 0; i < externalInputs.size(); i++) {
             Tensor input = externalInputs.get(i);
-            tensor.BroadcastPlan plan = tensor.BroadcastPlanner.plan(input.getShape(), input.getStrides(), outShape, outDenseStrides);
+            tensor.layout.BroadcastPlan plan = tensor.layout.BroadcastPlanner.plan(input.getShape(), input.getStrides(), outShape, outDenseStrides);
             if (!java.util.Arrays.equals(plan.outShape(), outShape)) {
                 throw new IllegalArgumentException("Fused broadcast shape mismatch for external input");
             }

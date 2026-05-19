@@ -1,4 +1,5 @@
 package tensor;
+import tensor.storage.TensorStorage;
 
 import backend.ComputeBackend;
 import operations.Operation;
@@ -60,6 +61,14 @@ public final class TensorInternalAccess {
 
     public static TensorStorage storage(Tensor tensor) {
         return tensor.storageInternal();
+    }
+
+    public static double getByStorageOffset(Tensor tensor, int offset) {
+        return tensor.getByStorageOffset(offset);
+    }
+
+    public static void setByStorageOffset(Tensor tensor, int offset, double value) {
+        tensor.setByStorageOffset(offset, value);
     }
 
     public static float[] float32Data(Tensor tensor) {

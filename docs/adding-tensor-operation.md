@@ -50,7 +50,7 @@ The operation pipeline is layered:
 User call
   Tensor.square()
     -> TensorOps.square(tensor)
-      -> tensor.ops.unary.TensorUnaryOps.square(tensor)
+      -> tensor.ops.unary.SquareOp.build(tensor)
         -> operations.elementwise.unary.square descriptor
         -> TensorPrimitiveBuilder creates a graph Tensor node
           -> CompiledGraph snapshots Operation.OpType.SQUARE
@@ -96,9 +96,9 @@ This composition-first path keeps the semantic graph clean. It avoids creating a
 | Operation id and fusable flag | [`Operation.java`](../src/main/java/operations/Operation.java) |
 | Public static facade | [`TensorOps.java`](../src/main/java/tensor/TensorOps.java) |
 | Public instance facade | [`Tensor.java`](../src/main/java/tensor/Tensor.java) |
-| Primitive graph construction | [`TensorPrimitiveBuilder.java`](../src/main/java/tensor/TensorPrimitiveBuilder.java) |
-| Binary broadcasting planner | [`TensorBroadcastOps.java`](../src/main/java/tensor/TensorBroadcastOps.java), [`BroadcastPlanner.java`](../src/main/java/tensor/BroadcastPlanner.java) |
-| DType helpers | [`TensorDataTypeUtil.java`](../src/main/java/tensor/TensorDataTypeUtil.java), [`DataType.java`](../src/main/java/tensor/DataType.java) |
+| Primitive graph construction | [`TensorPrimitiveBuilder.java`](../src/main/java/tensor/internal/TensorPrimitiveBuilder.java) |
+| Binary broadcasting planner | [`TensorBroadcastOps.java`](../src/main/java/tensor/TensorBroadcastOps.java), [`BroadcastPlanner.java`](../src/main/java/tensor/layout/BroadcastPlanner.java) |
+| DType helpers | [`TensorDataTypeUtil.java`](../src/main/java/tensor/dtype/TensorDataTypeUtil.java), [`DataType.java`](../src/main/java/tensor/DataType.java) |
 | CPU kernel resolver | [`CpuKernelResolver.java`](../src/main/java/backend/cpu/registry/CpuKernelResolver.java) |
 | CPU prepare | [`CpuNodePreparer.java`](../src/main/java/backend/cpu/prepare/CpuNodePreparer.java) |
 | CSE parameter signatures | [`CommonSubexpressionEliminationRule.java`](../src/main/java/graph/optimizer/cse/CommonSubexpressionEliminationRule.java) |
@@ -211,7 +211,7 @@ Parameterized example from current code: [`pow.java`](../src/main/java/operation
 
 ## Tensor Builder Layer
 
-Add the graph-building method to the family builder. For unary floating ops this is [`TensorUnaryOps.java`](../src/main/java/tensor/ops/unary/TensorUnaryOps.java):
+Add a concrete graph-building class in the operation family package. For a unary floating op this would be `src/main/java/tensor/ops/unary/SquareOp.java`:
 
 ```java
 public static Tensor square(Tensor input) {
@@ -254,7 +254,7 @@ Add a static facade to [`TensorOps.java`](../src/main/java/tensor/TensorOps.java
 
 ```java
 public static Tensor square(Tensor input) {
-    return TensorUnaryOps.square(input);
+    return SquareOp.build(input);
 }
 ```
 
@@ -421,9 +421,9 @@ Use existing helpers:
 | Unary floating dtype | `TensorDataTypeUtil.unary(input)` |
 | Binary floating dtype promotion | `TensorDataTypeUtil.binary(first, second)` |
 | Binary broadcast output shape | `TensorBroadcastOps.planBinary(first, second)` |
-| Ternary `where` broadcast | Existing `TensorSelectOps.where(...)` pattern |
-| Reduction output shape | Existing `TensorReduceOps` helpers and descriptors |
-| Layout/view shape and strides | Existing `TensorLayoutOps` helpers |
+| Ternary `where` broadcast | Existing `WhereOp.build(...)` pattern |
+| Reduction output shape | Existing reduction operation builders, `ReductionSupport`, and descriptors |
+| Layout/view shape and strides | Existing layout operation builders and `LayoutSupport` |
 
 Do not reimplement broadcasting by hand. The planner already handles aligned dimensions and emits consistent errors such as `Broadcast mismatch at dim ...`.
 

@@ -64,7 +64,7 @@ publication:  controlled separately by PublicationPolicy
 
 Relevant source areas:
 
-- `src/main/java/tensor/BFloat16Storage.java`
+- `src/main/java/tensor/storage/BFloat16Storage.java`
 - `src/main/java/backend/cpu/kernels/CpuDTypeOps.java`
 - `src/main/java/backend/cpu/kernels/plan/CpuComputeContractResolver.java`
 - `src/main/java/backend/cpu/kernels/elementwise/binary/bf16/*`

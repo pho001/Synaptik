@@ -27,7 +27,7 @@ import backend.cpu.fused.plan.FusedOperationPreparation;
 import backend.cpu.fused.exec.PreparedFusedExecutable;
 import operations.Operation;
 import backend.cpu.fused.plan.FusedOperation;
-import tensor.BroadcastPlanner;
+import tensor.layout.BroadcastPlanner;
 import tensor.DataType;
 import tensor.Tensor;
 

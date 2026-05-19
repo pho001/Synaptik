@@ -3,8 +3,8 @@ package backend.cpu.nativecpu;
 import backend.cpu.kernels.CpuDTypeOps;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
-import tensor.NativeBFloat16Storage;
-import tensor.NativeFloat32Storage;
+import tensor.storage.NativeBFloat16Storage;
+import tensor.storage.NativeFloat32Storage;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;

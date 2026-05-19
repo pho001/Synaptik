@@ -138,7 +138,7 @@ public final class TransformerHotPathWorkloadSpec implements WorkloadSpec {
 
     private static Tensor tensor(String label, int seed, DataType dataType, boolean requiresGrad, int... shape) {
         double[] data = randomData(flatSize(shape), seed);
-        return tensor.TensorDataFactory.shapedTensor(label, data, requiresGrad, dataType, shape);
+        return tensor.factory.TensorDataFactory.shapedTensor(label, data, requiresGrad, dataType, shape);
     }
 
     private static int flatSize(int[] shape) {

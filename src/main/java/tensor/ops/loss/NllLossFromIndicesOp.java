@@ -2,7 +2,7 @@ package tensor.ops.loss;
 
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorLayoutTransform;
+import tensor.layout.TensorLayoutTransform;
 import tensor.loss.LossReduction;
 
 import java.util.Arrays;

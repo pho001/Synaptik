@@ -595,7 +595,7 @@ profiles/platform/<platform-id>/tuning/abc/<dtype>-history.jsonl
 
 ### Tensor Convenience Autotune Layout
 
-**Source:** `src/main/java/tensor/TensorExecutionSupport.java`
+**Source:** `src/main/java/tensor/internal/TensorExecutionSupport.java`
 
 `Tensor.compute(new ComputeOptions().autotune(...))` uses a generic tensor workload and writes:
 

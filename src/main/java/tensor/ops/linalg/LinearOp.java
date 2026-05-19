@@ -4,7 +4,7 @@ import graph.optimizer.intent.BackendIntentPropagator;
 import operations.Operation;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
-import tensor.TensorPrimitiveBuilder;
+import tensor.internal.TensorPrimitiveBuilder;
 
 /**
  * Graph-building definition for last-dimension linear projection.

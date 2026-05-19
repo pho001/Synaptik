@@ -4,8 +4,8 @@ import operations.reduction.ArgMaxTiePolicy;
 import operations.reduction.argMax;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorLayoutTransform;
-import tensor.TensorPrimitiveBuilder;
+import tensor.layout.TensorLayoutTransform;
+import tensor.internal.TensorPrimitiveBuilder;
 
 /**
  * Graph-building definition for {@code argMax}.

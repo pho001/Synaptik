@@ -1,7 +1,7 @@
 package operations.elementwise.logical;
 import operations.Operation;
 
-import tensor.BroadcastPlan;
+import tensor.layout.BroadcastPlan;
 
 /**
  * Performs elementwise logical AND over boolean-compatible tensors.

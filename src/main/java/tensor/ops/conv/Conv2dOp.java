@@ -3,9 +3,9 @@ package tensor.ops.conv;
 import operations.nn.conv.conv2d;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorDataTypeUtil;
+import tensor.dtype.TensorDataTypeUtil;
 import tensor.TensorInternalAccess;
-import tensor.TensorPrimitiveBuilder;
+import tensor.internal.TensorPrimitiveBuilder;
 import tensor.options.Conv2dOptions;
 
 import java.util.List;

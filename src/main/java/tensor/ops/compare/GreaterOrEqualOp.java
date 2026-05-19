@@ -1,7 +1,7 @@
 package tensor.ops.compare;
 
 import operations.elementwise.compare.greaterOrEqual;
-import tensor.BroadcastPlan;
+import tensor.layout.BroadcastPlan;
 import tensor.Tensor;
 import tensor.TensorBroadcastOps;
 

@@ -1,6 +1,6 @@
 package backend.cpu.nativecpu;
 
-import tensor.NativeMemoryAllocation;
+import tensor.storage.NativeMemoryAllocation;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;

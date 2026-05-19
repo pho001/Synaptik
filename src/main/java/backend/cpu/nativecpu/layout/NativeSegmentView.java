@@ -1,6 +1,6 @@
 package backend.cpu.nativecpu.layout;
 
-import tensor.NativeTensorStorage;
+import tensor.storage.NativeTensorStorage;
 
 import java.lang.foreign.MemorySegment;
 import java.util.Objects;

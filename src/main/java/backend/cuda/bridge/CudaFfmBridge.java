@@ -10,9 +10,9 @@ import backend.accelerator.buffer.AcceleratorLayoutAbiV2Support;
 import backend.cuda.buffer.CudaBufferAllocator;
 import backend.cuda.buffer.CudaBufferBinding;
 import backend.cuda.buffer.CudaBufferHandle;
-import tensor.BoolStorage;
+import tensor.storage.BoolStorage;
 import tensor.DataType;
-import tensor.Float32Storage;
+import tensor.storage.Float32Storage;
 import tensor.Tensor;
 
 import java.lang.foreign.Arena;

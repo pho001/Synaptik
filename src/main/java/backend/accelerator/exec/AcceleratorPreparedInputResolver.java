@@ -7,7 +7,7 @@ import backend.runtime.ExecutionContext;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
 import tensor.Tensor;
-import tensor.TensorRemap;
+import tensor.layout.TensorRemap;
 
 import java.util.ArrayList;
 import java.util.HashMap;

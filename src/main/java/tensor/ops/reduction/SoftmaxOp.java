@@ -3,7 +3,7 @@ package tensor.ops.reduction;
 import graph.optimizer.intent.BackendIntentPropagator;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
-import tensor.TensorLayoutTransform;
+import tensor.layout.TensorLayoutTransform;
 
 /**
  * Graph-building definition for {@code softmax}.

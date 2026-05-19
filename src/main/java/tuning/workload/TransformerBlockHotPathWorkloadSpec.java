@@ -167,7 +167,7 @@ public final class TransformerBlockHotPathWorkloadSpec implements WorkloadSpec {
             double scale,
             int... shape
     ) {
-        return tensor.TensorDataFactory.shapedTensor(
+        return tensor.factory.TensorDataFactory.shapedTensor(
                 label,
                 randomData(flatSize(shape), seed, scale),
                 requiresGrad,

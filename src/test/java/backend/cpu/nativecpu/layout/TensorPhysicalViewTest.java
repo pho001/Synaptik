@@ -6,7 +6,7 @@ import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
-import tensor.NativeTensorStorage;
+import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;
 
 import java.util.List;

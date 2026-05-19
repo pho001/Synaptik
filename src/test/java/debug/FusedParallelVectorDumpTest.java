@@ -20,7 +20,7 @@ import backend.cpu.fused.plan.FusedOperation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorDataFactory;
+import tensor.factory.TensorDataFactory;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

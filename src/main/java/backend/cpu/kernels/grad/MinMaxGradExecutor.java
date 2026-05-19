@@ -3,7 +3,7 @@ package backend.cpu.kernels.grad;
 import backend.cpu.kernels.*;
 
 import backend.cpu.kernels.CpuDTypeOps;
-import tensor.BroadcastPlan;
+import tensor.layout.BroadcastPlan;
 
 final class MinMaxGradExecutor {
     private MinMaxGradExecutor() {

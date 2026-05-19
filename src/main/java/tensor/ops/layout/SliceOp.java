@@ -4,7 +4,7 @@ import operations.layout.slice;
 import operations.layout.sliceScatterAdd;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
-import tensor.TensorPrimitiveBuilder;
+import tensor.internal.TensorPrimitiveBuilder;
 import tensor.ops.layout.LayoutSupport.SliceSpec;
 
 /**

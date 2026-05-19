@@ -4,9 +4,9 @@ import operations.Operation;
 import operations.elementwise.unary.clampMin;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorDataTypeUtil;
+import tensor.dtype.TensorDataTypeUtil;
 import tensor.TensorInternalAccess;
-import tensor.TensorPrimitiveBuilder;
+import tensor.internal.TensorPrimitiveBuilder;
 
 /**
  * Graph-building definition for elementwise {@code clampMin}.

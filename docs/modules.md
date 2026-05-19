@@ -73,7 +73,7 @@ Main paths:
 
 - `src/main/java/tensor/Tensor.java`
 - `src/main/java/tensor/TensorOps.java`
-- `src/main/java/tensor/TensorExecutionSupport.java`
+- `src/main/java/tensor/internal/TensorExecutionSupport.java`
 - `src/main/java/tensor/ops/**`
 - `src/main/java/tensor/options/**`
 - `src/main/java/tensor/loss/LossReduction.java`
@@ -86,11 +86,11 @@ The package intentionally delegates operation-family logic out of `Tensor.java`:
 
 | Family | Builder path | Examples |
 |---|---|---|
-| unary | `tensor/ops/unary/TensorUnaryOps.java` | `relu`, `exp`, `log`, `tanh`, `sqrt`, `abs` |
-| binary | `tensor/ops/binary/TensorBinaryOps.java` | `add`, `sub`, `mul`, `div`, `min`, `max` |
+| unary | `tensor/ops/unary/*Op.java` | `relu`, `exp`, `log`, `tanh`, `sqrt`, `abs` |
+| binary | `tensor/ops/binary/*Op.java` | `add`, `sub`, `mul`, `div`, `min`, `max` |
 | compare/bool/select | `tensor/ops/compare`, `tensor/ops/bool`, `tensor/ops/select` | comparison masks, logical ops, `where` |
 | layout/index | `tensor/ops/layout`, `tensor/ops/index` | reshape, permute, expand, `sliceAxis`, `stack`, `unstack`, `take`, gather, gatherNd, scatter-add, scatterElements, scatterNd |
-| reduction | `tensor/ops/reduction/TensorReduceOps.java` | sum, masked sum, mean, masked mean, reduce min/max, softmax, log-softmax |
+| reduction | `tensor/ops/reduction/*Op.java` | sum, masked sum, mean, masked mean, reduce min/max, softmax, log-softmax |
 | linalg | `tensor/ops/linalg/*` | matmul, N-D last-dimension linear, scaled dot-product attention |
 | neural-network families | `tensor/ops/conv`, `tensor/ops/pool`, `tensor/ops/normalization`, `tensor/ops/loss` | conv2d, pool2d, layer norm, RMS norm, cross entropy |
 

@@ -5,8 +5,8 @@ import operations.loss.crossEntropyLossIndices;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
-import tensor.TensorLayoutTransform;
-import tensor.TensorPrimitiveBuilder;
+import tensor.layout.TensorLayoutTransform;
+import tensor.internal.TensorPrimitiveBuilder;
 import tensor.loss.LossReduction;
 
 /**

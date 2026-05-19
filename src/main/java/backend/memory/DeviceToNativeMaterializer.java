@@ -1,6 +1,6 @@
 package backend.memory;
 
-import tensor.NativeTensorStorage;
+import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;
 
 /**

@@ -85,7 +85,7 @@ public final class GatherTakeWorkloadSpec implements WorkloadSpec {
 
     private static Tensor tensor(String label, int seed, DataType dataType, int... shape) {
         double[] data = randomData(flatSize(shape), seed);
-        return tensor.TensorDataFactory.shapedTensor(label, data, false, dataType, shape);
+        return tensor.factory.TensorDataFactory.shapedTensor(label, data, false, dataType, shape);
     }
 
     private static int flatSize(int[] shape) {

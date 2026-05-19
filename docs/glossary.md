@@ -36,7 +36,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Arena**: Java FFM lifetime scope for native allocations and library lookup resources. The OpenBLAS bridge keeps a shared arena in its cached state so symbol lookup resources stay valid for later downcalls. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [Native Bridges & BLAS: Java FFM Step-By-Step](native-bridges-and-blas.md#java-ffm-step-by-step).
 
-**Autodiff**: Reverse-mode gradient graph construction over tensor DAGs. Source: [`BackwardGraphBuilder.java`](../src/main/java/graph/compile/BackwardGraphBuilder.java), [`TensorBinaryOps.java`](../src/main/java/tensor/ops/binary/TensorBinaryOps.java).
+**Autodiff**: Reverse-mode gradient graph construction over tensor DAGs. Source: [`BackwardGraphBuilder.java`](../src/main/java/graph/compile/BackwardGraphBuilder.java), [`AddOp.java`](../src/main/java/tensor/ops/binary/AddOp.java).
 
 **Autograd compilation scope**: Scope opened while compile builds backward graph state. Source: [`AutogradCompilationScope.java`](../src/main/java/tensor/AutogradCompilationScope.java), [`GraphCompiler.java`](../src/main/java/graph/compile/GraphCompiler.java).
 
@@ -44,7 +44,7 @@ Project-specific terms used in Synaptik, with source references.
 
 ## B
 
-**BF16 / BFLOAT16**: 16-bit floating-point storage format with an 8-bit exponent and 7 explicit mantissa bits. In the CPU path it is commonly stored as `short[]`, unpacked to F32 for elementwise compute, and packed back to BF16 storage. Source: [`BFloat16Storage.java`](../src/main/java/tensor/BFloat16Storage.java), [CPU BF16 Runtime](cpu-bf16.md#cpu-bf16-runtime).
+**BF16 / BFLOAT16**: 16-bit floating-point storage format with an 8-bit exponent and 7 explicit mantissa bits. In the CPU path it is commonly stored as `short[]`, unpacked to F32 for elementwise compute, and packed back to BF16 storage. Source: [`BFloat16Storage.java`](../src/main/java/tensor/storage/BFloat16Storage.java), [CPU BF16 Runtime](cpu-bf16.md#cpu-bf16-runtime).
 
 **Backward graph**: Gradient-producing graph nodes built from forward-node backward lambdas during training compile. Source: [`BackwardGraphBuilder.java`](../src/main/java/graph/compile/BackwardGraphBuilder.java).
 
@@ -56,7 +56,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **BLAS**: Basic Linear Algebra Subprograms, a standard family of optimized vector/matrix routines. In Synaptik, BLAS currently matters mainly for GEMM-backed matmul and GEMM-lowered conv2d through the OpenBLAS FFM bridge. Source: [`BlasProvider.java`](../src/main/java/backend/blas/BlasProvider.java), [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [Native Bridges & BLAS: What BLAS Is](native-bridges-and-blas.md#what-blas-is).
 
-**Broadcast plan**: Shape, stride, and gradient-reduction metadata for broadcasted binary operations. Source: [`BroadcastPlan.java`](../src/main/java/tensor/BroadcastPlan.java), [`BroadcastPlanner.java`](../src/main/java/tensor/BroadcastPlanner.java).
+**Broadcast plan**: Shape, stride, and gradient-reduction metadata for broadcasted binary operations. Source: [`BroadcastPlan.java`](../src/main/java/tensor/layout/BroadcastPlan.java), [`BroadcastPlanner.java`](../src/main/java/tensor/layout/BroadcastPlanner.java).
 
 ## C
 
@@ -138,7 +138,7 @@ Project-specific terms used in Synaptik, with source references.
 
 ## L
 
-**Last dimension**: The final logical axis of a tensor shape. For shape `[batch, time, features]`, the last dimension is `features`. Synaptik's N-D `linear` treats this axis as `inFeatures` and preserves all leading dimensions. Source: [`Tensor.java`](../src/main/java/tensor/Tensor.java), [`TensorLinearOps.java`](../src/main/java/tensor/ops/linalg/TensorLinearOps.java), [Sequence Tensor Primitives: N-D Linear](sequence-tensor-primitives.md#n-d-linear).
+**Last dimension**: The final logical axis of a tensor shape. For shape `[batch, time, features]`, the last dimension is `features`. Synaptik's N-D `linear` treats this axis as `inFeatures` and preserves all leading dimensions. Source: [`Tensor.java`](../src/main/java/tensor/Tensor.java), [`LinearOp.java`](../src/main/java/tensor/ops/linalg/LinearOp.java), [Sequence Tensor Primitives: N-D Linear](sequence-tensor-primitives.md#n-d-linear).
 
 **Leaf tensor**: Tensor with no operation descriptor, usually user input or parameter data. Source: [`CompiledNode.java`](../src/main/java/graph/CompiledNode.java), [`Tensor.java`](../src/main/java/tensor/Tensor.java).
 
@@ -148,7 +148,7 @@ Project-specific terms used in Synaptik, with source references.
 
 ## M
 
-**Mask**: A `BOOL` tensor used to include or exclude positions. In sequence-shaped examples, `true` means the timestep is valid and contributes to masked reductions or masked cross entropy; `false` means padding and contributes zero. Source: [`TensorReduceOps.java`](../src/main/java/tensor/ops/reduction/TensorReduceOps.java), [`TensorLossOps.java`](../src/main/java/tensor/ops/loss/TensorLossOps.java), [Sequence Tensor Primitives: Masked Reductions](sequence-tensor-primitives.md#masked-reductions).
+**Mask**: A `BOOL` tensor used to include or exclude positions. In sequence-shaped examples, `true` means the timestep is valid and contributes to masked reductions or masked cross entropy; `false` means padding and contributes zero. Source: [`SumOp.java`](../src/main/java/tensor/ops/reduction/SumOp.java), [`DenseCrossEntropyLossOp.java`](../src/main/java/tensor/ops/loss/DenseCrossEntropyLossOp.java), [Sequence Tensor Primitives: Masked Reductions](sequence-tensor-primitives.md#masked-reductions).
 
 **Memory planning**: Compile phase that builds `MemoryPlan` artifacts, including lifetimes, reusable intervals, slots, region-value bindings, and runtime binding policy. Source: [`MemoryPlanner.java`](../src/main/java/graph/optimizer/memory/MemoryPlanner.java), [`MemoryPlanningConfig.java`](../src/main/java/config/compile/MemoryPlanningConfig.java).
 
@@ -228,7 +228,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Storage residency**: Physical residency class for a runtime tensor value, distinct from semantic tensor dtype/layout. `CPU_ARRAY` means Java typed storage is current; `HOST_SHARED_DEVICE_BUFFER` and `DEVICE_OWNED` are explicit states for shared-buffer or GPU-owned execution paths. Source: [`StorageResidency.java`](../src/main/java/backend/memory/StorageResidency.java).
 
-**Stack / unstack**: `stack(axis, tensors...)` inserts a new axis and combines same-shaped tensors along it; `unstack(axis)` splits one tensor along an axis and removes that axis from each output. Example: three `[batch, features]` tensors stacked at axis `1` become one `[batch, time, features]` tensor. Source: [`TensorLayoutOps.java`](../src/main/java/tensor/ops/layout/TensorLayoutOps.java), [Sequence Tensor Primitives: Stack And Unstack](sequence-tensor-primitives.md#stack-and-unstack).
+**Stack / unstack**: `stack(axis, tensors...)` inserts a new axis and combines same-shaped tensors along it; `unstack(axis)` splits one tensor along an axis and removes that axis from each output. Example: three `[batch, features]` tensors stacked at axis `1` become one `[batch, time, features]` tensor. Source: [`StackOp.java`](../src/main/java/tensor/ops/layout/StackOp.java), [`UnstackOp.java`](../src/main/java/tensor/ops/layout/UnstackOp.java), [Sequence Tensor Primitives: Stack And Unstack](sequence-tensor-primitives.md#stack-and-unstack).
 
 **Stride**: Per-axis step used to translate logical indices to storage positions. Source: [`TensorMetadata.java`](../src/main/java/tensor/TensorMetadata.java).
 
@@ -238,7 +238,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Tensor**: Public value type and semantic graph node. Source: [`Tensor.java`](../src/main/java/tensor/Tensor.java), [`tensor/README.md`](../src/main/java/tensor/README.md#what-tensor-represents).
 
-**Tensor storage**: Dtype-specific backing storage with mutation versioning. Source: [`TensorStorage.java`](../src/main/java/tensor/TensorStorage.java).
+**Tensor storage**: Dtype-specific backing storage with mutation versioning. Source: [`TensorStorage.java`](../src/main/java/tensor/storage/TensorStorage.java).
 
 **Tuning history**: Persisted per-candidate measurement history for autotune. Source: [`TuningHistoryEntry.java`](../src/main/java/tuning/store/TuningHistoryEntry.java), [`JsonFileTuningHistoryStore.java`](../src/main/java/tuning/store/JsonFileTuningHistoryStore.java).
 

@@ -1,5 +1,7 @@
 package tensor;
 
+import tensor.layout.TensorShape;
+
 import java.util.Arrays;
 
 public final class TensorMetadata {
@@ -97,6 +99,18 @@ public final class TensorMetadata {
 
     public int getFlatSize() {
         return TensorShape.checkedFlatSize(shape);
+    }
+
+    public int storageOffsetForLogicalFlatIndex(int logicalIndex) {
+        int[] denseStrides = computeStrides(shape);
+        int rem = logicalIndex;
+        int offset = storageOffset;
+        for (int dim = 0; dim < shape.length; dim++) {
+            int coord = rem / denseStrides[dim];
+            rem %= denseStrides[dim];
+            offset += coord * strides[dim];
+        }
+        return offset;
     }
 
     public String getLabel() {
