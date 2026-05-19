@@ -7,8 +7,6 @@ final class BackendRunTraceContributors {
     private static final List<BackendRunTraceContributor> DEFAULTS = List.of(
             new CpuRunTraceContributor(),
             new AcceleratorRunTraceContributor(),
-            new MetalRunTraceContributor(),
-            new CudaRunTraceContributor(),
             new StorageRunTraceContributor()
     );
 

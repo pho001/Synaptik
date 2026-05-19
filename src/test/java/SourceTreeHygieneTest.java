@@ -610,14 +610,25 @@ public class SourceTreeHygieneTest {
 
     @Test
     void preparedExecutionDoesNotOwnBackendTraceAttributeDetails() throws IOException {
-        Path preparedExecution = Path.of("src/main/java/graph/execution/PreparedExecution.java");
-        String source = Files.readString(preparedExecution);
-        assertTrue(source.contains("BackendRunTraceContributors"),
-                "PreparedExecution should delegate backend-specific trace attributes to contributors.");
-        assertTrue(!source.contains("\"metalBridgeAvailable\""), "Metal trace attributes belong in the Metal trace contributor.");
-        assertTrue(!source.contains("\"cudaBridgeAvailable\""), "CUDA trace attributes belong in the CUDA trace contributor.");
-        assertTrue(!source.contains("\"nativeCpuRegionId\""), "Native CPU trace attributes belong in the CPU trace contributor.");
-        assertTrue(!source.contains("\"acceleratorBufferMode\""), "Accelerator buffer trace attributes belong in the accelerator trace contributor.");
+        String preparedExecution = Files.readString(Path.of("src/main/java/graph/execution/PreparedExecution.java"));
+        String stepTracer = Files.readString(Path.of("src/main/java/graph/execution/StepExecutionTracer.java"));
+        assertTrue(stepTracer.contains("BackendRunTraceContributors"),
+                "StepExecutionTracer should delegate backend-specific trace attributes to contributors.");
+        assertTrue(!preparedExecution.contains("BackendRunTraceContributors"),
+                "PreparedExecution should delegate step trace assembly to StepExecutionTracer.");
+        assertTrue(!preparedExecution.contains("\"metalBridgeAvailable\""), "Metal trace attributes belong in backend-owned trace contribution.");
+        assertTrue(!preparedExecution.contains("\"cudaBridgeAvailable\""), "CUDA trace attributes belong in backend-owned trace contribution.");
+        assertTrue(!preparedExecution.contains("\"nativeCpuRegionId\""), "Native CPU trace attributes belong in the CPU trace contributor.");
+        assertTrue(!preparedExecution.contains("\"acceleratorBufferMode\""), "Accelerator buffer trace attributes belong in the accelerator trace contributor.");
+    }
+
+    @Test
+    void graphExecutionDoesNotImportConcreteAcceleratorBackends() throws IOException {
+        List<String> offenders = linesContainingAny(
+                Path.of("src/main/java/graph/execution"),
+                List.of("import backend.metal.", "import backend.cuda.")
+        );
+        assertTrue(offenders.isEmpty(), () -> "graph.execution must consume backend-neutral accelerator contracts: " + offenders);
     }
 
     @Test

@@ -1,18 +1,15 @@
 package graph.execution;
 
 import backend.ComputeBackend;
+import backend.accelerator.buffer.AcceleratorBufferAccessMode;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.buffer.AcceleratorLayoutTransformDecision;
 import backend.accelerator.buffer.AcceleratorLayoutTransformKind;
 import backend.accelerator.buffer.AcceleratorLayoutTransformPlanner;
 import backend.accelerator.buffer.AcceleratorLayoutTransformRequest;
-import backend.cuda.buffer.CudaBufferAccess;
-import backend.cuda.buffer.CudaBufferBinding;
 import backend.memory.DeviceBufferBinding;
 import backend.memory.StorageResidency;
-import backend.metal.buffer.MetalBufferAccess;
-import backend.metal.buffer.MetalBufferBinding;
 import backend.runtime.ExecutionContext;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.RuntimeConfig;
@@ -191,19 +188,13 @@ final class DeviceLayoutViewPropagator {
             DeviceBufferBinding sourceBinding,
             Operation.OpType opType
     ) {
-        if (sourceBinding instanceof MetalBufferBinding metal) {
-            MetalBufferAccess access = opType == Operation.OpType.EXPAND
-                    ? MetalBufferAccess.READ
-                    : MetalBufferAccess.READ_WRITE;
-            return MetalBufferBinding.viewOf(targetNodeId, targetLayout, metal, access);
+        if (sourceBinding == null) {
+            return null;
         }
-        if (sourceBinding instanceof CudaBufferBinding cuda) {
-            CudaBufferAccess access = opType == Operation.OpType.EXPAND
-                    ? CudaBufferAccess.READ
-                    : CudaBufferAccess.READ_WRITE;
-            return CudaBufferBinding.viewOf(targetNodeId, targetLayout, cuda, access);
-        }
-        return null;
+        AcceleratorBufferAccessMode access = opType == Operation.OpType.EXPAND
+                ? AcceleratorBufferAccessMode.READ
+                : AcceleratorBufferAccessMode.READ_WRITE;
+        return sourceBinding.viewOf(targetNodeId, targetLayout, access);
     }
 
     private static String backendIdFromTarget(CompiledNode targetNode) {

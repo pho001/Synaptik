@@ -73,6 +73,26 @@ public record CudaBufferBinding(
     }
 
     @Override
+    public CudaBufferBinding viewOf(
+            int targetNodeId,
+            AcceleratorBufferLayout targetLayout,
+            AcceleratorBufferAccessMode accessMode
+    ) {
+        return viewOf(targetNodeId, targetLayout, this, cudaAccess(accessMode));
+    }
+
+    private static CudaBufferAccess cudaAccess(AcceleratorBufferAccessMode accessMode) {
+        if (accessMode == null) {
+            return null;
+        }
+        return switch (accessMode) {
+            case READ -> CudaBufferAccess.READ;
+            case WRITE -> CudaBufferAccess.WRITE;
+            case READ_WRITE -> CudaBufferAccess.READ_WRITE;
+        };
+    }
+
+    @Override
     public String nativeHandleIdentity() {
         return handle.identity();
     }

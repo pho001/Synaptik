@@ -59,6 +59,7 @@ final class AcceleratorRunTraceContributor implements BackendRunTraceContributor
                 attrs.put("gpuCompoundDagNodeTypes", compoundSummary.dagNodeTypes());
                 attrs.put("gpuCompoundPostOps", compoundSummary.postOps());
             }
+            metadata.acceleratorExecutable().contributeRunTraceAttributes(attrs);
         }
         var layoutTransformDecision = context.executionContext().layoutTransformDecisionForNodeId(context.node().id());
         if (layoutTransformDecision != null) {

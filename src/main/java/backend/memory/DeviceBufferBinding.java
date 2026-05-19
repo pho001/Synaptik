@@ -57,6 +57,26 @@ public interface DeviceBufferBinding {
     }
 
     /**
+     * Creates a metadata-only logical view over this binding's native buffer, when supported by the backend.
+     *
+     * <p>The default returns {@code null} so shared graph execution code can ask for a view without importing concrete
+     * backend binding classes. Backend implementations that support borrowed-handle logical views should override this
+     * method and preserve the native lifetime ownership of the source binding.</p>
+     *
+     * @param targetNodeId compiled node id for the logical view
+     * @param targetLayout logical layout represented by the view
+     * @param accessMode backend-neutral access intent for the view
+     * @return view binding, or {@code null} when this binding cannot create metadata-only views
+     */
+    default DeviceBufferBinding viewOf(
+            int targetNodeId,
+            AcceleratorBufferLayout targetLayout,
+            AcceleratorBufferAccessMode accessMode
+    ) {
+        return null;
+    }
+
+    /**
      * Returns whether this binding can be used by its backend.
      *
      * @return true when the binding has a valid backend handle and covers the logical payload

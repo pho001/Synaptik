@@ -33,10 +33,14 @@ import backend.lowering.LoweringFamily;
 import backend.lowering.region.RegionExecutionPlan;
 import config.runtime.AcceleratorBackendConfig;
 import config.runtime.AcceleratorBufferBindingMode;
+import graph.optimizer.cost.CostComponent;
+import graph.optimizer.cost.CostExplanation;
 import tensor.DataType;
 import tensor.Tensor;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -674,6 +678,86 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
     @Override
     public AcceleratorBufferDecision lastAcceleratorBufferDecision() {
         return lastAcceleratorBufferDecision;
+    }
+
+    @Override
+    public String outputResidencyReason() {
+        if (lastExecutionStats.usedCpuFallback()) {
+            return "metal cpu fallback wrote CPU array";
+        }
+        return lastExecutionStats.executionPath() == backend.metal.bridge.MetalMpsBridgeExecutionPath.BUFFER_BINDING
+                ? "metal buffer binding execution wrote device buffer"
+                : "metal bridge copied output to CPU array";
+    }
+
+    @Override
+    public void contributeRunTraceAttributes(LinkedHashMap<String, Object> attrs) {
+        var metalStats = lastExecutionStats();
+        var route = routeDecision();
+        CostExplanation routeCost = route.toCostScore().explain(route.reasonCode().name());
+        attrs.put("metalBridgeAvailable", bridge().isAvailable());
+        attrs.put("metalBridgeContextAvailable", bridgeContext().available());
+        attrs.put("metalBridgeExecutableAvailable", bridgeExecutable().available());
+        attrs.put("metalBridgeCacheHit", bridgeExecutable().cacheHit());
+        attrs.put("metalSupportsBufferBindings", bridge().supportsBufferBindings());
+        attrs.put("metalExecutionRoute", route.selectedRoute().name());
+        attrs.put("metalRouteReasonCode", route.reasonCode().name());
+        attrs.put("metalRouteRejectedRoutes", route.rejectedRoutes().stream()
+                .map(Enum::name)
+                .toList());
+        attrs.put("metalRouteRejectedReasonCodes", route.rejectedReasonCodes().stream()
+                .map(Enum::name)
+                .toList());
+        attrs.put("metalRouteRejectedReasons", route.rejectedRouteReasons());
+        attrs.put("metalRouteReason", route.detail());
+        attrs.put("metalRouteEstimatedCost", route.estimatedRouteCost());
+        attrs.put("metalRouteEstimatedCopyCost", route.estimatedCopyCost());
+        attrs.put("metalRouteBridgeAvailable", route.bridgeAvailable());
+        attrs.put("metalRouteExecutableAvailable", route.executableAvailable());
+        attrs.put("metalRouteBufferAbiSupported", route.bufferAbiSupported());
+        attrs.put("metalRouteCustomKernelAvailable", route.customKernelAvailable());
+        attrs.put("metalRouteNativeCopyCostKnown", route.nativeCopyCostKnown());
+        attrs.put("metalRouteCostModel", routeCost.modelName());
+        attrs.put("metalRouteCostInputKind", routeCost.inputKind());
+        attrs.put("metalRouteCostReason", routeCost.reasonCode());
+        attrs.put("metalRouteCostComparison", routeCost.comparison().name());
+        attrs.put("metalRouteCostTopContributors", routeCost.topContributors().stream()
+                .map(PreparedMetalExecutable::costComponentSummary)
+                .toList());
+        attrs.put("metalRouteCostComponents", routeCost.rawComponents().stream()
+                .map(PreparedMetalExecutable::costComponentSummary)
+                .toList());
+        attrs.put("metalBufferBindingDecision", lastBufferBindingDecision());
+        attrs.put("metalOutputBufferWriteProbeSupported", bridge().supportsOutputBufferWriteProbe());
+        attrs.put("metalSubgraphNodeCount", plan().nodeIds().size());
+        attrs.put("metalSubgraphOps", plan().subgraph().ops().stream().map(op -> op.opType().name()).toList());
+        attrs.put("metalEstimatedWork", plan().estimatedWork());
+        attrs.put("metalUsedCpuFallback", metalStats.usedCpuFallback());
+        attrs.put("metalFallbackReason", metalStats.fallbackReason());
+        attrs.put("metalExecutionPath", metalStats.executionPath().name());
+        attrs.put("metalExternalInputCount", metalStats.externalInputCount());
+        attrs.put("metalOutputCount", metalStats.outputCount());
+        attrs.put("metalInputBytes", metalStats.inputBytes());
+        attrs.put("metalOutputBytes", metalStats.outputBytes());
+        attrs.put("metalJavaToNativeCopyNs", metalStats.javaToNativeCopyNs());
+        attrs.put("metalOutputAllocationNs", metalStats.outputAllocationNs());
+        attrs.put("metalNativeExecuteNs", metalStats.nativeExecuteNs());
+        attrs.put("metalNativeCopyStrategy", metalStats.nativeCopyStrategy().name());
+        attrs.put("metalOutputBufferWriteProven", metalStats.outputBufferWriteProven());
+        attrs.put("metalOutputBufferWriteStatus", metalStats.outputBufferWriteStatus());
+        attrs.put("metalNativeDeviceCopyNs", metalStats.nativeDeviceCopyNs());
+        attrs.put("metalNativeToJavaCopyNs", metalStats.nativeToJavaCopyNs());
+        attrs.put("metalBridgeTotalNs", metalStats.totalNs());
+    }
+
+    private static String costComponentSummary(CostComponent component) {
+        if (component == null) {
+            return "";
+        }
+        return component.name()
+                + "=" + String.format(Locale.US, "%.6f", component.value())
+                + " " + component.direction().name()
+                + " (" + component.reason() + ")";
     }
 
     /**

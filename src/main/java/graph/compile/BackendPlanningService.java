@@ -4,9 +4,6 @@ import backend.ComputeBackend;
 import backend.partition.BackendPartitionDescriptorRegistry;
 import config.compile.BackendDiscoveryMode;
 import config.compile.BackendPlanningConfig;
-import config.compile.BackendPlanningFailurePolicy;
-import config.compile.BackendPlanningRequirementScope;
-import config.compile.BackendTarget;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGradientBinding;
 import graph.CompiledNode;
@@ -29,7 +26,6 @@ import graph.optimizer.partition.PlannedPartition;
 import graph.optimizer.partition.ScoredCandidatePartitionPlanner;
 
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -65,9 +61,9 @@ public final class BackendPlanningService {
         BackendPlanningConfig config = request.config() == null ? BackendPlanningConfig.cpuOnly() : request.config();
         List<BackendPlanningJob> jobs = resolver.resolve(config, request.compiledNodes());
         List<BackendPlanningDiagnostic> diagnostics = new ArrayList<>();
-        EnumSet<BackendTarget> explicitTargets = resolver.explicitTargets(request.compiledNodes());
+        List<ExplicitBackendIntent> explicitIntents = resolver.explicitIntents(request.compiledNodes());
         if (jobs.isEmpty()) {
-            validateRequired(config, explicitTargets, List.of(), diagnostics);
+            BackendPlanningRequirementValidator.validateRequired(config, explicitIntents, List.of(), diagnostics);
             return new BackendPlanningResult(
                     jobs,
                     List.of(),
@@ -114,60 +110,13 @@ public final class BackendPlanningService {
                 mergeTrace(jobs, traces)
         );
         List<PlannedPartition> plannedPartitions = plannedPartitions(planning);
-        validateRequired(config, explicitTargets, planning.partitions(), diagnostics);
+        BackendPlanningRequirementValidator.validateRequired(config, explicitIntents, planning.partitions(), diagnostics);
         return new BackendPlanningResult(
                 jobs,
                 plannedPartitions,
                 planning.trace(),
                 diagnostics
         );
-    }
-
-    private static void validateRequired(
-            BackendPlanningConfig config,
-            EnumSet<BackendTarget> explicitTargets,
-            List<Partition> partitions,
-            List<BackendPlanningDiagnostic> diagnostics
-    ) {
-        if (config.failurePolicy() == BackendPlanningFailurePolicy.OPTIONAL) {
-            return;
-        }
-        if (config.failurePolicy() == BackendPlanningFailurePolicy.REQUIRE_ACCELERATOR_REGION) {
-            Set<BackendTarget> accepted = acceptedAcceleratorTargets(partitions);
-            boolean ok = config.requirementScope() == BackendPlanningRequirementScope.EACH_TARGET
-                    ? accepted.containsAll(config.targets())
-                    : !accepted.isEmpty();
-            if (!ok) {
-                diagnostics.add(new BackendPlanningDiagnostic(
-                        BackendPlanningDiagnostic.Severity.ERROR,
-                        "REQUIRED_ACCELERATOR_REGION_MISSING",
-                        "Required accelerator backend planning produced no legal region"
-                ));
-                throw new IllegalStateException("Required accelerator backend planning produced no legal region");
-            }
-        }
-        if (config.failurePolicy() == BackendPlanningFailurePolicy.REQUIRE_ALL_EXPLICIT_INTENTS) {
-            Set<BackendTarget> accepted = acceptedAcceleratorTargets(partitions);
-            if (!accepted.containsAll(explicitTargets)) {
-                diagnostics.add(new BackendPlanningDiagnostic(
-                        BackendPlanningDiagnostic.Severity.ERROR,
-                        "REQUIRED_EXPLICIT_BACKEND_INTENT_MISSING",
-                        "One or more explicit backend intents could not be planned"
-                ));
-                throw new IllegalStateException("One or more explicit backend intents could not be planned");
-            }
-        }
-    }
-
-    private static Set<BackendTarget> acceptedAcceleratorTargets(List<Partition> partitions) {
-        EnumSet<BackendTarget> out = EnumSet.noneOf(BackendTarget.class);
-        for (Partition partition : partitions == null ? List.<Partition>of() : partitions) {
-            BackendTarget target = BackendTarget.fromPartitionTarget(partition.target());
-            if (target != null && target.accelerator()) {
-                out.add(target);
-            }
-        }
-        return out;
     }
 
     private static PartitionCompileTrace mergeTrace(List<BackendPlanningJob> jobs, List<PartitionCompileTrace> traces) {

@@ -65,16 +65,24 @@ public final class BackendPlanningJobResolver {
 
     public EnumSet<BackendTarget> explicitTargets(List<CompiledNode> nodes) {
         EnumSet<BackendTarget> out = EnumSet.noneOf(BackendTarget.class);
+        for (ExplicitBackendIntent intent : explicitIntents(nodes)) {
+            out.add(intent.target());
+        }
+        return out;
+    }
+
+    public List<ExplicitBackendIntent> explicitIntents(List<CompiledNode> nodes) {
+        List<ExplicitBackendIntent> out = new ArrayList<>();
         if (nodes == null) {
             return out;
         }
         for (CompiledNode node : nodes) {
             BackendTarget target = BackendTarget.fromPartitionTarget(PartitionTarget.fromBackend(node.backend()));
             if (target != null && target.accelerator()) {
-                out.add(target);
+                out.add(new ExplicitBackendIntent(node.id(), target));
             }
         }
-        return out;
+        return List.copyOf(out);
     }
 
     private BackendPlanningJob acceleratorJob(

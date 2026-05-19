@@ -35,6 +35,7 @@ import graph.execution.DeviceLayoutMaterializer;
 import tensor.Tensor;
 import tensor.DataType;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 
@@ -333,6 +334,41 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
     @Override
     public AcceleratorBufferDecision lastAcceleratorBufferDecision() {
         return lastAcceleratorBufferDecision;
+    }
+
+    @Override
+    public String outputResidencyReason() {
+        return switch (lastExecutionStats.executionPath()) {
+            case BUFFER_BINDING -> "cuda buffer binding execution wrote device buffer";
+            case CPU_FALLBACK -> "cuda cpu fallback wrote CPU array";
+            default -> "cuda bridge copied output to CPU array";
+        };
+    }
+
+    @Override
+    public void contributeRunTraceAttributes(LinkedHashMap<String, Object> attrs) {
+        var cudaStats = lastExecutionStats();
+        attrs.put("cudaBridgeAvailable", bridge().isAvailable());
+        attrs.put("cudaBridgeContextAvailable", bridgeContext().available());
+        attrs.put("cudaBridgeExecutableAvailable", bridgeExecutable().available());
+        attrs.put("cudaSupportsBufferBindings", bridge().supportsBufferBindings());
+        attrs.put("cudaUsedCpuFallback", cudaStats.usedCpuFallback());
+        attrs.put("cudaFallbackReason", cudaStats.fallbackReason());
+        attrs.put("cudaExecutionPath", cudaStats.executionPath().name());
+        attrs.put("cudaExternalInputCount", cudaStats.externalInputCount());
+        attrs.put("cudaOutputCount", cudaStats.outputCount());
+        attrs.put("cudaInputBytes", cudaStats.inputBytes());
+        attrs.put("cudaOutputBytes", cudaStats.outputBytes());
+        attrs.put("cudaJavaToNativeCopyNs", cudaStats.javaToNativeCopyNs());
+        attrs.put("cudaNativeExecuteNs", cudaStats.nativeExecuteNs());
+        attrs.put("cudaNativeDeviceCopyNs", cudaStats.nativeDeviceCopyNs());
+        attrs.put("cudaNativeToJavaCopyNs", cudaStats.nativeToJavaCopyNs());
+        attrs.put("cudaBridgeTotalNs", cudaStats.totalNs());
+        attrs.put("acceleratorInputBytes", cudaStats.inputBytes());
+        attrs.put("acceleratorOutputBytes", cudaStats.outputBytes());
+        attrs.put("acceleratorJavaToNativeCopyNs", cudaStats.javaToNativeCopyNs());
+        attrs.put("acceleratorNativeToJavaCopyNs", cudaStats.nativeToJavaCopyNs());
+        attrs.put("acceleratorNativeDeviceCopyNs", cudaStats.nativeDeviceCopyNs());
     }
 
     /**

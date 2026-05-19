@@ -122,6 +122,26 @@ public record MetalBufferBinding(
     }
 
     @Override
+    public MetalBufferBinding viewOf(
+            int targetNodeId,
+            AcceleratorBufferLayout targetLayout,
+            AcceleratorBufferAccessMode accessMode
+    ) {
+        return viewOf(targetNodeId, targetLayout, this, metalAccess(accessMode));
+    }
+
+    private static MetalBufferAccess metalAccess(AcceleratorBufferAccessMode accessMode) {
+        if (accessMode == null) {
+            return null;
+        }
+        return switch (accessMode) {
+            case READ -> MetalBufferAccess.READ;
+            case WRITE -> MetalBufferAccess.WRITE;
+            case READ_WRITE -> MetalBufferAccess.READ_WRITE;
+        };
+    }
+
+    @Override
     public String nativeHandleIdentity() {
         return backendId()
                 + ":owner=" + handle.owner()

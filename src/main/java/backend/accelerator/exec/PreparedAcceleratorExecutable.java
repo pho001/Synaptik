@@ -2,11 +2,13 @@ package backend.accelerator.exec;
 
 import backend.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferDecision;
+import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
 import backend.lowering.region.RegionExecutionPlan;
 import backend.runtime.ExecutionContext;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 
 /**
@@ -50,6 +52,25 @@ public interface PreparedAcceleratorExecutable {
     }
 
     /**
+     * Returns the residency reason to record after this executable runs.
+     *
+     * <p>This keeps graph execution backend-neutral while still letting concrete accelerator executables expose more
+     * precise CPU fallback or device-buffer write reasons.</p>
+     *
+     * @return concise residency reason for runtime state diagnostics
+     */
+    default String outputResidencyReason() {
+        AcceleratorBufferDecision decision = lastAcceleratorBufferDecision();
+        if (decision != null && decision.path() == AcceleratorBufferExecutionPath.BUFFER_BINDING) {
+            return "accelerator buffer binding execution wrote device buffer";
+        }
+        if (decision != null && decision.path() == AcceleratorBufferExecutionPath.CPU_FALLBACK) {
+            return "accelerator cpu fallback wrote CPU array";
+        }
+        return "backend wrote CPU array";
+    }
+
+    /**
      * Returns compound GPU region metadata for this executable.
      *
      * <p>The default is a non-compound summary so existing accelerator executables can opt in
@@ -72,5 +93,16 @@ public interface PreparedAcceleratorExecutable {
 
     default RegionExecutionPlan regionExecutionPlan() {
         return null;
+    }
+
+    /**
+     * Adds backend-specific execution trace attributes after a run.
+     *
+     * <p>The graph execution layer owns trace assembly, but concrete accelerator backends own their bridge, route, and
+     * native-copy vocabulary. Implementations may leave this empty when they expose no backend-specific attributes.</p>
+     *
+     * @param attrs mutable trace attribute map for the current step
+     */
+    default void contributeRunTraceAttributes(LinkedHashMap<String, Object> attrs) {
     }
 }
