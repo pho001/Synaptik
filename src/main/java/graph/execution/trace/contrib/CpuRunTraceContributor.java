@@ -1,4 +1,4 @@
-package graph.execution;
+package graph.execution.trace.contrib;
 
 import backend.ComputeBackend;
 import backend.blas.OpenBlasFfmBridge;
@@ -11,6 +11,7 @@ import backend.lowering.region.RegionNodePlan;
 import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.trace.MatMulTraceMetadata;
 import tensor.Tensor;
 

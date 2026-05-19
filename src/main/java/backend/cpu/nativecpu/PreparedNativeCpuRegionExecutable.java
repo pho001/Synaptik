@@ -21,7 +21,7 @@ import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
-import graph.execution.CompiledNodeExecutionMetadata;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedNodeExecution;
 import operations.Operation;
 import operations.elementwise.unary.clampMax;

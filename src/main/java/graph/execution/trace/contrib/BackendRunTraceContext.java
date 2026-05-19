@@ -1,7 +1,9 @@
-package graph.execution;
+package graph.execution.trace.contrib;
 
 import backend.runtime.ExecutionContext;
 import graph.CompiledNode;
+import graph.execution.PreparedNodeExecution;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.trace.MatMulTraceMetadata;
 
 record BackendRunTraceContext(

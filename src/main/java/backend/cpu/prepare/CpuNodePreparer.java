@@ -19,7 +19,7 @@ import backend.prepare.BackendPrepareContext;
 import backend.prepare.RegionPlanValidator;
 import backend.cpu.registry.CpuKernelResolver;
 import graph.CompiledNode;
-import graph.execution.CompiledNodeExecutionMetadata;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedNodeExecution;
 import backend.cpu.fused.exec.FusedExecutionBackendResolver;
 import backend.cpu.fused.plan.FusedExecutionPlan;

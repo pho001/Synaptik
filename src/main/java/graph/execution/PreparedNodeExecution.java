@@ -1,6 +1,7 @@
 package graph.execution;
 
 import graph.CompiledNode;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
 import operations.Operation;
 import tensor.Tensor;
 

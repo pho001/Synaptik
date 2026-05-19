@@ -1,4 +1,4 @@
-package graph.execution;
+package graph.execution.runner;
 
 import backend.ComputeBackend;
 import backend.ComputeEngine;
@@ -7,18 +7,21 @@ import backend.cpu.nativecpu.PreparedNativeCpuInputPolicy;
 import backend.cpu.nativecpu.PreparedNativeCpuPlan;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
+import graph.execution.PreparedNodeExecution;
+import graph.execution.device.DeviceLayoutViewPropagator;
 import graph.execution.trace.ExecutionStepTrace;
+import graph.execution.trace.contrib.StepExecutionTracer;
 
 import java.util.List;
 
 /**
  * Executes prepared node steps against one run-scoped execution context.
  */
-final class PreparedExecutionRunner {
+public final class PreparedExecutionRunner {
     private PreparedExecutionRunner() {
     }
 
-    static void executeSteps(
+    public static void executeSteps(
             List<PreparedNodeExecution> steps,
             ExecutionContext context,
             boolean captureTrace,

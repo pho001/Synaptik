@@ -1,4 +1,4 @@
-package graph.execution;
+package graph.execution.plan;
 
 import backend.ComputeBackend;
 import backend.accelerator.exec.PartitionExecutionRole;

@@ -22,7 +22,7 @@ import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.CompiledNode;
-import graph.execution.CompiledNodeExecutionMetadata;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedNodeExecution;
 import graph.execution.trace.ExecutionStepTrace;

@@ -1,7 +1,7 @@
 package graph.compile.descriptor;
 
 import graph.CompiledNode;
-import graph.execution.ExecutionState;
+import graph.execution.state.ExecutionState;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;

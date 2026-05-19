@@ -32,7 +32,7 @@ import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import graph.CompiledNode;
-import graph.execution.CompiledNodeExecutionMetadata;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedNodeExecution;
 import graph.optimizer.partition.PartitionPlanningContext;

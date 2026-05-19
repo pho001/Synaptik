@@ -31,7 +31,7 @@ import backend.runtime.ExecutionContext;
 import backend.accelerator.dag.AcceleratorDagSpec;
 import config.runtime.AcceleratorBackendConfig;
 import config.runtime.AcceleratorBufferBindingMode;
-import graph.execution.DeviceLayoutMaterializer;
+import graph.execution.device.DeviceLayoutMaterializer;
 import tensor.Tensor;
 import tensor.DataType;
 

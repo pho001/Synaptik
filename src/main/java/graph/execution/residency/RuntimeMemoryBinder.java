@@ -1,8 +1,9 @@
-package graph.execution;
+package graph.execution.residency;
 
 import graph.AliasViewPolicy;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import graph.execution.state.ExecutionState;
 import graph.optimizer.memory.MemoryPlan;
 import graph.optimizer.memory.RegionMemoryBinding;
 import graph.optimizer.memory.RegionMemoryBindingKind;
@@ -20,11 +21,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-final class RuntimeMemoryBinder {
+public final class RuntimeMemoryBinder {
     private RuntimeMemoryBinder() {
     }
 
-    static void bind(
+    public static void bind(
             MemoryPlan memoryPlan,
             List<CompiledNode> compiledNodes,
             CompiledTensorDescriptorIndex descriptorIndex,

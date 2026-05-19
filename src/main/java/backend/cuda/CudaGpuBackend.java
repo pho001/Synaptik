@@ -3,7 +3,7 @@ package backend.cuda;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.runtime.ExecutionContext;
 import graph.CompiledNode;
-import graph.execution.CompiledNodeExecutionMetadata;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
 
 /**
  * CUDA partition backend that delegates to prepared accelerator executables.

@@ -13,7 +13,7 @@ import backend.lowering.LoweringFamily;
 import backend.prepare.BackendPrepareContext;
 import backend.prepare.RegionPlanValidator;
 import graph.CompiledNode;
-import graph.execution.CompiledNodeExecutionMetadata;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.optimizer.partition.PartitionPlan;
 
 /**

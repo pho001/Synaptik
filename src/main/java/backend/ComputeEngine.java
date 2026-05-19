@@ -8,7 +8,7 @@ import backend.metal.MetalBackend;
 import backend.opencl.OpenClBackend;
 import backend.runtime.ExecutionContext;
 import graph.CompiledNode;
-import graph.execution.CompiledNodeExecutionMetadata;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
 
 /**
  * Runtime dispatcher from prepared node metadata to the concrete backend implementation.

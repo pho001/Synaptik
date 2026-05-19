@@ -1,4 +1,4 @@
-package graph.execution;
+package graph.execution.device;
 
 import backend.accelerator.buffer.AcceleratorLayoutTransformDecision;
 import backend.memory.DeviceBufferBinding;

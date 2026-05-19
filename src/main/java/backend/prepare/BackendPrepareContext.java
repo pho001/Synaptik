@@ -7,7 +7,7 @@ import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
-import graph.execution.CompiledNodeExecutionMetadata;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.optimizer.partition.PartitionPlan;
 
 import java.util.List;

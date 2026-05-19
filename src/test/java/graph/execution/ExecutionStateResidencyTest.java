@@ -15,6 +15,8 @@ import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.DeviceTransferPolicy;
 import config.runtime.RuntimeConfig;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
+import graph.execution.state.ExecutionState;
 import graph.execution.trace.HostDeviceTransferKind;
 import graph.CompiledGraph;
 import graph.CompiledNode;

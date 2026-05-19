@@ -2,7 +2,7 @@ package backend.cuda;
 
 import backend.runtime.ExecutionContext;
 import graph.CompiledNode;
-import graph.execution.CompiledNodeExecutionMetadata;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
 import operations.Operation;
 import tensor.Tensor;
 import backend.cuda.kernels.CudaKernel;

@@ -2,18 +2,21 @@ package graph.execution;
 
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.nativecpu.NativeCpuMemoryPool;
-import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
 import config.runtime.NativeCpuMemoryConfig;
 import config.runtime.NativeMemoryPoolPolicy;
 import config.runtime.RuntimeConfig;
-import graph.AliasViewPolicy;
 import graph.CompiledNode;
 import graph.CompiledGradientBinding;
 import graph.GradientDTypePolicy;
 import graph.compile.GraphStructureContract;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
+import graph.execution.publication.ExecutionPublisher;
+import graph.execution.residency.RuntimeMemoryBinder;
+import graph.execution.runner.PreparedExecutionRunner;
+import graph.execution.state.ExecutionState;
 import graph.execution.trace.ExecutionStepTrace;
 import graph.execution.trace.PrepareTrace;
 import graph.execution.trace.RunTrace;
@@ -366,17 +369,46 @@ public final class PreparedExecution implements AutoCloseable {
                 seedRootGradient(executionState);
                 PreparedExecutionRunner.executeSteps(executionSteps, context, captureTrace, steps, 0);
                 if (optimizer == null) {
-                    publishAfterExecution(mode, executionState, publication);
+                    ExecutionPublisher.publishAfterExecution(
+                            mode,
+                            executionState,
+                            publication,
+                            rootTensor,
+                            allNodes,
+                            forwardOutputNode,
+                            compiledGradients
+                    );
                 } else {
                     if (publication.publishesOutputValue() && !publication.publishesAllForwardValues()) {
-                        syncRootData(mode, executionState);
+                        ExecutionPublisher.syncRootData(
+                                mode,
+                                executionState,
+                                rootTensor,
+                                allNodes,
+                                forwardOutputNode
+                        );
                     }
                     optimizer.step(optimizerContext);
-                    publishAfterOptimizerStep(mode, executionState, publication);
+                    ExecutionPublisher.publishAfterOptimizerStep(
+                            mode,
+                            executionState,
+                            publication,
+                            rootTensor,
+                            allNodes,
+                            forwardOutputNode,
+                            compiledGradients
+                    );
                 }
             } else {
                 PreparedExecutionRunner.executeSteps(forwardSteps, context, captureTrace, steps, 0);
-                publishForwardOnly(mode, executionState, publication);
+                ExecutionPublisher.publishForwardOnly(
+                        mode,
+                        executionState,
+                        publication,
+                        rootTensor,
+                        allNodes,
+                        forwardOutputNode
+                );
             }
             return new RunTrace(
                     mode,
@@ -442,233 +474,11 @@ public final class PreparedExecution implements AutoCloseable {
         return Map.copyOf(out);
     }
 
-    private void publishAfterExecution(
-            ExecutionMode mode,
-            ExecutionState executionState,
-            PublicationPolicy publication
-    ) {
-        if (publication.publishesAllForwardValues()) {
-            publishAllForwardValues(mode, executionState);
-        } else if (publication.publishesOutputValue()) {
-            syncRootData(mode, executionState);
-        }
-        if (mode == ExecutionMode.FORWARD_BACKWARD) {
-            if (publication.publishesGradients()) {
-                publishCompiledGradients(executionState);
-            } else {
-                clearPublishedGradients();
-            }
-        }
-    }
-
-    private void publishAfterOptimizerStep(
-            ExecutionMode mode,
-            ExecutionState executionState,
-            PublicationPolicy publication
-    ) {
-        if (publication.publishesAllForwardValues()) {
-            publishAllForwardValues(mode, executionState);
-        }
-        if (publication.publishesGradients()) {
-            publishCompiledGradients(executionState);
-        } else {
-            clearPublishedGradients();
-        }
-    }
-
-    private void publishForwardOnly(
-            ExecutionMode mode,
-            ExecutionState executionState,
-            PublicationPolicy publication
-    ) {
-        if (publication.publishesAllForwardValues()) {
-            publishAllForwardValues(mode, executionState);
-        } else if (publication.publishesOutputValue()) {
-            syncRootData(mode, executionState);
-        }
-    }
-
-    private void publishAllForwardValues(ExecutionMode mode, ExecutionState executionState) {
-        syncRootData(mode, executionState);
-        Tensor rootPublishTarget = resolveSemanticPublishTarget(rootTensor);
-        for (CompiledNode node : allNodes) {
-            if (node.backwardNode()) {
-                continue;
-            }
-            Tensor target = node.sourceTensor();
-            if (target == null || target == rootTensor || target == rootPublishTarget) {
-                continue;
-            }
-            publishRuntimeTensor(
-                    mode,
-                    executionState,
-                    target,
-                    node.id(),
-                    CpuMaterializationReason.GRAPH_VALUE_PUBLICATION
-            );
-            repairSemanticAliasChain(target);
-        }
-        repairSemanticAliasChain(rootTensor);
-    }
-
-    private void syncRootData(ExecutionMode mode, ExecutionState executionState) {
-        Integer semanticRootNodeId = nodeIdForSemanticTensor(rootTensor);
-        int actualRootNodeId = semanticRootNodeId == null ? resolveForwardRuntimeRootNodeId() : semanticRootNodeId;
-        Tensor publishTarget = resolveSemanticPublishTarget(rootTensor);
-        Integer publishNodeId = nodeIdForSemanticTensor(publishTarget);
-        if (publishNodeId != null) {
-            if (publishNodeId != actualRootNodeId
-                    && shouldPublishActualRootForAlias(executionState, publishNodeId, actualRootNodeId)) {
-                publishRuntimeTensor(
-                        mode,
-                        executionState,
-                        rootTensor,
-                        actualRootNodeId,
-                        CpuMaterializationReason.GRAPH_OUTPUT
-                );
-                repairSemanticAliasChain(rootTensor);
-                return;
-            }
-            executionState.requireCpuReadable(publishNodeId, CpuMaterializationReason.GRAPH_OUTPUT);
-            Tensor runtimePublished = executionState.runtimeTensorForNodeId(publishNodeId);
-            if (TensorInternalAccess.storage(publishTarget) == TensorInternalAccess.storage(runtimePublished)) {
-                repairSemanticAliasChain(rootTensor);
-                return;
-            }
-            if (mode == ExecutionMode.FORWARD_BACKWARD || runtimePublished != publishTarget) {
-                publishTarget.copyDataFrom(runtimePublished);
-            }
-            repairSemanticAliasChain(rootTensor);
-            return;
-        }
-
-        publishRuntimeTensor(mode, executionState, rootTensor, actualRootNodeId);
-        repairSemanticAliasChain(rootTensor);
-    }
-
-    private static boolean shouldPublishActualRootForAlias(
-            ExecutionState executionState,
-            int publishNodeId,
-            int actualRootNodeId
-    ) {
-        var publishState = executionState.residencyForNodeId(publishNodeId);
-        var actualRootState = executionState.residencyForNodeId(actualRootNodeId);
-        return !publishState.cpuCurrent()
-                && (actualRootState.cpuCurrent() || actualRootState.requiresCpuMaterialization());
-    }
-
-    private static void publishRuntimeTensor(
-            ExecutionMode mode,
-            ExecutionState executionState,
-            Tensor publishTarget,
-            int nodeId
-    ) {
-        publishRuntimeTensor(mode, executionState, publishTarget, nodeId, CpuMaterializationReason.GRAPH_OUTPUT);
-    }
-
-    private static void publishRuntimeTensor(
-            ExecutionMode mode,
-            ExecutionState executionState,
-            Tensor publishTarget,
-            int nodeId,
-            CpuMaterializationReason reason
-    ) {
-        executionState.requireCpuReadable(nodeId, reason);
-        Tensor runtimeTensor = executionState.runtimeTensorForNodeId(nodeId);
-        if (mode == ExecutionMode.FORWARD_BACKWARD || runtimeTensor != publishTarget) {
-            publishTarget.copyDataFrom(runtimeTensor);
-        }
-    }
-
-    private Tensor resolveSemanticPublishTarget(Tensor tensor) {
-        Tensor current = tensor;
-        while (isAliasViewOp(current) && current.getPrevTensors() != null && !current.getPrevTensors().isEmpty()) {
-            current = current.getPrevTensors().getFirst();
-        }
-        return current;
-    }
-
-    private Integer nodeIdForSemanticTensor(Tensor tensor) {
-        if (tensor == null) {
-            return null;
-        }
-        for (CompiledNode node : allNodes) {
-            if (node.semanticTensor() == tensor || node.sourceTensor() == tensor) {
-                return node.id();
-            }
-        }
-        return null;
-    }
-
-    private int resolveForwardRuntimeRootNodeId() {
-        if (forwardOutputNode.operation() != null
-                && forwardOutputNode.operation().opType() == operations.Operation.OpType.NOOP
-                && Tensor.SYSTEM_FORWARD_OUTPUT_LABEL.equals(forwardOutputNode.label())
-                && !forwardOutputNode.inputIds().isEmpty()) {
-            return forwardOutputNode.inputIds().getFirst();
-        }
-        return forwardOutputNode.id();
-    }
-
-    private boolean isAliasViewOp(Tensor tensor) {
-        if (tensor == null || tensor.getOperation() == null) {
-            return false;
-        }
-        return AliasViewPolicy.aliasesInput0AtRuntime(tensor);
-    }
-
-    private void repairSemanticAliasChain(Tensor tensor) {
-        if (!isAliasViewOp(tensor) || tensor.getPrevTensors() == null || tensor.getPrevTensors().isEmpty()) {
-            return;
-        }
-        Tensor source = tensor.getPrevTensors().getFirst();
-        repairSemanticAliasChain(source);
-        TensorInternalAccess.aliasRuntimeFrom(tensor, source);
-    }
-
     private void seedRootGradient(ExecutionState executionState) {
         if (!(forwardSeedGradient instanceof CompiledGradientBinding.NodeBinding nodeBinding)) {
             return;
         }
         fillGradientOnes(executionState.runtimeTensorForNodeId(nodeBinding.nodeId()));
-    }
-
-    private void publishCompiledGradients(ExecutionState executionState) {
-        for (CompiledNode node : allNodes) {
-            if (node.backwardNode()) {
-                continue;
-            }
-            Tensor tensor = node.sourceTensor();
-            CompiledGradientBinding binding = compiledGradients.get(tensor);
-            if (binding == null) {
-                TensorInternalAccess.setGradient(tensor, null);
-                continue;
-            }
-            Tensor published;
-            if (binding instanceof CompiledGradientBinding.NodeBinding nodeBinding) {
-                executionState.requireCpuReadable(nodeBinding.nodeId(), CpuMaterializationReason.GRADIENT_PUBLICATION);
-                published = detachedCopy(executionState.runtimeTensorForNodeId(nodeBinding.nodeId()));
-            } else if (binding instanceof CompiledGradientBinding.ConstantBinding constantBinding) {
-                published = detachedCopy(constantBinding.template());
-            } else {
-                throw new IllegalStateException("Unsupported gradient binding type: " + binding.getClass().getName());
-            }
-            TensorInternalAccess.setGradient(tensor, published);
-        }
-    }
-
-    private void clearPublishedGradients() {
-        for (CompiledNode node : allNodes) {
-            if (!node.backwardNode()) {
-                TensorInternalAccess.setGradient(node.sourceTensor(), null);
-            }
-        }
-    }
-
-    private static Tensor detachedCopy(Tensor source) {
-        Tensor copy = new Tensor(source.getShape(), null, source.getLabel(), source.getDataType());
-        copy.copyDataFrom(source);
-        return copy;
     }
 
     private static void fillGradientOnes(Tensor gradient) {

@@ -4,7 +4,7 @@ import backend.runtime.ExecutionContext;
 import backend.opencl.kernels.OpenClKernel;
 import backend.opencl.registry.OpenClKernelRegistry;
 import graph.CompiledNode;
-import graph.execution.CompiledNodeExecutionMetadata;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
 import tensor.Tensor;
 import operations.Operation;
 

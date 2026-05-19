@@ -1,4 +1,4 @@
-package graph.execution;
+package graph.execution.trace.contrib;
 
 import backend.blas.OpenBlasFfmBridge;
 import backend.cpu.fused.plan.FusedOperation;
@@ -9,6 +9,7 @@ import backend.runtime.ExecutionContext;
 import config.runtime.BlasStorageMode;
 import config.runtime.CpuStorageProfile;
 import graph.CompiledNode;
+import graph.execution.PreparedNodeExecution;
 import graph.execution.trace.ComputeTraceMetadata;
 import graph.execution.trace.ConvTraceMetadata;
 import graph.execution.trace.DispatchTraceMetadata;
@@ -28,11 +29,11 @@ import java.util.Map;
 /**
  * Builds per-step execution trace records from prepared metadata and runtime diagnostics.
  */
-final class StepExecutionTracer {
+public final class StepExecutionTracer {
     private StepExecutionTracer() {
     }
 
-    static ExecutionStepTrace toStepTrace(int index, PreparedNodeExecution step, long durationNs, ExecutionContext context) {
+    public static ExecutionStepTrace toStepTrace(int index, PreparedNodeExecution step, long durationNs, ExecutionContext context) {
         CompiledNode node = step.compiledNode();
         var metadata = step.metadata();
         operations.Operation executionOperation = metadata.executionOperation() == null

@@ -78,7 +78,10 @@ Contains:
   - [backend/prepare/PreparedExecutionBuilder.java](../backend/prepare/PreparedExecutionBuilder.java)
   - [execution/PreparedExecution.java](../graph/execution/PreparedExecution.java)
   - [execution/PreparedNodeExecution.java](../graph/execution/PreparedNodeExecution.java)
-  - [execution/CompiledNodeExecutionMetadata.java](../graph/execution/CompiledNodeExecutionMetadata.java)
+  - [execution/plan/CompiledNodeExecutionMetadata.java](../graph/execution/plan/CompiledNodeExecutionMetadata.java)
+  - [execution/state/ExecutionState.java](../graph/execution/state/ExecutionState.java)
+  - [execution/residency/RuntimeResidencyStore.java](../graph/execution/residency/RuntimeResidencyStore.java)
+  - [execution/publication/ExecutionPublisher.java](../graph/execution/publication/ExecutionPublisher.java)
 - traces:
   - [execution/trace/CompileTrace.java](../graph/execution/trace/CompileTrace.java)
   - [execution/trace/PrepareTrace.java](../graph/execution/trace/PrepareTrace.java)

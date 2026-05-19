@@ -1,4 +1,4 @@
-package graph.execution;
+package graph.execution.state;
 
 import backend.cpu.kernels.CpuNodeWorkspace;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
@@ -22,6 +22,11 @@ import graph.AliasViewPolicy;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import graph.execution.PreparedNodeExecution;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
+import graph.execution.residency.DeviceBindingRegistry;
+import graph.execution.residency.NativeCpuStorageRegistry;
+import graph.execution.residency.RuntimeResidencyStore;
 import graph.execution.trace.CpuMaterializationTrace;
 import graph.execution.trace.HostDeviceTransferKind;
 import graph.execution.trace.HostDeviceTransferTrace;
@@ -45,46 +50,37 @@ import java.util.Objects;
  * runtime tensor bindings and workspaces here so runs do not share mutable graph state.
  */
 public final class ExecutionState {
-    private record PreparedInputKey(int nodeId, int inputIndex) {
-    }
-
-    private final Map<Integer, Tensor> runtimeTensorByNodeId;
-    private final Map<Integer, CpuNodeWorkspace> cpuWorkspaceByNodeId;
-    private final Map<PreparedInputKey, Tensor> preparedInputTensorByKey;
-    private final Map<Tensor, Integer> runtimeNodeIdByTensor;
-    private final Map<Integer, TensorResidencyState> residencyByNodeId;
-    private final Map<Integer, DeviceBufferBinding> deviceBufferBindingByNodeId;
-    private final Map<Integer, DeviceBufferBinding> reservedDeviceBufferBindingByNodeId;
-    private final Map<Integer, NativeTensorStorage> nativeStorageByNodeId;
+    private final RuntimeTensorStore tensorStore;
+    private final RuntimeWorkspaceStore workspaceStore;
+    private final RuntimeResidencyStore residencyStore;
+    private final DeviceBindingRegistry deviceBindingRegistry;
+    private final NativeCpuStorageRegistry nativeStorageRegistry;
+    private final RuntimeResourceRegistry resourceRegistry;
     private final Map<String, DeviceToCpuMaterializer> deviceToCpuMaterializerByBackend;
     private final Map<String, DeviceToNativeMaterializer> deviceToNativeMaterializerByBackend;
     private final List<CpuMaterializationTrace> cpuMaterializationTraces;
     private final List<HostDeviceTransferTrace> hostDeviceTransferTraces;
-    private final List<ExecutionResource> executionResources;
     private NativeCpuAllocator nativeCpuAllocator;
     private NativeCpuStorageFactory nativeCpuStorageFactory;
 
     private ExecutionState(
             Map<Integer, Tensor> runtimeTensorByNodeId,
             Map<Integer, CpuNodeWorkspace> cpuWorkspaceByNodeId,
-            Map<PreparedInputKey, Tensor> preparedInputTensorByKey,
+            Map<Long, Tensor> preparedInputTensorByKey,
             Map<Tensor, Integer> runtimeNodeIdByTensor,
             Map<Integer, TensorResidencyState> residencyByNodeId,
             Map<Integer, DeviceBufferBinding> deviceBufferBindingByNodeId
     ) {
-        this.runtimeTensorByNodeId = Map.copyOf(runtimeTensorByNodeId);
-        this.cpuWorkspaceByNodeId = Map.copyOf(cpuWorkspaceByNodeId);
-        this.preparedInputTensorByKey = Map.copyOf(preparedInputTensorByKey);
-        this.runtimeNodeIdByTensor = Map.copyOf(runtimeNodeIdByTensor);
-        this.residencyByNodeId = Map.copyOf(residencyByNodeId);
-        this.deviceBufferBindingByNodeId = new HashMap<>(deviceBufferBindingByNodeId == null ? Map.of() : deviceBufferBindingByNodeId);
-        this.reservedDeviceBufferBindingByNodeId = new HashMap<>();
-        this.nativeStorageByNodeId = new HashMap<>();
+        this.tensorStore = new RuntimeTensorStore(runtimeTensorByNodeId, runtimeNodeIdByTensor);
+        this.workspaceStore = new RuntimeWorkspaceStore(cpuWorkspaceByNodeId, preparedInputTensorByKey);
+        this.residencyStore = new RuntimeResidencyStore(residencyByNodeId);
+        this.deviceBindingRegistry = new DeviceBindingRegistry(deviceBufferBindingByNodeId);
+        this.nativeStorageRegistry = new NativeCpuStorageRegistry();
+        this.resourceRegistry = new RuntimeResourceRegistry();
         this.deviceToCpuMaterializerByBackend = new HashMap<>();
         this.deviceToNativeMaterializerByBackend = new HashMap<>();
         this.cpuMaterializationTraces = new ArrayList<>();
         this.hostDeviceTransferTraces = new ArrayList<>();
-        this.executionResources = new ArrayList<>();
         this.nativeCpuAllocator = new NativeCpuAllocator();
         this.nativeCpuStorageFactory = new NativeCpuStorageFactory(nativeCpuAllocator);
     }
@@ -185,7 +181,7 @@ public final class ExecutionState {
 
         Map<Integer, CpuNodeWorkspace> workspaces = new HashMap<>();
         Map<CpuNodeWorkspace, CpuNodeWorkspace> runtimeWorkspaceByTemplate = new IdentityHashMap<>();
-        Map<PreparedInputKey, Tensor> preparedInputs = new HashMap<>();
+        Map<Long, Tensor> preparedInputs = new HashMap<>();
         for (Map.Entry<Integer, CompiledNodeExecutionMetadata> entry : metadataIndex.entrySet()) {
             CpuNodeWorkspace workspace = entry.getValue().cpuWorkspace();
             if (workspace != null) {
@@ -214,7 +210,7 @@ public final class ExecutionState {
             PreparedNodeExecution step,
             Map<CpuNodeWorkspace, CpuNodeWorkspace> runtimeWorkspaceByTemplate,
             Map<Integer, CpuNodeWorkspace> workspaces,
-            Map<PreparedInputKey, Tensor> preparedInputs
+            Map<Long, Tensor> preparedInputs
     ) {
         if (step == null || step.metadata() == null) {
             return;
@@ -230,7 +226,7 @@ public final class ExecutionState {
     private static void allocatePreparedInputs(
             int nodeId,
             CpuNodeExecutionPlan cpuPlan,
-            Map<PreparedInputKey, Tensor> preparedInputs
+            Map<Long, Tensor> preparedInputs
     ) {
         if (cpuPlan == null || cpuPlan.layoutPlan().preparedInputs().isEmpty()) {
             return;
@@ -247,7 +243,7 @@ public final class ExecutionState {
                     template.getDataType()
             );
             runtimePrepared.setRequiresGrad(template.getRequiresGrad());
-            preparedInputs.put(new PreparedInputKey(nodeId, preparedInput.inputIndex()), runtimePrepared);
+            preparedInputs.put(RuntimeWorkspaceStore.preparedInputKey(nodeId, preparedInput.inputIndex()), runtimePrepared);
         }
     }
 
@@ -268,11 +264,7 @@ public final class ExecutionState {
      * @return runtime tensor
      */
     public Tensor runtimeTensorForNodeId(int nodeId) {
-        Tensor tensor = runtimeTensorByNodeId.get(nodeId);
-        if (tensor == null) {
-            throw new IllegalStateException("Missing runtime tensor for nodeId=" + nodeId);
-        }
-        return tensor;
+        return tensorStore.runtimeTensorForNodeId(nodeId);
     }
 
     /**
@@ -282,7 +274,7 @@ public final class ExecutionState {
      * @return CPU workspace, or {@code null} when the node does not use one
      */
     public CpuNodeWorkspace cpuWorkspaceForNodeId(int nodeId) {
-        return cpuWorkspaceByNodeId.get(nodeId);
+        return workspaceStore.cpuWorkspaceForNodeId(nodeId);
     }
 
     /**
@@ -293,11 +285,7 @@ public final class ExecutionState {
      * @return prepared runtime tensor
      */
     public Tensor preparedInputTensorFor(int nodeId, int inputIndex) {
-        Tensor tensor = preparedInputTensorByKey.get(new PreparedInputKey(nodeId, inputIndex));
-        if (tensor == null) {
-            throw new IllegalStateException("Missing prepared runtime tensor for nodeId=" + nodeId + ", inputIndex=" + inputIndex);
-        }
-        return tensor;
+        return workspaceStore.preparedInputTensorFor(nodeId, inputIndex);
     }
 
     /**
@@ -307,7 +295,7 @@ public final class ExecutionState {
      * @return node id, or {@code null} when the tensor is unknown
      */
     public Integer nodeIdForRuntimeTensor(Tensor tensor) {
-        return tensor == null ? null : runtimeNodeIdByTensor.get(tensor);
+        return tensorStore.nodeIdForRuntimeTensor(tensor);
     }
 
     /**
@@ -317,11 +305,7 @@ public final class ExecutionState {
      * @return mutable residency state for the runtime tensor
      */
     public TensorResidencyState residencyForNodeId(int nodeId) {
-        TensorResidencyState state = residencyByNodeId.get(nodeId);
-        if (state == null) {
-            throw new IllegalStateException("Missing runtime residency state for nodeId=" + nodeId);
-        }
-        return state;
+        return residencyStore.residencyForNodeId(nodeId);
     }
 
     /**
@@ -331,9 +315,8 @@ public final class ExecutionState {
      * @param reason diagnostic transition reason
      */
     public void markCpuCurrent(int nodeId, String reason) {
-        nativeStorageByNodeId.remove(nodeId);
-        deviceBufferBindingByNodeId.remove(nodeId);
-        reservedDeviceBufferBindingByNodeId.remove(nodeId);
+        nativeStorageRegistry.remove(nodeId);
+        deviceBindingRegistry.remove(nodeId);
         residencyForNodeId(nodeId).markCpuCurrent(reason);
     }
 
@@ -355,12 +338,11 @@ public final class ExecutionState {
             throw new IllegalArgumentException("Native storage size mismatch for nodeId=" + nodeId
                     + ". tensorElements=" + tensor.getFlatDataSize() + ", storageElements=" + storage.getSize());
         }
-        nativeStorageByNodeId.put(nodeId, storage);
+        nativeStorageRegistry.put(nodeId, storage);
         if (storage.ownsSegment()) {
             registerResource(storage.allocation());
         }
-        deviceBufferBindingByNodeId.remove(nodeId);
-        reservedDeviceBufferBindingByNodeId.remove(nodeId);
+        deviceBindingRegistry.remove(nodeId);
         residencyForNodeId(nodeId).markNativeCurrent(reason);
     }
 
@@ -402,9 +384,8 @@ public final class ExecutionState {
                     + ", sourceNodeId=" + sourceNodeId + ", requiredElements=" + requiredElements
                     + ", storageElements=" + storage.getSize());
         }
-        nativeStorageByNodeId.put(targetNodeId, storage);
-        deviceBufferBindingByNodeId.remove(targetNodeId);
-        reservedDeviceBufferBindingByNodeId.remove(targetNodeId);
+        nativeStorageRegistry.put(targetNodeId, storage);
+        deviceBindingRegistry.remove(targetNodeId);
         residencyForNodeId(targetNodeId).markNativeCurrent(reason);
     }
 
@@ -435,7 +416,7 @@ public final class ExecutionState {
      */
     public NativeTensorStorage nativeStorageForNodeId(int nodeId) {
         residencyForNodeId(nodeId);
-        return nativeStorageByNodeId.get(nodeId);
+        return nativeStorageRegistry.get(nodeId);
     }
 
     /**
@@ -450,9 +431,8 @@ public final class ExecutionState {
      * @param reason diagnostic transition reason
      */
     public void markDeviceCurrent(int nodeId, StorageResidency residency, String deviceBackend, String reason) {
-        nativeStorageByNodeId.remove(nodeId);
-        deviceBufferBindingByNodeId.remove(nodeId);
-        reservedDeviceBufferBindingByNodeId.remove(nodeId);
+        nativeStorageRegistry.remove(nodeId);
+        deviceBindingRegistry.remove(nodeId);
         residencyForNodeId(nodeId).markDeviceCurrent(residency, deviceBackend, reason);
     }
 
@@ -469,7 +449,7 @@ public final class ExecutionState {
      */
     public void reserveDeviceBufferBinding(int nodeId, DeviceBufferBinding binding) {
         validateDeviceBufferBinding(nodeId, binding);
-        reservedDeviceBufferBindingByNodeId.put(nodeId, binding);
+        deviceBindingRegistry.putReserved(nodeId, binding);
     }
 
     /**
@@ -497,9 +477,8 @@ public final class ExecutionState {
         if (residency == StorageResidency.CPU_ARRAY || residency == StorageResidency.CPU_NATIVE) {
             throw new IllegalArgumentException("Device buffer binding requires a device residency.");
         }
-        nativeStorageByNodeId.remove(nodeId);
-        deviceBufferBindingByNodeId.put(nodeId, binding);
-        reservedDeviceBufferBindingByNodeId.remove(nodeId);
+        nativeStorageRegistry.remove(nodeId);
+        deviceBindingRegistry.putActive(nodeId, binding);
         if (residency == StorageResidency.HOST_SHARED_DEVICE_BUFFER) {
             residencyForNodeId(nodeId).markSharedBufferCurrent(binding.backendId(), reason);
             return;
@@ -515,7 +494,7 @@ public final class ExecutionState {
      */
     public DeviceBufferBinding deviceBufferBindingForNodeId(int nodeId) {
         residencyForNodeId(nodeId);
-        return deviceBufferBindingByNodeId.get(nodeId);
+        return deviceBindingRegistry.active(nodeId);
     }
 
     /**
@@ -530,8 +509,7 @@ public final class ExecutionState {
      */
     public DeviceBufferBinding writableDeviceBufferBindingForNodeId(int nodeId) {
         residencyForNodeId(nodeId);
-        DeviceBufferBinding reserved = reservedDeviceBufferBindingByNodeId.get(nodeId);
-        return reserved == null ? deviceBufferBindingByNodeId.get(nodeId) : reserved;
+        return deviceBindingRegistry.writable(nodeId);
     }
 
     /**
@@ -612,8 +590,7 @@ public final class ExecutionState {
                     )
             );
         }
-        deviceBufferBindingByNodeId.remove(nodeId);
-        reservedDeviceBufferBindingByNodeId.remove(nodeId);
+        deviceBindingRegistry.remove(nodeId);
         state.markMaterializedToCpu(reason.label());
     }
 
@@ -667,7 +644,7 @@ public final class ExecutionState {
      * @param resource resource to close when this run finishes
      */
     public void registerResource(ExecutionResource resource) {
-        executionResources.add(Objects.requireNonNull(resource, "resource cannot be null"));
+        resourceRegistry.registerResource(resource);
     }
 
     /**
@@ -677,24 +654,12 @@ public final class ExecutionState {
      * cleared afterward so no closed handle remains discoverable from runtime state.</p>
      */
     public void closeResources() {
-        RuntimeException closeFailure = null;
-        for (int i = executionResources.size() - 1; i >= 0; i--) {
-            try {
-                executionResources.get(i).close();
-            } catch (RuntimeException ex) {
-                if (closeFailure == null) {
-                    closeFailure = new RuntimeException("One or more execution resources failed to close.");
-                }
-                closeFailure.addSuppressed(ex);
-            }
-        }
-        executionResources.clear();
-        nativeCpuAllocator.drainRunLocalPool();
-        deviceBufferBindingByNodeId.clear();
-        reservedDeviceBufferBindingByNodeId.clear();
-        nativeStorageByNodeId.clear();
-        if (closeFailure != null) {
-            throw closeFailure;
+        try {
+            resourceRegistry.closeResources();
+        } finally {
+            nativeCpuAllocator.drainRunLocalPool();
+            deviceBindingRegistry.clear();
+            nativeStorageRegistry.clear();
         }
     }
 
@@ -771,7 +736,7 @@ public final class ExecutionState {
                 : deviceTransferPolicy;
         TensorResidencyState state = residencyForNodeId(nodeId);
         if (state.nativeCurrent()) {
-            NativeTensorStorage storage = nativeStorageByNodeId.get(nodeId);
+            NativeTensorStorage storage = nativeStorageRegistry.get(nodeId);
             if (storage == null) {
                 throw new IllegalStateException("Native CPU residency is current for nodeId=" + nodeId
                         + " but no native storage is attached.");
@@ -833,7 +798,7 @@ public final class ExecutionState {
             CpuMaterializationReason reason,
             TensorResidencyState state
     ) {
-        DeviceBufferBinding binding = deviceBufferBindingByNodeId.get(nodeId);
+        DeviceBufferBinding binding = deviceBindingRegistry.active(nodeId);
         DeviceToNativeMaterializer materializer = binding == null
                 ? null
                 : deviceToNativeMaterializerByBackend.get(binding.backendId());
@@ -841,7 +806,7 @@ public final class ExecutionState {
             return null;
         }
         Tensor tensor = runtimeTensorForNodeId(nodeId);
-        NativeTensorStorage storage = nativeStorageByNodeId.get(nodeId);
+        NativeTensorStorage storage = nativeStorageRegistry.get(nodeId);
         if (storage == null || storage.closed() || storage.getType() != tensor.getDataType()
                 || storage.getSize() != tensor.getFlatDataSize()) {
             storage = allocateNativeStorage(
@@ -849,7 +814,7 @@ public final class ExecutionState {
                     tensor.getFlatDataSize(),
                     "node-" + nodeId + ":" + tensor.getLabel()
             );
-            nativeStorageByNodeId.put(nodeId, storage);
+            nativeStorageRegistry.put(nodeId, storage);
             if (storage.ownsSegment()) {
                 registerResource(storage.allocation());
             }
@@ -880,8 +845,7 @@ public final class ExecutionState {
                 "",
                 result.detail()
         ));
-        deviceBufferBindingByNodeId.remove(nodeId);
-        reservedDeviceBufferBindingByNodeId.remove(nodeId);
+        deviceBindingRegistry.remove(nodeId);
         residencyForNodeId(nodeId).markNativeCurrent(reason.label());
         return storage;
     }
@@ -898,7 +862,7 @@ public final class ExecutionState {
         Objects.requireNonNull(reason, "reason cannot be null");
         requireCpuReadable(nodeId, reason);
         Tensor tensor = runtimeTensorForNodeId(nodeId);
-        NativeTensorStorage storage = nativeStorageByNodeId.get(nodeId);
+        NativeTensorStorage storage = nativeStorageRegistry.get(nodeId);
         if (storage == null || storage.closed() || storage.getType() != tensor.getDataType()
                 || storage.getSize() != tensor.getFlatDataSize()) {
             storage = allocateNativeStorage(
@@ -906,7 +870,7 @@ public final class ExecutionState {
                     tensor.getFlatDataSize(),
                     "node-" + nodeId + ":" + tensor.getLabel()
             );
-            nativeStorageByNodeId.put(nodeId, storage);
+            nativeStorageRegistry.put(nodeId, storage);
             if (storage.ownsSegment()) {
                 registerResource(storage.allocation());
             }
@@ -924,15 +888,14 @@ public final class ExecutionState {
                 true,
                 detail == null || detail.isBlank() ? "array_to_native" : detail
         ));
-        deviceBufferBindingByNodeId.remove(nodeId);
-        reservedDeviceBufferBindingByNodeId.remove(nodeId);
+        deviceBindingRegistry.remove(nodeId);
         residencyForNodeId(nodeId).markNativeCurrent(reason.label());
         return storage;
     }
 
     private void tryMaterializeToCpu(int nodeId, CpuMaterializationReason reason, TensorResidencyState state) {
         if (state.nativeCurrent()) {
-            NativeTensorStorage storage = nativeStorageByNodeId.get(nodeId);
+            NativeTensorStorage storage = nativeStorageRegistry.get(nodeId);
             if (storage != null) {
                 long start = System.nanoTime();
                 NativeCpuMaterializer.nativeToArray(storage, runtimeTensorForNodeId(nodeId));
@@ -962,7 +925,7 @@ public final class ExecutionState {
                             + " but native CPU storage is current and no native storage binding is available."
             );
         }
-        DeviceBufferBinding binding = deviceBufferBindingByNodeId.get(nodeId);
+        DeviceBufferBinding binding = deviceBindingRegistry.active(nodeId);
         DeviceToCpuMaterializer materializer = binding == null ? null : deviceToCpuMaterializerByBackend.get(binding.backendId());
         if (binding != null
                 && materializer != null
@@ -1067,21 +1030,6 @@ public final class ExecutionState {
     }
 
     private long logicalByteLength(int nodeId) {
-        Tensor tensor = runtimeTensorForNodeId(nodeId);
-        return (long) tensor.getFlatDataSize() * elementByteSize(tensor.getDataType());
-    }
-
-    private static int elementByteSize(DataType dataType) {
-        if (dataType == null) {
-            return 0;
-        }
-        return switch (dataType) {
-            case FLOAT64 -> Double.BYTES;
-            case FLOAT32 -> Float.BYTES;
-            case BFLOAT16 -> Short.BYTES;
-            case BOOL -> Byte.BYTES;
-            case INT32 -> Integer.BYTES;
-            case INT64 -> Long.BYTES;
-        };
+        return tensorStore.logicalByteLength(nodeId);
     }
 }

@@ -1,4 +1,4 @@
-package graph.execution;
+package graph.execution.device;
 
 import backend.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferAccessMode;
@@ -14,6 +14,7 @@ import backend.runtime.ExecutionContext;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
+import graph.execution.PreparedNodeExecution;
 import operations.Operation;
 import tensor.Tensor;
 
@@ -22,11 +23,11 @@ import java.util.List;
 /**
  * Propagates metadata-only accelerator layout views before CPU materialization.
  */
-final class DeviceLayoutViewPropagator {
+public final class DeviceLayoutViewPropagator {
     private DeviceLayoutViewPropagator() {
     }
 
-    static boolean tryPropagate(PreparedNodeExecution step, ExecutionContext context) {
+    public static boolean tryPropagate(PreparedNodeExecution step, ExecutionContext context) {
         if (step == null || context == null || step.compiledNode() == null) {
             return false;
         }

@@ -10,7 +10,7 @@ import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
 import backend.cpu.kernels.nn.conv2d.plan.ResolvedConv2dHints;
 import backend.cpu.kernels.reduction.plan.ResolvedReductionHints;
 import backend.runtime.ExecutionContext;
-import graph.execution.CompiledNodeExecutionMetadata;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.trace.ConvTraceMetadata;
 import backend.cpu.fused.exec.PreparedFusedExecutable;
 import operations.Operation;

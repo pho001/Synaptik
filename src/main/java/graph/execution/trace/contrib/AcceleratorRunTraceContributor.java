@@ -1,4 +1,4 @@
-package graph.execution;
+package graph.execution.trace.contrib;
 
 import backend.accelerator.lowering.GpuCompoundPatternType;
 

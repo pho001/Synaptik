@@ -1,6 +1,6 @@
 package backend.prepare;
 
-import graph.execution.CompiledNodeExecutionMetadata;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
 
 import java.util.HashMap;
 import java.util.Map;
