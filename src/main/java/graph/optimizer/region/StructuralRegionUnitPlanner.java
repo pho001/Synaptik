@@ -1,29 +1,24 @@
 package graph.optimizer.region;
 
 import graph.CompiledNode;
-import graph.optimizer.partition.Partition;
 import graph.optimizer.GraphValueRef;
+import graph.optimizer.partition.Partition;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
 /**
- * Generic accelerator region policy.
+ * Backend-neutral region unit planner.
  *
- * <p>The policy fuses an entire partition only when every node is fusable and there is a single output. Mixed GPU
- * partitions preserve the selected region and fuse maximal elementwise subchains as region-internal units.
+ * <p>This planner describes structural graph units only. Backend lowerers decide whether those units map to a physical
+ * backend graph, a fused primitive, or single-operation execution.
  */
-public final class GenericGpuRegionOptimizationPolicy implements RegionOptimizationPolicy {
-    /**
-     * Builds generic accelerator execution units for a partition.
-     *
-     * @param partition accepted partition
-     * @param context region optimization context
-     * @return fused whole-partition unit, mixed subchain units, or single-operation units
-     */
-    @Override
-    public List<ExecutionUnit> buildUnits(Partition partition, RegionOptimizationContext context) {
+final class StructuralRegionUnitPlanner {
+    private StructuralRegionUnitPlanner() {
+    }
+
+    static List<ExecutionUnit> buildUnits(Partition partition, RegionOptimizationContext context) {
         if (RegionOptimizationUnitSupport.shouldFuseWholePartition(partition, context)) {
             return List.of(RegionOptimizationUnitSupport.buildFusedUnit(partition, context));
         }

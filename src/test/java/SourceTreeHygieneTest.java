@@ -554,6 +554,27 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void regionOptimizerDoesNotOwnBackendLoweringPolicy() throws IOException {
+        Path regionRoot = Path.of("src/main/java/graph/optimizer/region");
+        assertTrue(!Files.exists(regionRoot.resolve("RegionOptimizationPolicy.java")),
+                "Region optimizer should not keep an extra policy abstraction layer.");
+        assertTrue(!Files.exists(regionRoot.resolve("GenericGpuRegionOptimizationPolicy.java")),
+                "Generic GPU policy should be expressed as backend-neutral structural region planning.");
+        List<String> offenders = linesContainingAny(
+                regionRoot,
+                List.of(
+                        "LoweringFamily.",
+                        "BackendCapabilities",
+                        "ComputeBackend.GPU_METAL",
+                        "ComputeBackend.GPU_CUDA",
+                        "METAL_GRAPH",
+                        "CUDA_GRAPH"
+                )
+        );
+        assertTrue(offenders.isEmpty(), () -> "Region optimizer must stay backend-lowering neutral: " + offenders);
+    }
+
+    @Test
     void prepareDoesNotGloballySkipLoweringForLegacyFusedGraphs() throws IOException {
         Path builder = Path.of("src/main/java/backend/prepare/PreparedExecutionBuilder.java");
         String source = Files.readString(builder);

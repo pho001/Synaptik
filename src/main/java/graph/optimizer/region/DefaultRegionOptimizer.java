@@ -11,34 +11,11 @@ import java.util.List;
 /**
  * Default partition-to-region optimizer.
  *
- * <p>The optimizer delegates execution unit selection to a target-specific policy, then derives region values and their
- * transport kinds from partition outputs, required materialization, and unit-to-unit value flow.
+ * <p>The optimizer builds structural execution units, then derives region values and their transport kinds from
+ * partition outputs, required materialization, and unit-to-unit value flow. Backend-specific lowering families and
+ * capability decisions belong to backend lowerers.
  */
 public final class DefaultRegionOptimizer {
-    private final RegionOptimizationPolicy cpuPolicy;
-    private final RegionOptimizationPolicy genericPolicy;
-
-    /**
-     * Creates an optimizer with built-in CPU and generic accelerator policies.
-     */
-    public DefaultRegionOptimizer() {
-        this(new CpuRegionOptimizationPolicy(), new GenericGpuRegionOptimizationPolicy());
-    }
-
-    /**
-     * Creates an optimizer with explicit policies.
-     *
-     * @param cpuPolicy policy for CPU partitions, or {@code null} for the default CPU policy
-     * @param genericPolicy policy for non-CPU partitions, or {@code null} for the generic accelerator policy
-     */
-    public DefaultRegionOptimizer(
-            RegionOptimizationPolicy cpuPolicy,
-            RegionOptimizationPolicy genericPolicy
-    ) {
-        this.cpuPolicy = cpuPolicy == null ? new CpuRegionOptimizationPolicy() : cpuPolicy;
-        this.genericPolicy = genericPolicy == null ? new GenericGpuRegionOptimizationPolicy() : genericPolicy;
-    }
-
     /**
      * Converts a partition to an optimized region.
      *
@@ -54,7 +31,7 @@ public final class DefaultRegionOptimizer {
             throw new IllegalArgumentException("context cannot be null");
         }
 
-        List<ExecutionUnit> units = policyFor(partition.target()).buildUnits(partition, context);
+        List<ExecutionUnit> units = buildUnits(partition, context);
         List<RegionValue> regionValues = partition.values().stream()
                 .map(value -> toRegionValue(value, partition, context, units))
                 .toList();
@@ -79,8 +56,11 @@ public final class DefaultRegionOptimizer {
         );
     }
 
-    private RegionOptimizationPolicy policyFor(PartitionTarget target) {
-        return target == PartitionTarget.CPU ? cpuPolicy : genericPolicy;
+    private List<ExecutionUnit> buildUnits(Partition partition, RegionOptimizationContext context) {
+        if (partition.target() == PartitionTarget.CPU) {
+            return new CpuRegionOptimizationPolicy().buildUnits(partition, context);
+        }
+        return StructuralRegionUnitPlanner.buildUnits(partition, context);
     }
 
     private RegionValue toRegionValue(

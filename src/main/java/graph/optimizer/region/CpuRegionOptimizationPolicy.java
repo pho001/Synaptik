@@ -10,9 +10,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * CPU region policy that fuses fully fusable partitions or shorter fusable subchains.
+ * CPU region unit planner that fuses fully fusable partitions or shorter fusable subchains.
  */
-public final class CpuRegionOptimizationPolicy implements RegionOptimizationPolicy {
+final class CpuRegionOptimizationPolicy {
     /**
      * Builds CPU execution units for a partition.
      *
@@ -20,8 +20,7 @@ public final class CpuRegionOptimizationPolicy implements RegionOptimizationPoli
      * @param context region optimization context
      * @return fused or single-operation units
      */
-    @Override
-    public List<ExecutionUnit> buildUnits(Partition partition, RegionOptimizationContext context) {
+    List<ExecutionUnit> buildUnits(Partition partition, RegionOptimizationContext context) {
         if (context.cpuFusionConfig().mode() == CpuFusionMode.OFF) {
             return RegionOptimizationUnitSupport.buildSingleOpUnits(partition, context);
         }

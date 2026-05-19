@@ -177,30 +177,31 @@ public final class GraphCompiler {
 
                 boolean trainableLeafInputs = hasTrainableLeafInputs();
                 compiledSupportsBackward = shouldCompileBackward(trainableLeafInputs);
-                if (!compiledSupportsBackward) {
-                    List<Tensor> optimizedForward = optimizeWorkingGraph(forwardGraph, sourceTensors);
-                    finalGraph.addAll(optimizedForward);
-                    return finishCompile(sourceTensors, false, "inference finalGraph");
-                }
-
-                GradientDTypePolicy.requireGradientSupported(rootTensor.getDataType(), "Backward execution");
-
-                Tensor actualForwardRoot = requireForwardRoot();
-                BackwardGraphBuilder.Result backward = BackwardGraphBuilder.build(forwardGraph, actualForwardRoot);
-
-                List<Tensor> targetsToSave = new ArrayList<>();
-                targetsToSave.add(forwardOutput);
-                targetsToSave.addAll(backward.backwardTargets());
-                Tensor superRoot = new Tensor(new int[]{1}, targetsToSave, new operations.layout.noop(), "System_Super_Root");
-
-                finalGraph.addAll(superRoot.topologicalSort());
-                finalGraph.remove(superRoot);
-
-                List<Tensor> optimized = optimizeWorkingGraph(finalGraph, sourceTensors);
+                List<Tensor> workingGraph = compiledSupportsBackward
+                        ? buildTrainingWorkingGraph()
+                        : forwardGraph;
+                String graphDescription = compiledSupportsBackward ? "finalGraph" : "inference finalGraph";
+                List<Tensor> optimized = optimizeWorkingGraph(workingGraph, sourceTensors);
                 finalGraph.clear();
                 finalGraph.addAll(optimized);
-                return finishCompile(sourceTensors, true, "finalGraph");
+                return finishCompile(sourceTensors, compiledSupportsBackward, graphDescription);
             }
+        }
+
+        private List<Tensor> buildTrainingWorkingGraph() {
+            GradientDTypePolicy.requireGradientSupported(rootTensor.getDataType(), "Backward execution");
+
+            Tensor actualForwardRoot = requireForwardRoot();
+            BackwardGraphBuilder.Result backward = BackwardGraphBuilder.build(forwardGraph, actualForwardRoot);
+
+            List<Tensor> targetsToSave = new ArrayList<>();
+            targetsToSave.add(forwardOutput);
+            targetsToSave.addAll(backward.backwardTargets());
+            Tensor superRoot = new Tensor(new int[]{1}, targetsToSave, new operations.layout.noop(), "System_Super_Root");
+
+            List<Tensor> workingGraph = new ArrayList<>(superRoot.topologicalSort());
+            workingGraph.remove(superRoot);
+            return workingGraph;
         }
 
         private CompileArtifacts finishCompile(
