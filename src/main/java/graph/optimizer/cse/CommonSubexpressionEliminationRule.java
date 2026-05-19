@@ -330,7 +330,13 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case AVG_POOL2D -> pool2dSignature(((avgPool2d) op).getOptions(), 2);
             case AVG_POOL2D_BACKWARD_INPUT -> pool2dBackwardInputSignature(((avgPool2dBackwardInput) op).getOptions(), ((avgPool2dBackwardInput) op).getInputShape(), 2);
             case SQUEEZE -> new AxisSignature(((squeeze) op).getAxis());
-            default -> NoParamsSignature.INSTANCE;
+            case ADD, SUB, MUL, DIV, MIN, MAX, GT, GE, LT, LE, EQ, NE,
+                    LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT, WHERE, MATMUL,
+                    NEG, INV, LOG, EXP, FAST_EXP, ERF, TANH, FAST_TANH,
+                    POW_TENSOR, SQRT, ABS, FLOOR, CEIL, SIGN, RELU, SIGMOID,
+                    CONTIGUOUS, CONST_SCALAR, NOOP, FUSED,
+                    SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS -> NoParamsSignature.INSTANCE;
+            case UNKNOWN -> new OperationIdentitySignature(op);
         };
     }
 
@@ -508,7 +514,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
     private sealed interface SignatureComponent
             permits StructuralSignature, IdentityLeafSignature, ScalarLeafSignature,
             NoParamsSignature, AxisSignature, ReductionSignature, InputSelectorSignature,
-            DoubleValue, IntArrayValue, NormSignature, AttentionSignature {
+            DoubleValue, IntArrayValue, NormSignature, AttentionSignature, OperationIdentitySignature {
 
         String sortKey();
     }
@@ -612,6 +618,19 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
         @Override
         public String sortKey() {
             return "attention:" + scaleBits + ":" + hasMask;
+        }
+    }
+
+    private static final class OperationIdentitySignature implements SignatureComponent {
+        private final Operation operation;
+
+        private OperationIdentitySignature(Operation operation) {
+            this.operation = operation;
+        }
+
+        @Override
+        public String sortKey() {
+            return "op@" + System.identityHashCode(operation);
         }
     }
 }

@@ -730,12 +730,14 @@ public final class MemoryPlanner {
         long peakBackward = 0L;
         for (int i = 0; i < sortedGraph.size(); i++) {
             long activeReusableBytes = 0L;
+            long activeNonReusableSavedForwardBytes = 0L;
             long activeSavedForwardBytes = 0L;
             long activeGradientTargetBytes = 0L;
             long activeForwardBytes = 0L;
             long activeBackwardBytes = 0L;
 
             Set<Integer> countedSlots = new java.util.HashSet<>();
+            Set<Tensor> reusableOwners = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
             for (Map.Entry<Tensor, ReusableInterval> entry : reusableIntervals.entrySet()) {
                 ReusableInterval interval = entry.getValue();
                 if (interval.birthIndex() <= i && i <= interval.lastReadIndex()) {
@@ -743,6 +745,7 @@ public final class MemoryPlanner {
                     if (slotId != null && countedSlots.add(slotId)) {
                         long size = slotSizes.get(slotId);
                         activeReusableBytes += size;
+                        reusableOwners.add(entry.getKey());
                         if (interval.birthIndex() <= forwardBoundaryIndex) {
                             activeForwardBytes += size;
                         } else {
@@ -768,14 +771,17 @@ public final class MemoryPlanner {
                 long bytes = bytesOf(tensor);
                 if (lifetime.role() == MemoryRole.SAVED_FORWARD) {
                     activeSavedForwardBytes += bytes;
-                    activeForwardBytes += bytes;
+                    if (!reusableOwners.contains(tensor)) {
+                        activeNonReusableSavedForwardBytes += bytes;
+                        activeForwardBytes += bytes;
+                    }
                 } else if (lifetime.role() == MemoryRole.GRADIENT_TARGET) {
                     activeGradientTargetBytes += bytes;
                     activeBackwardBytes += bytes;
                 }
             }
 
-            long activeBytes = activeReusableBytes + activeSavedForwardBytes + activeGradientTargetBytes;
+            long activeBytes = activeReusableBytes + activeNonReusableSavedForwardBytes + activeGradientTargetBytes;
 
             peakTotal = Math.max(peakTotal, activeBytes);
             peakReusable = Math.max(peakReusable, activeReusableBytes);

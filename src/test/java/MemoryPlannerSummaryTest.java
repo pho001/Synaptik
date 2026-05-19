@@ -49,6 +49,24 @@ public class MemoryPlannerSummaryTest {
     }
 
     @Test
+    void peakLiveBytesDoesNotDoubleCountReusableSavedForwardValues() {
+        Tensor a = Tensor.scalar(10.0);
+        Tensor b = Tensor.scalar(2.0);
+        Tensor c = Tensor.scalar(5.0);
+        a.setRequiresGrad(true);
+        b.setRequiresGrad(true);
+        c.setRequiresGrad(true);
+
+        Tensor loss = a.div(b).div(a.sub(c)).add(b.add(c).mul(a.div(b).div(a.sub(c)))).pow(2);
+        var graph = CompiledGraph.compile(loss, CompileConfig.training()).getCompiledGraphAsList();
+        MemoryPlan plan = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 1));
+
+        assertTrue(plan.summary().peakSavedForwardBytes() > 0L);
+        assertTrue(plan.summary().peakLiveBytes()
+                <= plan.summary().peakReusableBytes() + plan.summary().peakGradientTargetBytes());
+    }
+
+    @Test
     void memoryRuleExposesLastPlanSummaryAndExplainHooks() {
         Tensor a = Tensor.scalar(4.0);
         Tensor b = Tensor.scalar(2.0);

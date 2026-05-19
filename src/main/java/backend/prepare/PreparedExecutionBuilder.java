@@ -31,6 +31,7 @@ public final class PreparedExecutionBuilder {
     public static PreparedExecution prepare(CompileArtifacts artifacts, config.runtime.RuntimeConfig runtimeConfig) {
         Objects.requireNonNull(artifacts, "artifacts cannot be null");
         Objects.requireNonNull(runtimeConfig, "runtimeConfig cannot be null");
+        artifacts.graphContract().validateOrThrow(artifacts.rootTensor());
         long t0 = System.nanoTime();
         List<CompiledNode> compiledNodes = artifacts.compiledNodes();
         Map<Integer, List<CompiledNode>> consumers = buildConsumerMap(compiledNodes);
@@ -80,6 +81,7 @@ public final class PreparedExecutionBuilder {
                 artifacts.descriptorIndex(),
                 artifacts.gradientBindings(),
                 artifacts.rootTensor(),
+                artifacts.graphContract(),
                 artifacts.forwardOutputNode(),
                 artifacts.forwardSeedGradient(),
                 loweringInput == null ? artifacts.memoryPlan() : loweringInput.memoryPlan(),

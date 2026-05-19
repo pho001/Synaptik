@@ -6,9 +6,12 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CommonSubexpressionEliminationRuleTest {
 
@@ -115,6 +118,26 @@ public class CommonSubexpressionEliminationRuleTest {
                 .apply(root.topologicalSort());
 
         assertEquals(2, countOps(optimized, Operation.OpType.ADD));
+    }
+
+    @Test
+    void parameterKeyExplicitlyClassifiesEveryOperationType() throws Exception {
+        String source = Files.readString(Path.of(
+                "src/main/java/graph/optimizer/cse/CommonSubexpressionEliminationRule.java"
+        ));
+        String parameterKey = source.substring(
+                source.indexOf("private SignatureComponent parameterKey"),
+                source.indexOf("private SignatureComponent conv2dSignature")
+        );
+
+        assertTrue(!parameterKey.contains("default ->"));
+        for (Operation.OpType opType : Operation.OpType.values()) {
+            assertTrue(parameterKey.contains("case " + opType.name())
+                            || parameterKey.contains(", " + opType.name())
+                            || parameterKey.contains(opType.name() + ",")
+                            || parameterKey.contains(opType.name() + " ->"),
+                    "CSE parameterKey must explicitly classify " + opType);
+        }
     }
 
     private static long countOps(List<Tensor> graph, Operation.OpType opType) {

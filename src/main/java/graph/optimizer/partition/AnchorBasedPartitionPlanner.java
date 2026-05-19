@@ -602,9 +602,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
     }
 
     private boolean allowsMixedTrainingPhases(PartitionPlanningRequest request) {
-        return request != null
-                && request.context().supportsBackward()
-                && (request.target() == PartitionTarget.GPU_METAL || request.target() == PartitionTarget.GPU_CUDA);
+        return RegionExpansionPolicy.allowsMixedTrainingPhases(request);
     }
 
     private boolean isMergeCompleting(int nodeId, Set<Integer> selectedNodeIds, PartitionPlanningContext context) {

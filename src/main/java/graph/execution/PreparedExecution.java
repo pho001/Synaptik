@@ -12,6 +12,7 @@ import graph.AliasViewPolicy;
 import graph.CompiledNode;
 import graph.CompiledGradientBinding;
 import graph.GradientDTypePolicy;
+import graph.compile.GraphStructureContract;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.execution.trace.ExecutionStepTrace;
 import graph.execution.trace.PrepareTrace;
@@ -51,6 +52,7 @@ public final class PreparedExecution implements AutoCloseable {
     private final CompiledTensorDescriptorIndex descriptorIndex;
     private final Map<Tensor, CompiledGradientBinding> compiledGradients;
     private final Tensor rootTensor;
+    private final GraphStructureContract graphContract;
     private final CompiledNode forwardOutputNode;
     private final CompiledGradientBinding forwardSeedGradient;
     private final MemoryPlan memoryPlan;
@@ -91,6 +93,45 @@ public final class PreparedExecution implements AutoCloseable {
             MemoryPlan memoryPlan,
             PrepareTrace prepareTrace
     ) {
+        this(
+                runtimeConfig,
+                supportsBackward,
+                executionSteps,
+                forwardSteps,
+                backwardSteps,
+                allNodes,
+                descriptorIndex,
+                compiledGradients,
+                rootTensor,
+                GraphStructureContract.unchecked(),
+                forwardOutputNode,
+                forwardSeedGradient,
+                memoryPlan,
+                prepareTrace
+        );
+    }
+
+    /**
+     * Creates a prepared execution from already lowered step metadata and a source graph contract.
+     *
+     * @param graphContract compile-time user-visible graph structure contract
+     */
+    public PreparedExecution(
+            RuntimeConfig runtimeConfig,
+            boolean supportsBackward,
+            List<PreparedNodeExecution> executionSteps,
+            List<PreparedNodeExecution> forwardSteps,
+            List<PreparedNodeExecution> backwardSteps,
+            List<CompiledNode> allNodes,
+            CompiledTensorDescriptorIndex descriptorIndex,
+            Map<Tensor, CompiledGradientBinding> compiledGradients,
+            Tensor rootTensor,
+            GraphStructureContract graphContract,
+            CompiledNode forwardOutputNode,
+            CompiledGradientBinding forwardSeedGradient,
+            MemoryPlan memoryPlan,
+            PrepareTrace prepareTrace
+    ) {
         this.runtimeConfig = Objects.requireNonNull(runtimeConfig, "runtimeConfig cannot be null");
         this.supportsBackward = supportsBackward;
         this.executionSteps = List.copyOf(executionSteps == null ? List.of() : executionSteps);
@@ -100,6 +141,7 @@ public final class PreparedExecution implements AutoCloseable {
         this.descriptorIndex = Objects.requireNonNull(descriptorIndex, "descriptorIndex cannot be null");
         this.compiledGradients = Map.copyOf(compiledGradients == null ? Map.of() : compiledGradients);
         this.rootTensor = Objects.requireNonNull(rootTensor, "rootTensor cannot be null");
+        this.graphContract = graphContract == null ? GraphStructureContract.unchecked() : graphContract;
         this.forwardOutputNode = Objects.requireNonNull(forwardOutputNode, "forwardOutputNode cannot be null");
         this.forwardSeedGradient = forwardSeedGradient;
         this.memoryPlan = memoryPlan;
@@ -161,6 +203,19 @@ public final class PreparedExecution implements AutoCloseable {
      */
     public PrepareTrace prepareTrace() {
         return prepareTrace;
+    }
+
+    /**
+     * Verifies that this plan was prepared from the expected compiled graph contract.
+     *
+     * @param expectedRootTensor compiled graph root tensor
+     * @param expectedGraphContract compiled graph structure contract
+     */
+    public void requireCompatibleGraph(Tensor expectedRootTensor, GraphStructureContract expectedGraphContract) {
+        if (rootTensor != expectedRootTensor || graphContract != expectedGraphContract) {
+            throw new IllegalArgumentException("Prepared execution was created from a different compiled graph.");
+        }
+        graphContract.validateOrThrow(rootTensor);
     }
 
     /**
@@ -279,6 +334,7 @@ public final class PreparedExecution implements AutoCloseable {
             PublicationPolicy publicationPolicy
     ) {
         ensureOpen();
+        graphContract.validateOrThrow(rootTensor);
         Objects.requireNonNull(mode, "mode cannot be null");
         PublicationPolicy publication = publicationPolicy == null
                 ? (optimizer == null ? PublicationPolicy.defaultExecution() : PublicationPolicy.defaultOptimizerStep())

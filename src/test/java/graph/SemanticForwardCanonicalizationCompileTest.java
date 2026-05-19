@@ -3,6 +3,9 @@ package graph;
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import config.compile.GraphOptimizationConfig;
+import config.compile.SemanticCanonicalizationConfig;
+import config.optimizer.PiecewiseLoweringConfig;
+import config.optimizer.RewriteConfig;
 import config.runtime.RuntimeConfig;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
@@ -13,6 +16,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class SemanticForwardCanonicalizationCompileTest {
     @Test
@@ -93,7 +97,38 @@ public class SemanticForwardCanonicalizationCompileTest {
                 .anyMatch(opType -> opType == Operation.OpType.CROSS_ENTROPY_LOSS_INDICES));
     }
 
+    @Test
+    void reluLikeWhereCanonicalizationSkipsLargeZeroTensorScan() {
+        Tensor input = new Tensor(new double[4097], new int[]{4097}, null, "x", DataType.FLOAT64);
+        Tensor out = Tensor.where(
+                input.greaterThan(Tensor.scalar(0.0, DataType.FLOAT64)),
+                input,
+                Tensor.zerosLike(input)
+        );
+
+        CompiledGraph compiled = CompiledGraph.compile(out, semanticReluOnlyConfig());
+
+        assertFalse(containsOp(compiled, Operation.OpType.RELU));
+        assertTrue(containsOp(compiled, Operation.OpType.WHERE));
+    }
+
     private static CompileConfig arOnlyTrainingConfig() {
         return CompileConfig.training().withGraphOptimization(GraphOptimizationConfig.stages(true, false, false, false, false));
+    }
+
+    private static CompileConfig semanticReluOnlyConfig() {
+        RewriteConfig rewrite = RewriteConfig.defaults()
+                .withPiecewiseLowering(new PiecewiseLoweringConfig(false, true, false));
+        return CompileConfig.inference()
+                .withGraphOptimization(GraphOptimizationConfig.noGraphOptimization())
+                .withSemanticCanonicalization(new SemanticCanonicalizationConfig(true, rewrite));
+    }
+
+    private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
+        return compiledGraph.getCompiledGraphAsList().stream()
+                .map(Tensor::getOperation)
+                .filter(op -> op != null)
+                .map(Operation::opType)
+                .anyMatch(type -> type == opType);
     }
 }

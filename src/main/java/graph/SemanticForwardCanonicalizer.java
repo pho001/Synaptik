@@ -23,6 +23,8 @@ import java.util.Objects;
  * not this pre-partition graph cleanup phase.
  */
 public final class SemanticForwardCanonicalizer {
+    private static final int ZERO_TENSOR_SCAN_LIMIT = 4096;
+
     private final RewriteConfig config;
 
     /**
@@ -235,6 +237,9 @@ public final class SemanticForwardCanonicalizer {
             return false;
         }
         if (!java.util.Arrays.equals(candidate.getShapeUnsafe(), reference.getShapeUnsafe())) {
+            return false;
+        }
+        if (candidate.getFlatDataSize() > ZERO_TENSOR_SCAN_LIMIT) {
             return false;
         }
         double[] values = candidate.toDoubleArrayCopy();

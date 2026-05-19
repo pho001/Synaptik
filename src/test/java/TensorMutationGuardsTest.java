@@ -13,6 +13,7 @@ import tensor.TensorInternalAccess;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class TensorMutationGuardsTest {
@@ -40,7 +41,7 @@ public class TensorMutationGuardsTest {
     }
 
     @Test
-    void preparedExecutionUsesCompiledSnapshotInsteadOfMutatedSemanticNodeTopology() {
+    void preparedExecutionRejectsMutatedSemanticNodeTopology() {
         Tensor a = new Tensor(new double[]{2.0, 3.0}, new int[]{2}, null, "a", DataType.FLOAT64);
         Tensor b = new Tensor(new double[]{5.0, 7.0}, new int[]{2}, null, "b", DataType.FLOAT64);
         Tensor out = a.add(b);
@@ -51,8 +52,7 @@ public class TensorMutationGuardsTest {
         TensorInternalAccess.setPrevTensors(out, List.of(a));
         TensorInternalAccess.setOperation(out, new mul());
 
-        execution.execute(ExecutionMode.FORWARD);
-        assertArrayEquals(new double[]{7.0, 10.0}, out.toDoubleArrayCopy(), 1e-9);
+        assertThrows(IllegalStateException.class, () -> execution.execute(ExecutionMode.FORWARD));
     }
 
     @Test
@@ -75,7 +75,7 @@ public class TensorMutationGuardsTest {
     }
 
     @Test
-    void prepareUsesCompiledSnapshotInsteadOfMutatedSemanticTopology() {
+    void prepareRejectsMutatedSemanticTopology() {
         Tensor a = new Tensor(new double[]{2.0, 3.0}, new int[]{2}, null, "a", DataType.FLOAT64);
         Tensor b = new Tensor(new double[]{5.0, 7.0}, new int[]{2}, null, "b", DataType.FLOAT64);
         Tensor out = a.add(b);
@@ -85,10 +85,38 @@ public class TensorMutationGuardsTest {
         TensorInternalAccess.setPrevTensors(out, List.of(a));
         TensorInternalAccess.setOperation(out, new mul());
 
-        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
-        execution.execute(ExecutionMode.FORWARD);
+        assertThrows(IllegalStateException.class, () -> compiled.prepare(RuntimeConfig.inferenceDefaults()));
+    }
 
-        assertArrayEquals(new double[]{7.0, 10.0}, out.toDoubleArrayCopy(), 1e-9);
+    @Test
+    void preparedExecutionAllowsInputValueChanges() {
+        Tensor a = new Tensor(new double[]{2.0, 3.0}, new int[]{2}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{5.0, 7.0}, new int[]{2}, null, "b", DataType.FLOAT64);
+        Tensor out = a.add(b);
+
+        PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        a.setData(new double[]{11.0, 13.0});
+        b.setData(new double[]{17.0, 19.0});
+
+        assertDoesNotThrow(() -> execution.execute(ExecutionMode.FORWARD));
+        assertArrayEquals(new double[]{28.0, 32.0}, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void executePreparedRejectsPlanFromDifferentCompiledGraph() {
+        Tensor a = new Tensor(new double[]{1.0}, new int[]{1}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{2.0}, new int[]{1}, null, "b", DataType.FLOAT64);
+        CompiledGraph first = CompiledGraph.compile(a.add(b), CompileConfig.noGraphOptimizationBaseline());
+
+        Tensor x = new Tensor(new double[]{3.0}, new int[]{1}, null, "x", DataType.FLOAT64);
+        Tensor y = new Tensor(new double[]{4.0}, new int[]{1}, null, "y", DataType.FLOAT64);
+        CompiledGraph second = CompiledGraph.compile(x.add(y), CompileConfig.noGraphOptimizationBaseline());
+        PreparedExecution firstPlan = first.prepare(RuntimeConfig.inferenceDefaults());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> second.executePrepared(firstPlan, ExecutionMode.FORWARD));
     }
 
     @Test

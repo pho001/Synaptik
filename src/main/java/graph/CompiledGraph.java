@@ -217,7 +217,9 @@ public class CompiledGraph {
      * @param mode execution mode to run
      */
     public void execute(config.runtime.RuntimeConfig runtimeConfig, ExecutionMode mode) {
-        prepare(runtimeConfig).execute(mode);
+        try (PreparedExecution execution = prepare(runtimeConfig)) {
+            execution.execute(mode);
+        }
     }
 
     /**
@@ -232,7 +234,9 @@ public class CompiledGraph {
             ExecutionMode mode,
             PublicationPolicy publicationPolicy
     ) {
-        prepare(runtimeConfig).execute(mode, publicationPolicy);
+        try (PreparedExecution execution = prepare(runtimeConfig)) {
+            execution.execute(mode, publicationPolicy);
+        }
     }
 
     /**
@@ -245,7 +249,9 @@ public class CompiledGraph {
         if (profile == null) {
             throw new IllegalArgumentException("profile cannot be null");
         }
-        prepare(profile.runtime()).execute(profile.mode());
+        try (PreparedExecution execution = prepare(profile.runtime())) {
+            execution.execute(profile.mode());
+        }
     }
 
     /**
@@ -259,7 +265,9 @@ public class CompiledGraph {
         if (profile == null) {
             throw new IllegalArgumentException("profile cannot be null");
         }
-        prepare(profile.runtime()).execute(profile.mode(), publicationPolicy);
+        try (PreparedExecution execution = prepare(profile.runtime())) {
+            execution.execute(profile.mode(), publicationPolicy);
+        }
     }
 
     /**
@@ -270,7 +278,9 @@ public class CompiledGraph {
      * @return run trace with duration and step metadata
      */
     public RunTrace executeTraced(config.runtime.RuntimeConfig runtimeConfig, ExecutionMode mode) {
-        return prepare(runtimeConfig).executeTraced(mode);
+        try (PreparedExecution execution = prepare(runtimeConfig)) {
+            return execution.executeTraced(mode);
+        }
     }
 
     /**
@@ -286,7 +296,9 @@ public class CompiledGraph {
             ExecutionMode mode,
             PublicationPolicy publicationPolicy
     ) {
-        return prepare(runtimeConfig).executeTraced(mode, publicationPolicy);
+        try (PreparedExecution execution = prepare(runtimeConfig)) {
+            return execution.executeTraced(mode, publicationPolicy);
+        }
     }
 
     /**
@@ -300,7 +312,9 @@ public class CompiledGraph {
         if (profile == null) {
             throw new IllegalArgumentException("profile cannot be null");
         }
-        return prepare(profile.runtime()).executeTraced(profile.mode());
+        try (PreparedExecution execution = prepare(profile.runtime())) {
+            return execution.executeTraced(profile.mode());
+        }
     }
 
     /**
@@ -315,19 +329,21 @@ public class CompiledGraph {
         if (profile == null) {
             throw new IllegalArgumentException("profile cannot be null");
         }
-        return prepare(profile.runtime()).executeTraced(profile.mode(), publicationPolicy);
+        try (PreparedExecution execution = prepare(profile.runtime())) {
+            return execution.executeTraced(profile.mode(), publicationPolicy);
+        }
     }
 
     /**
      * Executes a previously prepared plan.
      *
-     * <p>The prepared plan must have been created from compatible compile artifacts. This method does not check that the
-     * plan came from this facade.
+     * <p>The prepared plan must have been created from this compiled graph facade.
      *
      * @param execution prepared execution plan to run
      * @param mode execution mode to run
      */
     public void executePrepared(PreparedExecution execution, ExecutionMode mode) {
+        execution.requireCompatibleGraph(rootTensor, compileArtifacts().graphContract());
         execution.execute(mode);
     }
 
@@ -339,6 +355,7 @@ public class CompiledGraph {
      * @param publicationPolicy values to publish back to user-visible tensors after execution
      */
     public void executePrepared(PreparedExecution execution, ExecutionMode mode, PublicationPolicy publicationPolicy) {
+        execution.requireCompatibleGraph(rootTensor, compileArtifacts().graphContract());
         execution.execute(mode, publicationPolicy);
     }
 
@@ -350,7 +367,9 @@ public class CompiledGraph {
      * @param optimizer optimizer to apply
      */
     public void executeOptimizerStep(config.runtime.RuntimeConfig runtimeConfig, TrainingOptimizer optimizer) {
-        prepare(runtimeConfig).executeOptimizerStep(optimizer);
+        try (PreparedExecution execution = prepare(runtimeConfig)) {
+            execution.executeOptimizerStep(optimizer);
+        }
     }
 
     /**
@@ -365,7 +384,9 @@ public class CompiledGraph {
             TrainingOptimizer optimizer,
             PublicationPolicy publicationPolicy
     ) {
-        prepare(runtimeConfig).executeOptimizerStep(optimizer, publicationPolicy);
+        try (PreparedExecution execution = prepare(runtimeConfig)) {
+            execution.executeOptimizerStep(optimizer, publicationPolicy);
+        }
     }
 
     /**
@@ -376,7 +397,9 @@ public class CompiledGraph {
      * @return run trace
      */
     public RunTrace executeOptimizerStepTraced(config.runtime.RuntimeConfig runtimeConfig, TrainingOptimizer optimizer) {
-        return prepare(runtimeConfig).executeOptimizerStepTraced(optimizer);
+        try (PreparedExecution execution = prepare(runtimeConfig)) {
+            return execution.executeOptimizerStepTraced(optimizer);
+        }
     }
 
     /**
@@ -392,7 +415,9 @@ public class CompiledGraph {
             TrainingOptimizer optimizer,
             PublicationPolicy publicationPolicy
     ) {
-        return prepare(runtimeConfig).executeOptimizerStepTraced(optimizer, publicationPolicy);
+        try (PreparedExecution execution = prepare(runtimeConfig)) {
+            return execution.executeOptimizerStepTraced(optimizer, publicationPolicy);
+        }
     }
 
     /**

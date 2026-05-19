@@ -165,6 +165,7 @@ public final class GraphCompiler {
         private List<OptimizedRegion> compiledOptimizedRegions = List.of();
         private List<PlannedPartition> compiledPlannedPartitions = List.of();
         private PartitionCompileTrace compiledPartitionPlanningTrace = PartitionCompileTrace.empty();
+        private GraphStructureContract graphContract = GraphStructureContract.unchecked();
         private Tensor forwardOutput;
         private int forwardEndIndex = -1;
         private boolean compiledSupportsBackward;
@@ -228,6 +229,7 @@ public final class GraphCompiler {
             );
             rebuildPartitionPlanningSnapshot();
             finalizeCompilePlanningArtifacts();
+            graphContract = GraphStructureContract.capture(rootTensor);
             return artifacts();
         }
 
@@ -238,6 +240,7 @@ public final class GraphCompiler {
         private CompileArtifacts artifacts() {
             return new CompileArtifacts(
                     rootTensor,
+                    graphContract,
                     finalGraph,
                     compiledNodes,
                     compiledDescriptorIndex,

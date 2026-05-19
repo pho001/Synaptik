@@ -24,6 +24,7 @@ import java.util.Objects;
  * by lowering, and the memory plan consumed by runtime binding. Preparation must treat this record as read-only.
  *
  * @param rootTensor source root tensor that initiated compilation
+ * @param graphContract user-visible graph structure captured at compilation
  * @param finalGraph optimized tensors in execution order
  * @param compiledNodes immutable node snapshots derived from {@code finalGraph}
  * @param descriptorIndex immutable tensor descriptor index derived from {@code compiledNodes}
@@ -39,6 +40,7 @@ import java.util.Objects;
  */
 public record CompileArtifacts(
         Tensor rootTensor,
+        GraphStructureContract graphContract,
         List<Tensor> finalGraph,
         List<CompiledNode> compiledNodes,
         CompiledTensorDescriptorIndex descriptorIndex,
@@ -54,6 +56,7 @@ public record CompileArtifacts(
 ) {
     public CompileArtifacts {
         rootTensor = Objects.requireNonNull(rootTensor, "rootTensor cannot be null");
+        graphContract = graphContract == null ? GraphStructureContract.unchecked() : graphContract;
         finalGraph = List.copyOf(finalGraph == null ? List.of() : finalGraph);
         compiledNodes = List.copyOf(compiledNodes == null ? List.of() : compiledNodes);
         descriptorIndex = Objects.requireNonNull(descriptorIndex, "descriptorIndex cannot be null");

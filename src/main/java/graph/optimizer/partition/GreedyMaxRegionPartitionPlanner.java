@@ -510,10 +510,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
     }
 
     private boolean allowsMixedTrainingPhases(PartitionPlanningRequest request) {
-        return request != null
-                && request.context().supportsBackward()
-                && request.sourcePolicy() == PartitionSourcePolicy.CPU_OR_TARGET_BACKEND
-                && (request.target() == PartitionTarget.GPU_METAL || request.target() == PartitionTarget.GPU_CUDA);
+        return RegionExpansionPolicy.allowsMixedTrainingPhases(request);
     }
 
     private List<Integer> expandableConsumers(
