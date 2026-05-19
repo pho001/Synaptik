@@ -170,7 +170,7 @@ Execution planning is separate:
 
 This split is the reason `CompileConfig.noGraphOptimization()` disables graph cleanup only. It does not mean "skip backend planning", "ignore explicit accelerator intent", or "disable runtime backend selection." For detailed examples, see [Graph Optimizer](graph-optimizer.md#graph-optimizer) and [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions).
 
-Backend planning bridges graph optimization and backend preparation. `src/main/java/graph/compile/BackendPlanningService.java` creates backend candidate regions from `BackendPlanningConfig`, and backend descriptors are registered in `src/main/java/backend/partition/BackendPartitionDescriptorRegistry.java`. The default registry includes CPU plus Metal and CUDA accelerator partition descriptors.
+Backend planning bridges graph optimization and backend preparation. `src/main/java/graph/compile/planning/BackendPlanningService.java` creates backend candidate regions from `BackendPlanningConfig`, and backend descriptors are registered in `src/main/java/backend/partition/BackendPartitionDescriptorRegistry.java`. The default registry includes CPU plus Metal and CUDA accelerator partition descriptors.
 
 ### Materialization-aware region planning
 
@@ -1094,7 +1094,7 @@ reports drift, not median/p95 runtime. Use `tuning.benchmark` for performance me
 The claims in this document were checked against source files and tests including:
 
 - lifecycle: `src/main/java/tensor/internal/TensorExecutionSupport.java`, `src/main/java/graph/CompiledGraph.java`, `src/main/java/graph/compile/GraphCompiler.java`, `src/main/java/backend/prepare/PreparedExecutionBuilder.java`, `src/main/java/graph/execution/PreparedExecution.java`
-- graph optimization and compile planning: `src/main/java/config/compile/CompileConfig.java`, `src/main/java/config/compile/GraphOptimizationConfig.java`, `src/main/java/config/compile/BackendPlanningConfig.java`, `src/main/java/graph/optimizer/OptimizerFactory.java`, `src/main/java/graph/compile/BackendPlanningService.java`
+- graph optimization and compile planning: `src/main/java/config/compile/CompileConfig.java`, `src/main/java/config/compile/GraphOptimizationConfig.java`, `src/main/java/config/compile/BackendPlanningConfig.java`, `src/main/java/graph/optimizer/OptimizerFactory.java`, `src/main/java/graph/compile/planning/BackendPlanningService.java`
 - backend dispatch: `src/main/java/backend/ComputeEngine.java`, `src/main/java/backend/cpu/CpuBackend.java`, `src/main/java/backend/cpu/prepare/CpuNodePreparer.java`, `src/main/java/backend/cpu/registry/CpuKernelResolver.java`
 - tracing: `src/main/java/graph/execution/trace/*.java`, `src/main/java/backend/runtime/ExecutionContext.java`, `src/main/java/graph/execution/PreparedExecution.java`
 - numerics: `src/main/java/numerics/NumericsCli.java`, `src/main/java/numerics/NumericsHarness.java`, `src/main/java/numerics/NumericsGraphFactory.java`, `src/main/java/numerics/NumericsMetrics.java`, `src/main/java/numerics/NumericsPolicy.java`, `src/main/java/numerics/NumericsReport.java`

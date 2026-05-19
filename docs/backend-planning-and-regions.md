@@ -137,8 +137,8 @@ Use required policies in tests and diagnostics. Use optional policies for produc
 
 Source:
 
-- `src/main/java/graph/compile/BackendPlanningJobResolver.java`
-- `src/main/java/graph/compile/BackendPlanningService.java`
+- `src/main/java/graph/compile/planning/BackendPlanningJobResolver.java`
+- `src/main/java/graph/compile/planning/BackendPlanningService.java`
 
 It resolves:
 

@@ -1,4 +1,4 @@
-package graph.compile;
+package graph.compile.planning;
 
 import config.optimizer.CpuRegionConfig;
 import config.optimizer.MetalTransferModel;

@@ -1,4 +1,4 @@
-package graph.compile;
+package graph.compile.planning;
 
 import backend.partition.BackendPartitionDescriptorRegistry;
 import config.compile.BackendPlanningConfig;

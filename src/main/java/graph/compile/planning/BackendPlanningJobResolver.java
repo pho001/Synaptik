@@ -1,4 +1,4 @@
-package graph.compile;
+package graph.compile.planning;
 
 import config.compile.BackendDiscoveryMode;
 import config.compile.BackendPlanningConfig;
@@ -63,7 +63,7 @@ public final class BackendPlanningJobResolver {
         return List.copyOf(jobs);
     }
 
-    public EnumSet<BackendTarget> explicitTargets(List<CompiledNode> nodes) {
+    EnumSet<BackendTarget> explicitTargets(List<CompiledNode> nodes) {
         EnumSet<BackendTarget> out = EnumSet.noneOf(BackendTarget.class);
         for (ExplicitBackendIntent intent : explicitIntents(nodes)) {
             out.add(intent.target());
@@ -71,7 +71,7 @@ public final class BackendPlanningJobResolver {
         return out;
     }
 
-    public List<ExplicitBackendIntent> explicitIntents(List<CompiledNode> nodes) {
+    List<ExplicitBackendIntent> explicitIntents(List<CompiledNode> nodes) {
         List<ExplicitBackendIntent> out = new ArrayList<>();
         if (nodes == null) {
             return out;

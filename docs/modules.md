@@ -166,13 +166,14 @@ Main paths:
 
 Key compile classes:
 
-- `graph.compile.GraphCompiler` owns a compile session.
+- `graph.compile.GraphCompiler` is the public compile boundary.
 - `graph.compile.CompileArtifacts` is the immutable compile output.
-- `graph.compile.BackwardGraphBuilder` builds backward graph nodes when training mode requires them.
-- `graph.compile.GradientBindingCollector` captures semantic-to-compiled gradient bindings.
-- `graph.compile.OptimizerGraphSnapshot` creates snapshot graphs for optimizer passes.
-- `graph.compile.BackendPlanningService` derives partition and backend candidate artifacts.
-- `graph.compile.BackendPlanningJobResolver` is the single backend planning job resolver.
+- `graph.compile.session.CompileSession` owns the mutable compile run.
+- `graph.compile.session.BackwardGraphBuilder` builds backward graph nodes when training mode requires them.
+- `graph.compile.session.GradientBindingCollector` captures semantic-to-compiled gradient bindings.
+- `graph.compile.session.OptimizerGraphSnapshot` creates snapshot graphs for optimizer passes.
+- `graph.compile.planning.BackendPlanningService` derives partition and backend candidate artifacts.
+- `graph.compile.planning.BackendPlanningJobResolver` is the single backend planning job resolver.
 
 Key execution classes:
 

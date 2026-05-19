@@ -1,4 +1,4 @@
-package graph.compile;
+package graph.compile.session;
 
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
@@ -15,7 +15,7 @@ import java.util.Set;
  * <p>The builder seeds the forward root gradient, invokes tensor backward graph construction in reverse topological
  * order, collects gradient targets for trainable leaves, and marks non-forward gradient nodes as backward nodes.
  */
-public final class BackwardGraphBuilder {
+final class BackwardGraphBuilder {
     private BackwardGraphBuilder() {
     }
 
@@ -24,7 +24,7 @@ public final class BackwardGraphBuilder {
      *
      * @param backwardTargets gradient tensors that must remain observable in the compiled graph
      */
-    public record Result(List<Tensor> backwardTargets) {
+    record Result(List<Tensor> backwardTargets) {
         public Result {
             backwardTargets = List.copyOf(backwardTargets == null ? List.of() : backwardTargets);
         }
@@ -37,7 +37,7 @@ public final class BackwardGraphBuilder {
      * @param forwardRoot forward root to seed with ones
      * @return backward graph build result
      */
-    public static Result build(List<Tensor> forwardGraph, Tensor forwardRoot) {
+    static Result build(List<Tensor> forwardGraph, Tensor forwardRoot) {
         List<Tensor> graph = List.copyOf(forwardGraph == null ? List.of() : forwardGraph);
         TensorInternalAccess.setGradient(forwardRoot, Tensor.onesLike(forwardRoot));
         for (int i = graph.size() - 1; i >= 0; i--) {

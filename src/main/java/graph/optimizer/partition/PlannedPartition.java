@@ -1,7 +1,6 @@
 package graph.optimizer.partition;
 
 import backend.ComputeBackend;
-import graph.compile.BackendPlanningDiagnostic;
 
 import java.util.List;
 import java.util.Set;
@@ -16,28 +15,17 @@ import java.util.Set;
  * @param partition accepted partition
  * @param plan backend plan attached to the partition
  * @param compatibleBackends backends that can execute the partition
- * @param diagnostics diagnostics associated with this planned partition
  */
 public record PlannedPartition(
         Partition partition,
         PartitionPlan plan,
-        Set<ComputeBackend> compatibleBackends,
-        List<BackendPlanningDiagnostic> diagnostics
+        Set<ComputeBackend> compatibleBackends
 ) {
     public PlannedPartition {
         if (partition == null) {
             throw new IllegalArgumentException("partition cannot be null");
         }
         compatibleBackends = Set.copyOf(compatibleBackends == null ? Set.of() : compatibleBackends);
-        diagnostics = List.copyOf(diagnostics == null ? List.of() : diagnostics);
-    }
-
-    public PlannedPartition(
-            Partition partition,
-            PartitionPlan plan,
-            Set<ComputeBackend> compatibleBackends
-    ) {
-        this(partition, plan, compatibleBackends, List.of());
     }
 
     /**

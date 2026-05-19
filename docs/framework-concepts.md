@@ -119,7 +119,7 @@ Prepare is the stage to reuse in hot loops when graph structure and runtime poli
 
 ## Autodiff
 
-Autodiff is reverse-mode over the semantic tensor graph. Operation builders attach backward lambdas when the operation is differentiable. During training compile, `BackwardGraphBuilder` seeds the forward root gradient with ones, walks the forward graph in reverse order, invokes each node's backward builder, collects gradients for trainable leaves, and marks backward-only nodes. Source: [`BackwardGraphBuilder.java`](../src/main/java/graph/compile/BackwardGraphBuilder.java), [`AddOp.java`](../src/main/java/tensor/ops/binary/AddOp.java).
+Autodiff is reverse-mode over the semantic tensor graph. Operation builders attach backward lambdas when the operation is differentiable. During training compile, `BackwardGraphBuilder` seeds the forward root gradient with ones, walks the forward graph in reverse order, invokes each node's backward builder, collects gradients for trainable leaves, and marks backward-only nodes. Source: [`BackwardGraphBuilder.java`](../src/main/java/graph/compile/session/BackwardGraphBuilder.java), [`AddOp.java`](../src/main/java/tensor/ops/binary/AddOp.java).
 
 Worked example:
 

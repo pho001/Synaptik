@@ -1,4 +1,4 @@
-package graph.compile;
+package graph.compile.session;
 
 import graph.CompiledGradientBinding;
 import graph.CompiledNode;
@@ -10,7 +10,7 @@ import java.util.Map;
 /**
  * Captures how compiled gradient values are published back to source tensors.
  */
-public final class GradientBindingCollector {
+final class GradientBindingCollector {
     private GradientBindingCollector() {
     }
 
@@ -22,7 +22,7 @@ public final class GradientBindingCollector {
      * @param compiledNodeByTensor compiled node lookup by tensor
      * @return bindings keyed by published source tensor
      */
-    public static Map<Tensor, CompiledGradientBinding> captureCompiledGradients(
+    static Map<Tensor, CompiledGradientBinding> captureCompiledGradients(
             Iterable<Tensor> graph,
             Map<Tensor, Tensor> sourceTensors,
             Map<Tensor, CompiledNode> compiledNodeByTensor
@@ -64,7 +64,7 @@ public final class GradientBindingCollector {
      * @param compiledNodeByTensor compiled node lookup by tensor
      * @return gradient binding, or {@code null} when no seed gradient exists
      */
-    public static CompiledGradientBinding captureForwardSeedGradient(
+    static CompiledGradientBinding captureForwardSeedGradient(
             Tensor forwardRoot,
             Map<Tensor, CompiledNode> compiledNodeByTensor
     ) {

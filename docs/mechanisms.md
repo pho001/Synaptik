@@ -182,8 +182,8 @@ Forward builders attach recipes for how to build gradient nodes. Training compil
 
 **Where It Lives**
 
-- [`BackwardGraphBuilder.java`](../src/main/java/graph/compile/BackwardGraphBuilder.java)
-- [`GradientBindingCollector.java`](../src/main/java/graph/compile/GradientBindingCollector.java)
+- [`BackwardGraphBuilder.java`](../src/main/java/graph/compile/session/BackwardGraphBuilder.java)
+- [`GradientBindingCollector.java`](../src/main/java/graph/compile/session/GradientBindingCollector.java)
 - [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java)
 - [`GradientEngineRegressionTest.java`](../src/test/java/GradientEngineRegressionTest.java)
 
@@ -398,7 +398,7 @@ The compiled graph should be simpler and deduplicated before backend ownership, 
 - [`GraphOptimizationConfig.java`](../src/main/java/config/compile/GraphOptimizationConfig.java)
 - [`BackendPlanningConfig.java`](../src/main/java/config/compile/BackendPlanningConfig.java)
 - [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java)
-- [`BackendPlanningService.java`](../src/main/java/graph/compile/BackendPlanningService.java)
+- [`BackendPlanningService.java`](../src/main/java/graph/compile/planning/BackendPlanningService.java)
 - [`graph/optimizer`](../src/main/java/graph/optimizer)
 
 **Step-By-Step**

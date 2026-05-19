@@ -1,4 +1,4 @@
-package graph.compile;
+package graph.compile.planning;
 
 import config.compile.BackendPlanningConfig;
 import config.compile.BackendPlanningFailurePolicy;
@@ -21,8 +21,7 @@ final class BackendPlanningRequirementValidator {
     static void validateRequired(
             BackendPlanningConfig config,
             List<ExplicitBackendIntent> explicitIntents,
-            List<Partition> partitions,
-            List<BackendPlanningDiagnostic> diagnostics
+            List<Partition> partitions
     ) {
         if (config.failurePolicy() == BackendPlanningFailurePolicy.OPTIONAL) {
             return;
@@ -33,22 +32,12 @@ final class BackendPlanningRequirementValidator {
                     ? accepted.containsAll(config.targets())
                     : !accepted.isEmpty();
             if (!ok) {
-                addError(
-                        diagnostics,
-                        "REQUIRED_ACCELERATOR_REGION_MISSING",
-                        "Required accelerator backend planning produced no legal region"
-                );
                 throw new IllegalStateException("Required accelerator backend planning produced no legal region");
             }
         }
         if (config.failurePolicy() == BackendPlanningFailurePolicy.REQUIRE_ALL_EXPLICIT_INTENTS) {
             List<ExplicitBackendIntent> missing = missingExplicitIntents(explicitIntents, partitions);
             if (!missing.isEmpty()) {
-                addError(
-                        diagnostics,
-                        "REQUIRED_EXPLICIT_BACKEND_INTENT_MISSING",
-                        "One or more explicit backend intents could not be planned: " + describe(missing)
-                );
                 throw new IllegalStateException("One or more explicit backend intents could not be planned: " + describe(missing));
             }
         }
@@ -87,18 +76,6 @@ final class BackendPlanningRequirementValidator {
             }
         }
         return out;
-    }
-
-    private static void addError(
-            List<BackendPlanningDiagnostic> diagnostics,
-            String code,
-            String message
-    ) {
-        diagnostics.add(new BackendPlanningDiagnostic(
-                BackendPlanningDiagnostic.Severity.ERROR,
-                code,
-                message
-        ));
     }
 
     private static String describe(List<ExplicitBackendIntent> intents) {

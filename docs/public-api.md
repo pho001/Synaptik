@@ -1039,7 +1039,7 @@ These APIs are visible in Java but are implementation-oriented. Prefer the publi
 | `backend.metal.buffer.MetalBufferAccess`, `MetalBufferHandle`, `MetalBufferBinding`, `MetalBufferAllocator`, `MetalDeviceToCpuMaterializer`, `MetalBufferResource` | `src/main/java/backend/metal/buffer/*.java` | Java-side contract for native shared-buffer Metal execution. These remain internal/SPI-oriented rather than application APIs: they are tied to compiled node ids, run-scoped native handles, and execution-state ownership. See [Metal Backend: Buffer Residency And Materialization](metal-backend.md#buffer-residency-and-materialization). |
 | `backend.metal.bridge.MetalMpsBridgeExecutionStats`, `MetalMpsBridgeExecutionPath` | `src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionStats.java`, `src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionPath.java` | Trace/report diagnostics for Metal bridge executions and fallbacks, surfaced through run trace attributes and benchmark reports rather than through normal tensor APIs. |
 | `backend.cpu.*`, `backend.metal.*`, `backend.cuda.*` | `src/main/java/backend/**/*.java` | Kernel implementations and native bridge plumbing. |
-| `graph.compile.*`, `graph.optimizer.*` | `src/main/java/graph/**/*.java` | Compile pipeline internals; only `CompiledGraph` is the general entry point. |
+| `graph.compile.**`, `graph.optimizer.*` | `src/main/java/graph/**/*.java` | Compile pipeline internals; only `CompiledGraph` is the general entry point. |
 | `tuning.candidate.*`, `tuning.search.*`, `tuning.measure.*` | `src/main/java/tuning/**/*.java` | Extensible tuning machinery; stable application workflows should use execution profiles, platform profiles, or the CLI. |
 
 ## Verification Notes

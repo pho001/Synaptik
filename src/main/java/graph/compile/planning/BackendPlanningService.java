@@ -1,8 +1,6 @@
-package graph.compile;
+package graph.compile.planning;
 
-import backend.ComputeBackend;
 import backend.partition.BackendPartitionDescriptorRegistry;
-import config.compile.BackendDiscoveryMode;
 import config.compile.BackendPlanningConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGradientBinding;
@@ -10,6 +8,7 @@ import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.execution.trace.PartitionCompileTrace;
 import graph.execution.trace.PartitionDecisionTrace;
+import graph.optimizer.GraphValueRef;
 import graph.optimizer.partition.AnchorBasedPartitionPlanner;
 import graph.optimizer.partition.CpuNaturalExecutionRegionPlanner;
 import graph.optimizer.partition.GreedyMaxRegionPartitionPlanner;
@@ -21,7 +20,6 @@ import graph.optimizer.partition.PartitionPlanningContext;
 import graph.optimizer.partition.PartitionPlanningRequest;
 import graph.optimizer.partition.PartitionPlanningResult;
 import graph.optimizer.partition.PartitionTarget;
-import graph.optimizer.GraphValueRef;
 import graph.optimizer.partition.PlannedPartition;
 import graph.optimizer.partition.ScoredCandidatePartitionPlanner;
 
@@ -60,15 +58,13 @@ public final class BackendPlanningService {
         }
         BackendPlanningConfig config = request.config() == null ? BackendPlanningConfig.cpuOnly() : request.config();
         List<BackendPlanningJob> jobs = resolver.resolve(config, request.compiledNodes());
-        List<BackendPlanningDiagnostic> diagnostics = new ArrayList<>();
         List<ExplicitBackendIntent> explicitIntents = resolver.explicitIntents(request.compiledNodes());
         if (jobs.isEmpty()) {
-            BackendPlanningRequirementValidator.validateRequired(config, explicitIntents, List.of(), diagnostics);
+            BackendPlanningRequirementValidator.validateRequired(config, explicitIntents, List.of());
             return new BackendPlanningResult(
                     jobs,
                     List.of(),
-                    PartitionCompileTrace.empty(),
-                    diagnostics
+                    PartitionCompileTrace.empty()
             );
         }
 
@@ -110,12 +106,11 @@ public final class BackendPlanningService {
                 mergeTrace(jobs, traces)
         );
         List<PlannedPartition> plannedPartitions = plannedPartitions(planning);
-        BackendPlanningRequirementValidator.validateRequired(config, explicitIntents, planning.partitions(), diagnostics);
+        BackendPlanningRequirementValidator.validateRequired(config, explicitIntents, planning.partitions());
         return new BackendPlanningResult(
                 jobs,
                 plannedPartitions,
-                planning.trace(),
-                diagnostics
+                planning.trace()
         );
     }
 

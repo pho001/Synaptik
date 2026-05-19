@@ -68,11 +68,12 @@ Contains:
 - compile orchestration and graph snapshot support:
   - [compile/GraphCompiler.java](../graph/compile/GraphCompiler.java)
   - [compile/CompileArtifacts.java](../graph/compile/CompileArtifacts.java)
-  - [compile/BackwardGraphBuilder.java](../graph/compile/BackwardGraphBuilder.java)
-  - [compile/GradientBindingCollector.java](../graph/compile/GradientBindingCollector.java)
-  - [compile/OptimizerGraphSnapshot.java](../graph/compile/OptimizerGraphSnapshot.java)
-  - [compile/BackendPlanningService.java](../graph/compile/BackendPlanningService.java)
-  - [compile/BackendPlanningJobResolver.java](../graph/compile/BackendPlanningJobResolver.java)
+  - [compile/session/CompileSession.java](../graph/compile/session/CompileSession.java)
+  - [compile/session/BackwardGraphBuilder.java](../graph/compile/session/BackwardGraphBuilder.java)
+  - [compile/session/GradientBindingCollector.java](../graph/compile/session/GradientBindingCollector.java)
+  - [compile/session/OptimizerGraphSnapshot.java](../graph/compile/session/OptimizerGraphSnapshot.java)
+  - [compile/planning/BackendPlanningService.java](../graph/compile/planning/BackendPlanningService.java)
+  - [compile/planning/BackendPlanningJobResolver.java](../graph/compile/planning/BackendPlanningJobResolver.java)
   - [SemanticForwardCanonicalizer.java](../graph/SemanticForwardCanonicalizer.java)
 - prepare pipeline:
   - [backend/prepare/PreparedExecutionBuilder.java](../backend/prepare/PreparedExecutionBuilder.java)
@@ -99,8 +100,9 @@ Contains:
 ## Compile Pipeline
 
 `CompiledGraph.compile(root, compileConfig, compileMode)` is the public entry point. Internally,
-`graph.compile.GraphCompiler` owns the mutable compile session and returns immutable
-`CompileArtifacts` for the facade and prepare layer.
+`graph.compile.GraphCompiler` is the compile boundary, `graph.compile.session.CompileSession`
+owns the mutable compile run, and `CompileArtifacts` is the immutable handoff to the facade
+and prepare layer.
 
 ### Step 1: choose the semantic forward output
 

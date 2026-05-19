@@ -238,7 +238,7 @@ Use this rule of thumb:
 - backend-neutral op surface lowering:
   - `LOWER`
 - backend ownership policy:
-  - `BackendPlanningConfig` and `graph.compile.BackendPlanningService`
+  - `BackendPlanningConfig` and `graph.compile.planning.BackendPlanningService`
 - elementwise cluster profitability inside regions:
   - `RegionOptimizationConfig` and `graph.optimizer.region`
 - allocation/reuse policy:

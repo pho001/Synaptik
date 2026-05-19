@@ -36,7 +36,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Arena**: Java FFM lifetime scope for native allocations and library lookup resources. The OpenBLAS bridge keeps a shared arena in its cached state so symbol lookup resources stay valid for later downcalls. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [Native Bridges & BLAS: Java FFM Step-By-Step](native-bridges-and-blas.md#java-ffm-step-by-step).
 
-**Autodiff**: Reverse-mode gradient graph construction over tensor DAGs. Source: [`BackwardGraphBuilder.java`](../src/main/java/graph/compile/BackwardGraphBuilder.java), [`AddOp.java`](../src/main/java/tensor/ops/binary/AddOp.java).
+**Autodiff**: Reverse-mode gradient graph construction over tensor DAGs. Source: [`BackwardGraphBuilder.java`](../src/main/java/graph/compile/session/BackwardGraphBuilder.java), [`AddOp.java`](../src/main/java/tensor/ops/binary/AddOp.java).
 
 **Autograd compilation scope**: Scope opened while compile builds backward graph state. Source: [`AutogradCompilationScope.java`](../src/main/java/tensor/AutogradCompilationScope.java), [`GraphCompiler.java`](../src/main/java/graph/compile/GraphCompiler.java).
 
@@ -46,9 +46,9 @@ Project-specific terms used in Synaptik, with source references.
 
 **BF16 / BFLOAT16**: 16-bit floating-point storage format with an 8-bit exponent and 7 explicit mantissa bits. In the CPU path it is commonly stored as `short[]`, unpacked to F32 for elementwise compute, and packed back to BF16 storage. Source: [`BFloat16Storage.java`](../src/main/java/tensor/storage/BFloat16Storage.java), [CPU BF16 Runtime](cpu-bf16.md#cpu-bf16-runtime).
 
-**Backward graph**: Gradient-producing graph nodes built from forward-node backward lambdas during training compile. Source: [`BackwardGraphBuilder.java`](../src/main/java/graph/compile/BackwardGraphBuilder.java).
+**Backward graph**: Gradient-producing graph nodes built from forward-node backward lambdas during training compile. Source: [`BackwardGraphBuilder.java`](../src/main/java/graph/compile/session/BackwardGraphBuilder.java).
 
-**Backward node**: A tensor node marked as part of backward-stage execution and captured in `CompiledNode.backwardNode()`. Source: [`CompiledNode.java`](../src/main/java/graph/CompiledNode.java), [`BackwardGraphBuilder.java`](../src/main/java/graph/compile/BackwardGraphBuilder.java).
+**Backward node**: A tensor node marked as part of backward-stage execution and captured in `CompiledNode.backwardNode()`. Source: [`CompiledNode.java`](../src/main/java/graph/CompiledNode.java), [`BackwardGraphBuilder.java`](../src/main/java/graph/compile/session/BackwardGraphBuilder.java).
 
 **Backend prepare context**: Prepare-time context containing runtime config, compiled nodes, consumers, selected plans, lowered regions, and prepared metadata. Source: [`BackendPrepareContext.java`](../src/main/java/backend/prepare/BackendPrepareContext.java).
 
@@ -130,7 +130,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Graph optimizer**: Backend-neutral graph cleanup and lowering pipeline: `AR`, `CF`, `CSE`, `DCE`, and optional `LOWER`. Source: [`GraphOptimizer.java`](../src/main/java/graph/optimizer/GraphOptimizer.java), [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java).
 
-**Gradient binding**: Mapping from semantic/source tensors to compiled gradient nodes or constant gradient templates. Source: [`CompiledGradientBinding.java`](../src/main/java/graph/CompiledGradientBinding.java), [`GradientBindingCollector.java`](../src/main/java/graph/compile/GradientBindingCollector.java).
+**Gradient binding**: Mapping from semantic/source tensors to compiled gradient nodes or constant gradient templates. Source: [`CompiledGradientBinding.java`](../src/main/java/graph/CompiledGradientBinding.java), [`GradientBindingCollector.java`](../src/main/java/graph/compile/session/GradientBindingCollector.java).
 
 ## J
 
@@ -188,7 +188,7 @@ Project-specific terms used in Synaptik, with source references.
 
 ## P
 
-**Backend planning**: Compile-time phase that propagates backend intent and creates CPU or accelerator ownership regions. Source: [`BackendPlanningConfig.java`](../src/main/java/config/compile/BackendPlanningConfig.java), [`BackendPlanningService.java`](../src/main/java/graph/compile/BackendPlanningService.java), [`BackendPlanningJobResolver.java`](../src/main/java/graph/compile/BackendPlanningJobResolver.java).
+**Backend planning**: Compile-time phase that propagates backend intent and creates CPU or accelerator ownership regions. Source: [`BackendPlanningConfig.java`](../src/main/java/config/compile/BackendPlanningConfig.java), [`BackendPlanningService.java`](../src/main/java/graph/compile/planning/BackendPlanningService.java), [`BackendPlanningJobResolver.java`](../src/main/java/graph/compile/planning/BackendPlanningJobResolver.java).
 
 **Partition**: Internal implementation object for a backend-compatible ownership region discovered during backend planning. Architecture docs prefer "ownership region" to avoid confusing this with a public graph optimizer stage. Source: [`Partition.java`](../src/main/java/graph/optimizer/partition/Partition.java), [`GreedyMaxRegionPartitionPlanner.java`](../src/main/java/graph/optimizer/partition/GreedyMaxRegionPartitionPlanner.java).
 

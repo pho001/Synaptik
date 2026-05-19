@@ -1,4 +1,4 @@
-package graph.compile;
+package graph.compile.session;
 
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
@@ -15,7 +15,7 @@ import java.util.Objects;
  * <p>The snapshot clones the graph topology, backward markers, gradients, and leaf values so optimizer
  * rules can freely mutate the cloned graph without touching the original semantic Tensor graph.
  */
-public final class OptimizerGraphSnapshot {
+final class OptimizerGraphSnapshot {
     private final List<Tensor> graph;
     private final Tensor forwardOutput;
     private final Map<Tensor, Tensor> originalBySnapshot;
@@ -37,7 +37,7 @@ public final class OptimizerGraphSnapshot {
      * @param forwardOutput semantic forward output in {@code graph}
      * @return snapshot with cloned graph and clone-to-original mapping
      */
-    public static OptimizerGraphSnapshot capture(List<Tensor> graph, Tensor forwardOutput) {
+    static OptimizerGraphSnapshot capture(List<Tensor> graph, Tensor forwardOutput) {
         Objects.requireNonNull(graph, "graph cannot be null");
         Objects.requireNonNull(forwardOutput, "forwardOutput cannot be null");
         IdentityHashMap<Tensor, Tensor> clones = new IdentityHashMap<>();
@@ -66,7 +66,7 @@ public final class OptimizerGraphSnapshot {
      *
      * @return cloned graph in topological order
      */
-    public List<Tensor> graph() {
+    List<Tensor> graph() {
         return graph;
     }
 
@@ -75,7 +75,7 @@ public final class OptimizerGraphSnapshot {
      *
      * @return cloned forward output
      */
-    public Tensor forwardOutput() {
+    Tensor forwardOutput() {
         return forwardOutput;
     }
 
@@ -84,7 +84,7 @@ public final class OptimizerGraphSnapshot {
      *
      * @return immutable clone-to-original map
      */
-    public Map<Tensor, Tensor> originalBySnapshot() {
+    Map<Tensor, Tensor> originalBySnapshot() {
         return originalBySnapshot;
     }
 
