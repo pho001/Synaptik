@@ -1,4 +1,4 @@
-package graph.optimizer.cleanup;
+package graph.optimizer.simplify;
 
 import tensor.TensorInternalAccess;
 
@@ -11,7 +11,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 
 /**
- * Stable structural fingerprint for cleanup fixpoint convergence checks.
+ * Stable structural fingerprint for simplification fixpoint convergence checks.
  */
 public record GraphOptimizationFingerprint(String value) {
     public static GraphOptimizationFingerprint capture(List<Tensor> graph, Tensor forwardOutput) {

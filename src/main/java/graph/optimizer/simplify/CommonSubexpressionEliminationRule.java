@@ -1,4 +1,4 @@
-package graph.optimizer.cleanup;
+package graph.optimizer.simplify;
 
 import config.optimizer.CseConfig;
 import graph.optimizer.OptimizerGraphSupport;

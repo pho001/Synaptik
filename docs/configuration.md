@@ -64,7 +64,7 @@ The `test` task defaults to `maxHeapSize = 2g`. Override it with:
 
 **Source:** `src/main/java/config/compile/CompileConfig.java`
 
-`CompileConfig` is the compile-time source of truth. It separates graph cleanup from backend ownership planning, region optimization, and memory planning:
+`CompileConfig` is the compile-time source of truth. It separates graph simplification from backend ownership planning, region optimization, and memory planning:
 
 ```java
 CompileConfig.training()
@@ -77,7 +77,7 @@ Primary layers:
 | Layer | Source | Responsibility |
 |---|---|---|
 | `SemanticCanonicalizationConfig` | `config.compile` | Required semantic forward canonicalization before compile artifacts are produced. |
-| `GraphOptimizationConfig` | `config.compile` | Backend-neutral graph rewrite/cleanup/lowering: AR, CF, CSE, DCE, optional LOWER. |
+| `GraphOptimizationConfig` | `config.compile` | Backend-neutral graph rewrite/simplification/lowering: AR, CF, CSE, DCE, optional LOWER. |
 | `BackendPlanningConfig` | `config.compile` | Compile-time backend ownership planning: `CPU_ONLY`, `EXPLICIT`, or `AUTO`. |
 | `RegionOptimizationConfig` | `config.compile` | Optimization inside already-owned execution regions, including CPU fusion policy. |
 | `MemoryPlanningConfig` | `config.compile` | Compile-time memory reuse policy. |
@@ -100,7 +100,7 @@ Terminology to keep clean:
 
 | Current term | Meaning | Not the same as |
 |---|---|---|
-| `GraphOptimizationConfig` | Backend-neutral graph cleanup and lowering. | Backend planning, region optimization, memory planning, runtime dispatch. |
+| `GraphOptimizationConfig` | Backend-neutral graph simplification and lowering. | Backend planning, region optimization, memory planning, runtime dispatch. |
 | `BackendPlanningConfig` | Compile-time backend ownership planning. | Execute-time "offload" or runtime availability. |
 | `PartitionSearchConfig` | Search limits and scoring weights. | Backend target selection. |
 | `RegionOptimizationConfig` | Fusion/execution-unit policy inside already owned regions. | Backend ownership discovery. |

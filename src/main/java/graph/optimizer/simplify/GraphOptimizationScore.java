@@ -1,4 +1,4 @@
-package graph.optimizer.cleanup;
+package graph.optimizer.simplify;
 
 import graph.optimizer.cost.CostComponent;
 import graph.optimizer.cost.CostScore;
@@ -8,15 +8,15 @@ import tensor.Tensor;
 import java.util.List;
 
 /**
- * Backend-neutral structural cost used to accept cleanup fixpoint iterations.
+ * Backend-neutral structural cost used to accept simplification fixpoint iterations.
  */
 public record GraphOptimizationScore(
         int weightedOperationCost,
         int nodeCount,
         int edgeCount
 ) implements Comparable<GraphOptimizationScore> {
-    private static final String COST_MODEL_NAME = "GraphCleanupCostModel";
-    private static final String COST_INPUT_KIND = "optimizer-cleanup-graph";
+    private static final String COST_MODEL_NAME = "GraphSimplificationCostModel";
+    private static final String COST_INPUT_KIND = "optimizer-simplification-graph";
 
     public static GraphOptimizationScore capture(List<Tensor> graph) {
         int weightedCost = 0;
@@ -46,9 +46,9 @@ public record GraphOptimizationScore(
     }
 
     /**
-     * Exports this structural cleanup score through the shared cost vocabulary.
+     * Exports this structural simplification score through the shared cost vocabulary.
      *
-     * <p>The cleanup fixpoint still uses {@link #compareTo(GraphOptimizationScore)} as its
+     * <p>The simplification fixpoint still uses {@link #compareTo(GraphOptimizationScore)} as its
      * source of truth. This method is report-only.</p>
      *
      * @return shared cost score explanation input
@@ -61,17 +61,17 @@ public record GraphOptimizationScore(
                         CostComponent.lowerIsBetter(
                                 "weightedOperationCost",
                                 weightedOperationCost,
-                                "lexicographic cleanup priority: lower structural operation cost is better"
+                                "lexicographic simplification priority: lower structural operation cost is better"
                         ),
                         CostComponent.lowerIsBetter(
                                 "nodeCount",
                                 nodeCount,
-                                "cleanup should reduce live graph nodes when operation cost ties"
+                                "simplification should reduce live graph nodes when operation cost ties"
                         ),
                         CostComponent.lowerIsBetter(
                                 "edgeCount",
                                 edgeCount,
-                                "cleanup should reduce graph edges when operation cost and node count tie"
+                                "simplification should reduce graph edges when operation cost and node count tie"
                         )
                 )
         );

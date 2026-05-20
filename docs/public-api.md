@@ -722,7 +722,7 @@ Side effects: records and `with...` methods create new config objects.
 Performance notes:
 
 - `training()` and `inference()` both use backend-neutral graph optimization plus explicit backend intent planning.
-- `noGraphOptimization()` disables graph cleanup/lowering only; it does not disable backend planning or runtime backend selection.
+- `noGraphOptimization()` disables graph simplification/lowering only; it does not disable backend planning or runtime backend selection.
 - `cpuOnlyBaseline()` disables graph optimization, accelerator planning, CPU natural regions, region optimization, and optional memory reuse for strict baseline comparisons.
 
 ### RuntimeConfig

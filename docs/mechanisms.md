@@ -378,7 +378,7 @@ The compiled graph should be simpler and deduplicated before backend ownership, 
 
 **Mental Model**
 
-`GraphOptimizer` owns backend-neutral graph cleanup. Backend planning, region optimization, and memory planning are later compile phases.
+`GraphOptimizer` owns backend-neutral graph simplification. Backend planning, region optimization, and memory planning are later compile phases.
 
 **Key Concepts**
 
@@ -387,7 +387,7 @@ The compiled graph should be simpler and deduplicated before backend ownership, 
 - `BackendPlanningConfig`
 - `OptimizerFactory`
 - `OptimizerState`
-- cleanup fixpoint
+- simplification fixpoint
 - backend ownership planning
 - region optimization
 - memory planning
@@ -403,8 +403,8 @@ The compiled graph should be simpler and deduplicated before backend ownership, 
 
 **Step-By-Step**
 
-1. `OptimizerFactory.create(config.graphOptimization())` builds graph cleanup and optional lowering rules.
-2. `AR`, `CF`, `CSE`, and `DCE` run inside a cleanup fixpoint.
+1. `OptimizerFactory.create(config.graphOptimization())` builds graph simplification and optional lowering rules.
+2. `AR`, `CF`, `CSE`, and `DCE` run inside a simplification fixpoint.
 3. `LOWER` optionally creates backend-neutral specialized operation surfaces.
 4. `BackendPlanningService` discovers CPU and accelerator ownership regions from `BackendPlanningConfig`.
 5. Region optimization creates execution units inside owned regions.

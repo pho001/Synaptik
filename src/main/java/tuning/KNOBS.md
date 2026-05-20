@@ -124,7 +124,7 @@ Current standard production graph autotune exposes only:
 The following graph-resident fields are research-only or excluded from standard graph autotune:
 
 - `compile.graphOptimization.*`
-  - graph cleanup/lowering contract, not a broad production tuning axis
+  - graph simplification/lowering contract, not a broad production tuning axis
 - `compile.graphOptimization.rewrite.conv2dLowering.mode`
   - GEMM/BLAS/runtime-family proxy
 - `compile.regionOptimization.fuse.*`

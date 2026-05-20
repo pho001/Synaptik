@@ -40,7 +40,7 @@ flowchart TD
     Tensor["tensor.Tensor and tensor.ops.*"]
     Operation["operations.Operation descriptors"]
     Compiler["graph.CompiledGraph / graph.compile.GraphCompiler"]
-    Optimizer["graph.optimizer cleanup/lowering"]
+    Optimizer["graph.optimizer simplification/lowering"]
     Prepare["backend.prepare.PreparedExecutionBuilder"]
     Execution["graph.execution.PreparedExecution"]
     Engine["backend.ComputeEngine"]
@@ -154,9 +154,9 @@ Meanings:
 | Stage | Implementation | Responsibility |
 |---|---|---|
 | `AR` | `graph.optimizer.rewrite.canonical.PiecewiseCanonicalizationRule`, `graph.optimizer.rewrite.algebraic.AlgebraicSimplificationRule` | Algebraic simplification and light canonical rewrites. |
-| `CF` | `graph.optimizer.cleanup.ConstantFoldingRule` | Conservative constant-only graph folding. |
-| `CSE` | `graph.optimizer.cleanup.CommonSubexpressionEliminationRule` | Structural common-subexpression elimination. |
-| `DCE` | `graph.optimizer.cleanup.DeadCodeEliminationRule` | Remove nodes not reachable from observable roots. |
+| `CF` | `graph.optimizer.simplify.ConstantFoldingRule` | Conservative constant-only graph folding. |
+| `CSE` | `graph.optimizer.simplify.CommonSubexpressionEliminationRule` | Structural common-subexpression elimination. |
+| `DCE` | `graph.optimizer.simplify.DeadCodeEliminationRule` | Remove nodes not reachable from observable roots. |
 | `LOWER` | `graph.optimizer.rewrite.lowering.*Rule` | Optional backend-neutral graph lowering. |
 
 Execution planning is separate:
@@ -168,7 +168,7 @@ Execution planning is separate:
 | Memory planning | `MemoryPlanningConfig`, `MemoryPlanner` | Lifetimes, reusable slots, and region handoff bindings. |
 | Runtime selection | `RuntimeConfig`, backend preparers | Runtime availability, BLAS/vector/parallel thresholds, buffer binding, fallback. |
 
-This split is the reason `CompileConfig.noGraphOptimization()` disables graph cleanup only. It does not mean "skip backend planning", "ignore explicit accelerator intent", or "disable runtime backend selection." For detailed examples, see [Graph Optimizer](graph-optimizer.md#graph-optimizer) and [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions).
+This split is the reason `CompileConfig.noGraphOptimization()` disables graph simplification only. It does not mean "skip backend planning", "ignore explicit accelerator intent", or "disable runtime backend selection." For detailed examples, see [Graph Optimizer](graph-optimizer.md#graph-optimizer) and [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions).
 
 Backend planning bridges graph optimization and backend preparation. `src/main/java/graph/compile/planning/BackendPlanningService.java` creates backend candidate regions from `BackendPlanningConfig`, and backend descriptors are registered in `src/main/java/backend/partition/BackendPartitionDescriptorRegistry.java`. The default registry includes CPU plus Metal and CUDA accelerator partition descriptors.
 

@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class SemanticForwardCanonicalizationCompileTest {
     @Test
-    void preAutogradCleanupDoesNotLowerLinearButPreservesForwardAndBackward() {
+    void preAutogradSimplificationDoesNotLowerLinearButPreservesForwardAndBackward() {
         Tensor manualInput = new Tensor(new double[]{
                 1.0, 2.0,
                 3.0, 4.0
@@ -67,7 +67,7 @@ public class SemanticForwardCanonicalizationCompileTest {
     }
 
     @Test
-    void preAutogradCleanupDoesNotLowerCrossEntropyButPreservesForwardAndBackward() {
+    void preAutogradSimplificationDoesNotLowerCrossEntropyButPreservesForwardAndBackward() {
         Tensor manualLogits = new Tensor(new double[]{
                 1.0, 2.0, 3.0,
                 0.0, 0.0, 0.0

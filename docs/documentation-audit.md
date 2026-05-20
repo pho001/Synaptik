@@ -50,7 +50,7 @@ Future documentation should use these terms consistently.
 | Compile | Snapshot graph, canonicalize, build backward graph if needed, optimize, plan backend ownership, plan memory. | `CompiledGraph.compile(y, CompileConfig.inference())` |
 | Prepare | Resolve runtime/backend policy into executable steps and backend metadata. | `compiled.prepare(RuntimeConfig.inferenceDefaults())` |
 | Execute | Run prepared steps and publish selected outputs/gradients. | `prepared.execute(ExecutionMode.FORWARD)` |
-| Graph optimization | Backend-neutral graph rewrite/cleanup/lowering. | `AR`, `CF`, `CSE`, `DCE`, optional `LOWER` |
+| Graph optimization | Backend-neutral graph rewrite/simplification/lowering. | `AR`, `CF`, `CSE`, `DCE`, optional `LOWER` |
 | Backend planning | Compile-time ownership planning for CPU or accelerator regions. | `BackendPlanningConfig.autoAccelerator()` |
 | Runtime policy | Hardware-facing execution policy. | CPU thresholds, BLAS, fused backend, accelerator availability |
 | Publication | Copying run-scoped values back to public `Tensor` objects after execution. | `PublicationPolicy.OUTPUT_ONLY` |
@@ -78,7 +78,7 @@ Current top-level guides under `docs/`:
 | [architecture.md](architecture.md) | Architecture and lifecycle overview with backend dispatch and diagrams. | Strong; keep updated after major pipeline changes. |
 | [framework-concepts.md](framework-concepts.md) | First-principles conceptual model. | Updated to avoid overclaiming full-framework identity. |
 | [compute-flow.md](compute-flow.md) | Deep lifecycle guide from `Tensor.compute(...)` through traces and backend behavior. | Strong; high value, high stale risk because it is detailed. |
-| [graph-optimizer.md](graph-optimizer.md) | Graph optimization stages, cleanup fixpoint, lowering, diagnostics. | Strong; must stay separate from backend planning docs. |
+| [graph-optimizer.md](graph-optimizer.md) | Graph optimization stages, simplification fixpoint, lowering, diagnostics. | Strong; must stay separate from backend planning docs. |
 | [backend-planning-and-regions.md](backend-planning-and-regions.md) | Backend ownership, regions, memory planning, publication, benchmark semantics. | Strong; central architecture doc. |
 | [configuration.md](configuration.md) | Build, runtime, profile, CLI, native lookup, tuning persistence. | Strong; update whenever config records move. |
 | [public-api.md](public-api.md) | Public and probably-internal Java API surfaces. | Updated in this pass. |

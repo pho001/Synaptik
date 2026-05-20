@@ -1,4 +1,4 @@
-package graph.optimizer.cleanup;
+package graph.optimizer.simplify;
 
 import graph.optimizer.OptimizationRule;
 import graph.optimizer.cost.CostComparison;
@@ -9,19 +9,19 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Repeats cleanup rules until the graph is stable or no structural improvement is made.
+ * Repeats graph simplification rules until the graph is stable or no structural improvement is made.
  */
-public final class CleanupFixpointRule implements OptimizationRule {
+public final class SimplificationFixpointRule implements OptimizationRule {
     private static final int DEFAULT_MAX_ITERATIONS = 8;
 
     private final List<OptimizationRule> rules;
     private final int maxIterations;
 
-    public CleanupFixpointRule(List<OptimizationRule> rules) {
-        this(rules, Integer.getInteger("cg.optimizer.cleanup.maxIterations", DEFAULT_MAX_ITERATIONS));
+    public SimplificationFixpointRule(List<OptimizationRule> rules) {
+        this(rules, Integer.getInteger("cg.optimizer.simplify.maxIterations", DEFAULT_MAX_ITERATIONS));
     }
 
-    public CleanupFixpointRule(List<OptimizationRule> rules, int maxIterations) {
+    public SimplificationFixpointRule(List<OptimizationRule> rules, int maxIterations) {
         this.rules = List.copyOf(Objects.requireNonNull(rules, "rules cannot be null"));
         if (this.rules.isEmpty()) {
             throw new IllegalArgumentException("rules cannot be empty");
@@ -40,7 +40,7 @@ public final class CleanupFixpointRule implements OptimizationRule {
                 current.forwardOutput()
         );
         GraphOptimizationScore currentScore = GraphOptimizationScore.capture(current.graph());
-        current = appendCostTrace(current, currentScore, "cleanup-initial", CostComparison.INCOMPARABLE, 0);
+        current = appendCostTrace(current, currentScore, "simplification-initial", CostComparison.INCOMPARABLE, 0);
 
         for (int iteration = 0; iteration < maxIterations; iteration++) {
             OptimizerState next = applyOnce(current);
@@ -51,20 +51,20 @@ public final class CleanupFixpointRule implements OptimizationRule {
             GraphOptimizationScore nextScore = GraphOptimizationScore.capture(next.graph());
             CostComparison comparison = nextScore.toCostScore().compare(currentScore.toCostScore());
             if (nextFingerprint.equals(currentFingerprint)) {
-                return appendCostTrace(next, nextScore, "cleanup-stable", comparison, iteration + 1);
+                return appendCostTrace(next, nextScore, "simplification-stable", comparison, iteration + 1);
             }
 
             if (nextScore.compareTo(currentScore) >= 0) {
-                return appendCostTrace(current, nextScore, "cleanup-rejected", comparison, iteration + 1);
+                return appendCostTrace(current, nextScore, "simplification-rejected", comparison, iteration + 1);
             }
 
-            next = appendCostTrace(next, nextScore, "cleanup-improved", comparison, iteration + 1);
+            next = appendCostTrace(next, nextScore, "simplification-improved", comparison, iteration + 1);
             current = next;
             currentFingerprint = nextFingerprint;
             currentScore = nextScore;
         }
 
-        return appendCostTrace(current, currentScore, "cleanup-max-iterations", CostComparison.UNCHANGED, maxIterations);
+        return appendCostTrace(current, currentScore, "simplification-max-iterations", CostComparison.UNCHANGED, maxIterations);
     }
 
     private OptimizerState applyOnce(OptimizerState state) {
@@ -83,7 +83,7 @@ public final class CleanupFixpointRule implements OptimizationRule {
             int iteration
     ) {
         OptimizerTrace trace = state.trace()
-                .withEvent("cleanup-cost iteration=" + iteration
+                .withEvent("simplification-cost iteration=" + iteration
                         + " reason=" + reasonCode
                         + " comparison=" + comparison.name()
                         + " weightedOperationCost=" + score.weightedOperationCost()

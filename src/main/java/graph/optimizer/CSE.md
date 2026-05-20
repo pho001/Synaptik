@@ -134,7 +134,7 @@ The same applies to `mul(a, b)` and `mul(b, a)`.
 
 Those belong to:
 
-- `AR` for algebraic cleanup
+- `AR` for algebraic simplification
 - region optimization for elementwise fusion
 
 ## Examples

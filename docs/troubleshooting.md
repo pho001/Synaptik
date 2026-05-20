@@ -440,9 +440,9 @@ Graph optimization mapping is in `src/main/java/graph/optimizer/OptimizerFactory
 ```text
 AR    -> graph.optimizer.rewrite.canonical.PiecewiseCanonicalizationRule
 AR    -> graph.optimizer.rewrite.algebraic.AlgebraicSimplificationRule
-CF    -> graph.optimizer.cleanup.ConstantFoldingRule
-CSE   -> graph.optimizer.cleanup.CommonSubexpressionEliminationRule
-DCE   -> graph.optimizer.cleanup.DeadCodeEliminationRule
+CF    -> graph.optimizer.simplify.ConstantFoldingRule
+CSE   -> graph.optimizer.simplify.CommonSubexpressionEliminationRule
+DCE   -> graph.optimizer.simplify.DeadCodeEliminationRule
 LOWER -> graph.optimizer.rewrite.lowering.*Rule
 ```
 

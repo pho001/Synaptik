@@ -1,6 +1,6 @@
 # AR Stage
 
-`AR` is the cleanup rewrite stage.
+`AR` is the simplification rewrite stage.
 
 Despite the short name, it is not "just algebraic simplification".
 It is the place where the compiler:
@@ -9,8 +9,8 @@ It is the place where the compiler:
 - removes local algebraic noise
 - leaves policy-sensitive lowering to the optional lowering stage
 
-In practice, `AR` is the semantic cleanup stage of the compiler. Optional lowering is configured from the same
-`RewriteConfig`, but `OptimizerFactory` wires it as a separate stage after cleanup.
+In practice, `AR` is the semantic simplification stage of the compiler. Optional lowering is configured from the same
+`RewriteConfig`, but `OptimizerFactory` wires it as a separate stage after simplification.
 
 ## Entry Points
 
@@ -23,7 +23,7 @@ In practice, `AR` is the semantic cleanup stage of the compiler. Optional loweri
 
 ## Current Rule Order
 
-The current cleanup rewrite order is:
+The current simplification rewrite order is:
 
 1. optional `PiecewiseCanonicalizationRule`
 2. `AlgebraicSimplificationRule`
@@ -38,8 +38,8 @@ The optional lowering order is:
 That order is intentional:
 
 - piecewise repair first
-- local algebraic cleanup second
-- structural lowerings in the separate lowering stage after cleanup
+- local algebraic simplification second
+- structural lowerings in the separate lowering stage after simplification
 - conv2d lowering last because it is more policy-sensitive
 
 ## Generic Rewrite Mechanics

@@ -160,7 +160,7 @@ public class CompiledGraphTraceTest {
         assertTrue(compiled.compileTrace().totalNodeCount() > 0);
         assertTrue(compiled.compileTrace().partitionPlanning() != null);
         assertTrue(compiled.compileTrace().optimizerTrace().costExplanations().stream()
-                .anyMatch(explanation -> "GraphCleanupCostModel".equals(explanation.modelName())));
+                .anyMatch(explanation -> "GraphSimplificationCostModel".equals(explanation.modelName())));
         assertTrue(runTrace.durationNs() >= 0L);
         assertTrue(runTrace.steps().size() > 0);
         assertEquals("FORWARD", runTrace.mode().name());

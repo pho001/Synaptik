@@ -641,7 +641,7 @@ Default compile flow for both inference and training is:
 semantic canonicalization -> graph optimization -> backend planning -> region optimization -> memory planning
 ```
 
-`CompileConfig.noGraphOptimization()` disables graph rewrite/cleanup only. It does not disable backend planning, region optimization, memory planning required by prepare invariants, or runtime backend selection.
+`CompileConfig.noGraphOptimization()` disables graph rewrite/simplification only. It does not disable backend planning, region optimization, memory planning required by prepare invariants, or runtime backend selection.
 
 ```mermaid
 flowchart TD

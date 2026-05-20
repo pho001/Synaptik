@@ -161,6 +161,7 @@ public class SourceTreeHygieneTest {
                 Path.of("src/main/java/graph/optimizer/region"),
                 Path.of("src/main/java/graph/optimizer/memory"),
                 Path.of("src/main/java/graph/optimizer/intent"),
+                Path.of("src/main/java/graph/optimizer/cleanup"),
                 Path.of("src/main/java/graph/optimizer/cf"),
                 Path.of("src/main/java/graph/optimizer/cse"),
                 Path.of("src/main/java/graph/optimizer/dce")

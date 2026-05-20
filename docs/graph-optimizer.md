@@ -45,10 +45,10 @@ It does not own:
 `OptimizerFactory.create(GraphOptimizationConfig)` builds this pipeline:
 
 ```text
-CLEANUP_FIXPOINT(AR -> CF -> CSE -> DCE) -> optional LOWER
+SIMPLIFICATION_FIXPOINT(AR -> CF -> CSE -> DCE) -> optional LOWER
 ```
 
-The cleanup fixpoint is important. `AR`, `CF`, `CSE`, and `DCE` are not simply run once as separate public stages. They are placed into a `CleanupFixpointRule`, which repeats them until the graph fingerprint is stable, the structural score no longer improves, or the configured iteration limit is reached.
+The simplification fixpoint is important. `AR`, `CF`, `CSE`, and `DCE` are not simply run once as separate public stages. They are placed into a `SimplificationFixpointRule`, which repeats them until the graph fingerprint is stable, the structural score no longer improves, or the configured iteration limit is reached.
 
 Example:
 
@@ -56,12 +56,12 @@ Example:
 input graph:
   y = exp(log(x)).add(0)
 
-cleanup iteration 1:
+simplification iteration 1:
   AR  rewrites exp(log(x)) -> x
   AR  rewrites x.add(0) -> x
   DCE removes now-unreachable exp/log/add nodes
 
-cleanup iteration 2:
+simplification iteration 2:
   fingerprint is stable, so the fixpoint stops
 ```
 
@@ -102,7 +102,7 @@ Tensor API
   -> semantic forward canonicalization
   -> backward graph build when training is needed
   -> graph optimization
-       CLEANUP_FIXPOINT(AR -> CF -> CSE -> DCE)
+       SIMPLIFICATION_FIXPOINT(AR -> CF -> CSE -> DCE)
        optional LOWER
   -> backend planning / ownership regions
   -> region optimization inside owned regions
@@ -123,7 +123,7 @@ Terms used here:
 
 ## Configuration
 
-`GraphOptimizationConfig` contains only graph rewrite and cleanup switches:
+`GraphOptimizationConfig` contains only graph rewrite and simplification switches:
 
 ```java
 GraphOptimizationConfig config = GraphOptimizationConfig.trainingDefaults();
@@ -158,7 +158,7 @@ For a no-graph-optimization benchmark that still honors explicit backend intent:
 CompileConfig baseline = CompileConfig.noGraphOptimizationBaseline();
 ```
 
-The word "baseline" matters. `noGraphOptimizationBaseline()` is useful when comparing graph cleanup against optimized paths, but it is not a promise to disable every runtime optimization. Runtime vectorization, parallelism, BLAS, and accelerators are governed by `RuntimeConfig`.
+The word "baseline" matters. `noGraphOptimizationBaseline()` is useful when comparing graph simplification against optimized paths, but it is not a promise to disable every runtime optimization. Runtime vectorization, parallelism, BLAS, and accelerators are governed by `RuntimeConfig`.
 
 ## Rule Responsibilities
 
@@ -198,7 +198,7 @@ The result becomes a leaf constant in the compile snapshot. Folding is deliberat
 
 Source area:
 
-- `src/main/java/graph/optimizer/cleanup/ConstantFoldingRule.java`
+- `src/main/java/graph/optimizer/simplify/ConstantFoldingRule.java`
 
 ### CSE
 
@@ -218,7 +218,7 @@ Structural identity is stricter than "same Java method was called." Operations w
 
 Source area:
 
-- `src/main/java/graph/optimizer/cleanup/CommonSubexpressionEliminationRule.java`
+- `src/main/java/graph/optimizer/simplify/CommonSubexpressionEliminationRule.java`
 
 ### DCE
 
@@ -246,7 +246,7 @@ after DCE:
 
 Source area:
 
-- `src/main/java/graph/optimizer/cleanup/DeadCodeEliminationRule.java`
+- `src/main/java/graph/optimizer/simplify/DeadCodeEliminationRule.java`
 
 ### LOWER
 
@@ -295,7 +295,7 @@ The old mental model treated backend partitioning, fusion, and memory planning a
 
 | Concern | Current owner |
 |---|---|
-| Backend-neutral graph cleanup | `GraphOptimizationConfig` + `GraphOptimizer` |
+| Backend-neutral graph simplification | `GraphOptimizationConfig` + `GraphOptimizer` |
 | Backend ownership planning | `BackendPlanningConfig` + `BackendPlanningService` |
 | CPU and accelerator region optimization | `RegionOptimizationConfig` + `DefaultRegionOptimizer` |
 | Memory reuse and handoff planning | `MemoryPlanningConfig` + `MemoryPlanner` |

@@ -4,7 +4,7 @@ import config.optimizer.CseConfig;
 import config.optimizer.RewriteConfig;
 
 /**
- * Backend-neutral graph rewrite and cleanup policy.
+ * Backend-neutral graph rewrite and simplification policy.
  */
 public record GraphOptimizationConfig(
         boolean algebraicRewrite,

@@ -26,7 +26,7 @@ It also does not decide prepared-execution dispatch knobs such as vector width, 
 Backend ownership planning, region optimization, and memory planning are compile-flow responsibilities owned by
 `CompileConfig`, `BackendPlanningConfig`, `RegionOptimizationConfig`, and `MemoryPlanningConfig`.
 
-The contiguous cleanup block `AR -> CF -> CSE -> DCE` is executed by `CleanupFixpointRule`, not as four one-shot
+The contiguous simplification block `AR -> CF -> CSE -> DCE` is executed by `SimplificationFixpointRule`, not as four one-shot
 passes. The loop stops when the graph fingerprint is stable, when the max iteration count is reached, or when the next
 iteration does not improve the structural graph score.
 
@@ -56,12 +56,12 @@ Those belong to compile backend planning, region optimization, memory planning, 
 
 ## Current Execution Model
 
-`GraphOptimizer` is an ordered pipeline, but cleanup is a nested fixpoint stage.
+`GraphOptimizer` is an ordered pipeline, but simplification is a nested fixpoint stage.
 
 The graph optimizer pipeline is:
 
 ```text
-CLEANUP_FIXPOINT(AR -> CF -> CSE -> DCE) -> optional LOWER
+SIMPLIFICATION_FIXPOINT(AR -> CF -> CSE -> DCE) -> optional LOWER
 ```
 
 is executed as:
@@ -220,7 +220,7 @@ After that, later stages can act on the already simplified graph:
 - region optimization can group surviving elementwise chains inside owned regions
 - memory planning can plan reuse on the final graph shape
 
-The cleanup stages are replayed by `CleanupFixpointRule` until stable or no longer improving. `LOWER` runs after cleanup
+The simplification stages are replayed by `SimplificationFixpointRule` until stable or no longer improving. `LOWER` runs after simplification
 when enabled. Backend planning, region optimization, and memory planning are later compile phases.
 
 ## What To Change When
@@ -233,7 +233,7 @@ Use this rule of thumb:
   - `CF`
 - duplicate elimination:
   - `CSE`
-- unreachable graph cleanup:
+- unreachable graph simplification:
   - `DCE`
 - backend-neutral op surface lowering:
   - `LOWER`

@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 public class AttentionLoweringTest {
     @Test
-    void cleanupDoesNotLowerManualAttentionPatternWithoutMask() {
+    void simplificationDoesNotLowerManualAttentionPatternWithoutMask() {
         Tensor qManual = matrix3d("q_manual");
         Tensor kManual = matrix3d("k_manual");
         Tensor vManual = values3d("v_manual");
@@ -37,7 +37,7 @@ public class AttentionLoweringTest {
     }
 
     @Test
-    void cleanupDoesNotLowerManualAttentionPatternWithMask() {
+    void simplificationDoesNotLowerManualAttentionPatternWithMask() {
         Tensor qManual = matrix3d("q_manual");
         Tensor kManual = matrix3d("k_manual");
         Tensor vManual = values3d("v_manual");
@@ -61,7 +61,7 @@ public class AttentionLoweringTest {
     }
 
     @Test
-    void cleanupKeepsManualAttentionBackwardGraphExplicit() {
+    void simplificationKeepsManualAttentionBackwardGraphExplicit() {
         Tensor qManual = matrix3d("q_manual");
         Tensor kManual = matrix3d("k_manual");
         Tensor vManual = values3d("v_manual");

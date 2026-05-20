@@ -13,7 +13,7 @@ import java.util.Objects;
  * <p>Rules are applied sequentially to an immutable {@link OptimizerState} value. Each rule may replace the graph,
  * adjust graph-level compile metadata, or append optimization trace entries. Backend ownership, region planning, and
  * memory planning are compile-planning stages outside this package. The standard optimizer pipeline is configured by
- * {@link OptimizerFactory}: semantic cleanup, algebraic rewrite, operation lowering, and cleanup fixpoint passes.
+ * {@link OptimizerFactory}: semantic simplification, algebraic rewrite, operation lowering, and simplification fixpoint passes.
  *
  * <p>This class owns a mutable rule list. Configure a pipeline before sharing it; concurrent calls to {@link #addRule}
  * and {@link #optimize(OptimizerState)} are not supported.

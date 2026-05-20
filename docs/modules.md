@@ -192,19 +192,19 @@ Main paths:
 - `src/main/java/graph/optimizer/GraphOptimizer.java`
 - `src/main/java/graph/optimizer/OptimizerFactory.java`
 - `src/main/java/graph/optimizer/rewrite/**`
-- `src/main/java/graph/optimizer/cleanup/ConstantFoldingRule.java`
-- `src/main/java/graph/optimizer/cleanup/CommonSubexpressionEliminationRule.java`
-- `src/main/java/graph/optimizer/cleanup/DeadCodeEliminationRule.java`
+- `src/main/java/graph/optimizer/simplify/ConstantFoldingRule.java`
+- `src/main/java/graph/optimizer/simplify/CommonSubexpressionEliminationRule.java`
+- `src/main/java/graph/optimizer/simplify/DeadCodeEliminationRule.java`
 - `src/main/java/graph/optimizer/README.md`
 
-`GraphOptimizer` runs backend-neutral graph cleanup and lowering. `OptimizerFactory` maps `GraphOptimizationConfig` to:
+`GraphOptimizer` runs backend-neutral graph simplification and lowering. `OptimizerFactory` maps `GraphOptimizationConfig` to:
 
 | Stage | Package | Role |
 |---|---|---|
 | `AR` | `graph.optimizer.rewrite` | Algebraic simplification and semantic lowerings |
-| `CF` | `graph.optimizer.cleanup` | Constant folding |
-| `CSE` | `graph.optimizer.cleanup` | Structural duplicate elimination |
-| `DCE` | `graph.optimizer.cleanup` | Dead-code elimination |
+| `CF` | `graph.optimizer.simplify` | Constant folding |
+| `CSE` | `graph.optimizer.simplify` | Structural duplicate elimination |
+| `DCE` | `graph.optimizer.simplify` | Dead-code elimination |
 | `LOWER` | `graph.optimizer.rewrite` | Optional backend-neutral operation lowering |
 
 Backend planning, region optimization, and memory planning use implementation packages under `graph.compile.planning.partition`, `graph.compile.planning.region`, `graph.compile.planning.memory`, and `graph.compile.planning.value`, but they are compile-flow phases controlled by `CompileConfig`, not graph optimizer stages. See [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions).

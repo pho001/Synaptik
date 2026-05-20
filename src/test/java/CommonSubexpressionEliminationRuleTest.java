@@ -1,5 +1,5 @@
 import config.optimizer.CseConfig;
-import graph.optimizer.cleanup.CommonSubexpressionEliminationRule;
+import graph.optimizer.simplify.CommonSubexpressionEliminationRule;
 import operations.Operation;
 import operations.layout.noop;
 import org.junit.jupiter.api.Test;
@@ -123,7 +123,7 @@ public class CommonSubexpressionEliminationRuleTest {
     @Test
     void parameterKeyExplicitlyClassifiesEveryOperationType() throws Exception {
         String source = Files.readString(Path.of(
-                "src/main/java/graph/optimizer/cleanup/CommonSubexpressionEliminationRule.java"
+                "src/main/java/graph/optimizer/simplify/CommonSubexpressionEliminationRule.java"
         ));
         String parameterKey = source.substring(
                 source.indexOf("private SignatureComponent parameterKey"),

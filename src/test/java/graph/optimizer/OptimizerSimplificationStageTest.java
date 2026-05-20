@@ -13,16 +13,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class OptimizerCleanupStageTest {
+class OptimizerSimplificationStageTest {
     @Test
-    void defaultOptimizerGroupsCleanupStagesIntoFixpoint() {
+    void defaultOptimizerGroupsSimplificationStagesIntoFixpoint() {
         List<OptimizationRule> rules = OptimizerFactory.create(CompileConfig.inference().graphOptimization()).rules();
 
-        assertEquals("CleanupFixpointRule", rules.getFirst().getClass().getSimpleName());
+        assertEquals("SimplificationFixpointRule", rules.getFirst().getClass().getSimpleName());
     }
 
     @Test
-    void cleanupFixpointFoldsConstantsAndEliminatesDeadNodes() {
+    void simplificationFixpointFoldsConstantsAndEliminatesDeadNodes() {
         Tensor two = Tensor.scalar(2.0);
         Tensor three = Tensor.scalar(3.0);
         Tensor live = two.add(three);
@@ -40,9 +40,9 @@ class OptimizerCleanupStageTest {
                 && t.getOperation().opType() == Operation.OpType.ADD));
         assertEquals(5.0, optimized.forwardOutput().scalarAsDouble(), 1e-12);
         assertTrue(optimized.trace().costExplanations().stream()
-                .anyMatch(explanation -> "GraphCleanupCostModel".equals(explanation.modelName())
-                        && "optimizer-cleanup-graph".equals(explanation.inputKind())));
+                .anyMatch(explanation -> "GraphSimplificationCostModel".equals(explanation.modelName())
+                        && "optimizer-simplification-graph".equals(explanation.inputKind())));
         assertTrue(optimized.trace().events().stream()
-                .anyMatch(event -> event.contains("cleanup-cost")));
+                .anyMatch(event -> event.contains("simplification-cost")));
     }
 }

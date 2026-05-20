@@ -4,10 +4,10 @@ import config.compile.GraphOptimizationConfig;
 import config.compile.SemanticCanonicalizationConfig;
 import config.optimizer.Conv2dLoweringMode;
 import config.optimizer.RewriteConfig;
-import graph.optimizer.cleanup.ConstantFoldingRule;
-import graph.optimizer.cleanup.CleanupFixpointRule;
-import graph.optimizer.cleanup.CommonSubexpressionEliminationRule;
-import graph.optimizer.cleanup.DeadCodeEliminationRule;
+import graph.optimizer.simplify.ConstantFoldingRule;
+import graph.optimizer.simplify.SimplificationFixpointRule;
+import graph.optimizer.simplify.CommonSubexpressionEliminationRule;
+import graph.optimizer.simplify.DeadCodeEliminationRule;
 import graph.SemanticForwardCanonicalizer;
 import graph.optimizer.rewrite.algebraic.AlgebraicSimplificationRule;
 import graph.optimizer.rewrite.canonical.PiecewiseCanonicalizationRule;
@@ -30,26 +30,26 @@ public final class OptimizerFactory {
      * Creates a graph optimizer for backend-neutral graph optimization only.
      *
      * @param config graph optimization configuration
-     * @return optimizer containing only graph rewrite/cleanup/lowering rules
+     * @return optimizer containing only graph rewrite/simplification/lowering rules
      */
     public static GraphOptimizer create(GraphOptimizationConfig config) {
         Objects.requireNonNull(config, "config cannot be null");
         List<OptimizationRule> rules = new ArrayList<>();
-        List<OptimizationRule> cleanup = new ArrayList<>(4);
-        int rewriteCleanupRules = 0;
+        List<OptimizationRule> simplification = new ArrayList<>(4);
+        int rewriteSimplificationRules = 0;
         if (config.algebraicRewrite()) {
-            rewriteCleanupRules = addCleanupRewriteRules(cleanup, config.rewrite());
+            rewriteSimplificationRules = addSimplificationRewriteRules(simplification, config.rewrite());
         }
         if (config.constantFolding()) {
-            cleanup.add(new ConstantFoldingRule());
+            simplification.add(new ConstantFoldingRule());
         }
         if (config.commonSubexpressionElimination()) {
-            cleanup.add(new CommonSubexpressionEliminationRule(config.cse()));
+            simplification.add(new CommonSubexpressionEliminationRule(config.cse()));
         }
         if (config.deadCodeElimination()) {
-            cleanup.add(new DeadCodeEliminationRule());
+            simplification.add(new DeadCodeEliminationRule());
         }
-        flushCleanup(rules, cleanup, rewriteCleanupRules == cleanup.size());
+        flushSimplification(rules, simplification, rewriteSimplificationRules == simplification.size());
         if (config.optionalLowering()) {
             addLoweringRules(rules, config.rewrite());
         }
@@ -67,23 +67,23 @@ public final class OptimizerFactory {
         return config.enabled() ? new SemanticForwardCanonicalizer(config.rewrite()) : null;
     }
 
-    private static void flushCleanup(
+    private static void flushSimplification(
             List<OptimizationRule> rules,
-            List<OptimizationRule> cleanup,
+            List<OptimizationRule> simplification,
             boolean rewriteOnly
     ) {
-        if (cleanup.isEmpty()) {
+        if (simplification.isEmpty()) {
             return;
         }
-        if (cleanup.size() == 1 || rewriteOnly) {
-            rules.addAll(cleanup);
+        if (simplification.size() == 1 || rewriteOnly) {
+            rules.addAll(simplification);
         } else {
-            rules.add(new CleanupFixpointRule(cleanup));
+            rules.add(new SimplificationFixpointRule(simplification));
         }
-        cleanup.clear();
+        simplification.clear();
     }
 
-    private static int addCleanupRewriteRules(List<OptimizationRule> rules, RewriteConfig config) {
+    private static int addSimplificationRewriteRules(List<OptimizationRule> rules, RewriteConfig config) {
         RewriteConfig resolved = config == null ? RewriteConfig.defaults() : config;
         int added = 0;
         if (resolved.piecewiseLowering().anyEnabled()) {

@@ -11,12 +11,12 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 public class AbcStageOrderCompileRegressionTest {
     @Test
-    void abcTrainingGraphCompilesAndRunsWithCleanupFixpointForF64() {
+    void abcTrainingGraphCompilesAndRunsWithSimplificationFixpointForF64() {
         assertDoesNotThrow(() -> compileAndRun(DataType.FLOAT64));
     }
 
     @Test
-    void abcTrainingGraphCompilesAndRunsWithCleanupFixpointForF32() {
+    void abcTrainingGraphCompilesAndRunsWithSimplificationFixpointForF32() {
         assertDoesNotThrow(() -> compileAndRun(DataType.FLOAT32));
     }
 

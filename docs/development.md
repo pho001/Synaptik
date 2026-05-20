@@ -380,8 +380,8 @@ Add changes by ownership:
 | Change | Target path |
 |---|---|
 | Algebraic identity or lowering | `src/main/java/graph/optimizer/rewrite` |
-| Constant folding | `src/main/java/graph/optimizer/cleanup` |
-| Common subexpression behavior | `src/main/java/graph/optimizer/cleanup/CommonSubexpressionEliminationRule.java` |
+| Constant folding | `src/main/java/graph/optimizer/simplify` |
+| Common subexpression behavior | `src/main/java/graph/optimizer/simplify/CommonSubexpressionEliminationRule.java` |
 | Backend ownership planning | `src/main/java/graph/compile` and `src/main/java/graph/compile/planning/partition` |
 | Region/fused execution units | `src/main/java/graph/compile/planning/region` and CPU-specific fused policy under `src/main/java/backend/cpu/fused` |
 | Memory reuse or binding policy | `src/main/java/graph/compile/planning/memory` |

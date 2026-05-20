@@ -30,18 +30,18 @@ final class AbcF64StageOrderHotspotBenchmarkTest {
     @Test
     void compareArBeforeFuseVariants() {
         ExecutionProfile best = loadBestProfile();
-        ExecutionProfile cleanupFuse = withCompile(best, "cleanup-fuse", best.compile()
+        ExecutionProfile simplificationFuse = withCompile(best, "simplification-fuse", best.compile()
                 .withMemoryPlanning(MemoryPlanningConfig.disabledUnlessRequired()));
         ExecutionProfile bestNonCheapStridedW2 = withRuntime(best, "noncheap-strided-w2", runtimeWithNonCheapStridedAsmWidth(best.runtime(), 2));
-        ExecutionProfile cleanupFuseMem = withCompile(best, "cleanup-fuse-mem", best.compile());
+        ExecutionProfile simplificationFuseMem = withCompile(best, "simplification-fuse-mem", best.compile());
 
         BenchmarkRequest request = new BenchmarkRequest(
                 StandardWorkloads.abcSequenceMatmulBlasBenchmark("abc_sequence_matmul_f64_stage_order_probe"),
                 List.of(
                         BenchmarkEntry.candidate("best-current", best),
                         BenchmarkEntry.candidate("best-current-noncheap-strided-w2", bestNonCheapStridedW2),
-                        BenchmarkEntry.candidate("cleanup-fuse", cleanupFuse),
-                        BenchmarkEntry.candidate("cleanup-fuse-mem", cleanupFuseMem)
+                        BenchmarkEntry.candidate("simplification-fuse", simplificationFuse),
+                        BenchmarkEntry.candidate("simplification-fuse-mem", simplificationFuseMem)
                 ),
                 MEASUREMENT,
                 ValidationPolicy.disabled(),

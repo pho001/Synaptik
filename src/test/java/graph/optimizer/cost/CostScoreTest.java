@@ -1,6 +1,6 @@
 package graph.optimizer.cost;
 
-import graph.optimizer.cleanup.GraphOptimizationScore;
+import graph.optimizer.simplify.GraphOptimizationScore;
 import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
 import org.junit.jupiter.api.Test;
 
@@ -14,16 +14,16 @@ class CostScoreTest {
     @Test
     void lexicographicComparisonUsesComponentDirections() {
         CostScore previous = CostScore.of(
-                "GraphCleanupCostModel",
-                "optimizer-cleanup-graph",
+                "GraphSimplificationCostModel",
+                "optimizer-simplification-graph",
                 List.of(
                         CostComponent.lowerIsBetter("weightedOperationCost", 10.0d, "cost"),
                         CostComponent.lowerIsBetter("nodeCount", 5.0d, "nodes")
                 )
         );
         CostScore improved = CostScore.of(
-                "GraphCleanupCostModel",
-                "optimizer-cleanup-graph",
+                "GraphSimplificationCostModel",
+                "optimizer-simplification-graph",
                 List.of(
                         CostComponent.lowerIsBetter("weightedOperationCost", 8.0d, "cost"),
                         CostComponent.lowerIsBetter("nodeCount", 7.0d, "nodes")
@@ -36,9 +36,9 @@ class CostScoreTest {
 
     @Test
     void incompatibleModelsDoNotCompareAcrossSpecializedScores() {
-        CostScore cleanup = CostScore.of(
-                "GraphCleanupCostModel",
-                "optimizer-cleanup-graph",
+        CostScore simplification = CostScore.of(
+                "GraphSimplificationCostModel",
+                "optimizer-simplification-graph",
                 List.of(CostComponent.lowerIsBetter("nodeCount", 3.0d, "nodes"))
         );
         CostScore accelerator = CostScore.of(
@@ -47,21 +47,21 @@ class CostScoreTest {
                 List.of(CostComponent.higherIsBetter("finalScore", 100.0d, "score"))
         );
 
-        assertEquals(CostComparison.INCOMPARABLE, cleanup.compare(accelerator));
+        assertEquals(CostComparison.INCOMPARABLE, simplification.compare(accelerator));
     }
 
     @Test
-    void graphOptimizationScoreExportsCleanupVocabularyWithoutChangingOrdering() {
+    void graphOptimizationScoreExportsSimplificationVocabularyWithoutChangingOrdering() {
         GraphOptimizationScore previous = new GraphOptimizationScore(12, 5, 4);
         GraphOptimizationScore improved = new GraphOptimizationScore(10, 10, 10);
 
         assertTrue(improved.compareTo(previous) < 0);
         assertEquals(CostComparison.IMPROVED, improved.toCostScore().compare(previous.toCostScore()));
 
-        CostExplanation explanation = improved.toCostScore().explain("cleanup-fixpoint-improved");
-        assertEquals("GraphCleanupCostModel", explanation.modelName());
-        assertEquals("optimizer-cleanup-graph", explanation.inputKind());
-        assertEquals("cleanup-fixpoint-improved", explanation.reasonCode());
+        CostExplanation explanation = improved.toCostScore().explain("simplification-fixpoint-improved");
+        assertEquals("GraphSimplificationCostModel", explanation.modelName());
+        assertEquals("optimizer-simplification-graph", explanation.inputKind());
+        assertEquals("simplification-fixpoint-improved", explanation.reasonCode());
         assertTrue(explanation.rawComponents().stream().anyMatch(component -> component.name().equals("weightedOperationCost")));
     }
 

@@ -23,7 +23,7 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 2. [Architecture: System Overview](architecture.md#system-overview) - the layered system model, package boundaries, and lifecycle artifacts.
 3. [Framework Concepts: Tensors As Graph Nodes](framework-concepts.md#tensors-as-graph-nodes) - core vocabulary and the mental model behind compiled tensor execution.
 4. [Compute Flow: Lifecycle Map](compute-flow.md#lifecycle-map) - the detailed journey from `Tensor` graph construction through compile, prepare, execution, memory binding, and traces.
-5. [Graph Optimizer](graph-optimizer.md#graph-optimizer) - backend-neutral graph cleanup and lowering: `AR`, `CF`, `CSE`, `DCE`, and optional `LOWER`.
+5. [Graph Optimizer](graph-optimizer.md#graph-optimizer) - backend-neutral graph simplification and lowering: `AR`, `CF`, `CSE`, `DCE`, and optional `LOWER`.
 6. [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions) - backend ownership planning, CPU natural regions, accelerator regions, region optimization, memory planning, and publication.
 7. [Native Bridges & BLAS: Term Map At A Glance](native-bridges-and-blas.md#term-map-at-a-glance) - what BLAS/GEMM are, how Java FFM calls native libraries, and how OpenBLAS is selected.
 8. [Modules: Package Map](modules.md#package-map) - package-by-package responsibilities, dependencies, invariants, and failure modes.
@@ -86,7 +86,7 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 | [architecture.md](architecture.md#system-overview) | High-level architecture, lifecycle boundaries, package responsibilities, backend dispatch, and extension points. |
 | [framework-concepts.md](framework-concepts.md#tensors-as-graph-nodes) | First-principles mental models for tensors, semantic graphs, compiled graphs, prepared execution, backend policy, and tuning. |
 | [compute-flow.md](compute-flow.md#lifecycle-map) | Deep end-to-end walkthrough from graph building to `Tensor.compute(...)`, compile, prepare, execution, traces, and reuse rules. |
-| [graph-optimizer.md](graph-optimizer.md#graph-optimizer) | Backend-neutral graph optimization, cleanup fixpoint behavior, lowering, snapshot safety, and optimizer diagnostics. |
+| [graph-optimizer.md](graph-optimizer.md#graph-optimizer) | Backend-neutral graph optimization, simplification fixpoint behavior, lowering, snapshot safety, and optimizer diagnostics. |
 | [backend-planning-and-regions.md](backend-planning-and-regions.md#backend-planning-and-regions) | Backend ownership planning, CPU natural regions, accelerator regions, region optimization, memory planning, publication policy, and benchmark semantics. |
 | [onnx.md](onnx.md#onnx-import-and-export) | ONNX import/export boundary, public API, supported static dense inference subset, dtype/op mapping, and failure policy. |
 | [cpu-bf16.md](cpu-bf16.md#cpu-bf16-runtime) | CPU BF16 storage/compute/accumulation contract, conversion costs, fusion limits, BLAS implications, and trace-reading guidance. |

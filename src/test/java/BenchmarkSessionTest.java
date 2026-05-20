@@ -757,16 +757,16 @@ public class BenchmarkSessionTest {
                         ))
         );
         var optimizerTrace = new graph.optimizer.state.OptimizerTrace(
-                List.of("cleanup-cost iteration=1 reason=cleanup-improved"),
+                List.of("simplification-cost iteration=1 reason=simplification-improved"),
                 List.of(graph.optimizer.cost.CostScore.of(
-                        "GraphCleanupCostModel",
-                        "optimizer-cleanup-graph",
+                        "GraphSimplificationCostModel",
+                        "optimizer-simplification-graph",
                         List.of(graph.optimizer.cost.CostComponent.lowerIsBetter(
                                 "weightedOperationCost",
                                 12.0d,
-                                "lexicographic cleanup priority"
+                                "lexicographic simplification priority"
                         ))
-                ).explain("cleanup-improved", graph.optimizer.cost.CostComparison.IMPROVED))
+                ).explain("simplification-improved", graph.optimizer.cost.CostComparison.IMPROVED))
         );
 
         BenchmarkReport report = BenchmarkReport.of(
@@ -809,9 +809,9 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("reason=accepted-static-profitable"));
         assertTrue(text.contains("finalScore=7780.000000 HIGHER_IS_BETTER"));
         assertTrue(text.contains("optimizerCost:"));
-        assertTrue(text.contains("model=GraphCleanupCostModel"));
-        assertTrue(text.contains("input=optimizer-cleanup-graph"));
-        assertTrue(text.contains("reason=cleanup-improved"));
+        assertTrue(text.contains("model=GraphSimplificationCostModel"));
+        assertTrue(text.contains("input=optimizer-simplification-graph"));
+        assertTrue(text.contains("reason=simplification-improved"));
         assertTrue(text.contains("rejectedFinalists:"));
         assertTrue(text.contains("reason=rejected-materialization-cost"));
         assertTrue(text.contains("input=accelerator-partition-finalist"));
@@ -819,9 +819,9 @@ public class BenchmarkSessionTest {
         String json = JsonBenchmarkReportRenderer.render(report);
         assertTrue(json.contains("\"backendSelectionCost\":"));
         assertTrue(json.contains("\"optimizerCost\":"));
-        assertTrue(json.contains("\"events\": [\"cleanup-cost iteration=1 reason=cleanup-improved\"]"));
-        assertTrue(json.contains("\"model\": \"GraphCleanupCostModel\""));
-        assertTrue(json.contains("\"input_kind\": \"optimizer-cleanup-graph\""));
+        assertTrue(json.contains("\"events\": [\"simplification-cost iteration=1 reason=simplification-improved\"]"));
+        assertTrue(json.contains("\"model\": \"GraphSimplificationCostModel\""));
+        assertTrue(json.contains("\"input_kind\": \"optimizer-simplification-graph\""));
         assertTrue(json.contains("\"comparison\": \"IMPROVED\""));
         assertTrue(json.contains("\"selected\": ["));
         assertTrue(json.contains("\"rejectedFinalists\": ["));

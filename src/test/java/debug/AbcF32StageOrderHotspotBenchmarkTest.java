@@ -32,8 +32,8 @@ final class AbcF32StageOrderHotspotBenchmarkTest {
                 .withMemoryPlanning(MemoryPlanningConfig.disabledUnlessRequired()));
         ExecutionProfile arPartFuseMem = withCompile(best, "ar-part-fuse-mem", best.compile()
                 .withGraphOptimization(GraphOptimizationConfig.stages(true, false, false, false, false)));
-        ExecutionProfile cleanupFuseMem = withCompile(best, "cleanup-fuse-mem", best.compile());
-        ExecutionProfile cleanupNoMem = withCompile(best, "cleanup-fuse", best.compile()
+        ExecutionProfile simplificationFuseMem = withCompile(best, "simplification-fuse-mem", best.compile());
+        ExecutionProfile simplificationNoMem = withCompile(best, "simplification-fuse", best.compile()
                 .withMemoryPlanning(MemoryPlanningConfig.disabledUnlessRequired()));
 
         BenchmarkRequest request = new BenchmarkRequest(
@@ -42,8 +42,8 @@ final class AbcF32StageOrderHotspotBenchmarkTest {
                         BenchmarkEntry.candidate("best-current", best),
                         BenchmarkEntry.candidate("ar-fuse", arFuse),
                         BenchmarkEntry.candidate("ar-part-fuse-mem", arPartFuseMem),
-                        BenchmarkEntry.candidate("cleanup-fuse-mem", cleanupFuseMem),
-                        BenchmarkEntry.candidate("cleanup-fuse", cleanupNoMem)
+                        BenchmarkEntry.candidate("simplification-fuse-mem", simplificationFuseMem),
+                        BenchmarkEntry.candidate("simplification-fuse", simplificationNoMem)
                 ),
                 MEASUREMENT,
                 ValidationPolicy.disabled(),

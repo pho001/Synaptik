@@ -1,4 +1,4 @@
-package graph.optimizer.cleanup;
+package graph.optimizer.simplify;
 
 import graph.optimizer.rewrite.LocalTensorRewriteRule;
 import operations.Operation;
