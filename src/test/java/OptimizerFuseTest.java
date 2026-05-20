@@ -42,7 +42,7 @@ public class OptimizerFuseTest {
 
         assertNotNull(e.getOperation(), "Final tensor should have an operation");
         long fusedPreparedSteps = prepared.forwardSteps().stream()
-                .filter(step -> step.metadata().fusedExecutable() != null)
+                .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
                 .count();
         assertTrue(fusedPreparedSteps > 0, "Expected prepared fused execution metadata");
         assertTrue(prepared.forwardSteps().size() < baselineForwardSteps,
@@ -66,7 +66,7 @@ public class OptimizerFuseTest {
         prepared.execute(backend.runtime.ExecutionMode.FORWARD);
 
         var fusedStep = prepared.forwardSteps().stream()
-                .filter(step -> step.metadata().fusedExecutable() != null)
+                .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
                 .findFirst()
                 .orElseThrow();
 
@@ -89,7 +89,7 @@ public class OptimizerFuseTest {
         prepared.execute(backend.runtime.ExecutionMode.FORWARD);
 
         long fusedPreparedSteps = prepared.forwardSteps().stream()
-                .filter(step -> step.metadata().fusedExecutable() != null)
+                .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
                 .count();
         assertTrue(fusedPreparedSteps > 0, "Expected prepared fused execution metadata for view-fed chain");
 
@@ -111,7 +111,7 @@ public class OptimizerFuseTest {
         prepared.execute(backend.runtime.ExecutionMode.FORWARD);
 
         var fusedStep = prepared.forwardSteps().stream()
-                .filter(step -> step.metadata().fusedExecutable() != null)
+                .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
                 .findFirst()
                 .orElseThrow();
 
@@ -132,7 +132,7 @@ public class OptimizerFuseTest {
         prepared.execute(backend.runtime.ExecutionMode.FORWARD);
 
         var fusedStep = prepared.forwardSteps().stream()
-                .filter(step -> step.metadata().fusedExecutable() != null)
+                .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
                 .findFirst()
                 .orElseThrow();
 
@@ -154,7 +154,7 @@ public class OptimizerFuseTest {
         prepared.execute(backend.runtime.ExecutionMode.FORWARD);
 
         var fusedStep = prepared.forwardSteps().stream()
-                .filter(step -> step.metadata().fusedExecutable() != null)
+                .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
                 .findFirst()
                 .orElseThrow();
 
@@ -174,7 +174,7 @@ public class OptimizerFuseTest {
         prepared.execute(backend.runtime.ExecutionMode.FORWARD);
 
         var fusedStep = prepared.forwardSteps().stream()
-                .filter(step -> step.metadata().fusedExecutable() != null)
+                .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
                 .findFirst()
                 .orElseThrow();
 
@@ -195,7 +195,7 @@ public class OptimizerFuseTest {
         prepared.execute(backend.runtime.ExecutionMode.FORWARD);
 
         var fusedStep = prepared.forwardSteps().stream()
-                .filter(step -> step.metadata().fusedExecutable() != null)
+                .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
                 .findFirst()
                 .orElseThrow();
 
@@ -217,7 +217,7 @@ public class OptimizerFuseTest {
                         .withAccelerator(config.runtime.AcceleratorConfig.disabled()));
 
         assertTrue(prepared.forwardSteps().stream()
-                .anyMatch(step -> step.metadata().fusedExecutable() != null));
+                .anyMatch(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null));
     }
 
     private static CompileConfig fuseOnlyInferenceConfig() {

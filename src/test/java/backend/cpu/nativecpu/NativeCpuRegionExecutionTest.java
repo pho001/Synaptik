@@ -43,14 +43,14 @@ class NativeCpuRegionExecutionTest {
 
         var prepared = CompiledGraph.compile(out, CompileConfig.inference()).prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE));
         var regionStep = prepared.forwardSteps().stream()
-                .filter(step -> step.metadata().cpuRegionExecutable() != null)
+                .filter(step -> testsupport.MetadataArtifacts.cpuRegionExecutable(step.metadata()) != null)
                 .findFirst()
                 .orElseThrow();
 
         assertEquals(ComputeBackend.CPU, regionStep.metadata().backend());
         assertEquals(PartitionExecutionRole.ANCHOR, regionStep.metadata().partitionRole());
-        assertEquals(LoweringFamily.CPU_NATIVE_REGION, regionStep.metadata().cpuRegionExecutable().regionExecutionPlan().loweringFamily());
-        assertEquals(List.of(regionStep.compiledNode().id()), regionStep.metadata().cpuRegionExecutable().regionExecutionPlan().boundaryOutputNodeIds());
+        assertEquals(LoweringFamily.CPU_NATIVE_REGION, testsupport.MetadataArtifacts.cpuRegionExecutable(regionStep.metadata()).regionExecutionPlan().loweringFamily());
+        assertEquals(List.of(regionStep.compiledNode().id()), testsupport.MetadataArtifacts.cpuRegionExecutable(regionStep.metadata()).regionExecutionPlan().boundaryOutputNodeIds());
     }
 
     @Test

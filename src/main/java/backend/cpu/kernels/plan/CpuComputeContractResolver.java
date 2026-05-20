@@ -6,6 +6,7 @@ import backend.cpu.kernels.CpuExecutionBackend;
 import backend.cpu.kernels.nn.conv2d.plan.ResolvedConv2dHints;
 import backend.cpu.kernels.ResolvedCpuComputeContract;
 import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
+import graph.compile.descriptor.CompiledTensorDescriptor;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -21,6 +22,27 @@ public final class CpuComputeContractResolver {
             throw new IllegalArgumentException("node cannot be null");
         }
         DataType dataType = node.getDataType() == null ? DataType.FLOAT64 : node.getDataType();
+        return resolve(op, dataType, matMulHints, conv2dHints);
+    }
+
+    public ResolvedCpuComputeContract resolve(
+            Operation op,
+            CompiledTensorDescriptor descriptor,
+            ResolvedMatMulHints matMulHints,
+            ResolvedConv2dHints conv2dHints
+    ) {
+        if (descriptor == null) {
+            throw new IllegalArgumentException("descriptor cannot be null");
+        }
+        return resolve(op, descriptor.dataType(), matMulHints, conv2dHints);
+    }
+
+    private ResolvedCpuComputeContract resolve(
+            Operation op,
+            DataType dataType,
+            ResolvedMatMulHints matMulHints,
+            ResolvedConv2dHints conv2dHints
+    ) {
         if (op == null) {
             return defaultContractFor(dataType, CpuExecutionBackend.CPU_GENERIC);
         }

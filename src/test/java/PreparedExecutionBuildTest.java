@@ -180,7 +180,7 @@ public class PreparedExecutionBuildTest {
         assertTrue(selectedDecision.costSummary().estimatedTransferBytes() >= 0L);
         assertTrue(execution.forwardSteps().stream()
                 .anyMatch(step -> step.metadata().backend() == ComputeBackend.GPU_METAL
-                        && step.metadata().acceleratorExecutable() instanceof PreparedMetalExecutable));
+                        && testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()) instanceof PreparedMetalExecutable));
     }
 
     @Test
@@ -322,15 +322,7 @@ public class PreparedExecutionBuildTest {
                 null,
                 null
         );
-        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
-                ComputeBackend.CPU,
-                null,
-                cpuPlan,
-                null,
-                null,
-                null,
-                PartitionExecutionRole.NONE
-        );
+        CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.cpuMetadata(cpuPlan);
         Map<Integer, CompiledNodeExecutionMetadata> metadataIndex = Map.of(consumerNodeId, metadata);
         ExecutionState state = ExecutionState.create(nodes, CompiledTensorDescriptorBuilder.build(nodes), metadataIndex, nodes.getLast().id());
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
@@ -370,7 +362,6 @@ public class PreparedExecutionBuildTest {
         assertTrue(earlyProducerNodeId < earlyConsumerNodeId);
         assertTrue(earlyConsumerNodeId < gpuMergeNodeId);
         PartitionPlanningContext context = new PartitionPlanningContext(
-                RuntimeConfig.inferenceDefaults(),
                 false,
                 nodes,
                 CompiledTensorDescriptorBuilder.build(nodes),
@@ -493,7 +484,7 @@ public class PreparedExecutionBuildTest {
         assertTrue(execution.forwardSteps().stream()
                 .anyMatch(step -> step.compiledNode().id() == reductionNodeId
                         && step.metadata().backend() == ComputeBackend.GPU_CUDA
-                        && step.metadata().acceleratorExecutable() instanceof PreparedCudaExecutable));
+                        && testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()) instanceof PreparedCudaExecutable));
     }
 
     @Test
@@ -512,7 +503,7 @@ public class PreparedExecutionBuildTest {
         assertTrue(execution.forwardSteps().stream()
                 .anyMatch(step -> step.compiledNode().id() == sumNodeId
                         && step.metadata().backend() == ComputeBackend.GPU_METAL
-                        && step.metadata().acceleratorExecutable() instanceof PreparedMetalExecutable));
+                        && testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()) instanceof PreparedMetalExecutable));
     }
 
     @Test
@@ -539,8 +530,8 @@ public class PreparedExecutionBuildTest {
         PreparedMetalExecutable executable = execution.forwardSteps().stream()
                 .filter(step -> step.compiledNode().id() == convNodeId
                         && step.metadata().backend() == ComputeBackend.GPU_METAL
-                        && step.metadata().acceleratorExecutable() instanceof PreparedMetalExecutable)
-                .map(step -> (PreparedMetalExecutable) step.metadata().acceleratorExecutable())
+                        && testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()) instanceof PreparedMetalExecutable)
+                .map(step -> (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()))
                 .findFirst()
                 .orElseThrow();
         assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
@@ -578,8 +569,8 @@ public class PreparedExecutionBuildTest {
         PreparedMetalExecutable executable = execution.forwardSteps().stream()
                 .filter(step -> step.compiledNode().id() == convNodeId
                         && step.metadata().backend() == ComputeBackend.GPU_METAL
-                        && step.metadata().acceleratorExecutable() instanceof PreparedMetalExecutable)
-                .map(step -> (PreparedMetalExecutable) step.metadata().acceleratorExecutable())
+                        && testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()) instanceof PreparedMetalExecutable)
+                .map(step -> (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()))
                 .findFirst()
                 .orElseThrow();
         assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
@@ -607,8 +598,8 @@ public class PreparedExecutionBuildTest {
         PreparedMetalExecutable executable = execution.forwardSteps().stream()
                 .filter(step -> step.compiledNode().id() == poolNodeId
                         && step.metadata().backend() == ComputeBackend.GPU_METAL
-                        && step.metadata().acceleratorExecutable() instanceof PreparedMetalExecutable)
-                .map(step -> (PreparedMetalExecutable) step.metadata().acceleratorExecutable())
+                        && testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()) instanceof PreparedMetalExecutable)
+                .map(step -> (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()))
                 .findFirst()
                 .orElseThrow();
         assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
@@ -636,7 +627,7 @@ public class PreparedExecutionBuildTest {
         assertTrue(execution.forwardSteps().stream()
                 .anyMatch(step -> step.compiledNode().id() == layerNormNodeId
                         && step.metadata().backend() == ComputeBackend.GPU_CUDA
-                        && step.metadata().acceleratorExecutable() instanceof PreparedCudaExecutable));
+                        && testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()) instanceof PreparedCudaExecutable));
     }
 
     @Test
@@ -767,7 +758,7 @@ public class PreparedExecutionBuildTest {
         assertTrue(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_CUDA, layerNormNodeId));
         PreparedCudaExecutable accelerator = (PreparedCudaExecutable) execution.forwardSteps().stream()
                 .filter(step -> step.compiledNode().id() == layerNormNodeId)
-                .map(step -> step.metadata().acceleratorExecutable())
+                .map(step -> testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()))
                 .filter(PreparedCudaExecutable.class::isInstance)
                 .findFirst()
                 .orElseThrow();
@@ -802,7 +793,7 @@ public class PreparedExecutionBuildTest {
         assertTrue(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_METAL, rmsNormNodeId));
         PreparedMetalExecutable accelerator = (PreparedMetalExecutable) execution.forwardSteps().stream()
                 .filter(step -> step.compiledNode().id() == rmsNormNodeId)
-                .map(step -> step.metadata().acceleratorExecutable())
+                .map(step -> testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()))
                 .filter(PreparedMetalExecutable.class::isInstance)
                 .findFirst()
                 .orElseThrow();
@@ -844,7 +835,7 @@ public class PreparedExecutionBuildTest {
                 .toList();
 
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION, executable.compoundSummary().patternType());
         assertTrue(executable.compoundSummary().supported());
         assertTrue(executable.plan().nodeIds().containsAll(List.of(linearNodeId, reluNodeId)));
@@ -892,7 +883,7 @@ public class PreparedExecutionBuildTest {
                 .toList();
 
         assertEquals(1, gpuSteps.size());
-        PreparedCudaExecutable executable = (PreparedCudaExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedCudaExecutable executable = (PreparedCudaExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION, executable.compoundSummary().patternType());
         assertTrue(executable.compoundSummary().supported());
         assertTrue(executable.compoundSummary().orderedNodeIds().containsAll(List.of(linearNodeId, reluNodeId)));
@@ -967,7 +958,7 @@ public class PreparedExecutionBuildTest {
         int reluNodeId = nodeId(compiled, Operation.OpType.RELU);
         PreparedMetalExecutable executable = (PreparedMetalExecutable) execution.forwardSteps().stream()
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
-                .map(step -> step.metadata().acceleratorExecutable())
+                .map(step -> testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()))
                 .findFirst()
                 .orElseThrow();
 
@@ -1013,7 +1004,7 @@ public class PreparedExecutionBuildTest {
         int reluNodeId = nodeId(compiled, Operation.OpType.RELU);
         PreparedCudaExecutable executable = (PreparedCudaExecutable) execution.forwardSteps().stream()
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_CUDA)
-                .map(step -> step.metadata().acceleratorExecutable())
+                .map(step -> testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()))
                 .findFirst()
                 .orElseThrow();
 
@@ -1071,7 +1062,7 @@ public class PreparedExecutionBuildTest {
                 .toList();
 
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(GpuCompoundPatternType.ELEMENTWISE_CHAIN, executable.compoundSummary().patternType());
         assertTrue(executable.compoundSummary().supported());
         assertTrue(executable.compoundSummary().orderedNodeIds().containsAll(List.of(addNodeId, reluNodeId, expNodeId)));
@@ -1093,7 +1084,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(RuntimeConfig.inferenceDefaults());
         PreparedMetalExecutable executable = (PreparedMetalExecutable) execution.forwardSteps().stream()
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
-                .map(step -> step.metadata().acceleratorExecutable())
+                .map(step -> testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()))
                 .findFirst()
                 .orElseThrow();
 
@@ -1126,7 +1117,7 @@ public class PreparedExecutionBuildTest {
                 .toList();
 
         assertEquals(1, gpuSteps.size());
-        PreparedCudaExecutable executable = (PreparedCudaExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedCudaExecutable executable = (PreparedCudaExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(GpuCompoundPatternType.ELEMENTWISE_CHAIN, executable.compoundSummary().patternType());
         assertTrue(executable.compoundSummary().supported());
         assertTrue(executable.compoundSummary().orderedNodeIds().containsAll(List.of(addNodeId, reluNodeId, expNodeId)));
@@ -1148,7 +1139,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(RuntimeConfig.inferenceDefaults());
         PreparedCudaExecutable executable = (PreparedCudaExecutable) execution.forwardSteps().stream()
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_CUDA)
-                .map(step -> step.metadata().acceleratorExecutable())
+                .map(step -> testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()))
                 .findFirst()
                 .orElseThrow();
 
@@ -1180,7 +1171,7 @@ public class PreparedExecutionBuildTest {
         int logNodeId = nodeId(compiled, Operation.OpType.LOG);
         PreparedMetalExecutable executable = (PreparedMetalExecutable) execution.forwardSteps().stream()
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
-                .map(step -> step.metadata().acceleratorExecutable())
+                .map(step -> testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()))
                 .findFirst()
                 .orElseThrow();
 
@@ -1197,7 +1188,7 @@ public class PreparedExecutionBuildTest {
         PreparedExecution required = compiled.prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_METAL));
         assertTrue(required.forwardSteps().stream()
                 .anyMatch(step -> step.metadata().backend() == ComputeBackend.GPU_METAL
-                        && step.metadata().acceleratorExecutable() != null));
+                        && testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()) != null));
     }
 
     @Test
@@ -1220,7 +1211,7 @@ public class PreparedExecutionBuildTest {
         int logNodeId = nodeId(compiled, Operation.OpType.LOG);
         PreparedCudaExecutable executable = (PreparedCudaExecutable) execution.forwardSteps().stream()
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_CUDA)
-                .map(step -> step.metadata().acceleratorExecutable())
+                .map(step -> testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()))
                 .findFirst()
                 .orElseThrow();
 
@@ -1237,7 +1228,7 @@ public class PreparedExecutionBuildTest {
         PreparedExecution required = compiled.prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_CUDA));
         assertTrue(required.forwardSteps().stream()
                 .anyMatch(step -> step.metadata().backend() == ComputeBackend.GPU_CUDA
-                        && step.metadata().acceleratorExecutable() != null));
+                        && testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()) != null));
     }
 
     @Test
@@ -1301,14 +1292,14 @@ public class PreparedExecutionBuildTest {
                 .prepare(RuntimeConfig.inferenceDefaults());
 
         var fusedStep = execution.forwardSteps().stream()
-                .filter(step -> step.metadata().fusedExecutable() != null)
+                .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
                 .findFirst()
                 .orElseThrow();
 
-        assertEquals("BFLOAT16", fusedStep.metadata().cpuPlan().computeContract().storageType().name());
-        assertEquals("F32", fusedStep.metadata().cpuPlan().computeContract().computeType().name());
-        assertEquals("CPU_FUSED", fusedStep.metadata().cpuPlan().computeContract().backend().name());
-        assertNotNull(fusedStep.metadata().fusedExecutable());
+        assertEquals("BFLOAT16", testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).computeContract().storageType().name());
+        assertEquals("F32", testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).computeContract().computeType().name());
+        assertEquals("CPU_FUSED", testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).computeContract().backend().name());
+        assertNotNull(testsupport.MetadataArtifacts.fusedExecutable(fusedStep.metadata()));
     }
 
     @Test
@@ -1326,14 +1317,14 @@ public class PreparedExecutionBuildTest {
                 ));
 
         var fusedStep = execution.forwardSteps().stream()
-                .filter(step -> step.metadata().fusedExecutable() != null)
+                .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
                 .findFirst()
                 .orElseThrow();
 
-        assertEquals("FLOAT32", fusedStep.metadata().cpuPlan().computeContract().storageType().name());
-        assertEquals("F32", fusedStep.metadata().cpuPlan().computeContract().computeType().name());
-        assertEquals("CPU_FUSED", fusedStep.metadata().cpuPlan().computeContract().backend().name());
-        assertTrue(fusedStep.metadata().fusedExecutable().getClass().getName().startsWith("backend.cpu.fused.asm."));
+        assertEquals("FLOAT32", testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).computeContract().storageType().name());
+        assertEquals("F32", testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).computeContract().computeType().name());
+        assertEquals("CPU_FUSED", testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).computeContract().backend().name());
+        assertTrue(testsupport.MetadataArtifacts.fusedExecutable(fusedStep.metadata()).getClass().getName().startsWith("backend.cpu.fused.asm."));
     }
 
     @Test
@@ -1351,14 +1342,14 @@ public class PreparedExecutionBuildTest {
                 ));
 
         var fusedStep = execution.forwardSteps().stream()
-                .filter(step -> step.metadata().fusedExecutable() != null)
+                .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
                 .findFirst()
                 .orElseThrow();
 
-        assertEquals("FLOAT64", fusedStep.metadata().cpuPlan().computeContract().storageType().name());
-        assertEquals("F64", fusedStep.metadata().cpuPlan().computeContract().computeType().name());
-        assertEquals("CPU_FUSED", fusedStep.metadata().cpuPlan().computeContract().backend().name());
-        assertTrue(fusedStep.metadata().fusedExecutable().getClass().getName().startsWith("backend.cpu.fused.asm."));
+        assertEquals("FLOAT64", testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).computeContract().storageType().name());
+        assertEquals("F64", testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).computeContract().computeType().name());
+        assertEquals("CPU_FUSED", testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).computeContract().backend().name());
+        assertTrue(testsupport.MetadataArtifacts.fusedExecutable(fusedStep.metadata()).getClass().getName().startsWith("backend.cpu.fused.asm."));
     }
 
     @Test
@@ -1371,7 +1362,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(runtimeWithFusedAsmWidth(1));
 
         var width1Fused = width1Execution.forwardSteps().stream()
-                .filter(step -> step.metadata().fusedExecutable() != null)
+                .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
                 .findFirst()
                 .orElseThrow();
 
@@ -1383,18 +1374,18 @@ public class PreparedExecutionBuildTest {
                 .prepare(runtimeWithFusedAsmWidth(2));
 
         var width2Fused = width2Execution.forwardSteps().stream()
-                .filter(step -> step.metadata().fusedExecutable() != null)
+                .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
                 .findFirst()
                 .orElseThrow();
 
-        assertEquals(1, width1Fused.metadata().cpuPlan().dispatchHints().vectorWidth());
-        assertEquals(2, width2Fused.metadata().cpuPlan().dispatchHints().vectorWidth());
+        assertEquals(1, testsupport.MetadataArtifacts.cpuPlan(width1Fused.metadata()).dispatchHints().vectorWidth());
+        assertEquals(2, testsupport.MetadataArtifacts.cpuPlan(width2Fused.metadata()).dispatchHints().vectorWidth());
         assertNotEquals(
-                width1Fused.metadata().fusedExecutable().getClass().getName(),
-                width2Fused.metadata().fusedExecutable().getClass().getName()
+                testsupport.MetadataArtifacts.fusedExecutable(width1Fused.metadata()).getClass().getName(),
+                testsupport.MetadataArtifacts.fusedExecutable(width2Fused.metadata()).getClass().getName()
         );
-        assertTrue(width1Fused.metadata().fusedExecutable().getClass().getName().endsWith("W1"));
-        assertTrue(width2Fused.metadata().fusedExecutable().getClass().getName().endsWith("W2"));
+        assertTrue(testsupport.MetadataArtifacts.fusedExecutable(width1Fused.metadata()).getClass().getName().endsWith("W1"));
+        assertTrue(testsupport.MetadataArtifacts.fusedExecutable(width2Fused.metadata()).getClass().getName().endsWith("W2"));
     }
 
     @Test
@@ -1412,11 +1403,11 @@ public class PreparedExecutionBuildTest {
                 ));
 
         var fusedStep = execution.forwardSteps().stream()
-                .filter(step -> step.metadata().fusedExecutable() != null)
+                .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
                 .findFirst()
                 .orElseThrow();
 
-        assertTrue(fusedStep.metadata().fusedExecutable().getClass().getName().startsWith("backend.cpu.fused.asm."));
+        assertTrue(testsupport.MetadataArtifacts.fusedExecutable(fusedStep.metadata()).getClass().getName().startsWith("backend.cpu.fused.asm."));
     }
 
     @Test
@@ -1436,10 +1427,10 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertEquals("BFLOAT16", linearStep.metadata().cpuPlan().computeContract().storageType().name());
-        assertEquals("F32", linearStep.metadata().cpuPlan().computeContract().computeType().name());
-        assertEquals("CPU_MATMUL_BLAS", linearStep.metadata().cpuPlan().computeContract().backend().name());
-        assertTrue(linearStep.metadata().cpuPlan().publishFloatContinuation());
+        assertEquals("BFLOAT16", testsupport.MetadataArtifacts.cpuPlan(linearStep.metadata()).computeContract().storageType().name());
+        assertEquals("F32", testsupport.MetadataArtifacts.cpuPlan(linearStep.metadata()).computeContract().computeType().name());
+        assertEquals("CPU_MATMUL_BLAS", testsupport.MetadataArtifacts.cpuPlan(linearStep.metadata()).computeContract().backend().name());
+        assertTrue(testsupport.MetadataArtifacts.cpuPlan(linearStep.metadata()).publishFloatContinuation());
     }
 
     @Test
@@ -1459,12 +1450,12 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertEquals("BFLOAT16", matmulStep.metadata().cpuPlan().computeContract().storageType().name());
-        assertEquals("F32", matmulStep.metadata().cpuPlan().computeContract().computeType().name());
-        assertEquals("CPU_MATMUL_BLAS", matmulStep.metadata().cpuPlan().computeContract().backend().name());
-        assertTrue(matmulStep.metadata().cpuPlan().publishFloatContinuation());
-        assertNotNull(matmulStep.metadata().cpuPlan().matMulExecutable());
-        assertEquals("BF16BlasMatMulExecutable", matmulStep.metadata().cpuPlan().matMulExecutable().getClass().getSimpleName());
+        assertEquals("BFLOAT16", testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).computeContract().storageType().name());
+        assertEquals("F32", testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).computeContract().computeType().name());
+        assertEquals("CPU_MATMUL_BLAS", testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).computeContract().backend().name());
+        assertTrue(testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).publishFloatContinuation());
+        assertNotNull(testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).matMulExecutable());
+        assertEquals("BF16BlasMatMulExecutable", testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).matMulExecutable().getClass().getSimpleName());
     }
 
     @Test
@@ -1486,8 +1477,8 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertTrue(matmulStep.metadata().cpuPlan().publishFloatContinuation());
-        assertTrue(addStep.metadata().cpuPlan().publishFloatContinuation());
+        assertTrue(testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).publishFloatContinuation());
+        assertTrue(testsupport.MetadataArtifacts.cpuPlan(addStep.metadata()).publishFloatContinuation());
     }
 
     @Test
@@ -1504,8 +1495,8 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertNotNull(matmulStep.metadata().cpuPlan().matMulExecutable());
-        assertEquals("F64BlasMatMulExecutable", matmulStep.metadata().cpuPlan().matMulExecutable().getClass().getSimpleName());
+        assertNotNull(testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).matMulExecutable());
+        assertEquals("F64BlasMatMulExecutable", testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).matMulExecutable().getClass().getSimpleName());
     }
 
     @Test
@@ -1522,8 +1513,8 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertNotNull(matmulStep.metadata().cpuPlan().matMulExecutable());
-        assertEquals("F32JavaMatMulExecutable", matmulStep.metadata().cpuPlan().matMulExecutable().getClass().getSimpleName());
+        assertNotNull(testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).matMulExecutable());
+        assertEquals("F32JavaMatMulExecutable", testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).matMulExecutable().getClass().getSimpleName());
     }
 
     @Test
@@ -1542,10 +1533,10 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertEquals("BFLOAT16", matmulStep.metadata().cpuPlan().computeContract().storageType().name());
-        assertEquals("F32", matmulStep.metadata().cpuPlan().computeContract().computeType().name());
-        assertEquals("CPU_MATMUL_BLAS", matmulStep.metadata().cpuPlan().computeContract().backend().name());
-        assertTrue(matmulStep.metadata().cpuPlan().publishFloatContinuation());
+        assertEquals("BFLOAT16", testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).computeContract().storageType().name());
+        assertEquals("F32", testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).computeContract().computeType().name());
+        assertEquals("CPU_MATMUL_BLAS", testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).computeContract().backend().name());
+        assertTrue(testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).publishFloatContinuation());
     }
 
     @Test
@@ -1562,7 +1553,7 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertTrue(matmulStep.metadata().cpuPlan().publishFloatContinuation());
+        assertTrue(testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).publishFloatContinuation());
     }
 
     @Test
@@ -1579,7 +1570,7 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertTrue(matmulStep.metadata().cpuPlan().publishFloatContinuation());
+        assertTrue(testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).publishFloatContinuation());
     }
 
     @Test
@@ -1596,7 +1587,7 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertTrue(matmulStep.metadata().cpuPlan().publishFloatContinuation());
+        assertTrue(testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).publishFloatContinuation());
     }
 
     @Test
@@ -1613,7 +1604,7 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertTrue(matmulStep.metadata().cpuPlan().publishFloatContinuation());
+        assertTrue(testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).publishFloatContinuation());
     }
 
     @Test
@@ -1636,8 +1627,8 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertTrue(matmulStep.metadata().cpuPlan().publishFloatContinuation());
-        assertTrue(whereStep.metadata().cpuPlan().publishFloatContinuation());
+        assertTrue(testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).publishFloatContinuation());
+        assertTrue(testsupport.MetadataArtifacts.cpuPlan(whereStep.metadata()).publishFloatContinuation());
     }
 
     @Test
@@ -1664,9 +1655,9 @@ public class PreparedExecutionBuildTest {
         var anchor = gpuSteps.getFirst();
         assertEquals(ComputeBackend.GPU_METAL, anchor.metadata().backend());
         assertEquals(PartitionExecutionRole.ANCHOR, anchor.metadata().partitionRole());
-        assertNotNull(anchor.metadata().acceleratorExecutable());
-        assertTrue(anchor.metadata().acceleratorExecutable() instanceof PreparedMetalExecutable);
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) anchor.metadata().acceleratorExecutable();
+        assertNotNull(testsupport.MetadataArtifacts.acceleratorExecutable(anchor.metadata()));
+        assertTrue(testsupport.MetadataArtifacts.acceleratorExecutable(anchor.metadata()) instanceof PreparedMetalExecutable);
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(anchor.metadata());
         assertNotNull(executable.bridgeContext());
         assertNotNull(executable.bridgeExecutable());
     }
@@ -1721,7 +1712,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assumeTrue(executable.bridgeContext().available());
         assumeTrue(executable.bridgeExecutable().available());
 
@@ -1773,7 +1764,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assumeTrue(executable.bridgeContext().available());
         assumeTrue(executable.bridgeExecutable().available());
 
@@ -1824,10 +1815,9 @@ public class PreparedExecutionBuildTest {
                 .prepare(RuntimeConfig.inferenceDefaults());
         PreparedMetalExecutable ceExecutable = (PreparedMetalExecutable) ceExecution.forwardSteps().stream()
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .map(step -> testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()))
                 .findFirst()
-                .orElseThrow()
-                .metadata()
-                .acceleratorExecutable();
+                .orElseThrow();
         assumeTrue(ceExecutable.bridgeContext().available());
         assumeTrue(ceExecutable.bridgeExecutable().available());
         ceExecution.execute(ExecutionMode.FORWARD);
@@ -1858,10 +1848,9 @@ public class PreparedExecutionBuildTest {
                 .prepare(RuntimeConfig.inferenceDefaults());
         PreparedMetalExecutable nllExecutable = (PreparedMetalExecutable) nllExecution.forwardSteps().stream()
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .map(step -> testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()))
                 .findFirst()
-                .orElseThrow()
-                .metadata()
-                .acceleratorExecutable();
+                .orElseThrow();
         assumeTrue(nllExecutable.bridgeContext().available());
         assumeTrue(nllExecutable.bridgeExecutable().available());
         nllExecution.execute(ExecutionMode.FORWARD);
@@ -2002,7 +1991,7 @@ public class PreparedExecutionBuildTest {
                 .toList();
         if (!gpuSteps.isEmpty()) {
             assertEquals(1, gpuSteps.size());
-            PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+            PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
             assertFalse(executable.plan().lowering().dagSpec().nodes().stream()
                     .anyMatch(node -> node.type() == backend.accelerator.dag.AcceleratorDagNodeType.SDPA));
             assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
@@ -2038,7 +2027,7 @@ public class PreparedExecutionBuildTest {
                 .toList();
         if (!gpuSteps.isEmpty()) {
             assertEquals(1, gpuSteps.size());
-            PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+            PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
             assertFalse(executable.plan().lowering().dagSpec().nodes().stream()
                     .anyMatch(node -> node.type() == backend.accelerator.dag.AcceleratorDagNodeType.SDPA));
             assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
@@ -2073,7 +2062,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assumeTrue(executable.bridgeContext().available());
         assumeTrue(executable.bridgeExecutable().available());
 
@@ -2107,7 +2096,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(3, executable.plan().lowering().dagSpec().nodes().size());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -2140,7 +2129,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(backend.lowering.LoweringFamily.METAL_GRAPH_REGION, executable.loweringFamily());
         assertTrue(executable.plan().manifest().fusedSubpatterns().stream()
                 .anyMatch(subpattern -> subpattern.patternType() == GpuCompoundPatternType.ELEMENTWISE_CHAIN));
@@ -2175,7 +2164,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_CUDA)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedCudaExecutable executable = (PreparedCudaExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedCudaExecutable executable = (PreparedCudaExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(backend.lowering.LoweringFamily.CUDA_FUSED_ELEMENTWISE_GRAPH, executable.loweringFamily());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -2597,7 +2586,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assumeTrue(executable.bridgeContext().available());
         assumeTrue(executable.bridgeExecutable().available());
 
@@ -2625,10 +2614,9 @@ public class PreparedExecutionBuildTest {
                 .prepare(RuntimeConfig.inferenceDefaults());
         PreparedMetalExecutable executable1 = (PreparedMetalExecutable) execution1.forwardSteps().stream()
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .map(step -> testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()))
                 .findFirst()
-                .orElseThrow()
-                .metadata()
-                .acceleratorExecutable();
+                .orElseThrow();
 
         Tensor a2 = new Tensor(new float[]{2f, 3f, 4f, 5f, 6f, 7f}, new int[]{2, 3}, null, "a2", DataType.FLOAT32);
         Tensor b2 = new Tensor(new float[]{2f, 3f, 4f, 5f, 6f, 7f}, new int[]{3, 2}, null, "b2", DataType.FLOAT32);
@@ -2644,10 +2632,9 @@ public class PreparedExecutionBuildTest {
                 .prepare(RuntimeConfig.inferenceDefaults());
         PreparedMetalExecutable executable2 = (PreparedMetalExecutable) execution2.forwardSteps().stream()
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .map(step -> testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()))
                 .findFirst()
-                .orElseThrow()
-                .metadata()
-                .acceleratorExecutable();
+                .orElseThrow();
 
         assumeTrue(executable1.bridgeExecutable().available());
         assumeTrue(executable2.bridgeExecutable().available());
@@ -2684,7 +2671,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assumeTrue(executable.bridgeContext().available());
         assumeTrue(executable.bridgeExecutable().available());
 
@@ -2713,7 +2700,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertNotNull(executable.bridgeExecutable());
     }
 
@@ -2758,7 +2745,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertNotNull(executable.bridgeExecutable());
     }
 
@@ -2785,7 +2772,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(2, executable.plan().matMulSpec().postOps().stream().filter(postOp -> postOp.type().binary()).count());
     }
 
@@ -2809,7 +2796,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(1, executable.plan().matMulSpec().postOps().stream().filter(postOp -> postOp.type().binary()).count());
     }
 
@@ -2834,7 +2821,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(2, executable.plan().matMulSpec().postOps().stream().filter(postOp -> postOp.hasScalarValue()).count());
     }
 
@@ -2861,7 +2848,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(1, executable.plan().matMulSpec().postOps().stream().filter(postOp -> postOp.type().binary()).count());
     }
 
@@ -2888,7 +2875,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(5, executable.plan().lowering().dagSpec().nodes().size());
         assertEquals(5, executable.plan().subgraph().orderedNodeIds().size());
     }
@@ -2920,7 +2907,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(7, executable.plan().lowering().dagSpec().nodes().size());
         assertTrue(execution.prepareTrace().backendSelection().selectedCount() >= 1);
     }
@@ -2956,7 +2943,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(1, executable.plan().lowering().dagSpec().nodes().size());
     }
 
@@ -2979,7 +2966,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(3, executable.plan().lowering().dagSpec().nodes().size());
     }
 
@@ -3004,7 +2991,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(4, executable.plan().lowering().dagSpec().nodes().size());
     }
 
@@ -3027,7 +3014,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(3, executable.plan().lowering().dagSpec().nodes().size());
     }
 
@@ -3054,7 +3041,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(5, executable.plan().lowering().dagSpec().nodes().size());
     }
 
@@ -3083,7 +3070,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(3, executable.plan().lowering().dagSpec().nodes().size());
         assertEquals(2, executable.plan().lowering().dagSpec().externalInputs().size());
     }
@@ -3124,7 +3111,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assertEquals(4, executable.plan().lowering().dagSpec().nodes().size());
         assertEquals(4, executable.plan().lowering().dagSpec().externalInputs().size());
     }
@@ -3152,7 +3139,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         var manifest = executable.gpuLoweredRegionManifest();
 
         assertTrue(executable.plan().lowering().dagSpec().externalInputs().stream()
@@ -3213,7 +3200,7 @@ public class PreparedExecutionBuildTest {
                 .toList();
         assertFalse(gpuSteps.isEmpty());
         int loweredNodeCount = gpuSteps.stream()
-                .map(step -> (PreparedMetalExecutable) step.metadata().acceleratorExecutable())
+                .map(step -> (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()))
                 .mapToInt(executable -> executable.plan().lowering().dagSpec().nodes().size())
                 .sum();
         assertTrue(loweredNodeCount >= 5);
@@ -3264,7 +3251,7 @@ public class PreparedExecutionBuildTest {
                 .toList();
         assertFalse(gpuSteps.isEmpty());
         List<backend.accelerator.dag.AcceleratorDagNode> loweredNodes = gpuSteps.stream()
-                .map(step -> (PreparedMetalExecutable) step.metadata().acceleratorExecutable())
+                .map(step -> (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()))
                 .flatMap(executable -> executable.plan().lowering().dagSpec().nodes().stream())
                 .toList();
         assertTrue(loweredNodes.size() >= 6);
@@ -3508,7 +3495,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assumeTrue(executable.bridgeContext().available());
         assumeTrue(executable.bridgeExecutable().available());
 
@@ -3549,7 +3536,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuStep.metadata());
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -3591,7 +3578,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuStep.metadata());
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -3629,7 +3616,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuStep.metadata());
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -3667,7 +3654,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuStep.metadata());
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -3709,7 +3696,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuStep.metadata());
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -3750,7 +3737,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuStep.metadata());
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -3795,7 +3782,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuStep.metadata());
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -3831,7 +3818,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuStep.metadata());
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -3867,7 +3854,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuStep.metadata());
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -3907,7 +3894,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuStep.metadata());
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -3955,7 +3942,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuStep.metadata());
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -4023,7 +4010,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuStep.metadata());
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -4093,7 +4080,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuStep.metadata());
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -4174,7 +4161,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuStep.metadata());
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -4212,7 +4199,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
         assumeTrue(executable.bridgeContext().available());
         assumeTrue(executable.bridgeExecutable().available());
 
@@ -4240,8 +4227,8 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertNotNull(linearStep.metadata().cpuPlan());
-        assertNotNull(logSoftmaxStep.metadata().cpuPlan());
+        assertNotNull(testsupport.MetadataArtifacts.cpuPlan(linearStep.metadata()));
+        assertNotNull(testsupport.MetadataArtifacts.cpuPlan(logSoftmaxStep.metadata()));
         assertFalse(logSoftmaxStep.node().getOperation() != null
                 && logSoftmaxStep.node().getOperation().opType() == Operation.OpType.LOG_SOFTMAX);
     }
@@ -4265,8 +4252,8 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertNotNull(linearStep.metadata().cpuPlan());
-        assertNotNull(softmaxStep.metadata().cpuPlan());
+        assertNotNull(testsupport.MetadataArtifacts.cpuPlan(linearStep.metadata()));
+        assertNotNull(testsupport.MetadataArtifacts.cpuPlan(softmaxStep.metadata()));
         assertFalse(softmaxStep.node().getOperation() != null
                 && softmaxStep.node().getOperation().opType() == Operation.OpType.SOFTMAX);
     }
@@ -4286,9 +4273,9 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertTrue(layerNormStep.metadata().cpuPlan().publishFloatContinuation());
-        assertEquals("BFLOAT16", layerNormStep.metadata().cpuPlan().computeContract().storageType().name());
-        assertEquals("F32", layerNormStep.metadata().cpuPlan().computeContract().computeType().name());
+        assertTrue(testsupport.MetadataArtifacts.cpuPlan(layerNormStep.metadata()).publishFloatContinuation());
+        assertEquals("BFLOAT16", testsupport.MetadataArtifacts.cpuPlan(layerNormStep.metadata()).computeContract().storageType().name());
+        assertEquals("F32", testsupport.MetadataArtifacts.cpuPlan(layerNormStep.metadata()).computeContract().computeType().name());
     }
 
     @Test
@@ -4305,9 +4292,9 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertTrue(rmsNormStep.metadata().cpuPlan().publishFloatContinuation());
-        assertEquals("BFLOAT16", rmsNormStep.metadata().cpuPlan().computeContract().storageType().name());
-        assertEquals("F32", rmsNormStep.metadata().cpuPlan().computeContract().computeType().name());
+        assertTrue(testsupport.MetadataArtifacts.cpuPlan(rmsNormStep.metadata()).publishFloatContinuation());
+        assertEquals("BFLOAT16", testsupport.MetadataArtifacts.cpuPlan(rmsNormStep.metadata()).computeContract().storageType().name());
+        assertEquals("F32", testsupport.MetadataArtifacts.cpuPlan(rmsNormStep.metadata()).computeContract().computeType().name());
     }
 
     @Test
@@ -4324,7 +4311,7 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertNotNull(logSoftmaxStep.metadata().cpuPlan());
+        assertNotNull(testsupport.MetadataArtifacts.cpuPlan(logSoftmaxStep.metadata()));
         assertFalse(logSoftmaxStep.node().getOperation() != null
                 && logSoftmaxStep.node().getOperation().opType() == Operation.OpType.LOG_SOFTMAX);
     }
@@ -4344,7 +4331,7 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertTrue(matmulStep.metadata().cpuPlan().publishFloatContinuation());
+        assertTrue(testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).publishFloatContinuation());
     }
 
     @Test
@@ -4359,8 +4346,8 @@ public class PreparedExecutionBuildTest {
         var continuationStep = execution.backwardSteps().stream()
                 .filter(step -> step.node().getOperation() != null
                         && step.node().getDataType() == DataType.BFLOAT16
-                        && step.metadata().cpuPlan() != null
-                        && step.metadata().cpuPlan().publishFloatContinuation())
+                        && testsupport.MetadataArtifacts.cpuPlan(step.metadata()) != null
+                        && testsupport.MetadataArtifacts.cpuPlan(step.metadata()).publishFloatContinuation())
                 .findFirst()
                 .orElseThrow();
         assertFalse(continuationStep.node().getOperation().opType() == Operation.OpType.SOFTMAX_GRAD);
@@ -4378,8 +4365,8 @@ public class PreparedExecutionBuildTest {
         var continuationStep = execution.backwardSteps().stream()
                 .filter(step -> step.node().getOperation() != null
                         && step.node().getDataType() == DataType.BFLOAT16
-                        && step.metadata().cpuPlan() != null
-                        && step.metadata().cpuPlan().publishFloatContinuation())
+                        && testsupport.MetadataArtifacts.cpuPlan(step.metadata()) != null
+                        && testsupport.MetadataArtifacts.cpuPlan(step.metadata()).publishFloatContinuation())
                 .findFirst()
                 .orElseThrow();
         assertFalse(continuationStep.node().getOperation().opType() == Operation.OpType.LOG_SOFTMAX_GRAD);
@@ -4608,7 +4595,6 @@ public class PreparedExecutionBuildTest {
     private static PartitionPlanningContext planningContext(CompiledGraph compiled) {
         List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
         return new PartitionPlanningContext(
-                RuntimeConfig.inferenceDefaults(),
                 false,
                 nodes,
                 compiled.compileArtifacts().descriptorIndex(),
@@ -4632,7 +4618,7 @@ public class PreparedExecutionBuildTest {
         assertTrue(execution.forwardSteps().stream()
                 .anyMatch(step -> step.compiledNode().id() == nodeId
                         && step.metadata().backend() != ComputeBackend.CPU
-                        && step.metadata().acceleratorExecutable() != null));
+                        && testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()) != null));
     }
 
     private static void assertContainsAll(String actual, String... expectedSubstrings) {

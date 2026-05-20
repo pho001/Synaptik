@@ -180,17 +180,7 @@ class CudaLayoutTransformDeviceFlowTest {
     private static PreparedNodeExecution cudaSourceStep(CompiledNode node) {
         return new PreparedNodeExecution(
                 node,
-                new CompiledNodeExecutionMetadata(
-                        ComputeBackend.GPU_CUDA,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new SyntheticCudaSourceExecutable(node.id()),
-                        null,
-                        List.of(),
-                        PartitionExecutionRole.NONE
-                )
+                testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_CUDA, new SyntheticCudaSourceExecutable(node.id()), PartitionExecutionRole.NONE)
         );
     }
 
@@ -203,17 +193,7 @@ class CudaLayoutTransformDeviceFlowTest {
     }
 
     private static CompiledNodeExecutionMetadata metadata(ComputeBackend backend) {
-        return new CompiledNodeExecutionMetadata(
-                backend,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                List.of(),
-                PartitionExecutionRole.NONE
-        );
+        return testsupport.MetadataArtifacts.acceleratorMetadata(backend, null, PartitionExecutionRole.NONE);
     }
 
     private static CompiledNode nodeFor(List<CompiledNode> nodes, Tensor tensor) {

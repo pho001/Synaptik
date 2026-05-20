@@ -1,6 +1,7 @@
 package backend.metal.prepare;
 
 import backend.ComputeBackend;
+import backend.accelerator.exec.AcceleratorExecutionArtifact;
 import backend.accelerator.prepare.GpuAcceleratorPrepareSupport;
 import backend.accelerator.exec.PartitionExecutionRole;
 import backend.cpu.prepare.CpuNodePreparer;
@@ -17,6 +18,8 @@ import backend.prepare.RegionPlanValidator;
 import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.compile.planning.partition.PartitionPlan;
+
+import java.util.List;
 
 /**
  * Prepares compiled nodes for Metal partition execution.
@@ -97,11 +100,10 @@ public final class MetalNodePreparer {
 
         return new CompiledNodeExecutionMetadata(
                 ComputeBackend.GPU_METAL,
+                PartitionExecutionRole.ANCHOR,
                 null,
-                fallback.anchorCpuMetadata().cpuPlan(),
-                null,
-                null,
-                new PreparedMetalExecutable(
+                List.of(),
+                new AcceleratorExecutionArtifact(new PreparedMetalExecutable(
                         plan,
                         loweringFamily,
                         regionPlan,
@@ -109,8 +111,7 @@ public final class MetalNodePreparer {
                         fallback.preparedSteps(),
                         context.runtimeConfig().accelerator().metal(),
                         customKernelBridge
-                ),
-                PartitionExecutionRole.ANCHOR
+                ))
         );
     }
 }

@@ -62,7 +62,7 @@ final class FusedParallelVectorDumpTest {
         String fusedStepsSummary = prepared.forwardSteps().stream()
                 .filter(step -> step.executionOperation() instanceof FusedOperation)
                 .map(step -> {
-                    var hints = step.metadata().cpuPlan() == null ? null : step.metadata().cpuPlan().dispatchHints();
+                    var hints = testsupport.MetadataArtifacts.cpuPlan(step.metadata()) == null ? null : testsupport.MetadataArtifacts.cpuPlan(step.metadata()).dispatchHints();
                     return step.node().getLabel()
                             + " mode=" + (hints == null ? "null" : hints.mode())
                             + " vectorWidth=" + (hints == null ? -1 : hints.vectorWidth())
@@ -73,17 +73,17 @@ final class FusedParallelVectorDumpTest {
 
         PreparedNodeExecution selected = prepared.forwardSteps().stream()
                 .filter(step -> step.executionOperation() instanceof FusedOperation)
-                .filter(step -> step.metadata().cpuPlan() != null)
-                .filter(step -> step.metadata().cpuPlan().dispatchHints() != null)
-                .filter(step -> step.metadata().cpuPlan().dispatchHints().parallel())
-                .filter(step -> step.metadata().cpuPlan().dispatchHints().vectorized())
+                .filter(step -> testsupport.MetadataArtifacts.cpuPlan(step.metadata()) != null)
+                .filter(step -> testsupport.MetadataArtifacts.cpuPlan(step.metadata()).dispatchHints() != null)
+                .filter(step -> testsupport.MetadataArtifacts.cpuPlan(step.metadata()).dispatchHints().parallel())
+                .filter(step -> testsupport.MetadataArtifacts.cpuPlan(step.metadata()).dispatchHints().vectorized())
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("Missing fused parallel-vector step for " + dataType + "\n" + fusedStepsSummary));
 
-        assertNotNull(selected.metadata().fusedExecutable(), "Prepared fused executable must be present");
+        assertNotNull(testsupport.MetadataArtifacts.fusedExecutable(selected.metadata()), "Prepared fused executable must be present");
 
         FusedOperation fused = (FusedOperation) selected.executionOperation();
-        var hints = selected.metadata().cpuPlan().dispatchHints();
+        var hints = testsupport.MetadataArtifacts.cpuPlan(selected.metadata()).dispatchHints();
         assertTrue(hints.mode() == CpuExecutionMode.PARALLEL_VECTOR || hints.mode() == CpuExecutionMode.VECTOR,
                 "Expected vector-capable fused dispatch mode");
 
@@ -118,7 +118,7 @@ final class FusedParallelVectorDumpTest {
                 dataType,
                 selected.node().getLabel(),
                 fused.getExpression(),
-                selected.metadata().fusedExecutable().getClass().getName(),
+                testsupport.MetadataArtifacts.fusedExecutable(selected.metadata()).getClass().getName(),
                 hints.mode(),
                 hints.vectorWidth(),
                 hints.plannedWorkers(),

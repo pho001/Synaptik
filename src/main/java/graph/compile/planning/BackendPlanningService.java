@@ -2,7 +2,6 @@ package graph.compile.planning;
 
 import backend.partition.BackendPartitionDescriptorRegistry;
 import config.compile.BackendPlanningConfig;
-import config.runtime.RuntimeConfig;
 import graph.CompiledGradientBinding;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
@@ -69,7 +68,6 @@ public final class BackendPlanningService {
         }
 
         PartitionPlanningContext planningContext = new PartitionPlanningContext(
-                request.supportsBackward() ? RuntimeConfig.trainingDefaults() : RuntimeConfig.inferenceDefaults(),
                 request.supportsBackward(),
                 request.compiledNodes(),
                 request.descriptorIndex(),
@@ -121,6 +119,7 @@ public final class BackendPlanningService {
         if (traces.size() == 1) {
             return traces.getFirst();
         }
+        List<PartitionCompileTrace.JobTrace> jobTraces = new ArrayList<>();
         List<PartitionDecisionTrace> decisions = new ArrayList<>();
         int considered = 0;
         int accepted = 0;
@@ -132,15 +131,14 @@ public final class BackendPlanningService {
             considered += trace.totalConsidered();
             accepted += trace.acceptedCount();
             rejected += trace.rejectedCount();
+            jobTraces.addAll(trace.jobs());
             decisions.addAll(trace.decisions());
         }
-        BackendPlanningJob first = jobs.getFirst();
         return new PartitionCompileTrace(
-                first.strategy(),
-                first.target(),
                 considered,
                 accepted,
                 rejected,
+                jobTraces,
                 decisions
         );
     }

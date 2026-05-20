@@ -251,7 +251,7 @@ class NativeOpenBlasMatMulExecutableTest {
     }
 
     private static CpuKernelContext context(Fixture fixture, PreparedNodeExecution step, PreparedMatMulExecutable executable) {
-        CpuNodeExecutionPlan base = step.metadata().cpuPlan();
+        CpuNodeExecutionPlan base = testsupport.MetadataArtifacts.cpuPlan(step.metadata());
         CpuNodeExecutionPlan nativePlan = new CpuNodeExecutionPlan(
                 base.layoutPlan(),
                 base.computeContract(),
@@ -285,7 +285,7 @@ class NativeOpenBlasMatMulExecutableTest {
     }
 
     private static ResolvedMatMulHints nativeHints(PreparedNodeExecution step) {
-        ResolvedMatMulHints base = step.metadata().cpuPlan().matMulHints();
+        ResolvedMatMulHints base = testsupport.MetadataArtifacts.cpuPlan(step.metadata()).matMulHints();
         return new ResolvedMatMulHints(
                 true,
                 false,

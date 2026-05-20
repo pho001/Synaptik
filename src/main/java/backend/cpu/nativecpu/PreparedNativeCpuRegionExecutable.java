@@ -4,8 +4,11 @@ import tensor.TensorInternalAccess;
 
 import backend.ComputeBackend;
 import backend.cpu.CpuBackend;
+import backend.cpu.CpuFusedExecutionArtifact;
+import backend.cpu.CpuNodeExecutionArtifact;
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.elementwise.unary.support.CpuPowSupport;
 import backend.cpu.kernels.elementwise.where.WhereElementwiseKernel;
 import backend.cpu.nativecpu.layout.NativeCpuStorageFamily;
@@ -397,9 +400,10 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
             ExecutionContext context,
             Operation op
     ) {
-        if (!(op instanceof linear linearOp) || step.metadata().cpuPlan() == null
-                || step.metadata().cpuPlan().matMulExecutable() == null
-                || !step.metadata().cpuPlan().matMulExecutable().acceptsNativeInputs()) {
+        CpuNodeExecutionPlan cpuPlan = cpuPlan(step.metadata());
+        if (!(op instanceof linear linearOp) || cpuPlan == null
+                || cpuPlan.matMulExecutable() == null
+                || !cpuPlan.matMulExecutable().acceptsNativeInputs()) {
             return false;
         }
         List<Integer> inputIds = inputIds(step);
@@ -412,13 +416,13 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         CpuKernelContext kernelContext = new CpuKernelContext(
                 step.compiledNode().id(),
                 inputIds,
-                step.metadata().cpuPlan(),
+                cpuPlan,
                 context,
                 step.metadata(),
                 List.of(),
                 op
         );
-        step.metadata().cpuPlan().matMulExecutable().execute(input, weight, out, kernelContext);
+        cpuPlan.matMulExecutable().execute(input, weight, out, kernelContext);
         NativeFloat32Storage outStorage = requireF32Storage(
                 context,
                 step.compiledNode().id(),
@@ -449,9 +453,10 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
             ExecutionContext context,
             Operation op
     ) {
-        if (!(op instanceof linear linearOp) || step.metadata().cpuPlan() == null
-                || step.metadata().cpuPlan().matMulExecutable() == null
-                || !step.metadata().cpuPlan().matMulExecutable().acceptsNativeInputs()) {
+        CpuNodeExecutionPlan cpuPlan = cpuPlan(step.metadata());
+        if (!(op instanceof linear linearOp) || cpuPlan == null
+                || cpuPlan.matMulExecutable() == null
+                || !cpuPlan.matMulExecutable().acceptsNativeInputs()) {
             return false;
         }
         List<Integer> inputIds = inputIds(step);
@@ -464,13 +469,13 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         CpuKernelContext kernelContext = new CpuKernelContext(
                 step.compiledNode().id(),
                 inputIds,
-                step.metadata().cpuPlan(),
+                cpuPlan,
                 context,
                 step.metadata(),
                 List.of(),
                 op
         );
-        step.metadata().cpuPlan().matMulExecutable().execute(input, weight, out, kernelContext);
+        cpuPlan.matMulExecutable().execute(input, weight, out, kernelContext);
         NativeFloat64Storage outStorage = requireF64Storage(
                 context,
                 step.compiledNode().id(),
@@ -1710,11 +1715,25 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
     }
 
     private boolean expectsNativeOutput(PreparedNodeExecution step) {
-        if (step == null || step.metadata().backend() != ComputeBackend.CPU || step.metadata().cpuPlan() == null) {
+        CpuNodeExecutionPlan cpuPlan = step == null ? null : cpuPlan(step.metadata());
+        if (step == null || step.metadata().backend() != ComputeBackend.CPU || cpuPlan == null) {
             return false;
         }
-        PreparedNativeCpuPlan plan = step.metadata().cpuPlan().nativeCpuPlan();
+        PreparedNativeCpuPlan plan = cpuPlan.nativeCpuPlan();
         return plan != null && plan.allowsNativeInputs();
+    }
+
+    private static CpuNodeExecutionPlan cpuPlan(CompiledNodeExecutionMetadata metadata) {
+        if (metadata == null) {
+            return null;
+        }
+        if (metadata.artifact() instanceof CpuNodeExecutionArtifact artifact) {
+            return artifact.cpuPlan();
+        }
+        if (metadata.artifact() instanceof CpuFusedExecutionArtifact artifact) {
+            return artifact.cpuPlan();
+        }
+        return null;
     }
 
     private void fallbackOrThrow(ExecutionContext context, String reason, RuntimeException cause) {

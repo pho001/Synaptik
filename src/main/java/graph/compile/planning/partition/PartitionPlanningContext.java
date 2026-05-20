@@ -1,10 +1,10 @@
 package graph.compile.planning.partition;
 
-import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -12,24 +12,21 @@ import java.util.Objects;
 /**
  * Read-only graph context used by partition planners and legality adapters.
  *
- * @param runtimeConfig runtime defaults used for backend support decisions
  * @param supportsBackward whether the compiled graph includes backward execution
  * @param compiledNodes compiled node snapshots in graph order
  * @param descriptorIndex immutable tensor descriptor facts for {@code compiledNodes}
  * @param consumers consumer map keyed by producer node id
  */
 public record PartitionPlanningContext(
-        RuntimeConfig runtimeConfig,
         boolean supportsBackward,
         List<CompiledNode> compiledNodes,
         CompiledTensorDescriptorIndex descriptorIndex,
         Map<Integer, List<CompiledNode>> consumers
 ) {
     public PartitionPlanningContext {
-        runtimeConfig = Objects.requireNonNull(runtimeConfig, "runtimeConfig cannot be null");
         compiledNodes = List.copyOf(compiledNodes == null ? List.of() : compiledNodes);
         descriptorIndex = Objects.requireNonNull(descriptorIndex, "descriptorIndex cannot be null");
-        consumers = Map.copyOf(consumers == null ? Map.of() : consumers);
+        consumers = copyConsumers(consumers);
     }
 
     /**
@@ -57,5 +54,15 @@ public record PartitionPlanningContext(
      */
     public List<CompiledNode> consumersFor(int nodeId) {
         return consumers.getOrDefault(nodeId, List.of());
+    }
+
+    private static Map<Integer, List<CompiledNode>> copyConsumers(Map<Integer, List<CompiledNode>> input) {
+        if (input == null || input.isEmpty()) {
+            return Map.of();
+        }
+        Map<Integer, List<CompiledNode>> copy = new HashMap<>();
+        input.forEach((nodeId, nodeConsumers) ->
+                copy.put(nodeId, List.copyOf(nodeConsumers == null ? List.of() : nodeConsumers)));
+        return Map.copyOf(copy);
     }
 }

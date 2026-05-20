@@ -33,7 +33,7 @@ public final class BackendPrepareDispatcher {
             case GPU_METAL -> metalPreparer().prepare(node, context);
             case GPU_CUDA -> cudaGpuPreparer().prepare(node, context);
             case GPU_OPENCL ->
-                    new CompiledNodeExecutionMetadata(node.backend(), null, null, null, null, null, PartitionExecutionRole.NONE);
+                    new CompiledNodeExecutionMetadata(node.backend(), PartitionExecutionRole.NONE, null, java.util.List.of(), null);
         };
     }
 

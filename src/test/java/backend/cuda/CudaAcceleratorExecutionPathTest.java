@@ -38,15 +38,7 @@ class CudaAcceleratorExecutionPathTest {
             }
         };
 
-        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
-                ComputeBackend.GPU_CUDA,
-                null,
-                null,
-                null,
-                null,
-                executable,
-                PartitionExecutionRole.ANCHOR
-        );
+        CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_CUDA, executable, PartitionExecutionRole.ANCHOR);
 
         ComputeEngine.compute(
                 node,

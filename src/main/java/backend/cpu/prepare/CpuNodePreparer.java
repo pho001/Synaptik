@@ -3,6 +3,9 @@ package backend.cpu.prepare;
 import backend.ComputeBackend;
 import backend.accelerator.exec.PartitionExecutionRole;
 import backend.cpu.CpuBackend;
+import backend.cpu.CpuFusedExecutionArtifact;
+import backend.cpu.CpuNodeExecutionArtifact;
+import backend.cpu.CpuRegionExecutionArtifact;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.CpuNodeWorkspace;
@@ -19,6 +22,7 @@ import backend.prepare.BackendPrepareContext;
 import backend.prepare.RegionPlanValidator;
 import backend.cpu.registry.CpuKernelResolver;
 import graph.CompiledNode;
+import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedNodeExecution;
 import backend.cpu.fused.exec.FusedExecutionBackendResolver;
@@ -48,11 +52,11 @@ public final class CpuNodePreparer {
 
     public CompiledNodeExecutionMetadata prepare(CompiledNode node, BackendPrepareContext context) {
         if (node.backend() != ComputeBackend.CPU) {
-            return new CompiledNodeExecutionMetadata(node.backend(), null, null, null, null, null, PartitionExecutionRole.NONE);
+            return new CompiledNodeExecutionMetadata(node.backend(), PartitionExecutionRole.NONE, null, List.of(), null);
         }
         PartitionExecutionRole role = context.partitionRoleFor(node.id());
         if (role == PartitionExecutionRole.INTERIOR) {
-            return new CompiledNodeExecutionMetadata(ComputeBackend.CPU, null, null, null, null, null, role);
+            return new CompiledNodeExecutionMetadata(ComputeBackend.CPU, role, null, List.of(), null);
         }
         if (role == PartitionExecutionRole.ANCHOR) {
             LoweredExecutionUnit loweredUnit = context.cpuLoweredUnitForAnchor(node.id());
@@ -102,8 +106,10 @@ public final class CpuNodePreparer {
         );
         return new CompiledNodeExecutionMetadata(
                 ComputeBackend.CPU,
-                executable,
-                PartitionExecutionRole.ANCHOR
+                PartitionExecutionRole.ANCHOR,
+                null,
+                List.of(),
+                new CpuRegionExecutionArtifact(executable)
         );
     }
 
@@ -119,15 +125,14 @@ public final class CpuNodePreparer {
 
         ResolvedCpuComputeContract fusedContract = planner.resolveComputeContract(
                 operation,
-                fusedPreparation.runtimeInputs(),
-                anchorNode.semanticTensor(),
+                context.descriptor(anchorNode.id()),
                 runtimeConfig.blas(),
                 null,
                 null
         );
         PreparedFusedDispatch preparedFusedDispatch = planner.resolveFusedDispatch(
                 (FusedOperation) operation,
-                anchorNode.semanticTensor(),
+                context.descriptor(anchorNode.id()),
                 fusedContract
         );
         ResolvedDispatchHints dispatchHintsOverride = preparedFusedDispatch.dispatchHints();
@@ -135,6 +140,8 @@ public final class CpuNodePreparer {
                 operation,
                 fusedPreparation.runtimeInputs(),
                 anchorNode.semanticTensor(),
+                inputDescriptors(loweredUnit.inputNodeIds(), context),
+                context.descriptor(anchorNode.id()),
                 planner,
                 runtimeConfig.blas(),
                 runtimeConfig.conv2d(),
@@ -155,14 +162,10 @@ public final class CpuNodePreparer {
         CpuNodeWorkspace cpuWorkspace = resolveCpuWorkspace(anchorNode, operation, cpuPlan, publishFloatContinuation, context);
         return new CompiledNodeExecutionMetadata(
                 ComputeBackend.CPU,
-                kernel,
-                cpuPlan,
-                fusedExecutable,
-                cpuWorkspace,
-                null,
+                PartitionExecutionRole.ANCHOR,
                 operation,
                 loweredUnit.inputNodeIds(),
-                PartitionExecutionRole.ANCHOR
+                new CpuFusedExecutionArtifact(kernel, cpuPlan, fusedExecutable, cpuWorkspace)
         );
     }
 
@@ -188,24 +191,22 @@ public final class CpuNodePreparer {
         if (operation.opType().category() == Operation.OpArityClass.ELEMENT_WISE) {
             ResolvedCpuComputeContract elementwiseContract = planner.resolveComputeContract(
                     operation,
-                    node.inputTensors(),
-                    node.semanticTensor(),
+                    context.descriptor(node.id()),
                     runtimeConfig.blas(),
                     null,
                     null
             );
-            dispatchHintsOverride = planner.resolveDispatchHints(operation, node.semanticTensor(), elementwiseContract);
+            dispatchHintsOverride = planner.resolveDispatchHints(operation, context.descriptor(node.id()), elementwiseContract);
         }
         if (operation.opType() == Operation.OpType.FUSED) {
             ResolvedCpuComputeContract fusedContract = planner.resolveComputeContract(
                     operation,
-                    node.inputTensors(),
-                    node.semanticTensor(),
+                    context.descriptor(node.id()),
                     runtimeConfig.blas(),
                     null,
                     null
             );
-            preparedFusedDispatch = planner.resolveFusedDispatch((FusedOperation) operation, node.semanticTensor(), fusedContract);
+            preparedFusedDispatch = planner.resolveFusedDispatch((FusedOperation) operation, context.descriptor(node.id()), fusedContract);
             dispatchHintsOverride = preparedFusedDispatch.dispatchHints();
         }
 
@@ -213,6 +214,8 @@ public final class CpuNodePreparer {
                 operation,
                 node.inputTensors(),
                 node.semanticTensor(),
+                inputDescriptors(node.inputIds(), context),
+                context.descriptor(node.id()),
                 planner,
                 runtimeConfig.blas(),
                 runtimeConfig.conv2d(),
@@ -236,7 +239,16 @@ public final class CpuNodePreparer {
         }
 
         CpuNodeWorkspace cpuWorkspace = resolveCpuWorkspace(node, operation, cpuPlan, publishFloatContinuation, context);
-        return new CompiledNodeExecutionMetadata(ComputeBackend.CPU, kernel, cpuPlan, fusedExecutable, cpuWorkspace, null, PartitionExecutionRole.NONE);
+        var artifact = fusedExecutable == null
+                ? new CpuNodeExecutionArtifact(kernel, cpuPlan, cpuWorkspace)
+                : new CpuFusedExecutionArtifact(kernel, cpuPlan, fusedExecutable, cpuWorkspace);
+        return new CompiledNodeExecutionMetadata(
+                ComputeBackend.CPU,
+                PartitionExecutionRole.NONE,
+                null,
+                List.of(),
+                artifact
+        );
     }
 
     private CpuNodeWorkspace resolveCpuWorkspace(
@@ -262,6 +274,15 @@ public final class CpuNodePreparer {
                     ? CpuNodeWorkspace.withFloatWorkspace(node.flatDataSize())
                     : null;
         };
+    }
+
+    private static List<CompiledTensorDescriptor> inputDescriptors(List<Integer> inputNodeIds, BackendPrepareContext context) {
+        if (inputNodeIds == null || inputNodeIds.isEmpty()) {
+            return List.of();
+        }
+        return inputNodeIds.stream()
+                .map(context::descriptor)
+                .toList();
     }
 
     private CpuNodeWorkspace resolveMatMulWorkspace(

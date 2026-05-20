@@ -25,9 +25,9 @@ class CompiledNodeExecutionMetadataTest {
         };
 
         CompiledNodeExecutionMetadata metadata =
-                new CompiledNodeExecutionMetadata(ComputeBackend.GPU_METAL, null, null, null, null, executable, null);
+                testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_METAL, executable, null);
 
         assertEquals(PartitionExecutionRole.NONE, metadata.partitionRole());
-        assertSame(executable, metadata.acceleratorExecutable());
+        assertSame(executable, testsupport.MetadataArtifacts.acceleratorExecutable(metadata));
     }
 }

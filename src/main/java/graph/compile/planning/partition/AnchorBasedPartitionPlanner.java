@@ -5,7 +5,6 @@ import graph.compile.planning.value.GraphValueRef;
 import graph.CompiledNode;
 import graph.execution.trace.PartitionCompileTrace;
 import graph.execution.trace.PartitionDecisionTrace;
-import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
 import operations.Operation;
 
 import java.util.ArrayDeque;
@@ -61,21 +60,11 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
                 continue;
             }
             if (covered[nodeId]) {
-                decisions.add(new PartitionDecisionTrace(
+                decisions.add(PartitionDecisionTrace.coveredByEarlierPartition(
                         request.strategy(),
                         request.target(),
                         nodeId,
-                        false,
-                        "covered-by-earlier-partition",
-                        List.of(nodeId),
-                        List.of(nodeId),
-                        opNames(List.of(nodeId), context),
-                        0L,
-                        Double.NEGATIVE_INFINITY,
-                        Double.NEGATIVE_INFINITY,
-                        0,
-                        false,
-                        -1
+                        PartitionAssembly.opNames(List.of(nodeId), context)
                 ));
                 continue;
             }
@@ -93,18 +82,10 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
             partitions.add(attempt.partition());
         }
         partitions.sort(Comparator.comparingInt(Partition::anchorSeedNodeId));
-        int accepted = (int) decisions.stream().filter(PartitionDecisionTrace::accepted).count();
         return new PartitionPlanningResult(
                 partitions,
                 plansByPartitionId,
-                new PartitionCompileTrace(
-                        request.strategy(),
-                        request.target(),
-                        decisions.size(),
-                        accepted,
-                        decisions.size() - accepted,
-                        decisions
-                )
+                PartitionCompileTrace.forJob(request.strategy(), request.target(), decisions)
         );
     }
 
@@ -245,13 +226,16 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
         }
 
         return new AttemptResult(
-                buildPartition(
+                PartitionAssembly.acceptedPartition(
                         request,
                         bestCandidate,
                         bestPlan,
                         budgetHit ? "anchor-budget-stop" : "anchor-" + lastRejection.reason(),
                         lastRejection.nodeId(),
-                        explored
+                        explored,
+                        budgetHit,
+                        null,
+                        List.of()
                 ),
                 bestPlan,
                 new PartitionDecisionTrace(
@@ -262,7 +246,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
                         budgetHit ? "anchor-budget-stop" : "anchor-" + lastRejection.reason(),
                         bestPlan.nodeIds(),
                         bestCandidate == null ? bestPlan.nodeIds() : bestCandidate.orderedNodeIds(),
-                        opNames(bestPlan.nodeIds(), context),
+                        PartitionAssembly.opNames(bestPlan.nodeIds(), context),
                         bestPlan.estimatedWork(),
                         Double.NEGATIVE_INFINITY,
                         Double.NEGATIVE_INFINITY,
@@ -304,7 +288,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
                         reason,
                         List.of(startNodeId),
                         structuralNodeIds,
-                        opNames(structuralNodeIds, request.context()),
+                        PartitionAssembly.opNames(structuralNodeIds, request.context()),
                         0L,
                         Double.NEGATIVE_INFINITY,
                         Double.NEGATIVE_INFINITY,
@@ -619,146 +603,4 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
         return selectedInputs > 1;
     }
 
-    private List<String> opNames(List<Integer> nodeIds, PartitionPlanningContext context) {
-        List<String> out = new ArrayList<>(nodeIds.size());
-        for (int nodeId : nodeIds) {
-            CompiledNode node = context.compiledNode(nodeId);
-            if (node != null && node.operation() != null) {
-                out.add(node.operation().opType().name());
-            }
-        }
-        return List.copyOf(out);
-    }
-
-    private Partition buildPartition(
-            PartitionPlanningRequest request,
-            PartitionCandidate candidate,
-            PartitionPlan attachedPlan,
-            String reason,
-            int rejectedNodeId,
-            int explored
-    ) {
-        PartitionPlanningContext context = request.context();
-        var metrics = metricsFor(candidate, context);
-        List<PartitionEdge> internalEdges = internalEdges(candidate.orderedNodeIds(), context);
-        List<PartitionEdge> boundaryEdges = boundaryEdges(candidate.orderedNodeIds(), context);
-        List<PartitionBoundaryReason> boundaryReasons = boundaryEdges.stream()
-                .map(ignored -> PartitionBoundaryReason.fromReason(reason))
-                .toList();
-        List<PartitionValue> values = candidate.orderedNodeIds().stream()
-                .map(nodeId -> new PartitionValue(GraphValueRef.node(nodeId), nodeId))
-                .toList();
-        List<GraphValueRef> outputValueRefs = candidate.outputNodeIds().stream().map(GraphValueRef::node).toList();
-        List<GraphValueRef> requiredMaterialized = candidate.outputNodeIds().stream()
-                .map(GraphValueRef::node)
-                .filter(request.requiredMaterializedValueRefs()::contains)
-                .toList();
-        PartitionDecisionTrace trace = new PartitionDecisionTrace(
-                request.strategy(),
-                request.target(),
-                candidate.anchorNodeId(),
-                true,
-                reason,
-                candidate.orderedNodeIds(),
-                candidate.orderedNodeIds(),
-                opNames(candidate.orderedNodeIds(), context),
-                attachedPlan == null ? 0L : attachedPlan.estimatedWork(),
-                Double.NEGATIVE_INFINITY,
-                Double.NEGATIVE_INFINITY,
-                explored,
-                reason.contains("budget-stop"),
-                rejectedNodeId
-        );
-        return new Partition(
-                partitionId(request.target(), candidate.anchorNodeId()),
-                request.target(),
-                candidate.orderedNodeIds(),
-                values,
-                internalEdges,
-                candidate.externalInputIds(),
-                outputValueRefs,
-                candidate.anchorNodeId(),
-                requiredMaterialized,
-                boundaryEdges,
-                boundaryReasons,
-                attachedPlan == null ? 0L : attachedPlan.estimatedWork(),
-                metrics,
-                request.strategy(),
-                trace
-        );
-    }
-
-    private AcceleratorPartitionScoreModel.CandidateMetrics metricsFor(PartitionCandidate candidate, PartitionPlanningContext context) {
-        int internalEdgeCount = 0;
-        int mergeNodeCount = 0;
-        int tailDepth = Math.max(0, candidate.orderedNodeIds().size() - 1);
-        Set<Integer> selected = Set.copyOf(candidate.orderedNodeIds());
-        for (int nodeId : candidate.orderedNodeIds()) {
-            CompiledNode node = context.compiledNode(nodeId);
-            if (node == null) {
-                continue;
-            }
-            int selectedInputs = 0;
-            for (int inputId : node.inputIds()) {
-                if (selected.contains(inputId)) {
-                    internalEdgeCount++;
-                    selectedInputs++;
-                }
-            }
-            if (selectedInputs > 1) {
-                mergeNodeCount++;
-            }
-        }
-        return new AcceleratorPartitionScoreModel.CandidateMetrics(
-                candidate.orderedNodeIds().size(),
-                internalEdgeCount,
-                candidate.externalInputIds().size(),
-                mergeNodeCount,
-                tailDepth
-        );
-    }
-
-    private List<PartitionEdge> internalEdges(List<Integer> nodeIds, PartitionPlanningContext context) {
-        Set<Integer> selected = Set.copyOf(nodeIds);
-        List<PartitionEdge> edges = new ArrayList<>();
-        for (int nodeId : nodeIds) {
-            CompiledNode node = context.compiledNode(nodeId);
-            if (node == null) {
-                continue;
-            }
-            for (int inputId : node.inputIds()) {
-                if (selected.contains(inputId)) {
-                    edges.add(new PartitionEdge(inputId, nodeId));
-                }
-            }
-        }
-        return List.copyOf(edges);
-    }
-
-    private List<PartitionEdge> boundaryEdges(List<Integer> nodeIds, PartitionPlanningContext context) {
-        Set<Integer> selected = Set.copyOf(nodeIds);
-        List<PartitionEdge> edges = new ArrayList<>();
-        for (int nodeId : nodeIds) {
-            CompiledNode node = context.compiledNode(nodeId);
-            if (node == null) {
-                continue;
-            }
-            for (int inputId : node.inputIds()) {
-                if (!selected.contains(inputId)) {
-                    edges.add(new PartitionEdge(inputId, nodeId));
-                }
-            }
-            for (CompiledNode consumer : context.consumersFor(nodeId)) {
-                if (consumer != null && !selected.contains(consumer.id())) {
-                    edges.add(new PartitionEdge(nodeId, consumer.id()));
-                }
-            }
-        }
-        return List.copyOf(edges);
-    }
-
-    private String partitionId(PartitionTarget target, int anchorNodeId) {
-        String prefix = target == null ? "partition" : target.name().toLowerCase(java.util.Locale.ROOT);
-        return prefix + "-anchor-" + anchorNodeId;
-    }
 }

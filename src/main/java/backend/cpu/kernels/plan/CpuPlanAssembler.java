@@ -17,6 +17,7 @@ import backend.cpu.nativecpu.PreparedNativeCpuPlan;
 import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
 import config.runtime.CpuStorageProfile;
+import graph.compile.descriptor.CompiledTensorDescriptor;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -32,6 +33,8 @@ public final class CpuPlanAssembler {
             Operation op,
             List<Tensor> inputs,
             Tensor node,
+            List<CompiledTensorDescriptor> inputDescriptors,
+            CompiledTensorDescriptor nodeDescriptor,
             CpuExecutionPlanner planner,
             BlasConfig blasConfig,
             Conv2dConfig conv2dConfig,
@@ -45,6 +48,8 @@ public final class CpuPlanAssembler {
         Objects.requireNonNull(conv2dConfig, "conv2dConfig cannot be null");
 
         List<Tensor> safeInputs = inputs == null ? List.of() : List.copyOf(inputs);
+        List<CompiledTensorDescriptor> safeInputDescriptors = inputDescriptors == null ? List.of() : List.copyOf(inputDescriptors);
+        CompiledTensorDescriptor safeNodeDescriptor = Objects.requireNonNull(nodeDescriptor, "nodeDescriptor cannot be null");
         PreparedTypeContract typeContract = CpuTypeContractResolver.resolve(op, node, safeInputs);
         DataType targetType = typeContract.outputType();
 
@@ -68,6 +73,8 @@ public final class CpuPlanAssembler {
                 op,
                 prepared.runtimeInputs(),
                 node,
+                safeInputDescriptors,
+                safeNodeDescriptor,
                 planner,
                 blasConfig,
                 conv2dConfig,

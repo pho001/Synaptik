@@ -1,6 +1,7 @@
 package backend.cuda.prepare;
 
 import backend.ComputeBackend;
+import backend.accelerator.exec.AcceleratorExecutionArtifact;
 import backend.accelerator.prepare.GpuAcceleratorPrepareSupport;
 import backend.accelerator.exec.PartitionExecutionRole;
 import backend.cpu.prepare.CpuNodePreparer;
@@ -15,6 +16,8 @@ import backend.prepare.RegionPlanValidator;
 import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.compile.planning.partition.PartitionPlan;
+
+import java.util.List;
 
 /**
  * Prepares compiled nodes for CUDA partition execution.
@@ -81,11 +84,10 @@ public final class CudaGpuNodePreparer {
 
         return new CompiledNodeExecutionMetadata(
                 ComputeBackend.GPU_CUDA,
+                PartitionExecutionRole.ANCHOR,
                 null,
-                fallback.anchorCpuMetadata().cpuPlan(),
-                null,
-                null,
-                new PreparedCudaExecutable(
+                List.of(),
+                new AcceleratorExecutionArtifact(new PreparedCudaExecutable(
                         plan.dagSpec(),
                         loweringFamily,
                         regionPlan,
@@ -94,8 +96,7 @@ public final class CudaGpuNodePreparer {
                         context.runtimeConfig().accelerator().cuda(),
                         plan.compoundSummary(),
                         plan.manifest()
-                ),
-                PartitionExecutionRole.ANCHOR
+                ))
         );
     }
 }

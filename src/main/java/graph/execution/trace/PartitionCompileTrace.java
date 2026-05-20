@@ -8,28 +8,41 @@ import java.util.List;
 /**
  * Partition planning diagnostics captured during compilation.
  *
- * @param strategy planner strategy used
- * @param target partition target
  * @param totalConsidered number of candidate starts considered
  * @param acceptedCount number of accepted partitions
  * @param rejectedCount number of rejected candidates
+ * @param jobs per planning job aggregate diagnostics
  * @param decisions detailed partition decisions
  */
 public record PartitionCompileTrace(
-        PartitionPlannerStrategy strategy,
-        PartitionTarget target,
         int totalConsidered,
         int acceptedCount,
         int rejectedCount,
+        List<JobTrace> jobs,
         List<PartitionDecisionTrace> decisions
 ) {
     public PartitionCompileTrace {
-        strategy = strategy == null ? PartitionPlannerStrategy.GREEDY_MAX_REGION : strategy;
-        target = target == null ? PartitionTarget.NONE : target;
         totalConsidered = Math.max(0, totalConsidered);
         acceptedCount = Math.max(0, acceptedCount);
         rejectedCount = Math.max(0, rejectedCount);
+        jobs = List.copyOf(jobs == null ? List.of() : jobs);
         decisions = List.copyOf(decisions == null ? List.of() : decisions);
+    }
+
+    public record JobTrace(
+            PartitionPlannerStrategy strategy,
+            PartitionTarget target,
+            int totalConsidered,
+            int acceptedCount,
+            int rejectedCount
+    ) {
+        public JobTrace {
+            strategy = strategy == null ? PartitionPlannerStrategy.GREEDY_MAX_REGION : strategy;
+            target = target == null ? PartitionTarget.NONE : target;
+            totalConsidered = Math.max(0, totalConsidered);
+            acceptedCount = Math.max(0, acceptedCount);
+            rejectedCount = Math.max(0, rejectedCount);
+        }
     }
 
     /**
@@ -39,12 +52,45 @@ public record PartitionCompileTrace(
      */
     public static PartitionCompileTrace empty() {
         return new PartitionCompileTrace(
-                PartitionPlannerStrategy.GREEDY_MAX_REGION,
-                PartitionTarget.NONE,
                 0,
                 0,
                 0,
+                List.of(),
                 List.of()
+        );
+    }
+
+    public static PartitionCompileTrace singleJob(
+            PartitionPlannerStrategy strategy,
+            PartitionTarget target,
+            int totalConsidered,
+            int acceptedCount,
+            int rejectedCount,
+            List<PartitionDecisionTrace> decisions
+    ) {
+        return new PartitionCompileTrace(
+                totalConsidered,
+                acceptedCount,
+                rejectedCount,
+                List.of(new JobTrace(strategy, target, totalConsidered, acceptedCount, rejectedCount)),
+                decisions
+        );
+    }
+
+    public static PartitionCompileTrace forJob(
+            PartitionPlannerStrategy strategy,
+            PartitionTarget target,
+            List<PartitionDecisionTrace> decisions
+    ) {
+        List<PartitionDecisionTrace> safeDecisions = List.copyOf(decisions == null ? List.of() : decisions);
+        int accepted = (int) safeDecisions.stream().filter(PartitionDecisionTrace::accepted).count();
+        return singleJob(
+                strategy,
+                target,
+                safeDecisions.size(),
+                accepted,
+                safeDecisions.size() - accepted,
+                safeDecisions
         );
     }
 }

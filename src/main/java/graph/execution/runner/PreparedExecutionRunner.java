@@ -2,7 +2,11 @@ package graph.execution.runner;
 
 import backend.ComputeBackend;
 import backend.ComputeEngine;
-import backend.accelerator.exec.PreparedAcceleratorExecutable;
+import backend.accelerator.exec.AcceleratorExecutionArtifact;
+import backend.cpu.CpuFusedExecutionArtifact;
+import backend.cpu.CpuNodeExecutionArtifact;
+import backend.cpu.CpuRegionExecutionArtifact;
+import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.nativecpu.PreparedNativeCpuInputPolicy;
 import backend.cpu.nativecpu.PreparedNativeCpuPlan;
 import backend.memory.CpuMaterializationReason;
@@ -66,12 +70,13 @@ public final class PreparedExecutionRunner {
         if (step.metadata().backend() != ComputeBackend.CPU) {
             return;
         }
-        if (step.metadata().cpuRegionExecutable() != null) {
+        if (step.metadata().artifact() instanceof CpuRegionExecutionArtifact) {
             return;
         }
-        PreparedNativeCpuPlan nativeCpuPlan = step.metadata().cpuPlan() == null
+        CpuNodeExecutionPlan cpuPlan = cpuPlan(step);
+        PreparedNativeCpuPlan nativeCpuPlan = cpuPlan == null
                 ? null
-                : step.metadata().cpuPlan().nativeCpuPlan();
+                : cpuPlan.nativeCpuPlan();
         if (nativeCpuPlan != null) {
             if (nativeCpuPlan.inputPolicy() == PreparedNativeCpuInputPolicy.ALL_NATIVE) {
                 return;
@@ -97,10 +102,21 @@ public final class PreparedExecutionRunner {
     }
 
     private static String residencyReason(PreparedNodeExecution step) {
-        PreparedAcceleratorExecutable executable = step == null ? null : step.metadata().acceleratorExecutable();
-        if (executable != null) {
-            return executable.outputResidencyReason();
+        if (step != null
+                && step.metadata().artifact() instanceof AcceleratorExecutionArtifact artifact
+                && artifact.executable() != null) {
+            return artifact.executable().outputResidencyReason();
         }
         return "backend wrote CPU array";
+    }
+
+    private static CpuNodeExecutionPlan cpuPlan(PreparedNodeExecution step) {
+        if (step.metadata().artifact() instanceof CpuNodeExecutionArtifact artifact) {
+            return artifact.cpuPlan();
+        }
+        if (step.metadata().artifact() instanceof CpuFusedExecutionArtifact artifact) {
+            return artifact.cpuPlan();
+        }
+        return null;
     }
 }

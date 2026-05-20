@@ -346,7 +346,7 @@ public final class CpuRegionLowerer implements RegionLowerer {
                         + node.operation().opType().name().toLowerCase());
             }
             if (coverage.status() == NativeCpuKernelPerformanceStatus.LIBRARY_PROVIDER) {
-                if (!nativeProviderEligible(node, runtimeConfig)) {
+                if (!nativeProviderEligible(node, request, runtimeConfig)) {
                     rejection = "native-cpu-region-provider-unavailable:" + node.operation().opType().name().toLowerCase();
                     return NativeRegionLegality.rejected(rejection);
                 }
@@ -362,7 +362,7 @@ public final class CpuRegionLowerer implements RegionLowerer {
         return NativeRegionLegality.selected(providerNodeIds, localKernelNodeIds, "provider-backed-native-cpu-region");
     }
 
-    private boolean nativeProviderEligible(CompiledNode node, RuntimeConfig runtimeConfig) {
+    private boolean nativeProviderEligible(CompiledNode node, LoweringRequest request, RuntimeConfig runtimeConfig) {
         if (node == null || node.operation() == null
                 || (node.operation().opType() != Operation.OpType.MATMUL
                 && node.operation().opType() != Operation.OpType.LINEAR)) {
@@ -371,14 +371,14 @@ public final class CpuRegionLowerer implements RegionLowerer {
         if (runtimeConfig.blas().provider() != BlasProvider.OPENBLAS_FFM) {
             return false;
         }
-        if (node.inputTensors().size() < 2) {
+        if (node.inputIds().size() < 2) {
             return false;
         }
         CpuExecutionPlanner planner = CpuExecutionPlanner.from(runtimeConfig.cpuKernelConfig());
         ResolvedMatMulHints hints = planner.resolveMatMulHints(
-                node.inputTensors().get(0),
-                node.inputTensors().get(1),
-                node.semanticTensor(),
+                request.context().descriptor(node.inputIds().get(0)),
+                request.context().descriptor(node.inputIds().get(1)),
+                request.context().descriptor(node.id()),
                 runtimeConfig.blas(),
                 runtimeConfig.cpuStorageProfile(),
                 false
@@ -668,7 +668,7 @@ public final class CpuRegionLowerer implements RegionLowerer {
             );
         }
         NativeCpuLayoutClass accessLayout = nativeAccessLayout(op, coverage, inputLayouts, outputLayout);
-        String materializationReason = nativeLayoutMaterializationReason(node, op, coverage, inputLayouts, outputLayout);
+        String materializationReason = nativeLayoutMaterializationReason(request, node, op, coverage, inputLayouts, outputLayout);
         if (!materializationReason.isBlank()) {
             return NativeNodeLayoutPlan.rejected(
                     accessLayout.name(),
@@ -724,6 +724,7 @@ public final class CpuRegionLowerer implements RegionLowerer {
     }
 
     private String nativeLayoutMaterializationReason(
+            LoweringRequest request,
             CompiledNode node,
             Operation op,
             NativeCpuCoverageEntry coverage,
@@ -741,7 +742,7 @@ public final class CpuRegionLowerer implements RegionLowerer {
             if (coverage.status() == NativeCpuKernelPerformanceStatus.LIBRARY_PROVIDER) {
                 return "native-layout-materialization-required:provider-dense-input";
             }
-            if (nativeSegmentLayoutEligible(node, op, coverage)) {
+            if (nativeSegmentLayoutEligible(node, request, op, coverage)) {
                 continue;
             }
             if (inputLayout == NativeCpuLayoutClass.OFFSET_CONTIGUOUS) {
@@ -760,7 +761,12 @@ public final class CpuRegionLowerer implements RegionLowerer {
         return "";
     }
 
-    private boolean nativeSegmentLayoutEligible(CompiledNode node, Operation op, NativeCpuCoverageEntry coverage) {
+    private boolean nativeSegmentLayoutEligible(
+            CompiledNode node,
+            LoweringRequest request,
+            Operation op,
+            NativeCpuCoverageEntry coverage
+    ) {
         if (op == null || coverage == null) {
             return false;
         }
@@ -775,9 +781,9 @@ public final class CpuRegionLowerer implements RegionLowerer {
         if (NativeSegmentStridedKernels.supportsReduction(opType, dataType)) {
             return true;
         }
-        if (isCompareOp(opType) && node != null && node.inputTensors().size() >= 2) {
-            DataType leftDataType = node.inputTensors().get(0).getDataType();
-            DataType rightDataType = node.inputTensors().get(1).getDataType();
+        if (isCompareOp(opType) && node != null && node.inputIds().size() >= 2) {
+            DataType leftDataType = request.context().descriptor(node.inputIds().get(0)).dataType();
+            DataType rightDataType = request.context().descriptor(node.inputIds().get(1)).dataType();
             return leftDataType == rightDataType && NativeSegmentStridedKernels.supportsCompare(op, leftDataType);
         }
         return opType == Operation.OpType.WHERE

@@ -37,7 +37,6 @@ class CpuNaturalExecutionRegionPlannerTest {
 
         List<CompiledNode> nodes = CompiledNode.snapshot(sum.topologicalSort());
         PartitionPlanningContext context = new PartitionPlanningContext(
-                RuntimeConfig.inferenceDefaults(),
                 false,
                 nodes,
                 CompiledTensorDescriptorBuilder.build(nodes),

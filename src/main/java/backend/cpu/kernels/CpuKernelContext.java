@@ -1,6 +1,7 @@
 package backend.cpu.kernels;
 
 import backend.cpu.plan.CpuLayoutPlan;
+import backend.cpu.CpuFusedExecutionArtifact;
 import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
 import backend.cpu.kernels.layout.plan.ResolvedBroadcastPlan;
 import backend.cpu.kernels.layout.plan.ResolvedWhereBroadcastPlan;
@@ -153,7 +154,9 @@ public final class CpuKernelContext {
     }
 
     public PreparedFusedExecutable fusedExecutable() {
-        return executionMetadata.fusedExecutable();
+        return executionMetadata.artifact() instanceof CpuFusedExecutionArtifact artifact
+                ? artifact.fusedExecutable()
+                : null;
     }
 
     public CpuNodeWorkspace cpuWorkspace() {

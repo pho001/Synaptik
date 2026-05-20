@@ -195,7 +195,6 @@ class GreedyMaxRegionPartitionPlannerTest {
             }
         }
         return new PartitionPlanningContext(
-                RuntimeConfig.trainingDefaults(),
                 artifacts.supportsBackward(),
                 artifacts.compiledNodes(),
                 artifacts.descriptorIndex(),

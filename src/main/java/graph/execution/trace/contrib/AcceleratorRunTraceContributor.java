@@ -1,5 +1,6 @@
 package graph.execution.trace.contrib;
 
+import backend.accelerator.exec.AcceleratorExecutionArtifact;
 import backend.accelerator.lowering.GpuCompoundPatternType;
 
 import java.util.LinkedHashMap;
@@ -8,8 +9,9 @@ final class AcceleratorRunTraceContributor implements BackendRunTraceContributor
     @Override
     public void contribute(BackendRunTraceContext context, LinkedHashMap<String, Object> attrs) {
         var metadata = context.metadata();
-        if (metadata.acceleratorExecutable() != null) {
-            var decision = metadata.acceleratorExecutable().lastAcceleratorBufferDecision();
+        if (metadata.artifact() instanceof AcceleratorExecutionArtifact artifact && artifact.executable() != null) {
+            var executable = artifact.executable();
+            var decision = executable.lastAcceleratorBufferDecision();
             attrs.put("acceleratorBufferMode", decision.mode().name());
             attrs.put("acceleratorBufferBackend", decision.backend().name());
             attrs.put("acceleratorBufferDecision", decision.path().name());
@@ -21,11 +23,11 @@ final class AcceleratorRunTraceContributor implements BackendRunTraceContributor
             attrs.put("acceleratorBufferOutputCount", decision.outputs().size());
             attrs.put("cpuMaterializationCount", context.executionContext().cpuMaterializationTraceCount());
             attrs.put("deviceHandoffCount", deviceHandoffCount(decision));
-            var regionPlan = metadata.acceleratorExecutable().regionExecutionPlan();
+            var regionPlan = executable.regionExecutionPlan();
             if (regionPlan != null) {
                 BackendTraceSupport.addRegionPlanAttrs(attrs, regionPlan);
             }
-            var manifest = metadata.acceleratorExecutable().gpuLoweredRegionManifest();
+            var manifest = executable.gpuLoweredRegionManifest();
             if (manifest != null && !manifest.regionId().isBlank()) {
                 attrs.put("gpuRegionId", manifest.regionId());
                 attrs.put("gpuLoweredRegionId", manifest.regionId());
@@ -49,7 +51,7 @@ final class AcceleratorRunTraceContributor implements BackendRunTraceContributor
                         .map(subpattern -> subpattern.reason().name())
                         .toList());
             }
-            var compoundSummary = metadata.acceleratorExecutable().compoundSummary();
+            var compoundSummary = executable.compoundSummary();
             if (compoundSummary != null && compoundSummary.patternType() != GpuCompoundPatternType.NONE) {
                 attrs.put("gpuCompoundPattern", compoundSummary.patternType().name());
                 attrs.put("gpuCompoundSupported", compoundSummary.supported());
@@ -59,7 +61,7 @@ final class AcceleratorRunTraceContributor implements BackendRunTraceContributor
                 attrs.put("gpuCompoundDagNodeTypes", compoundSummary.dagNodeTypes());
                 attrs.put("gpuCompoundPostOps", compoundSummary.postOps());
             }
-            metadata.acceleratorExecutable().contributeRunTraceAttributes(attrs);
+            executable.contributeRunTraceAttributes(attrs);
         }
         var layoutTransformDecision = context.executionContext().layoutTransformDecisionForNodeId(context.node().id());
         if (layoutTransformDecision != null) {

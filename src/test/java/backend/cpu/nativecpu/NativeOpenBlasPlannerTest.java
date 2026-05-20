@@ -28,8 +28,8 @@ class NativeOpenBlasPlannerTest {
 
         var step = matmulStep(DataType.FLOAT32, runtime(CpuStorageProfile.CPU_ARRAY, BlasStorageMode.AUTO, 1L));
 
-        assertEquals(MatMulExecutionRoute.OPENBLAS_ARRAY_COPYING, step.metadata().cpuPlan().matMulHints().route());
-        assertEquals("F32BlasMatMulExecutable", step.metadata().cpuPlan().matMulExecutable().getClass().getSimpleName());
+        assertEquals(MatMulExecutionRoute.OPENBLAS_ARRAY_COPYING, testsupport.MetadataArtifacts.cpuPlan(step.metadata()).matMulHints().route());
+        assertEquals("F32BlasMatMulExecutable", testsupport.MetadataArtifacts.cpuPlan(step.metadata()).matMulExecutable().getClass().getSimpleName());
     }
 
     @Test
@@ -38,8 +38,8 @@ class NativeOpenBlasPlannerTest {
 
         var step = matmulStep(DataType.FLOAT32, runtime(CpuStorageProfile.CPU_ARRAY, BlasStorageMode.CPU_NATIVE, 1L));
 
-        assertEquals(MatMulExecutionRoute.OPENBLAS_ARRAY_COPYING, step.metadata().cpuPlan().matMulHints().route());
-        assertEquals("F32BlasMatMulExecutable", step.metadata().cpuPlan().matMulExecutable().getClass().getSimpleName());
+        assertEquals(MatMulExecutionRoute.OPENBLAS_ARRAY_COPYING, testsupport.MetadataArtifacts.cpuPlan(step.metadata()).matMulHints().route());
+        assertEquals("F32BlasMatMulExecutable", testsupport.MetadataArtifacts.cpuPlan(step.metadata()).matMulExecutable().getClass().getSimpleName());
     }
 
     @Test
@@ -48,8 +48,8 @@ class NativeOpenBlasPlannerTest {
 
         var step = matmulStep(DataType.FLOAT32, runtime(CpuStorageProfile.CPU_NATIVE, BlasStorageMode.AUTO, Long.MAX_VALUE));
 
-        assertEquals(MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT, step.metadata().cpuPlan().matMulHints().route());
-        assertEquals("F32NativeBlasMatMulExecutable", step.metadata().cpuPlan().matMulExecutable().getClass().getSimpleName());
+        assertEquals(MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT, testsupport.MetadataArtifacts.cpuPlan(step.metadata()).matMulHints().route());
+        assertEquals("F32NativeBlasMatMulExecutable", testsupport.MetadataArtifacts.cpuPlan(step.metadata()).matMulExecutable().getClass().getSimpleName());
     }
 
     @Test
@@ -58,8 +58,8 @@ class NativeOpenBlasPlannerTest {
 
         var step = matmulStep(DataType.FLOAT64, runtime(CpuStorageProfile.AUTO, BlasStorageMode.AUTO, 1L));
 
-        assertEquals(MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT, step.metadata().cpuPlan().matMulHints().route());
-        assertEquals("F64NativeBlasMatMulExecutable", step.metadata().cpuPlan().matMulExecutable().getClass().getSimpleName());
+        assertEquals(MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT, testsupport.MetadataArtifacts.cpuPlan(step.metadata()).matMulHints().route());
+        assertEquals("F64NativeBlasMatMulExecutable", testsupport.MetadataArtifacts.cpuPlan(step.metadata()).matMulExecutable().getClass().getSimpleName());
     }
 
     @Test
@@ -78,8 +78,8 @@ class NativeOpenBlasPlannerTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertEquals(MatMulExecutionRoute.JAVA_DIRECT, step.metadata().cpuPlan().matMulHints().route());
-        assertEquals("F32JavaMatMulExecutable", step.metadata().cpuPlan().matMulExecutable().getClass().getSimpleName());
+        assertEquals(MatMulExecutionRoute.JAVA_DIRECT, testsupport.MetadataArtifacts.cpuPlan(step.metadata()).matMulHints().route());
+        assertEquals("F32JavaMatMulExecutable", testsupport.MetadataArtifacts.cpuPlan(step.metadata()).matMulExecutable().getClass().getSimpleName());
     }
 
     @Test
@@ -98,8 +98,8 @@ class NativeOpenBlasPlannerTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertEquals(MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT, step.metadata().cpuPlan().matMulHints().route());
-        assertEquals("BF16NativeBlasMatMulExecutable", step.metadata().cpuPlan().matMulExecutable().getClass().getSimpleName());
+        assertEquals(MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT, testsupport.MetadataArtifacts.cpuPlan(step.metadata()).matMulHints().route());
+        assertEquals("BF16NativeBlasMatMulExecutable", testsupport.MetadataArtifacts.cpuPlan(step.metadata()).matMulExecutable().getClass().getSimpleName());
     }
 
     @Test

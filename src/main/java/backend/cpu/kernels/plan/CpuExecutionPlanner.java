@@ -23,6 +23,7 @@ import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
 import config.runtime.CpuStorageProfile;
 import backend.cpu.fused.plan.FusedOperation;
+import graph.compile.descriptor.CompiledTensorDescriptor;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -309,8 +310,24 @@ public final class CpuExecutionPlanner {
         return elementwiseDispatchPlanner.resolve(op, node, contract);
     }
 
+    public ResolvedDispatchHints resolveDispatchHints(
+            Operation op,
+            CompiledTensorDescriptor descriptor,
+            ResolvedCpuComputeContract contract
+    ) {
+        return elementwiseDispatchPlanner.resolve(op, descriptor.logicalElementCount(), contract);
+    }
+
     public PreparedFusedDispatch resolveFusedDispatch(FusedOperation fused, Tensor node, ResolvedCpuComputeContract contract) {
         return fusedDispatchPlanner.resolve(fused, node, contract);
+    }
+
+    public PreparedFusedDispatch resolveFusedDispatch(
+            FusedOperation fused,
+            CompiledTensorDescriptor descriptor,
+            ResolvedCpuComputeContract contract
+    ) {
+        return fusedDispatchPlanner.resolve(fused, descriptor.logicalElementCount(), contract);
     }
 
     public ResolvedReductionHints resolveReductionHints(int logicalSize, ResolvedCpuComputeContract contract) {
@@ -337,6 +354,16 @@ public final class CpuExecutionPlanner {
         return computeContractResolver.resolve(op, node, matMulHints, conv2dHints);
     }
 
+    public ResolvedCpuComputeContract resolveComputeContract(
+            Operation op,
+            CompiledTensorDescriptor descriptor,
+            BlasConfig blasConfig,
+            ResolvedMatMulHints matMulHints,
+            ResolvedConv2dHints conv2dHints
+    ) {
+        return computeContractResolver.resolve(op, descriptor, matMulHints, conv2dHints);
+    }
+
     public ResolvedMatMulHints resolveMatMulHints(Tensor a, Tensor b, Tensor out, BlasConfig blasConfig) {
         return matMulPlanner.resolve(a, b, out, blasConfig);
     }
@@ -354,6 +381,28 @@ public final class CpuExecutionPlanner {
             boolean publishFloatContinuation
     ) {
         return matMulPlanner.resolve(a, b, out, blasConfig, cpuStorageProfile, publishFloatContinuation);
+    }
+
+    public ResolvedMatMulHints resolveMatMulHints(
+            CompiledTensorDescriptor a,
+            CompiledTensorDescriptor b,
+            CompiledTensorDescriptor out,
+            BlasConfig blasConfig,
+            CpuStorageProfile cpuStorageProfile,
+            boolean publishFloatContinuation
+    ) {
+        return matMulPlanner.resolve(
+                a.shape(),
+                a.contiguous(),
+                b.shape(),
+                b.contiguous(),
+                out.shape(),
+                out.dataType(),
+                out.contiguous(),
+                blasConfig,
+                cpuStorageProfile,
+                publishFloatContinuation
+        );
     }
 
     public ResolvedMatMulHints resolveJavaMatMulHints(int[] aShape, int[] bShape, int[] outShape, DataType outDataType) {

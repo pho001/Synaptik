@@ -3,6 +3,8 @@ package backend.accelerator.prepare;
 import backend.ComputeBackend;
 import backend.accelerator.exec.PartitionExecutionRole;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
+import backend.cpu.CpuFusedExecutionArtifact;
+import backend.cpu.CpuNodeExecutionArtifact;
 import backend.cpu.prepare.CpuNodePreparer;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.lowering.LoweredRegion;
@@ -46,7 +48,7 @@ public final class GpuAcceleratorPrepareSupport {
      * Creates metadata for a node covered by an accelerator partition.
      */
     public static CompiledNodeExecutionMetadata interiorMetadata(ComputeBackend backend, PartitionExecutionRole role) {
-        return new CompiledNodeExecutionMetadata(backend, null, null, null, null, null, role);
+        return new CompiledNodeExecutionMetadata(backend, role, null, List.of(), null);
     }
 
     /**
@@ -117,11 +119,11 @@ public final class GpuAcceleratorPrepareSupport {
             }
         }
 
-        CpuNodeExecutionPlan anchorCpuPlan = anchorCpuMetadata == null ? null : anchorCpuMetadata.cpuPlan();
+        CpuNodeExecutionPlan anchorCpuPlan = cpuPlan(anchorCpuMetadata);
         if (anchorCpuPlan == null) {
             throw new IllegalStateException("Missing CPU anchor metadata for " + backendName + " partition anchor node " + plan.anchorNodeId());
         }
-        CpuNodeExecutionPlan computeCpuPlan = computeCpuMetadata == null ? null : computeCpuMetadata.cpuPlan();
+        CpuNodeExecutionPlan computeCpuPlan = cpuPlan(computeCpuMetadata);
         if (requireComputeCpuPlan && (computeNode == null || computeCpuPlan == null)) {
             throw new IllegalStateException("Missing CPU compute metadata for " + backendName + " partition entry node " + plan.anchorNodeId());
         }
@@ -132,5 +134,19 @@ public final class GpuAcceleratorPrepareSupport {
                 computeCpuMetadata,
                 anchorCpuMetadata
         );
+    }
+
+    private static CpuNodeExecutionPlan cpuPlan(CompiledNodeExecutionMetadata metadata) {
+        if (metadata == null) {
+            return null;
+        }
+        if (metadata.artifact() == null) {
+            return null;
+        }
+        return switch (metadata.artifact()) {
+            case CpuNodeExecutionArtifact artifact -> artifact.cpuPlan();
+            case CpuFusedExecutionArtifact artifact -> artifact.cpuPlan();
+            default -> null;
+        };
     }
 }

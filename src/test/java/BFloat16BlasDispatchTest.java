@@ -212,7 +212,7 @@ public class BFloat16BlasDispatchTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertTrue("CPU_MATMUL_BLAS".equals(matmul.metadata().cpuPlan().computeContract().backend().name()));
+        assertTrue("CPU_MATMUL_BLAS".equals(testsupport.MetadataArtifacts.cpuPlan(matmul.metadata()).computeContract().backend().name()));
     }
 
     private static CompileConfig convLoweringOnlyConfig() {

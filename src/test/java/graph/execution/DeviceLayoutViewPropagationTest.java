@@ -232,17 +232,7 @@ class DeviceLayoutViewPropagationTest {
         List<CompiledNode> nodes = CompiledNode.snapshot(List.of(source, target));
         CompiledNode sourceNode = nodes.getFirst();
         CompiledNode targetNode = nodes.get(1);
-        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
-                ComputeBackend.CPU,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                List.of(),
-                PartitionExecutionRole.NONE
-        );
+        CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.CPU, null, PartitionExecutionRole.NONE);
         ExecutionState state = ExecutionState.create(nodes, CompiledTensorDescriptorBuilder.build(nodes), Map.of(targetNode.id(), metadata), targetNode.id());
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(runtimeConfig, ExecutionMode.FORWARD, Map.of(targetNode.id(), metadata), state);
         Fixture fixture = new Fixture(sourceNode, targetNode, state, context, new PreparedNodeExecution(targetNode, metadata));

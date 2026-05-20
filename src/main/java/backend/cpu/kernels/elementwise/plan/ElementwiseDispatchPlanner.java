@@ -21,7 +21,15 @@ public final class ElementwiseDispatchPlanner {
             return new ResolvedDispatchHints(0, CpuExecutionMode.SCALAR, 1, 1, 1, 1, false);
         }
 
-        int totalLength = Math.max(0, node.getFlatDataSize());
+        return resolve(op, node.getFlatDataSize(), contract);
+    }
+
+    public ResolvedDispatchHints resolve(Operation op, long logicalElementCount, ResolvedCpuComputeContract contract) {
+        if (op == null || op.opType().category() != Operation.OpArityClass.ELEMENT_WISE) {
+            return new ResolvedDispatchHints(0, CpuExecutionMode.SCALAR, 1, 1, 1, 1, false);
+        }
+
+        int totalLength = (int) Math.min(Integer.MAX_VALUE, Math.max(0L, logicalElementCount));
         CpuKernelCostClass costClass = policy.dispatchCostClass(op);
         int vectorWidth = policy.preferredVectorWidth(contract);
         boolean vectorAllowed = vectorWidth > 1 && totalLength >= policy.elementwiseVectorMinSize(op);

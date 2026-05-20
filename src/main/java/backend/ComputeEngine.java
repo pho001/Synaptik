@@ -1,6 +1,7 @@
 package backend;
 
 import backend.accelerator.exec.PartitionExecutionRole;
+import backend.accelerator.exec.AcceleratorExecutionArtifact;
 import backend.cpu.CpuBackend;
 import backend.cuda.CudaBackend;
 import backend.cuda.CudaGpuBackend;
@@ -59,7 +60,7 @@ public final class ComputeEngine {
         switch (metadata.backend()) {
             case CPU -> CPU_BACKEND.execute(node, metadata, context);
             case GPU_CUDA -> {
-                if (metadata.acceleratorExecutable() != null) {
+                if (metadata.artifact() instanceof AcceleratorExecutionArtifact) {
                     CUDA_GPU_BACKEND.execute(node, metadata, context);
                 } else {
                     CUDA_BACKEND.execute(node, metadata, context);

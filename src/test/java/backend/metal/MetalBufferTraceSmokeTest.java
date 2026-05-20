@@ -197,7 +197,7 @@ class MetalBufferTraceSmokeTest {
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
         PreparedMetalExecutable executable = execution.forwardSteps().stream()
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
-                .map(step -> (PreparedMetalExecutable) step.metadata().acceleratorExecutable())
+                .map(step -> (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(step.metadata()))
                 .findFirst()
                 .orElseThrow();
         assumeTrue(executable.bridgeContext().available(), executable.bridgeContext().reason());

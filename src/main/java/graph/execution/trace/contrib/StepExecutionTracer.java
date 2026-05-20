@@ -1,7 +1,10 @@
 package graph.execution.trace.contrib;
 
 import backend.blas.OpenBlasFfmBridge;
+import backend.cpu.CpuFusedExecutionArtifact;
+import backend.cpu.CpuNodeExecutionArtifact;
 import backend.cpu.fused.plan.FusedOperation;
+import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
@@ -10,6 +13,7 @@ import config.runtime.BlasStorageMode;
 import config.runtime.CpuStorageProfile;
 import graph.CompiledNode;
 import graph.execution.PreparedNodeExecution;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.trace.ComputeTraceMetadata;
 import graph.execution.trace.ConvTraceMetadata;
 import graph.execution.trace.DispatchTraceMetadata;
@@ -40,7 +44,8 @@ public final class StepExecutionTracer {
                 ? node.operation()
                 : metadata.executionOperation();
         String opType = executionOperation == null ? "LEAF" : executionOperation.opType().name();
-        String kernel = metadata.cpuKernel() == null ? "" : metadata.cpuKernel().getClass().getSimpleName();
+        CpuKernel cpuKernel = cpuKernel(metadata);
+        String kernel = cpuKernel == null ? "" : cpuKernel.getClass().getSimpleName();
         return new ExecutionStepTrace(
                 index,
                 node.label(),
@@ -56,13 +61,14 @@ public final class StepExecutionTracer {
 
     private static StepExecutionMetadata buildStepMetadata(CompiledNode node, PreparedNodeExecution step, ExecutionContext context) {
         var metadata = step.metadata();
+        CpuNodeExecutionPlan cpuPlan = cpuPlan(metadata);
         LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
         ComputeTraceMetadata compute = null;
         LayoutTraceMetadata layout = new LayoutTraceMetadata(
                 node.storageOffset(),
                 node.contiguous(),
-                metadata.cpuPlan() != null && metadata.cpuPlan().stridedPath(),
-                metadata.cpuPlan() == null ? "" : metadata.cpuPlan().targetType().name()
+                cpuPlan != null && cpuPlan.stridedPath(),
+                cpuPlan == null ? "" : cpuPlan.targetType().name()
         );
         DispatchTraceMetadata dispatch = null;
         ReductionTraceMetadata reduction = null;
@@ -70,8 +76,8 @@ public final class StepExecutionTracer {
         ConvTraceMetadata conv = null;
         FusedTraceMetadata fusedMeta = null;
 
-        if (metadata.cpuPlan() != null) {
-            var plan = metadata.cpuPlan();
+        if (cpuPlan != null) {
+            var plan = cpuPlan;
             compute = new ComputeTraceMetadata(
                     plan.computeContract().computeType().name(),
                     plan.computeContract().storageType().name(),
@@ -151,9 +157,10 @@ public final class StepExecutionTracer {
                 ? node.operation()
                 : metadata.executionOperation();
         if (executionOperation instanceof FusedOperation fused) {
-            String executionBackend = step.metadata().fusedExecutable() == null
+            var fusedExecutable = fusedExecutable(step.metadata());
+            String executionBackend = fusedExecutable == null
                     ? ""
-                    : step.metadata().fusedExecutable().getClass().getSimpleName();
+                    : fusedExecutable.getClass().getSimpleName();
             fusedMeta = new FusedTraceMetadata(
                     fused.getPrecisionMode(),
                     fused.isLowCostHint(),
@@ -440,5 +447,31 @@ public final class StepExecutionTracer {
 
     private static String firstNonBlank(String first, String second) {
         return first == null || first.isBlank() ? (second == null ? "" : second) : first;
+    }
+
+    private static CpuKernel cpuKernel(CompiledNodeExecutionMetadata metadata) {
+        if (metadata.artifact() instanceof CpuNodeExecutionArtifact artifact) {
+            return artifact.cpuKernel();
+        }
+        if (metadata.artifact() instanceof CpuFusedExecutionArtifact artifact) {
+            return artifact.cpuKernel();
+        }
+        return null;
+    }
+
+    private static CpuNodeExecutionPlan cpuPlan(CompiledNodeExecutionMetadata metadata) {
+        if (metadata.artifact() instanceof CpuNodeExecutionArtifact artifact) {
+            return artifact.cpuPlan();
+        }
+        if (metadata.artifact() instanceof CpuFusedExecutionArtifact artifact) {
+            return artifact.cpuPlan();
+        }
+        return null;
+    }
+
+    private static backend.cpu.fused.exec.PreparedFusedExecutable fusedExecutable(CompiledNodeExecutionMetadata metadata) {
+        return metadata.artifact() instanceof CpuFusedExecutionArtifact artifact
+                ? artifact.fusedExecutable()
+                : null;
     }
 }

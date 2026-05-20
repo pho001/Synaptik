@@ -11,6 +11,7 @@ import backend.runtime.ExecutionContext;
 import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
 import config.runtime.CpuStorageProfile;
+import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import operations.Operation;
@@ -26,17 +27,18 @@ public final class CpuBackend {
             CompiledNodeExecutionMetadata metadata,
             ExecutionContext executionContext
     ) {
-        if (metadata.cpuRegionExecutable() != null) {
-            metadata.cpuRegionExecutable().execute(executionContext);
+        if (metadata.artifact() instanceof CpuRegionExecutionArtifact regionArtifact) {
+            regionArtifact.executable().execute(executionContext);
             return;
         }
+        CpuKernel kernel = cpuKernel(metadata);
+        CpuNodeExecutionPlan executionPlan = cpuPlan(metadata);
         Operation op = metadata.executionOperation() != null ? metadata.executionOperation() : node.operation();
         if (op == null) {
             return;
         }
         Tensor runtimeTensor = executionContext.runtimeTensorForNodeId(node.id());
 
-        CpuKernel kernel = metadata.cpuKernel();
         if (kernel == null) {
             throw new UnsupportedOperationException(
                     "Missing CPU kernel for opType=" + op.opType() +
@@ -48,7 +50,6 @@ public final class CpuBackend {
             cpuWorkspace.clearFloatContinuation();
         }
 
-        CpuNodeExecutionPlan executionPlan = metadata.cpuPlan();
         if (executionPlan == null) {
             throw new IllegalStateException("Missing CpuNodeExecutionPlan for node " + node.label());
         }
@@ -84,6 +85,8 @@ public final class CpuBackend {
             Operation op,
             List<Tensor> inputs,
             Tensor node,
+            List<CompiledTensorDescriptor> inputDescriptors,
+            CompiledTensorDescriptor nodeDescriptor,
             CpuExecutionPlanner planner,
             BlasConfig blasConfig,
             Conv2dConfig conv2dConfig,
@@ -95,6 +98,8 @@ public final class CpuBackend {
                 op,
                 inputs,
                 node,
+                inputDescriptors,
+                nodeDescriptor,
                 planner,
                 blasConfig,
                 conv2dConfig,
@@ -138,5 +143,25 @@ public final class CpuBackend {
             out.add(executionContext.runtimeTensorForNodeId(inputNodeId));
         }
         return out;
+    }
+
+    private static CpuKernel cpuKernel(CompiledNodeExecutionMetadata metadata) {
+        if (metadata.artifact() instanceof CpuNodeExecutionArtifact artifact) {
+            return artifact.cpuKernel();
+        }
+        if (metadata.artifact() instanceof CpuFusedExecutionArtifact artifact) {
+            return artifact.cpuKernel();
+        }
+        return null;
+    }
+
+    private static CpuNodeExecutionPlan cpuPlan(CompiledNodeExecutionMetadata metadata) {
+        if (metadata.artifact() instanceof CpuNodeExecutionArtifact artifact) {
+            return artifact.cpuPlan();
+        }
+        if (metadata.artifact() instanceof CpuFusedExecutionArtifact artifact) {
+            return artifact.cpuPlan();
+        }
+        return null;
     }
 }

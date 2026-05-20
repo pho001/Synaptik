@@ -518,7 +518,7 @@ public class FusedExecutionModesTest {
                 "debug/test/Bf16VectorKernel",
                 ((FusedOperation) fusedStep.executionOperation()).getPlan(),
                 FusedDTypeOps.MODE_BF16,
-                fusedStep.metadata().cpuPlan().dispatchHints().vectorWidth()
+                testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth()
         );
         String constantPool = new String(bytecode, StandardCharsets.ISO_8859_1);
 
@@ -705,13 +705,13 @@ public class FusedExecutionModesTest {
     }
 
     private static void assertHasPreparedFusedStep(PreparedExecution prepared) {
-        assertTrue(prepared.forwardSteps().stream().anyMatch(step -> step.metadata().fusedExecutable() != null),
+        assertTrue(prepared.forwardSteps().stream().anyMatch(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null),
                 "Expected prepared fused execution metadata");
     }
 
     private static PreparedNodeExecution findPreparedFusedStep(PreparedExecution prepared) {
         return prepared.forwardSteps().stream()
-                .filter(step -> step.metadata().fusedExecutable() != null)
+                .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("Expected prepared fused step"));
     }

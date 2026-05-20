@@ -97,9 +97,29 @@ public record PartitionDecisionTrace(
                 .toList();
     }
 
-    /**
-     * Accessor note: callers use {@link #finalists()} for the bounded finalist list.
-     */
+    public static PartitionDecisionTrace coveredByEarlierPartition(
+            PartitionPlannerStrategy strategy,
+            PartitionTarget target,
+            int nodeId,
+            List<String> opTypes
+    ) {
+        return new PartitionDecisionTrace(
+                strategy,
+                target,
+                nodeId,
+                false,
+                "covered-by-earlier-partition",
+                List.of(nodeId),
+                List.of(nodeId),
+                opTypes,
+                0L,
+                Double.NEGATIVE_INFINITY,
+                Double.NEGATIVE_INFINITY,
+                0,
+                false,
+                -1
+        );
+    }
 
     /**
      * Compact finalist score summary for rejected or non-winning candidates.

@@ -10,6 +10,7 @@ import backend.cpu.kernels.reduction.plan.ResolvedReductionHints;
 import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
 import config.runtime.CpuStorageProfile;
+import graph.compile.descriptor.CompiledTensorDescriptor;
 import operations.Operation;
 import tensor.Tensor;
 
@@ -23,6 +24,8 @@ final class CpuOperationPlanResolver {
             Operation op,
             List<Tensor> runtimeInputs,
             Tensor node,
+            List<CompiledTensorDescriptor> inputDescriptors,
+            CompiledTensorDescriptor nodeDescriptor,
             CpuExecutionPlanner planner,
             BlasConfig blasConfig,
             Conv2dConfig conv2dConfig,
@@ -31,11 +34,15 @@ final class CpuOperationPlanResolver {
             ResolvedDispatchHints dispatchHintsOverride
     ) {
         ResolvedMatMulHints matMulHints =
-                (op != null && (op.opType() == Operation.OpType.MATMUL || op.opType() == Operation.OpType.LINEAR) && runtimeInputs.size() >= 2)
+                (op != null
+                        && (op.opType() == Operation.OpType.MATMUL || op.opType() == Operation.OpType.LINEAR)
+                        && inputDescriptors != null
+                        && inputDescriptors.size() >= 2
+                        && nodeDescriptor != null)
                         ? planner.resolveMatMulHints(
-                                runtimeInputs.get(0),
-                                runtimeInputs.get(1),
-                                node,
+                                inputDescriptors.get(0),
+                                inputDescriptors.get(1),
+                                nodeDescriptor,
                                 blasConfig,
                                 cpuStorageProfile,
                                 publishFloatContinuation
@@ -48,15 +55,14 @@ final class CpuOperationPlanResolver {
 
         ResolvedCpuComputeContract computeContract = planner.resolveComputeContract(
                 op,
-                runtimeInputs,
-                node,
+                nodeDescriptor,
                 blasConfig,
                 matMulHints,
                 conv2dHints
         );
 
         ResolvedDispatchHints dispatchHints = shouldResolveDispatch(op)
-                ? (dispatchHintsOverride != null ? dispatchHintsOverride : planner.resolveDispatchHints(op, node, computeContract))
+                ? (dispatchHintsOverride != null ? dispatchHintsOverride : planner.resolveDispatchHints(op, nodeDescriptor, computeContract))
                 : null;
 
         ResolvedReductionHints reductionHints = shouldResolveReduction(op)

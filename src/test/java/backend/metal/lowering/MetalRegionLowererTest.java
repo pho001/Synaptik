@@ -82,7 +82,6 @@ class MetalRegionLowererTest {
         List<Tensor> graph = out.topologicalSort();
         List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
         PartitionPlanningContext context = new PartitionPlanningContext(
-                RuntimeConfig.inferenceDefaults(),
                 false,
                 compiledNodes,
                 CompiledTensorDescriptorBuilder.build(compiledNodes),
@@ -184,7 +183,6 @@ class MetalRegionLowererTest {
         List<Tensor> graph = out.topologicalSort();
         List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
         PartitionPlanningContext planningContext = new PartitionPlanningContext(
-                RuntimeConfig.inferenceDefaults(),
                 false,
                 compiledNodes,
                 CompiledTensorDescriptorBuilder.build(compiledNodes),
@@ -1752,7 +1750,6 @@ class MetalRegionLowererTest {
         List<Tensor> graph = out.topologicalSort();
         List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
         graph.compile.planning.partition.PartitionPlanningContext planningContext = new graph.compile.planning.partition.PartitionPlanningContext(
-                RuntimeConfig.inferenceDefaults(),
                 false,
                 compiledNodes,
                 CompiledTensorDescriptorBuilder.build(compiledNodes),
@@ -1825,7 +1822,6 @@ class MetalRegionLowererTest {
         List<Tensor> graph = out.topologicalSort();
         List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
         graph.compile.planning.partition.PartitionPlanningContext planningContext = new graph.compile.planning.partition.PartitionPlanningContext(
-                RuntimeConfig.inferenceDefaults(),
                 false,
                 compiledNodes,
                 CompiledTensorDescriptorBuilder.build(compiledNodes),
@@ -1915,7 +1911,6 @@ class MetalRegionLowererTest {
         List<Tensor> graph = out.topologicalSort();
         List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
         PartitionPlanningContext planningContext = new PartitionPlanningContext(
-                RuntimeConfig.inferenceDefaults(),
                 false,
                 compiledNodes,
                 CompiledTensorDescriptorBuilder.build(compiledNodes),
@@ -1981,7 +1976,6 @@ class MetalRegionLowererTest {
         List<Tensor> graph = out.topologicalSort();
         List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
         PartitionPlanningContext planningContext = new PartitionPlanningContext(
-                RuntimeConfig.inferenceDefaults(),
                 false,
                 compiledNodes,
                 CompiledTensorDescriptorBuilder.build(compiledNodes),
@@ -2416,7 +2410,6 @@ class MetalRegionLowererTest {
     private static PartitionPlanningContext planningContext(Tensor out) {
         List<CompiledNode> compiledNodes = CompiledNode.snapshot(out.topologicalSort());
         return new PartitionPlanningContext(
-                RuntimeConfig.inferenceDefaults(),
                 false,
                 compiledNodes,
                 CompiledTensorDescriptorBuilder.build(compiledNodes),

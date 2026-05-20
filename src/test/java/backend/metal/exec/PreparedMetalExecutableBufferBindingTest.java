@@ -320,15 +320,7 @@ class PreparedMetalExecutableBufferBindingTest {
         Fixture fixture = fixture();
         FakeBridge bridge = new FakeBridge(true);
         PreparedMetalExecutable executable = executable(fixture, bridge);
-        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
-                ComputeBackend.GPU_METAL,
-                null,
-                null,
-                null,
-                null,
-                executable,
-                backend.accelerator.exec.PartitionExecutionRole.NONE
-        );
+        CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_METAL, executable, backend.accelerator.exec.PartitionExecutionRole.NONE);
         PreparedNodeExecution step = new PreparedNodeExecution(fixture.outputNode(), metadata);
         PreparedExecution prepared = new PreparedExecution(
                 RuntimeConfig.inferenceDefaults(),
@@ -374,15 +366,7 @@ class PreparedMetalExecutableBufferBindingTest {
         Fixture fixture = fixture();
         FakeBridge bridge = new FakeBridge(true);
         PreparedMetalExecutable executable = executable(fixture, bridge, new FakeCustomKernelBridge(true));
-        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
-                ComputeBackend.GPU_METAL,
-                null,
-                null,
-                null,
-                null,
-                executable,
-                backend.accelerator.exec.PartitionExecutionRole.NONE
-        );
+        CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_METAL, executable, backend.accelerator.exec.PartitionExecutionRole.NONE);
         PreparedNodeExecution step = new PreparedNodeExecution(fixture.outputNode(), metadata);
         PreparedExecution prepared = new PreparedExecution(
                 RuntimeConfig.inferenceDefaults(),

@@ -3620,7 +3620,6 @@ class MetalMpsFfmBridgeTest {
     private static PartitionPlanningContext planningContext(Tensor out) {
         List<CompiledNode> compiledNodes = CompiledNode.snapshot(out.topologicalSort());
         return new PartitionPlanningContext(
-                RuntimeConfig.inferenceDefaults(),
                 false,
                 compiledNodes,
                 CompiledTensorDescriptorBuilder.build(compiledNodes),

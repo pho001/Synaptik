@@ -97,7 +97,6 @@ class CpuRegionLegalityAdapterTest {
         }
         List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
         return new PartitionPlanningContext(
-                RuntimeConfig.inferenceDefaults(),
                 false,
                 compiledNodes,
                 CompiledTensorDescriptorBuilder.build(compiledNodes),

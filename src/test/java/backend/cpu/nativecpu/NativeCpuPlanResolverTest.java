@@ -154,7 +154,7 @@ class NativeCpuPlanResolverTest {
     }
 
     private static PreparedNativeCpuPlan nativePlan(Tensor out, Operation.OpType opType, RuntimeConfig runtimeConfig) {
-        PreparedNativeCpuPlan plan = step(out, opType, runtimeConfig).metadata().cpuPlan().nativeCpuPlan();
+        PreparedNativeCpuPlan plan = testsupport.MetadataArtifacts.cpuPlan(step(out, opType, runtimeConfig).metadata()).nativeCpuPlan();
         assertNotNull(plan, opType.name());
         return plan;
     }

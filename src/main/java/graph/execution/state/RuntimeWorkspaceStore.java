@@ -1,5 +1,9 @@
 package graph.execution.state;
 
+import backend.accelerator.exec.AcceleratorExecutionArtifact;
+import backend.cpu.CpuFusedExecutionArtifact;
+import backend.cpu.CpuNodeExecutionArtifact;
+import backend.cpu.CpuRegionExecutionArtifact;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.CpuNodeWorkspace;
 import backend.cpu.plan.CpuPreparedInput;
@@ -23,22 +27,22 @@ final class RuntimeWorkspaceStore {
         Map<CpuNodeWorkspace, CpuNodeWorkspace> runtimeWorkspaceByTemplate = new IdentityHashMap<>();
         Map<Long, Tensor> preparedInputs = new HashMap<>();
         for (Map.Entry<Integer, CompiledNodeExecutionMetadata> entry : metadataIndex.entrySet()) {
-            CpuNodeWorkspace workspace = entry.getValue().cpuWorkspace();
+            CpuNodeWorkspace workspace = cpuWorkspace(entry.getValue());
             if (workspace != null) {
                 CpuNodeWorkspace runtimeWorkspace = runtimeWorkspaceByTemplate.computeIfAbsent(workspace, ignored -> workspace.fork());
                 workspaces.put(entry.getKey(), runtimeWorkspace);
             }
-            allocatePreparedInputs(entry.getKey(), entry.getValue().cpuPlan(), preparedInputs);
-            if (entry.getValue().acceleratorExecutable() != null) {
-                for (var fallbackStep : entry.getValue().acceleratorExecutable().cpuFallbackSteps()) {
-                    allocatePreparedInputs(fallbackStep.node().id(), fallbackStep.metadata().cpuPlan(), preparedInputs);
+            allocatePreparedInputs(entry.getKey(), cpuPlan(entry.getValue()), preparedInputs);
+            if (entry.getValue().artifact() instanceof AcceleratorExecutionArtifact artifact && artifact.executable() != null) {
+                for (var fallbackStep : artifact.executable().cpuFallbackSteps()) {
+                    allocatePreparedInputs(fallbackStep.node().id(), cpuPlan(fallbackStep.metadata()), preparedInputs);
                 }
             }
-            if (entry.getValue().cpuRegionExecutable() != null) {
-                for (PreparedNodeExecution regionStep : entry.getValue().cpuRegionExecutable().nativeSteps()) {
+            if (entry.getValue().artifact() instanceof CpuRegionExecutionArtifact artifact && artifact.executable() != null) {
+                for (PreparedNodeExecution regionStep : artifact.executable().nativeSteps()) {
                     allocateCpuRegionStepRuntimeState(regionStep, runtimeWorkspaceByTemplate, workspaces, preparedInputs);
                 }
-                for (PreparedNodeExecution regionStep : entry.getValue().cpuRegionExecutable().fallbackSteps()) {
+                for (PreparedNodeExecution regionStep : artifact.executable().fallbackSteps()) {
                     allocateCpuRegionStepRuntimeState(regionStep, runtimeWorkspaceByTemplate, workspaces, preparedInputs);
                 }
             }
@@ -63,12 +67,38 @@ final class RuntimeWorkspaceStore {
         if (step == null || step.metadata() == null) {
             return;
         }
-        CpuNodeWorkspace workspace = step.metadata().cpuWorkspace();
+        CpuNodeWorkspace workspace = cpuWorkspace(step.metadata());
         if (workspace != null) {
             CpuNodeWorkspace runtimeWorkspace = runtimeWorkspaceByTemplate.computeIfAbsent(workspace, ignored -> workspace.fork());
             workspaces.put(step.compiledNode().id(), runtimeWorkspace);
         }
-        allocatePreparedInputs(step.compiledNode().id(), step.metadata().cpuPlan(), preparedInputs);
+        allocatePreparedInputs(step.compiledNode().id(), cpuPlan(step.metadata()), preparedInputs);
+    }
+
+    private static CpuNodeWorkspace cpuWorkspace(CompiledNodeExecutionMetadata metadata) {
+        if (metadata == null) {
+            return null;
+        }
+        if (metadata.artifact() instanceof CpuNodeExecutionArtifact artifact) {
+            return artifact.cpuWorkspace();
+        }
+        if (metadata.artifact() instanceof CpuFusedExecutionArtifact artifact) {
+            return artifact.cpuWorkspace();
+        }
+        return null;
+    }
+
+    private static CpuNodeExecutionPlan cpuPlan(CompiledNodeExecutionMetadata metadata) {
+        if (metadata == null) {
+            return null;
+        }
+        if (metadata.artifact() instanceof CpuNodeExecutionArtifact artifact) {
+            return artifact.cpuPlan();
+        }
+        if (metadata.artifact() instanceof CpuFusedExecutionArtifact artifact) {
+            return artifact.cpuPlan();
+        }
+        return null;
     }
 
     private static void allocatePreparedInputs(

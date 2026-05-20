@@ -1,7 +1,13 @@
 package graph.execution.trace.contrib;
 
 import backend.ComputeBackend;
+import backend.accelerator.exec.AcceleratorExecutionArtifact;
 import backend.blas.OpenBlasFfmBridge;
+import backend.cpu.CpuFusedExecutionArtifact;
+import backend.cpu.CpuNodeExecutionArtifact;
+import backend.cpu.CpuRegionExecutionArtifact;
+import backend.cpu.kernels.CpuNodeExecutionPlan;
+import backend.cpu.region.PreparedCpuRegionExecutable;
 import backend.cpu.nativecpu.NativeCpuParityMatrix;
 import backend.cpu.nativecpu.NativeCpuTraceState;
 import backend.cpu.nativecpu.PreparedNativeCpuPlan;
@@ -66,10 +72,11 @@ final class CpuRunTraceContributor implements BackendRunTraceContributor {
             LinkedHashMap<String, Object> attrs,
             CompiledNodeExecutionMetadata metadata
     ) {
-        if (metadata.cpuRegionExecutable() == null) {
+        PreparedCpuRegionExecutable executable = cpuRegionExecutable(metadata);
+        if (executable == null) {
             return;
         }
-        var regionPlan = metadata.cpuRegionExecutable().regionExecutionPlan();
+        var regionPlan = executable.regionExecutionPlan();
         if (regionPlan == null) {
             return;
         }
@@ -78,13 +85,13 @@ final class CpuRunTraceContributor implements BackendRunTraceContributor {
         attrs.put("nativeCpuRegionNodeCount", regionPlan.orderedNodeIds().size());
         attrs.put("nativeCpuRegionInputs", regionPlan.externalInputNodeIds());
         attrs.put("nativeCpuRegionOutputs", regionPlan.boundaryOutputNodeIds());
-        attrs.put("nativeCpuRegionRoute", metadata.cpuRegionExecutable().lastRoute());
+        attrs.put("nativeCpuRegionRoute", executable.lastRoute());
         attrs.put("nativeCpuRegionDecision", regionPlan.decision().selected() ? "SELECTED" : "REJECTED");
         attrs.put("nativeCpuRegionReason", regionPlan.decision().reason());
-        attrs.put("nativeCpuRegionFallbackReason", metadata.cpuRegionExecutable().lastFallbackReason());
-        attrs.put("nativeCpuRegionLocalKernelCount", metadata.cpuRegionExecutable().lastRegionLocalKernelCount());
-        attrs.put("nativeCpuRegionLocalViewCount", metadata.cpuRegionExecutable().lastRegionLocalViewCount());
-        attrs.put("nativeCpuRegionExecutedGroupCount", metadata.cpuRegionExecutable().lastExecutedGroupCount());
+        attrs.put("nativeCpuRegionFallbackReason", executable.lastFallbackReason());
+        attrs.put("nativeCpuRegionLocalKernelCount", executable.lastRegionLocalKernelCount());
+        attrs.put("nativeCpuRegionLocalViewCount", executable.lastRegionLocalViewCount());
+        attrs.put("nativeCpuRegionExecutedGroupCount", executable.lastExecutedGroupCount());
         if (regionPlan.backendPayload() instanceof CpuNativeRegionPayload payload) {
             attrs.put("nativeCpuRegionProviderKind", payload.providerKind());
             attrs.put("nativeCpuRegionProviderNodes", payload.providerNodeIds());
@@ -172,14 +179,15 @@ final class CpuRunTraceContributor implements BackendRunTraceContributor {
             return;
         }
         RuntimeConfig runtimeConfig = context.runtimeConfig();
+        CpuNodeExecutionPlan cpuPlan = cpuPlan(metadata);
         if (metadata.backend() != ComputeBackend.CPU
-                || metadata.cpuRegionExecutable() != null
-                || metadata.acceleratorExecutable() != null
+                || cpuRegionExecutable(metadata) != null
+                || metadata.artifact() instanceof AcceleratorExecutionArtifact
                 || runtimeConfig.cpuStorageProfile() == CpuStorageProfile.CPU_ARRAY
-                || metadata.cpuPlan() == null) {
+                || cpuPlan == null) {
             return;
         }
-        PreparedNativeCpuPlan nativePlan = metadata.cpuPlan().nativeCpuPlan();
+        PreparedNativeCpuPlan nativePlan = cpuPlan.nativeCpuPlan();
         if (nativePlan != null && nativePlan.route() == PreparedNativeCpuRoute.NATIVE_EXECUTABLE) {
             return;
         }
@@ -327,5 +335,24 @@ final class CpuRunTraceContributor implements BackendRunTraceContributor {
         } catch (RuntimeException ignored) {
             return null;
         }
+    }
+
+    private static PreparedCpuRegionExecutable cpuRegionExecutable(CompiledNodeExecutionMetadata metadata) {
+        return metadata != null && metadata.artifact() instanceof CpuRegionExecutionArtifact artifact
+                ? artifact.executable()
+                : null;
+    }
+
+    private static CpuNodeExecutionPlan cpuPlan(CompiledNodeExecutionMetadata metadata) {
+        if (metadata == null) {
+            return null;
+        }
+        if (metadata.artifact() instanceof CpuNodeExecutionArtifact artifact) {
+            return artifact.cpuPlan();
+        }
+        if (metadata.artifact() instanceof CpuFusedExecutionArtifact artifact) {
+            return artifact.cpuPlan();
+        }
+        return null;
     }
 }

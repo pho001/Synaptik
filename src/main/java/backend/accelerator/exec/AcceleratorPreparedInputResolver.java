@@ -1,5 +1,7 @@
 package backend.accelerator.exec;
 
+import backend.cpu.CpuFusedExecutionArtifact;
+import backend.cpu.CpuNodeExecutionArtifact;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.plan.CpuPreparedInput;
 import backend.memory.CpuMaterializationReason;
@@ -109,7 +111,7 @@ public final class AcceleratorPreparedInputResolver {
         if (site == null || resolvedConsumerInputs == null || site.consumerInputIndex() >= resolvedConsumerInputs.size()) {
             return original;
         }
-        CpuNodeExecutionPlan cpuPlan = site.metadata() == null ? null : site.metadata().cpuPlan();
+        CpuNodeExecutionPlan cpuPlan = cpuPlan(site.metadata());
         if (cpuPlan == null || cpuPlan.layoutPlan().preparedInputs().isEmpty()) {
             return resolvedConsumerInputs.get(site.consumerInputIndex());
         }
@@ -152,5 +154,18 @@ public final class AcceleratorPreparedInputResolver {
             CompiledNodeExecutionMetadata metadata,
             int consumerInputIndex
     ) {
+    }
+
+    private static CpuNodeExecutionPlan cpuPlan(CompiledNodeExecutionMetadata metadata) {
+        if (metadata == null) {
+            return null;
+        }
+        if (metadata.artifact() instanceof CpuNodeExecutionArtifact artifact) {
+            return artifact.cpuPlan();
+        }
+        if (metadata.artifact() instanceof CpuFusedExecutionArtifact artifact) {
+            return artifact.cpuPlan();
+        }
+        return null;
     }
 }

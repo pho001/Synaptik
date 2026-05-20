@@ -26,7 +26,18 @@ public final class FusedDispatchPlanner {
         Objects.requireNonNull(node, "node cannot be null");
         Objects.requireNonNull(contract, "contract cannot be null");
 
-        int totalLength = Math.max(0, node.getFlatDataSize());
+        return resolve(fused, node.getFlatDataSize(), contract);
+    }
+
+    public PreparedFusedDispatch resolve(
+            FusedOperation fused,
+            long logicalElementCount,
+            ResolvedCpuComputeContract contract
+    ) {
+        Objects.requireNonNull(fused, "fused cannot be null");
+        Objects.requireNonNull(contract, "contract cannot be null");
+
+        int totalLength = (int) Math.min(Integer.MAX_VALUE, Math.max(0L, logicalElementCount));
         CpuKernelCostClass costClass = fusedCostClass(fused);
         int targetChunks = policy.targetChunksPerWorker(costClass);
         int cpuVectorMinSize = policy.fusedDirectVectorMinSize(fused);

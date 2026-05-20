@@ -345,17 +345,7 @@ class PreparedCudaExecutableBufferPolicyTest {
         Fixture fixture = fixture();
         FakeCudaBridge bridge = new FakeCudaBridge(true);
         PreparedCudaExecutable executable = executable(fixture, bridge, AcceleratorBackendConfig.defaults());
-        var acceleratorMetadata = new CompiledNodeExecutionMetadata(
-                backend.ComputeBackend.GPU_CUDA,
-                null,
-                null,
-                null,
-                null,
-                executable,
-                null,
-                List.of(),
-                PartitionExecutionRole.NONE
-        );
+        var acceleratorMetadata = testsupport.MetadataArtifacts.acceleratorMetadata(backend.ComputeBackend.GPU_CUDA, executable, PartitionExecutionRole.NONE);
         PreparedExecution prepared = new PreparedExecution(
                 RuntimeConfig.inferenceDefaults(),
                 false,
