@@ -460,13 +460,13 @@ final class TransformerMetalPartitionAnalysisTest {
         ;
         long metalBackwardSdpa = metalPrepared.backwardSteps().stream()
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
-                .filter(step -> step.node().getOperation() != null
-                        && step.node().getOperation().opType() == operations.Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD)
+                .filter(step -> step.compiledNode().operation() != null
+                        && step.compiledNode().operation().opType() == operations.Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD)
                 .count();
         System.out.println("METAL BACKWARD STEPS");
         metalPrepared.backwardSteps().forEach(step -> System.out.println(
-                "node=" + step.node().getLabel()
-                        + " op=" + (step.node().getOperation() == null ? "LEAF" : step.node().getOperation().opType())
+                "node=" + step.compiledNode().label()
+                        + " op=" + (step.compiledNode().operation() == null ? "LEAF" : step.compiledNode().operation().opType())
                         + " backend=" + step.metadata().backend()
                         + " role=" + step.metadata().partitionRole()
         ));

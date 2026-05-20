@@ -8,7 +8,7 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 
 /**
- * Captures how compiled gradient values are published back to source tensors.
+ * Captures how compiled gradient values are published back to user-visible tensors.
  */
 final class GradientBindingCollector {
     private GradientBindingCollector() {
@@ -18,20 +18,20 @@ final class GradientBindingCollector {
      * Captures gradient bindings for every tensor in a compiled graph that has a gradient.
      *
      * @param graph compiled graph tensors
-     * @param sourceTensors semantic-to-source tensor mapping
+     * @param publicationTensors compiled graph tensor to user-visible publication tensor mapping
      * @param compiledNodeByTensor compiled node lookup by tensor
-     * @return bindings keyed by published source tensor
+     * @return bindings keyed by publication tensor
      */
     static Map<Tensor, CompiledGradientBinding> captureCompiledGradients(
             Iterable<Tensor> graph,
-            Map<Tensor, Tensor> sourceTensors,
+            Map<Tensor, Tensor> publicationTensors,
             Map<Tensor, CompiledNode> compiledNodeByTensor
     ) {
         IdentityHashMap<Tensor, CompiledGradientBinding> out = new IdentityHashMap<>();
         if (graph == null) {
             return Map.of();
         }
-        Map<Tensor, Tensor> sources = sourceTensors == null ? Map.of() : sourceTensors;
+        Map<Tensor, Tensor> sources = publicationTensors == null ? Map.of() : publicationTensors;
         Map<Tensor, CompiledNode> compiledNodes = compiledNodeByTensor == null ? Map.of() : compiledNodeByTensor;
         for (Tensor tensor : graph) {
             Tensor gradient = tensor.getGradient();

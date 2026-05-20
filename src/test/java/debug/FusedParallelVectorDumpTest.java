@@ -63,7 +63,7 @@ final class FusedParallelVectorDumpTest {
                 .filter(step -> step.executionOperation() instanceof FusedOperation)
                 .map(step -> {
                     var hints = testsupport.MetadataArtifacts.cpuPlan(step.metadata()) == null ? null : testsupport.MetadataArtifacts.cpuPlan(step.metadata()).dispatchHints();
-                    return step.node().getLabel()
+                    return step.compiledNode().label()
                             + " mode=" + (hints == null ? "null" : hints.mode())
                             + " vectorWidth=" + (hints == null ? -1 : hints.vectorWidth())
                             + " workers=" + (hints == null ? -1 : hints.plannedWorkers())
@@ -116,7 +116,7 @@ final class FusedParallelVectorDumpTest {
                 """.formatted(
                 binaryName,
                 dataType,
-                selected.node().getLabel(),
+                selected.compiledNode().label(),
                 fused.getExpression(),
                 testsupport.MetadataArtifacts.fusedExecutable(selected.metadata()).getClass().getName(),
                 hints.mode(),

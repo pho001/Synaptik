@@ -70,6 +70,10 @@ public final class BackendPrepareContext {
         return inputs.descriptor(nodeId);
     }
 
+    public CompiledTensorDescriptorIndex descriptorIndex() {
+        return inputs.descriptorIndex();
+    }
+
     public List<CompiledNode> consumersFor(int nodeId) {
         return inputs.consumersFor(nodeId);
     }

@@ -78,7 +78,6 @@ public final class DefaultRegionOptimizer {
         return new RegionValue(
                 ref,
                 ref,
-                contextSemanticTensor(context, value.producerNodeId()),
                 value.producerNodeId(),
                 contextElementCount(context, value.producerNodeId()),
                 transportKind,
@@ -119,11 +118,4 @@ public final class DefaultRegionOptimizer {
         return Math.max(0, producer.flatDataSize());
     }
 
-    private tensor.Tensor contextSemanticTensor(RegionOptimizationContext context, int producerNodeId) {
-        CompiledNode producer = context.compiledNode(producerNodeId);
-        if (producer == null) {
-            throw new IllegalStateException("Missing compiled node for producerNodeId=" + producerNodeId);
-        }
-        return producer.semanticTensor();
-    }
 }

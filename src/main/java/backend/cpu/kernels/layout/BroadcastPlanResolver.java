@@ -1,11 +1,11 @@
 package backend.cpu.kernels.layout;
 
+import graph.compile.descriptor.CompiledTensorDescriptor;
 import backend.cpu.kernels.layout.plan.ResolvedBroadcastPlan;
 import backend.cpu.kernels.layout.plan.ResolvedWhereBroadcastPlan;
 import operations.Operation;
 import tensor.layout.BroadcastPlan;
 import tensor.layout.BroadcastPlanner;
-import tensor.Tensor;
 import tensor.layout.WhereBroadcastPlan;
 import tensor.layout.WhereBroadcastPlanner;
 
@@ -16,41 +16,65 @@ public final class BroadcastPlanResolver {
     private BroadcastPlanResolver() {
     }
 
-    public static ResolvedBroadcastPlan resolve(Operation op, List<Tensor> runtimeInputs, Tensor node) {
+    public static ResolvedBroadcastPlan resolve(
+            Operation op,
+            List<CompiledTensorDescriptor> runtimeInputs,
+            CompiledTensorDescriptor node
+    ) {
         if (!supportsBinaryBroadcast(op) || runtimeInputs.size() != 2) {
             return null;
         }
 
-        BroadcastPlan plan = BroadcastPlanner.plan(runtimeInputs.get(0), runtimeInputs.get(1));
-        if (!Arrays.equals(plan.outShape(), node.getShapeUnsafe())) {
+        BroadcastPlan plan = BroadcastPlanner.plan(
+                runtimeInputs.get(0).shape(),
+                runtimeInputs.get(0).strides(),
+                runtimeInputs.get(1).shape(),
+                runtimeInputs.get(1).strides()
+        );
+        if (!Arrays.equals(plan.outShape(), node.shape())) {
             throw new IllegalStateException(
                     "Resolved broadcast output shape " + Arrays.toString(plan.outShape()) +
-                            " does not match node shape " + Arrays.toString(node.getShapeUnsafe())
+                            " does not match node shape " + Arrays.toString(node.shape())
             );
         }
         return ResolvedBroadcastPlan.from(plan);
     }
 
-    public static ResolvedWhereBroadcastPlan resolveWhere(Operation op, List<Tensor> runtimeInputs, Tensor node) {
+    public static ResolvedWhereBroadcastPlan resolveWhere(
+            Operation op,
+            List<CompiledTensorDescriptor> runtimeInputs,
+            CompiledTensorDescriptor node
+    ) {
         if (op == null || op.opType() != Operation.OpType.WHERE || runtimeInputs.size() != 3) {
             return null;
         }
-        WhereBroadcastPlan plan = WhereBroadcastPlanner.plan(runtimeInputs.get(0), runtimeInputs.get(1), runtimeInputs.get(2));
-        if (!Arrays.equals(plan.outShape(), node.getShapeUnsafe())) {
+        WhereBroadcastPlan plan = WhereBroadcastPlanner.plan(
+                runtimeInputs.get(0).shape(),
+                runtimeInputs.get(0).strides(),
+                runtimeInputs.get(1).shape(),
+                runtimeInputs.get(1).strides(),
+                runtimeInputs.get(2).shape(),
+                runtimeInputs.get(2).strides()
+        );
+        if (!Arrays.equals(plan.outShape(), node.shape())) {
             throw new IllegalStateException(
                     "Resolved where output shape " + Arrays.toString(plan.outShape()) +
-                            " does not match node shape " + Arrays.toString(node.getShapeUnsafe())
+                            " does not match node shape " + Arrays.toString(node.shape())
             );
         }
         return ResolvedWhereBroadcastPlan.from(plan);
     }
 
-    public static boolean requiresBinaryBroadcast(Operation op, List<Tensor> inputs, Tensor node) {
+    public static boolean requiresBinaryBroadcast(
+            Operation op,
+            List<CompiledTensorDescriptor> inputs,
+            CompiledTensorDescriptor node
+    ) {
         if (!supportsBinaryBroadcast(op) || inputs.size() != 2) {
             return false;
         }
-        return !Arrays.equals(inputs.get(0).getShapeUnsafe(), node.getShapeUnsafe())
-                || !Arrays.equals(inputs.get(1).getShapeUnsafe(), node.getShapeUnsafe());
+        return !Arrays.equals(inputs.get(0).shape(), node.shape())
+                || !Arrays.equals(inputs.get(1).shape(), node.shape());
     }
 
     public static boolean supportsBinaryBroadcast(Operation op) {

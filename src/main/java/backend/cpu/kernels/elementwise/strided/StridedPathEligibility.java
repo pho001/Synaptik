@@ -4,7 +4,7 @@ import backend.cpu.kernels.layout.BroadcastPlanResolver;
 import backend.cpu.kernels.plan.CpuExecutionPlanner;
 import operations.Operation;
 import tensor.DataType;
-import tensor.Tensor;
+import graph.compile.descriptor.CompiledTensorDescriptor;
 
 import java.util.Arrays;
 import java.util.List;
@@ -28,8 +28,8 @@ public final class StridedPathEligibility {
 
     public static StridedLayoutDecision resolve(
             Operation op,
-            List<Tensor> inputs,
-            Tensor node,
+            List<CompiledTensorDescriptor> inputs,
+            CompiledTensorDescriptor node,
             DataType targetType,
             CpuExecutionPlanner planner
     ) {
@@ -51,23 +51,23 @@ public final class StridedPathEligibility {
         int nonContiguousInputCount = 0;
         int firstNonContiguousInput = -1;
         boolean allNonContiguousCheapMaterializationFriendly = true;
-        int[] outShape = node.getShapeUnsafe();
+        int[] outShape = node.shape();
 
         for (int i = 0; i < inputs.size(); i++) {
-            Tensor input = inputs.get(i);
+            CompiledTensorDescriptor input = inputs.get(i);
             if (input == null) {
                 return StridedLayoutDecision.NONE;
             }
             if (!isInputTypeCompatible(op, input, targetType, i)) {
                 return StridedLayoutDecision.NONE;
             }
-            if (!Arrays.equals(input.getShapeUnsafe(), outShape)) {
+            if (!Arrays.equals(input.shape(), outShape)) {
                 return StridedLayoutDecision.NONE;
             }
             if (input.hasStorageOffset()) {
                 hasOffsetInput = true;
             }
-            if (!input.isContiguous()) {
+            if (!input.contiguous()) {
                 hasNonContiguousInput = true;
                 nonContiguousInputCount++;
                 if (firstNonContiguousInput < 0) {
@@ -89,8 +89,8 @@ public final class StridedPathEligibility {
         }
 
         boolean preferMaterialize = allNonContiguousCheapMaterializationFriendly
-                && planner.shouldMaterializeCheapStridedElementwise(op, targetType, node.getFlatDataSize());
-        if (!preferMaterialize && !planner.shouldMaterializeNonContiguous(node.getFlatDataSize())) {
+                && planner.shouldMaterializeCheapStridedElementwise(op, targetType, Math.toIntExact(node.logicalElementCount()));
+        if (!preferMaterialize && !planner.shouldMaterializeNonContiguous(Math.toIntExact(node.logicalElementCount()))) {
             return StridedLayoutDecision.KEEP_STRIDED;
         }
 
@@ -103,9 +103,9 @@ public final class StridedPathEligibility {
         return StridedLayoutDecision.MATERIALIZE_ALL;
     }
 
-    private static NonContiguousClass classifyNonContiguous(Tensor input) {
-        int[] shape = input.getShapeUnsafe();
-        int[] strides = input.getStridesUnsafe();
+    private static NonContiguousClass classifyNonContiguous(CompiledTensorDescriptor input) {
+        int[] shape = input.shape();
+        int[] strides = input.strides();
         if (shape != null && strides != null && shape.length == 2 && strides.length == 2) {
             if (isRank2TransposeLike(shape, strides)) {
                 return NonContiguousClass.RANK2_TRANSPOSE_LIKE;
@@ -149,20 +149,20 @@ public final class StridedPathEligibility {
         return strides != null && strides.length == 2 && strides[0] > 1 && strides[1] == 1;
     }
 
-    private static boolean isInputTypeCompatible(Operation op, Tensor input, DataType targetType, int inputIndex) {
+    private static boolean isInputTypeCompatible(Operation op, CompiledTensorDescriptor input, DataType targetType, int inputIndex) {
         if (op == null || input == null) {
             return false;
         }
         return switch (op.opType()) {
             case GT, GE, LT, LE, EQ, NE ->
-                    input.getDataType() == DataType.FLOAT64
-                            || input.getDataType() == DataType.FLOAT32
-                            || input.getDataType() == DataType.BFLOAT16;
+                    input.dataType() == DataType.FLOAT64
+                            || input.dataType() == DataType.FLOAT32
+                            || input.dataType() == DataType.BFLOAT16;
             case WHERE -> inputIndex == 0
-                    ? input.getDataType() == DataType.BOOL
-                    : input.getDataType() == targetType;
-            case LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT -> input.getDataType() == DataType.BOOL;
-            default -> input.getDataType() == targetType;
+                    ? input.dataType() == DataType.BOOL
+                    : input.dataType() == targetType;
+            case LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT -> input.dataType() == DataType.BOOL;
+            default -> input.dataType() == targetType;
         };
     }
 }

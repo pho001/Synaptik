@@ -46,13 +46,27 @@ public final class TensorRemap {
         if (src == null || dst == null) {
             return null;
         }
-        int[] srcShape = src.getShapeUnsafe();
-        int[] dstShape = dst.getShapeUnsafe();
+        return buildPlan(
+                src.getShapeUnsafe(),
+                src.getStridesUnsafe(),
+                src.getStorageOffsetUnsafe(),
+                dst.getShapeUnsafe(),
+                dst.getStridesUnsafe(),
+                dst.getStorageOffsetUnsafe()
+        );
+    }
+
+    public static RemapPlan buildPlan(
+            int[] srcShape,
+            int[] srcStrides,
+            int srcBaseOffset,
+            int[] dstShape,
+            int[] dstStrides,
+            int dstBaseOffset
+    ) {
         if (!Arrays.equals(srcShape, dstShape)) {
             throw new IllegalArgumentException("Source and destination tensors must have the same shape.");
         }
-        int[] srcStrides = src.getStridesUnsafe();
-        int[] dstStrides = dst.getStridesUnsafe();
         int[] denseStrides = denseStrides(srcShape);
         int logicalSize = logicalSize(srcShape);
         return new RemapPlan(
@@ -60,8 +74,8 @@ public final class TensorRemap {
                 dstShape.clone(),
                 srcStrides.clone(),
                 dstStrides.clone(),
-                src.getStorageOffsetUnsafe(),
-                dst.getStorageOffsetUnsafe(),
+                srcBaseOffset,
+                dstBaseOffset,
                 denseStrides,
                 logicalSize
         );

@@ -1,5 +1,7 @@
 package backend.cpu.fused.codegen;
 
+import graph.CompiledNode;
+import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.pow;
 import operations.elementwise.binary.powTensor;
@@ -19,7 +21,7 @@ class FusedPlanBuilderCanonicalizationTest {
         Tensor input = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "x", DataType.FLOAT64);
         Tensor root = new Tensor(new int[]{2}, List.of(input), new pow(2.0), "pow2", DataType.FLOAT64);
 
-        FusedExpressionPlan plan = FusedPlanBuilder.build(List.of(root), List.of(input), root);
+        FusedExpressionPlan plan = plan(root, List.of(input));
 
         FusedNodePlan node = plan.nodes().getFirst();
         assertEquals(operations.Operation.OpType.MUL, node.opType());
@@ -32,7 +34,7 @@ class FusedPlanBuilderCanonicalizationTest {
         Tensor input = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "x", DataType.FLOAT64);
         Tensor root = new Tensor(new int[]{2}, List.of(input), new pow(1.0), "pow1", DataType.FLOAT64);
 
-        FusedExpressionPlan plan = FusedPlanBuilder.build(List.of(root), List.of(input), root);
+        FusedExpressionPlan plan = plan(root, List.of(input));
 
         FusedNodePlan node = plan.nodes().getFirst();
         assertEquals(operations.Operation.OpType.NOOP, node.opType());
@@ -45,7 +47,7 @@ class FusedPlanBuilderCanonicalizationTest {
         Tensor input = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "x", DataType.FLOAT64);
         Tensor root = new Tensor(new int[]{2}, List.of(input), new pow(0.0), "pow0", DataType.FLOAT64);
 
-        FusedExpressionPlan plan = FusedPlanBuilder.build(List.of(root), List.of(input), root);
+        FusedExpressionPlan plan = plan(root, List.of(input));
 
         FusedNodePlan node = plan.nodes().getFirst();
         assertEquals(operations.Operation.OpType.CONST_SCALAR, node.opType());
@@ -58,7 +60,7 @@ class FusedPlanBuilderCanonicalizationTest {
         Tensor input = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "x", DataType.FLOAT64);
         Tensor root = new Tensor(new int[]{2}, List.of(input), new pow(-1.0), "powNeg1", DataType.FLOAT64);
 
-        FusedExpressionPlan plan = FusedPlanBuilder.build(List.of(root), List.of(input), root);
+        FusedExpressionPlan plan = plan(root, List.of(input));
 
         FusedNodePlan node = plan.nodes().getFirst();
         assertEquals(operations.Operation.OpType.INV, node.opType());
@@ -72,7 +74,7 @@ class FusedPlanBuilderCanonicalizationTest {
         Tensor exponent = new Tensor(new double[]{3.0, 4.0}, new int[]{2}, null, "exponent", DataType.FLOAT64);
         Tensor root = new Tensor(new int[]{2}, List.of(base, exponent), new powTensor(), "powTensor", DataType.FLOAT64);
 
-        FusedExpressionPlan plan = FusedPlanBuilder.build(List.of(root), List.of(base, exponent), root);
+        FusedExpressionPlan plan = plan(root, List.of(base, exponent));
 
         FusedNodePlan node = plan.nodes().getFirst();
         assertEquals(operations.Operation.OpType.POW_TENSOR, node.opType());
@@ -85,7 +87,7 @@ class FusedPlanBuilderCanonicalizationTest {
         Tensor input = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "x", DataType.FLOAT64);
         Tensor root = new Tensor(new int[]{2}, List.of(input), new mulScalar(0.0), "mul0", DataType.FLOAT64);
 
-        FusedExpressionPlan plan = FusedPlanBuilder.build(List.of(root), List.of(input), root);
+        FusedExpressionPlan plan = plan(root, List.of(input));
 
         FusedNodePlan node = plan.nodes().getFirst();
         assertEquals(operations.Operation.OpType.CONST_SCALAR, node.opType());
@@ -98,7 +100,7 @@ class FusedPlanBuilderCanonicalizationTest {
         Tensor input = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "x", DataType.FLOAT64);
         Tensor root = new Tensor(new int[]{2}, List.of(input), new mulScalar(1.0), "mul1", DataType.FLOAT64);
 
-        FusedExpressionPlan plan = FusedPlanBuilder.build(List.of(root), List.of(input), root);
+        FusedExpressionPlan plan = plan(root, List.of(input));
 
         FusedNodePlan node = plan.nodes().getFirst();
         assertEquals(operations.Operation.OpType.NOOP, node.opType());
@@ -111,11 +113,25 @@ class FusedPlanBuilderCanonicalizationTest {
         Tensor input = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "x", DataType.FLOAT64);
         Tensor root = new Tensor(new int[]{2}, List.of(input), new mulScalar(-1.0), "mulNeg1", DataType.FLOAT64);
 
-        FusedExpressionPlan plan = FusedPlanBuilder.build(List.of(root), List.of(input), root);
+        FusedExpressionPlan plan = plan(root, List.of(input));
 
         FusedNodePlan node = plan.nodes().getFirst();
         assertEquals(operations.Operation.OpType.NEG, node.opType());
         assertEquals(List.of(0), node.inputRefs());
         assertTrue(node.attributes() instanceof NoAttributes);
+    }
+
+    private static FusedExpressionPlan plan(Tensor root, List<Tensor> externalInputs) {
+        List<Tensor> graph = root.topologicalSort();
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
+        List<Integer> externalInputNodeIds = externalInputs.stream()
+                .map(graph::indexOf)
+                .toList();
+        return FusedPlanBuilder.build(
+                List.of(graph.indexOf(root)),
+                externalInputNodeIds,
+                compiledNodes::get,
+                CompiledTensorDescriptorBuilder.build(compiledNodes)
+        );
     }
 }

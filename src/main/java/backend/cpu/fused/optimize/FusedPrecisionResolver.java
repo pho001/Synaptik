@@ -1,50 +1,25 @@
 package backend.cpu.fused.optimize;
 
 import backend.cpu.fused.codegen.FusedDTypeOps;
+import backend.cpu.fused.codegen.FusedExpressionPlan;
+import backend.cpu.fused.codegen.FusedExternalInputPlan;
+import backend.cpu.fused.codegen.FusedNodePlan;
 import tensor.DataType;
-import tensor.Tensor;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Internal precision resolver for fused CPU expression generation.
  */
 public final class FusedPrecisionResolver {
-    /**
-     * Resolves the generated-code precision mode for a fused cluster.
-     */
-    public static int resolve(List<Tensor> cluster, Tensor root, List<Tensor> externalInputsInOrder) {
+    public static int resolve(FusedExpressionPlan plan) {
         DataType target = null;
-
-        List<Tensor> all = new ArrayList<>();
-        if (cluster != null) all.addAll(cluster);
-        if (externalInputsInOrder != null) all.addAll(externalInputsInOrder);
-        if (root != null) all.add(root);
-
-        for (Tensor t : all) {
-            if (t == null) continue;
-            DataType dt = t.getDataType();
-            if (dt == DataType.FLOAT64) {
-                target = DataType.FLOAT64;
-                break;
+        if (plan != null) {
+            for (FusedExternalInputPlan input : plan.inputs()) {
+                target = resolveTarget(target, input.dataType());
             }
-            if (dt == DataType.FLOAT32) {
-                target = DataType.FLOAT32;
-                continue;
-            }
-            if (dt == DataType.BFLOAT16 && target == null) {
-                target = DataType.BFLOAT16;
-                continue;
-            }
-            if (dt == DataType.BOOL) {
-                continue;
-            }
-            if (dt == DataType.INT32 || dt == DataType.INT64) {
-                throw new UnsupportedOperationException("INT32/INT64 tensors are not supported in fused precision resolution.");
+            for (FusedNodePlan node : plan.nodes()) {
+                target = resolveTarget(target, node.outputType());
             }
         }
-
         return switch (target) {
             case null -> FusedDTypeOps.MODE_F32;
             case FLOAT64 -> FusedDTypeOps.MODE_F64;
@@ -52,5 +27,24 @@ public final class FusedPrecisionResolver {
             case BFLOAT16 -> FusedDTypeOps.MODE_BF16;
             case INT32, INT64, BOOL -> throw new UnsupportedOperationException("INT32/INT64/BOOL tensors are not supported in fused precision resolution.");
         };
+    }
+
+    private static DataType resolveTarget(DataType current, DataType next) {
+        if (next == null || next == DataType.BOOL) {
+            return current;
+        }
+        if (next == DataType.INT32 || next == DataType.INT64) {
+            throw new UnsupportedOperationException("INT32/INT64 tensors are not supported in fused precision resolution.");
+        }
+        if (next == DataType.FLOAT64) {
+            return DataType.FLOAT64;
+        }
+        if (next == DataType.FLOAT32) {
+            return current == DataType.FLOAT64 ? current : DataType.FLOAT32;
+        }
+        if (next == DataType.BFLOAT16 && current == null) {
+            return DataType.BFLOAT16;
+        }
+        return current;
     }
 }

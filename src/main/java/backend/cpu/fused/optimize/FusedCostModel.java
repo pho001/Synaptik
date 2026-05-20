@@ -6,9 +6,6 @@ import backend.cpu.fused.codegen.FusedExternalInputPlan;
 import backend.cpu.fused.codegen.FusedNodePlan;
 import operations.Operation;
 import tensor.DataType;
-import tensor.Tensor;
-
-import java.util.List;
 
 /**
  * Internal cost heuristics for fused CPU planning and dispatch.
@@ -30,55 +27,10 @@ public class FusedCostModel {
     }
 
     /**
-     * Resolves the legacy low-cost hint from a tensor cluster.
-     */
-    public static boolean resolveLowCostHint(List<Tensor> cluster) {
-        if (cluster == null || cluster.isEmpty()) {
-            return false;
-        }
-        for (Tensor t : cluster) {
-            if (t == null || t.getOperation() == null) {
-                continue;
-            }
-            Operation.OpType type = t.getOperation().opType();
-            if (type == null) {
-                return false;
-            }
-            switch (type) {
-                case ADD, SUB, MUL, MIN, MAX, NEG, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, ABS, NOOP -> {
-                    // keep scanning
-                }
-                default -> {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    /**
      * Resolves the low-cost hint from a lowered expression plan.
      */
     public static boolean resolveLowCostHint(FusedExpressionPlan plan) {
         return resolveDispatchFamily(plan) == FusedDispatchFamily.CHEAP_CONTIGUOUS;
-    }
-
-    /**
-     * Estimates legacy dispatch complexity from a tensor cluster.
-     */
-    public static int estimateDispatchComplexity(List<Tensor> cluster) {
-        if (cluster == null || cluster.isEmpty()) {
-            return 1;
-        }
-        int total = 0;
-        for (Tensor t : cluster) {
-            if (t == null || t.getOperation() == null) {
-                continue;
-            }
-            total += t.getOperation().isCheap() ? 1 : 4;
-        }
-        return Math.max(1, total);
-
     }
 
     /**

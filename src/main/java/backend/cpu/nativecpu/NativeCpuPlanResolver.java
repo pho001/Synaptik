@@ -13,7 +13,7 @@ import operations.reduction.reduceMax;
 import operations.reduction.reduceMin;
 import operations.reduction.sum;
 import tensor.DataType;
-import tensor.Tensor;
+import graph.compile.descriptor.CompiledTensorDescriptor;
 
 import java.util.Arrays;
 import java.util.List;
@@ -27,7 +27,7 @@ public final class NativeCpuPlanResolver {
 
     public static PreparedNativeCpuPlan resolve(
             Operation op,
-            List<Tensor> inputs,
+            List<CompiledTensorDescriptor> inputs,
             DataType dataType,
             CpuNodeExecutionPlan plan,
             PreparedMatMulExecutable matMulExecutable,
@@ -130,12 +130,12 @@ public final class NativeCpuPlanResolver {
         return false;
     }
 
-    private static boolean denseInputs(List<Tensor> inputs) {
+    private static boolean denseInputs(List<CompiledTensorDescriptor> inputs) {
         if (inputs == null || inputs.isEmpty()) {
             return false;
         }
-        for (Tensor input : inputs) {
-            if (input == null || !input.isContiguous() || input.hasStorageOffset()) {
+        for (CompiledTensorDescriptor input : inputs) {
+            if (input == null || !input.contiguous() || input.hasStorageOffset()) {
                 return false;
             }
         }
@@ -174,11 +174,11 @@ public final class NativeCpuPlanResolver {
         return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64 || dataType == DataType.BFLOAT16;
     }
 
-    private static boolean supportedCast(List<Tensor> inputs, DataType outputType) {
+    private static boolean supportedCast(List<CompiledTensorDescriptor> inputs, DataType outputType) {
         if (inputs == null || inputs.size() != 1 || inputs.getFirst() == null) {
             return false;
         }
-        DataType inputType = inputs.getFirst().getDataType();
+        DataType inputType = inputs.getFirst().dataType();
         return inputType == DataType.FLOAT32 && outputType == DataType.BFLOAT16
                 || inputType == DataType.BFLOAT16 && outputType == DataType.FLOAT32;
     }

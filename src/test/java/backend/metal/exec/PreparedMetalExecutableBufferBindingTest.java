@@ -331,7 +331,7 @@ class PreparedMetalExecutableBufferBindingTest {
                 List.of(fixture.inputNode(), fixture.outputNode()),
                 CompiledTensorDescriptorBuilder.build(List.of(fixture.inputNode(), fixture.outputNode())),
                 Map.of(),
-                fixture.outputNode().semanticTensor(),
+                fixture.outputNode().publicationTensor(),
                 fixture.outputNode(),
                 null,
                 null,
@@ -377,7 +377,7 @@ class PreparedMetalExecutableBufferBindingTest {
                 List.of(fixture.inputNode(), fixture.outputNode()),
                 CompiledTensorDescriptorBuilder.build(List.of(fixture.inputNode(), fixture.outputNode())),
                 Map.of(),
-                fixture.outputNode().semanticTensor(),
+                fixture.outputNode().publicationTensor(),
                 fixture.outputNode(),
                 null,
                 null,
@@ -1475,7 +1475,7 @@ class PreparedMetalExecutableBufferBindingTest {
         CompiledGraph compiled = CompiledGraph.compile(output, CompileConfig.noGraphOptimizationBaseline());
         List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
         CompiledNode outputNode = nodes.stream()
-                .filter(node -> node.semanticTensor() == output
+                .filter(node -> node.publicationTensor() == output
                         || (node.operation() != null && node.operation().opType() == Operation.OpType.RELU))
                 .findFirst()
                 .orElseThrow();
@@ -1505,7 +1505,6 @@ class PreparedMetalExecutableBufferBindingTest {
                 0,
                 null,
                 null,
-                List.of(),
                 List.of()
         );
         return new CpuNodeExecutionPlan(layoutPlan, null, false, 1, 0, null, null, null, null, null, null);

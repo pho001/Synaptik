@@ -68,10 +68,10 @@ class MemoryPlannerRegionViewTest {
                 .map(RegionValue::ref)
                 .findFirst()
                 .orElseThrow();
-        assertEquals(outputRef, plan.graphValueRefOf(out));
+        assertEquals(outputRef, plan.graphValueRefOfNodeId(graph.indexOf(out)));
         assertEquals(MaterializationDecision.CONTINUE, plan.materializationPlanOf(outputRef).decision());
         assertEquals(RegionMemoryBindingKind.CONTINUATION, plan.regionMemoryBindingOf(outputRef).kind());
-        assertEquals(plan.regionSlotIdOf(outputRef), plan.runtimeSlotIdOf(out));
+        assertEquals(plan.regionSlotIdOf(outputRef), plan.runtimeSlotIdOfNodeId(graph.indexOf(out)));
         assertNotNull(plan.regionSlotIdOf(outputRef));
         assertEquals(4, plan.regionSlotSize(plan.regionSlotIdOf(outputRef)));
         assertTrue(plan.explain().contains("=== Structural Memory View ==="));
@@ -80,34 +80,39 @@ class MemoryPlannerRegionViewTest {
 
     @Test
     void memoryPlannerCapturesCrossRegionValueFlow() {
-        GraphValueRef shared = GraphValueRef.node(11);
-        GraphValueRef finalOut = GraphValueRef.node(21);
         Tensor a = Tensor.scalar(1.0f);
         Tensor b = Tensor.scalar(2.0f);
-        Tensor out = a.add(b);
+        Tensor mid = a.add(b);
+        Tensor out = mid.relu();
+        List<Tensor> graph = out.topologicalSort();
+        int aNodeId = graph.indexOf(a);
+        int bNodeId = graph.indexOf(b);
+        int midNodeId = graph.indexOf(mid);
+        int outNodeId = graph.indexOf(out);
+        GraphValueRef shared = GraphValueRef.node(midNodeId);
+        GraphValueRef finalOut = GraphValueRef.node(outNodeId);
 
         OptimizedRegion producer = new OptimizedRegion(
                 "region-a",
-                partition("region-a", PartitionTarget.CPU, List.of(10, 11), List.of(0), List.of(GraphValueRef.node(11)), List.of()),
+                partition("region-a", PartitionTarget.CPU, List.of(midNodeId), List.of(aNodeId, bNodeId), List.of(shared), List.of()),
                 PartitionTarget.CPU,
                 List.of(new ExecutionUnit(
                         "unit-a",
                         ExecutionUnitKind.SINGLE_OP,
                         PartitionTarget.CPU,
-                        List.of(GraphValueRef.node(0)),
+                        List.of(GraphValueRef.node(aNodeId), GraphValueRef.node(bNodeId)),
                         List.of(shared),
                         List.of(),
                         List.of(shared),
-                        List.of(10, 11),
+                        List.of(midNodeId),
                         2L,
-                        List.of(0),
+                        List.of(aNodeId, bNodeId),
                         RegionOptimizationTrace.empty()
                 )),
                 List.of(new RegionValue(
                         shared,
-                        GraphValueRef.node(11),
-                        out,
-                        11,
+                        shared,
+                        midNodeId,
                         1,
                         ValueTransportKind.CONTINUATION,
                         ValueTypeContract.same(DataType.FLOAT32),
@@ -118,7 +123,7 @@ class MemoryPlannerRegionViewTest {
         );
         OptimizedRegion consumer = new OptimizedRegion(
                 "region-b",
-                partition("region-b", PartitionTarget.CPU, List.of(20, 21), List.of(11), List.of(GraphValueRef.node(21)), List.of(GraphValueRef.node(21))),
+                partition("region-b", PartitionTarget.CPU, List.of(outNodeId), List.of(midNodeId), List.of(finalOut), List.of(finalOut)),
                 PartitionTarget.CPU,
                 List.of(new ExecutionUnit(
                         "unit-b",
@@ -128,16 +133,15 @@ class MemoryPlannerRegionViewTest {
                         List.of(finalOut),
                         List.of(finalOut),
                         List.of(),
-                        List.of(20, 21),
+                        List.of(outNodeId),
                         2L,
-                        List.of(11),
+                        List.of(midNodeId),
                         RegionOptimizationTrace.empty()
                 )),
                 List.of(new RegionValue(
                         finalOut,
-                        GraphValueRef.node(21),
-                        out,
-                        21,
+                        finalOut,
+                        outNodeId,
                         1,
                         ValueTransportKind.MATERIALIZED,
                         ValueTypeContract.same(DataType.FLOAT32),
@@ -147,8 +151,7 @@ class MemoryPlannerRegionViewTest {
                 RegionOptimizationTrace.empty()
         );
 
-        List<Tensor> graph = out.topologicalSort();
-        MemoryPlan plan = planFor(graph, List.of(producer, consumer), graph.indexOf(out));
+        MemoryPlan plan = planFor(graph, List.of(producer, consumer), outNodeId);
 
         assertNotNull(plan);
         assertEquals(1, plan.structuralView().crossRegionDependencyCount());
@@ -157,12 +160,12 @@ class MemoryPlannerRegionViewTest {
         assertEquals(MaterializationDecision.CONTINUE, flow.decision());
         assertEquals(List.of("region-b"), flow.consumerRegionIds());
         assertEquals(List.of("unit-b"), flow.consumerUnitIds());
-        assertEquals(finalOut, plan.graphValueRefOf(out));
+        assertEquals(finalOut, plan.graphValueRefOfNodeId(finalOut.nodeId()));
         assertEquals(0, plan.regionValueLifetimeOf(shared).birthStep());
-        assertEquals(graph.size(), plan.regionValueLifetimeOf(shared).lastUseStep());
+        assertEquals(outNodeId, plan.regionValueLifetimeOf(shared).lastUseStep());
         assertTrue(plan.regionValueLifetimeOf(shared).isCrossRegion());
         assertEquals(RegionMemoryBindingKind.CONTINUATION, plan.regionMemoryBindingOf(shared).kind());
-        assertEquals(plan.regionSlotIdOf(finalOut), plan.runtimeSlotIdOf(out));
+        assertEquals(plan.regionSlotIdOf(finalOut), plan.runtimeSlotIdOfNodeId(finalOut.nodeId()));
         assertEquals(1, plan.regionSlotSize(plan.regionSlotIdOf(shared)));
         assertEquals(1, plan.handoffRequirements().size());
     }
@@ -267,7 +270,6 @@ class MemoryPlannerRegionViewTest {
                         new RegionValue(
                                 virtualValue,
                                 GraphValueRef.node(31),
-                                a,
                                 31,
                                 1,
                                 ValueTransportKind.VIRTUAL,
@@ -277,7 +279,6 @@ class MemoryPlannerRegionViewTest {
                         new RegionValue(
                                 materializedValue,
                                 GraphValueRef.node(32),
-                                b,
                                 32,
                                 1,
                                 ValueTransportKind.MATERIALIZED,
@@ -297,9 +298,9 @@ class MemoryPlannerRegionViewTest {
         assertFalse(plan.materializationPlanOf(virtualValue).allocatesStorage());
         assertEquals(RegionMemoryBindingKind.NONE, plan.regionMemoryBindingOf(virtualValue).kind());
         assertEquals(MaterializationDecision.MATERIALIZE, plan.materializationPlanOf(materializedValue).decision());
-        assertEquals(materializedValue, plan.graphValueRefOf(b));
+        assertEquals(materializedValue, plan.graphValueRefOfNodeId(materializedValue.nodeId()));
         assertTrue(plan.regionMemoryBindingOf(materializedValue).hasBindingId());
-        assertEquals(plan.regionSlotIdOf(materializedValue), plan.runtimeSlotIdOf(b));
+        assertEquals(plan.regionSlotIdOf(materializedValue), plan.runtimeSlotIdOfNodeId(materializedValue.nodeId()));
         assertEquals(1, plan.regionSlotSize(plan.regionSlotIdOf(materializedValue)));
     }
 

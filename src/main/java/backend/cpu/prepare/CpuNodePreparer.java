@@ -138,10 +138,9 @@ public final class CpuNodePreparer {
         ResolvedDispatchHints dispatchHintsOverride = preparedFusedDispatch.dispatchHints();
         CpuNodeExecutionPlan cpuPlan = CpuBackend.buildExecutionPlan(
                 operation,
-                fusedPreparation.runtimeInputs(),
-                anchorNode.semanticTensor(),
-                inputDescriptors(loweredUnit.inputNodeIds(), context),
+                inputDescriptors(fusedPreparation.runtimeInputNodeIds(), context),
                 context.descriptor(anchorNode.id()),
+                context.descriptorIndex(),
                 planner,
                 runtimeConfig.blas(),
                 runtimeConfig.conv2d(),
@@ -164,7 +163,7 @@ public final class CpuNodePreparer {
                 ComputeBackend.CPU,
                 PartitionExecutionRole.ANCHOR,
                 operation,
-                loweredUnit.inputNodeIds(),
+                fusedPreparation.runtimeInputNodeIds(),
                 new CpuFusedExecutionArtifact(kernel, cpuPlan, fusedExecutable, cpuWorkspace)
         );
     }
@@ -212,10 +211,9 @@ public final class CpuNodePreparer {
 
         CpuNodeExecutionPlan cpuPlan = CpuBackend.buildExecutionPlan(
                 operation,
-                node.inputTensors(),
-                node.semanticTensor(),
                 inputDescriptors(node.inputIds(), context),
                 context.descriptor(node.id()),
+                context.descriptorIndex(),
                 planner,
                 runtimeConfig.blas(),
                 runtimeConfig.conv2d(),

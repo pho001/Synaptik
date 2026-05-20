@@ -10,10 +10,11 @@ import backend.cpu.kernels.linalg.attention.plan.ResolvedScaledDotProductAttenti
 import backend.cpu.kernels.linalg.matmul.plan.MatMulPlanner;
 import backend.cpu.kernels.reduction.plan.ReductionPlanner;
 import config.runtime.BlasConfig;
+import graph.compile.descriptor.CompiledTensorDescriptor;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import operations.Operation;
 import operations.linalg.scaledDotProductAttention;
 import tensor.DataType;
-import tensor.Tensor;
 
 import java.util.Arrays;
 import java.util.List;
@@ -29,8 +30,9 @@ public final class ScaledDotProductAttentionPlanner {
 
     public ResolvedScaledDotProductAttentionPlan resolve(
             Operation op,
-            List<Tensor> inputs,
-            Tensor node,
+            List<CompiledTensorDescriptor> inputs,
+            CompiledTensorDescriptor node,
+            CompiledTensorDescriptorIndex descriptorIndex,
             BlasConfig blasConfig
     ) {
         if (op == null || node == null || blasConfig == null) {
@@ -38,68 +40,71 @@ public final class ScaledDotProductAttentionPlanner {
         }
         return switch (op.opType()) {
             case SCALED_DOT_PRODUCT_ATTENTION -> resolveForward(inputs, node);
-            case SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> resolveBackward(inputs, node, blasConfig);
+            case SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> resolveBackward(inputs, node, descriptorIndex, blasConfig);
             default -> null;
         };
     }
 
-    private ResolvedScaledDotProductAttentionPlan resolveForward(List<Tensor> inputs, Tensor node) {
+    private ResolvedScaledDotProductAttentionPlan resolveForward(List<CompiledTensorDescriptor> inputs, CompiledTensorDescriptor node) {
         if (inputs == null || inputs.size() < 3) {
             return null;
         }
-        Tensor query = inputs.get(0);
-        Tensor key = inputs.get(1);
+        CompiledTensorDescriptor query = inputs.get(0);
+        CompiledTensorDescriptor key = inputs.get(1);
         if (query == null || key == null) {
             return null;
         }
-        int[] outShape = node.getShapeUnsafe();
+        int[] outShape = node.shape();
         int batchCount = attentionBatchCount(outShape);
         int queryLen = outShape[outShape.length - 2];
-        int keyLen = key.getShapeUnsafe()[key.getShapeUnsafe().length - 2];
-        int depth = query.getShapeUnsafe()[query.getShapeUnsafe().length - 1];
+        int[] keyShape = key.shape();
+        int[] queryShape = query.shape();
+        int keyLen = keyShape[keyShape.length - 2];
+        int depth = queryShape[queryShape.length - 1];
         int valueDim = outShape[outShape.length - 1];
         ResolvedAttentionHints directHints = reductionPlanner.resolveAttentionHints(
                 batchCount * queryLen,
                 Math.max(1, keyLen * (depth + valueDim)),
                 Math.max(depth, valueDim),
-                attentionComputeContract(node.getDataType())
+                attentionComputeContract(node.dataType())
         );
         return new ResolvedScaledDotProductAttentionPlan(directHints, null, null, null, null, null);
     }
 
     private ResolvedScaledDotProductAttentionPlan resolveBackward(
-            List<Tensor> inputs,
-            Tensor node,
+            List<CompiledTensorDescriptor> inputs,
+            CompiledTensorDescriptor node,
+            CompiledTensorDescriptorIndex descriptorIndex,
             BlasConfig blasConfig
     ) {
         if (inputs == null || inputs.size() < 2) {
             return null;
         }
-        Tensor attentionOut = inputs.get(0);
-        Tensor outGrad = inputs.get(1);
-        if (attentionOut == null || outGrad == null) {
+        CompiledTensorDescriptor attentionOut = inputs.get(0);
+        CompiledTensorDescriptor outGrad = inputs.get(1);
+        if (attentionOut == null || outGrad == null || descriptorIndex == null) {
             return null;
         }
-        if (!(attentionOut.getOperation() instanceof scaledDotProductAttention)) {
+        if (attentionOut.opType() != Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION
+                || attentionOut.inputIds().size() < 3) {
             return null;
         }
-        List<Tensor> attentionInputs = attentionOut.getPrevTensors();
-        if (attentionInputs == null || attentionInputs.size() < 3) {
-            return null;
-        }
-        Tensor query = attentionInputs.get(0);
-        Tensor key = attentionInputs.get(1);
-        Tensor value = attentionInputs.get(2);
+        CompiledTensorDescriptor query = descriptorIndex.byNodeId(attentionOut.inputIds().get(0));
+        CompiledTensorDescriptor key = descriptorIndex.byNodeId(attentionOut.inputIds().get(1));
+        CompiledTensorDescriptor value = descriptorIndex.byNodeId(attentionOut.inputIds().get(2));
         if (query == null || key == null || value == null) {
             return null;
         }
 
-        DataType dataType = node.getDataType();
-        int[] attentionOutShape = attentionOut.getShapeUnsafe();
-        int[] weightsShape = attentionScoreShape(query.getShapeUnsafe(), key.getShapeUnsafe());
-        int[] queryGradShape = attentionRawQueryGradShape(attentionOutShape, query.getShapeUnsafe());
-        int[] keyGradShape = attentionRawKeyGradShape(attentionOutShape, key.getShapeUnsafe());
-        int[] valueGradShape = attentionRawValueGradShape(attentionOutShape, value.getShapeUnsafe());
+        DataType dataType = node.dataType();
+        int[] attentionOutShape = attentionOut.shape();
+        int[] queryShape = query.shape();
+        int[] keyShape = key.shape();
+        int[] valueShape = value.shape();
+        int[] weightsShape = attentionScoreShape(queryShape, keyShape);
+        int[] queryGradShape = attentionRawQueryGradShape(attentionOutShape, queryShape);
+        int[] keyGradShape = attentionRawKeyGradShape(attentionOutShape, keyShape);
+        int[] valueGradShape = attentionRawValueGradShape(attentionOutShape, valueShape);
 
         int rowLength = weightsShape[weightsShape.length - 1];
         int rowCount = attentionProduct(weightsShape) / Math.max(1, rowLength);
@@ -113,28 +118,28 @@ public final class ScaledDotProductAttentionPlanner {
         ResolvedMatMulHints queryGradHints = matMulPlanner.resolveAttention(
                 weightsShape,
                 true,
-                key.getShapeUnsafe(),
-                key.isContiguous(),
+                keyShape,
+                key.contiguous(),
                 queryGradShape,
                 dataType,
                 true,
                 blasConfig
         );
         ResolvedMatMulHints dWeightsHints = matMulPlanner.resolveAttentionJava(
-                outGrad.getShapeUnsafe(),
-                attentionTransposedShape(value.getShapeUnsafe()),
+                outGrad.shape(),
+                attentionTransposedShape(valueShape),
                 weightsShape,
                 dataType
         );
         ResolvedMatMulHints valueGradHints = matMulPlanner.resolveAttentionJava(
                 attentionTransposedShape(weightsShape),
-                outGrad.getShapeUnsafe(),
+                outGrad.shape(),
                 valueGradShape,
                 dataType
         );
         ResolvedMatMulHints keyGradHints = matMulPlanner.resolveAttentionJava(
                 attentionTransposedShape(weightsShape),
-                query.getShapeUnsafe(),
+                queryShape,
                 keyGradShape,
                 dataType
         );

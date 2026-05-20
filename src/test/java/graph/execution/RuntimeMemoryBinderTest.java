@@ -159,7 +159,7 @@ class RuntimeMemoryBinderTest {
                 .filter(node -> node.operation() != null && node.operation().opType() == Operation.OpType.MAX_POOL2D)
                 .findFirst()
                 .orElseThrow();
-        assertTrue(!memoryPlan.runtimeBindingPolicyOf(maxPoolNode.semanticTensor()).regionBindingAllowed());
+        assertTrue(!memoryPlan.runtimeBindingPolicyOfNodeId(maxPoolNode.id()).regionBindingAllowed());
         float[] maxPoolStorageBefore = state.runtimeTensorForNodeId(maxPoolNode.id()).getFloat32Data();
 
         Map<Integer, float[]> storageBefore = new HashMap<>();
@@ -186,7 +186,7 @@ class RuntimeMemoryBinderTest {
     }
 
     private static boolean hasSingleUseRegionBinding(MemoryPlan memoryPlan, CompiledNode node) {
-        GraphValueRef valueRef = memoryPlan.graphValueRefOf(node.semanticTensor());
+        GraphValueRef valueRef = memoryPlan.graphValueRefOfNodeId(node.id());
         if (valueRef == null) {
             return false;
         }
@@ -224,7 +224,7 @@ class RuntimeMemoryBinderTest {
     private static MemoryPlan memoryPlanFor(List<CompiledNode> nodes, List<String> labels, DataType dataType) {
         Map<GraphValueRef, RegionMemoryBinding> regionMemoryBindings = new HashMap<>();
         Map<GraphValueRef, Integer> regionSlotByValueRef = new HashMap<>();
-        Map<Tensor, GraphValueRef> tensorToGraphValueRef = new IdentityHashMap<>();
+        Map<Integer, GraphValueRef> nodeIdToGraphValueRef = new HashMap<>();
         int slotId = 7;
         int slotSize = 0;
         for (String label : labels) {
@@ -240,7 +240,7 @@ class RuntimeMemoryBinderTest {
                     true
             ));
             regionSlotByValueRef.put(valueRef, slotId);
-            tensorToGraphValueRef.put(node.semanticTensor(), valueRef);
+            nodeIdToGraphValueRef.put(node.id(), valueRef);
         }
         return new MemoryPlan(
                 Map.of(),
@@ -255,8 +255,10 @@ class RuntimeMemoryBinderTest {
                 regionMemoryBindings,
                 regionSlotByValueRef,
                 Map.of(slotId, slotSize),
-                tensorToGraphValueRef,
+                Map.of(),
+                nodeIdToGraphValueRef,
                 List.of(),
+                Map.of(),
                 Map.of()
         );
     }

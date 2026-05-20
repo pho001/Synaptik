@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Publishes run-scoped runtime values back to user-visible semantic tensors.
+ * Publishes run-scoped runtime values back to user-visible tensors.
  */
 public final class ExecutionPublisher {
     private ExecutionPublisher() {
@@ -84,12 +84,12 @@ public final class ExecutionPublisher {
             List<CompiledNode> allNodes,
             CompiledNode forwardOutputNode
     ) {
-        Integer semanticRootNodeId = nodeIdForSemanticTensor(rootTensor, allNodes);
-        int actualRootNodeId = semanticRootNodeId == null
+        Integer rootPublicationNodeId = nodeIdForPublicationTensor(rootTensor, allNodes);
+        int actualRootNodeId = rootPublicationNodeId == null
                 ? resolveForwardRuntimeRootNodeId(forwardOutputNode)
-                : semanticRootNodeId;
-        Tensor publishTarget = resolveSemanticPublishTarget(rootTensor);
-        Integer publishNodeId = nodeIdForSemanticTensor(publishTarget, allNodes);
+                : rootPublicationNodeId;
+        Tensor publishTarget = resolvePublicationTarget(rootTensor);
+        Integer publishNodeId = nodeIdForPublicationTensor(publishTarget, allNodes);
         if (publishNodeId != null) {
             if (publishNodeId != actualRootNodeId
                     && shouldPublishActualRootForAlias(executionState, publishNodeId, actualRootNodeId)) {
@@ -100,24 +100,24 @@ public final class ExecutionPublisher {
                         actualRootNodeId,
                         CpuMaterializationReason.GRAPH_OUTPUT
                 );
-                repairSemanticAliasChain(rootTensor);
+                repairPublicationAliasChain(rootTensor);
                 return;
             }
             executionState.requireCpuReadable(publishNodeId, CpuMaterializationReason.GRAPH_OUTPUT);
             Tensor runtimePublished = executionState.runtimeTensorForNodeId(publishNodeId);
             if (TensorInternalAccess.storage(publishTarget) == TensorInternalAccess.storage(runtimePublished)) {
-                repairSemanticAliasChain(rootTensor);
+                repairPublicationAliasChain(rootTensor);
                 return;
             }
             if (mode == ExecutionMode.FORWARD_BACKWARD || runtimePublished != publishTarget) {
                 publishTarget.copyDataFrom(runtimePublished);
             }
-            repairSemanticAliasChain(rootTensor);
+            repairPublicationAliasChain(rootTensor);
             return;
         }
 
         publishRuntimeTensor(mode, executionState, rootTensor, actualRootNodeId);
-        repairSemanticAliasChain(rootTensor);
+        repairPublicationAliasChain(rootTensor);
     }
 
     private static void publishAllForwardValues(
@@ -128,12 +128,12 @@ public final class ExecutionPublisher {
             CompiledNode forwardOutputNode
     ) {
         syncRootData(mode, executionState, rootTensor, allNodes, forwardOutputNode);
-        Tensor rootPublishTarget = resolveSemanticPublishTarget(rootTensor);
+        Tensor rootPublishTarget = resolvePublicationTarget(rootTensor);
         for (CompiledNode node : allNodes) {
             if (node.backwardNode()) {
                 continue;
             }
-            Tensor target = node.sourceTensor();
+            Tensor target = node.publicationTensor();
             if (target == null || target == rootTensor || target == rootPublishTarget) {
                 continue;
             }
@@ -144,9 +144,9 @@ public final class ExecutionPublisher {
                     node.id(),
                     CpuMaterializationReason.GRAPH_VALUE_PUBLICATION
             );
-            repairSemanticAliasChain(target);
+            repairPublicationAliasChain(target);
         }
-        repairSemanticAliasChain(rootTensor);
+        repairPublicationAliasChain(rootTensor);
     }
 
     private static boolean shouldPublishActualRootForAlias(
@@ -183,7 +183,7 @@ public final class ExecutionPublisher {
         }
     }
 
-    private static Tensor resolveSemanticPublishTarget(Tensor tensor) {
+    private static Tensor resolvePublicationTarget(Tensor tensor) {
         Tensor current = tensor;
         while (isAliasViewOp(current) && current.getPrevTensors() != null && !current.getPrevTensors().isEmpty()) {
             current = current.getPrevTensors().getFirst();
@@ -191,12 +191,12 @@ public final class ExecutionPublisher {
         return current;
     }
 
-    private static Integer nodeIdForSemanticTensor(Tensor tensor, List<CompiledNode> allNodes) {
+    private static Integer nodeIdForPublicationTensor(Tensor tensor, List<CompiledNode> allNodes) {
         if (tensor == null) {
             return null;
         }
         for (CompiledNode node : allNodes) {
-            if (node.semanticTensor() == tensor || node.sourceTensor() == tensor) {
+            if (node.publicationTensor() == tensor) {
                 return node.id();
             }
         }
@@ -220,12 +220,12 @@ public final class ExecutionPublisher {
         return AliasViewPolicy.aliasesInput0AtRuntime(tensor);
     }
 
-    private static void repairSemanticAliasChain(Tensor tensor) {
+    private static void repairPublicationAliasChain(Tensor tensor) {
         if (!isAliasViewOp(tensor) || tensor.getPrevTensors() == null || tensor.getPrevTensors().isEmpty()) {
             return;
         }
         Tensor source = tensor.getPrevTensors().getFirst();
-        repairSemanticAliasChain(source);
+        repairPublicationAliasChain(source);
         TensorInternalAccess.aliasRuntimeFrom(tensor, source);
     }
 
@@ -238,7 +238,7 @@ public final class ExecutionPublisher {
             if (node.backwardNode()) {
                 continue;
             }
-            Tensor tensor = node.sourceTensor();
+            Tensor tensor = node.publicationTensor();
             CompiledGradientBinding binding = compiledGradients.get(tensor);
             if (binding == null) {
                 TensorInternalAccess.setGradient(tensor, null);
@@ -260,7 +260,7 @@ public final class ExecutionPublisher {
     private static void clearPublishedGradients(List<CompiledNode> allNodes) {
         for (CompiledNode node : allNodes) {
             if (!node.backwardNode()) {
-                TensorInternalAccess.setGradient(node.sourceTensor(), null);
+                TensorInternalAccess.setGradient(node.publicationTensor(), null);
             }
         }
     }

@@ -838,7 +838,11 @@ public final class CpuRegionLowerer implements RegionLowerer {
         LoweredUnitArtifact legacyArtifact = null;
         if (unit.kind() == ExecutionUnitKind.FUSED_ELEMENTWISE) {
             family = LoweringFamily.FUSED_NATIVE;
-            legacyArtifact = LoweredFusedOperationBuilder.build(unit.orderedNodeIds(), request.context()::compiledNode);
+            legacyArtifact = LoweredFusedOperationBuilder.build(
+                    unit.orderedNodeIds(),
+                    request.context()::compiledNode,
+                    request.context().descriptorIndex()
+            );
         } else {
             family = chooseSingleOpFamily(unit, request);
         }

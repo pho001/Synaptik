@@ -191,7 +191,7 @@ final class CpuRunTraceContributor implements BackendRunTraceContributor {
         if (nativePlan != null && nativePlan.route() == PreparedNativeCpuRoute.NATIVE_EXECUTABLE) {
             return;
         }
-        String reason = nativeRegionRejectionReason(node, nativePlan, runtimeConfig);
+        String reason = nativeRegionRejectionReason(node, nativePlan, runtimeConfig, context);
         attrs.put("nativeCpuRegionDecision", "REJECTED");
         attrs.put("nativeCpuRegionReason", reason);
         attrs.put("nativeCpuRegionRoute", "CPU_ARRAY");
@@ -221,7 +221,8 @@ final class CpuRunTraceContributor implements BackendRunTraceContributor {
                 .toList()));
         attrs.put("nativeCpuParityAutoEligible", List.of(parity.autoEligible()));
         String layoutClass = BackendTraceSupport.nodeLayoutClassName(node);
-        List<String> inputLayoutClasses = node.inputTensors().stream()
+        List<String> inputLayoutClasses = node.inputIds().stream()
+                .map(inputNodeId -> safeRuntimeTensor(context, inputNodeId))
                 .map(BackendTraceSupport::tensorLayoutClassName)
                 .toList();
         ArrayList<String> rejectionLayoutClasses = new ArrayList<>();
@@ -242,7 +243,8 @@ final class CpuRunTraceContributor implements BackendRunTraceContributor {
     private static String nativeRegionRejectionReason(
             CompiledNode node,
             PreparedNativeCpuPlan nativePlan,
-            RuntimeConfig runtimeConfig
+            RuntimeConfig runtimeConfig,
+            backend.runtime.ExecutionContext executionContext
     ) {
         String opLabel = node == null || node.operation() == null
                 ? "unknown"
@@ -251,7 +253,7 @@ final class CpuRunTraceContributor implements BackendRunTraceContributor {
                 && node.operation() != null
                 && (node.operation().opType() == operations.Operation.OpType.MATMUL
                 || node.operation().opType() == operations.Operation.OpType.LINEAR);
-        String layoutReason = nativeLayoutRejectionReason(node, providerOp);
+        String layoutReason = nativeLayoutRejectionReason(node, providerOp, executionContext);
         if (!layoutReason.isBlank()) {
             return layoutReason;
         }
@@ -271,7 +273,11 @@ final class CpuRunTraceContributor implements BackendRunTraceContributor {
         return "native-cpu-region-rejected:no-region-selected";
     }
 
-    private static String nativeLayoutRejectionReason(CompiledNode node, boolean providerOp) {
+    private static String nativeLayoutRejectionReason(
+            CompiledNode node,
+            boolean providerOp,
+            backend.runtime.ExecutionContext executionContext
+    ) {
         if (node == null || node.operation() == null) {
             return "";
         }
@@ -280,8 +286,8 @@ final class CpuRunTraceContributor implements BackendRunTraceContributor {
         if ("UNSUPPORTED_LAYOUT".equals(outputLayout)) {
             return "native-layout-unsupported:node-" + node.id();
         }
-        for (Tensor input : node.inputTensors()) {
-            String inputLayout = BackendTraceSupport.tensorLayoutClassName(input);
+        for (int inputNodeId : node.inputIds()) {
+            String inputLayout = BackendTraceSupport.tensorLayoutClassName(safeRuntimeTensor(executionContext, inputNodeId));
             if ("DENSE_CONTIGUOUS".equals(inputLayout)) {
                 continue;
             }

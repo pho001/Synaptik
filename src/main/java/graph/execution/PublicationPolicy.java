@@ -39,7 +39,7 @@ public enum PublicationPolicy {
     }
 
     /**
-     * Returns whether every forward value should be synchronized to its source tensor.
+     * Returns whether every forward value should be synchronized to its publication tensor.
      *
      * @return {@code true} for full graph value publication
      */

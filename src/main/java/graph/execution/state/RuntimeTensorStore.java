@@ -48,9 +48,9 @@ final class RuntimeTensorStore {
             runtimeTensor.setTrainableParameter(descriptor.trainableParameter());
             if (node.leaf()) {
                 if (node.id() <= forwardBoundaryNodeId) {
-                    TensorInternalAccess.aliasRuntimeFrom(runtimeTensor, node.sourceTensor());
+                    TensorInternalAccess.aliasRuntimeFrom(runtimeTensor, node.publicationTensor());
                 } else {
-                    runtimeTensor.copyDataFrom(node.sourceTensor());
+                    runtimeTensor.copyDataFrom(node.publicationTensor());
                 }
                 residencyByNodeId.put(node.id(), TensorResidencyState.cpuArrayCurrent("leaf runtime binding"));
             } else {

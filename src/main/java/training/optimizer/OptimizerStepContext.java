@@ -66,7 +66,7 @@ public final class OptimizerStepContext {
                 .filter(node -> !node.backwardNode())
                 .filter(CompiledNode::trainableParameter)
                 .map(node -> {
-                    CompiledGradientBinding binding = gradientBindings.get(node.sourceTensor());
+                    CompiledGradientBinding binding = gradientBindings.get(node.publicationTensor());
                     return binding == null ? null : new TrainableParameterRef(node, binding);
                 })
                 .filter(Objects::nonNull)

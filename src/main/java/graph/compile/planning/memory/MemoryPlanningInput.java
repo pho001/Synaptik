@@ -4,8 +4,6 @@ import backend.runtime.ExecutionMode;
 import graph.CompiledNode;
 import graph.compile.planning.partition.PartitionPlan;
 import graph.compile.planning.region.OptimizedRegion;
-import tensor.Tensor;
-
 import java.util.List;
 import java.util.Map;
 
@@ -30,31 +28,4 @@ public record MemoryPlanningInput(
         }
     }
 
-    public static MemoryPlanningInput ofGraph(List<Tensor> graph) {
-        List<CompiledNode> nodes = CompiledNode.snapshot(graph == null ? List.of() : graph);
-        return new MemoryPlanningInput(
-                nodes,
-                List.of(),
-                Map.of(),
-                ExecutionMode.FORWARD,
-                false,
-                nodes.isEmpty() ? -1 : nodes.size() - 1
-        );
-    }
-
-    public List<Tensor> graph() {
-        return compiledNodes.stream()
-                .map(CompiledNode::semanticTensor)
-                .toList();
-    }
-
-    Tensor forwardOutput() {
-        if (compiledNodes.isEmpty()) {
-            return null;
-        }
-        int index = forwardBoundaryNodeId < 0 || forwardBoundaryNodeId >= compiledNodes.size()
-                ? compiledNodes.size() - 1
-                : forwardBoundaryNodeId;
-        return compiledNodes.get(index).semanticTensor();
-    }
 }

@@ -14,8 +14,8 @@ import backend.cpu.kernels.linalg.matmul.f64.F64JavaMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.f64.F64NativeBlasMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
 import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
+import graph.compile.descriptor.CompiledTensorDescriptor;
 import operations.Operation;
-import tensor.Tensor;
 
 public final class PreparedMatMulExecutableFactory {
     private PreparedMatMulExecutableFactory() {
@@ -23,7 +23,7 @@ public final class PreparedMatMulExecutableFactory {
 
     public static PreparedMatMulExecutable create(
             Operation op,
-            Tensor node,
+            CompiledTensorDescriptor node,
             ResolvedMatMulHints hints,
             boolean publishFloatContinuation
     ) {
@@ -33,7 +33,7 @@ public final class PreparedMatMulExecutableFactory {
         if (op.opType() != Operation.OpType.MATMUL && op.opType() != Operation.OpType.LINEAR) {
             return null;
         }
-        return switch (node.getDataType()) {
+        return switch (node.dataType()) {
             case FLOAT64 -> createF64(hints);
             case FLOAT32 -> createF32(hints);
             case BFLOAT16 -> createBF16(hints, publishFloatContinuation);

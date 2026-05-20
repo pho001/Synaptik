@@ -4,7 +4,7 @@ import backend.cpu.kernels.plan.CpuExecutionPlanner;
 import backend.cpu.kernels.plan.PreparedTypeContract;
 import operations.Operation;
 import tensor.DataType;
-import tensor.Tensor;
+import graph.compile.descriptor.CompiledTensorDescriptor;
 
 import java.util.List;
 
@@ -29,8 +29,8 @@ final class PreparedInputPolicy {
 
     static boolean requiresPreparedInputs(
             Operation op,
-            List<Tensor> inputs,
-            Tensor node,
+            List<CompiledTensorDescriptor> inputs,
+            CompiledTensorDescriptor node,
             PreparedTypeContract typeContract,
             CpuExecutionPlanner planner
     ) {
@@ -38,7 +38,7 @@ final class PreparedInputPolicy {
             return false;
         }
         for (int i = 0; i < inputs.size(); i++) {
-            Tensor input = inputs.get(i);
+            CompiledTensorDescriptor input = inputs.get(i);
             if (input == null) {
                 return true;
             }
@@ -52,12 +52,12 @@ final class PreparedInputPolicy {
 
     static boolean requiresPreparedInput(
             Operation op,
-            Tensor input,
-            Tensor node,
+            CompiledTensorDescriptor input,
+            CompiledTensorDescriptor node,
             DataType expectedInputType,
             CpuExecutionPlanner planner
     ) {
-        if (input.getDataType() != expectedInputType) {
+        if (input.dataType() != expectedInputType) {
             return true;
         }
 
@@ -78,7 +78,7 @@ final class PreparedInputPolicy {
             };
         }
 
-        if (input.isContiguous()) {
+        if (input.contiguous()) {
             return false;
         }
 
@@ -94,13 +94,13 @@ final class PreparedInputPolicy {
                     NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD,
                     NOOP -> false;
             case LAYER_NORM, RMS_NORM, SCALED_DOT_PRODUCT_ATTENTION, SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> true;
-            case MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD -> !input.isContiguous();
+            case MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD -> !input.contiguous();
             case MATMUL, LINEAR, CONV2D, CONV2D_GEMM, CONV2D_BACKWARD_INPUT, CONV2D_BACKWARD_WEIGHT,
                     CONV2D_BACKWARD_INPUT_GEMM, CONV2D_BACKWARD_WEIGHT_GEMM,
                     MAX_POOL2D, MAX_POOL2D_BACKWARD_INPUT, AVG_POOL2D, AVG_POOL2D_BACKWARD_INPUT -> true;
-            case GT, GE, LT, LE, EQ, NE, WHERE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT -> !input.isContiguous();
+            case GT, GE, LT, LE, EQ, NE, WHERE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT -> !input.contiguous();
             default -> op.opType().category() == Operation.OpArityClass.ELEMENT_WISE
-                    && planner.shouldMaterializeNonContiguous(node.getFlatDataSize());
+                    && planner.shouldMaterializeNonContiguous(Math.toIntExact(node.logicalElementCount()));
         };
     }
 

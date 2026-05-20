@@ -307,7 +307,7 @@ public class CompiledGraphTraceTest {
         Tensor out = a.add(b);
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
-                .filter(node -> node.semanticTensor() == out || node.sourceTensor() == out)
+                .filter(node -> node.publicationTensor() == out)
                 .findFirst()
                 .orElseThrow();
         SyntheticAcceleratorExecutable executable = new SyntheticAcceleratorExecutable(outputNode.id());
@@ -343,7 +343,7 @@ public class CompiledGraphTraceTest {
         Tensor out = Tensor.scalar(1.0f).relu();
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
-                .filter(node -> node.semanticTensor() == out || node.sourceTensor() == out)
+                .filter(node -> node.publicationTensor() == out)
                 .findFirst()
                 .orElseThrow();
         GpuLoweredRegionManifest manifest = sampleManifest(outputNode.id());
@@ -377,7 +377,7 @@ public class CompiledGraphTraceTest {
         Tensor out = Tensor.scalar(1.0f).relu();
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
-                .filter(node -> node.semanticTensor() == out || node.sourceTensor() == out)
+                .filter(node -> node.publicationTensor() == out)
                 .findFirst()
                 .orElseThrow();
         GpuLoweredRegionManifest manifest = sampleMultiOpFusedManifest(outputNode.id());
@@ -413,7 +413,7 @@ public class CompiledGraphTraceTest {
         Tensor out = Tensor.scalar(1.0f).relu();
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
-                .filter(node -> node.semanticTensor() == out || node.sourceTensor() == out)
+                .filter(node -> node.publicationTensor() == out)
                 .findFirst()
                 .orElseThrow();
 
@@ -535,7 +535,7 @@ public class CompiledGraphTraceTest {
         Tensor out = Tensor.scalar(1.0f).relu();
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
-                .filter(node -> node.semanticTensor() == out || node.sourceTensor() == out)
+                .filter(node -> node.publicationTensor() == out)
                 .findFirst()
                 .orElseThrow();
         GpuLoweredRegionManifest manifest = sampleFusedManifest(outputNode.id());

@@ -5,9 +5,9 @@ import tensor.Tensor;
 import java.util.Objects;
 
 /**
- * Immutable binding from a semantic tensor to the gradient value that should be published after a
- * run. The value can come either from a compiled runtime node or from a detached constant template
- * when optimization eliminated the explicit gradient node from the executable graph.
+ * Immutable binding from a publication tensor to the gradient value that should be attached after a run.
+ * The value can come either from a compiled runtime node or from a detached constant template when
+ * optimization eliminated the explicit gradient node from the executable graph.
  */
 public sealed interface CompiledGradientBinding permits CompiledGradientBinding.NodeBinding, CompiledGradientBinding.ConstantBinding {
     /**

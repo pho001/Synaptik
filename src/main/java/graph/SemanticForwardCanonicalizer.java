@@ -15,10 +15,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Forward-only compile phase that rebuilds light semantic canonical forms without mutating the original user graph.
+ * Forward-only compile phase that rebuilds light graph canonical forms without mutating the original user graph.
  *
  * <p>The canonicalizer runs before backward graph construction. It creates replacement tensors for forward expressions
- * that are safe to canonicalize before autograd, preserving a source-tensor map so later compile artifacts can publish
+ * that are safe to canonicalize before autograd, preserving a publication map so later compile artifacts can publish
  * data and gradients back to user-visible tensors. Heavy executable lowering belongs to backend-owned region lowering,
  * not this pre-partition graph simplification phase.
  */
@@ -47,7 +47,7 @@ public final class SemanticForwardCanonicalizer {
      * @param forwardGraph original forward graph in topological order
      * @param forwardOutput semantic forward output
      * @param originalForwardRoot user-visible root tensor that should receive published data
-     * @return canonical graph, canonical forward output, and source tensor mappings
+     * @return canonical graph, canonical forward output, and publication tensor mappings
      */
     public Result canonicalize(List<Tensor> forwardGraph, Tensor forwardOutput, Tensor originalForwardRoot) {
         Objects.requireNonNull(forwardGraph, "forwardGraph cannot be null");
@@ -55,25 +55,25 @@ public final class SemanticForwardCanonicalizer {
         Objects.requireNonNull(originalForwardRoot, "originalForwardRoot cannot be null");
 
         IdentityHashMap<Tensor, Tensor> cache = new IdentityHashMap<>();
-        IdentityHashMap<Tensor, Tensor> sourceTensors = new IdentityHashMap<>();
+        IdentityHashMap<Tensor, Tensor> publicationTensors = new IdentityHashMap<>();
         Tensor canonicalForwardOutput;
         try {
-            canonicalForwardOutput = rewriteTensor(forwardOutput, cache, sourceTensors);
+            canonicalForwardOutput = rewriteTensor(forwardOutput, cache, publicationTensors);
         } catch (UnsupportedRebuildException ex) {
             return new Result(forwardGraph, forwardOutput, Map.of());
         }
 
         Tensor actualForwardRoot = requireForwardRoot(canonicalForwardOutput);
         if (actualForwardRoot != originalForwardRoot) {
-            sourceTensors.put(actualForwardRoot, originalForwardRoot);
+            publicationTensors.put(actualForwardRoot, originalForwardRoot);
         }
-        return new Result(canonicalForwardOutput.topologicalSort(), canonicalForwardOutput, Map.copyOf(sourceTensors));
+        return new Result(canonicalForwardOutput.topologicalSort(), canonicalForwardOutput, Map.copyOf(publicationTensors));
     }
 
     private Tensor rewriteTensor(
             Tensor tensor,
             IdentityHashMap<Tensor, Tensor> cache,
-            IdentityHashMap<Tensor, Tensor> sourceTensors
+            IdentityHashMap<Tensor, Tensor> publicationTensors
     ) {
         Tensor existing = cache.get(tensor);
         if (existing != null) {
@@ -88,7 +88,7 @@ public final class SemanticForwardCanonicalizer {
         Tensor[] rewrittenInputs = new Tensor[originalInputs == null ? 0 : originalInputs.size()];
         boolean inputChanged = false;
         for (int i = 0; i < rewrittenInputs.length; i++) {
-            rewrittenInputs[i] = rewriteTensor(originalInputs.get(i), cache, sourceTensors);
+            rewrittenInputs[i] = rewriteTensor(originalInputs.get(i), cache, publicationTensors);
             inputChanged |= rewrittenInputs[i] != originalInputs.get(i);
         }
 
@@ -96,10 +96,10 @@ public final class SemanticForwardCanonicalizer {
         Tensor result;
         if (lowered != null) {
             result = lowered;
-            sourceTensors.put(result, tensor);
+            publicationTensors.put(result, tensor);
         } else if (inputChanged) {
             result = rebuildEquivalent(tensor, rewrittenInputs);
-            sourceTensors.put(result, tensor);
+            publicationTensors.put(result, tensor);
         } else {
             result = tensor;
         }
@@ -162,12 +162,12 @@ public final class SemanticForwardCanonicalizer {
     public record Result(
             List<Tensor> graph,
             Tensor forwardOutput,
-            Map<Tensor, Tensor> sourceTensors
+            Map<Tensor, Tensor> publicationTensors
     ) {
         public Result {
             graph = List.copyOf(Objects.requireNonNull(graph, "graph cannot be null"));
             Objects.requireNonNull(forwardOutput, "forwardOutput cannot be null");
-            sourceTensors = Map.copyOf(Objects.requireNonNull(sourceTensors, "sourceTensors cannot be null"));
+            publicationTensors = Map.copyOf(Objects.requireNonNull(publicationTensors, "publicationTensors cannot be null"));
         }
     }
 

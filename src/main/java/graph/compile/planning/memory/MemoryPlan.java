@@ -38,8 +38,10 @@ public final class MemoryPlan {
     private final Map<Integer, Integer> regionSlotUseCounts;
     private final Map<Integer, Integer> regionSlotSizes;
     private final Map<Tensor, GraphValueRef> tensorToGraphValueRef;
+    private final Map<Integer, GraphValueRef> nodeIdToGraphValueRef;
     private final List<RegionHandoffRequirement> handoffRequirements;
     private final Map<Tensor, RuntimeMemoryBindingPolicy> runtimeBindingPolicies;
+    private final Map<Integer, RuntimeMemoryBindingPolicy> runtimeBindingPoliciesByNodeId;
 
     /**
      * Creates a memory plan.
@@ -56,7 +58,7 @@ public final class MemoryPlan {
      * @param regionMemoryBindings memory binding decisions for region values
      * @param regionSlotByValueRef region slot id by value ref
      * @param regionSlotSizes element size for each region slot
-     * @param tensorToGraphValueRef mapping from semantic tensor to graph value ref
+     * @param tensorToGraphValueRef mapping from tensor identity to graph value ref
      * @param handoffRequirements region value handoff requirements
      * @param runtimeBindingPolicies per-tensor runtime binding policy
      */
@@ -74,8 +76,10 @@ public final class MemoryPlan {
             Map<GraphValueRef, Integer> regionSlotByValueRef,
             Map<Integer, Integer> regionSlotSizes,
             Map<Tensor, GraphValueRef> tensorToGraphValueRef,
+            Map<Integer, GraphValueRef> nodeIdToGraphValueRef,
             List<RegionHandoffRequirement> handoffRequirements,
-            Map<Tensor, RuntimeMemoryBindingPolicy> runtimeBindingPolicies
+            Map<Tensor, RuntimeMemoryBindingPolicy> runtimeBindingPolicies,
+            Map<Integer, RuntimeMemoryBindingPolicy> runtimeBindingPoliciesByNodeId
     ) {
         this.lifetimes = Map.copyOf(Objects.requireNonNull(lifetimes, "lifetimes cannot be null"));
         this.reusableIntervals = Map.copyOf(Objects.requireNonNull(reusableIntervals, "reusableIntervals cannot be null"));
@@ -91,8 +95,10 @@ public final class MemoryPlan {
         this.regionSlotUseCounts = Map.copyOf(buildRegionSlotUseCounts(this.regionSlotByValueRef));
         this.regionSlotSizes = Map.copyOf(Objects.requireNonNull(regionSlotSizes, "regionSlotSizes cannot be null"));
         this.tensorToGraphValueRef = Map.copyOf(Objects.requireNonNull(tensorToGraphValueRef, "tensorToGraphValueRef cannot be null"));
+        this.nodeIdToGraphValueRef = Map.copyOf(Objects.requireNonNull(nodeIdToGraphValueRef, "nodeIdToGraphValueRef cannot be null"));
         this.handoffRequirements = List.copyOf(Objects.requireNonNull(handoffRequirements, "handoffRequirements cannot be null"));
         this.runtimeBindingPolicies = Map.copyOf(Objects.requireNonNull(runtimeBindingPolicies, "runtimeBindingPolicies cannot be null"));
+        this.runtimeBindingPoliciesByNodeId = Map.copyOf(Objects.requireNonNull(runtimeBindingPoliciesByNodeId, "runtimeBindingPoliciesByNodeId cannot be null"));
     }
 
     /**
@@ -330,11 +336,15 @@ public final class MemoryPlan {
     /**
      * Returns graph value reference associated with a tensor.
      *
-     * @param tensor semantic tensor
+     * @param tensor tensor to inspect
      * @return graph value ref, or {@code null} when the tensor is not region-owned
      */
     public GraphValueRef graphValueRefOf(Tensor tensor) {
         return tensorToGraphValueRef.get(tensor);
+    }
+
+    public GraphValueRef graphValueRefOfNodeId(int nodeId) {
+        return nodeIdToGraphValueRef.get(nodeId);
     }
 
     /**
@@ -356,6 +366,14 @@ public final class MemoryPlan {
         return slotIdOf(tensor);
     }
 
+    public Integer runtimeSlotIdOfNodeId(int nodeId) {
+        GraphValueRef graphValueRef = graphValueRefOfNodeId(nodeId);
+        if (graphValueRef == null) {
+            return null;
+        }
+        return regionSlotIdOf(graphValueRef);
+    }
+
     /**
      * Returns the runtime slot size for a tensor.
      *
@@ -372,6 +390,14 @@ public final class MemoryPlan {
             return regionSlotSize(runtimeSlotId);
         }
         return slotSize(runtimeSlotId);
+    }
+
+    public int runtimeSlotSizeOfNodeId(int nodeId) {
+        Integer runtimeSlotId = runtimeSlotIdOfNodeId(nodeId);
+        if (runtimeSlotId == null) {
+            throw new IllegalArgumentException("Missing runtime slot for nodeId: " + nodeId);
+        }
+        return regionSlotSize(runtimeSlotId);
     }
 
     /**
@@ -393,6 +419,10 @@ public final class MemoryPlan {
         return runtimeBindingPolicies.getOrDefault(tensor, RuntimeMemoryBindingPolicy.REGION_BINDING_ALLOWED);
     }
 
+    public RuntimeMemoryBindingPolicy runtimeBindingPolicyOfNodeId(int nodeId) {
+        return runtimeBindingPoliciesByNodeId.getOrDefault(nodeId, RuntimeMemoryBindingPolicy.REGION_BINDING_ALLOWED);
+    }
+
     /**
      * Returns all runtime binding policies.
      *
@@ -400,6 +430,10 @@ public final class MemoryPlan {
      */
     public Map<Tensor, RuntimeMemoryBindingPolicy> runtimeBindingPolicies() {
         return runtimeBindingPolicies;
+    }
+
+    public Map<Integer, RuntimeMemoryBindingPolicy> runtimeBindingPoliciesByNodeId() {
+        return runtimeBindingPoliciesByNodeId;
     }
 
     /**

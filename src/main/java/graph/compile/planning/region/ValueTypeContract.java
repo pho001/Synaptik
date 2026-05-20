@@ -5,7 +5,7 @@ import tensor.DataType;
 /**
  * Data type contract for a value as it moves through region planning.
  *
- * @param logicalType semantic tensor type
+ * @param logicalType logical tensor type
  * @param storageType type used for stored buffers
  * @param computeType type used for computation
  * @param transportType type used when crossing region boundaries

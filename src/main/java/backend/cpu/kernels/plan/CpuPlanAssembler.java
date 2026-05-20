@@ -18,9 +18,8 @@ import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
 import config.runtime.CpuStorageProfile;
 import graph.compile.descriptor.CompiledTensorDescriptor;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import operations.Operation;
-import tensor.DataType;
-import tensor.Tensor;
 
 import java.util.List;
 import java.util.Objects;
@@ -31,10 +30,9 @@ public final class CpuPlanAssembler {
 
     public static CpuNodeExecutionPlan buildExecutionPlan(
             Operation op,
-            List<Tensor> inputs,
-            Tensor node,
             List<CompiledTensorDescriptor> inputDescriptors,
             CompiledTensorDescriptor nodeDescriptor,
+            CompiledTensorDescriptorIndex descriptorIndex,
             CpuExecutionPlanner planner,
             BlasConfig blasConfig,
             Conv2dConfig conv2dConfig,
@@ -42,22 +40,20 @@ public final class CpuPlanAssembler {
             boolean publishFloatContinuation,
             ResolvedDispatchHints dispatchHintsOverride
     ) {
-        Objects.requireNonNull(node, "node cannot be null");
         Objects.requireNonNull(planner, "planner cannot be null");
         Objects.requireNonNull(blasConfig, "blasConfig cannot be null");
         Objects.requireNonNull(conv2dConfig, "conv2dConfig cannot be null");
 
-        List<Tensor> safeInputs = inputs == null ? List.of() : List.copyOf(inputs);
         List<CompiledTensorDescriptor> safeInputDescriptors = inputDescriptors == null ? List.of() : List.copyOf(inputDescriptors);
         CompiledTensorDescriptor safeNodeDescriptor = Objects.requireNonNull(nodeDescriptor, "nodeDescriptor cannot be null");
-        PreparedTypeContract typeContract = CpuTypeContractResolver.resolve(op, node, safeInputs);
-        DataType targetType = typeContract.outputType();
+        PreparedTypeContract typeContract = CpuTypeContractResolver.resolve(op, safeNodeDescriptor, safeInputDescriptors);
+        tensor.DataType targetType = typeContract.outputType();
 
-        StridedLayoutDecision layoutDecision = StridedPathEligibility.resolve(op, safeInputs, node, targetType, planner);
-        PreparedInputsResult prepared = PreparedInputPlanner.plan(op, safeInputs, node, typeContract, planner, layoutDecision);
+        StridedLayoutDecision layoutDecision = StridedPathEligibility.resolve(op, safeInputDescriptors, safeNodeDescriptor, targetType, planner);
+        PreparedInputsResult prepared = PreparedInputPlanner.plan(op, safeInputDescriptors, safeNodeDescriptor, typeContract, planner, layoutDecision);
 
-        ResolvedBroadcastPlan broadcastPlan = BroadcastPlanResolver.resolve(op, prepared.runtimeInputs(), node);
-        ResolvedWhereBroadcastPlan whereBroadcastPlan = BroadcastPlanResolver.resolveWhere(op, prepared.runtimeInputs(), node);
+        ResolvedBroadcastPlan broadcastPlan = BroadcastPlanResolver.resolve(op, prepared.runtimeInputDescriptors(), safeNodeDescriptor);
+        ResolvedWhereBroadcastPlan whereBroadcastPlan = BroadcastPlanResolver.resolveWhere(op, prepared.runtimeInputDescriptors(), safeNodeDescriptor);
 
         CpuLayoutPlan layoutPlan = new CpuLayoutPlan(
                 layoutDecision,
@@ -65,16 +61,15 @@ public final class CpuPlanAssembler {
                 planner.contiguousMaterializeThreshold(),
                 broadcastPlan,
                 whereBroadcastPlan,
-                prepared.preparedInputs(),
-                prepared.runtimeInputs()
+                prepared.preparedInputs()
         );
 
         ResolvedCpuOperationPlans operationPlans = CpuOperationPlanResolver.resolve(
                 op,
-                prepared.runtimeInputs(),
-                node,
+                prepared.runtimeInputDescriptors(),
                 safeInputDescriptors,
                 safeNodeDescriptor,
+                descriptorIndex,
                 planner,
                 blasConfig,
                 conv2dConfig,
@@ -84,7 +79,7 @@ public final class CpuPlanAssembler {
         );
         PreparedMatMulExecutable matMulExecutable = PreparedMatMulExecutableFactory.create(
                 op,
-                node,
+                safeNodeDescriptor,
                 operationPlans.matMulHints(),
                 publishFloatContinuation
         );
@@ -103,8 +98,8 @@ public final class CpuPlanAssembler {
         );
         PreparedNativeCpuPlan nativeCpuPlan = NativeCpuPlanResolver.resolve(
                 op,
-                prepared.runtimeInputs(),
-                node.getDataType(),
+                prepared.runtimeInputDescriptors(),
+                safeNodeDescriptor.dataType(),
                 basePlan,
                 matMulExecutable,
                 cpuStorageProfile

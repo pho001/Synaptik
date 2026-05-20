@@ -104,7 +104,7 @@ public final class AdamOptimizer extends AbstractTrainableOptimizer {
         if (!bridge.available()) {
             return false;
         }
-        Tensor source = ref.parameterNode().sourceTensor();
+        Tensor source = ref.parameterNode().publicationTensor();
         MetalAdamState state = metalStates.get(source);
         if (state == null) {
             state = createMetalState(allocator, ref.parameterNode());
@@ -136,9 +136,9 @@ public final class AdamOptimizer extends AbstractTrainableOptimizer {
         Tensor gradient = context.executionContext().runtimeTensorForNodeId(gradientNodeId);
         updateCpu(parameter, gradient, ref.parameterNode());
         TensorInternalAccess.markStorageModified(parameter);
-        TensorInternalAccess.markStorageModified(ref.parameterNode().sourceTensor());
+        TensorInternalAccess.markStorageModified(ref.parameterNode().publicationTensor());
         context.executionContext().markCpuCurrent(ref.parameterNode().id(), "optimizer CPU Adam update");
-        clearNativeState(ref.parameterNode().sourceTensor());
+        clearNativeState(ref.parameterNode().publicationTensor());
     }
 
     @Override
@@ -152,7 +152,7 @@ public final class AdamOptimizer extends AbstractTrainableOptimizer {
                     gradientNodeId,
                     CpuMaterializationReason.OPTIMIZER_STEP
             );
-            NativeAdamState state = nativeStates.get(ref.parameterNode().sourceTensor());
+            NativeAdamState state = nativeStates.get(ref.parameterNode().publicationTensor());
             if (!(parameter instanceof NativeFloat32Storage parameterF32)
                     || !(gradient instanceof NativeFloat32Storage gradientF32)
                     || state == null
@@ -170,7 +170,7 @@ public final class AdamOptimizer extends AbstractTrainableOptimizer {
                     parameterF32,
                     "optimizer native CPU Adam update"
             );
-            cpuStates.remove(ref.parameterNode().sourceTensor());
+            cpuStates.remove(ref.parameterNode().publicationTensor());
             return true;
         } catch (RuntimeException ex) {
             return false;
@@ -254,7 +254,7 @@ public final class AdamOptimizer extends AbstractTrainableOptimizer {
     }
 
     private void syncMetalStateToCpu(TrainableParameterRef ref) {
-        Tensor source = ref.parameterNode().sourceTensor();
+        Tensor source = ref.parameterNode().publicationTensor();
         MetalAdamState metal = metalStates.remove(source);
         if (metal == null) {
             return;
@@ -269,7 +269,7 @@ public final class AdamOptimizer extends AbstractTrainableOptimizer {
     }
 
     private void syncNativeStateToCpu(TrainableParameterRef ref) {
-        Tensor source = ref.parameterNode().sourceTensor();
+        Tensor source = ref.parameterNode().publicationTensor();
         NativeAdamState state = nativeStates.get(source);
         if (state == null) {
             return;
@@ -281,7 +281,7 @@ public final class AdamOptimizer extends AbstractTrainableOptimizer {
     }
 
     private void updateCpu(Tensor parameter, Tensor gradient, CompiledNode node) {
-        CpuAdamState state = cpuStates.computeIfAbsent(node.sourceTensor(), ignored -> CpuAdamState.zeros(parameter.getFlatDataSize()));
+        CpuAdamState state = cpuStates.computeIfAbsent(node.publicationTensor(), ignored -> CpuAdamState.zeros(parameter.getFlatDataSize()));
         switch (parameter.getDataType()) {
             case FLOAT32 -> {
                 float[] p = TensorInternalAccess.float32Data(parameter);
@@ -357,7 +357,7 @@ public final class AdamOptimizer extends AbstractTrainableOptimizer {
     }
 
     private NativeAdamState nativeStateFor(CompiledNode node) {
-        Tensor source = node.sourceTensor();
+        Tensor source = node.publicationTensor();
         NativeAdamState state = nativeStates.get(source);
         if (state == null || state.closed() || state.parameter().getSize() != source.getFlatDataSize()) {
             if (state != null) {

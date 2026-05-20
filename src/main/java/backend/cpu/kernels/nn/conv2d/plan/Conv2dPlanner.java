@@ -8,12 +8,12 @@ import operations.nn.conv.conv2dBackwardInputGemm;
 import operations.nn.conv.conv2dBackwardWeightGemm;
 import operations.nn.conv.conv2dGemm;
 import tensor.DataType;
-import tensor.Tensor;
+import graph.compile.descriptor.CompiledTensorDescriptor;
 
 import java.util.List;
 
 public final class Conv2dPlanner {
-    public ResolvedConv2dHints resolve(Operation op, List<Tensor> inputs, Tensor node, Conv2dConfig conv2dConfig) {
+    public ResolvedConv2dHints resolve(Operation op, List<CompiledTensorDescriptor> inputs, CompiledTensorDescriptor node, Conv2dConfig conv2dConfig) {
         if (op == null || node == null || conv2dConfig == null) {
             return null;
         }
@@ -26,20 +26,20 @@ public final class Conv2dPlanner {
     }
 
     private ResolvedConv2dHints resolveForward(
-            List<Tensor> inputs,
-            Tensor node,
+            List<CompiledTensorDescriptor> inputs,
+            CompiledTensorDescriptor node,
             Conv2dConfig conv2dConfig,
             conv2dGemm op
     ) {
         if (inputs == null || inputs.size() < 2) {
             return null;
         }
-        Tensor weight = inputs.get(1);
+        CompiledTensorDescriptor weight = inputs.get(1);
         if (weight == null) {
             return null;
         }
-        int[] weightShape = weight.getShapeUnsafe();
-        int[] outShape = node.getShapeUnsafe();
+        int[] weightShape = weight.shape();
+        int[] outShape = node.shape();
         if (weightShape.length != 4 || outShape.length != 4) {
             return null;
         }
@@ -51,23 +51,23 @@ public final class Conv2dPlanner {
         int outW = outShape[3];
         int outChannelsPerGroup = outChannels / op.getOptions().groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
-        return resolveGemmHint(node.getDataType(), outH * outW, outChannelsPerGroup, kSize, conv2dConfig);
+        return resolveGemmHint(node.dataType(), outH * outW, outChannelsPerGroup, kSize, conv2dConfig);
     }
 
     private ResolvedConv2dHints resolveBackwardWeight(
-            List<Tensor> inputs,
+            List<CompiledTensorDescriptor> inputs,
             Conv2dConfig conv2dConfig,
             conv2dBackwardWeightGemm op
     ) {
         if (inputs == null || inputs.size() < 2) {
             return null;
         }
-        Tensor outGrad = inputs.get(1);
+        CompiledTensorDescriptor outGrad = inputs.get(1);
         if (outGrad == null) {
             return null;
         }
         int[] weightShape = op.getWeightShape();
-        int[] outGradShape = outGrad.getShapeUnsafe();
+        int[] outGradShape = outGrad.shape();
         if (weightShape.length != 4 || outGradShape.length != 4) {
             return null;
         }
@@ -79,24 +79,24 @@ public final class Conv2dPlanner {
         int outW = outGradShape[3];
         int outChannelsPerGroup = outChannels / op.getOptions().groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
-        return resolveGemmHint(outGrad.getDataType(), kSize, outChannelsPerGroup, outH * outW, conv2dConfig);
+        return resolveGemmHint(outGrad.dataType(), kSize, outChannelsPerGroup, outH * outW, conv2dConfig);
     }
 
     private ResolvedConv2dHints resolveBackwardInput(
-            List<Tensor> inputs,
+            List<CompiledTensorDescriptor> inputs,
             Conv2dConfig conv2dConfig,
             conv2dBackwardInputGemm op
     ) {
         if (inputs == null || inputs.size() < 2) {
             return null;
         }
-        Tensor weight = inputs.get(0);
-        Tensor outGrad = inputs.get(1);
+        CompiledTensorDescriptor weight = inputs.get(0);
+        CompiledTensorDescriptor outGrad = inputs.get(1);
         if (weight == null || outGrad == null) {
             return null;
         }
-        int[] weightShape = weight.getShapeUnsafe();
-        int[] outGradShape = outGrad.getShapeUnsafe();
+        int[] weightShape = weight.shape();
+        int[] outGradShape = outGrad.shape();
         if (weightShape.length != 4 || outGradShape.length != 4) {
             return null;
         }
@@ -108,7 +108,7 @@ public final class Conv2dPlanner {
         int outW = outGradShape[3];
         int outChannelsPerGroup = outChannels / op.getOptions().groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
-        return resolveGemmHint(outGrad.getDataType(), outH * outW, kSize, outChannelsPerGroup, conv2dConfig);
+        return resolveGemmHint(outGrad.dataType(), outH * outW, kSize, outChannelsPerGroup, conv2dConfig);
     }
 
     private ResolvedConv2dHints resolveGemmHint(

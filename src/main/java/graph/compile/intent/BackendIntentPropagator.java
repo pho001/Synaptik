@@ -20,10 +20,10 @@ public final class BackendIntentPropagator {
     }
 
     /**
-     * Copies accelerator backend intent from a source tensor to a target tensor.
+     * Copies accelerator backend intent from an origin tensor to a target tensor.
      *
      * @param target tensor to update
-     * @param source tensor whose backend intent should be preserved
+     * @param source origin tensor whose backend intent should be preserved
      */
     public static void preserve(Tensor target, Tensor source) {
         if (target == null || source == null) {

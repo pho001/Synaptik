@@ -106,7 +106,7 @@ class CpuRegionLegalityAdapterTest {
 
     private static CompiledNode nodeFor(Tensor tensor, PartitionPlanningContext context) {
         for (CompiledNode node : context.compiledNodes()) {
-            if (node.semanticTensor() == tensor) {
+            if (node.publicationTensor() == tensor) {
                 return node;
             }
         }

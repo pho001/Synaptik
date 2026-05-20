@@ -386,7 +386,7 @@ class CpuRegionLowererTest {
     }
 
     @Test
-    void fusedUnitUsesBackingTensorExecutionInputForViewChain() {
+    void fusedUnitUsesExternalValueNodeExecutionInputForViewChain() {
         Tensor base = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "base", DataType.FLOAT64);
         Tensor out = base.select(0, 1).relu().exp();
 
@@ -417,8 +417,7 @@ class CpuRegionLowererTest {
         RegionExecutionPlan regionPlan = assertInstanceOf(RegionExecutionPlan.class, lowered.units().getLast().artifact());
         FusedOperationPreparation preparation = assertInstanceOf(CpuFusedRegionPayload.class, regionPlan.backendPayload())
                 .requirePreparation(FusedOperationPreparation.class);
-        assertEquals(1, preparation.runtimeInputs().size());
-        assertEquals(base, preparation.runtimeInputs().getFirst());
+        assertEquals(List.of(1), preparation.runtimeInputNodeIds());
     }
 
     private static Partition partition(

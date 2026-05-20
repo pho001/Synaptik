@@ -12,6 +12,7 @@ import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
 import config.runtime.CpuStorageProfile;
 import graph.compile.descriptor.CompiledTensorDescriptor;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import operations.Operation;
@@ -83,10 +84,9 @@ public final class CpuBackend {
 
     public static CpuNodeExecutionPlan buildExecutionPlan(
             Operation op,
-            List<Tensor> inputs,
-            Tensor node,
             List<CompiledTensorDescriptor> inputDescriptors,
             CompiledTensorDescriptor nodeDescriptor,
+            CompiledTensorDescriptorIndex descriptorIndex,
             CpuExecutionPlanner planner,
             BlasConfig blasConfig,
             Conv2dConfig conv2dConfig,
@@ -96,10 +96,9 @@ public final class CpuBackend {
     ) {
         return CpuPlanAssembler.buildExecutionPlan(
                 op,
-                inputs,
-                node,
                 inputDescriptors,
                 nodeDescriptor,
+                descriptorIndex,
                 planner,
                 blasConfig,
                 conv2dConfig,

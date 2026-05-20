@@ -6,6 +6,9 @@ import backend.cpu.kernels.elementwise.strided.StridedPathEligibility;
 import backend.cpu.kernels.plan.CpuExecutionPlanner;
 import backend.cpu.kernels.plan.PreparedTypeContract;
 import config.backend.CpuKernelConfig;
+import graph.CompiledNode;
+import graph.compile.descriptor.CompiledTensorDescriptor;
+import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import operations.elementwise.binary.add;
 import operations.elementwise.where.where;
 import org.junit.jupiter.api.Test;
@@ -15,8 +18,9 @@ import tensor.Tensor;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class StridedLayoutPlanningTest {
     @Test
@@ -28,8 +32,8 @@ public class StridedLayoutPlanningTest {
 
         StridedLayoutDecision decision = StridedPathEligibility.resolve(
                 new add(),
-                List.of(left, right),
-                out,
+                List.of(desc(left), desc(right)),
+                desc(out),
                 DataType.FLOAT64,
                 planner
         );
@@ -46,8 +50,8 @@ public class StridedLayoutPlanningTest {
 
         PreparedInputsResult result = PreparedInputPlanner.plan(
                 new add(),
-                List.of(left, right),
-                out,
+                List.of(desc(left), desc(right)),
+                desc(out),
                 new PreparedTypeContract(DataType.FLOAT64, List.of(DataType.FLOAT64, DataType.FLOAT64)),
                 planner,
                 StridedLayoutDecision.MATERIALIZE_INPUT_0
@@ -56,8 +60,16 @@ public class StridedLayoutPlanningTest {
         assertEquals(1, result.preparedInputs().size());
         CpuPreparedInput prepared = result.preparedInputs().get(0);
         assertEquals(0, prepared.inputIndex());
-        assertNotSame(left, result.runtimeInputs().get(0));
-        assertSame(right, result.runtimeInputs().get(1));
+        CompiledTensorDescriptor preparedLeft = result.runtimeInputDescriptors().get(0);
+        assertEquals(DataType.FLOAT64, preparedLeft.dataType());
+        assertTrue(preparedLeft.contiguous());
+        assertFalse(preparedLeft.hasStorageOffset());
+        CompiledTensorDescriptor runtimeRight = result.runtimeInputDescriptors().get(1);
+        assertEquals(DataType.FLOAT64, runtimeRight.dataType());
+        assertArrayEquals(right.getShape(), runtimeRight.shape());
+        assertArrayEquals(right.getStridesUnsafe(), runtimeRight.strides());
+        assertEquals(right.getStorageOffsetUnsafe(), runtimeRight.storageOffset());
+        assertTrue(runtimeRight.contiguous());
     }
 
     @Test
@@ -69,8 +81,8 @@ public class StridedLayoutPlanningTest {
 
         StridedLayoutDecision decision = StridedPathEligibility.resolve(
                 new add(),
-                List.of(left, right),
-                out,
+                List.of(desc(left), desc(right)),
+                desc(out),
                 DataType.FLOAT64,
                 planner
         );
@@ -88,8 +100,8 @@ public class StridedLayoutPlanningTest {
 
         StridedLayoutDecision decision = StridedPathEligibility.resolve(
                 new where(),
-                List.of(cond, ifTrue, ifFalse),
-                out,
+                List.of(desc(cond), desc(ifTrue), desc(ifFalse)),
+                desc(out),
                 DataType.FLOAT64,
                 planner
         );
@@ -106,8 +118,8 @@ public class StridedLayoutPlanningTest {
 
         StridedLayoutDecision decision = StridedPathEligibility.resolve(
                 new add(),
-                List.of(left, right),
-                out,
+                List.of(desc(left), desc(right)),
+                desc(out),
                 DataType.FLOAT64,
                 planner
         );
@@ -165,5 +177,9 @@ public class StridedLayoutPlanningTest {
                 base.attentionMatMulTileN(),
                 base.attentionMatMulTileK()
         );
+    }
+
+    private static CompiledTensorDescriptor desc(Tensor tensor) {
+        return CompiledTensorDescriptorBuilder.fromNode(CompiledNode.snapshot(tensor.topologicalSort()).getLast());
     }
 }

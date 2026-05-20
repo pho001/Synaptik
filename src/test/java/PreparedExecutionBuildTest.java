@@ -308,8 +308,7 @@ public class PreparedExecutionBuildTest {
                         List.of(
                                 new CpuPreparedInput(0, preparedExternal, TensorRemap.buildPlan(external, preparedExternal)),
                                 new CpuPreparedInput(1, preparedInternal, TensorRemap.buildPlan(internal, preparedInternal))
-                        ),
-                        List.of()
+                        )
                 ),
                 null,
                 false,
@@ -1423,7 +1422,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(bfloat16BlasRuntime());
 
         var linearStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.LINEAR)
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.LINEAR)
                 .findFirst()
                 .orElseThrow();
 
@@ -1446,7 +1445,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(bfloat16BlasRuntime());
 
         var matmulStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.MATMUL)
                 .findFirst()
                 .orElseThrow();
 
@@ -1469,11 +1468,11 @@ public class PreparedExecutionBuildTest {
         PreparedExecution execution = compiled.prepare(bfloat16BlasRuntime());
 
         var matmulStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.MATMUL)
                 .findFirst()
                 .orElseThrow();
         var addStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.ADD)
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.ADD)
                 .findFirst()
                 .orElseThrow();
 
@@ -1491,7 +1490,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(bfloat16BlasRuntime());
 
         var matmulStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.MATMUL)
                 .findFirst()
                 .orElseThrow();
 
@@ -1509,7 +1508,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(RuntimeConfig.inferenceDefaults());
 
         var matmulStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.MATMUL)
                 .findFirst()
                 .orElseThrow();
 
@@ -1529,7 +1528,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(bfloat16BlasRuntime());
 
         var matmulStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.MATMUL)
                 .findFirst()
                 .orElseThrow();
 
@@ -1549,7 +1548,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(bfloat16BlasRuntime());
 
         var matmulStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.MATMUL)
                 .findFirst()
                 .orElseThrow();
 
@@ -1566,7 +1565,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(bfloat16BlasRuntime());
 
         var matmulStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.MATMUL)
                 .findFirst()
                 .orElseThrow();
 
@@ -1583,7 +1582,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(bfloat16BlasRuntime());
 
         var matmulStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.MATMUL)
                 .findFirst()
                 .orElseThrow();
 
@@ -1600,7 +1599,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(bfloat16BlasRuntime());
 
         var matmulStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.MATMUL)
                 .findFirst()
                 .orElseThrow();
 
@@ -1619,11 +1618,11 @@ public class PreparedExecutionBuildTest {
                 .prepare(bfloat16BlasRuntime());
 
         var matmulStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.MATMUL)
                 .findFirst()
                 .orElseThrow();
         var whereStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.WHERE)
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.WHERE)
                 .findFirst()
                 .orElseThrow();
 
@@ -2230,8 +2229,8 @@ public class PreparedExecutionBuildTest {
                 .prepare(RuntimeConfig.trainingDefaults());
 
         assertFalse(execution.backwardSteps().stream()
-                .anyMatch(step -> step.node().getOperation() != null
-                        && step.node().getOperation().opType() == Operation.OpType.SOFTMAX_GRAD));
+                .anyMatch(step -> step.compiledNode().operation() != null
+                        && step.compiledNode().operation().opType() == Operation.OpType.SOFTMAX_GRAD));
         assertTrue(execution.backwardSteps().stream()
                 .anyMatch(step -> step.metadata().backend() == ComputeBackend.GPU_METAL));
 
@@ -2260,8 +2259,8 @@ public class PreparedExecutionBuildTest {
                 .prepare(RuntimeConfig.trainingDefaults());
 
         assertFalse(execution.backwardSteps().stream()
-                .anyMatch(step -> step.node().getOperation() != null
-                        && step.node().getOperation().opType() == Operation.OpType.LOG_SOFTMAX_GRAD));
+                .anyMatch(step -> step.compiledNode().operation() != null
+                        && step.compiledNode().operation().opType() == Operation.OpType.LOG_SOFTMAX_GRAD));
         assertTrue(execution.backwardSteps().stream()
                 .anyMatch(step -> step.metadata().backend() == ComputeBackend.GPU_METAL));
 
@@ -2429,8 +2428,8 @@ public class PreparedExecutionBuildTest {
                 .prepare(RuntimeConfig.trainingDefaults());
 
         assertFalse(execution.backwardSteps().stream()
-                .anyMatch(step -> step.node().getOperation() != null
-                        && step.node().getOperation().opType() == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD));
+                .anyMatch(step -> step.compiledNode().operation() != null
+                        && step.compiledNode().operation().opType() == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD));
 
         execution.execute(ExecutionMode.FORWARD_BACKWARD);
 
@@ -2498,8 +2497,8 @@ public class PreparedExecutionBuildTest {
                 .prepare(RuntimeConfig.trainingDefaults());
 
         assertFalse(execution.backwardSteps().stream()
-                .anyMatch(step -> step.node().getOperation() != null
-                        && step.node().getOperation().opType() == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD));
+                .anyMatch(step -> step.compiledNode().operation() != null
+                        && step.compiledNode().operation().opType() == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD));
 
         execution.execute(ExecutionMode.FORWARD_BACKWARD);
 
@@ -2552,8 +2551,8 @@ public class PreparedExecutionBuildTest {
                 )
                 .prepare(runtimeWithRequiredAcceleratorBufferNoThreshold(ComputeBackend.GPU_METAL));
         assertFalse(execution.backwardSteps().stream()
-                .anyMatch(step -> step.node().getOperation() != null
-                        && step.node().getOperation().opType() == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD));
+                .anyMatch(step -> step.compiledNode().operation() != null
+                        && step.compiledNode().operation().opType() == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD));
         execution.executeTraced(ExecutionMode.FORWARD_BACKWARD);
     }
 
@@ -4219,7 +4218,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(bfloat16BlasRuntime());
 
         var linearStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.LINEAR)
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.LINEAR)
                 .findFirst()
                 .orElseThrow();
         var logSoftmaxStep = execution.forwardSteps().stream()
@@ -4229,8 +4228,8 @@ public class PreparedExecutionBuildTest {
 
         assertNotNull(testsupport.MetadataArtifacts.cpuPlan(linearStep.metadata()));
         assertNotNull(testsupport.MetadataArtifacts.cpuPlan(logSoftmaxStep.metadata()));
-        assertFalse(logSoftmaxStep.node().getOperation() != null
-                && logSoftmaxStep.node().getOperation().opType() == Operation.OpType.LOG_SOFTMAX);
+        assertFalse(logSoftmaxStep.compiledNode().operation() != null
+                && logSoftmaxStep.compiledNode().operation().opType() == Operation.OpType.LOG_SOFTMAX);
     }
 
     @Test
@@ -4244,7 +4243,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(bfloat16BlasRuntime());
 
         var linearStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.LINEAR)
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.LINEAR)
                 .findFirst()
                 .orElseThrow();
         var softmaxStep = execution.forwardSteps().stream()
@@ -4254,8 +4253,8 @@ public class PreparedExecutionBuildTest {
 
         assertNotNull(testsupport.MetadataArtifacts.cpuPlan(linearStep.metadata()));
         assertNotNull(testsupport.MetadataArtifacts.cpuPlan(softmaxStep.metadata()));
-        assertFalse(softmaxStep.node().getOperation() != null
-                && softmaxStep.node().getOperation().opType() == Operation.OpType.SOFTMAX);
+        assertFalse(softmaxStep.compiledNode().operation() != null
+                && softmaxStep.compiledNode().operation().opType() == Operation.OpType.SOFTMAX);
     }
 
     @Test
@@ -4269,7 +4268,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(bfloat16BlasRuntime());
 
         var layerNormStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.LAYER_NORM)
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.LAYER_NORM)
                 .findFirst()
                 .orElseThrow();
 
@@ -4288,7 +4287,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(bfloat16BlasRuntime());
 
         var rmsNormStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.RMS_NORM)
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.RMS_NORM)
                 .findFirst()
                 .orElseThrow();
 
@@ -4312,8 +4311,8 @@ public class PreparedExecutionBuildTest {
                 .orElseThrow();
 
         assertNotNull(testsupport.MetadataArtifacts.cpuPlan(logSoftmaxStep.metadata()));
-        assertFalse(logSoftmaxStep.node().getOperation() != null
-                && logSoftmaxStep.node().getOperation().opType() == Operation.OpType.LOG_SOFTMAX);
+        assertFalse(logSoftmaxStep.compiledNode().operation() != null
+                && logSoftmaxStep.compiledNode().operation().opType() == Operation.OpType.LOG_SOFTMAX);
     }
 
     @Test
@@ -4327,7 +4326,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(bfloat16BlasRuntime());
 
         var matmulStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.MATMUL)
                 .findFirst()
                 .orElseThrow();
 
@@ -4344,13 +4343,13 @@ public class PreparedExecutionBuildTest {
                 .prepare(bfloat16BlasRuntime());
 
         var continuationStep = execution.backwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null
-                        && step.node().getDataType() == DataType.BFLOAT16
+                .filter(step -> step.compiledNode().operation() != null
+                        && step.compiledNode().dataType() == DataType.BFLOAT16
                         && testsupport.MetadataArtifacts.cpuPlan(step.metadata()) != null
                         && testsupport.MetadataArtifacts.cpuPlan(step.metadata()).publishFloatContinuation())
                 .findFirst()
                 .orElseThrow();
-        assertFalse(continuationStep.node().getOperation().opType() == Operation.OpType.SOFTMAX_GRAD);
+        assertFalse(continuationStep.compiledNode().operation().opType() == Operation.OpType.SOFTMAX_GRAD);
     }
 
     @Test
@@ -4363,13 +4362,13 @@ public class PreparedExecutionBuildTest {
                 .prepare(bfloat16BlasRuntime());
 
         var continuationStep = execution.backwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null
-                        && step.node().getDataType() == DataType.BFLOAT16
+                .filter(step -> step.compiledNode().operation() != null
+                        && step.compiledNode().dataType() == DataType.BFLOAT16
                         && testsupport.MetadataArtifacts.cpuPlan(step.metadata()) != null
                         && testsupport.MetadataArtifacts.cpuPlan(step.metadata()).publishFloatContinuation())
                 .findFirst()
                 .orElseThrow();
-        assertFalse(continuationStep.node().getOperation().opType() == Operation.OpType.LOG_SOFTMAX_GRAD);
+        assertFalse(continuationStep.compiledNode().operation().opType() == Operation.OpType.LOG_SOFTMAX_GRAD);
     }
 
     private static RuntimeConfig bfloat16BlasRuntime() {
@@ -4547,7 +4546,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(runtimeWithRequiredAcceleratorBufferNoThreshold(ComputeBackend.GPU_METAL));
         var preparedSteps = execution.backwardSteps().stream()
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == opType)
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == opType)
                 .toList();
         assertTrue(preparedSteps.size() >= minSteps, opType.name());
 

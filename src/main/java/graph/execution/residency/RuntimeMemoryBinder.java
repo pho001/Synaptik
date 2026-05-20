@@ -46,17 +46,16 @@ public final class RuntimeMemoryBinder {
             if (node.operation() == null) {
                 continue;
             }
-            if (!memoryPlan.runtimeBindingPolicyOf(node.semanticTensor()).regionBindingAllowed()) {
+            if (!memoryPlan.runtimeBindingPolicyOfNodeId(node.id()).regionBindingAllowed()) {
                 continue;
             }
-            Tensor semanticTensor = node.semanticTensor();
             Tensor runtimeTensor = executionState.runtimeTensorForNodeId(node.id());
             if (aliasesInput0AtRuntime(node, descriptorIndex, executionState, runtimeTensor)) {
                 continue;
             }
             tryBindRegionMapped(
                     runtimeTensor,
-                    semanticTensor,
+                    node.id(),
                     memoryPlan,
                     regionF64Slots,
                     regionF32Slots,
@@ -89,7 +88,7 @@ public final class RuntimeMemoryBinder {
 
     private static boolean tryBindRegionMapped(
             Tensor runtimeTensor,
-            Tensor semanticTensor,
+            int nodeId,
             MemoryPlan memoryPlan,
             Map<Integer, double[]> f64Slots,
             Map<Integer, float[]> f32Slots,
@@ -98,7 +97,7 @@ public final class RuntimeMemoryBinder {
             Map<Integer, long[]> i64Slots,
             Map<Integer, byte[]> boolSlots
     ) {
-        GraphValueRef valueRef = memoryPlan.graphValueRefOf(semanticTensor);
+        GraphValueRef valueRef = memoryPlan.graphValueRefOfNodeId(nodeId);
         if (valueRef == null) {
             return false;
         }

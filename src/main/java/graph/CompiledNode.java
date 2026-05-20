@@ -6,27 +6,28 @@ import tensor.DataType;
 import tensor.Tensor;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
- * Immutable compile-time snapshot of a semantic tensor node.
+ * Immutable compile-time snapshot of a tensor graph node.
  *
- * <p>The semantic tensor reference remains available as a runtime value/storage handle and for debug
- * introspection, but graph topology and node metadata are captured here so prepared execution does
- * not depend on live mutable Tensor structure. Operation instances referenced by compiled nodes are
- * compile metadata and must be treated as immutable.
+ * <p>The user-visible publication tensor reference remains available for runtime input seeding, output and
+ * gradient publication, and debug introspection. Compile topology and node metadata are captured as values so
+ * prepare/lowering does not depend on the mutable Tensor graph. Operation instances referenced by compiled nodes
+ * are compile metadata and must be treated as immutable.
  */
 public final class CompiledNode {
     private final int id;
-    private final Tensor semanticTensor;
-    private final Tensor sourceTensor;
+    private final Tensor publicationTensor;
     private final Operation operation;
     private final ComputeBackend backend;
     private final List<Integer> inputIds;
-    private final List<Tensor> inputTensors;
+    private final int storageOwnerId;
     private final int[] shape;
     private final int[] strides;
     private final int storageOffset;
@@ -37,17 +38,18 @@ public final class CompiledNode {
     private final boolean trainableParameter;
     private final boolean contiguous;
     private final boolean hasStorageOffset;
+    private final boolean gradientTarget;
     private final int flatDataSize;
     private final String label;
+    private final CompiledTensorDataSnapshot staticDataSnapshot;
 
     private CompiledNode(
             int id,
-            Tensor semanticTensor,
-            Tensor sourceTensor,
+            Tensor publicationTensor,
             Operation operation,
             ComputeBackend backend,
             List<Integer> inputIds,
-            List<Tensor> inputTensors,
+            int storageOwnerId,
             int[] shape,
             int[] strides,
             int storageOffset,
@@ -58,16 +60,17 @@ public final class CompiledNode {
             boolean trainableParameter,
             boolean contiguous,
             boolean hasStorageOffset,
+            boolean gradientTarget,
             int flatDataSize,
-            String label
+            String label,
+            CompiledTensorDataSnapshot staticDataSnapshot
     ) {
         this.id = id;
-        this.semanticTensor = Objects.requireNonNull(semanticTensor, "semanticTensor cannot be null");
-        this.sourceTensor = Objects.requireNonNull(sourceTensor, "sourceTensor cannot be null");
+        this.publicationTensor = Objects.requireNonNull(publicationTensor, "publicationTensor cannot be null");
         this.operation = operation;
         this.backend = Objects.requireNonNull(backend, "backend cannot be null");
         this.inputIds = List.copyOf(inputIds == null ? List.of() : inputIds);
-        this.inputTensors = List.copyOf(inputTensors == null ? List.of() : inputTensors);
+        this.storageOwnerId = storageOwnerId;
         this.shape = shape == null ? new int[0] : shape.clone();
         this.strides = strides == null ? new int[0] : strides.clone();
         this.storageOffset = storageOffset;
@@ -78,8 +81,10 @@ public final class CompiledNode {
         this.trainableParameter = trainableParameter;
         this.contiguous = contiguous;
         this.hasStorageOffset = hasStorageOffset;
+        this.gradientTarget = gradientTarget;
         this.flatDataSize = flatDataSize;
         this.label = label == null ? "" : label;
+        this.staticDataSnapshot = staticDataSnapshot == null ? CompiledTensorDataSnapshot.EMPTY : staticDataSnapshot;
     }
 
     /**
@@ -93,21 +98,29 @@ public final class CompiledNode {
     }
 
     /**
-     * Captures compiled node snapshots with optional source tensor remapping.
+     * Captures compiled node snapshots with optional publication tensor remapping.
      *
      * @param orderedGraph tensors in topological order
-     * @param sourceTensors mapping from semantic tensors to user-visible source tensors
+     * @param publicationTensors mapping from compiled graph tensors to user-visible publication tensors
      * @return immutable compiled node snapshots
      */
-    public static List<CompiledNode> snapshot(List<Tensor> orderedGraph, Map<Tensor, Tensor> sourceTensors) {
+    public static List<CompiledNode> snapshot(List<Tensor> orderedGraph, Map<Tensor, Tensor> publicationTensors) {
         if (orderedGraph == null || orderedGraph.isEmpty()) {
             return List.of();
         }
-        sourceTensors = sourceTensors == null ? Map.of() : Map.copyOf(sourceTensors);
+        publicationTensors = publicationTensors == null ? Map.of() : Map.copyOf(publicationTensors);
         IdentityHashMap<Tensor, Integer> ids = new IdentityHashMap<>();
         for (int i = 0; i < orderedGraph.size(); i++) {
             ids.put(orderedGraph.get(i), i);
         }
+        Set<Tensor> gradientTargets = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Tensor tensor : orderedGraph) {
+            Tensor gradient = tensor.getGradient();
+            if (gradient != null && ids.containsKey(gradient)) {
+                gradientTargets.add(gradient);
+            }
+        }
+        IdentityHashMap<Tensor, Integer> storageOwnerIds = new IdentityHashMap<>();
         List<CompiledNode> out = new ArrayList<>(orderedGraph.size());
         for (int i = 0; i < orderedGraph.size(); i++) {
             Tensor tensor = orderedGraph.get(i);
@@ -122,14 +135,15 @@ public final class CompiledNode {
                     inputIds.add(inputId);
                 }
             }
+            int storageOwnerId = resolveStorageOwnerId(i, tensor, inputs, storageOwnerIds);
+            storageOwnerIds.put(tensor, storageOwnerId);
             out.add(new CompiledNode(
                     i,
-                    tensor,
-                    sourceTensors.getOrDefault(tensor, tensor),
+                    publicationTensors.getOrDefault(tensor, tensor),
                     tensor.getOperation(),
                     tensor.resolveBackend(),
                     inputIds,
-                    inputs == null ? List.of() : inputs,
+                    storageOwnerId,
                     tensor.getShapeUnsafe(),
                     tensor.getStridesUnsafe(),
                     tensor.getStorageOffsetUnsafe(),
@@ -140,23 +154,34 @@ public final class CompiledNode {
                     tensor.isTrainableParameter(),
                     tensor.isContiguous(),
                     tensor.hasStorageOffset(),
+                    gradientTargets.contains(tensor),
                     tensor.getFlatDataSize(),
-                    tensor.getLabel()
+                    tensor.getLabel(),
+                    CompiledTensorDataSnapshot.captureStaticLeaf(tensor)
             ));
         }
         return List.copyOf(out);
+    }
+
+    private static int resolveStorageOwnerId(
+            int nodeId,
+            Tensor tensor,
+            List<Tensor> inputs,
+            IdentityHashMap<Tensor, Integer> storageOwnerIds
+    ) {
+        if (!AliasViewPolicy.aliasesInput0AtRuntime(tensor) || inputs == null || inputs.isEmpty()) {
+            return nodeId;
+        }
+        Tensor input0 = inputs.getFirst();
+        return storageOwnerIds.getOrDefault(input0, nodeId);
     }
 
     public int id() {
         return id;
     }
 
-    public Tensor semanticTensor() {
-        return semanticTensor;
-    }
-
-    public Tensor sourceTensor() {
-        return sourceTensor;
+    public Tensor publicationTensor() {
+        return publicationTensor;
     }
 
     public Operation operation() {
@@ -171,8 +196,8 @@ public final class CompiledNode {
         return inputIds;
     }
 
-    public List<Tensor> inputTensors() {
-        return inputTensors;
+    public int storageOwnerId() {
+        return storageOwnerId;
     }
 
     public int[] shape() {
@@ -215,11 +240,19 @@ public final class CompiledNode {
         return hasStorageOffset;
     }
 
+    public boolean gradientTarget() {
+        return gradientTarget;
+    }
+
     public int flatDataSize() {
         return flatDataSize;
     }
 
     public String label() {
         return label;
+    }
+
+    public CompiledTensorDataSnapshot staticDataSnapshot() {
+        return staticDataSnapshot;
     }
 }

@@ -11,8 +11,8 @@ import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
 import config.runtime.CpuStorageProfile;
 import graph.compile.descriptor.CompiledTensorDescriptor;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import operations.Operation;
-import tensor.Tensor;
 
 import java.util.List;
 
@@ -22,10 +22,10 @@ final class CpuOperationPlanResolver {
 
     static ResolvedCpuOperationPlans resolve(
             Operation op,
-            List<Tensor> runtimeInputs,
-            Tensor node,
+            List<CompiledTensorDescriptor> runtimeInputs,
             List<CompiledTensorDescriptor> inputDescriptors,
             CompiledTensorDescriptor nodeDescriptor,
+            CompiledTensorDescriptorIndex descriptorIndex,
             CpuExecutionPlanner planner,
             BlasConfig blasConfig,
             Conv2dConfig conv2dConfig,
@@ -49,9 +49,9 @@ final class CpuOperationPlanResolver {
                         )
                         : null;
 
-        ResolvedConv2dHints conv2dHints = planner.resolveConv2dHints(op, runtimeInputs, node, conv2dConfig);
+        ResolvedConv2dHints conv2dHints = planner.resolveConv2dHints(op, runtimeInputs, nodeDescriptor, conv2dConfig);
         ResolvedScaledDotProductAttentionPlan attentionPlan =
-                planner.resolveScaledDotProductAttentionPlan(op, runtimeInputs, node, blasConfig);
+                planner.resolveScaledDotProductAttentionPlan(op, runtimeInputs, nodeDescriptor, descriptorIndex, blasConfig);
 
         ResolvedCpuComputeContract computeContract = planner.resolveComputeContract(
                 op,
@@ -66,7 +66,7 @@ final class CpuOperationPlanResolver {
                 : null;
 
         ResolvedReductionHints reductionHints = shouldResolveReduction(op)
-                ? planner.resolveReductionHints(ReductionLogicalSize.estimate(runtimeInputs, node), computeContract)
+                ? planner.resolveReductionHints(ReductionLogicalSize.estimate(runtimeInputs, nodeDescriptor), computeContract)
                 : null;
 
         return new ResolvedCpuOperationPlans(

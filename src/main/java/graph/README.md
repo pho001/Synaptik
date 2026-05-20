@@ -1,11 +1,11 @@
 # Graph Package
 
-The `graph` package turns a semantic tensor DAG into explicit executable artifacts.
+The `graph` package turns the public `Tensor` DAG into explicit executable artifacts.
 
 Its job is not to build graphs and not to execute kernels directly.
 Its job is to manage the lifecycle between those two moments:
 
-1. take the semantic graph built by `tensor`
+1. take the public tensor graph built by `tensor`
 2. canonicalize and optimize it
 3. snapshot compile-time structure
 4. prepare backend/runtime metadata
@@ -15,7 +15,7 @@ Its job is to manage the lifecycle between those two moments:
 
 You should keep three artifacts separate at all times.
 
-### 1. Semantic graph: `Tensor`
+### 1. Public graph: `Tensor`
 
 Built by the public tensor API.
 
@@ -163,14 +163,14 @@ That boundary is important because:
 
 - compile can still reason over one joint forward/backward graph
 - optimizer rewrites stay compile-local
-- repeated compile does not implicitly accumulate more optimizer passes over already rewritten semantic nodes
+- repeated compile does not implicitly accumulate more optimizer passes over already rewritten public graph nodes
 
 ### Step 6: capture compile-time bindings
 
 After optimization, compile captures:
 
 - compiled node list
-- mapping from semantic/source tensors to compiled nodes
+- mapping from compiled graph tensors to publication tensors
 - gradient bindings
 - forward boundary index
 - optional seed-gradient binding
@@ -244,16 +244,16 @@ What prepare does not do:
 1. create per-run `ExecutionState`
 2. create per-run `ExecutionContext`
 3. run prepared forward steps
-4. publish forward result back to the semantic root tensor
+4. publish forward result back to the user-visible root tensor
 5. if backward is requested:
    - seed compiled root gradient
    - run prepared backward steps
-   - publish detached gradient tensors back to semantic tensors
+   - publish detached gradient tensors back to publication tensors
 
 Two details matter:
 
 - published gradients are detached copies, not direct aliases of internal runtime buffers
-- runtime auxiliary state lives in execution-scoped state, not on the semantic `Tensor`
+- runtime auxiliary state lives in execution-scoped state, not on the user-visible `Tensor`
 
 ## Traces
 
@@ -301,14 +301,14 @@ The important boundary is:
 
 ## Data Publication Contract
 
-The graph layer still publishes runtime results back into semantic tensors because the public API is built around `Tensor` as the value anchor.
+The graph layer still publishes runtime results back into user-visible tensors because the public API is built around `Tensor` as the value anchor.
 
 Current publication behavior:
 
-- forward output is copied back into the semantic root tensor
-- gradients are copied back into semantic leaf tensors after backward
+- forward output is copied back into the user-visible root tensor
+- gradients are copied back into publication tensors after backward
 
-This is why compiled/prepared artifacts are reusable, but caller-side semantic graph mutation after compile/prepare is still caller-owned behavior.
+This is why compiled/prepared artifacts are reusable, but caller-side public graph mutation after compile/prepare is still caller-owned behavior.
 
 ## Important Architectural Boundaries
 
@@ -318,6 +318,6 @@ The current design intentionally enforces these rules:
 - prepare owns runtime policy concretization
 - executors consume prepared metadata instead of re-planning
 - runtime execution state stays execution-scoped
-- semantic tensors remain the publication surface, not the hidden runtime cache layer
+- user-visible tensors remain the publication surface, not the hidden runtime cache layer
 
-If a proposed change causes executors to recompute planner decisions or pushes execution caches back onto semantic tensors, it is crossing the wrong boundary.
+If a proposed change causes executors to recompute planner decisions or pushes execution caches back onto user-visible tensors, it is crossing the wrong boundary.

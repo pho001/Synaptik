@@ -207,8 +207,8 @@ public class BFloat16BlasDispatchTest {
                 .prepare(blasRuntime(1L).withAccelerator(AcceleratorConfig.disabled()));
 
         var matmul = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null
-                        && step.node().getOperation().opType() == operations.Operation.OpType.MATMUL)
+                .filter(step -> step.compiledNode().operation() != null
+                        && step.compiledNode().operation().opType() == operations.Operation.OpType.MATMUL)
                 .findFirst()
                 .orElseThrow();
 

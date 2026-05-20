@@ -72,7 +72,35 @@ public final class MemoryPlanner {
     public static MemoryPlan plan(MemoryPlanningInput input, MemoryPlannerPolicy policy) {
         Objects.requireNonNull(input, "input cannot be null");
         RegionValuePlanningArtifacts artifacts = buildRegionValuePlanningArtifacts(input);
-        return plan(input.graph(), artifacts, policy);
+        return planCompiled(input, artifacts, policy);
+    }
+
+    private static MemoryPlan planCompiled(
+            MemoryPlanningInput input,
+            RegionValuePlanningArtifacts artifacts,
+            MemoryPlannerPolicy policy
+    ) {
+        Objects.requireNonNull(policy, "policy cannot be null");
+        Map<Integer, RuntimeMemoryBindingPolicy> runtimeBindingPolicies = buildRuntimeBindingPoliciesByNodeId(input.compiledNodes());
+        return new MemoryPlan(
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                policy,
+                new MemoryPlanSummary(0, 0, 0, 0, 0.0d, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0, 0, 0.0),
+                artifacts.structuralView(),
+                artifacts.regionValueLifetimes(),
+                artifacts.materializationPlan(),
+                artifacts.regionMemoryBindings(),
+                artifacts.regionSlotByValueRef(),
+                artifacts.regionSlotSizes(),
+                artifacts.tensorToGraphValueRef(),
+                artifacts.nodeIdToGraphValueRef(),
+                artifacts.handoffRequirements(),
+                Map.of(),
+                runtimeBindingPolicies
+        );
     }
 
     private static MemoryPlan plan(List<Tensor> sortedGraph, RegionValuePlanningArtifacts artifacts, MemoryPlannerPolicy policy) {
@@ -87,7 +115,9 @@ public final class MemoryPlanner {
                     artifacts.regionSlotByValueRef(),
                     artifacts.regionSlotSizes(),
                     artifacts.tensorToGraphValueRef(),
+                    artifacts.nodeIdToGraphValueRef(),
                     artifacts.handoffRequirements(),
+                    Map.of(),
                     Map.of());
         }
 
@@ -172,8 +202,10 @@ public final class MemoryPlanner {
                 artifacts.regionSlotByValueRef(),
                 artifacts.regionSlotSizes(),
                 artifacts.tensorToGraphValueRef(),
+                artifacts.nodeIdToGraphValueRef(),
                 artifacts.handoffRequirements(),
-                runtimeBindingPolicies
+                runtimeBindingPolicies,
+                Map.of()
         );
     }
 
@@ -195,13 +227,25 @@ public final class MemoryPlanner {
         return Map.copyOf(policies);
     }
 
+    private static Map<Integer, RuntimeMemoryBindingPolicy> buildRuntimeBindingPoliciesByNodeId(List<graph.CompiledNode> nodes) {
+        LinkedHashMap<Integer, RuntimeMemoryBindingPolicy> policies = new LinkedHashMap<>();
+        for (graph.CompiledNode node : nodes) {
+            Operation operation = node.operation();
+            RuntimeMemoryBindingPolicy policy = operation != null && operation.opType() == Operation.OpType.MAX_POOL2D
+                    ? RuntimeMemoryBindingPolicy.skip("workspace-sensitive-storage")
+                    : RuntimeMemoryBindingPolicy.REGION_BINDING_ALLOWED;
+            policies.put(node.id(), policy);
+        }
+        return Map.copyOf(policies);
+    }
+
     private static RegionValuePlanningArtifacts buildRegionValuePlanningArtifacts(MemoryPlanningInput input) {
         Objects.requireNonNull(input, "input cannot be null");
         List<OptimizedRegion> optimizedRegions = input.optimizedRegions();
         if (optimizedRegions == null || optimizedRegions.isEmpty()) {
             return RegionValuePlanningArtifacts.empty();
         }
-        Map<Tensor, Integer> graphLastUseByTensor = buildGraphLastUseByTensor(input);
+        Map<Integer, Integer> graphLastUseByTensor = buildGraphLastUseByTensor(input);
         List<String> regionIds = optimizedRegions.stream().map(OptimizedRegion::regionId).toList();
         LinkedHashSet<GraphValueRef> materialized = new LinkedHashSet<>();
         LinkedHashSet<GraphValueRef> continuation = new LinkedHashSet<>();
@@ -231,7 +275,7 @@ public final class MemoryPlanner {
                         value.ref(),
                         decision,
                         value.typeContract(),
-                        value.semanticTensor(),
+                        value.producerNodeId(),
                         value.elementCount(),
                         value.requiredMaterialized(),
                         region.regionId()
@@ -271,7 +315,7 @@ public final class MemoryPlanner {
         LinkedHashMap<GraphValueRef, RegionMemoryBinding> regionMemoryBindings = new LinkedHashMap<>();
         LinkedHashMap<GraphValueRef, Integer> regionSlotByValueRef = new LinkedHashMap<>();
         LinkedHashMap<Integer, Integer> regionSlotSizes = new LinkedHashMap<>();
-        IdentityHashMap<Tensor, GraphValueRef> tensorToGraphValueRef = new IdentityHashMap<>();
+        LinkedHashMap<Integer, GraphValueRef> nodeIdToGraphValueRef = new LinkedHashMap<>();
         ArrayList<RegionHandoffRequirement> handoffRequirements = new ArrayList<>();
 
         for (StructuralValueFlow flow : valueFlows) {
@@ -279,7 +323,7 @@ public final class MemoryPlanner {
             if (descriptor == null) {
                 continue;
             }
-            tensorToGraphValueRef.put(descriptor.semanticTensor(), flow.valueRef());
+            nodeIdToGraphValueRef.put(descriptor.producerNodeId(), flow.valueRef());
             int birthStep = producerStepByValue.getOrDefault(flow.valueRef(), 0);
             int lastUseStep = birthStep;
             for (String consumerUnitId : flow.consumerUnitIds()) {
@@ -288,7 +332,7 @@ public final class MemoryPlanner {
                     lastUseStep = Math.max(lastUseStep, step);
                 }
             }
-            Integer graphLastUseStep = graphLastUseByTensor.get(descriptor.semanticTensor());
+            Integer graphLastUseStep = graphLastUseByTensor.get(descriptor.producerNodeId());
             if (graphLastUseStep != null) {
                 lastUseStep = Math.max(lastUseStep, graphLastUseStep);
             }
@@ -348,36 +392,30 @@ public final class MemoryPlanner {
                 Map.copyOf(regionMemoryBindings),
                 Map.copyOf(regionSlotByValueRef),
                 Map.copyOf(regionSlotSizes),
-                Map.copyOf(tensorToGraphValueRef),
+                Map.of(),
+                Map.copyOf(nodeIdToGraphValueRef),
                 List.copyOf(handoffRequirements)
         );
     }
 
-    private static Map<Tensor, Integer> buildGraphLastUseByTensor(MemoryPlanningInput input) {
-        List<Tensor> graph = input.graph();
-        IdentityHashMap<Tensor, Integer> lastUseByTensor = new IdentityHashMap<>(graph.size());
+    private static Map<Integer, Integer> buildGraphLastUseByTensor(MemoryPlanningInput input) {
+        List<graph.CompiledNode> graph = input.compiledNodes();
+        LinkedHashMap<Integer, Integer> lastUseByTensor = new LinkedHashMap<>(graph.size());
         for (int i = 0; i < graph.size(); i++) {
-            lastUseByTensor.put(graph.get(i), i);
+            lastUseByTensor.put(graph.get(i).id(), i);
         }
         for (int i = 0; i < graph.size(); i++) {
-            Tensor consumer = graph.get(i);
-            List<Tensor> inputs = consumer.getPrevTensors();
-            if (inputs == null || inputs.isEmpty()) {
-                continue;
-            }
-            for (Tensor tensorInput : inputs) {
-                if (tensorInput != null) {
-                    lastUseByTensor.merge(tensorInput, i, Math::max);
-                }
+            graph.CompiledNode consumer = graph.get(i);
+            for (int inputNodeId : consumer.inputIds()) {
+                lastUseByTensor.merge(inputNodeId, i, Math::max);
             }
         }
         int terminalPublishStep = graph.size();
-        extendPublishedLifetime(lastUseByTensor, input.forwardOutput(), terminalPublishStep);
+        extendPublishedLifetime(lastUseByTensor, input.forwardBoundaryNodeId(), input.compiledNodes(), terminalPublishStep);
         if (input.supportsBackward()) {
-            for (Tensor tensor : graph) {
-                Tensor gradient = tensor.getGradient();
-                if (gradient != null) {
-                    extendPublishedLifetime(lastUseByTensor, gradient, terminalPublishStep);
+            for (graph.CompiledNode node : graph) {
+                if (node.gradientTarget()) {
+                    extendPublishedLifetime(lastUseByTensor, node.id(), input.compiledNodes(), terminalPublishStep);
                 }
             }
         }
@@ -385,18 +423,19 @@ public final class MemoryPlanner {
     }
 
     private static void extendPublishedLifetime(
-            Map<Tensor, Integer> lastUseByTensor,
-            Tensor tensor,
+            Map<Integer, Integer> lastUseByTensor,
+            int nodeId,
+            List<graph.CompiledNode> graph,
             int terminalPublishStep
     ) {
-        Tensor current = tensor;
-        while (current != null) {
+        int current = nodeId;
+        while (current >= 0 && current < graph.size()) {
+            graph.CompiledNode currentNode = graph.get(current);
             lastUseByTensor.merge(current, terminalPublishStep, Math::max);
-            if (!AliasViewPolicy.aliasesInput0AtRuntime(current)) {
+            if (currentNode.storageOwnerId() == current) {
                 return;
             }
-            List<Tensor> inputs = current.getPrevTensors();
-            current = (inputs == null || inputs.isEmpty()) ? null : inputs.getFirst();
+            current = currentNode.storageOwnerId();
         }
     }
 
@@ -895,7 +934,7 @@ public final class MemoryPlanner {
             GraphValueRef valueRef,
             MaterializationDecision decision,
             ValueTypeContract typeContract,
-            Tensor semanticTensor,
+            int producerNodeId,
             int elementCount,
             boolean requiredMaterialized,
             String producerRegionId
@@ -910,11 +949,13 @@ public final class MemoryPlanner {
             Map<GraphValueRef, Integer> regionSlotByValueRef,
             Map<Integer, Integer> regionSlotSizes,
             Map<Tensor, GraphValueRef> tensorToGraphValueRef,
+            Map<Integer, GraphValueRef> nodeIdToGraphValueRef,
             List<RegionHandoffRequirement> handoffRequirements
     ) {
         private static RegionValuePlanningArtifacts empty() {
             return new RegionValuePlanningArtifacts(
                     StructuralMemoryView.empty(),
+                    Map.of(),
                     Map.of(),
                     Map.of(),
                     Map.of(),

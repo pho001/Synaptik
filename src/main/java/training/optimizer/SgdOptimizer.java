@@ -98,7 +98,7 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
         Tensor gradient = context.executionContext().runtimeTensorForNodeId(gradientNodeId);
         updateCpu(parameter, gradient, learningRate, ref.parameterNode());
         TensorInternalAccess.markStorageModified(parameter);
-        TensorInternalAccess.markStorageModified(ref.parameterNode().sourceTensor());
+        TensorInternalAccess.markStorageModified(ref.parameterNode().publicationTensor());
         context.executionContext().markCpuCurrent(ref.parameterNode().id(), "optimizer CPU SGD update");
     }
 
@@ -239,7 +239,7 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
     }
 
     private OwnedNativeParameter nativeParameterFor(CompiledNode node) {
-        Tensor source = node.sourceTensor();
+        Tensor source = node.publicationTensor();
         OwnedNativeParameter owned = nativeParameters.get(source);
         if (owned == null || owned.storage().closed() || owned.storage().getSize() != source.getFlatDataSize()) {
             if (owned != null) {

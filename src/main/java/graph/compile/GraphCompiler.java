@@ -21,7 +21,7 @@ import java.util.Objects;
  * partitions, and produces the memory plan used during preparation. Each call to {@link #compile()} creates a fresh
  * session and fresh artifacts; the compiler object itself only stores construction-time configuration.
  *
- * <p>The compiler is not designed for concurrent calls against mutable source tensors. The returned artifacts are
+ * <p>The compiler is not designed for concurrent calls against mutable user-visible tensors. The returned artifacts are
  * immutable views, but compilation reads and updates graph metadata such as gradient bindings and backend intent.
  */
 public final class GraphCompiler {

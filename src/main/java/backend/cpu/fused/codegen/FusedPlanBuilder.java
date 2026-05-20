@@ -5,13 +5,13 @@ import operations.elementwise.unary.clampMax;
 import operations.elementwise.unary.clampMin;
 import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.pow;
-import tensor.Tensor;
+import graph.CompiledNode;
+import graph.compile.descriptor.CompiledTensorDescriptor;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import tensor.DataType;
-import tensor.TensorInternalAccess;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Objects;
 
@@ -22,75 +22,60 @@ public final class FusedPlanBuilder {
     private FusedPlanBuilder() {}
 
     public static FusedExpressionPlan build(
-            List<Tensor> cluster,
-            List<Tensor> externalInputs,
-            Tensor root
+            List<Integer> orderedNodeIds,
+            List<Integer> externalInputNodeIds,
+            java.util.function.IntFunction<CompiledNode> compiledNodeResolver,
+            CompiledTensorDescriptorIndex descriptorIndex
     ) {
-        Objects.requireNonNull(cluster, "cluster cannot be null");
-        Objects.requireNonNull(externalInputs, "externalInputs cannot be null");
-        Objects.requireNonNull(root, "root cannot be null");
-
-        List<Tensor> safeCluster = List.copyOf(FusedAsmSupport.buildTopologicalOrder(root, cluster));
-        List<Tensor> safeExternalInputs = List.copyOf(externalInputs);
-
-        Snapshot snapshot = snapshotCluster(safeCluster, root);
-        List<Tensor> compiledCluster = snapshot.cluster();
-        Tensor compiledRoot = snapshot.root();
-
-        IdentityHashMap<Tensor, Integer> refs = new IdentityHashMap<>();
-        for (int i = 0; i < safeExternalInputs.size(); i++) {
-            refs.put(safeExternalInputs.get(i), i);
+        Objects.requireNonNull(orderedNodeIds, "orderedNodeIds cannot be null");
+        Objects.requireNonNull(externalInputNodeIds, "externalInputNodeIds cannot be null");
+        Objects.requireNonNull(compiledNodeResolver, "compiledNodeResolver cannot be null");
+        Objects.requireNonNull(descriptorIndex, "descriptorIndex cannot be null");
+        if (orderedNodeIds.isEmpty()) {
+            throw new IllegalArgumentException("orderedNodeIds cannot be empty");
         }
 
-        List<FusedExternalInputPlan> inputPlans = buildInputPlans(safeExternalInputs, compiledRoot);
+        java.util.HashMap<Integer, Integer> refs = new java.util.HashMap<>();
+        for (int i = 0; i < externalInputNodeIds.size(); i++) {
+            refs.put(externalInputNodeIds.get(i), i);
+        }
 
-        List<FusedNodePlan> nodes = new ArrayList<>(compiledCluster.size());
-        for (int i = 0; i < compiledCluster.size(); i++) {
-            Tensor tensor = compiledCluster.get(i);
-            Operation operation = tensor.getOperation();
-            if (operation == null) {
-                throw new IllegalArgumentException("Cluster node at index " + i + " does not have an operation");
+        CompiledTensorDescriptor outputDescriptor = descriptorIndex.byNodeId(orderedNodeIds.getLast());
+        List<FusedExternalInputPlan> inputPlans = buildInputPlans(externalInputNodeIds, outputDescriptor, descriptorIndex);
+
+        List<FusedNodePlan> nodes = new ArrayList<>(orderedNodeIds.size());
+        for (int i = 0; i < orderedNodeIds.size(); i++) {
+            int nodeId = orderedNodeIds.get(i);
+            CompiledNode node = compiledNodeResolver.apply(nodeId);
+            if (node == null || node.operation() == null) {
+                throw new IllegalArgumentException("Fused node " + nodeId + " does not have an operation");
             }
-
-            int outputRef = safeExternalInputs.size() + i;
+            int outputRef = externalInputNodeIds.size() + i;
             List<Integer> inputRefs = new ArrayList<>();
-
-            List<Tensor> prev = tensor.getPrevTensors();
-            if (prev != null) {
-                for (Tensor parent : prev) {
-                    Integer ref = refs.get(parent);
-                    if (ref == null) {
-                        throw new IllegalStateException(
-                                "Missing fused input reference for node " + tensor.getLabel()
-                        );
-                    }
-                    inputRefs.add(ref);
+            for (int inputNodeId : node.inputIds()) {
+                Integer ref = refs.get(inputNodeId);
+                if (ref == null) {
+                    throw new IllegalStateException("Missing fused input reference for nodeId=" + nodeId);
                 }
+                inputRefs.add(ref);
             }
-
-            refs.put(tensor, outputRef);
-            CanonicalNode canonical = canonicalize(operation, inputRefs);
-
+            refs.put(nodeId, outputRef);
+            CanonicalNode canonical = canonicalize(node.operation(), inputRefs);
             nodes.add(new FusedNodePlan(
                     i,
                     canonical.opType(),
                     canonical.inputRefs(),
                     outputRef,
-                    tensor.getDataType(),
+                    descriptorIndex.byNodeId(nodeId).dataType(),
                     canonical.attributes()
             ));
         }
 
-        Integer outputRef = refs.get(compiledRoot);
+        Integer outputRef = refs.get(orderedNodeIds.getLast());
         if (outputRef == null) {
-            throw new IllegalStateException("Missing output ref for fused root");
+            throw new IllegalStateException("Missing output ref for fused root nodeId=" + orderedNodeIds.getLast());
         }
-
-        return new FusedExpressionPlan(
-                nodes,
-                inputPlans,
-                outputRef
-        );
+        return new FusedExpressionPlan(nodes, inputPlans, outputRef);
     }
 
     private static CanonicalNode canonicalize(Operation operation, List<Integer> inputRefs) {
@@ -177,64 +162,34 @@ public final class FusedPlanBuilder {
         return NoAttributes.INSTANCE;
     }
 
-    private static Snapshot snapshotCluster(List<Tensor> cluster, Tensor root) {
-        IdentityHashMap<Tensor, Tensor> clones = new IdentityHashMap<>();
-        for (Tensor original : cluster) {
-            Tensor clone = new Tensor(
-                    original.getShape().clone(),
-                    new ArrayList<>(),
-                    original.getOperation(),
-                    original.getLabel(),
-                    original.getDataType()
-            );
-            TensorInternalAccess.setBackward(clone, original.isBackward());
-            clones.put(original, clone);
-        }
-
-        for (Tensor original : cluster) {
-            Tensor clone = clones.get(original);
-            List<Tensor> prev = original.getPrevTensors();
-            if (prev == null) {
-                TensorInternalAccess.setPrevTensors(clone, null);
-                continue;
-            }
-            List<Tensor> mappedPrev = new ArrayList<>(prev.size());
-            for (Tensor parent : prev) {
-                mappedPrev.add(clones.getOrDefault(parent, parent));
-            }
-            TensorInternalAccess.setPrevTensors(clone, mappedPrev);
-        }
-
-        List<Tensor> clusterCopy = new ArrayList<>(cluster.size());
-        for (Tensor original : cluster) {
-            clusterCopy.add(clones.get(original));
-        }
-        Tensor rootCopy = clones.get(root);
-        if (rootCopy == null) {
-            throw new IllegalStateException("Missing fused root clone");
-        }
-        return new Snapshot(List.copyOf(clusterCopy), rootCopy);
-    }
-
-    private static List<FusedExternalInputPlan> buildInputPlans(List<Tensor> externalInputs, Tensor outputTensor) {
-        int[] outShape = outputTensor.getShape();
+    private static List<FusedExternalInputPlan> buildInputPlans(
+            List<Integer> externalInputNodeIds,
+            CompiledTensorDescriptor output,
+            CompiledTensorDescriptorIndex descriptorIndex
+    ) {
+        int[] outShape = output.shape();
         int[] outDenseStrides = tensor.TensorMetadata.computeStrides(outShape);
-        List<FusedExternalInputPlan> plans = new ArrayList<>(externalInputs.size());
-        for (int i = 0; i < externalInputs.size(); i++) {
-            Tensor input = externalInputs.get(i);
-            tensor.layout.BroadcastPlan plan = tensor.layout.BroadcastPlanner.plan(input.getShape(), input.getStrides(), outShape, outDenseStrides);
+        List<FusedExternalInputPlan> plans = new ArrayList<>(externalInputNodeIds.size());
+        for (int i = 0; i < externalInputNodeIds.size(); i++) {
+            CompiledTensorDescriptor input = descriptorIndex.byNodeId(externalInputNodeIds.get(i));
+            tensor.layout.BroadcastPlan plan = tensor.layout.BroadcastPlanner.plan(
+                    input.shape(),
+                    input.strides(),
+                    outShape,
+                    outDenseStrides
+            );
             if (!java.util.Arrays.equals(plan.outShape(), outShape)) {
-                throw new IllegalArgumentException("Fused broadcast shape mismatch for external input");
+                throw new IllegalArgumentException("Fused broadcast shape mismatch for external input nodeId=" + input.nodeId());
             }
             int[] eff = plan.aEffStrides();
             plans.add(new FusedExternalInputPlan(
                     i,
-                    input.getDataType(),
+                    input.dataType(),
                     outShape,
                     outDenseStrides,
-                    input.getStorageOffsetUnsafe(),
+                    input.storageOffset(),
                     eff,
-                    classifyAccessKind(eff, outDenseStrides, input.getStorageOffsetUnsafe())
+                    classifyAccessKind(eff, outDenseStrides, input.storageOffset())
             ));
         }
         return java.util.List.copyOf(plans);
@@ -263,7 +218,6 @@ public final class FusedPlanBuilder {
         return FusedAccessKind.DIRECT_STRIDED;
     }
 
-    private record Snapshot(List<Tensor> cluster, Tensor root) {}
     private record CanonicalNode(
             Operation.OpType opType,
             List<Integer> inputRefs,

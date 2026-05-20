@@ -4,9 +4,7 @@ import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.region.CpuFusedRegionPayload;
 import backend.lowering.region.RegionExecutionPlan;
 import graph.CompiledNode;
-import tensor.Tensor;
 
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -24,7 +22,8 @@ public final class LoweredFusedOperationBuilder {
      */
     public static FusedOperationPreparation build(
             LoweredExecutionUnit loweredUnit,
-            IntFunction<CompiledNode> compiledNodeResolver
+            IntFunction<CompiledNode> compiledNodeResolver,
+            graph.compile.descriptor.CompiledTensorDescriptorIndex descriptorIndex
     ) {
         Objects.requireNonNull(loweredUnit, "loweredUnit cannot be null");
         if (loweredUnit.artifact() instanceof FusedOperationPreparation preparation) {
@@ -34,7 +33,7 @@ public final class LoweredFusedOperationBuilder {
                 && plan.backendPayload() instanceof CpuFusedRegionPayload payload) {
             return payload.requirePreparation(FusedOperationPreparation.class);
         }
-        return build(loweredUnit.orderedNodeIds(), compiledNodeResolver);
+        return build(loweredUnit.orderedNodeIds(), compiledNodeResolver, descriptorIndex);
     }
 
     /**
@@ -42,49 +41,41 @@ public final class LoweredFusedOperationBuilder {
      */
     public static FusedOperationPreparation build(
             List<Integer> orderedNodeIds,
-            IntFunction<CompiledNode> compiledNodeResolver
+            IntFunction<CompiledNode> compiledNodeResolver,
+            graph.compile.descriptor.CompiledTensorDescriptorIndex descriptorIndex
     ) {
         Objects.requireNonNull(orderedNodeIds, "orderedNodeIds cannot be null");
         Objects.requireNonNull(compiledNodeResolver, "compiledNodeResolver cannot be null");
+        Objects.requireNonNull(descriptorIndex, "descriptorIndex cannot be null");
         List<Integer> safeOrderedNodeIds = List.copyOf(orderedNodeIds);
         if (safeOrderedNodeIds.isEmpty()) {
             throw new IllegalArgumentException("lowered fused unit must contain at least one node");
         }
 
-        List<Tensor> cluster = clusterTensors(safeOrderedNodeIds, compiledNodeResolver);
-        List<Tensor> externalInputs = externalInputTensors(safeOrderedNodeIds, compiledNodeResolver);
-        FusedOperationFactory.Result fused = FusedOperationFactory.create(
-                cluster,
-                cluster.getLast(),
-                externalInputs
+        List<Integer> externalInputNodeIds = externalInputNodeIds(safeOrderedNodeIds, compiledNodeResolver);
+        FusedOperationFactory.NodeIdResult fused = FusedOperationFactory.create(
+                safeOrderedNodeIds,
+                externalInputNodeIds,
+                compiledNodeResolver,
+                descriptorIndex
         );
-        return new FusedOperationPreparation(fused.operation(), fused.runtimeInputs());
+        return new FusedOperationPreparation(fused.operation(), fused.runtimeInputNodeIds());
     }
 
-    private static List<Tensor> clusterTensors(
-            List<Integer> orderedNodeIds,
-            IntFunction<CompiledNode> compiledNodeResolver
-    ) {
-        List<Tensor> cluster = new ArrayList<>(orderedNodeIds.size());
-        for (int nodeId : orderedNodeIds) {
-            cluster.add(requireNode(compiledNodeResolver, nodeId, "lowered fused unit").semanticTensor());
-        }
-        return List.copyOf(cluster);
-    }
-
-    private static List<Tensor> externalInputTensors(
+    private static List<Integer> externalInputNodeIds(
             List<Integer> orderedNodeIds,
             IntFunction<CompiledNode> compiledNodeResolver
     ) {
         LinkedHashSet<Integer> chainNodeIds = new LinkedHashSet<>(orderedNodeIds);
-        LinkedHashSet<Tensor> externalInputs = new LinkedHashSet<>();
+        LinkedHashSet<Integer> externalInputs = new LinkedHashSet<>();
         for (int nodeId : orderedNodeIds) {
             CompiledNode node = requireNode(compiledNodeResolver, nodeId, "lowered fused unit");
             for (int inputNodeId : node.inputIds()) {
                 if (chainNodeIds.contains(inputNodeId)) {
                     continue;
                 }
-                externalInputs.add(requireNode(compiledNodeResolver, inputNodeId, "lowered fused unit input").semanticTensor());
+                requireNode(compiledNodeResolver, inputNodeId, "lowered fused unit input");
+                externalInputs.add(inputNodeId);
             }
         }
         return List.copyOf(externalInputs);

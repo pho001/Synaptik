@@ -34,7 +34,7 @@ import java.util.List;
  *
  * <p>Compilation and preparation allocate new artifact objects, while execution mutates tensor data, gradient buffers,
  * and backend workspaces. Instances are not intended to be used concurrently for recompilation or execution against the
- * same source tensors.
+ * same user-visible tensors.
  */
 public class CompiledGraph {
     private final Tensor rootTensor;
@@ -140,7 +140,7 @@ public class CompiledGraph {
      * Rebuilds compile artifacts from the current tensor graph state.
      *
      * <p>Recompilation refreshes snapshots, optimizer state, partition plans, memory plans, and compile trace metadata.
-     * It does not execute kernels or clear existing source tensor gradients.
+     * It does not execute kernels or clear existing publication tensor gradients.
      */
     public void compile() {
         GraphCompiler.Result result = compiler.compile();
@@ -421,7 +421,7 @@ public class CompiledGraph {
     }
 
     /**
-     * Clears gradient buffers for the source tensors represented by forward compiled nodes.
+     * Clears gradient buffers for the publication tensors represented by forward compiled nodes.
      *
      * <p>This method mutates existing gradient tensors in place and skips backward-only compiled nodes. It does not
      * allocate missing gradient buffers.
@@ -431,7 +431,7 @@ public class CompiledGraph {
             if (node.backwardNode()) {
                 continue;
             }
-            Tensor gradient = node.sourceTensor().getGradient();
+            Tensor gradient = node.publicationTensor().getGradient();
             if (gradient == null) {
                 continue;
             }
@@ -449,7 +449,7 @@ public class CompiledGraph {
     }
 
     /**
-     * Returns source tensors marked as trainable parameters in the compiled forward graph.
+     * Returns publication tensors marked as trainable parameters in the compiled forward graph.
      *
      * @return immutable trainable parameter list
      */
@@ -457,13 +457,13 @@ public class CompiledGraph {
         return compileArtifacts().compiledNodes().stream()
                 .filter(node -> !node.backwardNode())
                 .filter(CompiledNode::trainableParameter)
-                .map(CompiledNode::sourceTensor)
+                .map(CompiledNode::publicationTensor)
                 .distinct()
                 .toList();
     }
 
     /**
-     * Returns the source root tensor passed to compilation.
+     * Returns the user-visible root tensor passed to compilation.
      *
      * @return root tensor
      */

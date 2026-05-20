@@ -3,7 +3,6 @@ package graph.execution;
 import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import operations.Operation;
-import tensor.Tensor;
 
 import java.util.Objects;
 
@@ -20,15 +19,6 @@ public record PreparedNodeExecution(
     public PreparedNodeExecution {
         Objects.requireNonNull(compiledNode, "compiledNode cannot be null");
         Objects.requireNonNull(metadata, "metadata cannot be null");
-    }
-
-    /**
-     * Returns the semantic tensor represented by this step.
-     *
-     * @return semantic tensor
-     */
-    public Tensor node() {
-        return compiledNode.semanticTensor();
     }
 
     /**

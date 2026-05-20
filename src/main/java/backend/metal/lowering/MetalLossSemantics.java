@@ -1,7 +1,5 @@
 package backend.metal.lowering;
 
-import tensor.TensorInternalAccess;
-
 import graph.CompiledNode;
 import graph.compile.planning.partition.PartitionPlanningContext;
 import operations.Operation;
@@ -10,7 +8,6 @@ import operations.loss.crossEntropyLossIndices;
 import operations.loss.crossEntropyLossIndicesGrad;
 import operations.loss.nllLoss;
 import tensor.DataType;
-import tensor.Tensor;
 import tensor.loss.LossReduction;
 
 import java.util.Arrays;
@@ -193,15 +190,13 @@ final class MetalLossSemantics {
     }
 
     private static String targetBoundsReason(CompiledNode targets, int classCount, Integer ignoreIndex) {
-        Tensor tensor = targets.semanticTensor();
-        if (tensor == null || tensor.getDataType() != DataType.INT32 || TensorInternalAccess.int32Data(tensor) == null) {
+        int[] values = targets.staticDataSnapshot().int32Values();
+        if (targets.dataType() != DataType.INT32 || values == null) {
             return "UNSUPPORTED_INDEX_SEMANTICS: GPU_METAL index-target loss requires statically inspectable INT32 targets before native execution";
         }
-        int[] values = TensorInternalAccess.int32Data(tensor);
-        int offset = tensor.getStorageOffsetUnsafe();
-        int size = tensor.getFlatDataSize();
+        int size = targets.flatDataSize();
         for (int i = 0; i < size; i++) {
-            int value = values[offset + i];
+            int value = values[i];
             if (ignoreIndex != null && value == ignoreIndex) {
                 continue;
             }

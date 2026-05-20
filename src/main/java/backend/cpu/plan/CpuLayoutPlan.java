@@ -18,15 +18,13 @@ public record CpuLayoutPlan(
         int materializeThreshold,
         ResolvedBroadcastPlan broadcastPlan,
         ResolvedWhereBroadcastPlan whereBroadcastPlan,
-        List<CpuPreparedInput> preparedInputs,
-        List<Tensor> runtimeInputs
+        List<CpuPreparedInput> preparedInputs
 ) {
     public CpuLayoutPlan {
         layoutDecision = layoutDecision == null ? StridedLayoutDecision.NONE : layoutDecision;
         Objects.requireNonNull(targetType, "targetType cannot be null");
         materializeThreshold = Math.max(0, materializeThreshold);
         preparedInputs = List.copyOf(preparedInputs == null ? List.of() : preparedInputs);
-        runtimeInputs = List.copyOf(runtimeInputs == null ? List.of() : runtimeInputs);
     }
 
     public boolean stridedPath() {

@@ -1,6 +1,6 @@
 package backend.cpu.kernels.reduction;
 
-import tensor.Tensor;
+import graph.compile.descriptor.CompiledTensorDescriptor;
 
 import java.util.List;
 
@@ -8,10 +8,10 @@ public final class ReductionLogicalSize {
     private ReductionLogicalSize() {
     }
 
-    public static int estimate(List<Tensor> runtimeInputs, Tensor node) {
+    public static int estimate(List<CompiledTensorDescriptor> runtimeInputs, CompiledTensorDescriptor node) {
         if (runtimeInputs != null && !runtimeInputs.isEmpty() && runtimeInputs.get(0) != null) {
-            return runtimeInputs.get(0).getFlatDataSize();
+            return Math.toIntExact(runtimeInputs.get(0).logicalElementCount());
         }
-        return node.getFlatDataSize();
+        return Math.toIntExact(node.logicalElementCount());
     }
 }

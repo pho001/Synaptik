@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <p>Running a prepared execution has side effects controlled by {@link PublicationPolicy}. The default execution
  * policy synchronizes output storage back to the source root tensor and publishes compiled gradients after backward
  * execution; lower-publication policies can keep values in the run-scoped execution state for benchmark and device
- * residency diagnostics. Concurrent calls against shared source tensors or shared backend workspaces are not supported.
+ * residency diagnostics. Concurrent calls against shared user-visible tensors or shared backend workspaces are not supported.
  */
 public final class PreparedExecution implements AutoCloseable {
     private final RuntimeConfig runtimeConfig;

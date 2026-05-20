@@ -2,41 +2,40 @@ package backend.cpu.fused.plan;
 
 import backend.cpu.fused.codegen.FusedExpressionPlan;
 import backend.cpu.fused.codegen.FusedPlanBuilder;
-import backend.cpu.fused.optimize.FusedAccessResolver;
 import backend.cpu.fused.optimize.FusedCostModel;
 import backend.cpu.fused.optimize.FusedDispatchFamily;
 import backend.cpu.fused.optimize.FusedPrecisionResolver;
 import backend.cpu.fused.optimize.FusedSignatureBuilder;
-import tensor.Tensor;
 
 import java.util.List;
 
 /**
- * Factory for converting a fused tensor cluster into a fused operation descriptor.
+ * Factory for converting lowered fused node ids into a fused operation descriptor.
  */
 public final class FusedOperationFactory {
     private FusedOperationFactory() {}
 
-    /**
-     * Builds a fused operation and its runtime input bindings from a tensor cluster.
-     */
-    public static Result create(
-            List<Tensor> cluster,
-            Tensor root,
-            List<Tensor> externalInputsInOrder
+    public static NodeIdResult create(
+            List<Integer> orderedNodeIds,
+            List<Integer> externalInputNodeIds,
+            java.util.function.IntFunction<graph.CompiledNode> compiledNodeResolver,
+            graph.compile.descriptor.CompiledTensorDescriptorIndex descriptorIndex
     ) {
-        List<Tensor> runtimeInputs = resolveRuntimeInputs(externalInputsInOrder);
-        FusedExpressionPlan plan = FusedPlanBuilder.build(cluster, externalInputsInOrder, root);
-
-        int precisionMode = FusedPrecisionResolver.resolve(cluster, root, externalInputsInOrder);
+        FusedExpressionPlan plan = FusedPlanBuilder.build(
+                orderedNodeIds,
+                externalInputNodeIds,
+                compiledNodeResolver,
+                descriptorIndex
+        );
+        int precisionMode = FusedPrecisionResolver.resolve(plan);
         boolean lowCostHint = FusedCostModel.resolveLowCostHint(plan);
         FusedDispatchFamily dispatchFamily = FusedCostModel.resolveDispatchFamily(plan);
         int dispatchComplexity = FusedCostModel.estimateDispatchComplexity(plan);
         int dispatchScale = FusedCostModel.resolveDispatchScale(dispatchComplexity);
 
-        return new Result(
+        return new NodeIdResult(
                 new FusedOperation(
-                        "fused(" + cluster.size() + ")",
+                        "fused(" + orderedNodeIds.size() + ")",
                         precisionMode,
                         lowCostHint,
                         dispatchFamily,
@@ -44,26 +43,12 @@ public final class FusedOperationFactory {
                         dispatchScale,
                         plan
                 ),
-                runtimeInputs
+                List.copyOf(externalInputNodeIds)
         );
     }
 
-    private static List<Tensor> resolveRuntimeInputs(List<Tensor> externalInputsInOrder) {
-        java.util.ArrayList<Tensor> resolved = new java.util.ArrayList<>(externalInputsInOrder.size());
-        for (Tensor externalInput : externalInputsInOrder) {
-            resolved.add(FusedAccessResolver.resolve(externalInput).backingTensor());
-        }
-        return java.util.List.copyOf(resolved);
-    }
-
-    /**
-     * Factory result containing the descriptor and runtime input list.
-     *
-     * @param operation fused operation descriptor
-     * @param runtimeInputs backing tensors needed by the executable
-     */
-    public record Result(
+    public record NodeIdResult(
             FusedOperation operation,
-            List<Tensor> runtimeInputs
+            List<Integer> runtimeInputNodeIds
     ) {}
 }

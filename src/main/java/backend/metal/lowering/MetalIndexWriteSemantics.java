@@ -1,6 +1,5 @@
 package backend.metal.lowering;
 
-import tensor.TensorInternalAccess;
 
 import graph.CompiledNode;
 import graph.compile.planning.partition.PartitionPlanningContext;
@@ -444,7 +443,7 @@ final class MetalIndexWriteSemantics {
             return null;
         }
         try {
-            return TensorInternalAccess.int32Data(indices.semanticTensor());
+            return indices.staticDataSnapshot().int32Values();
         } catch (RuntimeException ex) {
             return null;
         }

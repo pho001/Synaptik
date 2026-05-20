@@ -95,7 +95,7 @@ public final class CompileSession {
 
     public CompileArtifacts compile() {
         Tensor semanticForwardOutput = rootTensor.forwardOutput();
-        Map<Tensor, Tensor> sourceTensors = initializeForwardGraph(semanticForwardOutput);
+        Map<Tensor, Tensor> publicationTensors = initializeForwardGraph(semanticForwardOutput);
         try (AutogradCompilationScope ignored = AutogradCompilationScope.open()) {
             resetAutogradBuildState();
 
@@ -105,10 +105,10 @@ public final class CompileSession {
                     ? buildTrainingWorkingGraph()
                     : forwardGraph;
             String graphDescription = compiledSupportsBackward ? "finalGraph" : "inference finalGraph";
-            List<Tensor> optimized = optimizeWorkingGraph(workingGraph, sourceTensors);
+            List<Tensor> optimized = optimizeWorkingGraph(workingGraph, publicationTensors);
             finalGraph.clear();
             finalGraph.addAll(optimized);
-            return finishCompile(sourceTensors, compiledSupportsBackward, graphDescription);
+            return finishCompile(publicationTensors, compiledSupportsBackward, graphDescription);
         }
     }
 
@@ -137,7 +137,7 @@ public final class CompileSession {
     }
 
     private CompileArtifacts finishCompile(
-            Map<Tensor, Tensor> sourceTensors,
+            Map<Tensor, Tensor> publicationTensors,
             boolean captureGradients,
             String graphDescription
     ) {
@@ -145,12 +145,12 @@ public final class CompileSession {
         if (forwardEndIndex == -1) {
             throw new IllegalStateException("Forward output node not found in " + graphDescription + ".");
         }
-        mapComputedForwardRootForPublish(sourceTensors);
-        rebuildCompiledNodeSnapshot(sourceTensors);
+        mapComputedForwardRootForPublish(publicationTensors);
+        rebuildCompiledNodeSnapshot(publicationTensors);
         if (captureGradients) {
             compiledGradients = GradientBindingCollector.captureCompiledGradients(
                     finalGraph,
-                    sourceTensors,
+                    publicationTensors,
                     compiledNodeByTensor
             );
         }
@@ -220,10 +220,10 @@ public final class CompileSession {
         );
         forwardOutput = canonicalized.forwardOutput();
         forwardGraph.addAll(canonicalized.graph());
-        return new IdentityHashMap<>(canonicalized.sourceTensors());
+        return new IdentityHashMap<>(canonicalized.publicationTensors());
     }
 
-    private List<Tensor> optimizeWorkingGraph(List<Tensor> workingGraph, Map<Tensor, Tensor> sourceTensors) {
+    private List<Tensor> optimizeWorkingGraph(List<Tensor> workingGraph, Map<Tensor, Tensor> publicationTensors) {
         BackendIntentPropagator.propagateBackwardClosure(workingGraph);
         OptimizerGraphSnapshot snapshot = OptimizerGraphSnapshot.capture(workingGraph, forwardOutput);
         OptimizerState optimizedState = optimizer.optimize(
@@ -240,22 +240,22 @@ public final class CompileSession {
         IdentityHashMap<Tensor, Tensor> composed = new IdentityHashMap<>();
         for (Map.Entry<Tensor, Tensor> entry : snapshot.originalBySnapshot().entrySet()) {
             Tensor original = entry.getValue();
-            composed.put(entry.getKey(), sourceTensors.getOrDefault(original, original));
+            composed.put(entry.getKey(), publicationTensors.getOrDefault(original, original));
         }
-        sourceTensors.clear();
-        sourceTensors.putAll(composed);
+        publicationTensors.clear();
+        publicationTensors.putAll(composed);
         forwardOutput = optimizedState.forwardOutput();
         compiledOptimizerState = optimizedState;
         return optimized;
     }
 
-    private void rebuildCompiledNodeSnapshot(Map<Tensor, Tensor> sourceTensors) {
+    private void rebuildCompiledNodeSnapshot(Map<Tensor, Tensor> publicationTensors) {
         BackendIntentPropagator.propagateBackwardClosure(finalGraph);
-        compiledNodes = CompiledNode.snapshot(finalGraph, sourceTensors);
+        compiledNodes = CompiledNode.snapshot(finalGraph, publicationTensors);
         compiledDescriptorIndex = CompiledTensorDescriptorBuilder.build(compiledNodes);
         IdentityHashMap<Tensor, CompiledNode> index = new IdentityHashMap<>();
-        for (CompiledNode node : compiledNodes) {
-            index.put(node.semanticTensor(), node);
+        for (int i = 0; i < compiledNodes.size(); i++) {
+            index.put(finalGraph.get(i), compiledNodes.get(i));
         }
         compiledNodeByTensor = Map.copyOf(index);
         compiledForwardOutput = compiledNodeByTensor.get(forwardOutput);
@@ -293,7 +293,7 @@ public final class CompileSession {
                         .toList()
                 : List.of();
         OptimizerState base = compiledOptimizerState == null
-                ? OptimizerState.ofGraph(finalGraph, compiledForwardOutput.semanticTensor())
+                ? OptimizerState.ofGraph(finalGraph, forwardOutput)
                 : compiledOptimizerState;
         ExecutionMode executionMode = compiledSupportsBackward ? ExecutionMode.FORWARD_BACKWARD : ExecutionMode.FORWARD;
         compiledOptimizerState = base.withExecutionMetadata(
@@ -336,10 +336,10 @@ public final class CompileSession {
         return inputs.get(0);
     }
 
-    private void mapComputedForwardRootForPublish(Map<Tensor, Tensor> sourceTensors) {
+    private void mapComputedForwardRootForPublish(Map<Tensor, Tensor> publicationTensors) {
         Tensor actualForwardRoot = requireForwardRoot();
         if (actualForwardRoot.getOperation() != null) {
-            sourceTensors.put(actualForwardRoot, rootTensor);
+            publicationTensors.put(actualForwardRoot, rootTensor);
         }
     }
 }

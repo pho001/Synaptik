@@ -198,7 +198,7 @@ class CudaLayoutTransformDeviceFlowTest {
 
     private static CompiledNode nodeFor(List<CompiledNode> nodes, Tensor tensor) {
         return nodes.stream()
-                .filter(node -> node.semanticTensor() == tensor || node.sourceTensor() == tensor)
+                .filter(node -> node.publicationTensor() == tensor)
                 .findFirst()
                 .orElseThrow();
     }

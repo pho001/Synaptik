@@ -4,7 +4,6 @@ import backend.cpu.fused.codegen.FusedDTypeOps;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Label;
 import tensor.DataType;
-import tensor.Tensor;
 import utils.SlotKey;
 import utils.SlotManager;
 
@@ -14,75 +13,6 @@ import static org.objectweb.asm.Opcodes.*;
 
 final class FusedAsmSupport {
     private FusedAsmSupport() {}
-
-    static List<Tensor> buildTopologicalOrder(Tensor outputTensor, List<Tensor> cluster) {
-        Set<Tensor> clusterSet = new HashSet<>(cluster);
-        if (!clusterSet.contains(outputTensor)) {
-            throw new IllegalArgumentException("Output tensor is not in the provided cluster.");
-        }
-
-        Set<Tensor> reachable = new LinkedHashSet<>();
-        Deque<Tensor> stack = new ArrayDeque<>();
-        stack.push(outputTensor);
-        while (!stack.isEmpty()) {
-            Tensor current = stack.pop();
-            if (!clusterSet.contains(current) || !reachable.add(current)) {
-                continue;
-            }
-            List<Tensor> parents = current.getPrevTensors();
-            if (parents != null) {
-                for (Tensor prev : parents) {
-                    if (clusterSet.contains(prev)) {
-                        stack.push(prev);
-                    }
-                }
-            }
-        }
-
-        Map<Tensor, Integer> indegree = new HashMap<>();
-        Map<Tensor, List<Tensor>> adjacency = new HashMap<>();
-        for (Tensor node : reachable) {
-            indegree.put(node, 0);
-            adjacency.put(node, new ArrayList<>());
-        }
-        for (Tensor node : reachable) {
-            List<Tensor> parents = node.getPrevTensors();
-            if (parents == null) {
-                continue;
-            }
-            for (Tensor prev : parents) {
-                if (reachable.contains(prev)) {
-                    indegree.put(node, indegree.get(node) + 1);
-                    adjacency.get(prev).add(node);
-                }
-            }
-        }
-
-        Deque<Tensor> queue = new ArrayDeque<>();
-        for (Map.Entry<Tensor, Integer> e : indegree.entrySet()) {
-            if (e.getValue() == 0) {
-                queue.add(e.getKey());
-            }
-        }
-
-        List<Tensor> topo = new ArrayList<>(reachable.size());
-        while (!queue.isEmpty()) {
-            Tensor node = queue.removeFirst();
-            topo.add(node);
-            for (Tensor child : adjacency.get(node)) {
-                int next = indegree.get(child) - 1;
-                indegree.put(child, next);
-                if (next == 0) {
-                    queue.addLast(child);
-                }
-            }
-        }
-
-        if (topo.size() != reachable.size()) {
-            throw new IllegalStateException("Cycle detected inside fused cluster.");
-        }
-        return topo;
-    }
 
     static SlotManager buildRangeSlotLayout(int externalInputCount, int nodeCount) {
         SlotManager sm = new SlotManager();

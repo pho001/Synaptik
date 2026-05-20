@@ -2,31 +2,11 @@ package backend.cpu.fused.optimize;
 
 import backend.cpu.fused.codegen.FusedExpressionPlan;
 import backend.cpu.fused.codegen.FusedNodePlan;
-import tensor.Tensor;
-
-import java.util.List;
 
 /**
  * Internal signature builder for fused scheduler and generated-kernel cache keys.
  */
 public class FusedSignatureBuilder {
-    /**
-     * Builds a legacy scheduler signature from a tensor cluster.
-     */
-    public static String buildSchedulerSignature(List<Tensor> cluster, int precisionMode) {
-        StringBuilder sb = new StringBuilder(128);
-        sb.append("fused:pm=").append(precisionMode).append('|');
-        if (cluster != null) {
-            for (Tensor t : cluster) {
-                if (t == null || t.getOperation() == null) {
-                    continue;
-                }
-                sb.append(t.getOperation().opType()).append(',');
-            }
-        }
-        return sb.toString();
-    }
-
     /**
      * Builds a stable signature from the lowered fused expression plan.
      */

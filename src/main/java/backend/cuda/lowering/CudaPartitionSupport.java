@@ -1,6 +1,5 @@
 package backend.cuda.lowering;
 
-import tensor.TensorInternalAccess;
 
 import backend.cuda.CudaDTypeRolePolicy;
 import graph.CompiledNode;
@@ -106,12 +105,7 @@ public final class CudaPartitionSupport {
         if (!indices.leaf()) {
             return "UNSUPPORTED_BOUNDS_CHECK: GPU_CUDA " + opType + " index bounds require a static INT32 leaf tensor";
         }
-        int[] data;
-        try {
-            data = TensorInternalAccess.int32Data(indices.semanticTensor());
-        } catch (RuntimeException ex) {
-            return "UNSUPPORTED_BOUNDS_CHECK: GPU_CUDA " + opType + " index bounds require readable INT32 storage";
-        }
+        int[] data = indices.staticDataSnapshot().int32Values();
         if (data == null) {
             return "UNSUPPORTED_BOUNDS_CHECK: GPU_CUDA " + opType + " index bounds require readable INT32 storage";
         }

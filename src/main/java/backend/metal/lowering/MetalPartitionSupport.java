@@ -1,6 +1,5 @@
 package backend.metal.lowering;
 
-import tensor.TensorInternalAccess;
 
 import backend.ComputeBackend;
 import backend.accelerator.lowering.GpuLoweringCoverageEntry;
@@ -465,12 +464,7 @@ public final class MetalPartitionSupport {
         if (!indices.leaf()) {
             return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index bounds require a static INT32 leaf tensor";
         }
-        int[] data;
-        try {
-            data = TensorInternalAccess.int32Data(indices.semanticTensor());
-        } catch (RuntimeException ex) {
-            return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index bounds require readable INT32 storage";
-        }
+        int[] data = indices.staticDataSnapshot().int32Values();
         if (data == null) {
             return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index bounds require readable INT32 storage";
         }
@@ -587,12 +581,7 @@ public final class MetalPartitionSupport {
         if (!indices.leaf()) {
             return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index bounds require a static INT32 leaf tensor";
         }
-        int[] data;
-        try {
-            data = TensorInternalAccess.int32Data(indices.semanticTensor());
-        } catch (RuntimeException ex) {
-            return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index bounds require readable INT32 storage";
-        }
+        int[] data = indices.staticDataSnapshot().int32Values();
         if (data == null) {
             return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index bounds require readable INT32 storage";
         }

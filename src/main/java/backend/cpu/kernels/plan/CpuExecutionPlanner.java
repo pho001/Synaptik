@@ -24,6 +24,7 @@ import config.runtime.Conv2dConfig;
 import config.runtime.CpuStorageProfile;
 import backend.cpu.fused.plan.FusedOperation;
 import graph.compile.descriptor.CompiledTensorDescriptor;
+import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -432,8 +433,8 @@ public final class CpuExecutionPlanner {
 
     public ResolvedConv2dHints resolveConv2dHints(
             Operation op,
-            List<Tensor> inputs,
-            Tensor node,
+            List<CompiledTensorDescriptor> inputs,
+            CompiledTensorDescriptor node,
             Conv2dConfig conv2dConfig
     ) {
         return conv2dPlanner.resolve(op, inputs, node, conv2dConfig);
@@ -441,11 +442,12 @@ public final class CpuExecutionPlanner {
 
     public ResolvedScaledDotProductAttentionPlan resolveScaledDotProductAttentionPlan(
             Operation op,
-            List<Tensor> inputs,
-            Tensor node,
+            List<CompiledTensorDescriptor> inputs,
+            CompiledTensorDescriptor node,
+            CompiledTensorDescriptorIndex descriptorIndex,
             BlasConfig blasConfig
     ) {
-        return attentionPlanner.resolve(op, inputs, node, blasConfig);
+        return attentionPlanner.resolve(op, inputs, node, descriptorIndex, blasConfig);
     }
 
     public int computeChunkSize(int totalLength, int alignment, int targetChunksPerWorker, int minChunkSize) {

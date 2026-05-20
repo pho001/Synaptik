@@ -23,12 +23,12 @@ import java.util.Objects;
  * {@link CompiledNode} snapshots, gradient publication bindings, planned backend partitions, optimized regions needed
  * by lowering, and the memory plan consumed by runtime binding. Preparation must treat this record as read-only.
  *
- * @param rootTensor source root tensor that initiated compilation
+ * @param rootTensor user-visible root tensor that initiated compilation
  * @param graphContract user-visible graph structure captured at compilation
  * @param finalGraph optimized tensors in execution order
  * @param compiledNodes immutable node snapshots derived from {@code finalGraph}
  * @param descriptorIndex immutable tensor descriptor index derived from {@code compiledNodes}
- * @param gradientBindings mappings used to publish compiled backward outputs to source tensor gradients
+ * @param gradientBindings mappings used to publish compiled backward outputs to publication tensor gradients
  * @param forwardSeedGradient binding used to seed the root gradient for backward execution
  * @param forwardOutputNode compiled node that represents the forward output value
  * @param memoryPlan storage reuse and region handoff plan, if memory planning ran
