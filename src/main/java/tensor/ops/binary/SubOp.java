@@ -5,7 +5,7 @@ import operations.elementwise.binary.sub;
 import tensor.layout.BroadcastPlan;
 import tensor.Tensor;
 import tensor.TensorBroadcastOps;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
 
@@ -34,17 +34,17 @@ public final class SubOp {
         BroadcastPlan plan = TensorBroadcastOps.planBinary(first, second);
         Operation op = new sub(plan);
         Tensor out = TensorPrimitiveBuilder.binary(first, second, plan.outShape(), op, "-",
-                TensorDataTypeUtil.binary(first, second), null);
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+                TensorDTypes.promoteFloating(first.getDataType(), second.getDataType()), null);
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
             }
             if (first.getRequiresGrad()) {
-                BinarySupport.accumulateGradient(first, TensorBroadcastOps.sumToShape(outGrad, first.getShape()));
+                context.accumulate(first, TensorBroadcastOps.sumToShape(outGrad, first.getShape()));
             }
             if (second.getRequiresGrad()) {
-                BinarySupport.accumulateGradient(second, TensorBroadcastOps.sumToShape(outGrad.neg(), second.getShape()));
+                context.accumulate(second, TensorBroadcastOps.sumToShape(outGrad.neg(), second.getShape()));
             }
         });
         return out;

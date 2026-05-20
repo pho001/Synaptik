@@ -4,7 +4,6 @@ import tensor.CompileMode;
 import tensor.ComputeOptions;
 import tensor.Tensor;
 
-import backend.ComputeBackend;
 import backend.runtime.ExecutionMode;
 import config.profile.ExecutionProfile;
 import graph.CompiledGraph;
@@ -15,10 +14,6 @@ import java.util.Objects;
 
 public final class TensorExecutionSupport {
     private TensorExecutionSupport() {
-    }
-
-    public static ComputeBackend resolveBackend(ComputeBackend forcedBackend) {
-        return forcedBackend != null ? forcedBackend : ComputeBackend.CPU;
     }
 
     public static PreparedExecution prepare(Tensor tensor, ExecutionProfile profile) {

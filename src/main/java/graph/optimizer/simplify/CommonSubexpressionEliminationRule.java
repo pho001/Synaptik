@@ -211,7 +211,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
                 op.opType(),
                 t.isBackward(),
                 strictSafety ? t.getRequiresGrad() : null,
-                strictSafety ? t.resolveBackend() : null,
+                strictSafety ? TensorInternalAccess.backendIntent(t) : null,
                 strictSafety ? IntArrayValue.copyOf(t.getShape()) : null,
                 parameterKey(op),
                 List.copyOf(inputKeys)

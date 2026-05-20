@@ -432,7 +432,7 @@ final class TransformerMetalPartitionAnalysisTest {
         Tensor metalMask = causalMask(scoreShape);
         Tensor metalAttention = metalQ.scaledDotProductAttention(metalK, metalV, metalMask, AttentionOptions.defaults().withScale(0.125));
         metalAttention.setRequiresGrad(true);
-        TensorInternalAccess.setBackend(metalAttention, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(metalAttention, ComputeBackend.GPU_METAL);
         Tensor metalLoss = metalAttention.mul(metalOutGrad);
 
         ExecutionProfile cpuProfile = new ExecutionProfile(
@@ -528,7 +528,7 @@ final class TransformerMetalPartitionAnalysisTest {
                 .linear(metalWv, metalBv)
                 .reshape(batch, seqLen, heads, valueDim)
                 .permute(0, 2, 1, 3);
-        TensorInternalAccess.setBackend(metalValue, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(metalValue, ComputeBackend.GPU_METAL);
         Tensor metalLoss = metalValue.mul(metalDV);
 
         RuntimeConfig metalRuntime = requireMetalBuffers(RuntimeConfig.trainingDefaults());
@@ -628,7 +628,7 @@ final class TransformerMetalPartitionAnalysisTest {
                 .reshape(batch, seqLen, heads, valueDim)
                 .permute(0, 2, 1, 3);
         Tensor metalAttention = metalQ.scaledDotProductAttention(metalK, metalV, metalMask, AttentionOptions.defaults().withScale(0.125));
-        TensorInternalAccess.setBackend(metalAttention, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(metalAttention, ComputeBackend.GPU_METAL);
         Tensor metalLoss = metalAttention.mul(metalOutGrad);
 
         RuntimeConfig metalRuntime = requireMetalBuffers(RuntimeConfig.trainingDefaults());
@@ -737,7 +737,7 @@ final class TransformerMetalPartitionAnalysisTest {
                 metalX, metalAttention, metalWo, metalBo, metalW1, metalB1, metalW2, metalB2,
                 batch, seqLen, heads, valueDim, modelDim, valueProjectionDim, tokenCount
         );
-        TensorInternalAccess.setBackend(metalTailLoss, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(metalTailLoss, ComputeBackend.GPU_METAL);
 
         RuntimeConfig metalRuntime = requireMetalBuffers(RuntimeConfig.trainingDefaults());
         CompiledGraph.compile(cpuTailLoss, CompileConfig.noGraphOptimizationBaseline(), CompileMode.TRAINING)
@@ -866,7 +866,7 @@ final class TransformerMetalPartitionAnalysisTest {
         Tensor output = labeled(tensors, "output", residual1.add(ff2));
         Tensor loss = labeled(tensors, "loss", output.mul(output).mean());
         if (preferMetal) {
-            TensorInternalAccess.setBackend(loss, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackendIntent(loss, ComputeBackend.GPU_METAL);
         }
         return new LabeledTransformerGraph(prefix, loss, tensors);
     }

@@ -98,7 +98,7 @@ This composition-first path keeps the semantic graph clean. It avoids creating a
 | Public instance facade | [`Tensor.java`](../src/main/java/tensor/Tensor.java) |
 | Primitive graph construction | [`TensorPrimitiveBuilder.java`](../src/main/java/tensor/internal/TensorPrimitiveBuilder.java) |
 | Binary broadcasting planner | [`TensorBroadcastOps.java`](../src/main/java/tensor/TensorBroadcastOps.java), [`BroadcastPlanner.java`](../src/main/java/tensor/layout/BroadcastPlanner.java) |
-| DType helpers | [`TensorDataTypeUtil.java`](../src/main/java/tensor/dtype/TensorDataTypeUtil.java), [`DataType.java`](../src/main/java/tensor/DataType.java) |
+| DType helpers | [`TensorDTypes.java`](../src/main/java/tensor/dtype/TensorDTypes.java), [`DataType.java`](../src/main/java/tensor/DataType.java) |
 | CPU kernel resolver | [`CpuKernelResolver.java`](../src/main/java/backend/cpu/registry/CpuKernelResolver.java) |
 | CPU prepare | [`CpuNodePreparer.java`](../src/main/java/backend/cpu/prepare/CpuNodePreparer.java) |
 | CSE parameter signatures | [`CommonSubexpressionEliminationRule.java`](../src/main/java/graph/optimizer/simplify/CommonSubexpressionEliminationRule.java) |
@@ -119,7 +119,7 @@ Use this checklist for any new operation:
 6. Add a builder method in the correct `src/main/java/tensor/ops/<family>/` class.
 7. Validate nulls, ranks, dtype, axis ranges, broadcast compatibility, and option values in the builder.
 8. Build the result through `TensorPrimitiveBuilder`.
-9. Attach backward logic with `TensorInternalAccess.setBackwardFunction(...)` if the operation participates in autograd.
+9. Attach backward logic with `TensorInternalAccess.setGradientRule(...)` and `GradientContext.accumulate(...)` if the operation participates in autograd.
 10. Add a static facade method in `TensorOps`.
 11. Add an instance method in `Tensor` when the operation should be fluent.
 12. Add a CPU kernel and register it in `CpuKernelResolver`.
@@ -222,14 +222,14 @@ public static Tensor square(Tensor input) {
             input,
             op,
             "square",
-            TensorDataTypeUtil.unary(input)
+            TensorDTypes.requireFloating(input.getDataType())
     );
-    TensorInternalAccess.setBackwardFunction(out, () -> {
+    TensorInternalAccess.setGradientRule(out, context -> {
         Tensor outGrad = out.getGradient();
         if (outGrad == null || !input.getRequiresGrad()) {
             return;
         }
-        UnarySupport.accumulateGradient(input, outGrad.mul(input).mul(2.0));
+        context.accumulate(input, outGrad.mul(input).mul(2.0));
     });
     return out;
 }
@@ -242,8 +242,8 @@ What each line does:
 | `UnarySupport.requireNumeric(input, "square")` | Fails early for null or non-floating input instead of letting a backend fail later. |
 | `new square()` | Creates the immutable semantic descriptor that compile/prepare/backend code will see. |
 | `TensorPrimitiveBuilder.unary(...)` | Creates a derived graph tensor with one predecessor and the descriptor attached. |
-| `TensorDataTypeUtil.unary(input)` | Preserves the established dtype rule for floating unary operations. |
-| `setBackwardFunction(...)` | Adds Java-level autograd graph construction. |
+| `TensorDTypes.requireFloating(input.getDataType())` | Preserves the established dtype rule for floating unary operations. |
+| `setGradientRule(...)` | Adds typed Java-level autograd graph construction. |
 | `outGrad.mul(input).mul(2.0)` | Builds the gradient as normal tensor operations, so it can itself be compiled and optimized. |
 
 Do not directly mutate `Tensor.prevTensors`, operation fields, graph ids, or storage arrays. `TensorPrimitiveBuilder` is the supported construction path.
@@ -362,12 +362,12 @@ dL/dx = dL/dy * 2*x
 The backward builder:
 
 ```java
-TensorInternalAccess.setBackwardFunction(out, () -> {
+TensorInternalAccess.setGradientRule(out, context -> {
     Tensor outGrad = out.getGradient();
     if (outGrad == null || !input.getRequiresGrad()) {
         return;
     }
-    UnarySupport.accumulateGradient(input, outGrad.mul(input).mul(2.0));
+    context.accumulate(input, outGrad.mul(input).mul(2.0));
 });
 ```
 
@@ -418,8 +418,8 @@ Use existing helpers:
 
 | Situation | Helper |
 |---|---|
-| Unary floating dtype | `TensorDataTypeUtil.unary(input)` |
-| Binary floating dtype promotion | `TensorDataTypeUtil.binary(first, second)` |
+| Unary floating dtype | `TensorDTypes.requireFloating(input.getDataType())` |
+| Binary floating dtype promotion | `TensorDTypes.promoteFloating(first.getDataType(), second.getDataType())` |
 | Binary broadcast output shape | `TensorBroadcastOps.planBinary(first, second)` |
 | Ternary `where` broadcast | Existing `WhereOp.build(...)` pattern |
 | Reduction output shape | Existing reduction operation builders, `ReductionSupport`, and descriptors |
@@ -438,7 +438,7 @@ Tensor out = TensorPrimitiveBuilder.binary(
         plan.outShape(),
         op,
         "opLabel",
-        TensorDataTypeUtil.binary(first, second),
+        TensorDTypes.promoteFloating(first.getDataType(), second.getDataType()),
         null
 );
 ```

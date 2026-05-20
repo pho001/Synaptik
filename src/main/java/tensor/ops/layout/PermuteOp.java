@@ -36,13 +36,13 @@ public final class PermuteOp {
                 "permute",
                 input.getDataType()
         );
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
             }
             int[] inverse = TensorLayoutTransform.inverseAxes(normalizedAxes);
-            LayoutSupport.accumulateGradient(input, outGrad.permute(inverse));
+            context.accumulate(input, outGrad.permute(inverse));
         });
         return out;
     }

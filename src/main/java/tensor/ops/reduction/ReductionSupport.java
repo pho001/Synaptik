@@ -1,6 +1,5 @@
 package tensor.ops.reduction;
 
-import graph.compile.intent.BackendIntentPropagator;
 import operations.Operation;
 import operations.reduction.reduceAll;
 import operations.reduction.reduceAny;
@@ -36,14 +35,6 @@ final class ReductionSupport {
         return newShape;
     }
 
-    static void accumulateGradient(Tensor input, Tensor gradientDelta) {
-        if (input.getGradient() == null) {
-            TensorInternalAccess.setGradient(input, gradientDelta);
-        } else {
-            TensorInternalAccess.setGradient(input, input.getGradient().add(gradientDelta));
-        }
-    }
-
     static void requireFloatingInput(Tensor input, String opName) {
         if (input == null) {
             throw new IllegalArgumentException(opName + " input cannot be null");
@@ -61,7 +52,7 @@ final class ReductionSupport {
         Operation op = isMax ? new reduceMax(normalizedDimension, keepDims) : new reduceMin(normalizedDimension, keepDims);
         Tensor out = TensorPrimitiveBuilder.unary(input, newShape, op,
                 isMax ? "max_reduce" : "min_reduce", input.getDataType());
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -70,8 +61,7 @@ final class ReductionSupport {
             Tensor reducedForGrad = keepDims ? out : out.expandDims(normalizedDimension);
             Tensor outGradForGrad = keepDims ? outGrad : outGrad.expandDims(normalizedDimension);
             Tensor grad = reduceMinMaxGrad(input, reducedForGrad, outGradForGrad, normalizedDimension, isMax);
-            BackendIntentPropagator.preserve(grad, out);
-            accumulateGradient(input, grad);
+            context.accumulate(input, grad);
         });
         return out;
     }
@@ -85,15 +75,14 @@ final class ReductionSupport {
                 isMax ? "max_reduce" : "min_reduce",
                 input.getDataType()
         );
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
             }
 
             Tensor grad = reduceMinMaxAllGrad(input, out, outGrad);
-            BackendIntentPropagator.preserve(grad, out);
-            accumulateGradient(input, grad);
+            context.accumulate(input, grad);
         });
         return out;
     }

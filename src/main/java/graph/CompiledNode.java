@@ -4,6 +4,7 @@ import backend.ComputeBackend;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -141,7 +142,7 @@ public final class CompiledNode {
                     i,
                     publicationTensors.getOrDefault(tensor, tensor),
                     tensor.getOperation(),
-                    tensor.resolveBackend(),
+                    TensorInternalAccess.backendIntent(tensor),
                     inputIds,
                     storageOwnerId,
                     tensor.getShapeUnsafe(),

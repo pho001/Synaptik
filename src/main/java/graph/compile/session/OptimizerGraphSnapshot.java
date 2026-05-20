@@ -113,8 +113,8 @@ final class OptimizerGraphSnapshot {
         clone.setRequiresGrad(original.getRequiresGrad());
         clone.setTrainableParameter(original.isTrainableParameter());
         TensorInternalAccess.setBackward(clone, original.isBackward());
-        TensorInternalAccess.setBackend(clone, original.resolveBackend());
-        TensorInternalAccess.setBackwardFunction(clone, TensorInternalAccess.backwardFunction(original));
+        TensorInternalAccess.setBackendIntent(clone, TensorInternalAccess.backendIntent(original));
+        TensorInternalAccess.setGradientRule(clone, TensorInternalAccess.gradientRule(original));
         clones.put(original, clone);
         originals.put(clone, original);
 

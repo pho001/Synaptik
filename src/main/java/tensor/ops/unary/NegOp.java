@@ -3,7 +3,7 @@ package tensor.ops.unary;
 import operations.Operation;
 import operations.elementwise.unary.neg;
 import tensor.Tensor;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
 
@@ -16,13 +16,13 @@ public final class NegOp {
 
     public static Tensor build(Tensor input) {
         Operation op = new neg();
-        Tensor out = TensorPrimitiveBuilder.unary(input, op, "neg", TensorDataTypeUtil.unary(input));
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        Tensor out = TensorPrimitiveBuilder.unary(input, op, "neg", TensorDTypes.requireFloating(input.getDataType()));
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
             }
-            UnarySupport.accumulateGradient(input, outGrad.neg());
+            context.accumulate(input, outGrad.neg());
         });
         return out;
     }

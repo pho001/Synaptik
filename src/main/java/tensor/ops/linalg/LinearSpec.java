@@ -3,7 +3,7 @@ package tensor.ops.linalg;
 import operations.linalg.linear;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 
 /**
  * Validated execution contract for the public N-D linear projection.
@@ -30,9 +30,9 @@ record LinearSpec(
         int outFeatures = weight.getShapeUnsafe()[1];
         int[] outShape = input.getShapeUnsafe().clone();
         outShape[outShape.length - 1] = outFeatures;
-        DataType outputType = TensorDataTypeUtil.binary(input, weight);
+        DataType outputType = TensorDTypes.promoteFloating(input.getDataType(), weight.getDataType());
         if (hasBias) {
-            outputType = TensorDataTypeUtil.promote(outputType, bias.getDataType());
+            outputType = TensorDTypes.promoteFloating(outputType, bias.getDataType());
         }
         return new LinearSpec(outShape, outputType, hasBias);
     }

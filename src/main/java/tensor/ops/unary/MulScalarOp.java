@@ -4,7 +4,7 @@ import operations.Operation;
 import operations.elementwise.unary.mulScalar;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
 
@@ -31,14 +31,14 @@ public final class MulScalarOp {
         }
 
         Operation op = isF32 ? new mulScalar((float) scalar) : new mulScalar(scalar);
-        Tensor out = TensorPrimitiveBuilder.unary(input, op, "* constant", TensorDataTypeUtil.unary(input));
+        Tensor out = TensorPrimitiveBuilder.unary(input, op, "* constant", TensorDTypes.requireFloating(input.getDataType()));
 
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
             }
-            UnarySupport.accumulateGradient(input, outGrad.mul(scalarForGrad));
+            context.accumulate(input, outGrad.mul(scalarForGrad));
         });
 
         return out;

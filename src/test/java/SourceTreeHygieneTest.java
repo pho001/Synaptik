@@ -578,6 +578,76 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void tensorOpsDoNotImportBackendOrCompileIntent() throws IOException {
+        List<String> offenders = linesContainingAny(
+                Path.of("src/main/java/tensor/ops"),
+                List.of("import backend.", "import graph.compile.intent.")
+        );
+        assertTrue(offenders.isEmpty(), () -> "tensor.ops must stay semantic and backend-neutral: " + offenders);
+    }
+
+    @Test
+    void publicTensorDoesNotImportConcreteOperationBuilders() throws IOException {
+        List<String> offenders = Files.readString(Path.of("src/main/java/tensor/Tensor.java")).lines()
+                .map(String::trim)
+                .filter(line -> line.startsWith("import tensor.ops."))
+                .sorted()
+                .toList();
+        assertTrue(offenders.isEmpty(), () -> "Tensor instance methods must delegate through TensorOps: " + offenders);
+    }
+
+    @Test
+    void tensorOpsFacadeDoesNotOwnBackendCompileOrMutationPolicy() throws IOException {
+        String source = Files.readString(Path.of("src/main/java/tensor/TensorOps.java"));
+        List<String> forbidden = List.of(
+                "import backend.",
+                "import graph.compile.",
+                "TensorInternalAccess.setGradient",
+                "TensorInternalAccess.replaceStorage",
+                "TensorInternalAccess.markStorageModified",
+                ".setGradient(",
+                ".getStorage()",
+                ".markStorageModified()"
+        );
+        List<String> offenders = forbidden.stream()
+                .filter(source::contains)
+                .sorted()
+                .toList();
+        assertTrue(offenders.isEmpty(), () -> "TensorOps must remain a thin operation facade: " + offenders);
+    }
+
+    @Test
+    void tensorAutogradRulesDoNotUseRunnableOrDirectGradientMutation() throws IOException {
+        List<String> offenders = linesContainingAny(
+                List.of(Path.of("src/main/java/tensor/ops"), Path.of("src/main/java/tensor/internal")),
+                List.of("Runnable", "setBackwardFunction", "TensorInternalAccess.setGradient(", "accumulateGradient(")
+        );
+        assertTrue(offenders.isEmpty(), () -> "Tensor gradient rules must use GradientRule and GradientContext.accumulate: " + offenders);
+    }
+
+    @Test
+    void productionRawTensorStorageAccessRemainsInventoried() throws IOException {
+        Set<String> allowed = Set.of(
+                "src/main/java/backend/cuda/kernels/CudaNoopKernel.java: double[] in = inputs.get(0).getData();",
+                "src/main/java/backend/cuda/kernels/CudaNoopKernel.java: double[] out = node.getData();",
+                "src/main/java/backend/opencl/kernels/OpenClNoopKernel.java: double[] in = inputs.get(0).getData();",
+                "src/main/java/backend/opencl/kernels/OpenClNoopKernel.java: double[] out = node.getData();",
+                "src/main/java/backend/cpu/kernels/reduction/SumLoops.java: double[] dst = contiguous.getData();"
+        );
+        List<String> offenders = sourceLinesContaining(
+                List.of(Path.of("src/main/java")),
+                List.of(".getStorage()", ".getFloat32Data()", ".getFloat64Data()", ".getBFloat16Data()",
+                        ".getInt32Data()", ".getInt64Data()", ".getBoolData()", ".getData()", ".markStorageModified()")
+        ).stream()
+                .filter(line -> !line.startsWith("src/main/java/tensor/Tensor.java:"))
+                .filter(line -> !line.startsWith("src/main/java/tensor/API.md:"))
+                .filter(line -> !allowed.contains(line))
+                .sorted()
+                .toList();
+        assertTrue(offenders.isEmpty(), () -> "Raw public Tensor storage access outside internals must stay inventoried: " + offenders);
+    }
+
+    @Test
     void defaultRegionOptimizerDoesNotOwnCpuMixedUnitPolicy() throws IOException {
         Path optimizer = Path.of("src/main/java/graph/compile/planning/region/DefaultRegionOptimizer.java");
         String source = Files.readString(optimizer);

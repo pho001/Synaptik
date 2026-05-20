@@ -27,14 +27,14 @@ public final class MeanOp {
                 "mean",
                 input.getDataType()
         );
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
             }
             Tensor aligned = keepDims ? outGrad : outGrad.expandDims(normalizedDimension);
             Tensor grad = aligned.expand(input.getShape()).mul(1.0 / input.getShape()[normalizedDimension]);
-            ReductionSupport.accumulateGradient(input, grad);
+            context.accumulate(input, grad);
         });
         return out;
     }
@@ -51,13 +51,13 @@ public final class MeanOp {
     public static Tensor buildAll(Tensor input) {
         ReductionSupport.requireFloatingInput(input, "mean");
         Tensor out = TensorPrimitiveBuilder.unary(input, new int[]{1}, new mean(-1), "mean", input.getDataType());
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
             }
             Tensor grad = outGrad.expand(input.getShape()).mul(1.0 / input.getFlatDataSize());
-            ReductionSupport.accumulateGradient(input, grad);
+            context.accumulate(input, grad);
         });
         return out;
     }

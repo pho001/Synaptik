@@ -3,7 +3,7 @@ package tensor.ops.conv;
 import operations.nn.conv.conv2d;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
 import tensor.options.Conv2dOptions;
@@ -93,9 +93,9 @@ public final class Conv2dOp {
         int outH = ConvSupport.inferOutputSize(inH, kernelH, options.padH(), options.strideH(), options.dilationH(), "height");
         int outW = ConvSupport.inferOutputSize(inW, kernelW, options.padW(), options.strideW(), options.dilationW(), "width");
 
-        DataType outputType = TensorDataTypeUtil.binary(input, weight);
+        DataType outputType = TensorDTypes.promoteFloating(input.getDataType(), weight.getDataType());
         if (bias != null) {
-            outputType = TensorDataTypeUtil.promote(outputType, bias.getDataType());
+            outputType = TensorDTypes.promoteFloating(outputType, bias.getDataType());
         }
 
         List<Tensor> inputs = bias == null ? List.of(input, weight) : List.of(input, weight, bias);
@@ -104,7 +104,7 @@ public final class Conv2dOp {
                 ? TensorPrimitiveBuilder.nary(new int[]{n, outChannels, outH, outW}, inputs, new conv2d(options, false), "conv2d", outputType)
                 : TensorPrimitiveBuilder.nary(new int[]{n, outChannels, outH, outW}, inputs, new conv2d(options, true), "conv2d", outputType);
         out.setRequiresGrad(input.getRequiresGrad() || weight.getRequiresGrad() || (bias != null && bias.getRequiresGrad()));
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -119,7 +119,7 @@ public final class Conv2dOp {
                         "conv2d_backward_input",
                         gradType
                 );
-                ConvSupport.accumulateGradient(input, grad);
+                context.accumulate(input, grad);
             }
             if (weight.getRequiresGrad()) {
                 Tensor grad = TensorPrimitiveBuilder.binaryNoGrad(
@@ -130,11 +130,11 @@ public final class Conv2dOp {
                         "conv2d_backward_weight",
                         gradType
                 );
-                ConvSupport.accumulateGradient(weight, grad);
+                context.accumulate(weight, grad);
             }
             if (bias != null && bias.getRequiresGrad()) {
                 Tensor grad = outGrad.sum(0).sum(1).sum(1);
-                ConvSupport.accumulateGradient(bias, grad);
+                context.accumulate(bias, grad);
             }
         });
         return out;

@@ -76,8 +76,8 @@ class MetalRegionLowererTest {
         Tensor bias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "metalLinearBias", DataType.FLOAT32);
         Tensor linear = input.linear(weight, bias);
         Tensor out = linear.relu();
-        TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(linear, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         List<Tensor> graph = out.topologicalSort();
         List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
@@ -177,9 +177,9 @@ class MetalRegionLowererTest {
         Tensor matmul = a.matmul(b);
         Tensor relu = matmul.relu();
         Tensor out = relu.exp();
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
         List<Tensor> graph = out.topologicalSort();
         List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
         PartitionPlanningContext planningContext = new PartitionPlanningContext(
@@ -243,9 +243,9 @@ class MetalRegionLowererTest {
         Tensor matmul = a.matmul(b);
         Tensor relu = matmul.relu();
         Tensor out = relu.exp();
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         for (Operation.OpType opType : List.of(Operation.OpType.MATMUL, Operation.OpType.RELU, Operation.OpType.EXP)) {
@@ -258,7 +258,7 @@ class MetalRegionLowererTest {
     void metalReductionIsPlannerSupported() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalReductionInput", DataType.FLOAT32);
         Tensor out = input.sum(1);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.SUM)), context);
@@ -279,7 +279,7 @@ class MetalRegionLowererTest {
     void metalReductionScanParityOpsRejectUnsupportedDtypes() {
         Tensor intInput = new Tensor(new int[]{1, 2, 3, 4}, new int[]{2, 2}, null, "metalIntReductionScanInput", DataType.INT32);
         Tensor intCumSum = intInput.cumSum(1);
-        TensorInternalAccess.setBackend(intCumSum, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(intCumSum, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(intCumSum);
         String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.CUMSUM)), context);
@@ -303,7 +303,7 @@ class MetalRegionLowererTest {
     void metalCastRejectsUnsupportedPairsWithCastPolicyReason() {
         Tensor f32 = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalCastRejectF32", DataType.FLOAT32);
         Tensor intCast = f32.cast(DataType.INT32);
-        TensorInternalAccess.setBackend(intCast, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(intCast, ComputeBackend.GPU_METAL);
         PartitionPlanningContext intContext = planningContext(intCast);
         String intReason = MetalPartitionSupport.plannerUnsupportedReason(
                 intContext.compiledNode(nodeId(intContext, Operation.OpType.CAST)),
@@ -313,7 +313,7 @@ class MetalRegionLowererTest {
 
         Tensor f64 = new Tensor(new double[]{1.0, 2.0, 3.0, 4.0}, new int[]{2, 2}, null, "metalCastRejectF64", DataType.FLOAT64);
         Tensor f64ToF32 = f64.cast(DataType.FLOAT32);
-        TensorInternalAccess.setBackend(f64ToF32, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(f64ToF32, ComputeBackend.GPU_METAL);
         PartitionPlanningContext f64Context = planningContext(f64ToF32);
         String f64Reason = MetalPartitionSupport.plannerUnsupportedReason(
                 f64Context.compiledNode(nodeId(f64Context, Operation.OpType.CAST)),
@@ -322,7 +322,7 @@ class MetalRegionLowererTest {
         assertTrue(f64Reason.contains("FLOAT64_UNSUPPORTED"));
 
         Tensor f32ToF64 = f32.cast(DataType.FLOAT64);
-        TensorInternalAccess.setBackend(f32ToF64, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(f32ToF64, ComputeBackend.GPU_METAL);
         PartitionPlanningContext f32ToF64Context = planningContext(f32ToF64);
         String f32ToF64Reason = MetalPartitionSupport.plannerUnsupportedReason(
                 f32ToF64Context.compiledNode(nodeId(f32ToF64Context, Operation.OpType.CAST)),
@@ -351,7 +351,7 @@ class MetalRegionLowererTest {
     void metalUnaryMathParityOpsRejectUnsupportedDtypeAndShapeMismatch() {
         Tensor f64 = new Tensor(new double[]{-1.25, 0.25}, new int[]{2}, null, "metal70UnaryF64Input", DataType.FLOAT64);
         Tensor f64Sign = f64.sign();
-        TensorInternalAccess.setBackend(f64Sign, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(f64Sign, ComputeBackend.GPU_METAL);
         PartitionPlanningContext f64Context = planningContext(f64Sign);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -370,7 +370,7 @@ class MetalRegionLowererTest {
                 "metal70UnaryIntSign",
                 DataType.INT32
         );
-        TensorInternalAccess.setBackend(intSign, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(intSign, ComputeBackend.GPU_METAL);
         PartitionPlanningContext intContext = planningContext(intSign);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -388,7 +388,7 @@ class MetalRegionLowererTest {
                 "metal70UnaryShapeMismatch",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackend(shapeMismatch, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(shapeMismatch, ComputeBackend.GPU_METAL);
         PartitionPlanningContext shapeContext = planningContext(shapeMismatch);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -406,7 +406,7 @@ class MetalRegionLowererTest {
         Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "metalNormGamma", DataType.FLOAT32);
         Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "metalNormBeta", DataType.FLOAT32);
         Tensor out = input.layerNorm(gamma, beta, 1.0e-5);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.LAYER_NORM)), context);
@@ -415,7 +415,7 @@ class MetalRegionLowererTest {
     }
 
     private void assertPlannerSupportedAndLowered(Tensor out, Operation.OpType opType, AcceleratorDagNodeType dagType) {
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
         PartitionPlanningContext context = planningContext(out);
         CompiledNode node = context.compiledNode(nodeId(context, opType));
 
@@ -438,7 +438,7 @@ class MetalRegionLowererTest {
     void metalGpuFusedOpTypeRejectsWithStableCompoundReason() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "metalFusedInput", DataType.FLOAT32);
         Tensor out = TensorPrimitiveBuilder.unary(input, new SyntheticFusedOperation(), "metalCpuFusedOp", DataType.FLOAT32);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.FUSED)), context);
@@ -452,7 +452,7 @@ class MetalRegionLowererTest {
         Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "metalLossLogits", DataType.FLOAT32);
         Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalLossTargets", DataType.INT32);
         Tensor out = logits.crossEntropyLossFromIndices(targetIndices, 1);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES)), context);
@@ -465,8 +465,8 @@ class MetalRegionLowererTest {
         Tensor reductionInput = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalPhase17ReductionInput", DataType.FLOAT32);
         Tensor sum = reductionInput.sum(1);
         Tensor mean = reductionInput.mean(1);
-        TensorInternalAccess.setBackend(sum, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(mean, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(sum, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(mean, ComputeBackend.GPU_METAL);
         PartitionPlanningContext sumContext = planningContext(sum);
         PartitionPlanningContext meanContext = planningContext(mean);
 
@@ -478,8 +478,8 @@ class MetalRegionLowererTest {
         Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "metalPhase17NormBeta", DataType.FLOAT32);
         Tensor layerNorm = normInput.layerNorm(gamma, beta, 1.0e-5);
         Tensor rmsNorm = normInput.rmsNorm(gamma, 1.0e-5);
-        TensorInternalAccess.setBackend(layerNorm, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(rmsNorm, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(layerNorm, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(rmsNorm, ComputeBackend.GPU_METAL);
         PartitionPlanningContext layerNormContext = planningContext(layerNorm);
         PartitionPlanningContext rmsNormContext = planningContext(rmsNorm);
 
@@ -504,7 +504,7 @@ class MetalRegionLowererTest {
                 DataType.FLOAT32);
         Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 1, 2, 2}, null, "metalPhase17ConvWeight", DataType.FLOAT32);
         Tensor conv = input.conv2d(weight, Conv2dOptions.defaults());
-        TensorInternalAccess.setBackend(conv, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(conv, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext convContext = planningContext(conv);
         String convReason = MetalPartitionSupport.plannerUnsupportedReason(convContext.compiledNode(nodeId(convContext, Operation.OpType.CONV2D)), convContext);
@@ -514,7 +514,7 @@ class MetalRegionLowererTest {
         Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "metalPhase17LossLogits", DataType.FLOAT32);
         Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalPhase17LossTargets", DataType.INT32);
         Tensor loss = logits.crossEntropyLossFromIndices(targetIndices, 1);
-        TensorInternalAccess.setBackend(loss, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(loss, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext lossContext = planningContext(loss);
         String lossReason = MetalPartitionSupport.plannerUnsupportedReason(lossContext.compiledNode(nodeId(lossContext, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES)), lossContext);
@@ -528,8 +528,8 @@ class MetalRegionLowererTest {
         Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f}, new int[]{3, 3}, null, "metalLogSoftmaxWeight", DataType.FLOAT32);
         Tensor matmul = input.matmul(weight);
         Tensor out = specialLogSoftmax(matmul, 1);
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         int matmulNodeId = nodeId(context, Operation.OpType.MATMUL);
@@ -556,7 +556,7 @@ class MetalRegionLowererTest {
     void supportsSumReductionWithStableCoverageReason() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalStableReductionInput", DataType.FLOAT32);
         Tensor out = input.sum(1);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.SUM)), context);
@@ -570,7 +570,7 @@ class MetalRegionLowererTest {
         Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "metalStableNormGamma", DataType.FLOAT32);
         Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "metalStableNormBeta", DataType.FLOAT32);
         Tensor out = input.layerNorm(gamma, beta, 1.0e-5);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.LAYER_NORM)), context);
@@ -583,7 +583,7 @@ class MetalRegionLowererTest {
         Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "metalStableLossLogits", DataType.FLOAT32);
         Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalStableLossTargets", DataType.INT32);
         Tensor out = logits.crossEntropyLossFromIndices(targetIndices, 1);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES)), context);
@@ -602,7 +602,7 @@ class MetalRegionLowererTest {
                 0f, 1f, 0f
         }, new int[]{2, 3}, null, "metalDenseNllTargets", DataType.FLOAT32);
         Tensor nll = logProbs.nllLoss(nllTargets, 1);
-        TensorInternalAccess.setBackend(nll, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(nll, ComputeBackend.GPU_METAL);
         PartitionPlanningContext nllContext = planningContext(nll);
         String nllReason = MetalPartitionSupport.plannerUnsupportedReason(
                 nllContext.compiledNode(nodeId(nllContext, Operation.OpType.NLL_LOSS)),
@@ -618,7 +618,7 @@ class MetalRegionLowererTest {
                 1f, 0f, 0f
         }, new int[]{2, 3}, null, "metalDenseCeTargets", DataType.FLOAT32);
         Tensor ce = logits.crossEntropyLoss(ceTargets, 1);
-        TensorInternalAccess.setBackend(ce, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(ce, ComputeBackend.GPU_METAL);
         PartitionPlanningContext ceContext = planningContext(ce);
         String ceReason = MetalPartitionSupport.plannerUnsupportedReason(
                 ceContext.compiledNode(nodeId(ceContext, Operation.OpType.CROSS_ENTROPY_LOSS)),
@@ -651,7 +651,7 @@ class MetalRegionLowererTest {
                 1d, 0d, 0d
         }, new int[]{2, 3}, null, "metalDenseBf16CeTargets", DataType.BFLOAT16);
         Tensor bf16Ce = bf16Logits.crossEntropyLoss(bf16Targets, 1);
-        TensorInternalAccess.setBackend(bf16Ce, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(bf16Ce, ComputeBackend.GPU_METAL);
         PartitionPlanningContext bf16CeContext = planningContext(bf16Ce);
         assertEquals(
                 "",
@@ -675,7 +675,7 @@ class MetalRegionLowererTest {
                 1f, 0f, 0f
         }, new int[]{2, 3}, null, "metalDenseLossLayoutTargets", DataType.FLOAT32);
         Tensor out = logits.select(0, 1).crossEntropyLoss(targets.select(0, 1), 0);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         String reason = MetalPartitionSupport.plannerUnsupportedReason(
@@ -691,13 +691,13 @@ class MetalRegionLowererTest {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalPhase26IndexInput", DataType.FLOAT32);
         Tensor gatherIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalPhase26GatherIndices", DataType.INT32);
         Tensor gather = input.gather(gatherIndices, 1);
-        TensorInternalAccess.setBackend(gather, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(gather, ComputeBackend.GPU_METAL);
         PartitionPlanningContext gatherContext = planningContext(gather);
         String gatherReason = MetalPartitionSupport.plannerUnsupportedReason(gatherContext.compiledNode(nodeId(gatherContext, Operation.OpType.GATHER)), gatherContext);
 
         Tensor takeIndices = new Tensor(new int[]{2, 1, 0, 0}, new int[]{2, 2}, null, "metalPhase26TakeIndices", DataType.INT32);
         Tensor take = input.takeAlongAxis(takeIndices, 1);
-        TensorInternalAccess.setBackend(take, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(take, ComputeBackend.GPU_METAL);
         PartitionPlanningContext takeContext = planningContext(take);
         String takeReason = MetalPartitionSupport.plannerUnsupportedReason(takeContext.compiledNode(nodeId(takeContext, Operation.OpType.TAKE_ALONG_AXIS)), takeContext);
 
@@ -705,14 +705,14 @@ class MetalRegionLowererTest {
         Tensor scatterIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalPhase26ScatterIndices", DataType.INT32);
         Tensor src = new Tensor(new float[]{1f, 5f}, new int[]{2}, null, "metalPhase26ScatterSrc", DataType.FLOAT32);
         Tensor scatter = base.scatterAdd(scatterIndices, src, 1);
-        TensorInternalAccess.setBackend(scatter, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(scatter, ComputeBackend.GPU_METAL);
         PartitionPlanningContext scatterContext = planningContext(scatter);
         String scatterReason = MetalPartitionSupport.plannerUnsupportedReason(scatterContext.compiledNode(nodeId(scatterContext, Operation.OpType.SCATTER_ADD)), scatterContext);
 
         Tensor scatterElementsIndices = new Tensor(new int[]{2, 0, 1, 2}, new int[]{2, 2}, null, "metalScatterElementsIndices", DataType.INT32);
         Tensor scatterElementsUpdates = new Tensor(new float[]{1f, 5f, 7f, 9f}, new int[]{2, 2}, null, "metalScatterElementsUpdates", DataType.FLOAT32);
         Tensor scatterElements = base.scatterElements(scatterElementsIndices, scatterElementsUpdates, 1, operations.index.ScatterReduction.ADD);
-        TensorInternalAccess.setBackend(scatterElements, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(scatterElements, ComputeBackend.GPU_METAL);
         PartitionPlanningContext scatterElementsContext = planningContext(scatterElements);
         String scatterElementsReason = MetalPartitionSupport.plannerUnsupportedReason(
                 scatterElementsContext.compiledNode(nodeId(scatterElementsContext, Operation.OpType.SCATTER_ELEMENTS)),
@@ -722,7 +722,7 @@ class MetalRegionLowererTest {
         Tensor scatterNdIndices = new Tensor(new int[]{0, 1, 1, 2}, new int[]{2, 2}, null, "metalScatterNdIndices", DataType.INT32);
         Tensor scatterNdUpdates = new Tensor(new float[]{11f, 13f}, new int[]{2}, null, "metalScatterNdUpdates", DataType.FLOAT32);
         Tensor scatterNd = base.scatterNd(scatterNdIndices, scatterNdUpdates, operations.index.ScatterReduction.MAX);
-        TensorInternalAccess.setBackend(scatterNd, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(scatterNd, ComputeBackend.GPU_METAL);
         PartitionPlanningContext scatterNdContext = planningContext(scatterNd);
         String scatterNdReason = MetalPartitionSupport.plannerUnsupportedReason(
                 scatterNdContext.compiledNode(nodeId(scatterNdContext, Operation.OpType.SCATTER_ND)),
@@ -751,7 +751,7 @@ class MetalRegionLowererTest {
 
         Tensor bf16Input = new Tensor(new double[]{1d, 2d, 3d, 4d, 5d, 6d}, new int[]{2, 3}, null, "metalPhase32Bf16IndexInput", DataType.BFLOAT16);
         Tensor bf16Gather = bf16Input.gather(gatherIndices, 1);
-        TensorInternalAccess.setBackend(bf16Gather, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(bf16Gather, ComputeBackend.GPU_METAL);
         PartitionPlanningContext bf16GatherContext = planningContext(bf16Gather);
         assertEquals(
                 "",
@@ -771,7 +771,7 @@ class MetalRegionLowererTest {
         }, new int[]{2, 2, 3}, null, "metalGatherNdData", DataType.FLOAT32);
         Tensor gatherNdIndices = new Tensor(new int[]{1, 0}, new int[]{2, 1, 1}, null, "metalGatherNdIndices", DataType.INT32);
         Tensor gatherNd = gatherNdData.gatherNd(gatherNdIndices, 1);
-        TensorInternalAccess.setBackend(gatherNd, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(gatherNd, ComputeBackend.GPU_METAL);
         PartitionPlanningContext gatherNdContext = planningContext(gatherNd);
         assertEquals(
                 "",
@@ -790,7 +790,7 @@ class MetalRegionLowererTest {
                 10d, 11d, 12d
         }, new int[]{2, 2, 3}, null, "metalBf16GatherNdData", DataType.BFLOAT16);
         Tensor bf16GatherNd = bf16GatherNdData.gatherNd(gatherNdIndices, 1);
-        TensorInternalAccess.setBackend(bf16GatherNd, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(bf16GatherNd, ComputeBackend.GPU_METAL);
         PartitionPlanningContext bf16GatherNdContext = planningContext(bf16GatherNd);
         assertEquals(
                 "",
@@ -808,7 +808,7 @@ class MetalRegionLowererTest {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metal68GatherAxisInput", DataType.FLOAT32);
         Tensor indices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metal68GatherAxisIndices", DataType.INT32);
         Tensor gatherAxis = input.gatherAxis(indices, 1);
-        TensorInternalAccess.setBackend(gatherAxis, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(gatherAxis, ComputeBackend.GPU_METAL);
         PartitionPlanningContext gatherAxisContext = planningContext(gatherAxis);
 
         assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(
@@ -827,7 +827,7 @@ class MetalRegionLowererTest {
                 "metal68GatherAxisGrad",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackend(gatherAxisGrad, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(gatherAxisGrad, ComputeBackend.GPU_METAL);
         PartitionPlanningContext gatherAxisGradContext = planningContext(gatherAxisGrad);
         assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(
                 gatherAxisGradContext.compiledNode(nodeId(gatherAxisGradContext, Operation.OpType.GATHER_AXIS_GRAD)),
@@ -837,7 +837,7 @@ class MetalRegionLowererTest {
                 .anyMatch(node -> node.type() == AcceleratorDagNodeType.GATHER_AXIS_GRAD && node.scalarValueBits() == 1));
 
         Tensor slice = input.slice(new int[]{0, 1}, new int[]{2, 3}, new int[]{0, 1}, new int[]{1, 1});
-        TensorInternalAccess.setBackend(slice, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(slice, ComputeBackend.GPU_METAL);
         PartitionPlanningContext sliceContext = planningContext(slice);
         assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(
                 sliceContext.compiledNode(nodeId(sliceContext, Operation.OpType.SLICE)),
@@ -847,7 +847,7 @@ class MetalRegionLowererTest {
                 .anyMatch(node -> node.type() == AcceleratorDagNodeType.SLICE && node.attribute1() == 1));
 
         Tensor pad = input.pad(new int[]{1, 0}, new int[]{0, 1}, -1.0);
-        TensorInternalAccess.setBackend(pad, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(pad, ComputeBackend.GPU_METAL);
         PartitionPlanningContext padContext = planningContext(pad);
         assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(
                 padContext.compiledNode(nodeId(padContext, Operation.OpType.PAD)),
@@ -860,7 +860,7 @@ class MetalRegionLowererTest {
                         && Float.intBitsToFloat(node.scalarValueBits()) == -1.0f));
 
         Tensor tile = input.tile(2, 1);
-        TensorInternalAccess.setBackend(tile, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(tile, ComputeBackend.GPU_METAL);
         PartitionPlanningContext tileContext = planningContext(tile);
         assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(
                 tileContext.compiledNode(nodeId(tileContext, Operation.OpType.TILE)),
@@ -872,7 +872,7 @@ class MetalRegionLowererTest {
         Tensor concatLeft = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metal68ConcatLeft", DataType.FLOAT32);
         Tensor concatRight = new Tensor(new float[]{7f, 8f, 9f, 10f}, new int[]{2, 2}, null, "metal68ConcatRight", DataType.FLOAT32);
         Tensor concat = Tensor.concat(1, concatLeft, concatRight);
-        TensorInternalAccess.setBackend(concat, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(concat, ComputeBackend.GPU_METAL);
         PartitionPlanningContext concatContext = planningContext(concat);
         assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(
                 concatContext.compiledNode(nodeId(concatContext, Operation.OpType.CONCAT)),
@@ -892,7 +892,7 @@ class MetalRegionLowererTest {
                 "metal72SliceGrad",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackend(grad, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(grad, ComputeBackend.GPU_METAL);
         PartitionPlanningContext context = planningContext(grad);
 
         assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(
@@ -954,7 +954,7 @@ class MetalRegionLowererTest {
                 "metal72SliceGradRejectStep",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackend(stridedGrad, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(stridedGrad, ComputeBackend.GPU_METAL);
         PartitionPlanningContext stepContext = planningContext(stridedGrad);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -973,7 +973,7 @@ class MetalRegionLowererTest {
                 "metal72SliceGradRejectInt",
                 DataType.INT32
         );
-        TensorInternalAccess.setBackend(intGrad, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(intGrad, ComputeBackend.GPU_METAL);
         PartitionPlanningContext dtypeContext = planningContext(intGrad);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -990,7 +990,7 @@ class MetalRegionLowererTest {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metal68LayoutRejectInput", DataType.FLOAT32);
 
         Tensor steppedSlice = input.slice(new int[]{0, 0}, new int[]{2, 3}, new int[]{0, 1}, new int[]{1, 2});
-        TensorInternalAccess.setBackend(steppedSlice, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(steppedSlice, ComputeBackend.GPU_METAL);
         PartitionPlanningContext steppedContext = planningContext(steppedSlice);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -1003,7 +1003,7 @@ class MetalRegionLowererTest {
 
         Tensor nonDense = input.permute(1, 0);
         Tensor layoutPad = nonDense.pad(new int[]{0, 0}, new int[]{1, 1}, 0.0);
-        TensorInternalAccess.setBackend(layoutPad, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(layoutPad, ComputeBackend.GPU_METAL);
         PartitionPlanningContext layoutPadContext = planningContext(layoutPad);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -1027,7 +1027,7 @@ class MetalRegionLowererTest {
                 "metalPhase36GatherGrad",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackend(gatherGrad, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(gatherGrad, ComputeBackend.GPU_METAL);
         PartitionPlanningContext gatherGradContext = planningContext(gatherGrad);
 
         Tensor takeIndices = new Tensor(new int[]{2, 2, 0, 0}, new int[]{2, 2}, null, "metalPhase36TakeGradIndices", DataType.INT32);
@@ -1040,7 +1040,7 @@ class MetalRegionLowererTest {
                 "metalPhase36TakeGrad",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackend(takeGrad, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(takeGrad, ComputeBackend.GPU_METAL);
         PartitionPlanningContext takeGradContext = planningContext(takeGrad);
 
         assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(
@@ -1065,7 +1065,7 @@ class MetalRegionLowererTest {
                 "metalPhase36Bf16GatherGrad",
                 DataType.BFLOAT16
         );
-        TensorInternalAccess.setBackend(bf16GatherGrad, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(bf16GatherGrad, ComputeBackend.GPU_METAL);
         PartitionPlanningContext bf16GatherGradContext = planningContext(bf16GatherGrad);
         assertEquals(
                 "",
@@ -1085,7 +1085,7 @@ class MetalRegionLowererTest {
 
         Tensor floatIndices = new Tensor(new float[]{2f, 0f}, new int[]{2}, null, "metalPhase36ScatterFloatIndices", DataType.FLOAT32);
         Tensor dtypeScatter = base.scatterAdd(floatIndices, src, 1);
-        TensorInternalAccess.setBackend(dtypeScatter, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(dtypeScatter, ComputeBackend.GPU_METAL);
         PartitionPlanningContext dtypeContext = planningContext(dtypeScatter);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -1098,7 +1098,7 @@ class MetalRegionLowererTest {
 
         Tensor oobIndices = new Tensor(new int[]{3, 0}, new int[]{2}, null, "metalPhase36ScatterOobIndices", DataType.INT32);
         Tensor oobScatter = base.scatterAdd(oobIndices, src, 1);
-        TensorInternalAccess.setBackend(oobScatter, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(oobScatter, ComputeBackend.GPU_METAL);
         PartitionPlanningContext oobContext = planningContext(oobScatter);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -1113,7 +1113,7 @@ class MetalRegionLowererTest {
         Tensor nonDenseBase = layoutBase.permute(1, 0);
         Tensor intIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalPhase36ScatterIntIndices", DataType.INT32);
         Tensor layoutScatter = nonDenseBase.scatterAdd(intIndices, src, 1);
-        TensorInternalAccess.setBackend(layoutScatter, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(layoutScatter, ComputeBackend.GPU_METAL);
         PartitionPlanningContext layoutContext = planningContext(layoutScatter);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -1135,7 +1135,7 @@ class MetalRegionLowererTest {
 
         Tensor duplicateNoneIndices = new Tensor(new int[]{2, 2, 0, 1}, new int[]{2, 2}, null, "metalScatterElementsDuplicateNoneIndices", DataType.INT32);
         Tensor duplicateNone = data.scatterElements(duplicateNoneIndices, updates, 1, operations.index.ScatterReduction.NONE);
-        TensorInternalAccess.setBackend(duplicateNone, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(duplicateNone, ComputeBackend.GPU_METAL);
         PartitionPlanningContext duplicateContext = planningContext(duplicateNone);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -1147,7 +1147,7 @@ class MetalRegionLowererTest {
         );
 
         Tensor duplicateAdd = data.scatterElements(duplicateNoneIndices, updates, 1, operations.index.ScatterReduction.ADD);
-        TensorInternalAccess.setBackend(duplicateAdd, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(duplicateAdd, ComputeBackend.GPU_METAL);
         PartitionPlanningContext duplicateAddContext = planningContext(duplicateAdd);
         assertEquals(
                 "",
@@ -1159,7 +1159,7 @@ class MetalRegionLowererTest {
 
         Tensor oobIndices = new Tensor(new int[]{2, -1, 0, 1}, new int[]{2, 2}, null, "metalScatterElementsOobIndices", DataType.INT32);
         Tensor oob = data.scatterElements(oobIndices, updates, 1, operations.index.ScatterReduction.ADD);
-        TensorInternalAccess.setBackend(oob, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(oob, ComputeBackend.GPU_METAL);
         PartitionPlanningContext oobContext = planningContext(oob);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -1173,7 +1173,7 @@ class MetalRegionLowererTest {
         Tensor dynamicIndices = new Tensor(new int[]{2, 0, 0, 1}, new int[]{2, 2}, null, "metalScatterElementsDynamicIndices", DataType.INT32)
                 .reshape(2, 2);
         Tensor dynamic = data.scatterElements(dynamicIndices, updates, 1, operations.index.ScatterReduction.ADD);
-        TensorInternalAccess.setBackend(dynamic, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(dynamic, ComputeBackend.GPU_METAL);
         PartitionPlanningContext dynamicContext = planningContext(dynamic);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -1195,7 +1195,7 @@ class MetalRegionLowererTest {
 
         Tensor duplicateNoneIndices = new Tensor(new int[]{0, 1, 0, 1}, new int[]{2, 2}, null, "metalScatterNdDuplicateNoneIndices", DataType.INT32);
         Tensor duplicateNone = data.scatterNd(duplicateNoneIndices, updates, operations.index.ScatterReduction.NONE);
-        TensorInternalAccess.setBackend(duplicateNone, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(duplicateNone, ComputeBackend.GPU_METAL);
         PartitionPlanningContext duplicateContext = planningContext(duplicateNone);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -1207,7 +1207,7 @@ class MetalRegionLowererTest {
         );
 
         Tensor duplicateAdd = data.scatterNd(duplicateNoneIndices, updates, operations.index.ScatterReduction.ADD);
-        TensorInternalAccess.setBackend(duplicateAdd, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(duplicateAdd, ComputeBackend.GPU_METAL);
         PartitionPlanningContext duplicateAddContext = planningContext(duplicateAdd);
         assertEquals(
                 "",
@@ -1219,7 +1219,7 @@ class MetalRegionLowererTest {
 
         Tensor negativeIndices = new Tensor(new int[]{0, 1, -1, 2}, new int[]{2, 2}, null, "metalScatterNdNegativeIndices", DataType.INT32);
         Tensor negative = data.scatterNd(negativeIndices, updates, operations.index.ScatterReduction.ADD);
-        TensorInternalAccess.setBackend(negative, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(negative, ComputeBackend.GPU_METAL);
         PartitionPlanningContext negativeContext = planningContext(negative);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -1233,7 +1233,7 @@ class MetalRegionLowererTest {
         Tensor dynamicIndices = new Tensor(new int[]{0, 1, 1, 2}, new int[]{2, 2}, null, "metalScatterNdDynamicIndices", DataType.INT32)
                 .reshape(2, 2);
         Tensor dynamic = data.scatterNd(dynamicIndices, updates, operations.index.ScatterReduction.ADD);
-        TensorInternalAccess.setBackend(dynamic, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(dynamic, ComputeBackend.GPU_METAL);
         PartitionPlanningContext dynamicContext = planningContext(dynamic);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -1257,7 +1257,7 @@ class MetalRegionLowererTest {
                 "metalPhase36GatherBoundsGrad",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackend(gatherGradOut, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(gatherGradOut, ComputeBackend.GPU_METAL);
         PartitionPlanningContext gatherBoundsContext = planningContext(gatherGradOut);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -1278,7 +1278,7 @@ class MetalRegionLowererTest {
                 "metalPhase36TakeBoundsGrad",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackend(takeGradOut, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(takeGradOut, ComputeBackend.GPU_METAL);
         PartitionPlanningContext takeBoundsContext = planningContext(takeGradOut);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -1299,7 +1299,7 @@ class MetalRegionLowererTest {
                 "metalPhase36DynamicGatherGrad",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackend(dynamicGatherGrad, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(dynamicGatherGrad, ComputeBackend.GPU_METAL);
         PartitionPlanningContext dynamicGatherContext = planningContext(dynamicGatherGrad);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -1317,7 +1317,7 @@ class MetalRegionLowererTest {
 
         Tensor oobIndices = new Tensor(new int[]{3, 0}, new int[]{2}, null, "metalPhase32OobIndices", DataType.INT32);
         Tensor oobGather = input.gather(oobIndices, 1);
-        TensorInternalAccess.setBackend(oobGather, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(oobGather, ComputeBackend.GPU_METAL);
         PartitionPlanningContext oobContext = planningContext(oobGather);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(oobContext.compiledNode(nodeId(oobContext, Operation.OpType.GATHER)), oobContext),
@@ -1327,7 +1327,7 @@ class MetalRegionLowererTest {
 
         Tensor f32Indices = new Tensor(new float[]{2f, 0f}, new int[]{2}, null, "metalPhase32F32Indices", DataType.FLOAT32);
         Tensor dtypeGather = input.gather(f32Indices, 1);
-        TensorInternalAccess.setBackend(dtypeGather, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(dtypeGather, ComputeBackend.GPU_METAL);
         PartitionPlanningContext dtypeContext = planningContext(dtypeGather);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(dtypeContext.compiledNode(nodeId(dtypeContext, Operation.OpType.GATHER)), dtypeContext),
@@ -1338,7 +1338,7 @@ class MetalRegionLowererTest {
         Tensor nonDenseValue = input.permute(1, 0);
         Tensor valueLayoutIndices = new Tensor(new int[]{1, 0}, new int[]{2}, null, "metalPhase32ValueLayoutIndices", DataType.INT32);
         Tensor valueLayoutGather = nonDenseValue.gather(valueLayoutIndices, 0);
-        TensorInternalAccess.setBackend(valueLayoutGather, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(valueLayoutGather, ComputeBackend.GPU_METAL);
         PartitionPlanningContext valueLayoutContext = planningContext(valueLayoutGather);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(valueLayoutContext.compiledNode(nodeId(valueLayoutContext, Operation.OpType.GATHER)), valueLayoutContext),
@@ -1350,7 +1350,7 @@ class MetalRegionLowererTest {
         Tensor indexBase = new Tensor(new int[]{1, 0, 0, 1}, new int[]{2, 2}, null, "metalPhase32IndexBase", DataType.INT32);
         Tensor nonDenseIndices = indexBase.permute(1, 0);
         Tensor indexLayoutTake = denseInput.takeAlongAxis(nonDenseIndices, 1);
-        TensorInternalAccess.setBackend(indexLayoutTake, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(indexLayoutTake, ComputeBackend.GPU_METAL);
         PartitionPlanningContext indexLayoutContext = planningContext(indexLayoutTake);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(indexLayoutContext.compiledNode(nodeId(indexLayoutContext, Operation.OpType.TAKE_ALONG_AXIS)), indexLayoutContext),
@@ -1360,7 +1360,7 @@ class MetalRegionLowererTest {
 
         Tensor gatherNdNegativeIndices = new Tensor(new int[]{-1, 0}, new int[]{1, 2}, null, "metalGatherNdNegativeIndices", DataType.INT32);
         Tensor gatherNdNegative = input.gatherNd(gatherNdNegativeIndices);
-        TensorInternalAccess.setBackend(gatherNdNegative, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(gatherNdNegative, ComputeBackend.GPU_METAL);
         PartitionPlanningContext gatherNdNegativeContext = planningContext(gatherNdNegative);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -1373,7 +1373,7 @@ class MetalRegionLowererTest {
 
         Tensor dynamicGatherNdIndices = new Tensor(new int[]{1, 0}, new int[]{1, 2}, null, "metalDynamicGatherNdIndices", DataType.INT32).reshape(1, 2);
         Tensor dynamicGatherNd = input.gatherNd(dynamicGatherNdIndices);
-        TensorInternalAccess.setBackend(dynamicGatherNd, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(dynamicGatherNd, ComputeBackend.GPU_METAL);
         PartitionPlanningContext dynamicGatherNdContext = planningContext(dynamicGatherNd);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
@@ -1390,7 +1390,7 @@ class MetalRegionLowererTest {
         Tensor left = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalPhase27CompareLeft", DataType.FLOAT32);
         Tensor right = new Tensor(new float[]{2f, 2f, 2f, 2f}, new int[]{2, 2}, null, "metalPhase27CompareRight", DataType.FLOAT32);
         Tensor compare = left.greaterOrEqual(right);
-        TensorInternalAccess.setBackend(compare, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(compare, ComputeBackend.GPU_METAL);
         PartitionPlanningContext compareContext = planningContext(compare);
         String compareReason = MetalPartitionSupport.plannerUnsupportedReason(
                 compareContext.compiledNode(nodeId(compareContext, Operation.OpType.GE)),
@@ -1405,8 +1405,8 @@ class MetalRegionLowererTest {
         }, new int[]{1, 1, 4, 4}, null, "metalPhase27PoolInput", DataType.FLOAT32);
         Tensor maxPool = poolInput.maxPool2d(Pool2dOptions.square(2));
         Tensor avgPool = poolInput.avgPool2d(Pool2dOptions.square(2));
-        TensorInternalAccess.setBackend(maxPool, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(avgPool, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(maxPool, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(avgPool, ComputeBackend.GPU_METAL);
         PartitionPlanningContext maxPoolContext = planningContext(maxPool);
         PartitionPlanningContext avgPoolContext = planningContext(avgPool);
 
@@ -1443,7 +1443,7 @@ class MetalRegionLowererTest {
         Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 1, 2, 2}, null, "metalPhase35ConvWeight", DataType.FLOAT32);
         Tensor bias = new Tensor(new float[]{0.5f}, new int[]{1}, null, "metalPhase35ConvBias", DataType.FLOAT32);
         Tensor conv = input.conv2d(weight, bias, Conv2dOptions.defaults());
-        TensorInternalAccess.setBackend(conv, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(conv, ComputeBackend.GPU_METAL);
         PartitionPlanningContext convContext = planningContext(conv);
 
         String convReason = MetalPartitionSupport.plannerUnsupportedReason(
@@ -1459,7 +1459,7 @@ class MetalRegionLowererTest {
                 "metalPhase35ConvGemm",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackend(gemm, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(gemm, ComputeBackend.GPU_METAL);
         PartitionPlanningContext gemmContext = planningContext(gemm);
         String gemmReason = MetalPartitionSupport.plannerUnsupportedReason(
                 gemmContext.compiledNode(nodeId(gemmContext, Operation.OpType.CONV2D_GEMM)),
@@ -1474,8 +1474,8 @@ class MetalRegionLowererTest {
         }, new int[]{1, 1, 4, 4}, null, "metalPhase35PoolInput", DataType.FLOAT32);
         Tensor maxPool = poolInput.maxPool2d(Pool2dOptions.square(2));
         Tensor avgPool = poolInput.avgPool2d(Pool2dOptions.square(2));
-        TensorInternalAccess.setBackend(maxPool, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(avgPool, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(maxPool, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(avgPool, ComputeBackend.GPU_METAL);
         PartitionPlanningContext maxPoolContext = planningContext(maxPool);
         PartitionPlanningContext avgPoolContext = planningContext(avgPool);
 
@@ -1520,7 +1520,7 @@ class MetalRegionLowererTest {
         }, new int[]{1, 1, 3, 3}, null, "metalPhase35Bf16ConvInput", DataType.BFLOAT16);
         Tensor bf16Weight = new Tensor(new double[]{1d, 0d, 0d, 1d}, new int[]{1, 1, 2, 2}, null, "metalPhase35Bf16ConvWeight", DataType.BFLOAT16);
         Tensor bf16Conv = bf16Input.conv2d(bf16Weight, Conv2dOptions.defaults());
-        TensorInternalAccess.setBackend(bf16Conv, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(bf16Conv, ComputeBackend.GPU_METAL);
         PartitionPlanningContext bf16Context = planningContext(bf16Conv);
         assertEquals(
                 "",
@@ -1531,7 +1531,7 @@ class MetalRegionLowererTest {
 
         Tensor f32Weight = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 1, 2, 2}, null, "metalPhase35F32ConvWeight", DataType.FLOAT32);
         Tensor dtypeConv = bf16Input.conv2d(f32Weight, Conv2dOptions.defaults());
-        TensorInternalAccess.setBackend(dtypeConv, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(dtypeConv, ComputeBackend.GPU_METAL);
         PartitionPlanningContext dtypeContext = planningContext(dtypeConv);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(dtypeContext.compiledNode(nodeId(dtypeContext, Operation.OpType.CONV2D)), dtypeContext),
@@ -1546,7 +1546,7 @@ class MetalRegionLowererTest {
         }, new int[]{1, 3, 3, 1}, null, "metalPhase35LayoutConvBase", DataType.FLOAT32);
         Tensor nonDenseInput = layoutBase.permute(0, 3, 1, 2);
         Tensor layoutConv = nonDenseInput.conv2d(f32Weight, Conv2dOptions.defaults());
-        TensorInternalAccess.setBackend(layoutConv, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(layoutConv, ComputeBackend.GPU_METAL);
         PartitionPlanningContext layoutContext = planningContext(layoutConv);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(layoutContext.compiledNode(nodeId(layoutContext, Operation.OpType.CONV2D)), layoutContext),
@@ -1563,7 +1563,7 @@ class MetalRegionLowererTest {
                 "metalPhase35RankConv",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackend(rankConv, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(rankConv, ComputeBackend.GPU_METAL);
         PartitionPlanningContext rankContext = planningContext(rankConv);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(rankContext.compiledNode(nodeId(rankContext, Operation.OpType.CONV2D)), rankContext),
@@ -1574,7 +1574,7 @@ class MetalRegionLowererTest {
         Tensor groupedInput = new Tensor(new float[1 * 2 * 3 * 3], new int[]{1, 2, 3, 3}, null, "metalPhase35GroupedConvInput", DataType.FLOAT32);
         Tensor groupedWeight = new Tensor(new float[2 * 1 * 2 * 2], new int[]{2, 1, 2, 2}, null, "metalPhase35GroupedConvWeight", DataType.FLOAT32);
         Tensor groupedConv = groupedInput.conv2d(groupedWeight, Conv2dOptions.defaults().withGroups(2));
-        TensorInternalAccess.setBackend(groupedConv, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(groupedConv, ComputeBackend.GPU_METAL);
         PartitionPlanningContext groupedContext = planningContext(groupedConv);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(groupedContext.compiledNode(nodeId(groupedContext, Operation.OpType.CONV2D)), groupedContext),
@@ -1584,7 +1584,7 @@ class MetalRegionLowererTest {
 
         Tensor dilationInput = new Tensor(new float[1 * 1 * 4 * 4], new int[]{1, 1, 4, 4}, null, "metalPhase35DilationConvInput", DataType.FLOAT32);
         Tensor dilationConv = dilationInput.conv2d(f32Weight, Conv2dOptions.defaults().withDilation(2, 2));
-        TensorInternalAccess.setBackend(dilationConv, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(dilationConv, ComputeBackend.GPU_METAL);
         PartitionPlanningContext dilationContext = planningContext(dilationConv);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(dilationContext.compiledNode(nodeId(dilationContext, Operation.OpType.CONV2D)), dilationContext),
@@ -1597,7 +1597,7 @@ class MetalRegionLowererTest {
     void phaseThirtyFivePoolRejectsDtypeLayoutRankAndAvgCountIncludePadPrecisely() {
         Tensor bf16Input = new Tensor(new double[1 * 1 * 4 * 4], new int[]{1, 1, 4, 4}, null, "metalPhase35Bf16PoolInput", DataType.BFLOAT16);
         Tensor bf16Pool = bf16Input.maxPool2d(Pool2dOptions.square(2));
-        TensorInternalAccess.setBackend(bf16Pool, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(bf16Pool, ComputeBackend.GPU_METAL);
         PartitionPlanningContext bf16Context = planningContext(bf16Pool);
         assertEquals(
                 "",
@@ -1613,7 +1613,7 @@ class MetalRegionLowererTest {
                 "metalPhase35DtypePool",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackend(dtypePool, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(dtypePool, ComputeBackend.GPU_METAL);
         PartitionPlanningContext dtypeContext = planningContext(dtypePool);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(dtypeContext.compiledNode(nodeId(dtypeContext, Operation.OpType.MAX_POOL2D)), dtypeContext),
@@ -1624,7 +1624,7 @@ class MetalRegionLowererTest {
         Tensor layoutBase = new Tensor(new float[1 * 4 * 4 * 1], new int[]{1, 4, 4, 1}, null, "metalPhase35LayoutPoolBase", DataType.FLOAT32);
         Tensor nonDenseInput = layoutBase.permute(0, 3, 1, 2);
         Tensor layoutPool = nonDenseInput.maxPool2d(Pool2dOptions.square(2));
-        TensorInternalAccess.setBackend(layoutPool, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(layoutPool, ComputeBackend.GPU_METAL);
         PartitionPlanningContext layoutContext = planningContext(layoutPool);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(layoutContext.compiledNode(nodeId(layoutContext, Operation.OpType.MAX_POOL2D)), layoutContext),
@@ -1640,7 +1640,7 @@ class MetalRegionLowererTest {
                 "metalPhase35RankPool",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackend(rankPool, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(rankPool, ComputeBackend.GPU_METAL);
         PartitionPlanningContext rankContext = planningContext(rankPool);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(rankContext.compiledNode(nodeId(rankContext, Operation.OpType.MAX_POOL2D)), rankContext),
@@ -1650,7 +1650,7 @@ class MetalRegionLowererTest {
 
         Tensor avgInput = new Tensor(new float[1 * 1 * 4 * 4], new int[]{1, 1, 4, 4}, null, "metalPhase35AvgPoolInput", DataType.FLOAT32);
         Tensor avgWithPad = avgInput.avgPool2d(Pool2dOptions.square(2).withPadding(1, 1).withCountIncludePad(true));
-        TensorInternalAccess.setBackend(avgWithPad, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(avgWithPad, ComputeBackend.GPU_METAL);
         PartitionPlanningContext avgContext = planningContext(avgWithPad);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(avgContext.compiledNode(nodeId(avgContext, Operation.OpType.AVG_POOL2D)), avgContext),
@@ -1676,7 +1676,7 @@ class MetalRegionLowererTest {
         Tensor left = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalPhase31BoolLeft", DataType.FLOAT32);
         Tensor right = new Tensor(new float[]{2f, 2f, 2f, 2f}, new int[]{2, 2}, null, "metalPhase31BoolRight", DataType.FLOAT32);
         Tensor compare = left.greaterOrEqual(right);
-        TensorInternalAccess.setBackend(compare, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(compare, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(compare);
         int compareNodeId = nodeId(context, Operation.OpType.GE);
@@ -1714,8 +1714,8 @@ class MetalRegionLowererTest {
         Tensor right = new Tensor(new byte[]{1, 1, 0, 0}, new int[]{2, 2}, null, "metalPhase31BoolRight", DataType.BOOL);
         Tensor logical = left.logicalAnd(right);
         Tensor reduced = logical.any(1, true);
-        TensorInternalAccess.setBackend(logical, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(reduced, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(logical, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(reduced, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(reduced);
         int logicalNodeId = nodeId(context, Operation.OpType.LOGICAL_AND);
@@ -1744,8 +1744,8 @@ class MetalRegionLowererTest {
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
         Tensor matmul = a.matmul(b);
         Tensor out = matmul.relu();
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         List<Tensor> graph = out.topologicalSort();
         List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
@@ -1815,9 +1815,9 @@ class MetalRegionLowererTest {
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "b", DataType.FLOAT32);
         Tensor add = a.add(b);
         Tensor out = add.relu().exp();
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out.getPrevTensors().getFirst(), ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out.getPrevTensors().getFirst(), ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         List<Tensor> graph = out.topologicalSort();
         List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
@@ -1903,10 +1903,10 @@ class MetalRegionLowererTest {
         Tensor add = matmul.add(bias);
         Tensor relu = add.relu();
         Tensor out = relu.exp();
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         List<Tensor> graph = out.topologicalSort();
         List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
@@ -1969,9 +1969,9 @@ class MetalRegionLowererTest {
         Tensor matmul = a.matmul(b);
         Tensor add = matmul.add(bias);
         Tensor out = add.relu();
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         List<Tensor> graph = out.topologicalSort();
         List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
@@ -2013,9 +2013,9 @@ class MetalRegionLowererTest {
         Tensor matmul = a.matmul(b);
         Tensor add = matmul.add(bias);
         Tensor out = add.relu();
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.ADD)), context);
@@ -2033,8 +2033,8 @@ class MetalRegionLowererTest {
         Tensor b = new Tensor(new double[]{1d, 2d, 3d, 4d, 5d, 6d}, new int[]{3, 2}, null, "b64", DataType.FLOAT64);
         Tensor matmul = a.matmul(b);
         Tensor out = matmul.relu();
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
@@ -2050,8 +2050,8 @@ class MetalRegionLowererTest {
         Tensor b = new Tensor(new double[]{1d, 2d, 3d, 4d, 5d, 6d}, new int[]{3, 2}, null, "bbf16", DataType.BFLOAT16);
         Tensor matmul = a.matmul(b);
         Tensor out = matmul.relu();
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
@@ -2072,7 +2072,7 @@ class MetalRegionLowererTest {
     void rejectsInt32MetalLayoutCandidateBeforeLowering() {
         Tensor index = new Tensor(new int[]{1, 2, 3, 4}, new int[]{4}, null, "index", DataType.INT32);
         Tensor out = index.contiguous();
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
@@ -2088,7 +2088,7 @@ class MetalRegionLowererTest {
         Tensor x = new Tensor(new float[]{1f, 2f}, new int[]{2}, null, "x", DataType.FLOAT32);
         Tensor y = new Tensor(new float[]{3f, 4f}, new int[]{2}, null, "y", DataType.FLOAT32);
         Tensor out = Tensor.where(mask, x, y);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
@@ -2108,7 +2108,7 @@ class MetalRegionLowererTest {
         Tensor boolValue = new Tensor(new byte[]{1, 1}, new int[]{2}, null, "boolValue", DataType.BOOL);
         Tensor floatValue = new Tensor(new float[]{3f, 4f}, new int[]{2}, null, "floatValue", DataType.FLOAT32);
         Tensor out = TensorPrimitiveBuilder.ternary(mask, boolValue, floatValue, new int[]{2}, new where(), "invalidWhere", DataType.FLOAT32);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
@@ -2127,10 +2127,10 @@ class MetalRegionLowererTest {
         Tensor k = kBase.relu();
         Tensor v = vBase.relu();
         Tensor out = specialSdpa(q, k, v, null, 0.5d);
-        TensorInternalAccess.setBackend(q, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(k, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(v, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(q, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(k, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(v, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
@@ -2159,7 +2159,7 @@ class MetalRegionLowererTest {
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "k", DataType.FLOAT32);
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "v", DataType.FLOAT32);
         Tensor out = specialSdpa(q, k, v, null, 0.5d);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
@@ -2204,7 +2204,7 @@ class MetalRegionLowererTest {
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "v", DataType.FLOAT32);
         Tensor mask = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{1, 2, 2}, null, "mask", DataType.BOOL);
         Tensor out = specialSdpa(q, k, v, mask, 0.5d);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
@@ -2241,7 +2241,7 @@ class MetalRegionLowererTest {
         Tensor k = new Tensor(new double[]{1d, 0d, 0d, 1d}, new int[]{1, 2, 2}, null, "bf16SdpaK", DataType.BFLOAT16);
         Tensor v = new Tensor(new double[]{10d, 1d, 1d, 10d}, new int[]{1, 2, 2}, null, "bf16SdpaV", DataType.BFLOAT16);
         Tensor out = specialSdpa(q, k, v, null, 0.5d);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
@@ -2279,7 +2279,7 @@ class MetalRegionLowererTest {
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "k", DataType.FLOAT32);
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "v", DataType.FLOAT32);
         Tensor out = specialSdpa(q, k, v, causalMask(), 0.5d);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
@@ -2296,7 +2296,7 @@ class MetalRegionLowererTest {
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "v", DataType.FLOAT32);
         Tensor mask = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{1, 2, 2}, null, "mask", DataType.BOOL);
         Tensor out = specialSdpa(q, k, v, mask.logicalAnd(causalMask()), 0.5d);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
@@ -2313,7 +2313,7 @@ class MetalRegionLowererTest {
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "v", DataType.FLOAT32);
         Tensor mask = new Tensor(new byte[]{1, 0}, new int[]{1, 1, 2}, null, "mask", DataType.BOOL);
         Tensor out = specialSdpa(q, k, v, mask.expand(1, 2, 2), 0.5d);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
@@ -2329,7 +2329,7 @@ class MetalRegionLowererTest {
         Tensor k = new Tensor(new double[]{1d, 0d, 0d, 1d}, new int[]{1, 2, 2}, null, "k64", DataType.FLOAT64);
         Tensor v = new Tensor(new double[]{10d, 1d, 1d, 10d}, new int[]{1, 2, 2}, null, "v64", DataType.FLOAT64);
         Tensor out = specialSdpa(q, k, v, null, 0.5d);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
         int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);

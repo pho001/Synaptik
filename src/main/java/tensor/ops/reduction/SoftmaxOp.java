@@ -1,6 +1,5 @@
 package tensor.ops.reduction;
 
-import graph.compile.intent.BackendIntentPropagator;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tensor.layout.TensorLayoutTransform;
@@ -21,7 +20,7 @@ public final class SoftmaxOp {
         Tensor denominator = exp.sum(normalizedDimension, true);
         Tensor out = exp.div(denominator);
         out.setLabel("softmax");
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -29,8 +28,7 @@ public final class SoftmaxOp {
 
             Tensor dot = outGrad.mul(out).sum(normalizedDimension, true);
             Tensor grad = out.mul(outGrad.sub(dot));
-            BackendIntentPropagator.preserve(grad, out);
-            ReductionSupport.accumulateGradient(input, grad);
+            context.accumulate(input, grad);
         });
         return out;
     }

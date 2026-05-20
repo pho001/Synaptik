@@ -28,13 +28,13 @@ public final class CastOp {
             out.setRequiresGrad(false);
             return out;
         }
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
             }
             Tensor grad = build(outGrad, input.getDataType());
-            DTypeSupport.accumulateGradient(input, grad);
+            context.accumulate(input, grad);
         });
         return out;
     }

@@ -49,7 +49,7 @@ public final class ScatterNdOp {
                 data.getDataType()
         );
         out.setRequiresGrad(differentiable);
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !IndexSupport.isFloating(data.getDataType())) {
                 return;
@@ -60,11 +60,11 @@ public final class ScatterNdOp {
                     case ADD -> outGrad;
                     case MUL, MAX, MIN -> throw new UnsupportedOperationException("scatterNd backward supports only NONE and ADD reductions.");
                 };
-                IndexSupport.accumulateGradient(data, dataGrad);
+                context.accumulate(data, dataGrad);
             }
             if (updates.getRequiresGrad()) {
                 Tensor updatesGrad = outGrad.gatherNd(indices, batchDims);
-                IndexSupport.accumulateGradient(updates, updatesGrad);
+                context.accumulate(updates, updatesGrad);
             }
         });
         return out;

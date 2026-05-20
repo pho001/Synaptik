@@ -39,16 +39,16 @@ public final class ScatterAxisAddOp {
                 data.getDataType()
         );
         out.setRequiresGrad(data.getRequiresGrad() || updates.getRequiresGrad());
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !IndexSupport.isFloating(data.getDataType())) {
                 return;
             }
             if (data.getRequiresGrad()) {
-                IndexSupport.accumulateGradient(data, outGrad);
+                context.accumulate(data, outGrad);
             }
             if (updates.getRequiresGrad()) {
-                IndexSupport.accumulateGradient(updates, outGrad.gatherAxis(indices, normalizedAxis));
+                context.accumulate(updates, outGrad.gatherAxis(indices, normalizedAxis));
             }
         });
         return out;

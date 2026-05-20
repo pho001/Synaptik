@@ -35,7 +35,7 @@ public final class TileOp {
                 "tile",
                 input.getDataType()
         );
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -58,7 +58,7 @@ public final class TileOp {
                 }
                 grad = grad.add(outGrad.slice(starts, ends, LayoutSupport.allAxes(rank), LayoutSupport.ones(rank)));
             }
-            LayoutSupport.accumulateGradient(input, grad);
+            context.accumulate(input, grad);
         });
         return out;
     }

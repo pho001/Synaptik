@@ -108,7 +108,7 @@ public class NormalizationExecutionTest {
         Tensor layerGpuGamma = new Tensor(new float[]{1.25f, 0.75f, 1.5f}, new int[]{3}, null, "layerGpuGamma", DataType.FLOAT32);
         Tensor layerGpuBeta = new Tensor(new float[]{0.5f, -0.25f, 0.125f}, new int[]{3}, null, "layerGpuBeta", DataType.FLOAT32);
         Tensor layerGpuOut = layerGpuInput.layerNorm(layerGpuGamma, layerGpuBeta, 1e-5);
-        TensorInternalAccess.setBackend(layerGpuOut, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(layerGpuOut, ComputeBackend.GPU_METAL);
         CompiledGraph.compile(layerGpuOut, CompileConfig.inference())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
@@ -121,7 +121,7 @@ public class NormalizationExecutionTest {
         Tensor rmsGpuInput = new Tensor(new float[]{1f, 2f, 4f, 8f, 16f, 32f}, new int[]{2, 3}, null, "rmsGpuInput", DataType.FLOAT32);
         Tensor rmsGpuGamma = new Tensor(new float[]{1.25f, 0.75f, 1.5f}, new int[]{3}, null, "rmsGpuGamma", DataType.FLOAT32);
         Tensor rmsGpuOut = rmsGpuInput.rmsNorm(rmsGpuGamma, 1e-5);
-        TensorInternalAccess.setBackend(rmsGpuOut, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(rmsGpuOut, ComputeBackend.GPU_CUDA);
         CompiledGraph.compile(rmsGpuOut, CompileConfig.inference())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
@@ -140,7 +140,7 @@ public class NormalizationExecutionTest {
         Tensor multiGpuGamma = new Tensor(new float[]{1f, 1.1f, 0.9f, 1.2f, 0.8f, 1.3f, 0.7f, 1.4f}, new int[]{8, 1}, null, "multiGpuGamma", DataType.FLOAT32);
         Tensor multiGpuBeta = new Tensor(new float[]{0f, 0.1f, -0.1f, 0.2f, -0.2f, 0.3f, -0.3f, 0.4f}, new int[]{8, 1}, null, "multiGpuBeta", DataType.FLOAT32);
         Tensor multiGpuOut = multiGpuInput.layerNorm(multiGpuGamma, multiGpuBeta, 1e-5);
-        TensorInternalAccess.setBackend(multiGpuOut, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(multiGpuOut, ComputeBackend.GPU_METAL);
         CompiledGraph.compile(multiGpuOut, CompileConfig.inference())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 

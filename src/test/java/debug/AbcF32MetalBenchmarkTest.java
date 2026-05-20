@@ -105,7 +105,7 @@ final class AbcF32MetalBenchmarkTest {
 
         Tensor matmul = A.matmul(B.transpose());
         if (profile.candidateName().contains("-gpu-metal")) {
-            TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
         }
         Tensor matmulProjected = matmul.mean(1, true).expand(T7.getShapeUnsafe());
         return T7.add(matmulProjected).mean();

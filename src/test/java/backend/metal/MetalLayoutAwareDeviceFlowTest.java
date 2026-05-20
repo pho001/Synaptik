@@ -253,7 +253,7 @@ class MetalLayoutAwareDeviceFlowTest {
                 "broadcastZeroStrideRelu",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackend(broadcastZeroStrideOutput, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(broadcastZeroStrideOutput, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(broadcastZeroStrideOutput, CompileConfig.inference())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -311,9 +311,9 @@ class MetalLayoutAwareDeviceFlowTest {
         Tensor permute = reshape.permute(1, 0);
 
         if ("metal".equals(labelPrefix)) {
-            TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
-            TensorInternalAccess.setBackend(reshape, ComputeBackend.GPU_METAL);
-            TensorInternalAccess.setBackend(permute, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackendIntent(linear, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackendIntent(reshape, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackendIntent(permute, ComputeBackend.GPU_METAL);
         }
         return permute;
     }
@@ -335,11 +335,11 @@ class MetalLayoutAwareDeviceFlowTest {
         Tensor out = specialLogSoftmax(contiguous, 1);
 
         if ("metal".equals(labelPrefix)) {
-            TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
-            TensorInternalAccess.setBackend(reshape, ComputeBackend.GPU_METAL);
-            TensorInternalAccess.setBackend(permute, ComputeBackend.GPU_METAL);
-            TensorInternalAccess.setBackend(contiguous, ComputeBackend.GPU_METAL);
-            TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackendIntent(linear, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackendIntent(reshape, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackendIntent(permute, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackendIntent(contiguous, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
         }
         return out;
     }
@@ -362,9 +362,9 @@ class MetalLayoutAwareDeviceFlowTest {
         Tensor out = expanded.contiguous();
 
         if ("metal".equals(labelPrefix)) {
-            TensorInternalAccess.setBackend(base, ComputeBackend.GPU_METAL);
-            TensorInternalAccess.setBackend(expanded, ComputeBackend.GPU_METAL);
-            TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackendIntent(base, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackendIntent(expanded, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
         }
         return out;
     }
@@ -414,9 +414,9 @@ class MetalLayoutAwareDeviceFlowTest {
         Tensor loss = permute.sum();
 
         if ("metal".equals(labelPrefix)) {
-            TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
-            TensorInternalAccess.setBackend(reshape, ComputeBackend.GPU_METAL);
-            TensorInternalAccess.setBackend(permute, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackendIntent(linear, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackendIntent(reshape, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackendIntent(permute, ComputeBackend.GPU_METAL);
         }
         return new TrainingGraph(input, weight, loss);
     }

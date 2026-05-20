@@ -2,19 +2,10 @@ package tensor.ops.normalization;
 
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorInternalAccess;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 
 final class NormalizationSupport {
     private NormalizationSupport() {
-    }
-
-    static void accumulateGradient(Tensor input, Tensor gradientDelta) {
-        if (input.getGradient() == null) {
-            TensorInternalAccess.setGradient(input, gradientDelta);
-            return;
-        }
-        TensorInternalAccess.setGradient(input, input.getGradient().add(gradientDelta));
     }
 
     static void validateMatchingTailParameters(Tensor input, Tensor gamma, Tensor beta, String opName) {
@@ -82,7 +73,7 @@ final class NormalizationSupport {
         Tensor varianceView = variance.reshape(broadcastShape);
         Tensor gammaView = gamma.reshape(broadcastShape);
         Tensor betaView = beta.reshape(broadcastShape);
-        Tensor epsilonTensor = Tensor.scalar(epsilon, TensorDataTypeUtil.promote(input.getDataType(), gamma.getDataType()));
+        Tensor epsilonTensor = Tensor.scalar(epsilon, TensorDTypes.promoteFloating(input.getDataType(), gamma.getDataType()));
 
         return input
                 .sub(meanView)

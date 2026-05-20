@@ -4,7 +4,7 @@ import operations.elementwise.where.where;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorBroadcastOps;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
 import tensor.layout.WhereBroadcastPlan;
@@ -52,9 +52,9 @@ public final class WhereOp {
                 plan.outShape(),
                 new where(),
                 "where",
-                TensorDataTypeUtil.promote(ifTrue.getDataType(), ifFalse.getDataType())
+                TensorDTypes.promoteFloating(ifTrue.getDataType(), ifFalse.getDataType())
         );
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -63,12 +63,12 @@ public final class WhereOp {
             if (ifTrue.getRequiresGrad()) {
                 Tensor gradRaw = build(condition, outGrad, Tensor.zerosLike(outGrad));
                 Tensor grad = TensorBroadcastOps.sumToShape(gradRaw, ifTrue.getShape());
-                SelectSupport.accumulateGradient(ifTrue, grad);
+                context.accumulate(ifTrue, grad);
             }
             if (ifFalse.getRequiresGrad()) {
                 Tensor gradRaw = build(condition, Tensor.zerosLike(outGrad), outGrad);
                 Tensor grad = TensorBroadcastOps.sumToShape(gradRaw, ifFalse.getShape());
-                SelectSupport.accumulateGradient(ifFalse, grad);
+                context.accumulate(ifFalse, grad);
             }
         });
         return out;

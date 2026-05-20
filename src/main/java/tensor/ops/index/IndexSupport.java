@@ -2,7 +2,6 @@ package tensor.ops.index;
 
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorInternalAccess;
 
 final class IndexSupport {
     private IndexSupport() {
@@ -183,14 +182,6 @@ final class IndexSupport {
             );
         }
         return normalized;
-    }
-
-    static void accumulateGradient(Tensor input, Tensor gradientDelta) {
-        if (input.getGradient() == null) {
-            TensorInternalAccess.setGradient(input, gradientDelta);
-        } else {
-            TensorInternalAccess.setGradient(input, input.getGradient().add(gradientDelta));
-        }
     }
 
     private static int elementCount(int[] shape) {

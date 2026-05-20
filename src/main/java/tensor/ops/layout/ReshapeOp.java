@@ -40,12 +40,12 @@ public final class ReshapeOp {
                         input.getDataType()
                 )
                 : TensorPrimitiveBuilder.unary(input, newShape, op, "reshape", input.getDataType());
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
             }
-            LayoutSupport.accumulateGradient(input, outGrad.reshape(input.getShape()));
+            context.accumulate(input, outGrad.reshape(input.getShape()));
         });
         return out;
     }

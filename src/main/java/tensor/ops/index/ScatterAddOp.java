@@ -45,16 +45,16 @@ public final class ScatterAddOp {
                 base.getDataType()
         );
         out.setRequiresGrad(base.getRequiresGrad() || src.getRequiresGrad());
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
             }
             if (base.getRequiresGrad()) {
-                IndexSupport.accumulateGradient(base, outGrad);
+                context.accumulate(base, outGrad);
             }
             if (src.getRequiresGrad()) {
-                IndexSupport.accumulateGradient(src, outGrad.gather(indices, normalizedDimension));
+                context.accumulate(src, outGrad.gather(indices, normalizedDimension));
             }
         });
         return out;

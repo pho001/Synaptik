@@ -39,7 +39,7 @@ public class LinearLoweringRuleTest {
         Tensor bias = new Tensor(new double[]{1, 2}, new int[]{2}, null, "bias", DataType.FLOAT64);
 
         Tensor root = input.matmul(weight).add(bias);
-        TensorInternalAccess.setBackend(root, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(root, ComputeBackend.GPU_METAL);
 
         List<Tensor> optimized = new GraphOptimizer()
                 .addRule(new LinearLoweringRule())
@@ -50,6 +50,6 @@ public class LinearLoweringRuleTest {
                 .findFirst()
                 .orElse(null);
         assertNotNull(optimizedRoot);
-        assertEquals(ComputeBackend.GPU_METAL, optimizedRoot.resolveBackend());
+        assertEquals(ComputeBackend.GPU_METAL, TensorInternalAccess.backendIntent(optimizedRoot));
     }
 }

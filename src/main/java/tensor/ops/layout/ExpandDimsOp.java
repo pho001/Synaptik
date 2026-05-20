@@ -41,12 +41,12 @@ public final class ExpandDimsOp {
                 "expandDims",
                 input.getDataType()
         );
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
             }
-            LayoutSupport.accumulateGradient(input, outGrad.squeeze(normalizedAxis));
+            context.accumulate(input, outGrad.squeeze(normalizedAxis));
         });
         return out;
     }

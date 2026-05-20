@@ -36,7 +36,7 @@ public final class SliceOp {
                 "slice",
                 input.getDataType()
         );
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -62,7 +62,7 @@ public final class SliceOp {
                         input.getDataType()
                 );
             }
-            LayoutSupport.accumulateGradient(input, grad);
+            context.accumulate(input, grad);
         });
         return out;
     }

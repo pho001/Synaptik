@@ -35,13 +35,13 @@ public final class TakeAlongAxisOp {
                 input.getDataType()
         );
         out.setRequiresGrad(input.getRequiresGrad());
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
             }
             Tensor grad = Tensor.zerosLike(input).scatterElements(indices, outGrad, normalizedDimension, ScatterReduction.ADD);
-            IndexSupport.accumulateGradient(input, grad);
+            context.accumulate(input, grad);
         });
         return out;
     }

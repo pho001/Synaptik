@@ -5,7 +5,7 @@ import operations.elementwise.binary.powTensor;
 import tensor.layout.BroadcastPlan;
 import tensor.Tensor;
 import tensor.TensorBroadcastOps;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
 
@@ -27,8 +27,8 @@ public final class PowTensorOp {
         BroadcastPlan plan = TensorBroadcastOps.planBinary(first, second);
         Operation op = new powTensor(plan);
         Tensor out = TensorPrimitiveBuilder.binary(first, second, plan.outShape(), op, "pow",
-                TensorDataTypeUtil.binary(first, second), null);
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+                TensorDTypes.promoteFloating(first.getDataType(), second.getDataType()), null);
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -36,11 +36,11 @@ public final class PowTensorOp {
             if (first.getRequiresGrad()) {
                 Tensor exponentMinusOne = second.sub(Tensor.scalar(1.0d, second.getDataType()));
                 Tensor gradRaw = outGrad.mul(second).mul(first.pow(exponentMinusOne));
-                BinarySupport.accumulateGradient(first, TensorBroadcastOps.sumToShape(gradRaw, first.getShape()));
+                context.accumulate(first, TensorBroadcastOps.sumToShape(gradRaw, first.getShape()));
             }
             if (second.getRequiresGrad()) {
                 Tensor gradRaw = outGrad.mul(out).mul(first.log());
-                BinarySupport.accumulateGradient(second, TensorBroadcastOps.sumToShape(gradRaw, second.getShape()));
+                context.accumulate(second, TensorBroadcastOps.sumToShape(gradRaw, second.getShape()));
             }
         });
         return out;

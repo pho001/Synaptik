@@ -3,7 +3,7 @@ package tensor.ops.loss;
 import operations.loss.crossEntropyLoss;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 import tensor.TensorInternalAccess;
 import tensor.layout.TensorLayoutTransform;
 import tensor.internal.TensorPrimitiveBuilder;
@@ -45,7 +45,7 @@ public final class DenseCrossEntropyLossOp {
             }
         }
         int normalizedClassDimension = TensorLayoutTransform.normalizeAxis(classDimension, logitsShape.length);
-        DataType outputType = TensorDataTypeUtil.binary(logits, targets);
+        DataType outputType = TensorDTypes.promoteFloating(logits.getDataType(), targets.getDataType());
         Tensor out = TensorPrimitiveBuilder.nary(
                 new int[]{1},
                 LossSupport.asInputs(logits, targets),
@@ -53,7 +53,7 @@ public final class DenseCrossEntropyLossOp {
                 "crossEntropyLoss",
                 outputType
         );
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -62,11 +62,11 @@ public final class DenseCrossEntropyLossOp {
             double scale = outGrad.scalarAsDouble() / LossSupport.sampleCount(logitsShape, normalizedClassDimension);
             if (logits.getRequiresGrad()) {
                 Tensor grad = logits.softmax(normalizedClassDimension).sub(targets).mul(scale);
-                LossSupport.accumulateGradient(logits, grad);
+                context.accumulate(logits, grad);
             }
             if (targets.getRequiresGrad()) {
                 Tensor grad = logits.logSoftmax(normalizedClassDimension).mul(-scale);
-                LossSupport.accumulateGradient(targets, grad);
+                context.accumulate(targets, grad);
             }
         });
         return out;

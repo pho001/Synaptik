@@ -2,7 +2,6 @@ package tensor.ops.pool;
 
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorInternalAccess;
 import tensor.options.Pool2dOptions;
 
 final class PoolSupport {
@@ -56,14 +55,6 @@ final class PoolSupport {
                         "pool2d configuration creates an all-padding window on " + axisName + " axis at output index " + outIndex + "."
                 );
             }
-        }
-    }
-
-    static void accumulateGradient(Tensor input, Tensor gradientDelta) {
-        if (input.getGradient() == null) {
-            TensorInternalAccess.setGradient(input, gradientDelta);
-        } else {
-            TensorInternalAccess.setGradient(input, input.getGradient().add(gradientDelta));
         }
     }
 }

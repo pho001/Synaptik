@@ -2,7 +2,6 @@ package tensor.ops.linalg;
 
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorInternalAccess;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -58,14 +57,6 @@ final class LinalgSupport {
         axes[rank - 1] = axes[rank - 2];
         axes[rank - 2] = tmp;
         return tensor.permute(axes);
-    }
-
-    static void accumulateGradient(Tensor input, Tensor gradientDelta) {
-        if (input.getGradient() == null) {
-            TensorInternalAccess.setGradient(input, gradientDelta);
-        } else {
-            TensorInternalAccess.setGradient(input, input.getGradient().add(gradientDelta));
-        }
     }
 
     static Tensor sumToShape(Tensor gradOut, int[] targetShape) {

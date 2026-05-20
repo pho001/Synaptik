@@ -3,6 +3,7 @@ package tensor.ops.linalg;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorMetadata;
+import tensor.autograd.GradientContext;
 
 final class AttentionSupport {
     private AttentionSupport() {
@@ -15,7 +16,8 @@ final class AttentionSupport {
             Tensor value,
             Tensor effectiveMask,
             Tensor weights,
-            AttentionSpec spec
+            AttentionSpec spec,
+            GradientContext context
     ) {
         Tensor outGrad = out.getGradient();
         if (outGrad == null) {
@@ -26,7 +28,7 @@ final class AttentionSupport {
 
         if (value.getRequiresGrad()) {
             Tensor gradRaw = LinalgSupport.transposeLastTwoAxes(weights).matmul(outGrad);
-            LinalgSupport.accumulateGradient(value, LinalgSupport.sumToShape(gradRaw, value.getShapeUnsafe()));
+            context.accumulate(value, LinalgSupport.sumToShape(gradRaw, value.getShapeUnsafe()));
         }
 
         if (!query.getRequiresGrad() && !key.getRequiresGrad()) {
@@ -45,11 +47,11 @@ final class AttentionSupport {
 
         if (query.getRequiresGrad()) {
             Tensor gradRaw = dScores.matmul(key);
-            LinalgSupport.accumulateGradient(query, LinalgSupport.sumToShape(gradRaw, query.getShapeUnsafe()));
+            context.accumulate(query, LinalgSupport.sumToShape(gradRaw, query.getShapeUnsafe()));
         }
         if (key.getRequiresGrad()) {
             Tensor gradRaw = LinalgSupport.transposeLastTwoAxes(dScores).matmul(query);
-            LinalgSupport.accumulateGradient(key, LinalgSupport.sumToShape(gradRaw, key.getShapeUnsafe()));
+            context.accumulate(key, LinalgSupport.sumToShape(gradRaw, key.getShapeUnsafe()));
         }
     }
 

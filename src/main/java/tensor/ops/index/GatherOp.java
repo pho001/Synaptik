@@ -36,13 +36,13 @@ public final class GatherOp {
                 input.getDataType()
         );
         out.setRequiresGrad(input.getRequiresGrad());
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
             }
             Tensor grad = Tensor.zerosLike(input).scatterAdd(indices, outGrad, normalizedDimension);
-            IndexSupport.accumulateGradient(input, grad);
+            context.accumulate(input, grad);
         });
         return out;
     }
@@ -65,13 +65,13 @@ public final class GatherOp {
                 input.getDataType()
         );
         out.setRequiresGrad(input.getRequiresGrad() && IndexSupport.isFloating(input.getDataType()));
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad() || !IndexSupport.isFloating(input.getDataType())) {
                 return;
             }
             Tensor grad = ScatterAxisAddOp.build(Tensor.zerosLike(input), indices, outGrad, normalizedAxis);
-            IndexSupport.accumulateGradient(input, grad);
+            context.accumulate(input, grad);
         });
         return out;
     }

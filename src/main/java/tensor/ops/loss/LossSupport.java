@@ -2,7 +2,6 @@ package tensor.ops.loss;
 
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorInternalAccess;
 import tensor.loss.LossReduction;
 
 import java.util.ArrayList;
@@ -30,14 +29,6 @@ final class LossSupport {
             }
         }
         return Math.max(1, count);
-    }
-
-    static void accumulateGradient(Tensor input, Tensor gradientDelta) {
-        if (input.getGradient() == null) {
-            TensorInternalAccess.setGradient(input, gradientDelta);
-        } else {
-            TensorInternalAccess.setGradient(input, input.getGradient().add(gradientDelta));
-        }
     }
 
     static Tensor applyLossReduction(Tensor perSampleLoss, Tensor reductionWeights, LossReduction reduction) {

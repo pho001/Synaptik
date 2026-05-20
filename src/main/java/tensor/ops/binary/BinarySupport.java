@@ -1,7 +1,6 @@
 package tensor.ops.binary;
 
 import tensor.Tensor;
-import tensor.TensorInternalAccess;
 
 final class BinarySupport {
     private BinarySupport() {
@@ -19,14 +18,6 @@ final class BinarySupport {
                 && !tensor.getRequiresGrad()
                 && tensor.getFlatDataSize() == 1
                 && Double.compare(tensor.scalarAsDouble(), 0.0d) != 0;
-    }
-
-    static void accumulateGradient(Tensor input, Tensor gradientDelta) {
-        if (input.getGradient() == null) {
-            TensorInternalAccess.setGradient(input, gradientDelta);
-        } else {
-            TensorInternalAccess.setGradient(input, input.getGradient().add(gradientDelta));
-        }
     }
 
     static Tensor minMaxElementwiseGrad(Tensor first, Tensor second, Tensor outGrad, boolean isMax, boolean forFirst) {

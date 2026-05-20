@@ -1,12 +1,11 @@
 package tensor.ops.binary;
 
-import graph.compile.intent.BackendIntentPropagator;
 import operations.Operation;
 import operations.elementwise.binary.max;
 import tensor.layout.BroadcastPlan;
 import tensor.Tensor;
 import tensor.TensorBroadcastOps;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
 
@@ -28,21 +27,19 @@ public final class MaxOp {
         BroadcastPlan plan = TensorBroadcastOps.planBinary(first, second);
         Operation op = new max(plan);
         Tensor out = TensorPrimitiveBuilder.binary(first, second, plan.outShape(), op, "max",
-                TensorDataTypeUtil.binary(first, second), null);
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+                TensorDTypes.promoteFloating(first.getDataType(), second.getDataType()), null);
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
             }
             if (first.getRequiresGrad()) {
                 Tensor gradRaw = BinarySupport.minMaxElementwiseGrad(first, second, outGrad, true, true);
-                BackendIntentPropagator.preserve(gradRaw, out);
-                BinarySupport.accumulateGradient(first, TensorBroadcastOps.sumToShape(gradRaw, first.getShape()));
+                context.accumulate(first, TensorBroadcastOps.sumToShape(gradRaw, first.getShape()));
             }
             if (second.getRequiresGrad()) {
                 Tensor gradRaw = BinarySupport.minMaxElementwiseGrad(first, second, outGrad, true, false);
-                BackendIntentPropagator.preserve(gradRaw, out);
-                BinarySupport.accumulateGradient(second, TensorBroadcastOps.sumToShape(gradRaw, second.getShape()));
+                context.accumulate(second, TensorBroadcastOps.sumToShape(gradRaw, second.getShape()));
             }
         });
         return out;

@@ -4,6 +4,7 @@ import backend.ComputeBackend;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,7 +57,7 @@ public final class GraphStructureContract {
                     parentIds,
                     tensor.getShapeUnsafe(),
                     tensor.getDataType(),
-                    tensor.resolveBackend()
+                    TensorInternalAccess.backendIntent(tensor)
             ));
         }
         return new GraphStructureContract(nodes, true);
@@ -99,7 +100,7 @@ public final class GraphStructureContract {
             if (actual.getDataType() != expected.dataType()) {
                 throw stale("dtype changed at index " + i);
             }
-            if (actual.resolveBackend() != expected.backend()) {
+            if (TensorInternalAccess.backendIntent(actual) != expected.backend()) {
                 throw stale("backend intent changed at index " + i);
             }
             List<Tensor> parents = actual.getPrevTensors();

@@ -26,7 +26,7 @@ Synaptik is a layered Java tensor runtime built around a compiled graph lifecycl
 
 ## System Overview
 
-The primary input is a graph rooted at `tensor.Tensor`. Each graph node carries shape, dtype, storage/layout metadata, an optional `operations.Operation` descriptor, predecessor edges, and backward construction logic. The primary output is either published tensor data after forward execution or detached gradient tensors after forward/backward execution. The architecture is intentionally staged:
+The primary input is a graph rooted at `tensor.Tensor`. Public tensors carry logical shape, dtype, storage/layout metadata, and gradient publication state; internal `TensorNode` state carries optional `operations.Operation` descriptors, predecessor edges, typed gradient rules, and compile/optimizer backend intent. The primary output is either published tensor data after forward execution or detached gradient tensors after forward/backward execution. The architecture is intentionally staged:
 
 1. `tensor` builds semantic graph nodes.
 2. `operations` describes primitive semantics.
@@ -64,7 +64,7 @@ The most important architectural rule is that each lifecycle artifact owns diffe
 
 | Artifact | Main files | Owns | Must not own |
 |---|---|---|---|
-| Semantic tensor graph | `src/main/java/tensor/Tensor.java`, `src/main/java/tensor/ops/*` | Shape, dtype, storage, operation descriptor, predecessor edges, public API, backward builders | CPU dispatch hints, compiled node ids, runtime workspaces |
+| Semantic tensor graph | `src/main/java/tensor/Tensor.java`, `src/main/java/tensor/TensorNode.java`, `src/main/java/tensor/TensorOps.java`, `src/main/java/tensor/ops/*` | Public logical tensor API, shape, dtype, storage, internal graph-node facts, typed gradient rules | CPU dispatch hints, compiled node ids, runtime workspaces |
 | Primitive descriptor | `src/main/java/operations/Operation.java`, `src/main/java/operations/**` | Immutable operation identity and semantic parameters | Kernel code, mutable runtime state, compile/runtime policy |
 | Compile artifact | `src/main/java/graph/CompiledGraph.java`, `src/main/java/graph/compile/CompileArtifacts.java` | Compiled node snapshots, forward/backward boundary, optimizer state, memory plan, partition plans | Per-run execution state |
 | Prepared artifact | `src/main/java/graph/execution/PreparedExecution.java`, `src/main/java/graph/execution/plan/CompiledNodeExecutionMetadata.java` | Ordered execution steps, prepared backend metadata, prepared fused/accelerator executables | Graph rewriting |
@@ -72,7 +72,7 @@ The most important architectural rule is that each lifecycle artifact owns diffe
 
 ## Graph Construction
 
-Public graph construction starts in `src/main/java/tensor/Tensor.java` and delegates family-specific work into `src/main/java/tensor/ops/*`. For example, binary operations are implemented by concrete classes such as `tensor.ops.binary.AddOp`, reductions by classes such as `tensor.ops.reduction.SumOp`, layout by classes such as `tensor.ops.layout.ReshapeOp`, and linalg through `tensor.ops.linalg.*`.
+Public graph construction starts in `src/main/java/tensor/Tensor.java`, whose fluent methods delegate through the static `TensorOps` facade. `TensorOps` delegates family-specific work into `src/main/java/tensor/ops/*`. For example, binary operations are implemented by concrete classes such as `tensor.ops.binary.AddOp`, reductions by classes such as `tensor.ops.reduction.SumOp`, layout by classes such as `tensor.ops.layout.ReshapeOp`, and linalg through `tensor.ops.linalg.*`.
 
 The public convenience execution methods are centralized in `src/main/java/tensor/internal/TensorExecutionSupport.java`:
 

@@ -21,5 +21,38 @@ public enum DataType {
     /** 64-bit signed integer values, mainly for ONNX runtime index tensors. */
     INT64,
     /** Boolean mask values backed by normalized {@code byte} values 0 or 1. */
-    BOOL
+    BOOL;
+
+    /**
+     * Returns whether this dtype stores floating-point numeric values.
+     *
+     * @return true for FLOAT64, FLOAT32, and BFLOAT16
+     */
+    public boolean isFloating() {
+        return switch (this) {
+            case FLOAT64, FLOAT32, BFLOAT16 -> true;
+            case INT32, INT64, BOOL -> false;
+        };
+    }
+
+    /**
+     * Returns whether this dtype stores signed integer values.
+     *
+     * @return true for INT32 and INT64
+     */
+    public boolean isIntegral() {
+        return switch (this) {
+            case INT32, INT64 -> true;
+            case FLOAT64, FLOAT32, BFLOAT16, BOOL -> false;
+        };
+    }
+
+    /**
+     * Returns whether this dtype stores boolean mask values.
+     *
+     * @return true for BOOL
+     */
+    public boolean isBoolean() {
+        return this == BOOL;
+    }
 }

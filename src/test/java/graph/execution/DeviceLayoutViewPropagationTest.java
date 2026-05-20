@@ -228,7 +228,7 @@ class DeviceLayoutViewPropagationTest {
             boolean includeSourceBinding,
             RuntimeConfig runtimeConfig
     ) {
-        TensorInternalAccess.setBackend(target, backend);
+        TensorInternalAccess.setBackendIntent(target, backend);
         List<CompiledNode> nodes = CompiledNode.snapshot(List.of(source, target));
         CompiledNode sourceNode = nodes.getFirst();
         CompiledNode targetNode = nodes.get(1);

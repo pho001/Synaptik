@@ -3,6 +3,7 @@ import tensor.storage.TensorStorage;
 
 import backend.ComputeBackend;
 import operations.Operation;
+import tensor.autograd.GradientRule;
 
 import java.util.List;
 
@@ -27,12 +28,12 @@ public final class TensorInternalAccess {
         tensor.setBackwardInternal(backward);
     }
 
-    public static void setBackwardFunction(Tensor tensor, Runnable backwardFunction) {
-        tensor.setBackwardFunctionInternal(backwardFunction);
+    public static void setGradientRule(Tensor tensor, GradientRule gradientRule) {
+        tensor.setGradientRuleInternal(gradientRule);
     }
 
-    public static Runnable backwardFunction(Tensor tensor) {
-        return tensor.backwardFunctionInternal();
+    public static GradientRule gradientRule(Tensor tensor) {
+        return tensor.gradientRuleInternal();
     }
 
     public static void setOperation(Tensor tensor, Operation operation) {
@@ -43,8 +44,20 @@ public final class TensorInternalAccess {
         tensor.setPrevTensorsInternal(prevTensors);
     }
 
-    public static void setBackend(Tensor tensor, ComputeBackend backend) {
-        tensor.setBackendInternal(backend);
+    public static void setBackendIntent(Tensor tensor, ComputeBackend backend) {
+        tensor.setBackendIntentInternal(backend);
+    }
+
+    public static ComputeBackend backendIntent(Tensor tensor) {
+        return tensor.backendIntentInternal();
+    }
+
+    public static Operation operation(Tensor tensor) {
+        return tensor.getOperation();
+    }
+
+    public static List<Tensor> inputs(Tensor tensor) {
+        return tensor.prevTensorsRef();
     }
 
     public static void buildBackwardGraph(Tensor tensor) {

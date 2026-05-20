@@ -1,6 +1,5 @@
 package tensor.ops.loss;
 
-import graph.compile.intent.BackendIntentPropagator;
 import operations.loss.crossEntropyLossIndices;
 import tensor.DataType;
 import tensor.Tensor;
@@ -129,7 +128,7 @@ public final class CrossEntropyLossFromIndicesOp {
                 outputType
         );
         out.setRequiresGrad(logits.getRequiresGrad());
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !logits.getRequiresGrad()) {
                 return;
@@ -137,12 +136,10 @@ public final class CrossEntropyLossFromIndicesOp {
 
             Tensor safeIndices = ignoreIndexOrNull == null ? targetIndices : LossSupport.buildSafeIndices(targetIndices, ignoreIndexOrNull);
             Tensor sampleScale = reductionScalePerSample(outGrad, logits, targetIndices, reducedShape, normalizedClassDimension, reduction, ignoreIndexOrNull);
-            BackendIntentPropagator.preserve(sampleScale, out);
             Tensor grad = logits.softmax(normalizedClassDimension)
                     .mul(sampleScale.expandDims(normalizedClassDimension))
                     .sub(Tensor.zerosLike(logits).scatterAdd(safeIndices, sampleScale, normalizedClassDimension));
-            BackendIntentPropagator.preserve(grad, out);
-            LossSupport.accumulateGradient(logits, grad);
+            context.accumulate(logits, grad);
         });
         return out;
     }

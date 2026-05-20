@@ -28,12 +28,12 @@ public final class ExpandOp {
                 "expand",
                 input.getDataType()
         );
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
             }
-            LayoutSupport.accumulateGradient(input, TensorBroadcastOps.sumToShape(outGrad, input.getShape()));
+            context.accumulate(input, TensorBroadcastOps.sumToShape(outGrad, input.getShape()));
         });
         return out;
     }

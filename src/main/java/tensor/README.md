@@ -18,15 +18,17 @@ Compilation, runtime preparation, and execution live in:
 
 The intended layering is:
 
-1. `Tensor` / `TensorOps`
-2. `tensor.ops.*`
-3. `operations.*`
-4. `graph/*`
-5. `backend/*`
+1. `Tensor`
+2. `TensorOps`
+3. `tensor.ops.*`
+4. `operations.*`
+5. `graph/*`
+6. `backend/*`
 
 Meaning:
 
-- `Tensor` is the ergonomic public anchor
+- `Tensor` is the ergonomic public anchor and delegates fluent operations through `TensorOps`
+- `TensorOps` is the thin static facade over operation builders
 - `tensor.ops.*` owns family-specific validation and graph building
 - `operations.*` owns immutable primitive descriptors
 - `graph/*` owns compile-time transformation and preparation
@@ -45,8 +47,8 @@ Ordinary modeling code usually starts there.
 
 The public surface is implemented by operation-specific builders under
 `tensor.ops.*`. There are no `Tensor<Family>Ops` compatibility facades in this
-layer. `Tensor` and `TensorOps` call the concrete operation classes directly,
-for example:
+layer. `TensorOps` calls the concrete operation classes directly, and `Tensor`
+fluent methods delegate through `TensorOps`, for example:
 
 - [ops/binary/AddOp.java](../tensor/ops/binary/AddOp.java)
 - [ops/binary/MulOp.java](../tensor/ops/binary/MulOp.java)
@@ -105,20 +107,22 @@ all at once.
 - publication target for computed forward outputs and gradients
 - thin convenience gateway into compile/prepare/compute
 
-Today it owns:
+Today `Tensor` owns public logical tensor state and stores graph-node facts in
+an internal `TensorNode`:
 
 - dtype
 - shape
 - strides
 - storage offset
 - backing storage
-- predecessor edges
-- operation descriptor
 - gradient reference
-- backward lambda
-- optional forced backend override
+- `TensorNode` predecessor edges
+- `TensorNode` operation descriptor
+- `TensorNode` typed `GradientRule`
+- `TensorNode` internal backend intent for compile/optimizer use
 
-That is acceptable as long as new semantics are pushed into `tensor.ops.*` instead of being added inline everywhere inside `Tensor`.
+New semantics should be pushed into `tensor.ops.*` and exposed through
+`TensorOps`; `Tensor` should stay a logical public facade.
 
 ## Public Semantic Option Types
 

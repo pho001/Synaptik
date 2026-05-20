@@ -48,7 +48,7 @@ public final class ScatterElementsOp {
                 data.getDataType()
         );
         out.setRequiresGrad(differentiable);
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !IndexSupport.isFloating(data.getDataType())) {
                 return;
@@ -59,11 +59,11 @@ public final class ScatterElementsOp {
                     case ADD -> outGrad;
                     case MUL, MAX, MIN -> throw new UnsupportedOperationException("scatterElements backward supports only NONE and ADD reductions.");
                 };
-                IndexSupport.accumulateGradient(data, dataGrad);
+                context.accumulate(data, dataGrad);
             }
             if (updates.getRequiresGrad()) {
                 Tensor updatesGrad = outGrad.takeAlongAxis(indices, normalizedAxis);
-                IndexSupport.accumulateGradient(updates, updatesGrad);
+                context.accumulate(updates, updatesGrad);
             }
         });
         return out;

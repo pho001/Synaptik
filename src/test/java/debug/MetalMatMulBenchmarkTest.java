@@ -133,7 +133,7 @@ final class MetalMatMulBenchmarkTest {
                     Tensor b = new Tensor(sequence(k * n), new int[]{k, n}, null, "b", DataType.FLOAT32);
                     Tensor out = a.matmul(b);
                     if (isGpuProfile(environment)) {
-                        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+                        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
                     }
                     return out;
                 }
@@ -152,9 +152,9 @@ final class MetalMatMulBenchmarkTest {
                     Tensor add = matmul.add(bias);
                     Tensor out = add.relu();
                     if (isGpuProfile(environment)) {
-                        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-                        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-                        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+                        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+                        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+                        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
                     }
                     return out;
                 }
@@ -173,9 +173,9 @@ final class MetalMatMulBenchmarkTest {
                     Tensor add = matmul.add(bias);
                     Tensor out = add.tanh();
                     if (isGpuProfile(environment)) {
-                        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-                        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-                        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+                        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+                        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+                        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
                     }
                     return out;
                 }

@@ -3,7 +3,7 @@ package tensor.ops.unary;
 import operations.Operation;
 import operations.elementwise.unary.abs;
 import tensor.Tensor;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
 
@@ -18,8 +18,8 @@ public final class AbsOp {
         UnarySupport.requireNumeric(input, "abs");
 
         Operation op = new abs();
-        Tensor out = TensorPrimitiveBuilder.unary(input, op, "abs", TensorDataTypeUtil.unary(input));
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        Tensor out = TensorPrimitiveBuilder.unary(input, op, "abs", TensorDTypes.requireFloating(input.getDataType()));
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -35,7 +35,7 @@ public final class AbsOp {
                             Tensor.zerosLike(input)
                     )
             );
-            UnarySupport.accumulateGradient(input, outGrad.mul(sign));
+            context.accumulate(input, outGrad.mul(sign));
         });
         return out;
     }

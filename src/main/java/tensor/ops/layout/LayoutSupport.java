@@ -1,7 +1,6 @@
 package tensor.ops.layout;
 
 import tensor.Tensor;
-import tensor.TensorInternalAccess;
 
 final class LayoutSupport {
     private LayoutSupport() {
@@ -31,14 +30,6 @@ final class LayoutSupport {
             return 1;
         }
         return strides[axis] * shape[axis];
-    }
-
-    static void accumulateGradient(Tensor input, Tensor gradientDelta) {
-        if (input.getGradient() == null) {
-            TensorInternalAccess.setGradient(input, gradientDelta);
-        } else {
-            TensorInternalAccess.setGradient(input, input.getGradient().add(gradientDelta));
-        }
     }
 
     static SliceSpec normalizeSlice(int[] inputShape, int[] starts, int[] ends, int[] axes, int[] steps) {

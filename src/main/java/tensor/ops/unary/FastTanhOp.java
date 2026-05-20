@@ -3,7 +3,7 @@ package tensor.ops.unary;
 import operations.Operation;
 import operations.elementwise.unary.fastTanh;
 import tensor.Tensor;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
 
@@ -16,13 +16,13 @@ public final class FastTanhOp {
 
     public static Tensor build(Tensor input) {
         Operation op = new fastTanh();
-        Tensor out = TensorPrimitiveBuilder.unary(input, op, "fastTanh", TensorDataTypeUtil.unary(input));
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        Tensor out = TensorPrimitiveBuilder.unary(input, op, "fastTanh", TensorDTypes.requireFloating(input.getDataType()));
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
             }
-            UnarySupport.accumulateGradient(input, outGrad.mul(Tensor.onesLike(out).sub(out.mul(out))));
+            context.accumulate(input, outGrad.mul(Tensor.onesLike(out).sub(out.mul(out))));
         });
         return out;
     }

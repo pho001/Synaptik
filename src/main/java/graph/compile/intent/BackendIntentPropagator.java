@@ -29,7 +29,7 @@ public final class BackendIntentPropagator {
         if (target == null || source == null) {
             return;
         }
-        preserve(target, source.resolveBackend());
+        preserve(target, TensorInternalAccess.backendIntent(source));
     }
 
     /**
@@ -42,7 +42,7 @@ public final class BackendIntentPropagator {
         if (target == null || !isAcceleratorBackend(backend)) {
             return;
         }
-        TensorInternalAccess.setBackend(target, backend);
+        TensorInternalAccess.setBackendIntent(target, backend);
     }
 
     /**
@@ -56,9 +56,11 @@ public final class BackendIntentPropagator {
         }
         for (int i = graph.size() - 1; i >= 0; i--) {
             Tensor tensor = graph.get(i);
-            ComputeBackend backend = tensor == null ? null : tensor.resolveBackend();
+            ComputeBackend backend = tensor == null ? null : TensorInternalAccess.backendIntent(tensor);
             if (isAcceleratorBackend(backend)) {
-                propagateBackwardIntent(tensor, backend, java.util.Collections.newSetFromMap(new IdentityHashMap<>()));
+                Set<Tensor> seen = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+                propagateBackwardIntent(tensor, backend, seen);
+                propagateBackwardIntent(tensor.getGradient(), backend, seen);
             }
         }
     }
@@ -67,8 +69,8 @@ public final class BackendIntentPropagator {
         if (tensor == null || !isAcceleratorBackend(backend) || !seen.add(tensor)) {
             return;
         }
-        if (tensor.resolveBackend() == ComputeBackend.CPU) {
-            TensorInternalAccess.setBackend(tensor, backend);
+        if (TensorInternalAccess.backendIntent(tensor) == ComputeBackend.CPU) {
+            TensorInternalAccess.setBackendIntent(tensor, backend);
         }
 
         Operation op = tensor.getOperation();
@@ -112,8 +114,8 @@ public final class BackendIntentPropagator {
         if (op == null || !isLayoutSupportProducer(op.opType())) {
             return;
         }
-        if (tensor.resolveBackend() == ComputeBackend.CPU) {
-            TensorInternalAccess.setBackend(tensor, backend);
+        if (TensorInternalAccess.backendIntent(tensor) == ComputeBackend.CPU) {
+            TensorInternalAccess.setBackendIntent(tensor, backend);
         }
         List<Tensor> inputs = tensor.getPrevTensors();
         if (inputs == null) {

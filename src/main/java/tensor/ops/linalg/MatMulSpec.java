@@ -3,7 +3,7 @@ package tensor.ops.linalg;
 import operations.linalg.matmul;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 
 record MatMulSpec(
         int[] outShape,
@@ -28,7 +28,7 @@ record MatMulSpec(
         int[] outShape = java.util.Arrays.copyOf(outBatch, outBatch.length + 2);
         outShape[outBatch.length] = m;
         outShape[outBatch.length + 1] = n;
-        return new MatMulSpec(outShape, TensorDataTypeUtil.binary(first, second));
+        return new MatMulSpec(outShape, TensorDTypes.promoteFloating(first.getDataType(), second.getDataType()));
     }
 
     matmul operation() {

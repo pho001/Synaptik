@@ -2,7 +2,7 @@ package tensor.ops.normalization;
 
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
 
@@ -37,7 +37,7 @@ public final class LayerNormOp {
         NormalizationSupport.validateMatchingTailParameters(input, gamma, beta, "layerNorm");
 
         int normalizedRank = gamma.getShapeUnsafe().length;
-        DataType outputType = TensorDataTypeUtil.promote(TensorDataTypeUtil.promote(input.getDataType(), gamma.getDataType()), beta.getDataType());
+        DataType outputType = TensorDTypes.promoteFloating(TensorDTypes.promoteFloating(input.getDataType(), gamma.getDataType()), beta.getDataType());
         Tensor out = TensorPrimitiveBuilder.ternary(
                 input,
                 gamma,
@@ -47,7 +47,7 @@ public final class LayerNormOp {
                 "layerNorm",
                 outputType
         );
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -70,18 +70,18 @@ public final class LayerNormOp {
                         .sub(xHat.mul(sumDxHatXHat))
                         .mul(invStd)
                         .mul(1.0d / normalizedSize);
-                NormalizationSupport.accumulateGradient(input, inputGrad);
+                context.accumulate(input, inputGrad);
             }
 
             if (gamma.getRequiresGrad()) {
                 Tensor gammaGrad = outGrad.mul(xHat);
                 gammaGrad = NormalizationSupport.reduceLeadingKeepDims(gammaGrad, normalizedRank).reshape(gamma.getShape());
-                NormalizationSupport.accumulateGradient(gamma, gammaGrad);
+                context.accumulate(gamma, gammaGrad);
             }
 
             if (beta.getRequiresGrad()) {
                 Tensor betaGrad = NormalizationSupport.reduceLeadingKeepDims(outGrad, normalizedRank).reshape(beta.getShape());
-                NormalizationSupport.accumulateGradient(beta, betaGrad);
+                context.accumulate(beta, betaGrad);
             }
         });
         return out;

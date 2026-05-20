@@ -1,6 +1,5 @@
 package tensor.ops.linalg;
 
-import graph.compile.intent.BackendIntentPropagator;
 import operations.Operation;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
@@ -30,7 +29,7 @@ public final class LinearOp {
         LinearSpec spec = LinearSpec.resolve(input, weight, null);
         Operation op = spec.operation();
         Tensor out = TensorPrimitiveBuilder.binary(input, weight, spec.outShape(), op, "linear", spec.outputType());
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -38,13 +37,11 @@ public final class LinearOp {
 
             if (input.getRequiresGrad()) {
                 Tensor gradInput = outGrad.matmul(LinalgSupport.transposeLastTwoAxes(weight));
-                BackendIntentPropagator.preserve(gradInput, out);
-                LinalgSupport.accumulateGradient(input, gradInput);
+                context.accumulate(input, gradInput);
             }
             if (weight.getRequiresGrad()) {
                 Tensor gradWeight = LinalgSupport.transposeLastTwoAxes(input).matmul(outGrad);
-                BackendIntentPropagator.preserve(gradWeight, out);
-                LinalgSupport.accumulateGradient(weight, LinalgSupport.sumToShape(gradWeight, weight.getShapeUnsafe()));
+                context.accumulate(weight, LinalgSupport.sumToShape(gradWeight, weight.getShapeUnsafe()));
             }
         });
         return out;
@@ -66,7 +63,7 @@ public final class LinearOp {
         LinearSpec spec = LinearSpec.resolve(input, weight, bias);
         Operation op = spec.operation();
         Tensor out = TensorPrimitiveBuilder.ternary(input, weight, bias, spec.outShape(), op, "linear", spec.outputType());
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -74,16 +71,14 @@ public final class LinearOp {
 
             if (input.getRequiresGrad()) {
                 Tensor gradInput = outGrad.matmul(LinalgSupport.transposeLastTwoAxes(weight));
-                BackendIntentPropagator.preserve(gradInput, out);
-                LinalgSupport.accumulateGradient(input, gradInput);
+                context.accumulate(input, gradInput);
             }
             if (weight.getRequiresGrad()) {
                 Tensor gradWeight = LinalgSupport.transposeLastTwoAxes(input).matmul(outGrad);
-                BackendIntentPropagator.preserve(gradWeight, out);
-                LinalgSupport.accumulateGradient(weight, LinalgSupport.sumToShape(gradWeight, weight.getShapeUnsafe()));
+                context.accumulate(weight, LinalgSupport.sumToShape(gradWeight, weight.getShapeUnsafe()));
             }
             if (bias.getRequiresGrad()) {
-                LinalgSupport.accumulateGradient(bias, LinalgSupport.sumToShape(outGrad, bias.getShapeUnsafe()));
+                context.accumulate(bias, LinalgSupport.sumToShape(outGrad, bias.getShapeUnsafe()));
             }
         });
         return out;

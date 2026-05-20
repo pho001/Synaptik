@@ -30,7 +30,7 @@ public final class PadOp {
                 "pad",
                 input.getDataType()
         );
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -43,7 +43,7 @@ public final class PadOp {
             for (int d = 0; d < rank; d++) {
                 ends[d] = starts[d] + inputShape[d];
             }
-            LayoutSupport.accumulateGradient(input, outGrad.slice(starts, ends, axes, steps));
+            context.accumulate(input, outGrad.slice(starts, ends, axes, steps));
         });
         return out;
     }

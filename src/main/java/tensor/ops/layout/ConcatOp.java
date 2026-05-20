@@ -48,7 +48,7 @@ public final class ConcatOp {
         outShape[normalizedAxis] = concatSize;
         List<Tensor> copiedInputs = List.copyOf(inputs);
         Tensor out = TensorPrimitiveBuilder.nary(outShape, copiedInputs, new concat(normalizedAxis), "concat", first.getDataType());
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -62,7 +62,7 @@ public final class ConcatOp {
                     starts[normalizedAxis] = offset;
                     ends[normalizedAxis] = offset + axisSize;
                     Tensor grad = outGrad.slice(starts, ends, LayoutSupport.allAxes(rank), LayoutSupport.ones(rank));
-                    LayoutSupport.accumulateGradient(input, grad);
+                    context.accumulate(input, grad);
                 }
                 offset += axisSize;
             }

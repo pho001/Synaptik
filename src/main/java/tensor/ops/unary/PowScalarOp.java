@@ -4,7 +4,7 @@ import operations.Operation;
 import operations.elementwise.unary.pow;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
 
@@ -34,9 +34,9 @@ public final class PowScalarOp {
         }
 
         Operation op = isF32 ? new pow((float) exponent) : new pow(exponent);
-        Tensor out = TensorPrimitiveBuilder.unary(input, op, "pow", TensorDataTypeUtil.unary(input));
+        Tensor out = TensorPrimitiveBuilder.unary(input, op, "pow", TensorDTypes.requireFloating(input.getDataType()));
 
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -44,7 +44,7 @@ public final class PowScalarOp {
             Tensor gradForInput = outGrad
                     .mul(exponentForGrad)
                     .mul(input.pow(exponentForGrad - 1.0));
-            UnarySupport.accumulateGradient(input, gradForInput);
+            context.accumulate(input, gradForInput);
         });
 
         return out;

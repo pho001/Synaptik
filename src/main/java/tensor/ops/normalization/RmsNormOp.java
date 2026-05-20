@@ -3,7 +3,7 @@ package tensor.ops.normalization;
 import operations.normalization.rmsNorm;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
 
@@ -35,7 +35,7 @@ public final class RmsNormOp {
         NormalizationSupport.validateMatchingTailParameter(input, gamma, "rmsNorm gamma");
 
         int normalizedRank = gamma.getShapeUnsafe().length;
-        DataType outputType = TensorDataTypeUtil.promote(input.getDataType(), gamma.getDataType());
+        DataType outputType = TensorDTypes.promoteFloating(input.getDataType(), gamma.getDataType());
         Tensor out = TensorPrimitiveBuilder.binary(
                 input,
                 gamma,
@@ -44,7 +44,7 @@ public final class RmsNormOp {
                 "rmsNorm",
                 outputType
         );
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -59,13 +59,13 @@ public final class RmsNormOp {
                 Tensor dotMean = NormalizationSupport.reduceTrailingKeepDims(weighted.mul(input), normalizedRank);
                 Tensor invRmsCubed = invRms.mul(invRms).mul(invRms);
                 Tensor inputGrad = weighted.mul(invRms).sub(input.mul(dotMean).mul(invRmsCubed));
-                NormalizationSupport.accumulateGradient(input, inputGrad);
+                context.accumulate(input, inputGrad);
             }
 
             if (gamma.getRequiresGrad()) {
                 Tensor gammaGrad = outGrad.mul(input).mul(invRms);
                 gammaGrad = NormalizationSupport.reduceLeadingKeepDims(gammaGrad, normalizedRank).reshape(gamma.getShape());
-                NormalizationSupport.accumulateGradient(gamma, gammaGrad);
+                context.accumulate(gamma, gammaGrad);
             }
         });
         return out;

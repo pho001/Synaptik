@@ -202,8 +202,6 @@ When adding new tensor semantics:
   - [`shapeCopy()`](#shapecopy)
   - [Data / dtype / storage accessors](#data--dtype--storage)
   - [Labels / grad / graph wiring](#labels--grad--graph-wiring)
-- [Backend Selection](#backend-selection)
-  - [`resolveBackend()`](#resolvebackend)
 - [Debug Formatting](#debug-formatting)
   - [`toStructString()`](#tostructstring)
 
@@ -3810,14 +3808,6 @@ It is a no-op because non-`FLOAT64` tensors no longer maintain a mirrored `doubl
 
 Internal structural graph mutation, backward wiring, and runtime aliasing helpers are no longer public `Tensor` methods.
 They now live behind `tensor.TensorInternalAccess`.
-
-## Backend Selection
-
-### `resolveBackend()`
-
-Returns the effective backend:
-- forced backend if set
-- otherwise `CPU`
 
 ## Debug Formatting
 

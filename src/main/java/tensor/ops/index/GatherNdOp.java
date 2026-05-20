@@ -35,13 +35,13 @@ public final class GatherNdOp {
                 input.getDataType()
         );
         out.setRequiresGrad(input.getRequiresGrad() && IndexSupport.isFloating(input.getDataType()));
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad() || !IndexSupport.isFloating(input.getDataType())) {
                 return;
             }
             Tensor grad = ScatterNdOp.build(Tensor.zerosLike(input), indices, outGrad, ScatterReduction.ADD, batchDims);
-            IndexSupport.accumulateGradient(input, grad);
+            context.accumulate(input, grad);
         });
         return out;
     }

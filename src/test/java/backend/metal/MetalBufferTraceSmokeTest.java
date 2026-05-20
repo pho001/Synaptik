@@ -35,7 +35,7 @@ class MetalBufferTraceSmokeTest {
 
         Tensor input = new Tensor(new float[]{1.0f, -2.0f}, new int[]{2}, null, "input", DataType.FLOAT32);
         Tensor output = input.relu();
-        TensorInternalAccess.setBackend(output, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(output, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(output, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -124,9 +124,9 @@ class MetalBufferTraceSmokeTest {
         Tensor permute = reshape.permute(1, 0, 2);
         Tensor out = permute.add(cpuConsumerBias);
 
-        TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(reshape, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(permute, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(linear, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(reshape, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(permute, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.inference())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -152,7 +152,7 @@ class MetalBufferTraceSmokeTest {
                 "broadcastZeroStrideRelu",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackend(broadcastZeroStrideOutput, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(broadcastZeroStrideOutput, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(broadcastZeroStrideOutput, CompileConfig.inference())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -185,9 +185,9 @@ class MetalBufferTraceSmokeTest {
         Tensor permute = reshape.permute(1, 0);
 
         if ("metal".equals(labelPrefix)) {
-            TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
-            TensorInternalAccess.setBackend(reshape, ComputeBackend.GPU_METAL);
-            TensorInternalAccess.setBackend(permute, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackendIntent(linear, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackendIntent(reshape, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackendIntent(permute, ComputeBackend.GPU_METAL);
         }
         return permute;
     }

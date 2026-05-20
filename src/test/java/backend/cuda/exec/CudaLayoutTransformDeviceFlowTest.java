@@ -228,11 +228,11 @@ class CudaLayoutTransformDeviceFlowTest {
         Tensor out = specialLogSoftmax(contiguous, 1);
 
         if ("cuda".equals(labelPrefix)) {
-            TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_CUDA);
-            TensorInternalAccess.setBackend(reshape, ComputeBackend.GPU_CUDA);
-            TensorInternalAccess.setBackend(permute, ComputeBackend.GPU_CUDA);
-            TensorInternalAccess.setBackend(contiguous, ComputeBackend.GPU_CUDA);
-            TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+            TensorInternalAccess.setBackendIntent(linear, ComputeBackend.GPU_CUDA);
+            TensorInternalAccess.setBackendIntent(reshape, ComputeBackend.GPU_CUDA);
+            TensorInternalAccess.setBackendIntent(permute, ComputeBackend.GPU_CUDA);
+            TensorInternalAccess.setBackendIntent(contiguous, ComputeBackend.GPU_CUDA);
+            TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
         }
         return out;
     }

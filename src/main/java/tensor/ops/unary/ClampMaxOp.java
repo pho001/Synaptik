@@ -4,7 +4,7 @@ import operations.Operation;
 import operations.elementwise.unary.clampMax;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
 
@@ -25,8 +25,8 @@ public final class ClampMaxOp {
         }
         boolean isF32 = input.getDataType() == DataType.FLOAT32;
         Operation op = isF32 ? new clampMax((float) maxValue) : new clampMax(maxValue);
-        Tensor out = TensorPrimitiveBuilder.unary(input, op, "clampMax", TensorDataTypeUtil.unary(input));
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        Tensor out = TensorPrimitiveBuilder.unary(input, op, "clampMax", TensorDTypes.requireFloating(input.getDataType()));
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -34,7 +34,7 @@ public final class ClampMaxOp {
 
             Tensor upper = Tensor.scalar(maxValue, input.getDataType());
             Tensor gradForInput = Tensor.where(input.lessOrEqual(upper), outGrad, Tensor.zerosLike(outGrad));
-            UnarySupport.accumulateGradient(input, gradForInput);
+            context.accumulate(input, gradForInput);
         });
         return out;
     }

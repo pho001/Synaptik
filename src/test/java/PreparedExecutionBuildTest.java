@@ -136,8 +136,8 @@ public class PreparedExecutionBuildTest {
         Tensor matmul = a.matmul(b);
         Tensor out = matmul.relu();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompileConfig partitionOnly = CompileConfig.inference()
                 .withGraphOptimization(config.compile.GraphOptimizationConfig.noGraphOptimization());
@@ -213,8 +213,8 @@ public class PreparedExecutionBuildTest {
         Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f}, new int[]{3, 3}, null, "metalLinearLogSoftmaxWeight", DataType.FLOAT32);
         Tensor matmul = input.matmul(weight);
         Tensor out = matmul.logSoftmax(1);
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -236,8 +236,8 @@ public class PreparedExecutionBuildTest {
         Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f}, new int[]{3, 3}, null, "cudaLinearLogSoftmaxWeight", DataType.FLOAT32);
         Tensor matmul = input.matmul(weight);
         Tensor out = matmul.logSoftmax(1);
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -379,7 +379,7 @@ public class PreparedExecutionBuildTest {
         Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "metalRejectedLossLogits", DataType.FLOAT32);
         Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalRejectedLossTargets", DataType.INT32);
         Tensor out = logits.crossEntropyLossFromIndices(targetIndices, 1);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -403,8 +403,8 @@ public class PreparedExecutionBuildTest {
         Tensor src = new Tensor(new float[]{0.5f, -0.25f}, new int[]{2}, null, "metalScatterSrc", DataType.FLOAT32);
         Tensor matmul = input.matmul(weight);
         Tensor out = matmul.scatterAdd(indices, src, 1);
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -430,7 +430,7 @@ public class PreparedExecutionBuildTest {
                 "metalGatherGrad",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackend(gatherGradOut, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(gatherGradOut, ComputeBackend.GPU_METAL);
         CompiledGraph gatherCompiled = CompiledGraph.compile(gatherGradOut, CompileConfig.noGraphOptimizationBaseline());
         PreparedExecution gatherExecution = gatherCompiled.prepare(RuntimeConfig.inferenceDefaults());
         int gatherGradNodeId = nodeId(gatherCompiled, Operation.OpType.GATHER_GRAD);
@@ -453,7 +453,7 @@ public class PreparedExecutionBuildTest {
                 "metalTakeAlongAxisGrad",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackend(takeGradOut, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(takeGradOut, ComputeBackend.GPU_METAL);
         CompiledGraph takeCompiled = CompiledGraph.compile(takeGradOut, CompileConfig.noGraphOptimizationBaseline());
         PreparedExecution takeExecution = takeCompiled.prepare(RuntimeConfig.inferenceDefaults());
         int takeGradNodeId = nodeId(takeCompiled, Operation.OpType.TAKE_ALONG_AXIS_GRAD);
@@ -471,7 +471,7 @@ public class PreparedExecutionBuildTest {
     void cudaSelectionAcceptsSupportedReductionCandidateVisibly() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaSupportedReductionInput", DataType.FLOAT32);
         Tensor out = input.sum(1);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -490,7 +490,7 @@ public class PreparedExecutionBuildTest {
     void metalRequiredModeKeepsSupportedReductionOnAccelerator() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalRequiredReductionInput", DataType.FLOAT32);
         Tensor out = input.sum(1);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_METAL));
@@ -517,7 +517,7 @@ public class PreparedExecutionBuildTest {
                 0f, 1f
         }, new int[]{1, 1, 2, 2}, null, "metalRequiredConvWeight", DataType.FLOAT32);
         Tensor out = input.conv2d(weight, Conv2dOptions.defaults());
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_METAL));
@@ -556,7 +556,7 @@ public class PreparedExecutionBuildTest {
                 "metalRequiredConvGemm",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_METAL));
@@ -585,7 +585,7 @@ public class PreparedExecutionBuildTest {
                 13f, 14f, 15f, 16f
         }, new int[]{1, 1, 4, 4}, null, "metalRequiredPoolInput", DataType.FLOAT32);
         Tensor out = input.maxPool2d(Pool2dOptions.square(2));
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_METAL));
@@ -611,7 +611,7 @@ public class PreparedExecutionBuildTest {
         Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "cudaRequiredPhase17NormGamma", DataType.FLOAT32);
         Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "cudaRequiredPhase17NormBeta", DataType.FLOAT32);
         Tensor out = input.layerNorm(gamma, beta, 1.0e-5);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_CUDA));
@@ -649,8 +649,8 @@ public class PreparedExecutionBuildTest {
         }, new int[]{3, 3}, null, "phase17GpuLogSoftmaxWeight", DataType.FLOAT32);
         Tensor matmul = input.matmul(weight);
         Tensor out = matmul.logSoftmax(1);
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -681,7 +681,7 @@ public class PreparedExecutionBuildTest {
         Tensor logits = new Tensor(new float[]{1.5f, -0.25f, 0.5f, -1f, 2f, 0.25f}, new int[]{2, 3}, null, "phase17GpuLossLogits", DataType.FLOAT32);
         Tensor targets = new Tensor(new int[]{0, 1}, new int[]{2}, null, "phase17GpuLossTargets", DataType.INT32);
         Tensor out = logits.crossEntropyLossFromIndices(targets, 1);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -706,9 +706,9 @@ public class PreparedExecutionBuildTest {
         Tensor matmul = input.matmul(weight);
         Tensor logProbs = matmul.logSoftmax(1);
         Tensor indexed = logProbs.takeAlongAxis(indices, 1);
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(logProbs, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(indexed, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(logProbs, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(indexed, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(indexed, fuseOnlyInferenceConfig());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -741,7 +741,7 @@ public class PreparedExecutionBuildTest {
         Tensor gamma = new Tensor(new float[]{1.25f, 0.75f}, new int[]{2}, null, "phase17GpuLayerNormGamma", DataType.FLOAT32);
         Tensor beta = new Tensor(new float[]{0.5f, -0.25f}, new int[]{2}, null, "phase17GpuLayerNormBeta", DataType.FLOAT32);
         Tensor out = input.layerNorm(gamma, beta, 1.0e-5);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -776,7 +776,7 @@ public class PreparedExecutionBuildTest {
         Tensor input = new Tensor(new float[]{1f, 2f, 4f, 8f, 16f, 32f}, new int[]{2, 3}, null, "phase24GpuRmsNormInput", DataType.FLOAT32);
         Tensor gamma = new Tensor(new float[]{1.25f, 0.75f, 1.5f}, new int[]{3}, null, "phase24GpuRmsNormGamma", DataType.FLOAT32);
         Tensor out = input.rmsNorm(gamma, 1.0e-5);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -822,8 +822,8 @@ public class PreparedExecutionBuildTest {
         Tensor bias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "metalCompoundBias", DataType.FLOAT32);
         Tensor linear = input.linear(weight, bias);
         Tensor out = linear.relu();
-        TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(linear, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -870,8 +870,8 @@ public class PreparedExecutionBuildTest {
         Tensor bias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "cudaCompoundBias", DataType.FLOAT32);
         Tensor linear = input.linear(weight, bias);
         Tensor out = linear.relu();
-        TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(linear, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -907,8 +907,8 @@ public class PreparedExecutionBuildTest {
         Tensor bias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "requiredMetalBias", DataType.FLOAT32);
         Tensor linear = input.linear(weight, bias);
         Tensor out = linear.relu();
-        TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(linear, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
         RuntimeConfig defaults = RuntimeConfig.inferenceDefaults();
         RuntimeConfig runtime = defaults.withAccelerator(defaults.accelerator().withMetal(
                 defaults.accelerator().metal().withBuffer(
@@ -948,8 +948,8 @@ public class PreparedExecutionBuildTest {
         Tensor bias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "metalEpilogueBias", DataType.FLOAT32);
         Tensor linear = input.linear(weight, bias);
         Tensor out = linear.relu();
-        TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(linear, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -994,8 +994,8 @@ public class PreparedExecutionBuildTest {
         Tensor bias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "cudaEpilogueBias", DataType.FLOAT32);
         Tensor linear = input.linear(weight, bias);
         Tensor out = linear.relu();
-        TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(linear, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -1029,8 +1029,8 @@ public class PreparedExecutionBuildTest {
         Tensor bias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "requiredEpilogueBias", DataType.FLOAT32);
         Tensor linear = input.linear(weight, bias);
         Tensor out = linear.relu();
-        TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(linear, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.inference())
                 .prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_METAL));
 
@@ -1047,9 +1047,9 @@ public class PreparedExecutionBuildTest {
         Tensor add = a.add(b);
         Tensor relu = add.relu();
         Tensor out = relu.exp();
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -1075,9 +1075,9 @@ public class PreparedExecutionBuildTest {
         Tensor add = a.add(b);
         Tensor relu = add.relu();
         Tensor out = relu.exp();
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.inference())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -1102,9 +1102,9 @@ public class PreparedExecutionBuildTest {
         Tensor add = a.add(b);
         Tensor relu = add.relu();
         Tensor out = relu.exp();
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -1130,9 +1130,9 @@ public class PreparedExecutionBuildTest {
         Tensor add = a.add(b);
         Tensor relu = add.relu();
         Tensor out = relu.exp();
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.inference())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -1158,10 +1158,10 @@ public class PreparedExecutionBuildTest {
         Tensor relu = matmul.relu();
         Tensor exp = relu.exp();
         Tensor out = exp.log();
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(exp, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(exp, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -1198,10 +1198,10 @@ public class PreparedExecutionBuildTest {
         Tensor relu = matmul.relu();
         Tensor exp = relu.exp();
         Tensor out = exp.log();
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackend(exp, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(exp, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -1260,10 +1260,10 @@ public class PreparedExecutionBuildTest {
         Tensor contiguous = permute.contiguous();
         Tensor out = contiguous.relu();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(permute, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(contiguous, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(permute, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(contiguous, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompileConfig optimizerConfig = CompileConfig.inference()
                 .withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withOwnershipPlanner(config.compile.RegionOwnershipPlannerStrategy.SCORED));
@@ -1639,9 +1639,9 @@ public class PreparedExecutionBuildTest {
         Tensor add = matmul.add(bias);
         Tensor out = add.relu();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -1678,9 +1678,9 @@ public class PreparedExecutionBuildTest {
         Tensor add = matmul.add(bias);
         Tensor out = add.relu();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
@@ -1702,7 +1702,7 @@ public class PreparedExecutionBuildTest {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
         Tensor out = a.matmul(b);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -1754,7 +1754,7 @@ public class PreparedExecutionBuildTest {
                 1d, 10d
         }, new int[]{1, 2, 2}, null, "bf16SdpaV", DataType.BFLOAT16);
         Tensor out = q.scaledDotProductAttention(k, v, tensor.options.AttentionOptions.defaults().withScale(0.5));
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -1809,7 +1809,7 @@ public class PreparedExecutionBuildTest {
                 1f, 0f, 0f
         }, new int[]{2, 3}, null, "metalDenseLossCeTargets", DataType.FLOAT32);
         Tensor ce = logits.crossEntropyLoss(ceTargets, 1);
-        TensorInternalAccess.setBackend(ce, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(ce, ComputeBackend.GPU_METAL);
         PreparedExecution ceExecution = CompiledGraph.compile(ce, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
         PreparedMetalExecutable ceExecutable = (PreparedMetalExecutable) ceExecution.forwardSteps().stream()
@@ -1842,7 +1842,7 @@ public class PreparedExecutionBuildTest {
                 0f, 1f, 0f
         }, new int[]{2, 3}, null, "metalDenseLossNllTargets", DataType.FLOAT32);
         Tensor nll = logProbs.nllLoss(nllTargets, 1);
-        TensorInternalAccess.setBackend(nll, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(nll, ComputeBackend.GPU_METAL);
         PreparedExecution nllExecution = CompiledGraph.compile(nll, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
         PreparedMetalExecutable nllExecutable = (PreparedMetalExecutable) nllExecution.forwardSteps().stream()
@@ -1885,7 +1885,7 @@ public class PreparedExecutionBuildTest {
                 1f, 0f, 0f
         }, new int[]{2, 3}, null, "metalTrainingDenseLossTargets", DataType.FLOAT32);
         Tensor loss = logits.crossEntropyLoss(targets, 1);
-        TensorInternalAccess.setBackend(loss, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(loss, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(loss, CompileConfig.training());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.trainingDefaults());
@@ -1916,7 +1916,7 @@ public class PreparedExecutionBuildTest {
         logits.setRequiresGrad(true);
         Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalIndexLossTrainingTargets", DataType.INT32);
         Tensor loss = logits.crossEntropyLossFromIndices(targetIndices, 1);
-        TensorInternalAccess.setBackend(loss, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(loss, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(loss, CompileConfig.training());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.trainingDefaults());
@@ -1955,7 +1955,7 @@ public class PreparedExecutionBuildTest {
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaSdpaK", DataType.FLOAT32);
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cudaSdpaV", DataType.FLOAT32);
         Tensor out = q.scaledDotProductAttention(k, v, AttentionOptions.defaults().withScale(0.5));
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -1981,7 +1981,7 @@ public class PreparedExecutionBuildTest {
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "k", DataType.FLOAT32);
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "v", DataType.FLOAT32);
         Tensor out = q.scaledDotProductAttention(k, v, tensor.options.AttentionOptions.defaults().withScale(0.5));
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2017,7 +2017,7 @@ public class PreparedExecutionBuildTest {
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "vMask", DataType.FLOAT32);
         Tensor mask = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{1, 2, 2}, null, "mask", DataType.BOOL);
         Tensor out = q.scaledDotProductAttention(k, v, mask, tensor.options.AttentionOptions.defaults().withScale(0.5));
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2052,7 +2052,7 @@ public class PreparedExecutionBuildTest {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{2, 3}, null, "b", DataType.FLOAT32);
         Tensor out = a.matmul(b.transpose());
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2084,9 +2084,9 @@ public class PreparedExecutionBuildTest {
         Tensor relu = add.relu();
         Tensor out = relu.exp();
 
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2117,9 +2117,9 @@ public class PreparedExecutionBuildTest {
         Tensor relu = add.relu();
         Tensor out = relu.exp();
 
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.inference())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2152,9 +2152,9 @@ public class PreparedExecutionBuildTest {
         Tensor relu = add.relu();
         Tensor out = relu.exp();
 
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.inference())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2192,7 +2192,7 @@ public class PreparedExecutionBuildTest {
         a.setRequiresGrad(true);
         b.setRequiresGrad(true);
         Tensor matmul = a.matmul(b);
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
         Tensor loss = matmul.sum();
 
         PreparedExecution execution = CompiledGraph.compile(loss, CompileConfig.noGraphOptimizationBaseline())
@@ -2222,7 +2222,7 @@ public class PreparedExecutionBuildTest {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "input", DataType.FLOAT32);
         input.setRequiresGrad(true);
         Tensor softmax = input.exp().softmax(1);
-        TensorInternalAccess.setBackend(softmax, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(softmax, ComputeBackend.GPU_METAL);
         Tensor loss = softmax.sum();
 
         PreparedExecution execution = CompiledGraph.compile(loss, CompileConfig.training())
@@ -2252,7 +2252,7 @@ public class PreparedExecutionBuildTest {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "input", DataType.FLOAT32);
         input.setRequiresGrad(true);
         Tensor logSoftmax = input.exp().logSoftmax(1);
-        TensorInternalAccess.setBackend(logSoftmax, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(logSoftmax, ComputeBackend.GPU_METAL);
         Tensor loss = logSoftmax.sum();
 
         PreparedExecution execution = CompiledGraph.compile(loss, CompileConfig.training())
@@ -2288,7 +2288,7 @@ public class PreparedExecutionBuildTest {
         }, new int[]{2, 3}, null, "input", DataType.FLOAT32);
         input.setRequiresGrad(true);
         Tensor reduced = input.min(1, true);
-        TensorInternalAccess.setBackend(reduced, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(reduced, ComputeBackend.GPU_METAL);
         Tensor loss = reduced.sum();
 
         PreparedExecution execution = CompiledGraph.compile(loss, CompileConfig.training())
@@ -2312,7 +2312,7 @@ public class PreparedExecutionBuildTest {
         Tensor input = new Tensor(new float[]{1f, 5f, 5f, 2f}, new int[]{4}, null, "input", DataType.FLOAT32);
         input.setRequiresGrad(true);
         Tensor reduced = input.max();
-        TensorInternalAccess.setBackend(reduced, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(reduced, ComputeBackend.GPU_METAL);
         Tensor loss = reduced.sum();
 
         PreparedExecution execution = CompiledGraph.compile(loss, CompileConfig.training())
@@ -2340,7 +2340,7 @@ public class PreparedExecutionBuildTest {
         a.setRequiresGrad(true);
         b.setRequiresGrad(true);
         Tensor min = a.min(b);
-        TensorInternalAccess.setBackend(min, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(min, ComputeBackend.GPU_METAL);
         Tensor loss = min.sum();
 
         PreparedExecution execution = CompiledGraph.compile(loss, CompileConfig.training())
@@ -2369,7 +2369,7 @@ public class PreparedExecutionBuildTest {
         a.setRequiresGrad(true);
         b.setRequiresGrad(true);
         Tensor max = a.max(b);
-        TensorInternalAccess.setBackend(max, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(max, ComputeBackend.GPU_METAL);
         Tensor loss = max.sum();
 
         PreparedExecution execution = CompiledGraph.compile(loss, CompileConfig.training())
@@ -2421,7 +2421,7 @@ public class PreparedExecutionBuildTest {
         k.setRequiresGrad(true);
         v.setRequiresGrad(true);
         Tensor attention = q.scaledDotProductAttention(k, v, tensor.options.AttentionOptions.defaults().withScale(1.0));
-        TensorInternalAccess.setBackend(attention, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(attention, ComputeBackend.GPU_METAL);
         Tensor loss = attention.sum();
 
         PreparedExecution execution = CompiledGraph.compile(loss, CompileConfig.training())
@@ -2490,7 +2490,7 @@ public class PreparedExecutionBuildTest {
                 mask,
                 tensor.options.AttentionOptions.causalDefaults().withScale(1.0)
         );
-        TensorInternalAccess.setBackend(attention, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(attention, ComputeBackend.GPU_METAL);
         Tensor loss = attention.sum();
 
         PreparedExecution execution = CompiledGraph.compile(loss, CompileConfig.training())
@@ -2514,37 +2514,37 @@ public class PreparedExecutionBuildTest {
 
         Tensor softmaxInput = trainable("metalBackwardTraceSoftmax", 2, 3);
         Tensor softmax = softmaxInput.exp().softmax(1);
-        TensorInternalAccess.setBackend(softmax, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(softmax, ComputeBackend.GPU_METAL);
         assertMetalBackwardBufferBinding(weightedSum(softmax, "metalBackwardTraceSoftmaxWeight"), Operation.OpType.MUL, 1);
 
         Tensor logSoftmaxInput = trainable("metalBackwardTraceLogSoftmax", 2, 3);
         Tensor logSoftmax = logSoftmaxInput.exp().logSoftmax(1);
-        TensorInternalAccess.setBackend(logSoftmax, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(logSoftmax, ComputeBackend.GPU_METAL);
         assertMetalBackwardBufferBinding(weightedSum(logSoftmax, "metalBackwardTraceLogSoftmaxWeight"), Operation.OpType.EXP, 1);
 
         Tensor minInput = trainable("metalBackwardTraceReduceMin", 2, 3);
         Tensor reduceMin = minInput.min(1, true);
-        TensorInternalAccess.setBackend(reduceMin, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(reduceMin, ComputeBackend.GPU_METAL);
 
         Tensor maxInput = trainable("metalBackwardTraceReduceMax", 2, 4);
         Tensor reduceMax = maxInput.max(0, true);
-        TensorInternalAccess.setBackend(reduceMax, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(reduceMax, ComputeBackend.GPU_METAL);
 
         Tensor a = trainable("metalBackwardTraceMinA", 3);
         Tensor b = trainable("metalBackwardTraceMinB", 3);
         Tensor min = a.min(b);
-        TensorInternalAccess.setBackend(min, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(min, ComputeBackend.GPU_METAL);
 
         Tensor c = trainable("metalBackwardTraceMaxA", 3);
         Tensor d = trainable("metalBackwardTraceMaxB", 3);
         Tensor max = c.max(d);
-        TensorInternalAccess.setBackend(max, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(max, ComputeBackend.GPU_METAL);
 
         Tensor q = trainable("metalBackwardTraceSdpaQ", 1, 2, 2);
         Tensor k = trainable("metalBackwardTraceSdpaK", 1, 2, 2);
         Tensor v = trainable("metalBackwardTraceSdpaV", 1, 2, 2);
         Tensor attention = q.scaledDotProductAttention(k, v, tensor.options.AttentionOptions.defaults().withScale(1.0));
-        TensorInternalAccess.setBackend(attention, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(attention, ComputeBackend.GPU_METAL);
         PreparedExecution execution = CompiledGraph.compile(
                         weightedSum(attention, "metalBackwardTraceSdpaWeight"),
                         CompileConfig.training()
@@ -2575,8 +2575,8 @@ public class PreparedExecutionBuildTest {
         Tensor linear = input.linear(weight, bias);
         Tensor out = linear.tanh();
 
-        TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(linear, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2605,9 +2605,9 @@ public class PreparedExecutionBuildTest {
         Tensor matmul1 = a1.matmul(b1);
         Tensor add1 = matmul1.add(bias1);
         Tensor out1 = add1.relu();
-        TensorInternalAccess.setBackend(matmul1, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add1, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out1, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul1, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add1, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out1, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution1 = CompiledGraph.compile(out1, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2623,9 +2623,9 @@ public class PreparedExecutionBuildTest {
         Tensor matmul2 = a2.matmul(b2);
         Tensor add2 = matmul2.add(bias2);
         Tensor out2 = add2.relu();
-        TensorInternalAccess.setBackend(matmul2, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add2, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out2, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul2, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add2, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out2, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution2 = CompiledGraph.compile(out2, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2659,9 +2659,9 @@ public class PreparedExecutionBuildTest {
         Tensor add = matmul.add(bias);
         Tensor out = add.relu();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2688,9 +2688,9 @@ public class PreparedExecutionBuildTest {
         Tensor add = matmul.add(bias);
         Tensor out = add.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2710,8 +2710,8 @@ public class PreparedExecutionBuildTest {
         Tensor matmul = a.matmul(b);
         Tensor out = matmul.neg();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2732,10 +2732,10 @@ public class PreparedExecutionBuildTest {
         Tensor sqrt = relu.sqrt();
         Tensor out = sqrt.inv();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(sqrt, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(sqrt, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2759,10 +2759,10 @@ public class PreparedExecutionBuildTest {
         Tensor div = mul.div(denom);
         Tensor out = div.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(mul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(div, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(mul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(div, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2784,9 +2784,9 @@ public class PreparedExecutionBuildTest {
         Tensor sub = matmul.sub(shift);
         Tensor out = sub.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(sub, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(sub, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2808,10 +2808,10 @@ public class PreparedExecutionBuildTest {
         Tensor clampMax = clampMin.clampMax(5.0);
         Tensor out = clampMax.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(clampMin, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(clampMax, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(clampMin, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(clampMax, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2835,10 +2835,10 @@ public class PreparedExecutionBuildTest {
         Tensor added = biased.add(residual);
         Tensor out = added.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(biased, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(added, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(biased, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(added, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2861,11 +2861,11 @@ public class PreparedExecutionBuildTest {
         Tensor add = relu.add(abs);
         Tensor out = add.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(abs, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(abs, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2891,13 +2891,13 @@ public class PreparedExecutionBuildTest {
         Tensor add2 = add1.add(neg);
         Tensor out = add2.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(abs, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(neg, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add1, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add2, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(abs, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(neg, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add1, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add2, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2921,11 +2921,11 @@ public class PreparedExecutionBuildTest {
         Tensor add = relu.add(abs);
         Tensor out = add.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(abs, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(abs, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompileConfig optimizer = CompileConfig.noGraphOptimizationBaseline()
                 .withBackendPlanning(CompileConfig.noGraphOptimizationBaseline().backendPlanning()
@@ -2954,9 +2954,9 @@ public class PreparedExecutionBuildTest {
         Tensor reshape = matmul.reshape(1, 4);
         Tensor out = reshape.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(reshape, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(reshape, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -2978,10 +2978,10 @@ public class PreparedExecutionBuildTest {
         Tensor contiguous = reshape.contiguous();
         Tensor out = contiguous.neg();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(reshape, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(contiguous, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(reshape, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(contiguous, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3002,9 +3002,9 @@ public class PreparedExecutionBuildTest {
         Tensor permute = matmul.permute(1, 0);
         Tensor out = permute.neg();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(permute, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(permute, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3027,11 +3027,11 @@ public class PreparedExecutionBuildTest {
         Tensor squeeze = expand.squeeze(0);
         Tensor out = squeeze.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(reshape, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(expand, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(squeeze, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(reshape, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(expand, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(squeeze, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3058,9 +3058,9 @@ public class PreparedExecutionBuildTest {
         Tensor scores = q.matmul(kPermuted);
         Tensor out = scores.mul(0.5);
 
-        TensorInternalAccess.setBackend(kPermuted, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(scores, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(kPermuted, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(scores, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3098,10 +3098,10 @@ public class PreparedExecutionBuildTest {
         Tensor scores = matmul.mul(0.5);
         Tensor out = Tensor.where(mask, scores, fill);
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(kPermuted, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(scores, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(kPermuted, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(scores, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3125,9 +3125,9 @@ public class PreparedExecutionBuildTest {
         Tensor selected = Tensor.where(compare, trueBranch, falseBranch);
         Tensor out = selected.relu();
 
-        TensorInternalAccess.setBackend(compare, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(selected, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(compare, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(selected, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -3185,11 +3185,11 @@ public class PreparedExecutionBuildTest {
         Tensor masked = Tensor.where(mask, scores, fill);
         Tensor out = masked.softmax(3);
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(kPermuted, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(scores, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(masked, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(kPermuted, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(scores, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(masked, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3235,12 +3235,12 @@ public class PreparedExecutionBuildTest {
         Tensor weights = masked.softmax(3);
         Tensor out = weights.matmul(v);
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(kPermuted, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(scores, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(masked, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(weights, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(kPermuted, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(scores, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(masked, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(weights, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3269,9 +3269,9 @@ public class PreparedExecutionBuildTest {
         Tensor add = matmul.add(bias);
         Tensor out = add.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         RuntimeConfig runtime = RuntimeConfig.inferenceDefaults().withAccelerator(
                 RuntimeConfig.inferenceDefaults().accelerator().withMetal(
@@ -3299,9 +3299,9 @@ public class PreparedExecutionBuildTest {
         Tensor add = matmul.add(bias);
         Tensor out = add.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         RuntimeConfig runtime = RuntimeConfig.inferenceDefaults().withAccelerator(
                 RuntimeConfig.inferenceDefaults().accelerator().withMetal(
@@ -3453,7 +3453,7 @@ public class PreparedExecutionBuildTest {
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
         Tensor bias = new Tensor(new float[]{1f, -1f}, new int[]{2}, null, "bias", DataType.FLOAT32);
         Tensor out = a.matmul(b).add(bias).tanh();
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.inference())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3483,9 +3483,9 @@ public class PreparedExecutionBuildTest {
         Tensor add = matmul.add(bias);
         Tensor out = add.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3522,11 +3522,11 @@ public class PreparedExecutionBuildTest {
         Tensor sqrt = abs.sqrt();
         Tensor out = sqrt.inv();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(neg, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(abs, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(sqrt, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(neg, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(abs, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(sqrt, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3565,10 +3565,10 @@ public class PreparedExecutionBuildTest {
         Tensor div = mul.div(denom);
         Tensor out = div.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(mul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(div, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(mul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(div, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3604,9 +3604,9 @@ public class PreparedExecutionBuildTest {
         Tensor sub = matmul.sub(shift);
         Tensor out = sub.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(sub, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(sub, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3641,10 +3641,10 @@ public class PreparedExecutionBuildTest {
         Tensor clampMax = clampMin.clampMax(5.0);
         Tensor out = clampMax.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(clampMin, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(clampMax, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(clampMin, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(clampMax, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3683,10 +3683,10 @@ public class PreparedExecutionBuildTest {
         Tensor added = biased.add(residual);
         Tensor out = added.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(biased, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(added, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(biased, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(added, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3723,11 +3723,11 @@ public class PreparedExecutionBuildTest {
         Tensor add = relu.add(abs);
         Tensor out = add.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(abs, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(abs, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3766,13 +3766,13 @@ public class PreparedExecutionBuildTest {
         Tensor add2 = add1.add(neg);
         Tensor out = add2.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(abs, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(neg, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add1, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add2, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(abs, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(neg, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add1, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add2, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3806,9 +3806,9 @@ public class PreparedExecutionBuildTest {
         Tensor reshape = matmul.reshape(1, 4);
         Tensor out = reshape.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(reshape, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(reshape, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3842,9 +3842,9 @@ public class PreparedExecutionBuildTest {
         Tensor permute = matmul.permute(1, 0);
         Tensor out = permute.neg();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(permute, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(permute, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3880,11 +3880,11 @@ public class PreparedExecutionBuildTest {
         Tensor squeeze = expand.squeeze(0);
         Tensor out = squeeze.tanh();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(reshape, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(expand, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(squeeze, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(reshape, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(expand, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(squeeze, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3930,9 +3930,9 @@ public class PreparedExecutionBuildTest {
         Tensor scores = q.matmul(kPermuted);
         Tensor out = scores.mul(0.5);
 
-        TensorInternalAccess.setBackend(kPermuted, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(scores, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(kPermuted, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(scores, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -3997,10 +3997,10 @@ public class PreparedExecutionBuildTest {
         Tensor scores = matmul.mul(0.5);
         Tensor out = Tensor.where(mask, scores, fill);
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(kPermuted, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(scores, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(kPermuted, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(scores, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -4066,11 +4066,11 @@ public class PreparedExecutionBuildTest {
         Tensor masked = Tensor.where(mask, scores, fill);
         Tensor out = masked.softmax(3);
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(kPermuted, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(scores, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(masked, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(kPermuted, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(scores, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(masked, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -4146,12 +4146,12 @@ public class PreparedExecutionBuildTest {
         Tensor weights = masked.softmax(3);
         Tensor out = weights.matmul(v);
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(kPermuted, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(scores, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(masked, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(weights, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(kPermuted, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(scores, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(masked, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(weights, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());
@@ -4187,9 +4187,9 @@ public class PreparedExecutionBuildTest {
         Tensor add = matmul.add(bias);
         Tensor out = add.exp();
 
-        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(RuntimeConfig.inferenceDefaults());

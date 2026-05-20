@@ -3,7 +3,7 @@ package tensor.ops.loss;
 import operations.loss.nllLoss;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 import tensor.TensorInternalAccess;
 import tensor.layout.TensorLayoutTransform;
 import tensor.internal.TensorPrimitiveBuilder;
@@ -45,7 +45,7 @@ public final class DenseNllLossOp {
             }
         }
         int normalizedClassDimension = TensorLayoutTransform.normalizeAxis(classDimension, logShape.length);
-        DataType outputType = TensorDataTypeUtil.binary(logProbs, targets);
+        DataType outputType = TensorDTypes.promoteFloating(logProbs.getDataType(), targets.getDataType());
         Tensor out = TensorPrimitiveBuilder.nary(
                 new int[]{1},
                 LossSupport.asInputs(logProbs, targets),
@@ -53,7 +53,7 @@ public final class DenseNllLossOp {
                 "nllLoss",
                 outputType
         );
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -61,10 +61,10 @@ public final class DenseNllLossOp {
 
             double scale = outGrad.scalarAsDouble() / LossSupport.sampleCount(logShape, normalizedClassDimension);
             if (logProbs.getRequiresGrad()) {
-                LossSupport.accumulateGradient(logProbs, targets.mul(-scale));
+                context.accumulate(logProbs, targets.mul(-scale));
             }
             if (targets.getRequiresGrad()) {
-                LossSupport.accumulateGradient(targets, logProbs.mul(-scale));
+                context.accumulate(targets, logProbs.mul(-scale));
             }
         });
         return out;

@@ -41,12 +41,12 @@ public final class SqueezeOp {
                 "squeeze",
                 input.getDataType()
         );
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
             }
-            LayoutSupport.accumulateGradient(input, outGrad.expandDims(normalizedAxis));
+            context.accumulate(input, outGrad.expandDims(normalizedAxis));
         });
         return out;
     }

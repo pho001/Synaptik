@@ -1,6 +1,5 @@
 package tensor.ops.reduction;
 
-import graph.compile.intent.BackendIntentPropagator;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tensor.layout.TensorLayoutTransform;
@@ -21,7 +20,7 @@ public final class LogSoftmaxOp {
         Tensor denominator = exp.sum(normalizedDimension, true);
         Tensor out = shifted.sub(denominator.log());
         out.setLabel("logSoftmax");
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -30,8 +29,7 @@ public final class LogSoftmaxOp {
             Tensor probs = out.exp();
             Tensor sumGrad = outGrad.sum(normalizedDimension, true);
             Tensor grad = outGrad.sub(probs.mul(sumGrad));
-            BackendIntentPropagator.preserve(grad, out);
-            ReductionSupport.accumulateGradient(input, grad);
+            context.accumulate(input, grad);
         });
         return out;
     }

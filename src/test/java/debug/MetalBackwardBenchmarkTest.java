@@ -91,7 +91,7 @@ final class MetalBackwardBenchmarkTest {
                     b.setRequiresGrad(true);
                     Tensor matmul = a.matmul(b);
                     if (isGpuProfile(environment)) {
-                        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+                        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
                     }
                     return matmul.sum();
                 }
@@ -112,8 +112,8 @@ final class MetalBackwardBenchmarkTest {
                     Tensor linear = input.linear(weight, bias);
                     Tensor out = linear.tanh();
                     if (isGpuProfile(environment)) {
-                        TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
-                        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+                        TensorInternalAccess.setBackendIntent(linear, ComputeBackend.GPU_METAL);
+                        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
                     }
                     return out.sum();
                 }

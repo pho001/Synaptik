@@ -38,7 +38,7 @@ public final class MaxPool2dOp {
                 input.getDataType()
         );
         out.setRequiresGrad(input.getRequiresGrad());
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -51,7 +51,7 @@ public final class MaxPool2dOp {
                     "maxPool2dBackwardInput",
                     input.getDataType()
             );
-            PoolSupport.accumulateGradient(input, grad);
+            context.accumulate(input, grad);
         });
         return out;
     }

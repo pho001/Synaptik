@@ -33,7 +33,7 @@ public final class SelectOp {
                 "select",
                 input.getDataType()
         );
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -41,7 +41,7 @@ public final class SelectOp {
             Tensor zeroBase = Tensor.zerosLike(input);
             Tensor indices = IndexSupport.constantIndexTensor(IndexSupport.reduceShape(input.getShapeUnsafe(), normalizedDimension), normalizedIndex);
             Tensor grad = zeroBase.scatterAdd(indices, outGrad, normalizedDimension);
-            IndexSupport.accumulateGradient(input, grad);
+            context.accumulate(input, grad);
         });
         return out;
     }

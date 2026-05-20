@@ -69,9 +69,9 @@ public final class CalibrationWorkloads {
                     Tensor matmul = a.matmul(b);
                     Tensor add = matmul.add(bias);
                     Tensor out = add.tanh();
-                    TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
-                    TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
-                    TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+                    TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
+                    TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
+                    TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
                     return environment.profile().mode() == ExecutionMode.FORWARD ? out : out.sum();
                 },
                 environment -> ValidationReference.none(),

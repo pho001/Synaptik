@@ -3,7 +3,7 @@ package tensor.ops.unary;
 import operations.Operation;
 import operations.elementwise.unary.relu;
 import tensor.Tensor;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
 
@@ -18,8 +18,8 @@ public final class ReluOp {
         UnarySupport.requireNumeric(input, "relu");
 
         Operation op = new relu();
-        Tensor out = TensorPrimitiveBuilder.unary(input, op, "relu", TensorDataTypeUtil.unary(input));
-        TensorInternalAccess.setBackwardFunction(out, () -> {
+        Tensor out = TensorPrimitiveBuilder.unary(input, op, "relu", TensorDTypes.requireFloating(input.getDataType()));
+        TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -27,7 +27,7 @@ public final class ReluOp {
 
             Tensor zero = Tensor.scalar(0.0, input.getDataType());
             Tensor gradForInput = Tensor.where(input.greaterThan(zero), outGrad, Tensor.zerosLike(outGrad));
-            UnarySupport.accumulateGradient(input, gradForInput);
+            context.accumulate(input, gradForInput);
         });
         return out;
     }

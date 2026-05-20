@@ -3,7 +3,7 @@ package tensor.ops.unary;
 import operations.Operation;
 import operations.elementwise.unary.floor;
 import tensor.Tensor;
-import tensor.dtype.TensorDataTypeUtil;
+import tensor.dtype.TensorDTypes;
 import tensor.internal.TensorPrimitiveBuilder;
 
 /**
@@ -15,6 +15,6 @@ public final class FloorOp {
 
     public static Tensor build(Tensor input) {
         Operation op = new floor();
-        return TensorPrimitiveBuilder.unaryNoGrad(input, input.getShape(), op, "floor", TensorDataTypeUtil.unary(input));
+        return TensorPrimitiveBuilder.unaryNoGrad(input, input.getShape(), op, "floor", TensorDTypes.requireFloating(input.getDataType()));
     }
 }

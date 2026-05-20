@@ -78,9 +78,9 @@ public final class ScaledDotProductAttentionOp {
         Tensor out = weights.matmul(value);
         out.setLabel("scaledDotProductAttention");
         Tensor backwardMask = effectiveMask;
-        TensorInternalAccess.setBackwardFunction(
+        TensorInternalAccess.setGradientRule(
                 out,
-                () -> AttentionSupport.backwardScaledDotProductAttention(out, query, key, value, backwardMask, weights, spec)
+                context -> AttentionSupport.backwardScaledDotProductAttention(out, query, key, value, backwardMask, weights, spec, context)
         );
         return out;
     }
