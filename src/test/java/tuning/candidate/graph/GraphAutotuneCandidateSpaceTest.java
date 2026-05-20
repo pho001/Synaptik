@@ -106,7 +106,7 @@ class GraphAutotuneCandidateSpaceTest {
         assertTrue(candidates.stream().anyMatch(candidate ->
                 "PLANNING_COST_PROFILE".equals(candidate.metadata().attributes().get("graphParameter"))));
         assertTrue(candidates.stream().anyMatch(candidate ->
-                "AGGRESSIVE".equals(candidate.metadata().attributes().get("metalTransferModel"))));
+                "AGGRESSIVE".equals(candidate.metadata().attributes().get("transferCostPreset"))));
         assertEquals(runtime.toRuntimeConfig().blas(), candidates.getFirst().profile().runtime().blas());
         assertEquals(
                 runtime.toRuntimeConfig().cpuKernelConfig().cheapVectorMinSize(),

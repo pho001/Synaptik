@@ -143,7 +143,7 @@ class GreedyMaxRegionPartitionPlannerTest {
         var instance = StandardWorkloads.reductionChain("metal_reduction_producer_closure_bf16", 64, 1024)
                 .instantiate(new WorkloadEnvironment(profile));
         CompiledGraph compiled = CompiledGraph.compile(instance.root(), profile.compile());
-        CompileArtifacts artifacts = compiled.compileArtifacts();
+        CompileArtifacts artifacts = new CompileArtifacts(compiled.program(), compiled.publication());
 
         List<Partition> gpuPartitions = artifacts.partitions().stream()
                 .filter(partition -> partition.target().backend() == ComputeBackend.GPU_METAL)
@@ -182,7 +182,8 @@ class GreedyMaxRegionPartitionPlannerTest {
                 "transformer_block_hot_path_medium_f32",
                 WorkloadProfile.transformerHotPathMedium()
         ).instantiate(new WorkloadEnvironment(profile));
-        return CompiledGraph.compile(instance.root(), profile.compile(), CompileMode.TRAINING).compileArtifacts();
+        CompiledGraph compiled = CompiledGraph.compile(instance.root(), profile.compile(), CompileMode.TRAINING);
+        return new CompileArtifacts(compiled.program(), compiled.publication());
     }
 
     private static PartitionPlanningContext planningContext(CompileArtifacts artifacts) {

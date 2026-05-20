@@ -2547,8 +2547,8 @@ Standard mode generates production-eligible `CandidateKind.GRAPH_STANDARD` candi
 
 Current graph autotune is deliberately small. It does not tune hardware proxy fields such as conv2d BLAS dispatch,
 fused scoring knobs, arbitrary partition structural weights, or arbitrary graph optimization stage sets. Those are either
-runtime-facing, architectural pipeline contracts, or too broad to promote safely. `MetalTransferModel` is different:
-it is a graph-level profitability assumption for scored Metal ownership regions. It is still research-only today
+runtime-facing, architectural pipeline contracts, or too broad to promote safely. `TransferCostPreset` is different:
+it is a graph-level profitability assumption for scored accelerator ownership regions. It is still research-only today
 because the current Metal bridge has real buffer binding but still pays first-input, CPU-boundary, and native
 result-copy costs; the conservative model is the production default. See [Metal Backend: Performance Model](metal-backend.md#performance-model).
 

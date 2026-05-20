@@ -24,11 +24,11 @@ public class IndexLossReductionExecutionTest {
         Tensor mean = logProbs.nllLossFromIndices(targetIndices, 1, LossReduction.MEAN);
 
         graph.CompiledGraph.compile(none, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         graph.CompiledGraph.compile(sum, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         graph.CompiledGraph.compile(mean, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         double[] expectedNone = new double[]{0.4076059644443804, 1.0986122886681098};
         assertArrayEquals(new int[]{2}, none.getShape());
@@ -49,9 +49,9 @@ public class IndexLossReductionExecutionTest {
         Tensor sum = logits.crossEntropyLossFromIndices(targetIndices, 1, -1, LossReduction.SUM);
 
         graph.CompiledGraph.compile(none, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         graph.CompiledGraph.compile(sum, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2}, none.getShape());
         assertArrayEquals(new double[]{0.4076059644443804, 0.0}, none.toDoubleArrayCopy(), 1e-9);

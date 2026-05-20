@@ -23,14 +23,14 @@ public class AttentionLoweringTest {
         Tensor manual = qManual.matmul(kManual.permute(0, 2, 1)).mul(0.5).softmax(2).matmul(vManual);
 
         CompiledGraph compiled = CompiledGraph.compile(manual, arOnlyConfig());
-        compiled.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        compiled.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor qDirect = matrix3d("q_direct");
         Tensor kDirect = matrix3d("k_direct");
         Tensor vDirect = values3d("v_direct");
         Tensor direct = qDirect.scaledDotProductAttention(kDirect, vDirect, AttentionOptions.defaults().withScale(0.5));
         CompiledGraph.compile(direct, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(direct.toDoubleArrayCopy(), manual.toDoubleArrayCopy(), 1e-9);
         assertFalse(containsOp(compiled, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
@@ -46,7 +46,7 @@ public class AttentionLoweringTest {
         Tensor manual = Tensor.where(maskManual, scores, Tensor.scalar(-1.0e30, DataType.FLOAT64)).softmax(2).matmul(vManual);
 
         CompiledGraph compiled = CompiledGraph.compile(manual, arOnlyConfig());
-        compiled.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        compiled.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor qDirect = matrix3d("q_direct");
         Tensor kDirect = matrix3d("k_direct");
@@ -54,7 +54,7 @@ public class AttentionLoweringTest {
         Tensor maskDirect = mask3d("mask_direct");
         Tensor direct = qDirect.scaledDotProductAttention(kDirect, vDirect, maskDirect, AttentionOptions.defaults().withScale(0.5));
         CompiledGraph.compile(direct, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(direct.toDoubleArrayCopy(), manual.toDoubleArrayCopy(), 1e-9);
         assertFalse(containsOp(compiled, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
@@ -71,7 +71,7 @@ public class AttentionLoweringTest {
         Tensor manual = qManual.matmul(kManual.permute(0, 2, 1)).mul(0.5).softmax(2).matmul(vManual).sum();
 
         CompiledGraph compiled = CompiledGraph.compile(manual, trainingArOnlyConfig());
-        compiled.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        compiled.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         Tensor qDirect = matrix3d("q_direct");
         Tensor kDirect = matrix3d("k_direct");
@@ -82,7 +82,7 @@ public class AttentionLoweringTest {
         Tensor direct = qDirect.scaledDotProductAttention(kDirect, vDirect, AttentionOptions.defaults().withScale(0.5)).sum();
 
         CompiledGraph.compile(direct, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(direct.toDoubleArrayCopy(), manual.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(qDirect.getGradient().toDoubleArrayCopy(), qManual.getGradient().toDoubleArrayCopy(), 1e-9);
@@ -107,7 +107,7 @@ public class AttentionLoweringTest {
         ).softmax(2).matmul(vManual).sum();
 
         CompiledGraph.compile(manual, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         Tensor qDirect = matrix3d("q_direct");
         Tensor kDirect = matrix3d("k_direct");
@@ -119,7 +119,7 @@ public class AttentionLoweringTest {
         Tensor direct = qDirect.scaledDotProductAttention(kDirect, vDirect, maskDirect, AttentionOptions.defaults().withScale(0.5)).sum();
 
         CompiledGraph.compile(direct, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(direct.toDoubleArrayCopy(), manual.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(qDirect.getGradient().toDoubleArrayCopy(), qManual.getGradient().toDoubleArrayCopy(), 1e-9);
@@ -143,7 +143,7 @@ public class AttentionLoweringTest {
         ).softmax(2).matmul(vManual).sum();
 
         CompiledGraph.compile(manual, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         Tensor qDirect = matrix3d("q_direct");
         Tensor kDirect = matrix3d("k_direct");
@@ -155,7 +155,7 @@ public class AttentionLoweringTest {
         Tensor direct = qDirect.scaledDotProductAttention(kDirect, vDirect, maskDirect, AttentionOptions.defaults().withScale(0.5)).sum();
 
         CompiledGraph.compile(direct, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(direct.toDoubleArrayCopy(), manual.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(qDirect.getGradient().toDoubleArrayCopy(), qManual.getGradient().toDoubleArrayCopy(), 1e-9);
@@ -196,7 +196,7 @@ public class AttentionLoweringTest {
     }
 
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
-        return compiledGraph.compiledNodes().stream()
+        return compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)

@@ -19,14 +19,14 @@ public class CompiledGraphIdempotencyTest {
         Tensor loss = a.mul(a);
 
         CompiledGraph first = CompiledGraph.compile(loss, CompileConfig.training());
-        int firstNodeCount = first.compiledNodes().size();
+        int firstNodeCount = first.program().compiledNodes().size();
 
         CompiledGraph second = CompiledGraph.compile(loss, CompileConfig.training());
-        int secondNodeCount = second.compiledNodes().size();
+        int secondNodeCount = second.program().compiledNodes().size();
 
         assertEquals(firstNodeCount, secondNodeCount);
 
-        second.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        second.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         assertEquals(4.0d, a.getGradient().scalarAsDouble(), 1e-9);
     }
 
@@ -37,16 +37,16 @@ public class CompiledGraphIdempotencyTest {
         Tensor loss = a.mul(a);
 
         CompiledGraph first = CompiledGraph.compile(loss, CompileConfig.training());
-        first.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        first.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         assertEquals(4.0d, a.getGradient().scalarAsDouble(), 1e-9);
 
         CompiledGraph second = CompiledGraph.compile(loss, CompileConfig.training());
-        int firstNodeCount = first.compiledNodes().size();
-        int secondNodeCount = second.compiledNodes().size();
+        int firstNodeCount = first.program().compiledNodes().size();
+        int secondNodeCount = second.program().compiledNodes().size();
 
         assertEquals(firstNodeCount, secondNodeCount);
 
-        second.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        second.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         assertEquals(4.0d, a.getGradient().scalarAsDouble(), 1e-9);
     }
 

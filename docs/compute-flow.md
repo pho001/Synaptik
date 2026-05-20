@@ -1824,7 +1824,7 @@ Traces are observability objects, not persistent logs. The framework creates the
 |---|---|---|
 | `CompileTrace` | `compiled.compileTrace()` | No |
 | `PrepareTrace` | `prepared.prepareTrace()` | No |
-| `RunTrace` | return value of `prepared.executeTraced(...)` or `compiled.executeTraced(...)` | No |
+| `RunTrace` | return value of `prepared.executeTraced(...)` | No |
 | `ExecutionTrace` | Can be assembled from compile/prepare/run traces by callers | No |
 
 Concrete trace capture:

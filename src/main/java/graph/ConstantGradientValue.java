@@ -2,6 +2,7 @@ package graph;
 
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.autograd.DifferentiableDTypePolicy;
 
 import java.util.Objects;
 
@@ -53,7 +54,7 @@ public record ConstantGradientValue(
                     null,
                     tensor.toBFloat16BitsArrayCopy()
             );
-            case INT32, INT64, BOOL -> throw GradientDTypePolicy.unsupportedGradientDType(
+            case INT32, INT64, BOOL -> throw DifferentiableDTypePolicy.unsupportedGradientDType(
                     tensor.getDataType(),
                     "constant gradient snapshot"
             );
@@ -65,7 +66,7 @@ public record ConstantGradientValue(
             case FLOAT64 -> new Tensor(float64Values(), shape(), null, label, DataType.FLOAT64);
             case FLOAT32 -> new Tensor(float32Values(), shape(), null, label, DataType.FLOAT32);
             case BFLOAT16 -> new Tensor(bfloat16Values(), shape(), null, label, DataType.BFLOAT16);
-            case INT32, INT64, BOOL -> throw GradientDTypePolicy.unsupportedGradientDType(
+            case INT32, INT64, BOOL -> throw DifferentiableDTypePolicy.unsupportedGradientDType(
                     dataType,
                     "constant gradient publication"
             );

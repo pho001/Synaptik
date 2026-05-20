@@ -22,7 +22,7 @@ public class NonContiguousExecutionTest {
         Tensor b = new Tensor(new double[]{10, 20, 30, 40, 50, 60}, new int[]{2, 3}, null, "b_contig", DataType.FLOAT64);
 
         Tensor c = a.add(b);
-        CompiledGraph.compile(c, CompileConfig.noGraphOptimizationBaseline()).execute(runtimeConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(c, CompileConfig.noGraphOptimizationBaseline()).prepare(runtimeConfig).execute(ExecutionMode.FORWARD);
 
         double[] expected = add(remapToContiguous(a), b.toDoubleArrayCopy());
         assertArrayEquals(expected, c.toDoubleArrayCopy(), EPS);
@@ -37,7 +37,7 @@ public class NonContiguousExecutionTest {
         Tensor b = new Tensor(new double[]{10, 20, 30, 40, 50, 60}, new int[]{2, 3}, null, "b_contig", DataType.FLOAT64);
 
         Tensor c = a.add(b);
-        CompiledGraph.compile(c, CompileConfig.noGraphOptimizationBaseline()).execute(runtimeConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(c, CompileConfig.noGraphOptimizationBaseline()).prepare(runtimeConfig).execute(ExecutionMode.FORWARD);
 
         double[] expected = add(remapToContiguous(a), b.toDoubleArrayCopy());
         assertArrayEquals(expected, c.toDoubleArrayCopy(), EPS);
@@ -49,12 +49,12 @@ public class NonContiguousExecutionTest {
 
         RuntimeConfig stridedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 100));
         Tensor s = a.log();
-        CompiledGraph.compile(s, CompileConfig.noGraphOptimizationBaseline()).execute(stridedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(s, CompileConfig.noGraphOptimizationBaseline()).prepare(stridedConfig).execute(ExecutionMode.FORWARD);
         double[] strided = s.toDoubleArrayCopy().clone();
 
         RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0));
         Tensor m = a.log();
-        CompiledGraph.compile(m, CompileConfig.noGraphOptimizationBaseline()).execute(materializedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(m, CompileConfig.noGraphOptimizationBaseline()).prepare(materializedConfig).execute(ExecutionMode.FORWARD);
         double[] materialized = m.toDoubleArrayCopy().clone();
 
         assertArrayEquals(strided, materialized, EPS);
@@ -68,10 +68,10 @@ public class NonContiguousExecutionTest {
         Tensor b = new Tensor(new double[]{10, 20, 30}, new int[]{3}, null, "b_broadcast", DataType.FLOAT64);
 
         Tensor c = a.add(b);
-        CompiledGraph.compile(c, CompileConfig.noGraphOptimizationBaseline()).execute(runtimeConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(c, CompileConfig.noGraphOptimizationBaseline()).prepare(runtimeConfig).execute(ExecutionMode.FORWARD);
 
         Tensor ref = a.contiguous().add(b);
-        CompiledGraph.compile(ref, CompileConfig.noGraphOptimizationBaseline()).execute(runtimeConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(ref, CompileConfig.noGraphOptimizationBaseline()).prepare(runtimeConfig).execute(ExecutionMode.FORWARD);
         assertArrayEquals(ref.toDoubleArrayCopy(), c.toDoubleArrayCopy(), EPS);
     }
 
@@ -84,10 +84,10 @@ public class NonContiguousExecutionTest {
         Tensor bias = new Tensor(new float[]{10, 20}, new int[]{2, 1}, null, "bias", DataType.FLOAT32);
 
         Tensor strided = left.add(bias.expand(2, 4));
-        CompiledGraph.compile(strided, CompileConfig.noGraphOptimizationBaseline()).execute(stridedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(strided, CompileConfig.noGraphOptimizationBaseline()).prepare(stridedConfig).execute(ExecutionMode.FORWARD);
 
         Tensor materialized = left.add(bias.expand(2, 4));
-        CompiledGraph.compile(materialized, CompileConfig.noGraphOptimizationBaseline()).execute(materializedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(materialized, CompileConfig.noGraphOptimizationBaseline()).prepare(materializedConfig).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(materialized.toDoubleArrayCopy(), strided.toDoubleArrayCopy(), EPS32);
     }
@@ -101,10 +101,10 @@ public class NonContiguousExecutionTest {
         Tensor right = new Tensor(new float[]{2, 3, 4, 5, 6, 7, 8, 9}, new int[]{2, 4}, null, "right_contig", DataType.FLOAT32);
 
         Tensor strided = left.mul(right);
-        CompiledGraph.compile(strided, CompileConfig.noGraphOptimizationBaseline()).execute(stridedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(strided, CompileConfig.noGraphOptimizationBaseline()).prepare(stridedConfig).execute(ExecutionMode.FORWARD);
 
         Tensor materialized = left.mul(right);
-        CompiledGraph.compile(materialized, CompileConfig.noGraphOptimizationBaseline()).execute(materializedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(materialized, CompileConfig.noGraphOptimizationBaseline()).prepare(materializedConfig).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(materialized.toDoubleArrayCopy(), strided.toDoubleArrayCopy(), EPS32);
     }
@@ -117,10 +117,10 @@ public class NonContiguousExecutionTest {
         Tensor bias = new Tensor(new float[]{3, 7}, new int[]{2, 1}, null, "bias", DataType.FLOAT32);
 
         Tensor strided = bias.expand(2, 4).mul(0.5);
-        CompiledGraph.compile(strided, CompileConfig.noGraphOptimizationBaseline()).execute(stridedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(strided, CompileConfig.noGraphOptimizationBaseline()).prepare(stridedConfig).execute(ExecutionMode.FORWARD);
 
         Tensor materialized = bias.expand(2, 4).mul(0.5);
-        CompiledGraph.compile(materialized, CompileConfig.noGraphOptimizationBaseline()).execute(materializedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(materialized, CompileConfig.noGraphOptimizationBaseline()).prepare(materializedConfig).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(materialized.toDoubleArrayCopy(), strided.toDoubleArrayCopy(), EPS32);
     }
@@ -133,10 +133,10 @@ public class NonContiguousExecutionTest {
         Tensor bias = new Tensor(new float[]{3, 7}, new int[]{2, 1}, null, "bias_bf16", DataType.BFLOAT16);
 
         Tensor strided = bias.expand(2, 4).mul(0.5);
-        CompiledGraph.compile(strided, CompileConfig.noGraphOptimizationBaseline()).execute(stridedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(strided, CompileConfig.noGraphOptimizationBaseline()).prepare(stridedConfig).execute(ExecutionMode.FORWARD);
 
         Tensor materialized = bias.expand(2, 4).mul(0.5);
-        CompiledGraph.compile(materialized, CompileConfig.noGraphOptimizationBaseline()).execute(materializedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(materialized, CompileConfig.noGraphOptimizationBaseline()).prepare(materializedConfig).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(materialized.toDoubleArrayCopy(), strided.toDoubleArrayCopy(), 2e-3);
     }
@@ -149,7 +149,7 @@ public class NonContiguousExecutionTest {
         Tensor scale = Tensor.scalar(0.75d, DataType.BFLOAT16).expand(2, 4);
 
         Tensor out = input.mul(scale);
-        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).execute(runtimeConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).prepare(runtimeConfig).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{0.75, 1.5, 2.25, 3.0, 3.75, 4.5, 5.25, 6.0}, out.toDoubleArrayCopy(), 2e-3);
     }

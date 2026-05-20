@@ -33,7 +33,7 @@ public class FusedExecutionModesTest {
         Tensor cBase = new Tensor(cVals.clone(), new int[]{cVals.length}, null, "cBase", DataType.FLOAT64);
         Tensor baseline = aBase.add(bBase).mul(cBase).add(aBase.mul(0.25)).max(bBase).min(cBase).sigmoid();
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+                .prepare(runtimeConfig(CpuKernelConfig.defaultsTraining())).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         // SCALAR
@@ -89,7 +89,7 @@ public class FusedExecutionModesTest {
 
         Tensor baseline = aBase.add(bBase).mul(cBase).add(aBase).sigmoid();
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         assertBroadcastModeMatches(expected,
@@ -124,7 +124,7 @@ public class FusedExecutionModesTest {
 
         Tensor baseline = aBase.add(bBase).mul(cBase).add(aBase).sigmoid();
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+                .prepare(runtimeConfig(CpuKernelConfig.defaultsTraining())).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(aBase.toDoubleArrayCopy(), new int[]{2, 1, 4}, null, "a", DataType.FLOAT64);
@@ -136,7 +136,7 @@ public class FusedExecutionModesTest {
 
         Tensor out = a.add(b).mul(c).add(a).sigmoid();
         CompiledGraph.compile(out, fuseOnlyInferenceConfig())
-                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+                .prepare(runtimeConfig(CpuKernelConfig.defaultsTraining())).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
     }
@@ -161,7 +161,7 @@ public class FusedExecutionModesTest {
         );
         Tensor baseline = aBase.add(bBase).mul(aBase).sigmoid();
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+                .prepare(runtimeConfig(CpuKernelConfig.defaultsTraining())).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(
@@ -185,7 +185,7 @@ public class FusedExecutionModesTest {
 
         Tensor out = a.add(b).mul(a).sigmoid();
         CompiledGraph.compile(out, fuseOnlyInferenceConfig())
-                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+                .prepare(runtimeConfig(CpuKernelConfig.defaultsTraining())).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
     }
@@ -198,7 +198,7 @@ public class FusedExecutionModesTest {
 
         Tensor baseline = Tensor.where(cond, aBase, bBase).relu().mul(aBase);
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+                .prepare(runtimeConfig(CpuKernelConfig.defaultsTraining())).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor condFused = new Tensor(new byte[]{1, 0, 1, 0}, new int[]{4}, null, "condFused", DataType.BOOL);
@@ -232,7 +232,7 @@ public class FusedExecutionModesTest {
         Tensor valuesBase = new Tensor(valueValues.clone(), new int[]{size}, null, "valuesBase", DataType.FLOAT32);
         Tensor baseline = Tensor.where(maskBase, valuesBase.mul(0.25), fillBase);
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, 1)), ExecutionMode.FORWARD);
+                .prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, 1))).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor mask = new Tensor(maskValues.clone(), new int[]{size}, null, "mask", DataType.BOOL);
@@ -252,7 +252,7 @@ public class FusedExecutionModesTest {
         Tensor exponentBaseline = new Tensor(new float[]{3f, 0.5f, 2f, -1f}, new int[]{4}, null, "exponentBaseline", DataType.FLOAT32);
         Tensor baseline = baseBaseline.pow(exponentBaseline).add(baseBaseline);
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, 1)), ExecutionMode.FORWARD);
+                .prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, 1))).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor base = new Tensor(new float[]{2f, 4f, 9f, 16f}, new int[]{4}, null, "base", DataType.FLOAT32);
@@ -276,7 +276,7 @@ public class FusedExecutionModesTest {
 
         Tensor baseline = aBase.greaterThan(bBase).logicalOr(cBase.lessThan(dBase));
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+                .prepare(runtimeConfig(CpuKernelConfig.defaultsTraining())).execute(ExecutionMode.FORWARD);
         boolean[] expected = baseline.toBooleanArrayCopy().clone();
 
         Tensor a = new Tensor(new double[]{1, 5, 3, 8}, new int[]{4}, null, "a", DataType.FLOAT64);
@@ -300,7 +300,7 @@ public class FusedExecutionModesTest {
 
         Tensor baseline = Tensor.where(aBase.greaterThan(bBase), xBase, yBase).relu().mul(xBase);
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+                .prepare(runtimeConfig(CpuKernelConfig.defaultsTraining())).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(new double[]{1, 5, 3, 8}, new int[]{4}, null, "a", DataType.FLOAT64);
@@ -329,7 +329,7 @@ public class FusedExecutionModesTest {
         Tensor yBase = new Tensor(yVals.clone(), new int[]{size}, null, "yBase", DataType.FLOAT64);
         Tensor baseline = Tensor.where(aBase.greaterThan(bBase), xBase, yBase).relu().mul(xBase);
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+                .prepare(runtimeConfig(CpuKernelConfig.defaultsTraining())).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(aVals.clone(), new int[]{size}, null, "a", DataType.FLOAT64);
@@ -363,7 +363,7 @@ public class FusedExecutionModesTest {
 
         Tensor baseline = Tensor.where(aBase.greaterThan(bBase).logicalOr(cBase.lessThan(dBase)), xBase, yBase).mul(xBase);
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+                .prepare(runtimeConfig(CpuKernelConfig.defaultsTraining())).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(aVals.clone(), new int[]{size}, null, "a", DataType.FLOAT64);
@@ -397,7 +397,7 @@ public class FusedExecutionModesTest {
         Tensor zBase = new Tensor(zVals.clone(), new int[]{size}, null, "zBase", DataType.FLOAT64);
         Tensor baseline = Tensor.where(condBase, xBase, yBase).relu().mul(zBase);
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+                .prepare(runtimeConfig(CpuKernelConfig.defaultsTraining())).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor cond = new Tensor(condVals.clone(), new int[]{size}, null, "cond", DataType.BOOL);
@@ -426,7 +426,7 @@ public class FusedExecutionModesTest {
         Tensor yBase = new Tensor(yVals.clone(), new int[]{size}, null, "yBase", DataType.FLOAT64);
         Tensor baseline = Tensor.where(aBase.greaterThan(bBase).logicalOr(aBase.lessThan(bBase)), xBase, yBase).sigmoid();
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+                .prepare(runtimeConfig(CpuKernelConfig.defaultsTraining())).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(aVals.clone(), new int[]{size}, null, "a", DataType.FLOAT64);
@@ -455,7 +455,7 @@ public class FusedExecutionModesTest {
         Tensor bBase = new Tensor(bVals.clone(), new int[]{size}, null, "bBase", DataType.FLOAT64);
         Tensor baseline = aBase.sub(bBase).abs().clampMin(-0.25).clampMax(0.75).sigmoid();
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+                .prepare(runtimeConfig(CpuKernelConfig.defaultsTraining())).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(aVals.clone(), new int[]{size}, null, "a", DataType.FLOAT64);
@@ -481,7 +481,7 @@ public class FusedExecutionModesTest {
         Tensor bBase = new Tensor(bVals.clone(), new int[]{size}, null, "bBase", DataType.FLOAT64);
         Tensor baseline = aBase.sub(bBase).abs().add(bBase.abs()).mul(0.5).clampMin(0.01).sqrt().clampMax(1.25);
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+                .prepare(runtimeConfig(CpuKernelConfig.defaultsTraining())).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(aVals.clone(), new int[]{size}, null, "a", DataType.FLOAT64);
@@ -540,7 +540,7 @@ public class FusedExecutionModesTest {
         Tensor dBase = new Tensor(dVals.clone(), new int[]{size}, null, "dBase", DataType.FLOAT64);
         Tensor baseline = aBase.greaterThan(bBase).logicalOr(cBase.lessThan(dBase));
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+                .prepare(runtimeConfig(CpuKernelConfig.defaultsTraining())).execute(ExecutionMode.FORWARD);
         boolean[] expected = baseline.toBooleanArrayCopy().clone();
 
         Tensor a = new Tensor(aVals.clone(), new int[]{size}, null, "a", DataType.FLOAT64);
@@ -569,7 +569,7 @@ public class FusedExecutionModesTest {
 
         Tensor baseline = view.relu().exp().mul(view);
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+                .prepare(runtimeConfig(CpuKernelConfig.defaultsTraining())).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor baseFused = new Tensor(
@@ -638,7 +638,7 @@ public class FusedExecutionModesTest {
         }, new int[]{2, 3, 4}, null, "c", DataType.FLOAT64);
 
         Tensor out = a.add(b).mul(c).add(a).sigmoid();
-        CompiledGraph.compile(out, fuseOnlyInferenceConfig()).execute(runtimeConfig(config), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, fuseOnlyInferenceConfig()).prepare(runtimeConfig(config)).execute(ExecutionMode.FORWARD);
         assertArrayEquals(expected, out.toDoubleArrayCopy(), EPS);
     }
 
@@ -657,7 +657,7 @@ public class FusedExecutionModesTest {
 
         Tensor out = a.add(b).mul(c).add(a.mul(0.25)).max(b).min(c).sigmoid();
         CompiledGraph.compile(out, fuseOnlyInferenceConfig())
-                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+                .prepare(runtimeConfig(CpuKernelConfig.defaultsTraining())).execute(ExecutionMode.FORWARD);
         return out.toDoubleArrayCopy().clone();
     }
 

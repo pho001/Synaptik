@@ -27,7 +27,7 @@ public class ReluLoweringTest {
                 Tensor.zerosLike(baselineInput)
         );
         CompiledGraph.compile(baselineOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         Tensor optimizedInput = new Tensor(new double[]{-2.0, 0.0, 3.0}, new int[]{3}, null, "x_opt", DataType.FLOAT64);
         optimizedInput.setRequiresGrad(true);
@@ -37,7 +37,7 @@ public class ReluLoweringTest {
                 Tensor.zerosLike(optimizedInput)
         );
         CompiledGraph compiledGraph = CompiledGraph.compile(optimizedOut, arOnlyConfig());
-        compiledGraph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        compiledGraph.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(baselineOut.toDoubleArrayCopy(), optimizedOut.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(baselineInput.getGradient().toDoubleArrayCopy(), optimizedInput.getGradient().toDoubleArrayCopy(), 1e-9);
@@ -55,7 +55,7 @@ public class ReluLoweringTest {
         );
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, arOnlyConfig());
-        compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        compiledGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertFalse(containsOp(compiledGraph, Operation.OpType.RELU));
         assertTrue(containsOp(compiledGraph, Operation.OpType.WHERE));
@@ -71,8 +71,8 @@ public class ReluLoweringTest {
 
         CompiledGraph minGraph = CompiledGraph.compile(min, arOnlyConfig());
         CompiledGraph maxGraph = CompiledGraph.compile(max, arOnlyConfig());
-        minGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        maxGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        minGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
+        maxGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertFalse(containsOp(minGraph, Operation.OpType.MIN));
         assertFalse(containsOp(maxGraph, Operation.OpType.MAX));
@@ -87,7 +87,7 @@ public class ReluLoweringTest {
         Tensor out = input.relu();
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{0.0, 0.0, 3.0}, out.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{0.0, 0.0, 1.0}, input.getGradient().toDoubleArrayCopy(), 1e-9);
@@ -106,13 +106,13 @@ public class ReluLoweringTest {
                 out,
                 arWithPiecewiseConfig(new PiecewiseLoweringConfig(false, true, false))
         );
-        compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        compiledGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertTrue(containsOp(compiledGraph, Operation.OpType.RELU));
     }
 
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
-        return compiledGraph.compiledNodes().stream()
+        return compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)

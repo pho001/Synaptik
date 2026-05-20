@@ -56,7 +56,7 @@ final class TransformerMetalPartitionAnalysisTest {
         var prepared = compiled.prepare(profile.runtime());
 
         System.out.println("NODES");
-        for (CompiledNode node : compiled.compileArtifacts().compiledNodes()) {
+        for (CompiledNode node : compiled.program().compiledNodes()) {
             System.out.println(node.id()
                     + " " + (node.backwardNode() ? "B" : "F")
                     + " " + (node.operation() == null ? "LEAF" : node.operation().opType())
@@ -84,7 +84,7 @@ final class TransformerMetalPartitionAnalysisTest {
                                 .toList())));
 
         System.out.println("PLANS");
-        compiled.compileArtifacts().plannedPartitions().stream()
+        compiled.program().plannedPartitions().stream()
                 .filter(partition -> partition.plan() instanceof MetalPartitionPlan)
                 .map(partition -> (MetalPartitionPlan) partition.plan())
                 .forEach(plan -> System.out.println("anchor=" + plan.anchorNodeId()

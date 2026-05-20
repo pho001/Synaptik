@@ -60,7 +60,7 @@ final class AbcLegacyRecompileExperimentTest {
 
         Stats stats = benchmark(prepared, profile.mode(), 30, 100, 3);
 
-        List<CompiledNode> graph = compiled.compiledNodes();
+        List<CompiledNode> graph = compiled.program().compiledNodes();
         long backwardNodes = graph.stream().filter(CompiledNode::backwardNode).count();
         long fusedNodes = graph.stream()
                 .filter(t -> t.operation() != null && t.operation().opType() == Operation.OpType.FUSED)

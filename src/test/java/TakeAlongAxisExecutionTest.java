@@ -22,7 +22,7 @@ public class TakeAlongAxisExecutionTest {
         Tensor y = x.takeAlongAxis(indices, 1);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline());
-        compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        compiledGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 2}, y.getShape());
         assertArrayEquals(new double[]{3.0, 2.0, 4.0, 4.0}, y.toDoubleArrayCopy(), 1e-9);
@@ -36,7 +36,7 @@ public class TakeAlongAxisExecutionTest {
         Tensor y = x.takeAlongAxis(indices, 1);
 
         CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{3.0, 3.0, 4.0, 5.0}, y.toDoubleArrayCopy(), 1e-9);
     }
@@ -50,7 +50,7 @@ public class TakeAlongAxisExecutionTest {
 
         CompiledGraph compiled = CompiledGraph.compile(y, CompileConfig.training());
         compiled
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 0.0, 0.0, 2.0,
@@ -68,7 +68,7 @@ public class TakeAlongAxisExecutionTest {
         Tensor grad = base.scatterElements(indices, outGrad, 1, ScatterReduction.ADD);
 
         CompiledGraph.compile(grad, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
                 0.0, 0.0, 3.0,
@@ -85,11 +85,11 @@ public class TakeAlongAxisExecutionTest {
 
         assertThrows(IllegalArgumentException.class, () ->
                 CompiledGraph.compile(grad, CompileConfig.noGraphOptimizationBaseline())
-                        .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD));
+                        .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD));
     }
 
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
-        return compiledGraph.compiledNodes().stream()
+        return compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)

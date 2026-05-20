@@ -1,12 +1,12 @@
-package graph;
+package tensor.autograd;
 
 import tensor.DataType;
 
 /**
- * Central gradient dtype contract for graph compilation and execution.
+ * Central dtype contract for tensors that can participate in gradient computation.
  */
-public final class GradientDTypePolicy {
-    private GradientDTypePolicy() {
+public final class DifferentiableDTypePolicy {
+    private DifferentiableDTypePolicy() {
     }
 
     public static boolean supportsGradients(DataType dataType) {

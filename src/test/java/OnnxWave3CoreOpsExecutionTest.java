@@ -21,14 +21,14 @@ public class OnnxWave3CoreOpsExecutionTest {
 
         Tensor forward = x.cumSum(1);
         CompiledGraph forwardGraph = CompiledGraph.compile(forward, CompileConfig.noGraphOptimizationBaseline());
-        forwardGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        forwardGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{1, 3, 6, 4, 9, 15}, forward.toDoubleArrayCopy(), 1e-9);
         assertTrue(containsOp(forwardGraph, Operation.OpType.CUMSUM));
 
         Tensor exclusiveReverse = x.cumSum(1, true, true);
         CompiledGraph.compile(exclusiveReverse, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{5, 3, 0, 11, 6, 0}, exclusiveReverse.toDoubleArrayCopy(), 1e-9);
     }
@@ -43,7 +43,7 @@ public class OnnxWave3CoreOpsExecutionTest {
         Tensor transposed = x.transpose();
         Tensor out = transposed.cumSum(1);
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{3, 2}, out.getShape());
         assertArrayEquals(new double[]{1, 5, 2, 7, 3, 9}, out.toDoubleArrayCopy(), 1e-9);
@@ -58,7 +58,7 @@ public class OnnxWave3CoreOpsExecutionTest {
     }
 
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
-        return compiledGraph.compiledNodes().stream()
+        return compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)

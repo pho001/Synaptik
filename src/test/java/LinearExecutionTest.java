@@ -30,7 +30,7 @@ public class LinearExecutionTest {
 
         Tensor out = input.linear(weight);
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 2}, out.getShape());
         assertArrayEquals(new double[]{19, 22, 43, 50}, out.toDoubleArrayCopy(), 1e-9);
@@ -52,7 +52,7 @@ public class LinearExecutionTest {
 
         Tensor out = input.linear(weight, bias);
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 2, 2}, out.getShape());
         assertArrayEquals(new double[]{
@@ -107,7 +107,7 @@ public class LinearExecutionTest {
 
         Tensor loss = input.linear(weight, bias).sum();
         CompiledGraph.compile(loss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{11, 15, 11, 15}, input.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{4, 4, 6, 6}, weight.getGradient().toDoubleArrayCopy(), 1e-9);
@@ -138,7 +138,7 @@ public class LinearExecutionTest {
         Tensor biasBase = new Tensor(biasValues.clone(), new int[]{96}, null, "biasBase", DataType.BFLOAT16);
         Tensor baseline = inputBase.linear(weightBase, biasBase);
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+                .prepare(bfloat16JavaRuntime()).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor input = new Tensor(inputValues.clone(), new int[]{32, 64}, null, "input", DataType.BFLOAT16);
@@ -146,7 +146,7 @@ public class LinearExecutionTest {
         Tensor bias = new Tensor(biasValues.clone(), new int[]{96}, null, "bias", DataType.BFLOAT16);
         Tensor out = input.linear(weight, bias);
         CompiledGraph.compile(out, CompileConfig.inference())
-                .execute(bfloat16BlasRuntime(), ExecutionMode.FORWARD);
+                .prepare(bfloat16BlasRuntime()).execute(ExecutionMode.FORWARD);
 
         // BF16 BLAS and Java fallback both use BF16 inputs with F32 accumulation, but the BLAS
         // kernel may accumulate in a different order before the final BF16 publication.
@@ -166,7 +166,7 @@ public class LinearExecutionTest {
         Tensor biasBase = new Tensor(biasValues.clone(), new int[]{96}, null, "biasBase", DataType.BFLOAT16);
         Tensor baseline = inputBase.linear(weightBase, biasBase).relu();
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+                .prepare(bfloat16JavaRuntime()).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor input = new Tensor(inputValues.clone(), new int[]{32, 64}, null, "input", DataType.BFLOAT16);
@@ -174,7 +174,7 @@ public class LinearExecutionTest {
         Tensor bias = new Tensor(biasValues.clone(), new int[]{96}, null, "bias", DataType.BFLOAT16);
         Tensor out = input.linear(weight, bias).relu();
         CompiledGraph.compile(out, CompileConfig.inference())
-                .execute(bfloat16BlasRuntime(), ExecutionMode.FORWARD);
+                .prepare(bfloat16BlasRuntime()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
     }
@@ -190,7 +190,7 @@ public class LinearExecutionTest {
         Tensor biasBase = new Tensor(biasValues.clone(), new int[]{96}, null, "biasBase", DataType.FLOAT64);
         Tensor baseline = inputBase.linear(weightBase, biasBase).relu();
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor input = new Tensor(inputValues.clone(), new int[]{32, 64}, null, "input", DataType.BFLOAT16);
@@ -198,7 +198,7 @@ public class LinearExecutionTest {
         Tensor bias = new Tensor(biasValues.clone(), new int[]{96}, null, "bias", DataType.BFLOAT16);
         Tensor out = input.linear(weight, bias).relu();
         CompiledGraph.compile(out, CompileConfig.inference())
-                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+                .prepare(bfloat16JavaRuntime()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 3e-2);
     }

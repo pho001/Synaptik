@@ -17,7 +17,7 @@ public class ComputeModeTraceTest {
         Tensor out = a.add(b);
 
         var trace = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .executeTraced(config.runtime.RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(config.runtime.RuntimeConfig.inferenceDefaults()).executeTraced(ExecutionMode.FORWARD);
 
         var add = trace.steps().stream()
                 .filter(step -> "ADD".equals(step.opType()))
@@ -36,7 +36,7 @@ public class ComputeModeTraceTest {
         Tensor out = x.sum();
 
         var trace = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .executeTraced(config.runtime.RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(config.runtime.RuntimeConfig.inferenceDefaults()).executeTraced(ExecutionMode.FORWARD);
 
         var sum = trace.steps().stream()
                 .filter(step -> "SUM".equals(step.opType()))
@@ -58,7 +58,7 @@ public class ComputeModeTraceTest {
         Tensor out = a.matmul(b);
 
         var trace = graph.CompiledGraph.compile(out, CompileConfig.inference())
-                .executeTraced(bfloat16BlasRuntime(), ExecutionMode.FORWARD);
+                .prepare(bfloat16BlasRuntime()).executeTraced(ExecutionMode.FORWARD);
 
         var matmul = trace.steps().stream()
                 .filter(step -> "MATMUL".equals(step.opType()))

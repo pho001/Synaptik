@@ -65,7 +65,7 @@ public class TensorShapeIndexOpsExecutionTest {
         Tensor out = Tensor.concat(0, sliced.cast(DataType.FLOAT64), sliced.cast(DataType.FLOAT64));
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertEquals(DataType.FLOAT64, out.getDataType());
         assertArrayEquals(new int[]{4, 2}, out.getShape());
@@ -82,7 +82,7 @@ public class TensorShapeIndexOpsExecutionTest {
         Tensor out = x.slice(new int[]{0, 1}, new int[]{2, 4}, new int[]{0, 1}, new int[]{1, 2});
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 2}, out.getShape());
         assertArrayEquals(new double[]{2.0, 4.0, 6.0, 8.0}, out.toDoubleArrayCopy(), 1e-6);
@@ -106,7 +106,7 @@ public class TensorShapeIndexOpsExecutionTest {
         Tensor y = x.slice(new int[]{0, 1}, new int[]{2, 4}, new int[]{0, 1}, new int[]{1, 2}).mul(2.0);
 
         CompiledGraph.compile(y, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 0.0, 2.0, 0.0, 2.0,
@@ -131,7 +131,7 @@ public class TensorShapeIndexOpsExecutionTest {
         ).mul(2.0);
 
         CompiledGraph.compile(out, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 0.0, 2.0, 2.0,
@@ -149,7 +149,7 @@ public class TensorShapeIndexOpsExecutionTest {
         Tensor out = Tensor.concat(0, a, b);
 
         CompiledGraph.compile(out, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{1.0, 1.0, 1.0, 1.0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{1.0, 1.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);
@@ -165,7 +165,7 @@ public class TensorShapeIndexOpsExecutionTest {
         Tensor out = Tensor.concat(1, a, b).mul(3.0);
 
         CompiledGraph.compile(out, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{3.0, 3.0, 3.0, 3.0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{3.0, 3.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);
@@ -179,7 +179,7 @@ public class TensorShapeIndexOpsExecutionTest {
         Tensor y = x.cast(DataType.FLOAT64);
 
         CompiledGraph.compile(y, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertEquals(DataType.FLOAT32, x.getGradient().getDataType());
         assertArrayEquals(new double[]{1.0, 1.0}, x.getGradient().toDoubleArrayCopy(), 1e-6);

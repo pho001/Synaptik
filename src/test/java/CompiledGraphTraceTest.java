@@ -154,7 +154,7 @@ public class CompiledGraphTraceTest {
         Tensor out = a.add(b).mul(a);
 
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference());
-        var runTrace = compiled.executeTraced(config.runtime.RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        var runTrace = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).executeTraced(ExecutionMode.FORWARD);
 
         assertTrue(compiled.compileTrace().measured());
         assertTrue(compiled.compileTrace().totalNodeCount() > 0);
@@ -316,9 +316,9 @@ public class CompiledGraphTraceTest {
                 List.of(step),
                 List.of(step),
                 List.of(),
-                compiled.compileArtifacts().compiledNodes(),
-                compiled.compileArtifacts().descriptorIndex(),
-                compiled.compileArtifacts().publication(),
+                compiled.program().compiledNodes(),
+                compiled.program().descriptorIndex(),
+                compiled.publication(),
                 outputNode,
                 null,
                 graph.execution.trace.PrepareTrace.skipped()
@@ -348,9 +348,9 @@ public class CompiledGraphTraceTest {
                 List.of(step),
                 List.of(step),
                 List.of(),
-                compiled.compileArtifacts().compiledNodes(),
-                compiled.compileArtifacts().descriptorIndex(),
-                compiled.compileArtifacts().publication(),
+                compiled.program().compiledNodes(),
+                compiled.program().descriptorIndex(),
+                compiled.publication(),
                 outputNode,
                 null,
                 graph.execution.trace.PrepareTrace.skipped()
@@ -529,9 +529,9 @@ public class CompiledGraphTraceTest {
                 List.of(step),
                 List.of(step),
                 List.of(),
-                compiled.compileArtifacts().compiledNodes(),
-                compiled.compileArtifacts().descriptorIndex(),
-                compiled.compileArtifacts().publication(),
+                compiled.program().compiledNodes(),
+                compiled.program().descriptorIndex(),
+                compiled.publication(),
                 outputNode,
                 null,
                 graph.execution.trace.PrepareTrace.skipped()
@@ -747,9 +747,9 @@ public class CompiledGraphTraceTest {
                 List.of(step),
                 List.of(step),
                 List.of(),
-                compiled.compileArtifacts().compiledNodes(),
-                compiled.compileArtifacts().descriptorIndex(),
-                compiled.compileArtifacts().publication(),
+                compiled.program().compiledNodes(),
+                compiled.program().descriptorIndex(),
+                compiled.publication(),
                 outputNode,
                 null,
                 graph.execution.trace.PrepareTrace.skipped()
@@ -1021,7 +1021,7 @@ public class CompiledGraphTraceTest {
     }
 
     private static int nodeId(graph.CompiledGraph compiled, operations.Operation.OpType opType) {
-        return compiled.compileArtifacts().compiledNodes().stream()
+        return compiled.program().compiledNodes().stream()
                 .filter(node -> node.operation() != null && node.operation().opType() == opType)
                 .map(CompiledNode::id)
                 .findFirst()
@@ -1039,14 +1039,14 @@ public class CompiledGraphTraceTest {
     }
 
     private static CompiledNode compiledNode(graph.CompiledGraph compiled, int nodeId) {
-        return compiled.compileArtifacts().compiledNodes().stream()
+        return compiled.program().compiledNodes().stream()
                 .filter(node -> node.id() == nodeId)
                 .findFirst()
                 .orElseThrow();
     }
 
     private static CompiledNode publicationNode(graph.CompiledGraph compiled, Tensor tensor) {
-        Integer nodeId = compiled.compileArtifacts().publication().nodeIdsByPublicationTarget().get(tensor);
+        Integer nodeId = compiled.publication().nodeIdsByPublicationTarget().get(tensor);
         if (nodeId == null) {
             throw new IllegalStateException("Missing publication node for tensor " + tensor.getLabel());
         }
@@ -1054,7 +1054,7 @@ public class CompiledGraphTraceTest {
     }
 
     private static PartitionPlanningContext planningContext(graph.CompiledGraph compiled) {
-        List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
+        List<CompiledNode> nodes = compiled.program().compiledNodes();
         java.util.Map<Integer, java.util.List<CompiledNode>> consumers = new java.util.HashMap<>();
         for (CompiledNode node : nodes) {
             consumers.computeIfAbsent(node.id(), ignored -> new java.util.ArrayList<>());

@@ -39,7 +39,7 @@ public class MemoryPlanningDataTypeTest {
         C.setRequiresGrad(true);
 
         Tensor out = buildSequence(A, B, C);
-        CompiledGraph.compile(out, optimizerConfig).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph.compile(out, optimizerConfig).prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         return new RunResult(
                 out.toDoubleArrayCopy().clone(),

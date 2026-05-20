@@ -25,7 +25,7 @@ public class NllLossExecutionTest {
 
         Tensor loss = logProbs.nllLoss(targets, 1);
         CompiledGraph compiledGraph = CompiledGraph.compile(loss, CompileConfig.noGraphOptimizationBaseline());
-        compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        compiledGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         double[] row0 = logSoftmaxRow(new double[]{1.0, 2.0, 3.0});
         double[] row1 = logSoftmaxRow(new double[]{0.0, 0.0, 0.0});
@@ -50,7 +50,7 @@ public class NllLossExecutionTest {
 
         Tensor loss = logProbs.nllLoss(targets, 1);
         CompiledGraph.compile(loss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 0.0, 0.0, -0.5,
@@ -69,14 +69,14 @@ public class NllLossExecutionTest {
 
         Tensor loss = logProbs.nllLoss(targets, 1);
         CompiledGraph.compile(loss, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         double expected = -(0.2 * -1.0 + 0.3 * -0.5 + 0.5 * -2.0);
         assertArrayEquals(new double[]{expected}, loss.toDoubleArrayCopy(), 1e-9);
     }
 
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
-        return compiledGraph.compiledNodes().stream()
+        return compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)

@@ -21,7 +21,7 @@ public class IgnoreIndexLossExecutionTest {
 
         Tensor loss = logProbs.nllLossFromIndices(targetIndices, 1, -1);
         CompiledGraph.compile(loss, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         double[] row0 = logSoftmaxRow(new double[]{1.0, 2.0, 3.0});
         assertArrayEquals(new double[]{-row0[2]}, loss.toDoubleArrayCopy(), 1e-9);
@@ -40,7 +40,7 @@ public class IgnoreIndexLossExecutionTest {
         Tensor loss = logProbs.nllLossFromIndices(targetIndices, 1, -1);
 
         CompiledGraph.compile(loss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 0.0, 0.0, -1.0,
@@ -58,7 +58,7 @@ public class IgnoreIndexLossExecutionTest {
         Tensor targetIndicesA = new Tensor(new int[]{2, -1}, new int[]{2}, null, "targetIndicesA", DataType.INT32);
         Tensor reference = logitsA.logSoftmax(1).nllLossFromIndices(targetIndicesA, 1, -1);
         CompiledGraph.compile(reference, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         Tensor logitsB = new Tensor(new double[]{
                 1.0, 2.0, 3.0,
@@ -68,7 +68,7 @@ public class IgnoreIndexLossExecutionTest {
         Tensor targetIndicesB = new Tensor(new int[]{2, -1}, new int[]{2}, null, "targetIndicesB", DataType.INT32);
         Tensor direct = logitsB.crossEntropyLossFromIndices(targetIndicesB, 1, -1);
         CompiledGraph.compile(direct, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(reference.toDoubleArrayCopy(), direct.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(logitsA.getGradient().toDoubleArrayCopy(), logitsB.getGradient().toDoubleArrayCopy(), 1e-9);
@@ -84,7 +84,7 @@ public class IgnoreIndexLossExecutionTest {
         Tensor loss = logits.crossEntropyLossFromIndices(targetIndices, 1, -1);
 
         CompiledGraph.compile(loss, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{0.0}, loss.toDoubleArrayCopy(), 1e-9);
     }

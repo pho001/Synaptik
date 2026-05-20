@@ -180,18 +180,18 @@ class MemoryPlannerRegionViewTest {
         Tensor min = a.minimum(b);
         CompiledGraph compiled = CompiledGraph.compile(min, CompileConfig.training());
 
-        MemoryPlan plan = compiled.compileArtifacts().memoryPlan();
+        MemoryPlan plan = compiled.program().memoryPlan();
 
         assertNotNull(plan);
         List<GraphValueRef> materializedValues = plan.structuralView().materializedValues();
-        List<GraphValueRef> materializedGradientValues = compiled.compileArtifacts().compiledNodes().stream()
+        List<GraphValueRef> materializedGradientValues = compiled.program().compiledNodes().stream()
                 .filter(CompiledNode::backwardNode)
                 .map(node -> GraphValueRef.node(node.id()))
                 .filter(materializedValues::contains)
                 .toList();
         assertEquals(2, materializedGradientValues.size());
         assertTrue(materializedValues.stream()
-                .allMatch(valueRef -> plan.regionValueLifetimeOf(valueRef).lastUseStep() == compiled.compiledNodes().size()));
+                .allMatch(valueRef -> plan.regionValueLifetimeOf(valueRef).lastUseStep() == compiled.program().compiledNodes().size()));
         long distinctSlotCount = materializedValues.stream()
                 .map(plan::regionSlotIdOf)
                 .distinct()

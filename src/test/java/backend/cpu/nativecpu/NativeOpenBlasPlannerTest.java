@@ -111,7 +111,7 @@ class NativeOpenBlasPlannerTest {
         Tensor out = a.matmul(b);
 
         var trace = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, BlasStorageMode.AUTO, 1L), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, BlasStorageMode.AUTO, 1L)).executeTraced(ExecutionMode.FORWARD);
 
         var matmul = trace.steps().stream()
                 .filter(step -> "MATMUL".equals(step.opType()))

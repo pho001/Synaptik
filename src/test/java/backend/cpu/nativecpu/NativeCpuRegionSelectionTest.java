@@ -32,13 +32,10 @@ class NativeCpuRegionSelectionTest {
         Tensor out = left.add(right).relu();
 
         var trace = CompiledGraph.compile(out, CompileConfig.inference())
-                .executeTraced(
+                .prepare(
                         RuntimeConfig.inferenceDefaults()
                                 .withCpuStorageProfile(CpuStorageProfile.CPU_NATIVE)
-                                .withNativeCpuFailurePolicy(NativeCpuFailurePolicy.FALLBACK_TO_ARRAY),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                                .withNativeCpuFailurePolicy(NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         assertFalse(trace.steps().stream()
                 .flatMap(step -> step.metadata().attributes().keySet().stream())
@@ -52,11 +49,8 @@ class NativeCpuRegionSelectionTest {
         Tensor out = left.matmul(right).relu();
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        disabledBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        disabledBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> matmulAttrs = trace.steps().stream()
                 .filter(step -> "MATMUL".equals(step.opType()))
@@ -85,11 +79,8 @@ class NativeCpuRegionSelectionTest {
         Tensor out = left.matmul(right).relu();
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        disabledBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        disabledBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> matmulAttrs = trace.steps().stream()
                 .filter(step -> "MATMUL".equals(step.opType()))

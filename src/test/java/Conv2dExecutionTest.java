@@ -25,7 +25,7 @@ public class Conv2dExecutionTest {
 
         Tensor out = input.conv2d(weight, Conv2dOptions.defaults());
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{1, 1, 2, 2}, out.getShape());
         assertArrayEquals(new double[]{
@@ -49,7 +49,7 @@ public class Conv2dExecutionTest {
 
         Tensor out = input.conv2d(weight, bias, Conv2dOptions.defaults().withStride(2, 2).withPadding(1, 1));
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{1, 1, 2, 2}, out.getShape());
         assertArrayEquals(new double[]{
@@ -74,7 +74,7 @@ public class Conv2dExecutionTest {
 
         Tensor loss = input.conv2d(weight, Conv2dOptions.defaults()).sum();
         CompiledGraph.compile(loss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 1, 1, 0,
@@ -100,7 +100,7 @@ public class Conv2dExecutionTest {
 
         Tensor out = input.conv2d(weight, Conv2dOptions.defaults().withGroups(2));
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{1, 2, 1, 3}, out.getShape());
         assertArrayEquals(new double[]{
@@ -122,7 +122,7 @@ public class Conv2dExecutionTest {
         }, new int[]{1, 1, 2, 2}, null, "weight32", DataType.FLOAT32);
         Tensor out32 = input32.conv2d(weight32, Conv2dOptions.defaults());
         CompiledGraph.compile(out32, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{-4, -4, -4, -4}, out32.toDoubleArrayCopy(), 1e-6);
 
         short[] input16Data = new short[]{
@@ -146,7 +146,7 @@ public class Conv2dExecutionTest {
         Tensor weight16 = new Tensor(weight16Data, new int[]{1, 1, 2, 2}, null, "weight16", DataType.BFLOAT16);
         Tensor out16 = input16.conv2d(weight16, Conv2dOptions.defaults());
         CompiledGraph.compile(out16, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{-4, -4, -4, -4}, out16.toDoubleArrayCopy(), 1e-3);
     }
 }

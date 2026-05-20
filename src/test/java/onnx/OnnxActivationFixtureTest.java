@@ -28,7 +28,7 @@ class OnnxActivationFixtureTest {
                 String outputName = entry.getKey();
                 OnnxActivationFixtureModels.ExpectedOutput expected = entry.getValue();
                 imported.compile(outputName, CompileConfig.inference())
-                        .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                        .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
                 assertEquals(expected.dataType(), imported.output(outputName).getDataType(), fixture.fileName() + ":" + outputName);
                 assertArrayEquals(expected.shape(), imported.output(outputName).getShape(), fixture.fileName() + ":" + outputName);

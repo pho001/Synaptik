@@ -22,17 +22,17 @@ public class CrossEntropyLossFromIndicesLoweringTest {
         Tensor canonical = logits.logSoftmax(1).nllLossFromIndices(targetIndices, 1);
         CompiledGraph compiled = CompiledGraph.compile(canonical, CompileConfig.inference());
 
-        assertFalse(compiled.compiledNodes().stream()
+        assertFalse(compiled.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.CROSS_ENTROPY_LOSS_INDICES));
-        assertTrue(compiled.compiledNodes().stream()
+        assertTrue(compiled.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.GATHER));
-        assertTrue(compiled.compiledNodes().stream()
+        assertTrue(compiled.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
@@ -45,9 +45,9 @@ public class CrossEntropyLossFromIndicesLoweringTest {
         Tensor direct = directLogits.crossEntropyLossFromIndices(targetIndices, 1);
 
         graph.CompiledGraph.compile(canonical, CompileConfig.inference())
-                .execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+                .prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
         graph.CompiledGraph.compile(direct, CompileConfig.noGraphOptimizationBaseline())
-                .execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+                .prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
 
         assertArrayEquals(direct.toDoubleArrayCopy(), canonical.toDoubleArrayCopy(), 1e-9);
     }

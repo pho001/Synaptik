@@ -51,11 +51,11 @@ public class NdTensorSequencePrimitivesTest {
 
         Tensor loss = input.linear(weight, bias).sum();
         CompiledGraph.compile(loss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         Tensor out = input.linear(weight, bias);
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 2, 2}, out.getShape());
         assertArrayEquals(new double[]{
@@ -86,7 +86,7 @@ public class NdTensorSequencePrimitivesTest {
 
         Tensor stacked = Tensor.stack(1, a, b, c);
         CompiledGraph.compile(stacked, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new int[]{2, 3, 2}, stacked.getShape());
         assertArrayEquals(new double[]{
@@ -104,7 +104,7 @@ public class NdTensorSequencePrimitivesTest {
         Tensor[] parts = stacked.unstack(1);
         Tensor restacked = Tensor.stack(1, parts);
         CompiledGraph.compile(restacked, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertEquals(3, parts.length);
         assertArrayEquals(stacked.toDoubleArrayCopy(), restacked.toDoubleArrayCopy(), 1e-9);
 
@@ -123,12 +123,12 @@ public class NdTensorSequencePrimitivesTest {
         Tensor sliced = x.sliceAxis(1, 1, 3);
         Tensor loss = taken.sum();
         CompiledGraph.compile(loss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         CompiledGraph.compile(taken, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         CompiledGraph.compile(sliced, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 2}, taken.getShape());
         assertArrayEquals(new double[]{4, 2, 8, 6}, taken.toDoubleArrayCopy(), 1e-9);
@@ -155,9 +155,9 @@ public class NdTensorSequencePrimitivesTest {
         Tensor sum = x.sum(1, mask);
         Tensor mean = x.mean(1, mask);
         CompiledGraph.compile(sum, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         CompiledGraph.compile(mean, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{4, 6, 7, 8}, sum.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{2, 3, 7, 8}, mean.toDoubleArrayCopy(), 1e-9);
@@ -182,7 +182,7 @@ public class NdTensorSequencePrimitivesTest {
 
         Tensor loss = logits.crossEntropyLoss(targets, 2, mask);
         CompiledGraph.compile(loss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         double[] logitsData = logits.toDoubleArrayCopy();
         double[] targetData = targets.toDoubleArrayCopy();

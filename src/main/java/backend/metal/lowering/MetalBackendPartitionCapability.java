@@ -4,7 +4,7 @@ import backend.ComputeBackend;
 import backend.accelerator.lowering.AcceleratorSubgraphLowerer;
 import backend.accelerator.lowering.AcceleratorSubgraphLoweringResult;
 import config.compile.BackendPlanningCostConfig;
-import config.optimizer.MetalTransferModel;
+import config.compile.TransferCostPreset;
 import graph.compile.planning.partition.PartitionPlanningContext;
 import graph.CompiledNode;
 import graph.compile.planning.partition.PartitionPlan;
@@ -37,9 +37,9 @@ public final class MetalBackendPartitionCapability implements BackendPartitionCa
 
     @Override
     public AcceleratorPartitionScoreModel.StaticCostPreset costPreset(BackendPlanningCostConfig costConfig) {
-        MetalTransferModel model = costConfig == null
-                ? MetalTransferModel.CONSERVATIVE
-                : costConfig.planningCostProfile().metalTransferModel();
+        TransferCostPreset model = costConfig == null
+                ? TransferCostPreset.CONSERVATIVE
+                : costConfig.planningCostProfile().transferCostPreset();
         return switch (model) {
             case CONSERVATIVE -> AcceleratorPartitionScoreModel.StaticCostPreset.conservative();
             case MEASURED -> AcceleratorPartitionScoreModel.StaticCostPreset.measured();

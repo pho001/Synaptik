@@ -106,7 +106,7 @@ public final class GraphAutotuneCandidateSpace implements CandidateSpace {
                 .withAttribute("backendDiscoveryMode", backendPlanning.discoveryMode().name())
                 .withAttribute("backendFailurePolicy", backendPlanning.failurePolicy().name())
                 .withAttribute("ownershipPlanner", backendPlanning.ownershipPlanner().name())
-                .withAttribute("metalTransferModel", backendPlanning.cost().planningCostProfile().metalTransferModel().name())
+                .withAttribute("transferCostPreset", backendPlanning.cost().planningCostProfile().transferCostPreset().name())
                 .withAttribute("cpuRegionPolicy", backendPlanning.cpuRegions().policy().name())
                 .withAttribute("cpuFusionPolicy", regionOptimization.cpuFusion().mode().name())
                 .withAttribute("productionEligible", Boolean.toString(standard));

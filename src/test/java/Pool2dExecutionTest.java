@@ -24,7 +24,7 @@ public class Pool2dExecutionTest {
 
         Tensor out = input.maxPool2d(Pool2dOptions.square(2));
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{1, 1, 2, 2}, out.getShape());
         assertArrayEquals(new double[]{
@@ -45,7 +45,7 @@ public class Pool2dExecutionTest {
 
         Tensor loss = input.maxPool2d(Pool2dOptions.square(2)).sum();
         CompiledGraph.compile(loss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 0, 0, 0, 0,
@@ -66,7 +66,7 @@ public class Pool2dExecutionTest {
 
         Tensor out = forwardInput.avgPool2d(Pool2dOptions.square(2));
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{1, 1, 2, 2}, out.getShape());
         assertArrayEquals(new double[]{
@@ -84,7 +84,7 @@ public class Pool2dExecutionTest {
 
         Tensor loss = backwardInput.avgPool2d(Pool2dOptions.square(2)).sum();
         CompiledGraph.compile(loss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 0.25, 0.25, 0.25, 0.25,
@@ -100,7 +100,7 @@ public class Pool2dExecutionTest {
 
         Tensor excludePad = input.avgPool2d(Pool2dOptions.square(2).withStride(1, 1).withPadding(1, 1));
         CompiledGraph.compile(excludePad, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{4, 4, 4, 4}, excludePad.toDoubleArrayCopy(), 1e-9);
 
         Tensor includePad = input.avgPool2d(
@@ -110,7 +110,7 @@ public class Pool2dExecutionTest {
                         .withCountIncludePad(true)
         );
         CompiledGraph.compile(includePad, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{1, 1, 1, 1}, includePad.toDoubleArrayCopy(), 1e-9);
     }
 
@@ -125,7 +125,7 @@ public class Pool2dExecutionTest {
 
         Tensor max32 = input32.maxPool2d(Pool2dOptions.square(2));
         CompiledGraph.compile(max32, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{6, 8, 14, 16}, max32.toDoubleArrayCopy(), 1e-6);
 
         short[] input16Data = new short[]{
@@ -150,7 +150,7 @@ public class Pool2dExecutionTest {
 
         Tensor avg16 = input16.avgPool2d(Pool2dOptions.square(2));
         CompiledGraph.compile(avg16, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{3.5, 5.5, 11.5, 13.5}, avg16.toDoubleArrayCopy(), 1e-3);
     }
 

@@ -39,7 +39,7 @@ public class Int32IndexDtypeTest {
         Tensor y = x.gather(indices, 1);
 
         CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{3.0, 4.0}, y.toDoubleArrayCopy(), 1e-9);
     }
@@ -56,9 +56,9 @@ public class Int32IndexDtypeTest {
         Tensor ce = logits.crossEntropyLossFromIndices(targetIndices, 1);
 
         CompiledGraph.compile(nll, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         CompiledGraph.compile(ce, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(nll.toDoubleArrayCopy(), ce.toDoubleArrayCopy(), 1e-9);
     }
@@ -73,7 +73,7 @@ public class Int32IndexDtypeTest {
 
         Tensor loss = logits.crossEntropyLossFromIndices(targetIndices, 1, -1);
         CompiledGraph.compile(loss, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{0.4076059644443804}, loss.toDoubleArrayCopy(), 1e-9);
     }

@@ -178,7 +178,7 @@ class MetalLayoutAwareDeviceFlowTest {
     void linearReshapePermuteMatchesCpuForwardResult() {
         Tensor expected = linearReshapePermuteGraph("cpu");
         CompiledGraph.compile(expected, CompileConfig.inference())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor actual = linearReshapePermuteGraph("metal");
         PreparedExecution execution = CompiledGraph.compile(actual, CompileConfig.inference())
@@ -193,7 +193,7 @@ class MetalLayoutAwareDeviceFlowTest {
     void layoutViewThenLogSoftmaxStaysDeviceOwnedUntilOutputBoundary() {
         Tensor expected = linearReshapePermuteLogSoftmaxGraph("cpu");
         CompiledGraph.compile(expected, CompileConfig.inference())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor actual = linearReshapePermuteLogSoftmaxGraph("metal");
         CompiledGraph compiled = CompiledGraph.compile(actual, CompileConfig.inference());
@@ -208,7 +208,7 @@ class MetalLayoutAwareDeviceFlowTest {
                 .anyMatch(decision -> decision.selected()
                         && decision.selectedBackend() == ComputeBackend.GPU_METAL
                         && decision.nodeIds().contains(logSoftmaxNodeId)));
-        assertTrue(compiled.compileArtifacts().compiledNodes().stream()
+        assertTrue(compiled.program().compiledNodes().stream()
                 .anyMatch(node -> node.operation() != null && node.operation().opType() == operations.Operation.OpType.LOG_SOFTMAX));
         assertTrue(List.of("GPU_LAYOUT_VIEW_BINDING_AVAILABLE", "GPU_LAYOUT_DENSE_MATERIALIZATION_AVAILABLE")
                 .contains(AcceleratorBufferReasonCode.GPU_LAYOUT_VIEW_BINDING_AVAILABLE.name()));
@@ -218,7 +218,7 @@ class MetalLayoutAwareDeviceFlowTest {
     void broadcastContiguousReportsGpuLayoutMaterialization() {
         Tensor expected = broadcastContiguousGraph("cpu");
         CompiledGraph.compile(expected, CompileConfig.inference())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor actual = broadcastContiguousGraph("metal");
         PreparedExecution execution = CompiledGraph.compile(actual, CompileConfig.noGraphOptimizationBaseline())
@@ -272,7 +272,7 @@ class MetalLayoutAwareDeviceFlowTest {
     void forwardBackwardLayoutAwareGraphPublishesGradientsWithCpuParity() {
         TrainingGraph expected = trainingGraph("cpu");
         CompiledGraph.compile(expected.loss(), CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         double[] expectedInputGrad = expected.input().getGradient().toDoubleArrayCopy().clone();
         double[] expectedWeightGrad = expected.weight().getGradient().toDoubleArrayCopy().clone();
 
@@ -370,7 +370,7 @@ class MetalLayoutAwareDeviceFlowTest {
     }
 
     private static int nodeId(CompiledGraph compiled, operations.Operation.OpType opType) {
-        return compiled.compileArtifacts().compiledNodes().stream()
+        return compiled.program().compiledNodes().stream()
                 .filter(node -> node.operation() != null && node.operation().opType() == opType)
                 .map(graph.CompiledNode::id)
                 .findFirst()

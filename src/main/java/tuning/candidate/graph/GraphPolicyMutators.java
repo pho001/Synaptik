@@ -11,7 +11,7 @@ import config.optimizer.CseConfig;
 import config.optimizer.CpuFusionConfig;
 import config.optimizer.CpuRegionConfig;
 import config.optimizer.MemoryConfig;
-import config.optimizer.MetalTransferModel;
+import config.compile.TransferCostPreset;
 import config.optimizer.PiecewiseLoweringConfig;
 import config.profile.GraphExecutionPolicy;
 
@@ -162,7 +162,7 @@ public final class GraphPolicyMutators {
                         GraphExecutionPolicy.of(compile.withBackendPlanning(BackendPlanningConfig.autoAccelerator()
                                 .withOwnershipPlanner(RegionOwnershipPlannerStrategy.SCORED)
                                 .withCost(new BackendPlanningCostConfig(PlanningCostProfile.measuredTransfer())))),
-                        transferKnobs(RegionOwnershipPlannerStrategy.SCORED, MetalTransferModel.MEASURED)
+                        transferKnobs(RegionOwnershipPlannerStrategy.SCORED, TransferCostPreset.MEASURED)
                 ),
                 new GraphPolicyVariant(
                         "planningCost=metal-transfer-aggressive+ownershipPlanner=scored",
@@ -170,7 +170,7 @@ public final class GraphPolicyMutators {
                         GraphExecutionPolicy.of(compile.withBackendPlanning(BackendPlanningConfig.autoAccelerator()
                                 .withOwnershipPlanner(RegionOwnershipPlannerStrategy.SCORED)
                                 .withCost(new BackendPlanningCostConfig(PlanningCostProfile.aggressiveTransfer())))),
-                        transferKnobs(RegionOwnershipPlannerStrategy.SCORED, MetalTransferModel.AGGRESSIVE)
+                        transferKnobs(RegionOwnershipPlannerStrategy.SCORED, TransferCostPreset.AGGRESSIVE)
                 ),
                 new GraphPolicyVariant(
                         "research:cpuRegion=off+cpuFusion=off",
@@ -206,11 +206,11 @@ public final class GraphPolicyMutators {
 
     private static Map<String, String> transferKnobs(
             RegionOwnershipPlannerStrategy ownershipPlanner,
-            MetalTransferModel transferModel
+            TransferCostPreset transferModel
     ) {
         return Map.of(
                 "compile.backendPlanning.ownershipPlanner", ownershipPlanner.name(),
-                "compile.backendPlanning.cost.metalTransferModel", transferModel.name()
+                "compile.backendPlanning.cost.transferCostPreset", transferModel.name()
         );
     }
 

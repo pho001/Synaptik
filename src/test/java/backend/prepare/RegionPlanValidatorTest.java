@@ -85,9 +85,9 @@ class RegionPlanValidatorTest {
     }
 
     private static CompileArtifacts compile(Tensor root) {
-        return CompiledGraph.compile(root, CompileConfig.noGraphOptimizationBaseline()
-                        .withSemanticCanonicalization(SemanticCanonicalizationConfig.disabled()))
-                .compileArtifacts();
+        CompiledGraph compiled = CompiledGraph.compile(root, CompileConfig.noGraphOptimizationBaseline()
+                .withSemanticCanonicalization(SemanticCanonicalizationConfig.disabled()));
+        return new CompileArtifacts(compiled.program(), compiled.publication());
     }
 
     private static BackendPrepareContext context(CompileArtifacts artifacts) {

@@ -92,7 +92,7 @@ class CudaLayoutTransformDeviceFlowTest {
         Tensor nonDenseSource = base.permute(1, 0);
         Tensor contiguous = nonDenseSource.contiguous();
         CompiledGraph compiled = CompiledGraph.compile(contiguous, CompileConfig.noGraphOptimizationBaseline());
-        List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
+        List<CompiledNode> nodes = compiled.program().compiledNodes();
         CompiledNode baseNode = nodeFor(nodes, base);
         CompiledNode sourceNode = nodeFor(nodes, nonDenseSource);
         CompiledNode contiguousNode = nodeFor(nodes, contiguous);
@@ -133,13 +133,13 @@ class CudaLayoutTransformDeviceFlowTest {
     void layoutViewThenLogSoftmaxStaysDeviceOwnedUntilOutputBoundary() {
         Tensor expected = linearReshapePermuteLogSoftmaxGraph("cpu");
         CompiledGraph.compile(expected, CompileConfig.inference())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor actual = linearReshapePermuteLogSoftmaxGraph("cuda");
         CompiledGraph compiled = CompiledGraph.compile(actual, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
         var trace = execution.executeTraced(ExecutionMode.FORWARD);
-        int logSoftmaxNodeId = nodeId(compiled.compileArtifacts().compiledNodes(), Operation.OpType.LOG_SOFTMAX);
+        int logSoftmaxNodeId = nodeId(compiled.program().compiledNodes(), Operation.OpType.LOG_SOFTMAX);
 
         assertArrayEquals(expected.toDoubleArrayCopy(), actual.toDoubleArrayCopy(), 1e-5);
         assertFalse(trace.cpuMaterializations().stream()
@@ -148,7 +148,7 @@ class CudaLayoutTransformDeviceFlowTest {
                 .anyMatch(decision -> decision.selected()
                         && decision.selectedBackend() == ComputeBackend.GPU_CUDA
                         && decision.nodeIds().contains(logSoftmaxNodeId)));
-        assertTrue(compiled.compileArtifacts().compiledNodes().stream()
+        assertTrue(compiled.program().compiledNodes().stream()
                 .anyMatch(node -> node.operation() != null && node.operation().opType() == Operation.OpType.LOG_SOFTMAX));
         assertTrue(List.of("GPU_LAYOUT_VIEW_BINDING_AVAILABLE", "GPU_LAYOUT_DENSE_MATERIALIZATION_AVAILABLE")
                 .contains(AcceleratorBufferReasonCode.GPU_LAYOUT_DENSE_MATERIALIZATION_AVAILABLE.name()));

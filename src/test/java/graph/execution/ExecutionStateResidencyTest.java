@@ -43,7 +43,7 @@ class ExecutionStateResidencyTest {
     @Test
     void deviceCurrentNodeCannotBeReadAsCpuWithoutMaterializer() {
         Fixture fixture = fixture();
-        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        int outputNodeId = fixture.compiled().program().forwardOutputNode().id();
 
         fixture.state().markDeviceCurrent(
                 outputNodeId,
@@ -73,7 +73,7 @@ class ExecutionStateResidencyTest {
     @Test
     void completedMaterializationRestoresCpuReadableState() {
         Fixture fixture = fixture();
-        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        int outputNodeId = fixture.compiled().program().forwardOutputNode().id();
 
         fixture.state().markDeviceCurrent(
                 outputNodeId,
@@ -101,7 +101,7 @@ class ExecutionStateResidencyTest {
     @Test
     void registeredMaterializerRestoresCpuReadableStateForDeviceOwnedBinding() {
         Fixture fixture = fixture();
-        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        int outputNodeId = fixture.compiled().program().forwardOutputNode().id();
         DeviceBufferBinding binding = fakeBinding(outputNodeId, 8, true);
         RecordingMaterializer materializer = new RecordingMaterializer(321L, "fake Metal readback");
 
@@ -144,7 +144,7 @@ class ExecutionStateResidencyTest {
     @Test
     void executionContextRejectsCpuConsumerForDeviceCurrentInput() {
         Fixture fixture = fixture();
-        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        int outputNodeId = fixture.compiled().program().forwardOutputNode().id();
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),
                 ExecutionMode.FORWARD,
@@ -169,7 +169,7 @@ class ExecutionStateResidencyTest {
     @Test
     void sharedDeviceBufferBindingKeepsCpuReadableAndDeviceCurrent() {
         Fixture fixture = fixture();
-        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        int outputNodeId = fixture.compiled().program().forwardOutputNode().id();
         DeviceBufferBinding binding = fakeBinding(outputNodeId, 8, true);
 
         fixture.state().attachDeviceBufferBinding(
@@ -191,7 +191,7 @@ class ExecutionStateResidencyTest {
     @Test
     void reservedDeviceBufferBindingDoesNotMarkValueCurrent() {
         Fixture fixture = fixture();
-        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        int outputNodeId = fixture.compiled().program().forwardOutputNode().id();
         DeviceBufferBinding binding = fakeBinding(outputNodeId, 8, true);
 
         fixture.state().reserveDeviceBufferBinding(outputNodeId, binding);
@@ -207,7 +207,7 @@ class ExecutionStateResidencyTest {
     @Test
     void cpuWriteClearsDeviceBufferBinding() {
         Fixture fixture = fixture();
-        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        int outputNodeId = fixture.compiled().program().forwardOutputNode().id();
         DeviceBufferBinding binding = fakeBinding(outputNodeId, 8, true);
 
         fixture.state().attachDeviceBufferBinding(
@@ -228,7 +228,7 @@ class ExecutionStateResidencyTest {
     @Test
     void nativeCurrentMaterializesToCpuArrayForPublicRead() {
         Fixture fixture = fixture();
-        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        int outputNodeId = fixture.compiled().program().forwardOutputNode().id();
         NativeTensorStorage storage = new NativeCpuStorageFactory().allocate(DataType.FLOAT32, 2, "native-output");
         NativeFloat32Storage f32 = (NativeFloat32Storage) storage;
         f32.setFloat32At(0, 11f);
@@ -256,7 +256,7 @@ class ExecutionStateResidencyTest {
     @Test
     void requireNativeReadableMaterializesCpuArrayToNative() {
         Fixture fixture = fixture();
-        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        int outputNodeId = fixture.compiled().program().forwardOutputNode().id();
         Tensor runtime = fixture.state().runtimeTensorForNodeId(outputNodeId);
         runtime.setData(new float[]{5f, 6f});
         fixture.state().markCpuCurrent(outputNodeId, "cpu test data");
@@ -282,7 +282,7 @@ class ExecutionStateResidencyTest {
     @Test
     void deviceCurrentRequireNativeReadableRecordsArrayBridgeTransfer() {
         Fixture fixture = fixture();
-        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        int outputNodeId = fixture.compiled().program().forwardOutputNode().id();
         DeviceBufferBinding binding = fakeBinding(outputNodeId, 8, true);
         RecordingMaterializer materializer = new RecordingMaterializer(321L, "fake Metal readback");
 
@@ -311,7 +311,7 @@ class ExecutionStateResidencyTest {
     @Test
     void deviceCurrentRequireNativeReadableUsesDirectNativeMaterializerWhenAvailable() {
         Fixture fixture = fixture();
-        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        int outputNodeId = fixture.compiled().program().forwardOutputNode().id();
         DeviceBufferBinding binding = fakeBinding(outputNodeId, 8, true);
         RecordingNativeMaterializer materializer = new RecordingNativeMaterializer(654L, "fake Metal native readback");
 
@@ -347,7 +347,7 @@ class ExecutionStateResidencyTest {
     @Test
     void requireDirectRejectsDeviceToArrayToNativeBridgeWhenDirectMaterializerMissing() {
         Fixture fixture = fixture();
-        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        int outputNodeId = fixture.compiled().program().forwardOutputNode().id();
         DeviceBufferBinding binding = fakeBinding(outputNodeId, 8, true);
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults().withDeviceTransferPolicy(DeviceTransferPolicy.REQUIRE_DIRECT),
@@ -376,7 +376,7 @@ class ExecutionStateResidencyTest {
     @Test
     void closeResourcesClosesAttachedNativeStorageAndClearsBinding() {
         Fixture fixture = fixture();
-        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        int outputNodeId = fixture.compiled().program().forwardOutputNode().id();
         NativeTensorStorage storage = new NativeCpuStorageFactory().allocate(DataType.FLOAT32, 2, "native-close");
 
         fixture.state().attachNativeStorage(outputNodeId, storage, "native output");
@@ -389,7 +389,7 @@ class ExecutionStateResidencyTest {
     @Test
     void unavailableDeviceBufferBindingIsRejected() {
         Fixture fixture = fixture();
-        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        int outputNodeId = fixture.compiled().program().forwardOutputNode().id();
         DeviceBufferBinding binding = fakeBinding(outputNodeId, 8, false);
 
         IllegalArgumentException error = assertThrows(
@@ -409,7 +409,7 @@ class ExecutionStateResidencyTest {
     @Test
     void executionResourcesCloseInReverseOrderAndClearBindings() {
         Fixture fixture = fixture();
-        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        int outputNodeId = fixture.compiled().program().forwardOutputNode().id();
         DeviceBufferBinding binding = fakeBinding(outputNodeId, 8, true);
         List<String> closed = new ArrayList<>();
 
@@ -436,17 +436,17 @@ class ExecutionStateResidencyTest {
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution prepared = compiled.prepare(RuntimeConfig.inferenceDefaults());
-        List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
+        List<CompiledNode> nodes = compiled.program().compiledNodes();
         Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
         for (PreparedNodeExecution step : prepared.executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
         ExecutionState state = ExecutionState.create(
                 nodes,
-                compiled.compileArtifacts().descriptorIndex(),
+                compiled.program().descriptorIndex(),
                 metadata,
-                compiled.compileArtifacts().forwardOutputNode().id(),
-                compiled.compileArtifacts().publication()
+                compiled.program().forwardOutputNode().id(),
+                compiled.publication()
         );
         return new Fixture(compiled, state, Map.copyOf(metadata));
     }

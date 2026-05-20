@@ -18,7 +18,7 @@ public class AddBroadcastTest {
 
         Tensor out = a.add(b);
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{11, 22, 33, 14, 25, 36}, out.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new int[]{2, 3}, out.getShape());
@@ -33,7 +33,7 @@ public class AddBroadcastTest {
 
         Tensor out = a.add(b);
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertNotNull(a.getGradient());
         assertNotNull(b.getGradient());
@@ -48,7 +48,7 @@ public class AddBroadcastTest {
 
         Tensor out = a.add(b);
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{11, 22, 33, 14, 25, 36}, out.toDoubleArrayCopy(), 1e-6);
         assertArrayEquals(new int[]{2, 3}, out.getShape());
@@ -63,7 +63,7 @@ public class AddBroadcastTest {
 
         Tensor out = a.add(b);
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertNotNull(a.getGradient());
         assertNotNull(b.getGradient());
@@ -85,7 +85,7 @@ public class AddBroadcastTest {
 
         Tensor out = a.add(b);
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertNotNull(a.getGradient());
         assertNotNull(b.getGradient());

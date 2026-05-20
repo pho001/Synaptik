@@ -237,11 +237,11 @@ class NativeOpenBlasMatMulExecutableTest {
         Map<Integer, CompiledNodeExecutionMetadata> metadataIndex = prepared.executionSteps().stream()
                 .collect(Collectors.toMap(step -> step.compiledNode().id(), PreparedNodeExecution::metadata));
         ExecutionState state = ExecutionState.create(
-                compiled.compileArtifacts().compiledNodes(),
-                compiled.compileArtifacts().descriptorIndex(),
+                compiled.program().compiledNodes(),
+                compiled.program().descriptorIndex(),
                 metadataIndex,
-                compiled.compileArtifacts().forwardBoundaryNodeId(),
-                compiled.compileArtifacts().publication()
+                compiled.program().forwardBoundaryNodeId(),
+                compiled.publication()
         );
         PreparedNodeExecution matmul = prepared.forwardSteps().stream()
                 .filter(step -> step.compiledNode().operation() != null

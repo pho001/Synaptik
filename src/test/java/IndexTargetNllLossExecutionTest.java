@@ -23,7 +23,7 @@ public class IndexTargetNllLossExecutionTest {
         }, new int[]{2, 3}, null, "oneHotTargets", DataType.FLOAT64);
         Tensor denseLoss = logProbsA.nllLoss(oneHotTargets, 1);
         CompiledGraph.compile(denseLoss, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor logitsB = new Tensor(new double[]{
                 1.0, 2.0, 3.0,
@@ -33,7 +33,7 @@ public class IndexTargetNllLossExecutionTest {
         Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "targetIndices", DataType.INT32);
         Tensor indexLoss = logProbsB.nllLossFromIndices(targetIndices, 1);
         CompiledGraph.compile(indexLoss, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(denseLoss.toDoubleArrayCopy(), indexLoss.toDoubleArrayCopy(), 1e-9);
     }
@@ -51,7 +51,7 @@ public class IndexTargetNllLossExecutionTest {
         Tensor loss = logProbs.nllLossFromIndices(targetIndices, 1);
 
         CompiledGraph.compile(loss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 0.0, 0.0, -0.5,

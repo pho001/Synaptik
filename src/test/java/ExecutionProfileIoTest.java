@@ -20,6 +20,7 @@ import config.compile.PartitionScoreWeights;
 import config.compile.PartitionSearchConfig;
 import config.compile.RegionOptimizationConfig;
 import config.compile.RegionOwnershipPlannerStrategy;
+import config.compile.TransferCostPreset;
 import config.optimizer.AlgebraicRewriteConfig;
 import config.optimizer.CseConfig;
 import config.optimizer.Conv2dLoweringConfig;
@@ -65,6 +66,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class ExecutionProfileIoTest {
@@ -293,6 +295,40 @@ public class ExecutionProfileIoTest {
         assertEquals(AcceleratorBufferBindingMode.AUTO, actual.runtime().accelerator().metal().buffer().bindingMode());
         assertEquals(0L, actual.runtime().accelerator().metal().buffer().minimumEstimatedWork());
         assertEquals(true, actual.runtime().accelerator().metal().buffer().allowPreparedInputMaterialization());
+    }
+
+    @Test
+    void executionProfileIoWritesNeutralTransferCostPresetKey() {
+        String json = ExecutionProfileIO.toJson(defaultProfile());
+
+        assertTrue(json.contains("\"partitionTransferCostPreset\""));
+        assertFalse(json.contains("\"partitionMetalTransferModel\""));
+    }
+
+    @Test
+    void legacyMetalTransferModelKeyLoadsAsNeutralTransferCostPreset() {
+        ExecutionProfile fallback = defaultProfile();
+        String json = """
+                {
+                  "dataType": "FLOAT32",
+                  "mode": "FORWARD",
+                  "profileName": "legacy",
+                  "candidateName": "legacy",
+                  "compile": {
+                    "backendPlanning": {
+                      "partitionMetalTransferModel": "AGGRESSIVE"
+                    }
+                  },
+                  "runtime": {}
+                }
+                """;
+
+        ExecutionProfile actual = ExecutionProfileIO.fromJsonOrDefault(json, fallback);
+
+        assertEquals(
+                TransferCostPreset.AGGRESSIVE,
+                actual.compile().backendPlanning().cost().planningCostProfile().transferCostPreset()
+        );
     }
 
     @Test

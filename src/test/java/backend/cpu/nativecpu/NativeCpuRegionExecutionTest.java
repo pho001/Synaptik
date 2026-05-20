@@ -62,7 +62,7 @@ class NativeCpuRegionExecutionTest {
         Tensor out = a.matmul(b).relu();
 
         var trace = CompiledGraph.compile(out, CompileConfig.inference())
-                .executeTraced(openBlasRuntime(CpuStorageProfile.CPU_NATIVE), ExecutionMode.FORWARD);
+                .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -115,7 +115,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuBias = bias("cpuBias");
         Tensor cpuOut = cpuA.matmul(cpuB).add(cpuBias).relu();
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -123,11 +123,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = a.matmul(b).add(bias).relu();
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -138,7 +135,7 @@ class NativeCpuRegionExecutionTest {
         assertEquals(2, step.metadata().attributes().get("nativeCpuRegionExecutedGroupCount"));
 
         CompiledGraph.compile(out, noSemanticLinearFusion())
-                .execute(openBlasRuntime(CpuStorageProfile.CPU_NATIVE), ExecutionMode.FORWARD);
+                .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).execute(ExecutionMode.FORWARD);
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-4);
     }
 
@@ -150,18 +147,15 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuB = tensor("cpuB");
         Tensor cpuOut = cpuA.matmul(cpuB).reshape(32, 128).relu();
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
         Tensor out = a.matmul(b).reshape(32, 128).relu();
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -174,7 +168,7 @@ class NativeCpuRegionExecutionTest {
         assertEquals(1, ((List<?>) step.metadata().attributes().get("nativeCpuRegionViewNodes")).size());
 
         CompiledGraph.compile(out, noSemanticLinearFusion())
-                .execute(openBlasRuntime(CpuStorageProfile.CPU_NATIVE), ExecutionMode.FORWARD);
+                .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).execute(ExecutionMode.FORWARD);
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-4);
     }
 
@@ -186,18 +180,15 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuB = tensor("cpuB");
         Tensor cpuOut = cpuA.matmul(cpuB).transpose().relu();
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
         Tensor out = a.matmul(b).transpose().relu();
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -215,7 +206,7 @@ class NativeCpuRegionExecutionTest {
                 .contains("SEGMENT_STRIDED_SCALAR"));
 
         CompiledGraph.compile(out, noSemanticLinearFusion())
-                .execute(openBlasRuntime(CpuStorageProfile.CPU_NATIVE), ExecutionMode.FORWARD);
+                .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).execute(ExecutionMode.FORWARD);
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-4);
     }
 
@@ -228,9 +219,9 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuSelected = cpuA.matmul(cpuB).select(0, 1).relu();
         Tensor cpuSliced = cpuA.matmul(cpuB).slice(new int[]{1, 0}, new int[]{3, 64}, new int[]{0, 1}, new int[]{1, 1}).relu();
         CompiledGraph.compile(cpuSelected, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         CompiledGraph.compile(cpuSliced, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -238,17 +229,11 @@ class NativeCpuRegionExecutionTest {
         Tensor sliced = a.matmul(b).slice(new int[]{1, 0}, new int[]{3, 64}, new int[]{0, 1}, new int[]{1, 1}).relu();
 
         var selectTrace = CompiledGraph.compile(selected, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
         var sliceTrace = CompiledGraph.compile(sliced, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
         var selectStep = nativeRegionStep(selectTrace.steps());
         var sliceStep = nativeRegionStep(sliceTrace.steps());
 
@@ -267,9 +252,9 @@ class NativeCpuRegionExecutionTest {
         assertEquals(1L, sliceStep.metadata().attributes().get("nativeCpuStridedNodeCount"));
 
         CompiledGraph.compile(selected, noSemanticLinearFusion())
-                .execute(openBlasRuntime(CpuStorageProfile.CPU_NATIVE), ExecutionMode.FORWARD);
+                .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).execute(ExecutionMode.FORWARD);
         CompiledGraph.compile(sliced, noSemanticLinearFusion())
-                .execute(openBlasRuntime(CpuStorageProfile.CPU_NATIVE), ExecutionMode.FORWARD);
+                .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).execute(ExecutionMode.FORWARD);
         assertArrayEquals(cpuSelected.toDoubleArrayCopy(), selected.toDoubleArrayCopy(), 1e-4);
         assertArrayEquals(cpuSliced.toDoubleArrayCopy(), sliced.toDoubleArrayCopy(), 1e-4);
     }
@@ -283,7 +268,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuMatmul = cpuA.matmul(cpuB);
         Tensor cpuOut = cpuMatmul.add(cpuMatmul.select(0, 0).expand(64, 64));
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -291,11 +276,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = matmul.add(matmul.select(0, 0).expand(64, 64));
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
         var step = nativeRegionStep(trace.steps());
 
         assertEquals("NATIVE", step.metadata().attributes().get("nativeCpuRegionRoute"));
@@ -313,7 +295,7 @@ class NativeCpuRegionExecutionTest {
                 .contains("SEGMENT_STRIDED_SCALAR"));
 
         CompiledGraph.compile(out, noSemanticLinearFusion())
-                .execute(openBlasRuntime(CpuStorageProfile.CPU_NATIVE), ExecutionMode.FORWARD);
+                .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).execute(ExecutionMode.FORWARD);
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-4);
     }
 
@@ -326,7 +308,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuBias = bias("cpuBias");
         Tensor cpuOut = cpuA.matmul(cpuB).transpose().add(cpuBias);
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -334,11 +316,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = a.matmul(b).transpose().add(bias);
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -354,7 +333,7 @@ class NativeCpuRegionExecutionTest {
                 .contains("SEGMENT_STRIDED_SCALAR"));
 
         CompiledGraph.compile(out, noSemanticLinearFusion())
-                .execute(openBlasRuntime(CpuStorageProfile.CPU_NATIVE), ExecutionMode.FORWARD);
+                .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).execute(ExecutionMode.FORWARD);
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-4);
     }
 
@@ -367,7 +346,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuBias = bias("cpuBias");
         Tensor cpuOut = cpuA.matmul(cpuB).transpose().min(cpuBias).clampMin(-0.25d).clampMax(0.75d);
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -375,11 +354,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = a.matmul(b).transpose().min(bias).clampMin(-0.25d).clampMax(0.75d);
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -394,7 +370,7 @@ class NativeCpuRegionExecutionTest {
                 .contains("SEGMENT_STRIDED_SCALAR"));
 
         CompiledGraph.compile(out, noSemanticLinearFusion())
-                .execute(openBlasRuntime(CpuStorageProfile.CPU_NATIVE), ExecutionMode.FORWARD);
+                .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).execute(ExecutionMode.FORWARD);
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-4);
     }
 
@@ -407,7 +383,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuExponent = bias("cpuExponent");
         Tensor cpuOut = cpuA.matmul(cpuB).transpose().abs().pow(2.0d).pow(cpuExponent);
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -415,11 +391,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = a.matmul(b).transpose().abs().pow(2.0d).pow(exponent);
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -434,7 +407,7 @@ class NativeCpuRegionExecutionTest {
                 .contains("SEGMENT_STRIDED_SCALAR"));
 
         CompiledGraph.compile(out, noSemanticLinearFusion())
-                .execute(openBlasRuntime(CpuStorageProfile.CPU_NATIVE), ExecutionMode.FORWARD);
+                .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).execute(ExecutionMode.FORWARD);
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-4);
     }
 
@@ -446,18 +419,15 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuB = tensor("cpuB");
         Tensor cpuOut = cpuA.matmul(cpuB).transpose().clampMin(10.0d).floor().ceil().sign();
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
         Tensor out = a.matmul(b).transpose().clampMin(10.0d).floor().ceil().sign();
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -472,7 +442,7 @@ class NativeCpuRegionExecutionTest {
                 .contains("SEGMENT_STRIDED_SCALAR"));
 
         CompiledGraph.compile(out, noSemanticLinearFusion())
-                .execute(openBlasRuntime(CpuStorageProfile.CPU_NATIVE), ExecutionMode.FORWARD);
+                .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).execute(ExecutionMode.FORWARD);
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-4);
     }
 
@@ -486,7 +456,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuB = tensor("cpuB");
         Tensor cpuOut = Tensor.where(cpuCondition, cpuA.matmul(cpuB).transpose(), cpuFallback);
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor condition = boolColumnVector("condition");
         Tensor fallback = tensor("fallback");
@@ -495,11 +465,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = Tensor.where(condition, a.matmul(b).transpose(), fallback);
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -515,7 +482,7 @@ class NativeCpuRegionExecutionTest {
                 .contains("SEGMENT_STRIDED_SCALAR"));
 
         CompiledGraph.compile(out, noSemanticLinearFusion())
-                .execute(openBlasRuntime(CpuStorageProfile.CPU_NATIVE), ExecutionMode.FORWARD);
+                .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).execute(ExecutionMode.FORWARD);
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-4);
     }
 
@@ -528,7 +495,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuThreshold = bias("cpuThreshold");
         Tensor cpuOut = cpuA.matmul(cpuB).transpose().greaterThan(cpuThreshold);
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -536,11 +503,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = a.matmul(b).transpose().greaterThan(threshold);
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -556,7 +520,7 @@ class NativeCpuRegionExecutionTest {
                 .contains("SEGMENT_STRIDED_SCALAR"));
 
         CompiledGraph.compile(out, noSemanticLinearFusion())
-                .execute(openBlasRuntime(CpuStorageProfile.CPU_NATIVE), ExecutionMode.FORWARD);
+                .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).execute(ExecutionMode.FORWARD);
         assertArrayEquals(cpuOut.getBoolData(), out.getBoolData());
     }
 
@@ -572,7 +536,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuMask = cpuActivations.greaterThan(cpuThreshold);
         Tensor cpuOut = Tensor.where(cpuMask, cpuActivations, cpuFallback).mean(1, false);
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -583,11 +547,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = Tensor.where(mask, activations, fallback).mean(1, false);
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -601,7 +562,7 @@ class NativeCpuRegionExecutionTest {
                 .anyMatch(materialization -> materialization.detail().contains("bool_mask_published")));
 
         CompiledGraph.compile(out, noSemanticLinearFusion())
-                .execute(openBlasRuntime(CpuStorageProfile.CPU_NATIVE), ExecutionMode.FORWARD);
+                .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).execute(ExecutionMode.FORWARD);
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-4);
     }
 
@@ -617,7 +578,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuMask = cpuActivations.greaterThan(cpuThreshold).logicalNot();
         Tensor cpuOut = Tensor.where(cpuMask, cpuActivations, cpuFallback).mean(1, false);
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -628,11 +589,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = Tensor.where(mask, activations, fallback).mean(1, false);
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -646,7 +604,7 @@ class NativeCpuRegionExecutionTest {
                 .anyMatch(materialization -> materialization.detail().contains("bool_mask_published")));
 
         CompiledGraph.compile(out, noSemanticLinearFusion())
-                .execute(openBlasRuntime(CpuStorageProfile.CPU_NATIVE), ExecutionMode.FORWARD);
+                .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).execute(ExecutionMode.FORWARD);
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-4);
     }
 
@@ -662,7 +620,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuMask = cpuActivations.greaterThan(cpuThreshold);
         Tensor cpuOut = Tensor.where(cpuMask, cpuActivations, cpuZero).sum().mul(1.0d / (64.0d * 64.0d));
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -673,11 +631,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = Tensor.where(mask, activations, zero).sum().mul(1.0d / (64.0d * 64.0d));
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
         var step = nativeRegionStep(trace.steps());
 
         assertEquals("NATIVE", step.metadata().attributes().get("nativeCpuRegionRoute"));
@@ -689,7 +644,7 @@ class NativeCpuRegionExecutionTest {
                 .anyMatch(materialization -> materialization.detail().contains("bool_mask_published")));
 
         CompiledGraph.compile(out, noSemanticLinearFusion())
-                .execute(openBlasRuntime(CpuStorageProfile.CPU_NATIVE), ExecutionMode.FORWARD);
+                .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).execute(ExecutionMode.FORWARD);
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-4);
     }
 
@@ -702,7 +657,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuThreshold = bias("cpuThreshold");
         Tensor cpuOut = cpuA.matmul(cpuB).greaterThan(cpuThreshold).logicalNot().any(1, false);
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -710,11 +665,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = a.matmul(b).greaterThan(threshold).logicalNot().any(1, false);
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -726,7 +678,7 @@ class NativeCpuRegionExecutionTest {
                 .anyMatch(materialization -> materialization.detail().contains("bool_mask_published")));
 
         CompiledGraph.compile(out, noSemanticLinearFusion())
-                .execute(openBlasRuntime(CpuStorageProfile.CPU_NATIVE), ExecutionMode.FORWARD);
+                .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).execute(ExecutionMode.FORWARD);
         assertArrayEquals(cpuOut.getBoolData(), out.getBoolData());
     }
 
@@ -738,17 +690,15 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuB = tensor("cpuB");
         Tensor cpuOut = cpuA.matmul(cpuB).tanh().sigmoid();
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
         Tensor out = a.matmul(b).tanh().sigmoid();
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -771,7 +721,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuBias = f64Bias("cpuBias");
         Tensor cpuOut = cpuA.matmul(cpuB).add(cpuBias).tanh().sigmoid();
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = f64Tensor("a");
         Tensor b = f64Tensor("b");
@@ -779,10 +729,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = a.matmul(b).add(bias).tanh().sigmoid();
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -806,7 +754,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuB = f64Tensor("cpuB");
         Tensor cpuOut = Tensor.where(cpuCondition, cpuA.matmul(cpuB), cpuFallback);
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor condition = boolTensor("condition");
         Tensor fallback = f64Tensor("fallback");
@@ -815,10 +763,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = Tensor.where(condition, a.matmul(b), fallback);
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -841,7 +787,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuMatmul = cpuA.matmul(cpuB);
         Tensor cpuOut = cpuMatmul.relu().add(cpuMatmul.erf());
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -849,10 +795,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = matmul.relu().add(matmul.erf());
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -879,7 +823,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuB = tensor("cpuB");
         Tensor cpuOut = cpuPrefixInput.erf().add(cpuA.matmul(cpuB).relu().erf());
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor prefixInput = tensor("prefixInput");
         Tensor a = tensor("a");
@@ -887,10 +831,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = prefixInput.erf().add(a.matmul(b).relu().erf());
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -918,7 +860,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuFactor = tensor("cpuFactor");
         Tensor cpuOut = cpuA.matmul(cpuB).mul(cpuFactor);
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -926,10 +868,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = a.matmul(b).mul(factor);
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -952,7 +892,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuFactor = bias("cpuFactor");
         Tensor cpuOut = cpuA.matmul(cpuB).mul(cpuFactor);
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -960,10 +900,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = a.matmul(b).mul(factor);
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -985,17 +923,15 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuB = tensor("cpuB");
         Tensor cpuOut = cpuA.matmul(cpuB).sum();
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
         Tensor out = a.matmul(b).sum();
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -1017,17 +953,15 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuB = tensor("cpuB");
         Tensor cpuOut = cpuA.matmul(cpuB).mean(1);
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
         Tensor out = a.matmul(b).mean(1);
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -1049,17 +983,15 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuB = tensor("cpuB");
         Tensor cpuOut = cpuA.matmul(cpuB).min(1, false).max();
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
         Tensor out = a.matmul(b).min(1, false).max();
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -1083,7 +1015,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuB = tensor("cpuB");
         Tensor cpuOut = Tensor.where(cpuCondition, cpuA.matmul(cpuB), cpuFallback);
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor condition = boolTensor("condition");
         Tensor fallback = negativeTensor("fallback");
@@ -1092,10 +1024,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = Tensor.where(condition, a.matmul(b), fallback);
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -1119,7 +1049,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuB = tensor("cpuB");
         Tensor cpuOut = Tensor.where(cpuCondition, cpuA.matmul(cpuB), cpuFallback);
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor condition = boolColumnVector("condition");
         Tensor fallback = bias("fallback");
@@ -1128,10 +1058,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = Tensor.where(condition, a.matmul(b), fallback);
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -1154,7 +1082,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuFactor = columnVector("cpuFactor");
         Tensor cpuOut = cpuA.matmul(cpuB).mul(cpuFactor);
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -1162,10 +1090,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = a.matmul(b).mul(factor);
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -1188,7 +1114,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuThreshold = columnVector("cpuThreshold");
         Tensor cpuOut = cpuA.matmul(cpuB).greaterThan(cpuThreshold);
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -1196,10 +1122,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = a.matmul(b).greaterThan(threshold);
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -1221,17 +1145,15 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuB = tensor("cpuB");
         Tensor cpuOut = cpuA.matmul(cpuB).contiguous();
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
         Tensor out = a.matmul(b).contiguous();
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -1253,17 +1175,15 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuB = tensor("cpuB");
         Tensor cpuOut = cpuA.matmul(cpuB).cast(DataType.BFLOAT16);
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
         Tensor out = a.matmul(b).cast(DataType.BFLOAT16);
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -1286,7 +1206,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuFactor = bf16ColumnVector("cpuFactor");
         Tensor cpuOut = cpuA.matmul(cpuB).cast(DataType.BFLOAT16).mul(cpuFactor).relu().abs();
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -1294,10 +1214,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = a.matmul(b).cast(DataType.BFLOAT16).mul(factor).relu().abs();
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -1320,7 +1238,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuFactor = bf16ColumnVector("cpuFactor");
         Tensor cpuOut = cpuA.matmul(cpuB).cast(DataType.BFLOAT16).mul(cpuFactor).mean(1, false).sum();
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -1328,11 +1246,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = a.matmul(b).cast(DataType.BFLOAT16).mul(factor).mean(1, false).sum();
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -1347,7 +1262,7 @@ class NativeCpuRegionExecutionTest {
         assertTrue(((List<?>) step.metadata().attributes().get("nativeCpuRegionBf16PromotedSegmentScalarNodes")).size() >= 2);
 
         CompiledGraph.compile(out, noSemanticLinearFusion())
-                .execute(openBlasRuntime(CpuStorageProfile.CPU_NATIVE), ExecutionMode.FORWARD);
+                .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).execute(ExecutionMode.FORWARD);
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-2);
     }
 
@@ -1360,7 +1275,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuThreshold = bf16ColumnVector("cpuThreshold");
         Tensor cpuOut = cpuA.matmul(cpuB).cast(DataType.BFLOAT16).greaterThan(cpuThreshold);
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -1368,10 +1283,8 @@ class NativeCpuRegionExecutionTest {
         Tensor out = a.matmul(b).cast(DataType.BFLOAT16).greaterThan(threshold);
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
-                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE),
-                        ExecutionMode.FORWARD
-                );
+                .prepare(
+                        openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()
@@ -1394,7 +1307,7 @@ class NativeCpuRegionExecutionTest {
         Tensor cpuThreshold = bf16ColumnVector("cpuThreshold");
         Tensor cpuOut = cpuA.matmul(cpuB).cast(DataType.BFLOAT16).greaterThan(cpuThreshold);
         CompiledGraph.compile(cpuOut, noSemanticLinearFusion())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -1402,11 +1315,9 @@ class NativeCpuRegionExecutionTest {
         Tensor out = a.matmul(b).cast(DataType.BFLOAT16).greaterThan(threshold);
 
         var trace = CompiledGraph.compile(out, noSemanticLinearFusion())
-                .executeTraced(
+                .prepare(
                         openBlasRuntime(CpuStorageProfile.CPU_NATIVE)
-                                .withNativeCpuFailurePolicy(config.runtime.NativeCpuFailurePolicy.REQUIRE_NATIVE),
-                        ExecutionMode.FORWARD
-                );
+                                .withNativeCpuFailurePolicy(config.runtime.NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD);
         var step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("nativeCpuRegionId"))
                 .findFirst()

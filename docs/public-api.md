@@ -198,7 +198,7 @@ Parameters:
 - Dimension parameters are logical axis indices. Negative dimensions are accepted for some operations where the delegated operation support handles them; use non-negative dimensions for portable code.
 - Option records such as `Conv2dOptions`, `Pool2dOptions`, and `AttentionOptions` validate their own numeric constraints.
 
-Returns: a new graph `Tensor`. The operation is not executed until `compute(...)`, `CompiledGraph.execute(...)`, or `PreparedExecution.execute(...)` runs.
+Returns: a new graph `Tensor`. The operation is not executed until `compute(...)` or `PreparedExecution.execute(...)` runs.
 
 Failures:
 
@@ -506,7 +506,7 @@ Expected output:
 
 **Source:** `src/main/java/graph/CompiledGraph.java`
 
-**Purpose:** compile a semantic tensor graph into stable compile artifacts, then prepare or execute it with explicit runtime configuration.
+**Purpose:** compile a semantic tensor graph into stable compile artifacts, then prepare it with explicit runtime configuration.
 
 Signatures:
 
@@ -515,22 +515,14 @@ static CompiledGraph compile(Tensor rootTensor, CompileConfig compileConfig)
 static CompiledGraph compile(Tensor rootTensor, CompileConfig compileConfig, CompileMode compileMode)
 static CompiledGraph compile(Tensor rootTensor, GraphOptimizer optimizer)
 static CompiledGraph compile(Tensor rootTensor, GraphOptimizer optimizer, CompileMode compileMode)
-void compile()
 boolean supportsBackward()
 CompileMode compileMode()
 PreparedExecution prepare()
 PreparedExecution prepare(RuntimeConfig runtimeConfig)
 PreparedExecution prepare(ExecutionProfile profile)
-void execute(RuntimeConfig runtimeConfig, ExecutionMode mode)
-void execute(ExecutionProfile profile)
-RunTrace executeTraced(RuntimeConfig runtimeConfig, ExecutionMode mode)
-RunTrace executeTraced(ExecutionProfile profile)
-void executePrepared(PreparedExecution execution, ExecutionMode mode)
-void zeroGrad()
-Tensor getRootTensor()
-List<Tensor> getCompiledGraphAsList()
 CompileTrace compileTrace()
-CompileArtifacts compileArtifacts()
+CompiledProgram program()
+PublicationPlan publication()
 ```
 
 Parameters:
@@ -544,19 +536,18 @@ Returns:
 
 - `compile(...)` returns a compiled graph and runs compilation during construction.
 - `prepare(...)` returns a `PreparedExecution`.
-- `executeTraced(...)` returns a `RunTrace`.
+- `program()` returns executable compile-time program data.
+- `publication()` returns publication bindings for user-visible tensors and gradients.
 
 Failures:
 
 - Null root, compile config, optimizer, or profile throws `IllegalArgumentException`.
-- `compileArtifacts()` throws `IllegalStateException` if artifacts are absent.
 - Invalid compile sub-configs throw when their records are constructed or used.
 
 Side effects:
 
-- `compile()` replaces the current compile artifacts and trace.
-- `execute(...)` writes tensor output and gradient storage.
-- `zeroGrad()` fills existing gradient tensors with zero.
+- `CompiledGraph` construction snapshots and plans the graph.
+- Execution side effects happen through `PreparedExecution.execute(...)`.
 
 Performance and concurrency notes:
 
@@ -577,7 +568,7 @@ Tensor x = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "x", DataType.
 Tensor y = x.mul(4.0);
 
 CompiledGraph compiled = CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline());
-compiled.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+compiled.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
 System.out.println(java.util.Arrays.toString(y.toDoubleArrayCopy()));
 ```
@@ -855,7 +846,7 @@ ImportedOnnxModel imported = Onnx.read(Path.of("build/quickstart/model.onnx"));
 imported.input("a").setData(new float[]{1f, 2f, 3f, 4f});
 imported.input("b").setData(new float[]{10f, 20f});
 imported.compile("y", CompileConfig.inference())
-        .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 ```
 
 Failure modes:

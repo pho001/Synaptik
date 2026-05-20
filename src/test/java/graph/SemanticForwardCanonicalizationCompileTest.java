@@ -36,7 +36,7 @@ public class SemanticForwardCanonicalizationCompileTest {
 
         Tensor manual = manualInput.matmul(manualWeight).add(manualBias).sum();
         CompiledGraph compiled = CompiledGraph.compile(manual, arOnlyTrainingConfig());
-        compiled.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        compiled.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         Tensor directInput = new Tensor(new double[]{
                 1.0, 2.0,
@@ -53,13 +53,13 @@ public class SemanticForwardCanonicalizationCompileTest {
 
         Tensor direct = directInput.linear(directWeight, directBias).sum();
         CompiledGraph.compile(direct, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(direct.toDoubleArrayCopy(), manual.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(directInput.getGradient().toDoubleArrayCopy(), manualInput.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(directWeight.getGradient().toDoubleArrayCopy(), manualWeight.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(directBias.getGradient().toDoubleArrayCopy(), manualBias.getGradient().toDoubleArrayCopy(), 1e-9);
-        assertFalse(compiled.compiledNodes().stream()
+        assertFalse(compiled.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
@@ -77,7 +77,7 @@ public class SemanticForwardCanonicalizationCompileTest {
 
         Tensor manual = manualLogits.logSoftmax(1).nllLossFromIndices(targetIndices, 1);
         CompiledGraph compiled = CompiledGraph.compile(manual, arOnlyTrainingConfig());
-        compiled.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        compiled.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         Tensor directLogits = new Tensor(new double[]{
                 1.0, 2.0, 3.0,
@@ -86,11 +86,11 @@ public class SemanticForwardCanonicalizationCompileTest {
         directLogits.setRequiresGrad(true);
         Tensor direct = directLogits.crossEntropyLossFromIndices(targetIndices, 1);
         CompiledGraph.compile(direct, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(direct.toDoubleArrayCopy(), manual.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(directLogits.getGradient().toDoubleArrayCopy(), manualLogits.getGradient().toDoubleArrayCopy(), 1e-9);
-        assertFalse(compiled.compiledNodes().stream()
+        assertFalse(compiled.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
@@ -125,7 +125,7 @@ public class SemanticForwardCanonicalizationCompileTest {
     }
 
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
-        return compiledGraph.compiledNodes().stream()
+        return compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)

@@ -19,12 +19,12 @@ public class AlgebraicRewritingSigmoidTest {
         Tensor baselineInput = new Tensor(new double[]{0.7}, new int[]{1}, null, "x_base", DataType.FLOAT64);
         Tensor baselineOutput = baselineInput.neg().exp().add(Tensor.scalar(1.0)).inv();
         CompiledGraph.compile(baselineOutput, CompileConfig.noGraphOptimizationBaseline())
-                .execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+                .prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
 
         Tensor optimizedInput = new Tensor(new double[]{0.7}, new int[]{1}, null, "x_opt", DataType.FLOAT64);
         Tensor optimizedOutput = optimizedInput.neg().exp().add(Tensor.scalar(1.0)).inv();
         CompiledGraph compiledGraph = CompiledGraph.compile(optimizedOutput, arOnlyInferenceConfig());
-        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
 
         assertFalse(containsSigmoid(compiledGraph),
                 "Current algebraic rewrite keeps the canonical sigmoid decomposition unchanged.");
@@ -36,12 +36,12 @@ public class AlgebraicRewritingSigmoidTest {
         Tensor baselineInput = new Tensor(new double[]{1.3}, new int[]{1}, null, "x_base", DataType.FLOAT64);
         Tensor baselineOutput = baselineInput.mul(-1.0).exp().add(Tensor.scalar(1.0)).inv();
         CompiledGraph.compile(baselineOutput, CompileConfig.noGraphOptimizationBaseline())
-                .execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+                .prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
 
         Tensor optimizedInput = new Tensor(new double[]{1.3}, new int[]{1}, null, "x_opt", DataType.FLOAT64);
         Tensor optimizedOutput = optimizedInput.mul(-1.0).exp().add(Tensor.scalar(1.0)).inv();
         CompiledGraph compiledGraph = CompiledGraph.compile(optimizedOutput, arOnlyInferenceConfig());
-        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
 
         assertFalse(containsSigmoid(compiledGraph),
                 "Current algebraic rewrite keeps the mulScalar(-1) sigmoid decomposition unchanged.");
@@ -56,7 +56,7 @@ public class AlgebraicRewritingSigmoidTest {
                 output,
                 arWithPiecewiseConfig(new PiecewiseLoweringConfig(true, false, false))
         );
-        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
 
         assertTrue(containsSigmoid(compiledGraph));
     }
@@ -67,13 +67,13 @@ public class AlgebraicRewritingSigmoidTest {
         baselineInput.setRequiresGrad(true);
         Tensor baselineOutput = baselineInput.neg().exp().add(Tensor.scalar(1.0)).inv();
         CompiledGraph.compile(baselineOutput, CompileConfig.noGraphOptimizationBaseline())
-                .execute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
+                .prepare(config.runtime.RuntimeConfig.trainingDefaults()).execute(backend.runtime.ExecutionMode.FORWARD_BACKWARD);
 
         Tensor optimizedInput = new Tensor(new double[]{0.7}, new int[]{1}, null, "x_opt", DataType.FLOAT64);
         optimizedInput.setRequiresGrad(true);
         Tensor optimizedOutput = optimizedInput.neg().exp().add(Tensor.scalar(1.0)).inv();
         CompiledGraph compiledGraph = CompiledGraph.compile(optimizedOutput, arOnlyInferenceConfig());
-        compiledGraph.execute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
+        compiledGraph.prepare(config.runtime.RuntimeConfig.trainingDefaults()).execute(backend.runtime.ExecutionMode.FORWARD_BACKWARD);
 
         assertTrue(!containsSigmoid(compiledGraph),
                 "Sigmoid rewrite should be skipped when gradients are required");
@@ -88,9 +88,9 @@ public class AlgebraicRewritingSigmoidTest {
         Tensor out = x.greaterThan(y);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, arOnlyInferenceConfig());
-        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
 
-        assertEquals(1, compiledGraph.compiledNodes().stream()
+        assertEquals(1, compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null && op.opType() == Operation.OpType.GT)
                 .count());
@@ -98,7 +98,7 @@ public class AlgebraicRewritingSigmoidTest {
     }
 
     private static boolean containsSigmoid(CompiledGraph compiledGraph) {
-        return compiledGraph.compiledNodes().stream()
+        return compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)

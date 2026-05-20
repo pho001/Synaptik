@@ -31,10 +31,10 @@ public class AllOpsTest {
         b = tensor(new double[]{3.0, 4.0});
         c = a.add(b);
         CompiledGraph graph = CompiledGraph.compile(c, CompileConfig.training());
-        graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        graph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{4.0, 6.0}, c.toDoubleArrayCopy(), 1e-9);
 
-        graph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        graph.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         assertArrayEquals(new double[]{1.0, 1.0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{1.0, 1.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);
     }
@@ -45,10 +45,10 @@ public class AllOpsTest {
         b = tensor(new double[]{2.0, 3.0});
         c = a.sub(b);
         CompiledGraph graph = CompiledGraph.compile(c, CompileConfig.training());
-        graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        graph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{3.0, 4.0}, c.toDoubleArrayCopy(), 1e-9);
 
-        graph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        graph.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         assertArrayEquals(new double[]{1.0, 1.0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{-1.0, -1.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);
     }
@@ -59,10 +59,10 @@ public class AllOpsTest {
         b = tensor(new double[]{4.0, 5.0});
         c = a.mul(b);
         CompiledGraph graph = CompiledGraph.compile(c, CompileConfig.training());
-        graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        graph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{8.0, 15.0}, c.toDoubleArrayCopy(), 1e-9);
 
-        graph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        graph.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         assertArrayEquals(new double[]{4.0, 5.0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{2.0, 3.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);
     }
@@ -73,10 +73,10 @@ public class AllOpsTest {
         b = tensor(new double[]{2.0, 3.0});
         c = a.div(b);
         CompiledGraph graph = CompiledGraph.compile(c, CompileConfig.training());
-        graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        graph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{4.0, 3.0}, c.toDoubleArrayCopy(), 1e-9);
 
-        graph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        graph.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         assertArrayEquals(new double[]{0.5, 0.3333333333}, a.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{-2.0, -1.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);
     }
@@ -87,10 +87,10 @@ public class AllOpsTest {
         b = tensor(new double[]{2.0, 4.0, 3.0});
         c = a.min(b);
         CompiledGraph graph = CompiledGraph.compile(c, CompileConfig.training());
-        graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        graph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{1.0, 4.0, 3.0}, c.toDoubleArrayCopy(), 1e-9);
 
-        graph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        graph.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         // tie splits gradient equally
         assertArrayEquals(new double[]{1.0, 0.0, 0.5}, a.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{0.0, 1.0, 0.5}, b.getGradient().toDoubleArrayCopy(), 1e-9);
@@ -102,10 +102,10 @@ public class AllOpsTest {
         b = tensor(new double[]{2.0, 4.0, 3.0});
         c = a.max(b);
         CompiledGraph graph = CompiledGraph.compile(c, CompileConfig.training());
-        graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        graph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{2.0, 5.0, 3.0}, c.toDoubleArrayCopy(), 1e-9);
 
-        graph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        graph.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         // tie splits gradient equally
         assertArrayEquals(new double[]{0.0, 1.0, 0.5}, a.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{1.0, 0.0, 0.5}, b.getGradient().toDoubleArrayCopy(), 1e-9);
@@ -116,10 +116,10 @@ public class AllOpsTest {
         a = tensor(new double[]{Math.E, Math.E * Math.E});
         c = a.log();
         CompiledGraph graph = CompiledGraph.compile(c, CompileConfig.training());
-        graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        graph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{1.0, 2.0}, c.toDoubleArrayCopy(), 1e-9);
 
-        graph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        graph.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         assertArrayEquals(new double[]{1.0 / Math.E, 1.0 / (Math.E * Math.E)}, a.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 
@@ -128,10 +128,10 @@ public class AllOpsTest {
         a = tensor(new double[]{0.0, 1.0});
         c = a.exp();
         CompiledGraph graph = CompiledGraph.compile(c, CompileConfig.training());
-        graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        graph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{1.0, Math.exp(1.0)}, c.toDoubleArrayCopy(), 1e-9);
 
-        graph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        graph.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         assertArrayEquals(new double[]{1.0, Math.exp(1.0)}, a.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 
@@ -140,10 +140,10 @@ public class AllOpsTest {
         a = tensor(new double[]{2.0, 3.0});
         c = a.pow(3.0);
         CompiledGraph graph = CompiledGraph.compile(c, CompileConfig.training());
-        graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        graph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{8.0, 27.0}, c.toDoubleArrayCopy(), 1e-9);
 
-        graph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        graph.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         assertArrayEquals(new double[]{12.0, 27.0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 
@@ -152,7 +152,7 @@ public class AllOpsTest {
         a = new Tensor(new double[]{1.0, 2.0, 3.0, 4.0}, new int[]{4}, null, "t", DataType.FLOAT64);
         Tensor s = a.sum(0);
         CompiledGraph.compile(s, CompileConfig.inference())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertEquals(1, s.getShape().length);
         assertArrayEquals(new double[]{10.0}, s.toDoubleArrayCopy(), 1e-9);

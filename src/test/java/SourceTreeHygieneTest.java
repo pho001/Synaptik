@@ -726,13 +726,55 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void compileSessionDelegatesConcreteCompileStages() throws IOException {
+        String source = Files.readString(Path.of("src/main/java/graph/compile/session/CompileSession.java"));
+        List<String> offenders = List.of(
+                        "MemoryPlanner",
+                        "DefaultRegionOptimizer",
+                        "CompiledTensorDescriptorBuilder",
+                        "BackendIntentPropagator",
+                        "new PublicationPlan",
+                        "PublicationPlan."
+                )
+                .stream()
+                .filter(source::contains)
+                .toList();
+        assertTrue(offenders.isEmpty(), () -> "CompileSession must orchestrate named stages, not own concrete planning/publication details: " + offenders);
+    }
+
+    @Test
     void partitionPlanningRequestUsesBackendCapabilityAndNeutralCostPreset() throws IOException {
         String source = Files.readString(Path.of("src/main/java/graph/compile/planning/partition/PartitionPlanningRequest.java"));
         assertTrue(source.contains("BackendPartitionCapability"), "Partition planning must consume backend capability directly.");
         assertTrue(source.contains("StaticCostPreset"), "Partition planning cost input must stay backend-neutral.");
         assertTrue(!source.contains("RegionLegalityAdapter"), "Graph partition planning must not depend on adapter contracts.");
-        assertTrue(!source.contains("MetalTransferModel"), "Graph partition planning request must not own Metal-specific cost details.");
-        assertTrue(!source.contains("metalTransferModel"), "Graph partition planning request must not expose Metal-specific fields.");
+        assertTrue(!source.contains("TransferCostPreset"), "Graph partition planning request must not own profile cost preset details.");
+        assertTrue(!source.contains("transferCostPreset"), "Graph partition planning request must not expose profile cost preset fields.");
+    }
+
+    @Test
+    void genericTransferCostConfigDoesNotUseMetalTransferModel() throws IOException {
+        List<String> offenders = linesContainingAny(
+                        Path.of("src/main/java"),
+                        List.of("config.optimizer.MetalTransferModel", "MetalTransferModel", "metalTransferModel")
+                )
+                .stream()
+                .filter(line -> !line.contains("\"partitionMetalTransferModel\""))
+                .sorted()
+                .toList();
+        assertTrue(offenders.isEmpty(), () -> "Generic compile/profile cost config must use TransferCostPreset: " + offenders);
+
+        String profileIo = Files.readString(Path.of("src/main/java/config/profile/ExecutionProfileIO.java"));
+        String writer = profileIo.substring(
+                profileIo.indexOf("public static String toJson"),
+                profileIo.indexOf("private static String jsonStringArray")
+        );
+        assertTrue(profileIo.contains("partitionMetalTransferModel"),
+                "ExecutionProfileIO should keep a read-only migration fallback for old profiles.");
+        assertTrue(writer.contains("partitionTransferCostPreset"),
+                "ExecutionProfileIO must write the backend-neutral transfer cost key.");
+        assertTrue(!writer.contains("partitionMetalTransferModel"),
+                "ExecutionProfileIO must not write the old Metal-specific transfer key.");
     }
 
     @Test
@@ -758,9 +800,26 @@ public class SourceTreeHygieneTest {
     void compiledGraphDoesNotExposeMutableCompileOrTrainingConvenience() throws IOException {
         String source = Files.readString(Path.of("src/main/java/graph/CompiledGraph.java"));
         assertTrue(!source.contains("public void compile("), "CompiledGraph must be an immutable compile result.");
+        assertTrue(!source.contains("public void execute("),
+                "One-shot execution convenience belongs on PreparedExecution, not CompiledGraph.");
+        assertTrue(!source.contains("public RunTrace executeTraced("),
+                "Traced execution convenience belongs on PreparedExecution, not CompiledGraph.");
+        assertTrue(!source.contains("executePrepared("),
+                "Prepared plan execution belongs on PreparedExecution, not CompiledGraph.");
         assertTrue(!source.contains("executeOptimizerStep("),
                 "Optimizer-step convenience belongs on PreparedExecution, not CompiledGraph.");
         assertTrue(!source.contains("zeroGrad("), "Gradient mutation convenience must stay out of CompiledGraph.");
+        assertTrue(!source.contains("getRootTensor("), "CompiledGraph must not expose mutable root Tensor state.");
+        assertTrue(!source.contains("public List<CompiledNode> compiledNodes("),
+                "CompiledGraph must expose compiled nodes through the read-only program accessor.");
+        assertTrue(!source.contains("public CompileArtifacts compileArtifacts("),
+                "CompiledGraph must not expose broad compile artifacts.");
+        assertTrue(!source.contains("getCompiledGraphAsList("),
+                "Mutable optimized Tensor graph must not be exposed as public compile facade state.");
+        assertTrue(source.contains("public CompiledProgram program()"),
+                "CompiledGraph should keep a narrow read-only program inspector.");
+        assertTrue(source.contains("public PublicationPlan publication()"),
+                "CompiledGraph should keep a narrow read-only publication inspector.");
     }
 
     @Test

@@ -157,20 +157,20 @@ class RuntimeMemoryBinderTest {
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution prepared = compiled.prepare(RuntimeConfig.inferenceDefaults());
-        MemoryPlan memoryPlan = compiled.compileArtifacts().memoryPlan();
+        MemoryPlan memoryPlan = compiled.program().memoryPlan();
         assertNotNull(memoryPlan);
 
-        List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
+        List<CompiledNode> nodes = compiled.program().compiledNodes();
         Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
         for (PreparedNodeExecution step : prepared.executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
         ExecutionState state = ExecutionState.create(
                 nodes,
-                compiled.compileArtifacts().descriptorIndex(),
+                compiled.program().descriptorIndex(),
                 metadata,
-                compiled.compileArtifacts().forwardOutputNode().id(),
-                compiled.compileArtifacts().publication()
+                compiled.program().forwardOutputNode().id(),
+                compiled.publication()
         );
 
         CompiledNode maxPoolNode = nodes.stream()

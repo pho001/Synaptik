@@ -40,7 +40,7 @@ import config.optimizer.CseConfig;
 import config.optimizer.FuseConfig;
 import config.optimizer.LinearLoweringConfig;
 import config.optimizer.MemoryConfig;
-import config.optimizer.MetalTransferModel;
+import config.compile.TransferCostPreset;
 import config.optimizer.PiecewiseLoweringConfig;
 import config.optimizer.RewriteConfig;
 import config.runtime.AcceleratorBackendConfig;
@@ -202,11 +202,9 @@ public final class ExecutionProfileIO {
                             findDouble(json, "partitionWorkWeight", defaultWeights.workWeight())
                     )
             );
-            MetalTransferModel metalTransferModel = findEnum(
+            TransferCostPreset transferCostPreset = findTransferCostPreset(
                     json,
-                    "partitionMetalTransferModel",
-                    defaultCompile.backendPlanning().cost().planningCostProfile().metalTransferModel(),
-                    MetalTransferModel.class
+                    defaultCompile.backendPlanning().cost().planningCostProfile().transferCostPreset()
             );
             CpuRegionConfig defaultCpuRegion = defaultCompile.backendPlanning().cpuRegions();
             CpuRegionConfig cpuRegion = new CpuRegionConfig(
@@ -516,7 +514,7 @@ public final class ExecutionProfileIO {
                     ))
                     .withSearch(search)
                     .withCpuRegions(cpuRegion)
-                    .withCost(new BackendPlanningCostConfig(new PlanningCostProfile(metalTransferModel)));
+                    .withCost(new BackendPlanningCostConfig(new PlanningCostProfile(transferCostPreset)));
             CompileConfig compile = new CompileConfig(
                     defaultCompile.semanticCanonicalization(),
                     graphOptimization,
@@ -623,7 +621,7 @@ public final class ExecutionProfileIO {
                 "      \"partitionTailDepthWeight\": " + compile.backendPlanning().search().scoreWeights().tailDepthWeight() + ",\n" +
                 "      \"partitionExternalInputPenalty\": " + compile.backendPlanning().search().scoreWeights().externalInputPenalty() + ",\n" +
                 "      \"partitionWorkWeight\": " + compile.backendPlanning().search().scoreWeights().workWeight() + ",\n" +
-                "      \"partitionMetalTransferModel\": \"" + compile.backendPlanning().cost().planningCostProfile().metalTransferModel().name() + "\",\n" +
+                "      \"partitionTransferCostPreset\": \"" + compile.backendPlanning().cost().planningCostProfile().transferCostPreset().name() + "\",\n" +
                 "      \"cpuRegionPolicy\": \"" + compile.backendPlanning().cpuRegions().policy().name() + "\",\n" +
                 "      \"cpuRegionMaxRegionNodes\": " + compile.backendPlanning().cpuRegions().maxRegionNodes() + ",\n" +
                 "      \"cpuRegionFanoutPolicy\": \"" + compile.backendPlanning().cpuRegions().fanoutPolicy().name() + "\",\n" +
@@ -867,6 +865,24 @@ public final class ExecutionProfileIO {
         } catch (IllegalArgumentException ignored) {
             return defaultValue;
         }
+    }
+
+    private static TransferCostPreset findTransferCostPreset(String json, TransferCostPreset defaultValue) {
+        TransferCostPreset loaded = findEnum(
+                json,
+                "partitionTransferCostPreset",
+                null,
+                TransferCostPreset.class
+        );
+        if (loaded != null) {
+            return loaded;
+        }
+        return findEnum(
+                json,
+                "partitionMetalTransferModel",
+                defaultValue,
+                TransferCostPreset.class
+        );
     }
 
     private static <E extends Enum<E>> Set<E> findEnumSet(

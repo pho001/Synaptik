@@ -54,11 +54,11 @@ final class PiecewiseLoweringRealGraphAuditTest {
                 EnumMap<Operation.OpType, Integer> baselineCounts = countInterestingOps(baselineGraph);
                 EnumMap<Operation.OpType, Integer> piecewiseCounts = countInterestingOps(piecewiseGraph);
 
-                System.out.println("baselineNodes=" + baselineGraph.compiledNodes().size());
-                System.out.println("piecewiseNodes=" + piecewiseGraph.compiledNodes().size());
+                System.out.println("baselineNodes=" + baselineGraph.program().compiledNodes().size());
+                System.out.println("piecewiseNodes=" + piecewiseGraph.program().compiledNodes().size());
                 System.out.println("baselineInteresting=" + baselineCounts);
                 System.out.println("piecewiseInteresting=" + piecewiseCounts);
-                System.out.println("deltaNodes=" + (piecewiseGraph.compiledNodes().size() - baselineGraph.compiledNodes().size()));
+                System.out.println("deltaNodes=" + (piecewiseGraph.program().compiledNodes().size() - baselineGraph.program().compiledNodes().size()));
             } catch (Exception e) {
                 System.out.println("compileError=" + e.getClass().getSimpleName() + ": " + e.getMessage());
             }
@@ -68,7 +68,7 @@ final class PiecewiseLoweringRealGraphAuditTest {
 
     private static EnumMap<Operation.OpType, Integer> countInterestingOps(CompiledGraph graph) {
         EnumMap<Operation.OpType, Integer> counts = new EnumMap<>(Operation.OpType.class);
-        for (CompiledNode tensor : graph.compiledNodes()) {
+        for (CompiledNode tensor : graph.program().compiledNodes()) {
             Operation op = tensor.operation();
             if (op == null) {
                 continue;

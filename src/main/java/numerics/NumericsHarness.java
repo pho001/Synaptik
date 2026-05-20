@@ -6,6 +6,7 @@ import config.compile.GraphOptimizationConfig;
 import config.profile.ExecutionProfile;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
+import graph.execution.PreparedExecution;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.factory.TensorDataFactory;
@@ -119,14 +120,18 @@ public final class NumericsHarness {
                 A, B, C, linearIn, w1, b1, w2, b2, w3, b3, config.graphBlocks
         );
         CompiledGraph trainingGraph = CompiledGraph.compile(out, profile.compile());
-        trainingGraph.execute(profile.runtime(), ExecutionMode.FORWARD_BACKWARD);
-        trainingGraph.execute(profile.runtime(), ExecutionMode.FORWARD_BACKWARD);
+        try (PreparedExecution execution = trainingGraph.prepare(profile.runtime())) {
+            execution.execute(ExecutionMode.FORWARD_BACKWARD);
+            execution.execute(ExecutionMode.FORWARD_BACKWARD);
+        }
 
         Tensor BA = TensorDataFactory.prefixTensorWrap("BA", input.baseA, false, config.dtype, config.b0, 1, config.f);
         Tensor BB = TensorDataFactory.prefixTensorWrap("BB", input.baseB, false, config.dtype, 1, config.b1, config.f);
         Tensor BC = TensorDataFactory.prefixTensorWrap("BC", input.baseC, false, config.dtype, config.b0, config.b1, config.f);
         Tensor broadcastOut = NumericsGraphFactory.buildBroadcastGraph(BA, BB, BC);
-        CompiledGraph.compile(broadcastOut, profile.compile()).execute(profile.runtime(), ExecutionMode.FORWARD);
+        try (PreparedExecution execution = CompiledGraph.compile(broadcastOut, profile.compile()).prepare(profile.runtime())) {
+            execution.execute(ExecutionMode.FORWARD);
+        }
 
         return new OutputSet(
                 out.toDoubleArrayCopy().clone(),

@@ -18,7 +18,7 @@ public class CompareSelectExecutionTest {
         Tensor b = new Tensor(new double[]{4, 4, 4}, new int[]{3}, null, "b", DataType.FLOAT64);
 
         Tensor mask = a.greaterThan(b);
-        CompiledGraph.compile(mask, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(mask, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertEquals(DataType.BOOL, mask.getDataType());
         assertArrayEquals(new int[]{2, 3}, mask.getShape());
@@ -31,7 +31,7 @@ public class CompareSelectExecutionTest {
         Tensor b = new Tensor(new float[]{1f, 0f, 2f, 5f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
 
         Tensor mask = a.equalTo(b);
-        CompiledGraph.compile(mask, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(mask, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertEquals(DataType.BOOL, mask.getDataType());
         assertArrayEquals(new boolean[]{true, false, true, false}, mask.toBooleanArrayCopy());
@@ -46,9 +46,9 @@ public class CompareSelectExecutionTest {
         Tensor le = a.lessOrEqual(b);
         Tensor ne = a.notEqualTo(b);
 
-        CompiledGraph.compile(ge, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(le, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(ne, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(ge, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
+        CompiledGraph.compile(le, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
+        CompiledGraph.compile(ne, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new boolean[]{true, false, true, true}, ge.toBooleanArrayCopy());
         assertArrayEquals(new boolean[]{true, true, true, false}, le.toBooleanArrayCopy());
@@ -62,7 +62,7 @@ public class CompareSelectExecutionTest {
         Tensor ifFalse = new Tensor(new double[]{10, 20, 30}, new int[]{1, 3}, null, "y", DataType.FLOAT64);
 
         Tensor out = Tensor.where(condition, ifTrue, ifFalse);
-        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertEquals(DataType.FLOAT64, out.getDataType());
         assertArrayEquals(new int[]{2, 3}, out.getShape());
@@ -78,7 +78,7 @@ public class CompareSelectExecutionTest {
         ifFalse.setRequiresGrad(true);
 
         Tensor out = Tensor.where(condition, ifTrue, ifFalse);
-        CompiledGraph.compile(out, CompileConfig.training()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph.compile(out, CompileConfig.training()).prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{1, 1, 1, 0, 0, 0}, ifTrue.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new int[]{1, 3}, ifFalse.getGradient().getShape());
@@ -92,7 +92,7 @@ public class CompareSelectExecutionTest {
         Tensor ifFalse = new Tensor(new double[]{10, 20}, new int[]{2}, null, "y", DataType.FLOAT64);
 
         Tensor out = Tensor.where(condition, ifTrue, ifFalse);
-        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertEquals(DataType.FLOAT64, out.getDataType());
         assertArrayEquals(new double[]{1, 20}, out.toDoubleArrayCopy(), 1e-9);
@@ -110,17 +110,17 @@ public class CompareSelectExecutionTest {
         Tensor f64 = new Tensor(new double[]{100, 200}, new int[]{2}, null, "f64", DataType.FLOAT64);
 
         Tensor out16_32 = Tensor.where(condition, f16, f32);
-        CompiledGraph.compile(out16_32, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out16_32, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertEquals(DataType.FLOAT32, out16_32.getDataType());
         assertArrayEquals(new double[]{1, 20}, out16_32.toDoubleArrayCopy(), 1e-6);
 
         Tensor out32_64 = Tensor.where(condition, f32, f64);
-        CompiledGraph.compile(out32_64, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out32_64, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertEquals(DataType.FLOAT64, out32_64.getDataType());
         assertArrayEquals(new double[]{10, 200}, out32_64.toDoubleArrayCopy(), 1e-9);
 
         Tensor out16_64 = Tensor.where(condition, f16, f64);
-        CompiledGraph.compile(out16_64, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out16_64, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertEquals(DataType.FLOAT64, out16_64.getDataType());
         assertArrayEquals(new double[]{1, 200}, out16_64.toDoubleArrayCopy(), 1e-9);
     }
@@ -132,7 +132,7 @@ public class CompareSelectExecutionTest {
         Tensor ifFalse = new Tensor(new double[]{10, 20, 30, 40}, new int[]{2, 2}, null, "y", DataType.FLOAT64);
 
         Tensor out = Tensor.where(condition, ifTrue, ifFalse);
-        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{1, 2, 30, 40}, out.toDoubleArrayCopy(), 1e-9);
     }
@@ -144,7 +144,7 @@ public class CompareSelectExecutionTest {
         Tensor ifFalse = new Tensor(new double[]{10, 20, 30, 40}, new int[]{2, 2}, null, "y", DataType.FLOAT64);
 
         Tensor out = Tensor.where(condition, ifTrue, ifFalse);
-        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{1, 20, 2, 40}, out.toDoubleArrayCopy(), 1e-9);
     }
@@ -157,7 +157,7 @@ public class CompareSelectExecutionTest {
         Tensor ifFalse = Tensor.scalar(-10.0, DataType.BFLOAT16);
         Tensor out = Tensor.where(condition, ifTrue, ifFalse).relu();
 
-        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertEquals(DataType.BFLOAT16, out.getDataType());
         assertArrayEquals(new double[]{2.0, 3.0, 0.0, 0.0}, out.toDoubleArrayCopy(), 1e-2);
@@ -202,8 +202,8 @@ public class CompareSelectExecutionTest {
         Tensor min = a.minimum(b);
         Tensor max = a.maximum(b);
 
-        CompiledGraph.compile(min, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(max, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(min, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
+        CompiledGraph.compile(max, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{1, 4, 3}, min.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{2, 5, 3}, max.toDoubleArrayCopy(), 1e-9);
@@ -217,7 +217,7 @@ public class CompareSelectExecutionTest {
         bMin.setRequiresGrad(true);
 
         Tensor min = aMin.minimum(bMin);
-        CompiledGraph.compile(min, CompileConfig.training()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph.compile(min, CompileConfig.training()).prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         assertArrayEquals(new double[]{1, 0, 0}, aMin.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{0, 1, 1}, bMin.getGradient().toDoubleArrayCopy(), 1e-9);
 
@@ -227,7 +227,7 @@ public class CompareSelectExecutionTest {
         bMax.setRequiresGrad(true);
 
         Tensor max = aMax.maximum(bMax);
-        CompiledGraph.compile(max, CompileConfig.training()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph.compile(max, CompileConfig.training()).prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         assertArrayEquals(new double[]{0, 1, 0}, aMax.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{1, 0, 1}, bMax.getGradient().toDoubleArrayCopy(), 1e-9);
     }

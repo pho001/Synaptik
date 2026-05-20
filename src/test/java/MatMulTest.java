@@ -25,10 +25,10 @@ public class MatMulTest {
 
         Tensor c = a.matmul(b);
         CompiledGraph graph = CompiledGraph.compile(c, CompileConfig.noGraphOptimizationBaseline());
-        graph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD);
+        graph.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{19, 22, 43, 50}, c.toDoubleArrayCopy(), 1e-9);
 
-        graph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        graph.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         assertArrayEquals(new double[]{11, 15, 11, 15}, a.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{4, 4, 6, 6}, b.getGradient().toDoubleArrayCopy(), 1e-9);
     }
@@ -44,7 +44,7 @@ public class MatMulTest {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
         Tensor c = a.matmul(b);
-        CompiledGraph.compile(c, CompileConfig.noGraphOptimizationBaseline()).execute(runtimeConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(c, CompileConfig.noGraphOptimizationBaseline()).prepare(runtimeConfig).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{58, 64, 139, 154}, c.toDoubleArrayCopy(), 1e-5);
     }
@@ -69,7 +69,7 @@ public class MatMulTest {
 
         Tensor out = a.matmul(b);
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 2, 1}, out.getShape());
         assertArrayEquals(new double[]{5, 11, 39, 53}, out.toDoubleArrayCopy(), 1e-9);
@@ -85,7 +85,7 @@ public class MatMulTest {
 
         Tensor out = a.matmul(b);
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 2, 1}, out.getShape());
         assertArrayEquals(new double[]{5, 11, 11, 25}, out.toDoubleArrayCopy(), 1e-9);
@@ -102,14 +102,14 @@ public class MatMulTest {
         Tensor bBase = new Tensor(bValues.clone(), new int[]{64, 96}, null, "bBase", DataType.BFLOAT16);
         Tensor baseline = aBase.matmul(bBase).relu();
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+                .prepare(bfloat16JavaRuntime()).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(aValues.clone(), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(bValues.clone(), new int[]{64, 96}, null, "b", DataType.BFLOAT16);
         Tensor out = a.matmul(b).relu();
         CompiledGraph.compile(out, CompileConfig.inference())
-                .execute(bfloat16BlasRuntime(), ExecutionMode.FORWARD);
+                .prepare(bfloat16BlasRuntime()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
     }
@@ -127,7 +127,7 @@ public class MatMulTest {
         Tensor cBase = new Tensor(cValues.clone(), new int[]{64, 96}, null, "cBase", DataType.BFLOAT16);
         Tensor baseline = aBase.matmul(bBase).add(cBase);
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+                .prepare(bfloat16JavaRuntime()).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(aValues.clone(), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
@@ -135,7 +135,7 @@ public class MatMulTest {
         Tensor c = new Tensor(cValues.clone(), new int[]{64, 96}, null, "c", DataType.BFLOAT16);
         Tensor out = a.matmul(b).add(c);
         CompiledGraph.compile(out, CompileConfig.inference())
-                .execute(bfloat16BlasRuntime(), ExecutionMode.FORWARD);
+                .prepare(bfloat16BlasRuntime()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
     }
@@ -151,14 +151,14 @@ public class MatMulTest {
         Tensor bBase = new Tensor(bValues.clone(), new int[]{64, 96}, null, "bBase", DataType.BFLOAT16);
         Tensor baseline = aBase.matmul(bBase).relu().abs().clampMax(1.0);
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+                .prepare(bfloat16JavaRuntime()).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(aValues.clone(), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(bValues.clone(), new int[]{64, 96}, null, "b", DataType.BFLOAT16);
         Tensor out = a.matmul(b).relu().abs().clampMax(1.0);
         CompiledGraph.compile(out, CompileConfig.inference())
-                .execute(bfloat16BlasRuntime(), ExecutionMode.FORWARD);
+                .prepare(bfloat16BlasRuntime()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
     }
@@ -172,14 +172,14 @@ public class MatMulTest {
         Tensor bBase = new Tensor(bValues.clone(), new int[]{64, 96}, null, "bBase", DataType.BFLOAT16);
         Tensor baseline = aBase.matmul(bBase).reshape(32, 192).neg();
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+                .prepare(bfloat16JavaRuntime()).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(aValues.clone(), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(bValues.clone(), new int[]{64, 96}, null, "b", DataType.BFLOAT16);
         Tensor out = a.matmul(b).reshape(32, 192).neg();
         CompiledGraph.compile(out, CompileConfig.inference())
-                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+                .prepare(bfloat16JavaRuntime()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
     }
@@ -193,14 +193,14 @@ public class MatMulTest {
         Tensor bBase = new Tensor(bValues.clone(), new int[]{48, 24}, null, "bBase", DataType.FLOAT64);
         Tensor baseline = aBase.matmul(bBase);
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(aValues.clone(), new int[]{32, 48}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(bValues.clone(), new int[]{48, 24}, null, "b", DataType.BFLOAT16);
         Tensor out = a.matmul(b);
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+                .prepare(bfloat16JavaRuntime()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 3e-2);
     }
@@ -214,14 +214,14 @@ public class MatMulTest {
         Tensor bBase = new Tensor(bValues.clone(), new int[]{64, 96}, null, "bBase", DataType.BFLOAT16);
         Tensor baseline = aBase.relu().matmul(bBase);
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+                .prepare(bfloat16JavaRuntime()).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(aValues.clone(), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(bValues.clone(), new int[]{64, 96}, null, "b", DataType.BFLOAT16);
         Tensor out = a.relu().matmul(b);
         CompiledGraph.compile(out, CompileConfig.inference())
-                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+                .prepare(bfloat16JavaRuntime()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
     }
@@ -235,14 +235,14 @@ public class MatMulTest {
         Tensor bBase = new Tensor(bValues.clone(), new int[]{64, 96}, null, "bBase", DataType.BFLOAT16);
         Tensor baseline = aBase.relu().matmul(bBase.relu());
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
-                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+                .prepare(bfloat16JavaRuntime()).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(aValues.clone(), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(bValues.clone(), new int[]{64, 96}, null, "b", DataType.BFLOAT16);
         Tensor out = a.relu().matmul(b.relu());
         CompiledGraph.compile(out, CompileConfig.inference())
-                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+                .prepare(bfloat16JavaRuntime()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
     }

@@ -56,8 +56,8 @@ public final class ExecutableProfileFingerprint {
         sb.append("backend.ownershipPlanner=").append(backend.ownershipPlanner().name()).append('|');
         sb.append("backend.search.maxSearchNodes=").append(backend.search().maxSearchNodes()).append('|');
         sb.append("backend.search.maxVisitedCandidates=").append(backend.search().maxVisitedCandidates()).append('|');
-        sb.append("backend.cost.metalTransferModel=")
-                .append(backend.cost().planningCostProfile().metalTransferModel().name())
+        sb.append("backend.cost.transferCostPreset=")
+                .append(backend.cost().planningCostProfile().transferCostPreset().name())
                 .append('|');
         sb.append("cpuRegion.policy=").append(backend.cpuRegions().policy().name()).append('|');
         sb.append("cpuRegion.maxRegionNodes=").append(backend.cpuRegions().maxRegionNodes()).append('|');

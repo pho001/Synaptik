@@ -25,7 +25,7 @@ class OnnxNnFixtureTest {
             ImportedOnnxModel imported = Onnx.read(resource);
             applyInputs(imported, fixture.inputs());
             imported.compile(fixture.outputName(), CompileConfig.inference())
-                    .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                    .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
             assertArrayEquals(fixture.expectedShape(), imported.output(fixture.outputName()).getShape(), fixture.fileName());
             assertArrayEquals(fixture.expectedOutput(), imported.output(fixture.outputName()).toDoubleArrayCopy(), 1e-5, fixture.fileName());

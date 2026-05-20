@@ -331,7 +331,7 @@ public class ExplicitCompileExample {
         Tensor y = x.mul(4.0);
 
         CompiledGraph graph = CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline());
-        graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        graph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         System.out.println(Arrays.toString(y.toDoubleArrayCopy()));
     }

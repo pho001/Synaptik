@@ -64,7 +64,7 @@ public class Conv2dLoweringRuleTest {
                         .withGraphOptimization(GraphOptimizationConfig
                                 .stages(true, false, false, false, false)
                                 .withRewrite(new RewriteConfig(Conv2dLoweringConfig.always())))
-        ).execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+        ).prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
                 -4, -4,
@@ -144,9 +144,9 @@ public class Conv2dLoweringRuleTest {
                 CompileMode.AUTO
         );
 
-        boolean hasBackwardInputGemm = compiled.compiledNodes().stream()
+        boolean hasBackwardInputGemm = compiled.program().compiledNodes().stream()
                 .anyMatch(t -> t.operation() != null && t.operation().opType() == operations.Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM);
-        boolean hasBackwardWeightGemm = compiled.compiledNodes().stream()
+        boolean hasBackwardWeightGemm = compiled.program().compiledNodes().stream()
                 .anyMatch(t -> t.operation() != null && t.operation().opType() == operations.Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM);
 
         assertTrue(hasBackwardInputGemm);
@@ -166,9 +166,9 @@ public class Conv2dLoweringRuleTest {
                 CompileConfig.training().withGraphOptimization(GraphOptimizationConfig.stages(true, false, false, false, false))
         );
 
-        boolean hasBackwardInputGemm = compiled.compiledNodes().stream()
+        boolean hasBackwardInputGemm = compiled.program().compiledNodes().stream()
                 .anyMatch(t -> t.operation() != null && t.operation().opType() == operations.Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM);
-        boolean hasBackwardWeightGemm = compiled.compiledNodes().stream()
+        boolean hasBackwardWeightGemm = compiled.program().compiledNodes().stream()
                 .anyMatch(t -> t.operation() != null && t.operation().opType() == operations.Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM);
 
         assertFalse(hasBackwardInputGemm);

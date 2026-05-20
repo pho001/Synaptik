@@ -4,11 +4,10 @@ import backend.runtime.ExecutionMode;
 import backend.prepare.PreparedExecutionBuilder;
 import config.compile.CompileConfig;
 import graph.compile.CompileArtifacts;
+import graph.compile.publication.PublicationPlan;
 import graph.compile.GraphCompiler;
 import graph.execution.PreparedExecution;
-import graph.execution.PublicationPolicy;
 import graph.execution.trace.CompileTrace;
-import graph.execution.trace.RunTrace;
 import graph.optimizer.GraphOptimizer;
 import tensor.CompileMode;
 import tensor.Tensor;
@@ -26,13 +25,12 @@ import java.util.List;
  *     computes a memory plan.</li>
  *     <li>{@link #prepare(config.runtime.RuntimeConfig)} lowers those compile artifacts into runtime execution steps
  *     for a specific runtime configuration.</li>
- *     <li>{@link PreparedExecution#execute(ExecutionMode)} or the convenience {@code execute(...)} methods run the
- *     prepared steps and publish values according to the selected {@link PublicationPolicy}.</li>
+ *     <li>{@link PreparedExecution#execute(ExecutionMode)} runs the prepared steps and publishes values according to
+ *     the selected {@link graph.execution.PublicationPolicy}.</li>
  * </ol>
  *
  * <p>Compilation and preparation allocate new artifact objects, while execution mutates tensor data, gradient buffers,
- * and backend workspaces. Instances are not intended to be used concurrently for recompilation or execution against the
- * same user-visible tensors.
+ * and backend workspaces. Instances are immutable compile results and can be prepared for multiple runtime configs.
  */
 public final class CompiledGraph {
     private final Tensor rootTensor;
@@ -141,7 +139,7 @@ public final class CompiledGraph {
      * @return {@code true} when {@link ExecutionMode#FORWARD_BACKWARD} can be run
      */
     public boolean supportsBackward() {
-        return compileArtifacts().program().supportsBackward();
+        return artifacts.program().supportsBackward();
     }
 
     /**
@@ -180,7 +178,7 @@ public final class CompiledGraph {
                 ? config.runtime.RuntimeConfig.trainingDefaults(rootTensor.getDataType())
                 : config.runtime.RuntimeConfig.inferenceDefaults(rootTensor.getDataType()))
                 : runtimeConfig;
-        return PreparedExecutionBuilder.prepare(compileArtifacts(), effectiveConfig);
+        return PreparedExecutionBuilder.prepare(artifacts, effectiveConfig);
     }
 
     /**
@@ -198,190 +196,34 @@ public final class CompiledGraph {
     }
 
     /**
-     * Prepares and immediately executes this graph.
-     *
-     * @param runtimeConfig runtime settings, or {@code null} for defaults
-     * @param mode execution mode to run
-     */
-    public void execute(config.runtime.RuntimeConfig runtimeConfig, ExecutionMode mode) {
-        try (PreparedExecution execution = prepare(runtimeConfig)) {
-            execution.execute(mode);
-        }
-    }
-
-    /**
-     * Prepares and immediately executes this graph with an explicit publication policy.
-     *
-     * @param runtimeConfig runtime settings, or {@code null} for defaults
-     * @param mode execution mode to run
-     * @param publicationPolicy values to publish back to user-visible tensors after execution
-     */
-    public void execute(
-            config.runtime.RuntimeConfig runtimeConfig,
-            ExecutionMode mode,
-            PublicationPolicy publicationPolicy
-    ) {
-        try (PreparedExecution execution = prepare(runtimeConfig)) {
-            execution.execute(mode, publicationPolicy);
-        }
-    }
-
-    /**
-     * Prepares and immediately executes this graph using an execution profile.
-     *
-     * @param profile profile that supplies runtime settings and execution mode
-     * @throws IllegalArgumentException if {@code profile} is {@code null}
-     */
-    public void execute(config.profile.ExecutionProfile profile) {
-        if (profile == null) {
-            throw new IllegalArgumentException("profile cannot be null");
-        }
-        try (PreparedExecution execution = prepare(profile.runtime())) {
-            execution.execute(profile.mode());
-        }
-    }
-
-    /**
-     * Prepares and immediately executes this graph using an execution profile and publication policy.
-     *
-     * @param profile profile that supplies runtime settings and execution mode
-     * @param publicationPolicy values to publish back to user-visible tensors after execution
-     * @throws IllegalArgumentException if {@code profile} is {@code null}
-     */
-    public void execute(config.profile.ExecutionProfile profile, PublicationPolicy publicationPolicy) {
-        if (profile == null) {
-            throw new IllegalArgumentException("profile cannot be null");
-        }
-        try (PreparedExecution execution = prepare(profile.runtime())) {
-            execution.execute(profile.mode(), publicationPolicy);
-        }
-    }
-
-    /**
-     * Prepares, executes, and returns per-run trace metadata.
-     *
-     * @param runtimeConfig runtime settings, or {@code null} for defaults
-     * @param mode execution mode to run
-     * @return run trace with duration and step metadata
-     */
-    public RunTrace executeTraced(config.runtime.RuntimeConfig runtimeConfig, ExecutionMode mode) {
-        try (PreparedExecution execution = prepare(runtimeConfig)) {
-            return execution.executeTraced(mode);
-        }
-    }
-
-    /**
-     * Prepares, executes, and returns per-run trace metadata with an explicit publication policy.
-     *
-     * @param runtimeConfig runtime settings, or {@code null} for defaults
-     * @param mode execution mode to run
-     * @param publicationPolicy values to publish back to user-visible tensors after execution
-     * @return run trace with duration and step metadata
-     */
-    public RunTrace executeTraced(
-            config.runtime.RuntimeConfig runtimeConfig,
-            ExecutionMode mode,
-            PublicationPolicy publicationPolicy
-    ) {
-        try (PreparedExecution execution = prepare(runtimeConfig)) {
-            return execution.executeTraced(mode, publicationPolicy);
-        }
-    }
-
-    /**
-     * Prepares, executes, and returns per-run trace metadata using an execution profile.
-     *
-     * @param profile profile that supplies runtime settings and execution mode
-     * @return run trace with duration and step metadata
-     * @throws IllegalArgumentException if {@code profile} is {@code null}
-     */
-    public RunTrace executeTraced(config.profile.ExecutionProfile profile) {
-        if (profile == null) {
-            throw new IllegalArgumentException("profile cannot be null");
-        }
-        try (PreparedExecution execution = prepare(profile.runtime())) {
-            return execution.executeTraced(profile.mode());
-        }
-    }
-
-    /**
-     * Prepares, executes, and returns per-run trace metadata using an execution profile and publication policy.
-     *
-     * @param profile profile that supplies runtime settings and execution mode
-     * @param publicationPolicy values to publish back to user-visible tensors after execution
-     * @return run trace with duration and step metadata
-     * @throws IllegalArgumentException if {@code profile} is {@code null}
-     */
-    public RunTrace executeTraced(config.profile.ExecutionProfile profile, PublicationPolicy publicationPolicy) {
-        if (profile == null) {
-            throw new IllegalArgumentException("profile cannot be null");
-        }
-        try (PreparedExecution execution = prepare(profile.runtime())) {
-            return execution.executeTraced(profile.mode(), publicationPolicy);
-        }
-    }
-
-    /**
-     * Executes a previously prepared plan.
-     *
-     * <p>The prepared plan must have been created from this compiled graph facade.
-     *
-     * @param execution prepared execution plan to run
-     * @param mode execution mode to run
-     */
-    public void executePrepared(PreparedExecution execution, ExecutionMode mode) {
-        execution.requireCompatibleGraph(
-                compileArtifacts().publication().rootTensor(),
-                compileArtifacts().publication().graphContract()
-        );
-        execution.execute(mode);
-    }
-
-    /**
-     * Executes a previously prepared plan with an explicit publication policy.
-     *
-     * @param execution prepared execution plan to run
-     * @param mode execution mode to run
-     * @param publicationPolicy values to publish back to user-visible tensors after execution
-     */
-    public void executePrepared(PreparedExecution execution, ExecutionMode mode, PublicationPolicy publicationPolicy) {
-        execution.requireCompatibleGraph(
-                compileArtifacts().publication().rootTensor(),
-                compileArtifacts().publication().graphContract()
-        );
-        execution.execute(mode, publicationPolicy);
-    }
-
-
-    /**
      * Returns publication tensors marked as trainable parameters in the compiled forward graph.
      *
      * @return immutable trainable parameter list
      */
     public List<Tensor> trainableParameters() {
         IdentityHashMap<Tensor, Boolean> seen = new IdentityHashMap<>();
-        return compileArtifacts().publication().trainableParameters().stream()
+        return artifacts.publication().trainableParameters().stream()
                 .map(graph.compile.publication.PublicationPlan.TrainableParameterBinding::parameterTensor)
                 .filter(tensor -> seen.put(tensor, Boolean.TRUE) == null)
                 .toList();
     }
 
     /**
-     * Returns the user-visible root tensor passed to compilation.
+     * Returns the executable compiled program snapshot.
      *
-     * @return root tensor
+     * @return immutable compiled program
      */
-    public Tensor getRootTensor() {
-        return rootTensor;
+    public CompiledProgram program() {
+        return artifacts.program();
     }
 
     /**
-     * Returns the compiled program nodes in execution order.
+     * Returns the publication plan for user-visible tensors and gradients.
      *
-     * @return immutable compiled node snapshots from the latest compile artifacts
+     * @return immutable publication plan
      */
-    public List<CompiledNode> compiledNodes() {
-        return compileArtifacts().program().compiledNodes();
+    public PublicationPlan publication() {
+        return artifacts.publication();
     }
 
     /**
@@ -391,16 +233,6 @@ public final class CompiledGraph {
      */
     public CompileTrace compileTrace() {
         return compileTrace;
-    }
-
-    /**
-     * Returns the latest compile artifacts.
-     *
-     * @return immutable compile artifact bundle
-     * @throws IllegalStateException if this facade has not compiled successfully
-     */
-    public CompileArtifacts compileArtifacts() {
-        return artifacts;
     }
 
 }

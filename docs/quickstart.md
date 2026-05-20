@@ -654,7 +654,7 @@ imported.input("a").setData(new float[]{1f, 2f, 3f, 4f});
 imported.input("b").setData(new float[]{10f, 20f});
 
 imported.compile("y", CompileConfig.inference())
-        .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
 double[] output = imported.output("y").toDoubleArrayCopy();
 ```

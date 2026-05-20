@@ -28,7 +28,7 @@ public class SumExecutionModesTest {
 
         Tensor a = new Tensor(values, new int[]{values.length}, null, "a");
         Tensor s = a.sum();
-        CompiledGraph.compile(s, CompileConfig.noGraphOptimizationBaseline()).execute(runtimeConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(s, CompileConfig.noGraphOptimizationBaseline()).prepare(runtimeConfig).execute(ExecutionMode.FORWARD);
 
         assertEquals(referenceSumContiguous(values), s.toDoubleArrayCopy()[0], EPS);
     }
@@ -49,7 +49,7 @@ public class SumExecutionModesTest {
 
         Tensor a = new Tensor(values, new int[]{rows, cols}, null, "matrix");
         Tensor s = a.sum(1);
-        CompiledGraph.compile(s, CompileConfig.noGraphOptimizationBaseline()).execute(runtimeConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(s, CompileConfig.noGraphOptimizationBaseline()).prepare(runtimeConfig).execute(ExecutionMode.FORWARD);
 
         double[] expected = new double[rows];
         for (int r = 0; r < rows; r++) {
@@ -71,7 +71,7 @@ public class SumExecutionModesTest {
         }, new int[]{2, 3}, null, "matrix");
 
         Tensor s = a.sum(1, true);
-        CompiledGraph.compile(s, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(s, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 1}, s.getShape());
         assertArrayEquals(new double[]{6.0, 15.0}, s.toDoubleArrayCopy(), EPS);
@@ -85,7 +85,7 @@ public class SumExecutionModesTest {
         }, new int[]{2, 3}, null, "matrix", DataType.FLOAT64);
 
         Tensor m = a.mean(1, true);
-        CompiledGraph.compile(m, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(m, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 1}, m.getShape());
         assertArrayEquals(new double[]{2.0, 5.0}, m.toDoubleArrayCopy(), EPS);
@@ -96,7 +96,7 @@ public class SumExecutionModesTest {
         double[] values = new double[]{1, 2, 3, 4, 5, 6};
         Tensor a = new Tensor(values.clone(), new int[]{values.length}, null, "a", DataType.FLOAT64);
         Tensor mean = a.mean();
-        CompiledGraph.compile(mean, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(mean, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{3.5}, mean.toDoubleArrayCopy(), EPS);
     }
@@ -110,7 +110,7 @@ public class SumExecutionModesTest {
         a.setRequiresGrad(true);
 
         Tensor mean = a.mean(1, true);
-        CompiledGraph.compile(mean, CompileConfig.training()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph.compile(mean, CompileConfig.training()).prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new int[]{2, 3}, a.getGradient().getShape());
         assertArrayEquals(new double[]{
@@ -128,18 +128,18 @@ public class SumExecutionModesTest {
                 1_024, 100_000, 1_000_000_000, SumAccuracyMode.FAST
         ));
         Tensor stridedAll = a.sum();
-        CompiledGraph.compile(stridedAll, CompileConfig.noGraphOptimizationBaseline()).execute(stridedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(stridedAll, CompileConfig.noGraphOptimizationBaseline()).prepare(stridedConfig).execute(ExecutionMode.FORWARD);
         Tensor stridedAxis = a.sum(1);
-        CompiledGraph.compile(stridedAxis, CompileConfig.noGraphOptimizationBaseline()).execute(stridedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(stridedAxis, CompileConfig.noGraphOptimizationBaseline()).prepare(stridedConfig).execute(ExecutionMode.FORWARD);
 
         RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(
                 4, 32, 32, 32,
                 1_024, 100_000, 0, SumAccuracyMode.FAST
         ));
         Tensor materializedAll = a.sum();
-        CompiledGraph.compile(materializedAll, CompileConfig.noGraphOptimizationBaseline()).execute(materializedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(materializedAll, CompileConfig.noGraphOptimizationBaseline()).prepare(materializedConfig).execute(ExecutionMode.FORWARD);
         Tensor materializedAxis = a.sum(1);
-        CompiledGraph.compile(materializedAxis, CompileConfig.noGraphOptimizationBaseline()).execute(materializedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(materializedAxis, CompileConfig.noGraphOptimizationBaseline()).prepare(materializedConfig).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(stridedAll.toDoubleArrayCopy(), materializedAll.toDoubleArrayCopy(), EPS);
         assertArrayEquals(stridedAxis.toDoubleArrayCopy(), materializedAxis.toDoubleArrayCopy(), EPS);
@@ -159,7 +159,7 @@ public class SumExecutionModesTest {
                 1, 1, 1_000_000_000, SumAccuracyMode.FAST
         ));
         Tensor fast = fastTensor.sum();
-        CompiledGraph.compile(fast, CompileConfig.noGraphOptimizationBaseline()).execute(fastConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(fast, CompileConfig.noGraphOptimizationBaseline()).prepare(fastConfig).execute(ExecutionMode.FORWARD);
 
         Tensor kahanTensor = new Tensor(values.clone(), new int[]{values.length}, null, "kahan");
         RuntimeConfig kahanConfig = runtimeConfig(new CpuKernelConfig(
@@ -167,7 +167,7 @@ public class SumExecutionModesTest {
                 1, 1, 1_000_000_000, SumAccuracyMode.KAHAN
         ));
         Tensor kahan = kahanTensor.sum();
-        CompiledGraph.compile(kahan, CompileConfig.noGraphOptimizationBaseline()).execute(kahanConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(kahan, CompileConfig.noGraphOptimizationBaseline()).prepare(kahanConfig).execute(ExecutionMode.FORWARD);
 
         Tensor neumaierTensor = new Tensor(values.clone(), new int[]{values.length}, null, "neumaier");
         RuntimeConfig neumaierConfig = runtimeConfig(new CpuKernelConfig(
@@ -175,7 +175,7 @@ public class SumExecutionModesTest {
                 1, 1, 1_000_000_000, SumAccuracyMode.NEUMAIER
         ));
         Tensor neumaier = neumaierTensor.sum();
-        CompiledGraph.compile(neumaier, CompileConfig.noGraphOptimizationBaseline()).execute(neumaierConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(neumaier, CompileConfig.noGraphOptimizationBaseline()).prepare(neumaierConfig).execute(ExecutionMode.FORWARD);
 
         double ref = referenceSumContiguous(values);
         assertEquals(ref, fast.toDoubleArrayCopy()[0], 1e-6);

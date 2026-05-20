@@ -143,9 +143,9 @@ public class PreparedExecutionBuildTest {
                 .withGraphOptimization(config.compile.GraphOptimizationConfig.noGraphOptimization());
         CompiledGraph compiled = CompiledGraph.compile(out, partitionOnly);
 
-        assertFalse(compiled.compileArtifacts().plannedPartitions().isEmpty());
-        assertFalse(compiled.compileArtifacts().optimizedRegions().isEmpty());
-        assertNotNull(compiled.compileArtifacts().memoryPlan());
+        assertFalse(compiled.program().plannedPartitions().isEmpty());
+        assertFalse(compiled.program().optimizedRegions().isEmpty());
+        assertNotNull(compiled.program().memoryPlan());
     }
 
     @Test
@@ -158,10 +158,10 @@ public class PreparedExecutionBuildTest {
                 .withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator());
         CompiledGraph compiled = CompiledGraph.compile(out, optimizerConfig);
 
-        assertTrue(compiled.compileArtifacts().compiledNodes().stream()
+        assertTrue(compiled.program().compiledNodes().stream()
                 .filter(node -> node.operation() != null)
                 .allMatch(node -> node.backend() == ComputeBackend.CPU));
-        assertTrue(compiled.compileArtifacts().plannedPartitions().stream()
+        assertTrue(compiled.program().plannedPartitions().stream()
                 .anyMatch(partition -> partition.plan() != null
                         && partition.plan().backend() == ComputeBackend.GPU_METAL
                         && partition.nodeIds().size() >= 2));
@@ -651,7 +651,7 @@ public class PreparedExecutionBuildTest {
         }, new int[]{3, 3}, null, "phase17CpuLogSoftmaxWeight", DataType.FLOAT32);
         Tensor cpuOut = cpuInput.matmul(cpuWeight).logSoftmax(1);
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor input = new Tensor(new float[]{0.25f, -0.5f, 1.25f, 2f, -1f, 0.75f}, new int[]{2, 3}, null, "phase17GpuLogSoftmaxInput", DataType.FLOAT32);
         Tensor weight = new Tensor(new float[]{
@@ -688,7 +688,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuTargets = new Tensor(new int[]{0, 1}, new int[]{2}, null, "phase17CpuLossTargets", DataType.INT32);
         Tensor cpuOut = cpuLogits.crossEntropyLossFromIndices(cpuTargets, 1);
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor logits = new Tensor(new float[]{1.5f, -0.25f, 0.5f, -1f, 2f, 0.25f}, new int[]{2, 3}, null, "phase17GpuLossLogits", DataType.FLOAT32);
         Tensor targets = new Tensor(new int[]{0, 1}, new int[]{2}, null, "phase17GpuLossTargets", DataType.INT32);
@@ -747,7 +747,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuBeta = new Tensor(new float[]{0.5f, -0.25f}, new int[]{2}, null, "phase17CpuLayerNormBeta", DataType.FLOAT32);
         Tensor cpuOut = cpuInput.layerNorm(cpuGamma, cpuBeta, 1.0e-5);
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor input = new Tensor(new float[]{1f, 2f, 4f, 8f}, new int[]{2, 2}, null, "phase17GpuLayerNormInput", DataType.FLOAT32);
         Tensor gamma = new Tensor(new float[]{1.25f, 0.75f}, new int[]{2}, null, "phase17GpuLayerNormGamma", DataType.FLOAT32);
@@ -783,7 +783,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuGamma = new Tensor(new float[]{1.25f, 0.75f, 1.5f}, new int[]{3}, null, "phase24CpuRmsNormGamma", DataType.FLOAT32);
         Tensor cpuOut = cpuInput.rmsNorm(cpuGamma, 1.0e-5);
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor input = new Tensor(new float[]{1f, 2f, 4f, 8f, 16f, 32f}, new int[]{2, 3}, null, "phase24GpuRmsNormInput", DataType.FLOAT32);
         Tensor gamma = new Tensor(new float[]{1.25f, 0.75f, 1.5f}, new int[]{3}, null, "phase24GpuRmsNormGamma", DataType.FLOAT32);
@@ -823,7 +823,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuBias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "cpuMetalLinearBias", DataType.FLOAT32);
         Tensor cpuOut = cpuInput.linear(cpuWeight, cpuBias).relu();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalCompoundInput", DataType.FLOAT32);
         Tensor weight = new Tensor(new float[]{
@@ -871,7 +871,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuBias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "cpuCudaLinearBias", DataType.FLOAT32);
         Tensor cpuOut = cpuInput.linear(cpuWeight, cpuBias).relu();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cudaCompoundInput", DataType.FLOAT32);
         Tensor weight = new Tensor(new float[]{
@@ -949,7 +949,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuBias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "cpuMetalEpilogueBias", DataType.FLOAT32);
         Tensor cpuOut = cpuInput.linear(cpuWeight, cpuBias).relu();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalEpilogueInput", DataType.FLOAT32);
         Tensor weight = new Tensor(new float[]{
@@ -995,7 +995,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuBias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "cpuCudaEpilogueBias", DataType.FLOAT32);
         Tensor cpuOut = cpuInput.linear(cpuWeight, cpuBias).relu();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cudaEpilogueInput", DataType.FLOAT32);
         Tensor weight = new Tensor(new float[]{
@@ -1284,7 +1284,7 @@ public class PreparedExecutionBuildTest {
         var layoutDecision = compiled.compileTrace().partitionPlanning().decisions().stream()
                 .filter(decision -> decision.costSummary() != null)
                 .filter(decision -> decision.nodeIds().stream().anyMatch(id -> {
-                    CompiledNode node = compiled.compileArtifacts().compiledNodes().get(id);
+                    CompiledNode node = compiled.program().compiledNodes().get(id);
                     return node.operation() != null && node.operation().opType() == Operation.OpType.CONTIGUOUS;
                 }))
                 .findFirst()
@@ -1681,7 +1681,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuOut = cpuA.matmul(cpuB).add(cpuBias).relu();
 
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
@@ -1695,7 +1695,7 @@ public class PreparedExecutionBuildTest {
         TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-6);
     }
@@ -1709,7 +1709,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuB = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{3, 2}, null, "cpuB", DataType.FLOAT32);
         Tensor cpuOut = cpuA.matmul(cpuB);
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
@@ -1751,7 +1751,7 @@ public class PreparedExecutionBuildTest {
         }, new int[]{1, 2, 2}, null, "cpuBf16SdpaV", DataType.BFLOAT16);
         Tensor cpuOut = cpuQ.scaledDotProductAttention(cpuK, cpuV, tensor.options.AttentionOptions.defaults().withScale(0.5));
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor q = new Tensor(new double[]{
                 1d, 0d,
@@ -1810,7 +1810,7 @@ public class PreparedExecutionBuildTest {
         }, new int[]{2, 3}, null, "cpuDenseLossCeTargets", DataType.FLOAT32);
         Tensor cpuCe = cpuLogits.crossEntropyLoss(cpuCeTargets, 1);
         CompiledGraph.compile(cpuCe, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor logits = new Tensor(new float[]{
                 1f, 2f, 3f,
@@ -1843,7 +1843,7 @@ public class PreparedExecutionBuildTest {
         }, new int[]{2, 3}, null, "cpuDenseLossNllTargets", DataType.FLOAT32);
         Tensor cpuNll = cpuLogProbs.nllLoss(cpuNllTargets, 1);
         CompiledGraph.compile(cpuNll, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor logProbs = new Tensor(new float[]{
                 -0.16984604f, -2.169846f, -3.169846f,
@@ -1885,7 +1885,7 @@ public class PreparedExecutionBuildTest {
         }, new int[]{2, 3}, null, "cpuTrainingDenseLossTargets", DataType.FLOAT32);
         Tensor cpuLoss = cpuLogits.crossEntropyLoss(cpuTargets, 1);
         CompiledGraph.compile(cpuLoss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         Tensor logits = new Tensor(new float[]{
                 1f, 2f, 3f,
@@ -1934,7 +1934,7 @@ public class PreparedExecutionBuildTest {
         PreparedExecution execution = compiled.prepare(RuntimeConfig.trainingDefaults());
         int forwardLossNodeId = nodeId(compiled, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES);
         String forwardReason = MetalPartitionSupport.plannerUnsupportedReason(compiledNode(compiled, forwardLossNodeId), planningContext(compiled));
-        Integer gradNodeId = compiled.compileArtifacts().compiledNodes().stream()
+        Integer gradNodeId = compiled.program().compiledNodes().stream()
                 .filter(node -> node.operation() != null
                         && node.operation().opType() == Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD)
                 .map(graph.CompiledNode::id)
@@ -1961,7 +1961,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuV = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cpuCudaSdpaV", DataType.FLOAT32);
         Tensor cpuOut = cpuQ.scaledDotProductAttention(cpuK, cpuV, AttentionOptions.defaults().withScale(0.5));
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaSdpaQ", DataType.FLOAT32);
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaSdpaK", DataType.FLOAT32);
@@ -1971,7 +1971,7 @@ public class PreparedExecutionBuildTest {
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
-        assertFalse(compiled.compileArtifacts().compiledNodes().stream()
+        assertFalse(compiled.program().compiledNodes().stream()
                 .anyMatch(node -> node.operation() != null
                         && node.operation().opType() == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
 
@@ -1987,7 +1987,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuV = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cpuV", DataType.FLOAT32);
         Tensor cpuOut = cpuQ.scaledDotProductAttention(cpuK, cpuV, tensor.options.AttentionOptions.defaults().withScale(0.5));
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "q", DataType.FLOAT32);
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "k", DataType.FLOAT32);
@@ -2022,7 +2022,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuMask = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{1, 2, 2}, null, "cpuMask", DataType.BOOL);
         Tensor cpuOut = cpuQ.scaledDotProductAttention(cpuK, cpuV, cpuMask, tensor.options.AttentionOptions.defaults().withScale(0.5));
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "qMask", DataType.FLOAT32);
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "kMask", DataType.FLOAT32);
@@ -2059,7 +2059,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuB = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{2, 3}, null, "cpuB", DataType.FLOAT32);
         Tensor cpuOut = cpuA.matmul(cpuB.transpose());
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{2, 3}, null, "b", DataType.FLOAT32);
@@ -2088,7 +2088,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuB = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "cpuB", DataType.FLOAT32);
         Tensor cpuOut = cpuA.add(cpuB).relu().exp();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "b", DataType.FLOAT32);
@@ -2121,7 +2121,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuB = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "cpuBOpt", DataType.FLOAT32);
         Tensor cpuOut = cpuA.add(cpuB).relu().exp();
         CompiledGraph.compile(cpuOut, CompileConfig.inference())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "aOpt", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "bOpt", DataType.FLOAT32);
@@ -2156,7 +2156,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuB = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "cpuCudaB", DataType.FLOAT32);
         Tensor cpuOut = cpuA.add(cpuB).relu().exp();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "cudaA", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "cudaB", DataType.FLOAT32);
@@ -2195,7 +2195,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuMatmul = cpuA.matmul(cpuB);
         Tensor cpuLoss = cpuMatmul.sum();
         CompiledGraph.compile(cpuLoss, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         double[] expectedGradA = cpuA.getGradient().toDoubleArrayCopy().clone();
         double[] expectedGradB = cpuB.getGradient().toDoubleArrayCopy().clone();
 
@@ -2228,7 +2228,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuSoftmax = cpuInput.exp().softmax(1);
         Tensor cpuLoss = cpuSoftmax.sum();
         CompiledGraph.compile(cpuLoss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         double[] expectedGrad = cpuInput.getGradient().toDoubleArrayCopy().clone();
 
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "input", DataType.FLOAT32);
@@ -2258,7 +2258,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuLogSoftmax = cpuInput.exp().logSoftmax(1);
         Tensor cpuLoss = cpuLogSoftmax.sum();
         CompiledGraph.compile(cpuLoss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         double[] expectedGrad = cpuInput.getGradient().toDoubleArrayCopy().clone();
 
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "input", DataType.FLOAT32);
@@ -2291,7 +2291,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuReduced = cpuInput.min(1, true);
         Tensor cpuLoss = cpuReduced.sum();
         CompiledGraph.compile(cpuLoss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         double[] expectedGrad = cpuInput.getGradient().toDoubleArrayCopy().clone();
 
         Tensor input = new Tensor(new float[]{
@@ -2318,7 +2318,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuReduced = cpuInput.max();
         Tensor cpuLoss = cpuReduced.sum();
         CompiledGraph.compile(cpuLoss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         double[] expectedGrad = cpuInput.getGradient().toDoubleArrayCopy().clone();
 
         Tensor input = new Tensor(new float[]{1f, 5f, 5f, 2f}, new int[]{4}, null, "input", DataType.FLOAT32);
@@ -2343,7 +2343,7 @@ public class PreparedExecutionBuildTest {
         cpuB.setRequiresGrad(true);
         Tensor cpuLoss = cpuA.min(cpuB).sum();
         CompiledGraph.compile(cpuLoss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         double[] expectedGradA = cpuA.getGradient().toDoubleArrayCopy().clone();
         double[] expectedGradB = cpuB.getGradient().toDoubleArrayCopy().clone();
 
@@ -2372,7 +2372,7 @@ public class PreparedExecutionBuildTest {
         cpuB.setRequiresGrad(true);
         Tensor cpuLoss = cpuA.max(cpuB).sum();
         CompiledGraph.compile(cpuLoss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         double[] expectedGradA = cpuA.getGradient().toDoubleArrayCopy().clone();
         double[] expectedGradB = cpuB.getGradient().toDoubleArrayCopy().clone();
 
@@ -2412,7 +2412,7 @@ public class PreparedExecutionBuildTest {
         cpuV.setRequiresGrad(true);
         Tensor cpuLoss = cpuQ.scaledDotProductAttention(cpuK, cpuV, tensor.options.AttentionOptions.defaults().withScale(1.0)).sum();
         CompiledGraph.compile(cpuLoss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         double[] expectedGradQ = cpuQ.getGradient().toDoubleArrayCopy().clone();
         double[] expectedGradK = cpuK.getGradient().toDoubleArrayCopy().clone();
         double[] expectedGradV = cpuV.getGradient().toDoubleArrayCopy().clone();
@@ -2475,7 +2475,7 @@ public class PreparedExecutionBuildTest {
                 tensor.options.AttentionOptions.causalDefaults().withScale(1.0)
         ).sum();
         CompiledGraph.compile(cpuLoss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         double[] expectedGradQ = cpuQ.getGradient().toDoubleArrayCopy().clone();
         double[] expectedGradK = cpuK.getGradient().toDoubleArrayCopy().clone();
         double[] expectedGradV = cpuV.getGradient().toDoubleArrayCopy().clone();
@@ -2579,7 +2579,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuBias = new Tensor(new float[]{0.1f, 0.2f}, new int[]{2}, null, "cpuBias", DataType.FLOAT32);
         Tensor cpuOut = cpuInput.linear(cpuWeight, cpuBias).tanh();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor input = new Tensor(new float[]{0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f}, new int[]{2, 3}, null, "input", DataType.FLOAT32);
         Tensor weight = new Tensor(new float[]{0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f}, new int[]{3, 2}, null, "weight", DataType.FLOAT32);
@@ -2662,7 +2662,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuBias = new Tensor(new float[]{1f, -1f}, new int[]{2}, null, "cpuBias", DataType.FLOAT32);
         Tensor cpuOut = cpuA.matmul(cpuB).add(cpuBias).relu();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
@@ -3486,7 +3486,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuBias = new Tensor(new float[]{1f, -1f}, new int[]{2}, null, "cpuBias", DataType.FLOAT32);
         Tensor cpuOut = cpuA.matmul(cpuB).add(cpuBias).tanh();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
@@ -3524,7 +3524,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuB = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "cpuB", DataType.FLOAT32);
         Tensor cpuOut = cpuA.matmul(cpuB).neg().abs().sqrt().inv();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
@@ -3566,7 +3566,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuDenom = new Tensor(new float[]{2.0f, 4.0f}, new int[]{2}, null, "cpuDenom", DataType.FLOAT32);
         Tensor cpuOut = cpuA.matmul(cpuB).mul(cpuScale).div(cpuDenom).tanh();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
@@ -3607,7 +3607,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuShift = new Tensor(new float[]{0.5f, 1.5f}, new int[]{2}, null, "cpuShift", DataType.FLOAT32);
         Tensor cpuOut = cpuA.matmul(cpuB).sub(cpuShift).tanh();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
@@ -3644,7 +3644,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuB = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "cpuB", DataType.FLOAT32);
         Tensor cpuOut = cpuA.matmul(cpuB).clampMin(0.25).clampMax(5.0).tanh();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
@@ -3684,7 +3684,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuResidual = new Tensor(new float[]{0.25f, 0.75f}, new int[]{2}, null, "cpuResidual", DataType.FLOAT32);
         Tensor cpuOut = cpuA.matmul(cpuB).add(cpuBias).add(cpuResidual).tanh();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
@@ -3725,7 +3725,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuMatmul = cpuA.matmul(cpuB);
         Tensor cpuOut = cpuMatmul.relu().add(cpuMatmul.abs()).tanh();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
@@ -3766,7 +3766,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuMatmul = cpuA.matmul(cpuB);
         Tensor cpuOut = cpuMatmul.relu().add(cpuMatmul.abs()).add(cpuMatmul.neg()).tanh();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
@@ -3810,7 +3810,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuB = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cpuB", DataType.FLOAT32);
         Tensor cpuOut = cpuA.matmul(cpuB).reshape(1, 4).tanh();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
@@ -3846,7 +3846,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuB = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cpuB", DataType.FLOAT32);
         Tensor cpuOut = cpuA.matmul(cpuB).permute(1, 0).neg();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
@@ -3882,7 +3882,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuB = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cpuB", DataType.FLOAT32);
         Tensor cpuOut = cpuA.matmul(cpuB).reshape(1, 4).expandDims(0).squeeze(0).tanh();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
@@ -3928,7 +3928,7 @@ public class PreparedExecutionBuildTest {
         }, new int[]{1, 2, 3, 2}, null, "cpuK", DataType.FLOAT32);
         Tensor cpuOut = cpuQ.matmul(cpuK.permute(0, 1, 3, 2)).mul(0.5);
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor q = new Tensor(new float[]{
                 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
@@ -3985,7 +3985,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuFill = Tensor.scalar(-1.0e3, DataType.FLOAT32);
         Tensor cpuOut = Tensor.where(cpuMask, cpuQ.matmul(cpuK.permute(0, 1, 3, 2)).mul(0.5), cpuFill);
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor q = new Tensor(new float[]{
                 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
@@ -4053,7 +4053,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuFill = Tensor.scalar(-1.0e3, DataType.FLOAT32);
         Tensor cpuOut = Tensor.where(cpuMask, cpuQ.matmul(cpuK.permute(0, 1, 3, 2)).mul(0.5), cpuFill).softmax(3);
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor q = new Tensor(new float[]{
                 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
@@ -4128,7 +4128,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuWeights = Tensor.where(cpuMask, cpuQ.matmul(cpuK.permute(0, 1, 3, 2)).mul(0.5), cpuFill).softmax(3);
         Tensor cpuOut = cpuWeights.matmul(cpuV);
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor q = new Tensor(new float[]{
                 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
@@ -4190,7 +4190,7 @@ public class PreparedExecutionBuildTest {
         Tensor cpuBias = new Tensor(new float[]{0.1f, 0.2f}, new int[]{2}, null, "cpuBias", DataType.FLOAT32);
         Tensor cpuOut = cpuA.matmul(cpuB).add(cpuBias).exp();
         CompiledGraph.compile(cpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor a = new Tensor(new float[]{0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
@@ -4471,7 +4471,7 @@ public class PreparedExecutionBuildTest {
     }
 
     private static int nodeId(CompiledGraph compiled, Operation.OpType opType) {
-        return compiled.compileArtifacts().compiledNodes().stream()
+        return compiled.program().compiledNodes().stream()
                 .filter(node -> node.operation() != null && node.operation().opType() == opType)
                 .map(graph.CompiledNode::id)
                 .findFirst()
@@ -4479,7 +4479,7 @@ public class PreparedExecutionBuildTest {
     }
 
     private static int nodeId(CompiledGraph compiled, String label) {
-        return compiled.compileArtifacts().compiledNodes().stream()
+        return compiled.program().compiledNodes().stream()
                 .filter(node -> label.equals(node.label()))
                 .map(graph.CompiledNode::id)
                 .findFirst()
@@ -4520,7 +4520,7 @@ public class PreparedExecutionBuildTest {
     }
 
     private static graph.CompiledNode compiledNode(CompiledGraph compiled, int nodeId) {
-        return compiled.compileArtifacts().compiledNodes().stream()
+        return compiled.program().compiledNodes().stream()
                 .filter(node -> node.id() == nodeId)
                 .findFirst()
                 .orElseThrow();
@@ -4604,11 +4604,11 @@ public class PreparedExecutionBuildTest {
     }
 
     private static PartitionPlanningContext planningContext(CompiledGraph compiled) {
-        List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
+        List<CompiledNode> nodes = compiled.program().compiledNodes();
         return new PartitionPlanningContext(
                 false,
                 nodes,
-                compiled.compileArtifacts().descriptorIndex(),
+                compiled.program().descriptorIndex(),
                 consumerMap(nodes)
         );
     }

@@ -541,7 +541,7 @@ class TrainingOptimizerTest {
         Tensor loss = w.mul(x).sum();
 
         CompiledGraph.compile(loss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new float[]{2.0f, 3.0f}, w.getGradient().getFloat32Data(), 1.0e-6f);
         assertArrayEquals(new float[]{1.0f, 2.0f}, x.getGradient().getFloat32Data(), 1.0e-6f);

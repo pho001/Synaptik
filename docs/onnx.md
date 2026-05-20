@@ -64,7 +64,7 @@ imported.input("a").setData(new float[]{1f, 2f, 3f, 4f, 5f, 6f});
 imported.input("b").setData(new float[]{7f, 8f, 9f, 10f, 11f, 12f});
 
 CompiledGraph compiled = imported.compile("scores", CompileConfig.inference());
-compiled.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+compiled.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 ```
 
 `OnnxLeafTensorPolicy` controls how operation-free Synaptik leaf tensors are exported. The default is `INPUTS`, so exporting a normal computation graph does not accidentally serialize user input values as model weights.

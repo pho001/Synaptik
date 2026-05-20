@@ -75,8 +75,8 @@ class CpuNaturalExecutionRegionPlannerTest {
 
         CompiledGraph result = CompiledGraph.compile(root, CompileConfig.inference());
 
-        assertEquals(1, result.compileArtifacts().partitions().size());
-        Partition partition = result.compileArtifacts().partitions().getFirst();
+        assertEquals(1, result.program().partitions().size());
+        Partition partition = result.program().partitions().getFirst();
         assertEquals(ExecutionRegionKind.CPU_EXECUTION, partition.regionKind());
         assertEquals(PartitionPlannerStrategy.CPU_NATURAL_EXECUTION_REGION, partition.plannerStrategy());
         assertTrue(partition.orderedNodeIds().size() >= 3);
@@ -90,10 +90,10 @@ class CpuNaturalExecutionRegionPlannerTest {
 
         CompiledGraph enabled = CompiledGraph.compile(root, CompileConfig.inference());
 
-        assertEquals(1, enabled.compileArtifacts().partitions().size());
+        assertEquals(1, enabled.program().partitions().size());
         assertEquals(
                 PartitionPlannerStrategy.CPU_NATURAL_EXECUTION_REGION,
-                enabled.compileArtifacts().partitions().getFirst().plannerStrategy()
+                enabled.program().partitions().getFirst().plannerStrategy()
         );
 
         CompiledGraph disabled = CompiledGraph.compile(
@@ -103,7 +103,7 @@ class CpuNaturalExecutionRegionPlannerTest {
                 )
         );
 
-        assertTrue(disabled.compileArtifacts().partitions().isEmpty());
+        assertTrue(disabled.program().partitions().isEmpty());
     }
 
     @Test
@@ -117,7 +117,7 @@ class CpuNaturalExecutionRegionPlannerTest {
                 CompileConfig.inference().withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withOwnershipPlanner(config.compile.RegionOwnershipPlannerStrategy.SCORED))
         );
 
-        assertTrue(compiled.compileArtifacts().partitions().stream()
+        assertTrue(compiled.program().partitions().stream()
                 .anyMatch(partition -> partition.plannerStrategy()
                         == PartitionPlannerStrategy.CPU_NATURAL_EXECUTION_REGION));
     }
@@ -135,8 +135,8 @@ class CpuNaturalExecutionRegionPlannerTest {
                 )
         );
 
-        assertEquals(1, result.compileArtifacts().partitions().size());
-        Partition partition = result.compileArtifacts().partitions().getFirst();
+        assertEquals(1, result.program().partitions().size());
+        Partition partition = result.program().partitions().getFirst();
         assertEquals(List.of(3), partition.orderedNodeIds());
     }
 

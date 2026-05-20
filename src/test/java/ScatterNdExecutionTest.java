@@ -24,7 +24,7 @@ public class ScatterNdExecutionTest {
         Tensor out = data.scatterNd(indices, updates);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
-        compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        compiledGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
                 10, 20, 1,
@@ -44,7 +44,7 @@ public class ScatterNdExecutionTest {
         Tensor out = data.scatterNd(indices, updates);
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
                 1, 2, 3,
@@ -63,7 +63,7 @@ public class ScatterNdExecutionTest {
         Tensor out = data.scatterNd(indices, updates);
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
                 10, 20, 30,
@@ -82,7 +82,7 @@ public class ScatterNdExecutionTest {
         Tensor out = data.scatterNd(indices, updates, ScatterReduction.ADD);
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
                 10, 32, 30,
@@ -98,7 +98,7 @@ public class ScatterNdExecutionTest {
         Tensor out = data.scatterNd(indices, updates, ScatterReduction.ADD, 1);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
-        compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        compiledGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
                 0, 5, 0,
@@ -119,7 +119,7 @@ public class ScatterNdExecutionTest {
 
         assertThrows(IllegalArgumentException.class, () ->
                 CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                        .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD));
+                        .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD));
     }
 
     @Test
@@ -135,7 +135,7 @@ public class ScatterNdExecutionTest {
         Tensor out = data.scatterNd(indices, updates);
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
                 10, 30, 1,
@@ -155,7 +155,7 @@ public class ScatterNdExecutionTest {
         Tensor out = data.scatterNd(indices, updates);
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
                 1, 5,
@@ -171,7 +171,7 @@ public class ScatterNdExecutionTest {
         Tensor mul = ints.scatterNd(intIndices, intUpdates, ScatterReduction.MUL);
 
         CompiledGraph.compile(mul, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{2, 120, 4, 8}, mul.toDoubleArrayCopy(), 1e-9);
 
@@ -181,7 +181,7 @@ public class ScatterNdExecutionTest {
         Tensor bf16Out = bf16.scatterNd(bf16Indices, bf16Updates);
 
         CompiledGraph.compile(bf16Out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{10.0, 1.0}, bf16Out.toDoubleArrayCopy(), 1e-6);
 
@@ -190,7 +190,7 @@ public class ScatterNdExecutionTest {
         Tensor boolOut = bools.scatterNd(bf16Indices, boolUpdates);
 
         CompiledGraph.compile(boolOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new boolean[]{true, true}, boolOut.toBooleanArrayCopy());
         assertThrows(IllegalArgumentException.class,
@@ -230,7 +230,7 @@ public class ScatterNdExecutionTest {
         Tensor out = data.scatterNd(indices, updates).mul(2.0);
 
         CompiledGraph.compile(out, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 2.0, 2.0, 0.0,
@@ -253,7 +253,7 @@ public class ScatterNdExecutionTest {
         Tensor out = data.scatterNd(indices, updates, ScatterReduction.ADD).mul(3.0);
 
         CompiledGraph.compile(out, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 3.0, 3.0, 3.0,
@@ -273,7 +273,7 @@ public class ScatterNdExecutionTest {
         Tensor out = data.scatterNd(indices, updates, ScatterReduction.ADD, 1).mul(4.0);
 
         CompiledGraph.compile(out, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 4.0, 4.0, 4.0,
@@ -296,7 +296,7 @@ public class ScatterNdExecutionTest {
         Tensor out = data.scatterNd(indices, updates).mul(5.0);
 
         CompiledGraph.compile(out, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 5.0, 5.0, 5.0,
@@ -321,7 +321,7 @@ public class ScatterNdExecutionTest {
         Tensor out = data.scatterNd(indices, updates).mul(4.0);
 
         CompiledGraph.compile(out, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[4], data.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{4.0, 4.0, 4.0, 4.0}, updates.getGradient().toDoubleArrayCopy(), 1e-9);
@@ -337,7 +337,7 @@ public class ScatterNdExecutionTest {
 
         Tensor none = dataNone.scatterNd(indices, updatesNone).mul(2.0);
         CompiledGraph.compile(none, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{2.0, 0.0}, dataNone.getGradient().toDoubleArrayCopy(), 1e-6);
         assertArrayEquals(new double[]{2.0}, updatesNone.getGradient().toDoubleArrayCopy(), 1e-6);
@@ -349,14 +349,14 @@ public class ScatterNdExecutionTest {
 
         Tensor add = dataAdd.scatterNd(indices, updatesAdd, ScatterReduction.ADD).mul(3.0);
         CompiledGraph.compile(add, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{3.0, 3.0}, dataAdd.getGradient().toDoubleArrayCopy(), 1e-6);
         assertArrayEquals(new double[]{3.0}, updatesAdd.getGradient().toDoubleArrayCopy(), 1e-6);
     }
 
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
-        return compiledGraph.compiledNodes().stream()
+        return compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)

@@ -43,7 +43,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).relu();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> relu = attrs(trace.steps().stream()
                 .filter(step -> "RELU".equals(step.opType()))
@@ -67,11 +67,8 @@ class NativeCpuElementwiseChainTest {
         Tensor out = left.add(right);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(
-                        runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY),
-                        ExecutionMode.FORWARD,
-                        PublicationPolicy.NONE
-                );
+                .prepare(
+                        runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         assertTrue(trace.nativeCpuMemory().present());
         assertTrue(trace.nativeCpuMemory().allocationCount() >= 3L);
@@ -89,7 +86,7 @@ class NativeCpuElementwiseChainTest {
         RuntimeConfig runtime = runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)
                 .withNativeCpuMemory(NativeCpuMemoryConfig.perExecution(1024L));
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime, ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         assertEquals(NativeMemoryPoolPolicy.PER_EXECUTION.name(), trace.nativeCpuMemory().requestedPoolPolicy());
         assertEquals(NativeMemoryPoolPolicy.PER_EXECUTION.name(), trace.nativeCpuMemory().effectivePoolPolicy());
@@ -137,7 +134,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).add(c);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> add = attrs(trace.steps().stream()
                 .filter(step -> "ADD".equals(step.opType()))
@@ -159,7 +156,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).add(bias).relu();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> add = attrs(trace.steps().stream()
                 .filter(step -> "ADD".equals(step.opType()))
@@ -192,7 +189,7 @@ class NativeCpuElementwiseChainTest {
         baselineBias.setRequiresGrad(true);
         Tensor baselineLoss = baselineInput.matmul(baselineWeight).add(baselineBias).relu().mean();
         CompiledGraph.compile(baselineLoss, nativeElementwiseCompileConfig())
-                .execute(runtime(CpuStorageProfile.CPU_ARRAY, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_ARRAY, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).execute(ExecutionMode.FORWARD_BACKWARD);
 
         Tensor nativeInput = matrix(new float[]{1f, -1f, 2f, 0.5f}, new int[]{2, 2}, "native_input");
         Tensor nativeWeight = matrix(new float[]{2f, -1f, 1f, 3f}, new int[]{2, 2}, "native_weight");
@@ -203,7 +200,7 @@ class NativeCpuElementwiseChainTest {
         Tensor nativeLoss = nativeInput.matmul(nativeWeight).add(nativeBias).relu().mean();
 
         var trace = CompiledGraph.compile(nativeLoss, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(baselineLoss.toDoubleArrayCopy(), nativeLoss.toDoubleArrayCopy(), 1.0e-6);
         assertArrayEquals(baselineInput.getGradient().toDoubleArrayCopy(), nativeInput.getGradient().toDoubleArrayCopy(), 1.0e-6);
@@ -222,7 +219,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = bias.add(a().matmul(b()));
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> add = attrs(trace.steps().stream()
                 .filter(step -> "ADD".equals(step.opType()))
@@ -242,7 +239,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).mul(scale).relu();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> mul = attrs(trace.steps().stream()
                 .filter(step -> "MUL".equals(step.opType()))
@@ -271,7 +268,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).sub(offset).neg().relu();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> sub = attrs(trace.steps().stream()
                 .filter(step -> "SUB".equals(step.opType()))
@@ -309,7 +306,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).div(divisor);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> div = attrs(trace.steps().stream()
                 .filter(step -> "DIV".equals(step.opType()))
@@ -397,7 +394,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).log().relu();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         assertNativeSegmentScalar(trace.steps().stream()
                 .filter(step -> "LOG".equals(step.opType()))
@@ -417,7 +414,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).add(bias).mul(0.5d).relu();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> mulScalar = attrs(trace.steps().stream()
                 .filter(step -> "MUL_SCALAR".equals(step.opType()))
@@ -447,7 +444,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = Tensor.where(condition, a().matmul(b()), fallback).relu();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> where = attrs(trace.steps().stream()
                 .filter(step -> "WHERE".equals(step.opType()))
@@ -475,7 +472,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).sum();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         Map<String, Object> sum = attrs(trace.steps().stream()
                 .filter(step -> "SUM".equals(step.opType()))
@@ -497,7 +494,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).mean();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         Map<String, Object> mean = attrs(trace.steps().stream()
                 .filter(step -> "MEAN".equals(step.opType()))
@@ -521,11 +518,11 @@ class NativeCpuElementwiseChainTest {
         Tensor sumRowsKeepDims = a().matmul(b()).sum(1, true);
 
         var columnsTrace = CompiledGraph.compile(sumColumns, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
         var rowsTrace = CompiledGraph.compile(sumRows, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
         var keepDimsTrace = CompiledGraph.compile(sumRowsKeepDims, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new float[]{62.0f, 72.0f}, sumColumns.getFloat32Data(), 1.0e-5f);
         assertArrayEquals(new float[]{41.0f, 93.0f}, sumRows.getFloat32Data(), 1.0e-5f);
@@ -554,11 +551,11 @@ class NativeCpuElementwiseChainTest {
         Tensor meanRowsKeepDims = a().matmul(b()).mean(1, true);
 
         var columnsTrace = CompiledGraph.compile(meanColumns, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
         var rowsTrace = CompiledGraph.compile(meanRows, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
         var keepDimsTrace = CompiledGraph.compile(meanRowsKeepDims, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new float[]{31.0f, 36.0f}, meanColumns.getFloat32Data(), 1.0e-5f);
         assertArrayEquals(new float[]{20.5f, 46.5f}, meanRows.getFloat32Data(), 1.0e-5f);
@@ -589,7 +586,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = input.cast(DataType.BFLOAT16);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new short[]{
                 CpuDTypeOps.toBFloat16Bits(1.0f),
@@ -615,7 +612,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = input.cast(DataType.FLOAT32);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertEquals(Float.floatToRawIntBits(CpuDTypeOps.fromBFloat16Bits(bits[0])), Float.floatToRawIntBits(out.getFloat32Data()[0]));
         assertEquals(Float.floatToRawIntBits(CpuDTypeOps.fromBFloat16Bits(bits[1])), Float.floatToRawIntBits(out.getFloat32Data()[1]));
@@ -634,7 +631,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).reshape(4).relu();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         assertNativeView(trace.steps().stream()
                 .filter(step -> "RESHAPE".equals(step.opType()))
@@ -657,7 +654,7 @@ class NativeCpuElementwiseChainTest {
                 .add(bias);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         assertNativeView(trace.steps().stream()
                 .filter(step -> "EXPAND_DIMS".equals(step.opType()))
@@ -681,7 +678,7 @@ class NativeCpuElementwiseChainTest {
                 .cast(DataType.FLOAT32);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new float[]{1f, -2f, 3.5f, -4.5f}, out.getFloat32Data(), 1.0e-3f);
         assertNativeView(trace.steps().stream()
@@ -701,7 +698,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).contiguous().relu();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         assertNativeContiguous(trace.steps().stream()
                 .filter(step -> "CONTIGUOUS".equals(step.opType()))
@@ -727,7 +724,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = input.contiguous();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(bits, out.getBFloat16Data());
         assertNativeContiguous(trace.steps().stream()
@@ -743,7 +740,7 @@ class NativeCpuElementwiseChainTest {
                 .contiguous();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new float[]{1f, 3f, 2f, 4f}, out.getFloat32Data(), 0f);
         Map<String, Object> contiguous = attrs(trace.steps().stream()
@@ -768,7 +765,7 @@ class NativeCpuElementwiseChainTest {
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class,
                 () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+                        .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE)
         );
 
         assertTrue(failure.getMessage().contains("Native CPU execution required"));
@@ -858,9 +855,9 @@ class NativeCpuElementwiseChainTest {
                 .cast(DataType.FLOAT32);
 
         var sumTrace = CompiledGraph.compile(sum, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
         var meanTrace = CompiledGraph.compile(meanRows, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new float[]{11.0f}, sum.getFloat32Data(), 0.0f);
         assertArrayEquals(new float[]{1.5f, 4.0f}, meanRows.getFloat32Data(), 0.0f);
@@ -883,7 +880,7 @@ class NativeCpuElementwiseChainTest {
                 .cast(DataType.FLOAT32);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(expected, out.getFloat32Data(), 1.0e-6f);
         assertNativeBf16Promoted(firstNativeStep(trace.steps(), "ADD"));
@@ -903,7 +900,7 @@ class NativeCpuElementwiseChainTest {
                 .neg();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{-3.0d, -0.0d, -8.0d, -20.0d}, out.getFloat64Data(), 1.0e-12d);
         assertNativeSegmentScalar(trace.steps().stream()
@@ -925,7 +922,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = f64(new double[]{1.0d, -2.0d, 3.5d, -4.5d}, "f64_a").mul(0.25d);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{0.25d, -0.5d, 0.875d, -1.125d}, out.getFloat64Data(), 1.0e-12d);
         assertNativeSegmentScalar(trace.steps().stream()
@@ -948,7 +945,7 @@ class NativeCpuElementwiseChainTest {
         }
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(expected, out.getFloat64Data(), 1.0e-12d);
         assertNativeSegmentScalar(trace.steps().stream()
@@ -976,7 +973,7 @@ class NativeCpuElementwiseChainTest {
                 .sign();
 
         var f32Trace = CompiledGraph.compile(f32, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new float[]{-1.0f, 0.0f, 1.0f, -1.0f}, f32.getFloat32Data(), 0.0f);
         assertNativeSegmentScalar(firstNativeStep(f32Trace.steps(), "FLOOR"));
@@ -985,7 +982,7 @@ class NativeCpuElementwiseChainTest {
         Tensor f64 = f64(new double[]{-1.7d, 0.0d, 2.3d, -0.2d}, "f64_rounding").ceil();
 
         var f64Trace = CompiledGraph.compile(f64, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{-1.0d, 0.0d, 3.0d, -0.0d}, f64.getFloat64Data(), 0.0d);
         assertNativeSegmentScalar(firstNativeStep(f64Trace.steps(), "CEIL"));
@@ -999,7 +996,7 @@ class NativeCpuElementwiseChainTest {
                 .clampMax(4.0d);
 
         var f32Trace = CompiledGraph.compile(f32, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new float[]{1.0f, 4.0f, -2.5f, 4.0f}, f32.getFloat32Data(), 1.0e-6f);
         assertNativeSegmentScalar(firstNativeStep(f32Trace.steps(), "MIN"));
@@ -1012,7 +1009,7 @@ class NativeCpuElementwiseChainTest {
                 .clampMax(4.0d);
 
         var f64Trace = CompiledGraph.compile(f64, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{2.0d, 4.0d, -2.5d, 4.0d}, f64.getFloat64Data(), 1.0e-12d);
         assertNativeSegmentScalar(firstNativeStep(f64Trace.steps(), "MAX"));
@@ -1027,7 +1024,7 @@ class NativeCpuElementwiseChainTest {
                 .pow(tensor(new float[]{2.0f, 3.0f, 0.5f, -1.0f}, "f32_pow_exponent"));
 
         var f32Trace = CompiledGraph.compile(f32, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new float[]{1.0f, 8.0f, (float) Math.sqrt(3.0f), 0.25f}, f32.getFloat32Data(), 1.0e-6f);
         assertNativeSegmentScalar(firstNativeStep(f32Trace.steps(), "POW"));
@@ -1038,7 +1035,7 @@ class NativeCpuElementwiseChainTest {
                 .pow(f64(new double[]{2.0d, 3.0d, 0.5d, -1.0d}, "f64_pow_exponent"));
 
         var f64Trace = CompiledGraph.compile(f64, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{1.0d, 8.0d, Math.sqrt(3.0d), 0.25d}, f64.getFloat64Data(), 1.0e-12d);
         assertNativeSegmentScalar(firstNativeStep(f64Trace.steps(), "POW"));
@@ -1053,13 +1050,13 @@ class NativeCpuElementwiseChainTest {
         Tensor meanRows = f64Matrix(new double[]{1.0d, 2.0d, 3.0d, 4.0d}, new int[]{2, 2}, "f64_mean_rows").mean(1);
 
         var sumAllTrace = CompiledGraph.compile(sumAll, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
         var meanAllTrace = CompiledGraph.compile(meanAll, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
         var sumColumnsTrace = CompiledGraph.compile(sumColumns, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
         var meanRowsTrace = CompiledGraph.compile(meanRows, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{10.0d}, sumAll.getFloat64Data(), 1.0e-12d);
         assertArrayEquals(new double[]{2.5d}, meanAll.getFloat64Data(), 1.0e-12d);
@@ -1090,11 +1087,11 @@ class NativeCpuElementwiseChainTest {
         Tensor f64MinColumns = f64Matrix(new double[]{4.0d, -2.0d, 3.0d, -5.0d}, new int[]{2, 2}, "f64_reduce_min_columns").min(0, false);
 
         var f32MinTrace = CompiledGraph.compile(f32MinAll, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
         var f32MaxTrace = CompiledGraph.compile(f32MaxRows, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
         var f64MinTrace = CompiledGraph.compile(f64MinColumns, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new float[]{-5.0f}, f32MinAll.getFloat32Data(), 0.0f);
         assertArrayEquals(new float[]{4.0f, 3.0f}, f32MaxRows.getFloat32Data(), 0.0f);
@@ -1123,7 +1120,7 @@ class NativeCpuElementwiseChainTest {
                 .lessOrEqual(f64(new double[]{2.0d, 2.0d, 1.0d, 4.0d}, "compare_right"));
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new byte[]{1, 1, 0, 1}, out.getBoolData());
         assertNativeCompareTrace(trace.steps().stream()
@@ -1143,7 +1140,7 @@ class NativeCpuElementwiseChainTest {
         );
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new float[]{10.0f, -20.0f, 30.0f, -40.0f}, out.getFloat32Data(), 1.0e-6f);
         assertNativeCompareTrace(trace.steps().stream()
@@ -1167,7 +1164,7 @@ class NativeCpuElementwiseChainTest {
         );
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{10.0d, -20.0d, 30.0d, -40.0d}, out.getFloat64Data(), 1.0e-12d);
         assertNativeCompareTrace(trace.steps().stream()
@@ -1187,7 +1184,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = left.logicalAnd(right).logicalOr(left.logicalNot());
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new byte[]{1, 1, 0, 1}, out.getBoolData());
         assertNativeSegmentScalar(trace.steps().stream()
@@ -1212,7 +1209,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = input.logicalNot().any(1, false);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new byte[]{1, 1}, out.getBoolData());
         assertNativeSegmentScalar(trace.steps().stream()
@@ -1235,7 +1232,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).mul(scale);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> mul = attrs(trace.steps().stream()
                 .filter(step -> "MUL".equals(step.opType()))
@@ -1258,7 +1255,7 @@ class NativeCpuElementwiseChainTest {
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class,
                 () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+                        .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE)
         );
 
         assertTrue(failure.getMessage().contains("Native CPU execution required"));
@@ -1273,7 +1270,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).sub(offset);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> sub = attrs(trace.steps().stream()
                 .filter(step -> "SUB".equals(step.opType()))
@@ -1296,7 +1293,7 @@ class NativeCpuElementwiseChainTest {
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class,
                 () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+                        .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE)
         );
 
         assertTrue(failure.getMessage().contains("Native CPU execution required"));
@@ -1311,7 +1308,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).add(columnBias);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> add = attrs(trace.steps().stream()
                 .filter(step -> "ADD".equals(step.opType()))
@@ -1330,7 +1327,7 @@ class NativeCpuElementwiseChainTest {
                 .add(f64Matrix(new double[]{10.0d, 20.0d}, new int[]{2, 1}, "f64_column_bias"));
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> add = attrs(trace.steps().stream()
                 .filter(step -> "ADD".equals(step.opType()))
@@ -1351,7 +1348,7 @@ class NativeCpuElementwiseChainTest {
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class,
                 () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+                        .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE)
         );
 
         assertTrue(failure.getMessage().contains("Native CPU execution required"));
@@ -1364,7 +1361,7 @@ class NativeCpuElementwiseChainTest {
                 .greaterThan(vector(new float[]{2.0f, 3.0f}, "compare_bias"));
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> gt = attrs(trace.steps().stream()
                 .filter(step -> "GT".equals(step.opType()))
@@ -1385,7 +1382,7 @@ class NativeCpuElementwiseChainTest {
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class,
                 () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+                        .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE)
         );
 
         assertTrue(failure.getMessage().contains("Native CPU execution required"));
@@ -1401,7 +1398,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = Tensor.where(condition, a().matmul(b()), fallback);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> where = attrs(trace.steps().stream()
                 .filter(step -> "WHERE".equals(step.opType()))
@@ -1424,7 +1421,7 @@ class NativeCpuElementwiseChainTest {
         );
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         Map<String, Object> where = attrs(trace.steps().stream()
                 .filter(step -> "WHERE".equals(step.opType()))
@@ -1449,7 +1446,7 @@ class NativeCpuElementwiseChainTest {
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class,
                 () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+                        .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE)
         );
 
         assertTrue(failure.getMessage().contains("Native CPU execution required"));
@@ -1463,7 +1460,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).transpose().sum(1);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> sum = attrs(trace.steps().stream()
                 .filter(step -> "SUM".equals(step.opType()))
@@ -1485,7 +1482,7 @@ class NativeCpuElementwiseChainTest {
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class,
                 () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+                        .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE)
         );
 
         assertTrue(failure.getMessage().contains("Native CPU execution required"));
@@ -1499,7 +1496,7 @@ class NativeCpuElementwiseChainTest {
                 .sum(1);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> sum = attrs(trace.steps().stream()
                 .filter(step -> "SUM".equals(step.opType()))
@@ -1521,7 +1518,7 @@ class NativeCpuElementwiseChainTest {
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class,
                 () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+                        .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE)
         );
 
         assertTrue(failure.getMessage().contains("Native CPU execution required"));
@@ -1533,7 +1530,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = tensor(new float[]{1f, 2f, 3f, 4f}, "cast_input").cast(DataType.FLOAT64);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> cast = attrs(trace.steps().stream()
                 .filter(step -> "CAST".equals(step.opType()))
@@ -1553,7 +1550,7 @@ class NativeCpuElementwiseChainTest {
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class,
                 () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+                        .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE)
         );
 
         assertTrue(failure.getMessage().contains("Native CPU execution required"));
@@ -1570,7 +1567,7 @@ class NativeCpuElementwiseChainTest {
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class,
                 () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+                        .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE)
         );
 
         assertTrue(failure.getMessage().contains("Native CPU execution required"));
@@ -1584,7 +1581,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).erf();
 
         var trace = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> erf = attrs(trace.steps().stream()
                 .filter(step -> "ERF".equals(step.opType()))
@@ -1605,9 +1602,9 @@ class NativeCpuElementwiseChainTest {
         Tensor logSoftmaxOut = specialLogSoftmax(a(), 1);
 
         var softmaxTrace = CompiledGraph.compile(softmaxOut, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
         var logSoftmaxTrace = CompiledGraph.compile(logSoftmaxOut, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> softmax = attrs(softmaxTrace.steps().stream()
                 .filter(step -> "SOFTMAX".equals(step.opType()))
@@ -1637,7 +1634,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().argMax(1, false);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> argMax = attrs(trace.steps().stream()
                 .filter(step -> "ARGMAX".equals(step.opType()))
@@ -1658,7 +1655,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = bf16(new float[]{1.0f, 4.0f, 2.0f, 3.0f}, "bf16_reduce_min").min(1, false);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> reduceMin = attrs(trace.steps().stream()
                 .filter(step -> "REDUCE_MIN".equals(step.opType()))
@@ -1683,7 +1680,7 @@ class NativeCpuElementwiseChainTest {
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class,
                 () -> CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+                        .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE)
         );
 
         assertTrue(failure.getMessage().contains("Native CPU execution required"));
@@ -1695,7 +1692,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = bf16(new float[]{1.0f, 2.0f, 4.0f, 8.0f}, "bf16_log").log();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> log = attrs(trace.steps().stream()
                 .filter(step -> "LOG".equals(step.opType()))
@@ -1719,7 +1716,7 @@ class NativeCpuElementwiseChainTest {
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class,
                 () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                        .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE), ExecutionMode.FORWARD, PublicationPolicy.NONE)
+                        .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE)
         );
 
         assertTrue(failure.getMessage().contains("Native CPU execution required"));
@@ -1733,7 +1730,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).add(vector(new float[]{1f, -100f}, "bias"));
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> add = attrs(trace.steps().stream()
                 .filter(step -> "ADD".equals(step.opType()))
@@ -1751,7 +1748,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).log();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> log = attrs(trace.steps().stream()
                 .filter(step -> "LOG".equals(step.opType()))
@@ -1769,7 +1766,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).mul(tensor(new float[]{2f, 3f, 4f, 5f}, "scale"));
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> mul = attrs(trace.steps().stream()
                 .filter(step -> "MUL".equals(step.opType()))
@@ -1790,7 +1787,7 @@ class NativeCpuElementwiseChainTest {
                 .neg();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> sub = attrs(trace.steps().stream()
                 .filter(step -> "SUB".equals(step.opType()))
@@ -1820,7 +1817,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).mul(0.5d);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> mulScalar = attrs(trace.steps().stream()
                 .filter(step -> "MUL_SCALAR".equals(step.opType()))
@@ -1840,7 +1837,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = Tensor.where(condition, a().matmul(b()), fallback);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> where = attrs(trace.steps().stream()
                 .filter(step -> "WHERE".equals(step.opType()))
@@ -1858,7 +1855,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = a().matmul(b()).sum();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> sum = attrs(trace.steps().stream()
                 .filter(step -> "SUM".equals(step.opType()))
@@ -1875,7 +1872,7 @@ class NativeCpuElementwiseChainTest {
                 .greaterThan(tensor(new float[]{2.0f, 2.0f, 1.0f, 4.0f}, "compare_right"));
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> gt = attrs(trace.steps().stream()
                 .filter(step -> "GT".equals(step.opType()))
@@ -1891,7 +1888,7 @@ class NativeCpuElementwiseChainTest {
         Tensor out = tensor(new float[]{1f, 2f, 3f, 4f}, "cast_input").cast(DataType.BFLOAT16);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> cast = attrs(trace.steps().stream()
                 .filter(step -> "CAST".equals(step.opType()))
@@ -1909,7 +1906,7 @@ class NativeCpuElementwiseChainTest {
                 .cast(DataType.FLOAT32);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> add = attrs(trace.steps().stream()
                 .filter(step -> "ADD".equals(step.opType()))
@@ -1927,7 +1924,7 @@ class NativeCpuElementwiseChainTest {
                 .sum();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> add = attrs(trace.steps().stream()
                 .filter(step -> "ADD".equals(step.opType()))
@@ -1951,7 +1948,7 @@ class NativeCpuElementwiseChainTest {
                 .relu();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> reshape = attrs(trace.steps().stream()
                 .filter(step -> "RESHAPE".equals(step.opType()))
@@ -1968,7 +1965,7 @@ class NativeCpuElementwiseChainTest {
                 .contiguous();
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.AUTO, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> contiguous = attrs(trace.steps().stream()
                 .filter(step -> "CONTIGUOUS".equals(step.opType()))
@@ -1987,9 +1984,9 @@ class NativeCpuElementwiseChainTest {
                 .slice(new int[]{0, 0}, new int[]{1, 2}, new int[]{0, 1}, new int[]{1, 1});
 
         var selectTrace = CompiledGraph.compile(selected, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
         var sliceTrace = CompiledGraph.compile(sliced, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD, PublicationPolicy.NONE);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
         Map<String, Object> select = attrs(selectTrace.steps().stream()
                 .filter(step -> "SELECT".equals(step.opType()))
@@ -2120,7 +2117,7 @@ class NativeCpuElementwiseChainTest {
 
     private static void assertNativeCompare(Tensor out, String opType, byte[] expected) {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(expected, out.getBoolData());
         assertNativeCompareTrace(trace.steps().stream()
@@ -2172,7 +2169,7 @@ class NativeCpuElementwiseChainTest {
 
     private static void assertNativeUnaryValues(Tensor out, String opType, float[] expected, float tolerance) {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(expected, out.getFloat32Data(), tolerance);
         assertNativeSegmentScalar(trace.steps().stream()
@@ -2183,7 +2180,7 @@ class NativeCpuElementwiseChainTest {
 
     private static void assertNativeBf16PromotedValues(Tensor out, String opType, float[] expected) {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                .executeTraced(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY), ExecutionMode.FORWARD);
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(expected, out.getFloat32Data(), 1.0e-6f);
         assertNativeBf16Promoted(trace.steps().stream()

@@ -21,7 +21,7 @@ public class SoftmaxExecutionTest {
 
         Tensor probs = logits.softmax(1);
         CompiledGraph compiledGraph = CompiledGraph.compile(probs, CompileConfig.noGraphOptimizationBaseline());
-        compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        compiledGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         double[] actual = probs.toDoubleArrayCopy();
         assertArrayEquals(softmaxRow(new double[]{1.0, 2.0, 3.0}), new double[]{actual[0], actual[1], actual[2]}, 1e-9);
@@ -38,7 +38,7 @@ public class SoftmaxExecutionTest {
 
         Tensor probs = logits.softmax(1);
         CompiledGraph.compile(probs, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(softmaxRow(new double[]{1000.0, 1001.0, 1002.0}), probs.toDoubleArrayCopy(), 1e-9);
     }
@@ -53,7 +53,7 @@ public class SoftmaxExecutionTest {
         assertFalse(containsOp(compiledGraph, Operation.OpType.SOFTMAX_GRAD));
         assertTrue(containsOp(compiledGraph, Operation.OpType.MUL));
         assertTrue(containsOp(compiledGraph, Operation.OpType.SUM));
-        compiledGraph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        compiledGraph.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         double[] y = probs.toDoubleArrayCopy();
         double sumY = y[0] + y[1] + y[2];
@@ -67,13 +67,13 @@ public class SoftmaxExecutionTest {
         Tensor probs = logits.softmax(1);
 
         CompiledGraph.compile(probs, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(softmaxRow(new double[]{1.0, 2.0, 3.0}), probs.toDoubleArrayCopy(), 1e-6);
     }
 
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
-        return compiledGraph.compiledNodes().stream()
+        return compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)

@@ -20,10 +20,10 @@ public class MeanPrimitiveTest {
 
         Tensor mean = a.mean(1, true);
         CompiledGraph compiledGraph = CompiledGraph.compile(mean, CompileConfig.noGraphOptimizationBaseline());
-        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{2.0, 5.0}, mean.toDoubleArrayCopy(), 1e-9);
-        assertTrue(compiledGraph.compiledNodes().stream()
+        assertTrue(compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
@@ -36,10 +36,10 @@ public class MeanPrimitiveTest {
 
         Tensor mean = a.mean();
         CompiledGraph compiledGraph = CompiledGraph.compile(mean, CompileConfig.noGraphOptimizationBaseline());
-        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{3.5}, mean.toDoubleArrayCopy(), 1e-9);
-        assertTrue(compiledGraph.compiledNodes().stream()
+        assertTrue(compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)

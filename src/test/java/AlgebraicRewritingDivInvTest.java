@@ -23,15 +23,15 @@ public class AlgebraicRewritingDivInvTest {
                 "oneOverX", DataType.FLOAT64);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(divNode, arOnlyInferenceConfig());
-        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{0.5, 0.25}, divNode.toDoubleArrayCopy(), 1e-9);
-        assertTrue(compiledGraph.compiledNodes().stream()
+        assertTrue(compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.INV));
-        assertTrue(compiledGraph.compiledNodes().stream()
+        assertTrue(compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
@@ -45,10 +45,10 @@ public class AlgebraicRewritingDivInvTest {
         Tensor outerInv = new Tensor(new int[]{2}, List.of(innerInv), new inv(), "invInvX", DataType.FLOAT64);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(outerInv, arOnlyInferenceConfig());
-        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{2.0, 4.0}, outerInv.toDoubleArrayCopy(), 1e-9);
-        assertTrue(compiledGraph.compiledNodes().stream()
+        assertTrue(compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)

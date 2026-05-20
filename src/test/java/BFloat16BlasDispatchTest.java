@@ -32,7 +32,7 @@ public class BFloat16BlasDispatchTest {
         Tensor out = a.matmul(b);
 
         var trace = CompiledGraph.compile(out, CompileConfig.inference())
-                .executeTraced(blasRuntime(1L), ExecutionMode.FORWARD);
+                .prepare(blasRuntime(1L)).executeTraced(ExecutionMode.FORWARD);
 
         ExecutionStepTrace matmul = trace.steps().stream()
                 .filter(step -> "MATMUL".equals(step.opType()))
@@ -59,7 +59,7 @@ public class BFloat16BlasDispatchTest {
         Tensor out = x.linear(w, b).relu().sum();
 
         var trace = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .executeTraced(blasRuntime(1L), ExecutionMode.FORWARD);
+                .prepare(blasRuntime(1L)).executeTraced(ExecutionMode.FORWARD);
 
         ExecutionStepTrace linear = trace.steps().stream()
                 .filter(step -> "LINEAR".equals(step.opType()))
@@ -89,7 +89,7 @@ public class BFloat16BlasDispatchTest {
         );
 
         var trace = CompiledGraph.compile(out, CompileConfig.inference())
-                .executeTraced(runtime, ExecutionMode.FORWARD);
+                .prepare(runtime).executeTraced(ExecutionMode.FORWARD);
 
         ExecutionStepTrace matmul = trace.steps().stream()
                 .filter(step -> "MATMUL".equals(step.opType()))
@@ -115,7 +115,7 @@ public class BFloat16BlasDispatchTest {
         Tensor out = a.matmul(b);
 
         var trace = CompiledGraph.compile(out, CompileConfig.inference())
-                .executeTraced(blasRuntimeWide(1L, true, 4.0d, true, 12.0d), ExecutionMode.FORWARD);
+                .prepare(blasRuntimeWide(1L, true, 4.0d, true, 12.0d)).executeTraced(ExecutionMode.FORWARD);
 
         ExecutionStepTrace matmul = trace.steps().stream()
                 .filter(step -> "MATMUL".equals(step.opType()))
@@ -135,7 +135,7 @@ public class BFloat16BlasDispatchTest {
         CompileConfig optimizer = convLoweringOnlyConfig();
 
         var trace = CompiledGraph.compile(out, optimizer)
-                .executeTraced(blasRuntime(1L), ExecutionMode.FORWARD);
+                .prepare(blasRuntime(1L)).executeTraced(ExecutionMode.FORWARD);
 
         assertTrue(trace.steps().stream().anyMatch(step -> "CONV2D_GEMM".equals(step.opType())));
     }
@@ -151,7 +151,7 @@ public class BFloat16BlasDispatchTest {
         CompileConfig optimizer = convLoweringOnlyConfig();
 
         var trace = CompiledGraph.compile(out, optimizer)
-                .executeTraced(blasRuntime(1L), ExecutionMode.FORWARD);
+                .prepare(blasRuntime(1L)).executeTraced(ExecutionMode.FORWARD);
 
         ExecutionStepTrace conv = trace.steps().stream()
                 .filter(step -> "CONV2D_GEMM".equals(step.opType()))
@@ -179,7 +179,7 @@ public class BFloat16BlasDispatchTest {
         );
 
         var trace = CompiledGraph.compile(out, optimizer)
-                .executeTraced(runtime, ExecutionMode.FORWARD);
+                .prepare(runtime).executeTraced(ExecutionMode.FORWARD);
 
         ExecutionStepTrace conv = trace.steps().stream()
                 .filter(step -> "CONV2D_GEMM".equals(step.opType()))

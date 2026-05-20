@@ -19,7 +19,7 @@ public class TensorAddTest {
 
         Tensor c = a.add(b);
         CompiledGraph.compile(c, CompileConfig.training())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{4.0, 6.0}, c.toDoubleArrayCopy(), 1e-9);
     }
@@ -33,7 +33,7 @@ public class TensorAddTest {
 
         Tensor c = a.add(b);
         CompiledGraph.compile(c, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertNotNull(a.getGradient());
         assertNotNull(b.getGradient());

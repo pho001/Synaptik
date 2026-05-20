@@ -24,31 +24,31 @@ public class DataTypeExecutionCoverageTest {
         Tensor b = tensor(new double[]{0.5, 0.1, 0.75, 1.5}, dataType, "b");
 
         Tensor add = a.add(b);
-        CompiledGraph.compile(add, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(add, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(expectedBinary(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), mode, "add"), add.toDoubleArrayCopy(), eps);
 
         Tensor sub = a.sub(b);
-        CompiledGraph.compile(sub, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(sub, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(expectedBinary(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), mode, "sub"), sub.toDoubleArrayCopy(), eps);
 
         Tensor mul = a.mul(b);
-        CompiledGraph.compile(mul, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(mul, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(expectedBinary(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), mode, "mul"), mul.toDoubleArrayCopy(), eps);
 
         Tensor div = a.div(b);
-        CompiledGraph.compile(div, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(div, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(expectedBinary(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), mode, "div"), div.toDoubleArrayCopy(), eps);
 
         Tensor min = a.min(b);
-        CompiledGraph.compile(min, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(min, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(expectedBinary(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), mode, "min"), min.toDoubleArrayCopy(), eps);
 
         Tensor max = a.max(b);
-        CompiledGraph.compile(max, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(max, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(expectedBinary(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), mode, "max"), max.toDoubleArrayCopy(), eps);
 
         Tensor chain = a.mul(0.5).exp().log().pow(2.0).sqrt().sigmoid().inv().neg();
-        CompiledGraph.compile(chain, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(chain, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(expectedUnaryChain(a.toDoubleArrayCopy(), mode), chain.toDoubleArrayCopy(), epsForChain(dataType));
         assertEquals(dataType, chain.getDataType());
     }
@@ -64,7 +64,7 @@ public class DataTypeExecutionCoverageTest {
         Tensor c = tensor(buildInput(4096, 0.01), dataType, "cf");
 
         Tensor out = a.add(b).mul(c).add(a.mul(0.25)).max(b).min(c).sigmoid();
-        CompiledGraph.compile(out, fuseOnlyInferenceConfig()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, fuseOnlyInferenceConfig()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(expectedFused(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), c.toDoubleArrayCopy(), mode), out.toDoubleArrayCopy(), eps);
         assertEquals(dataType, out.getDataType());
@@ -78,7 +78,7 @@ public class DataTypeExecutionCoverageTest {
 
         Tensor base = tensor(new double[]{1.0, 2.0, 3.0, 4.0}, dataType, "base");
         Tensor sum = base.sum();
-        CompiledGraph.compile(sum, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(sum, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         double expectedSum = 0.0;
         for (double v : base.toDoubleArrayCopy()) {
             expectedSum = FusedDTypeOps.add(expectedSum, v, mode);
@@ -89,7 +89,7 @@ public class DataTypeExecutionCoverageTest {
         Tensor view = new Tensor(base.toDoubleArrayCopy().clone(), new int[]{2, 2}, new int[]{1, 2}, null, "view");
         view.setDataType(dataType);
         Tensor contiguous = view.contiguous();
-        CompiledGraph.compile(contiguous, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(contiguous, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         double[] expectedContiguous = expectedContiguousView(base.toDoubleArrayCopy(), new int[]{2, 2}, new int[]{1, 2}, mode);
         assertArrayEquals(expectedContiguous, contiguous.toDoubleArrayCopy(), eps);

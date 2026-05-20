@@ -68,7 +68,7 @@ public class GradientEngineRegressionTest {
 
         Tensor Te7 = buildSequence(A, B, C);
 
-        CompiledGraph.compile(Te7, optimizerConfig).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph.compile(Te7, optimizerConfig).prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         return new RunResult(
                 Te7.toDoubleArrayCopy()[0],
@@ -88,7 +88,7 @@ public class GradientEngineRegressionTest {
 
         Tensor Te7 = buildSequence(A, B, C);
 
-        CompiledGraph.compile(Te7, optimizerConfig).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph.compile(Te7, optimizerConfig).prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         return new RunResultVec(
                 Te7.toDoubleArrayCopy().clone(),

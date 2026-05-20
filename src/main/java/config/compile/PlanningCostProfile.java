@@ -1,26 +1,24 @@
 package config.compile;
 
-import config.optimizer.MetalTransferModel;
-
 /**
  * Compile-time cost facts consumed by backend ownership planning.
  */
 public record PlanningCostProfile(
-        MetalTransferModel metalTransferModel
+        TransferCostPreset transferCostPreset
 ) {
     public PlanningCostProfile {
-        metalTransferModel = metalTransferModel == null ? MetalTransferModel.CONSERVATIVE : metalTransferModel;
+        transferCostPreset = transferCostPreset == null ? TransferCostPreset.CONSERVATIVE : transferCostPreset;
     }
 
     public static PlanningCostProfile conservative() {
-        return new PlanningCostProfile(MetalTransferModel.CONSERVATIVE);
+        return new PlanningCostProfile(TransferCostPreset.CONSERVATIVE);
     }
 
     public static PlanningCostProfile measuredTransfer() {
-        return new PlanningCostProfile(MetalTransferModel.MEASURED);
+        return new PlanningCostProfile(TransferCostPreset.MEASURED);
     }
 
     public static PlanningCostProfile aggressiveTransfer() {
-        return new PlanningCostProfile(MetalTransferModel.AGGRESSIVE);
+        return new PlanningCostProfile(TransferCostPreset.AGGRESSIVE);
     }
 }

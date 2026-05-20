@@ -19,7 +19,7 @@ class Int64ExecutionTest {
         Tensor out = Tensor.concat(0, left, right).tile(2, 1).pad(new int[]{1, 0}, new int[]{0, 1}, -5.0);
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertEquals(DataType.INT64, out.getDataType());
         assertArrayEquals(new int[]{5, 3}, out.getShape());
@@ -41,7 +41,7 @@ class Int64ExecutionTest {
         Tensor out = input.cumSum(1);
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertEquals(DataType.INT64, out.getDataType());
         assertArrayEquals(new long[]{

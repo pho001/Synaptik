@@ -23,7 +23,7 @@ public class GatherNdExecutionTest {
         Tensor out = data.gatherNd(indices);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
-        compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        compiledGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2}, out.getShape());
         assertArrayEquals(new double[]{30, 40}, out.toDoubleArrayCopy(), 1e-9);
@@ -40,7 +40,7 @@ public class GatherNdExecutionTest {
         Tensor out = data.gatherNd(indices);
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 3}, out.getShape());
         assertArrayEquals(new double[]{
@@ -63,7 +63,7 @@ public class GatherNdExecutionTest {
         Tensor out = data.gatherNd(indices, 1);
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 2, 2}, out.getShape());
         assertArrayEquals(new double[]{
@@ -86,7 +86,7 @@ public class GatherNdExecutionTest {
         Tensor out = data.gatherNd(indices, 2);
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 2}, out.getShape());
         assertArrayEquals(new double[]{3, 4, 8, 12}, out.toDoubleArrayCopy(), 1e-9);
@@ -102,7 +102,7 @@ public class GatherNdExecutionTest {
         Tensor out = data.gatherNd(indices);
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{1}, out.getShape());
         assertArrayEquals(new double[]{60}, out.toDoubleArrayCopy(), 1e-9);
@@ -120,7 +120,7 @@ public class GatherNdExecutionTest {
         Tensor out = data.gatherNd(indices);
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{50, 20}, out.toDoubleArrayCopy(), 1e-9);
     }
@@ -132,20 +132,20 @@ public class GatherNdExecutionTest {
         Tensor bf16Out = bf16.gatherNd(indices);
 
         CompiledGraph.compile(bf16Out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{20.0}, bf16Out.toDoubleArrayCopy(), 1e-6);
 
         Tensor ints = new Tensor(new int[]{3, 7}, new int[]{2}, null, "ints", DataType.INT32);
         Tensor intOut = ints.gatherNd(indices);
         CompiledGraph.compile(intOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{7.0}, intOut.toDoubleArrayCopy(), 1e-9);
 
         Tensor bools = new Tensor(new byte[]{1, 0}, new int[]{2}, null, "bools", DataType.BOOL);
         Tensor boolOut = bools.gatherNd(indices);
         CompiledGraph.compile(boolOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new boolean[]{false}, boolOut.toBooleanArrayCopy());
     }
 
@@ -162,7 +162,7 @@ public class GatherNdExecutionTest {
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.training());
         compiled
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 0.0, 4.0, 0.0,
@@ -185,7 +185,7 @@ public class GatherNdExecutionTest {
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.training());
         compiled
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 0.0, 4.0, 0.0,
@@ -209,7 +209,7 @@ public class GatherNdExecutionTest {
     }
 
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
-        return compiledGraph.compiledNodes().stream()
+        return compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)

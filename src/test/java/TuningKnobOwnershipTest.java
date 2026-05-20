@@ -26,10 +26,10 @@ public class TuningKnobOwnershipTest {
     }
 
     @Test
-    void metalTransferModelIsGraphWorkloadOwned() {
+    void transferCostPresetIsGraphWorkloadOwned() {
         assertEquals(
                 TuningKnobOwner.GRAPH_WORKLOAD,
-                TuningKnobOwnership.ownerOf("compile.backendPlanning.cost.metalTransferModel")
+                TuningKnobOwnership.ownerOf("compile.backendPlanning.cost.transferCostPreset")
         );
     }
 
@@ -52,9 +52,9 @@ public class TuningKnobOwnershipTest {
     void platformValidationRejectsGraphKnobs() {
         IllegalStateException thrown = assertThrows(IllegalStateException.class, () ->
                 TuningKnobOwnership.validatePlatformDtype(
-                        Map.of("compile.backendPlanning.cost.metalTransferModel", "MEASURED"),
+                        Map.of("compile.backendPlanning.cost.transferCostPreset", "MEASURED"),
                         "platform-test"
                 ));
-        assertTrue(thrown.getMessage().contains("compile.backendPlanning.cost.metalTransferModel"));
+        assertTrue(thrown.getMessage().contains("compile.backendPlanning.cost.transferCostPreset"));
     }
 }

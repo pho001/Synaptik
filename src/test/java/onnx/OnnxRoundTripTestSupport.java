@@ -24,7 +24,7 @@ final class OnnxRoundTripTestSupport {
             setInput(imported, entry.getKey(), entry.getValue());
         }
         imported.compile(outputName, CompileConfig.inference())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         return imported.output(outputName).toDoubleArrayCopy();
     }
 
@@ -34,13 +34,13 @@ final class OnnxRoundTripTestSupport {
             setInput(imported, entry.getKey(), entry.getValue());
         }
         imported.compile(outputName, CompileConfig.inference())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         return imported.output(outputName).toBooleanArrayCopy();
     }
 
     static double[] executeImported(ImportedOnnxModel imported, String outputName) {
         imported.compile(outputName, CompileConfig.inference())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         return imported.output(outputName).toDoubleArrayCopy();
     }
 

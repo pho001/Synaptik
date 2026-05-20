@@ -1,16 +1,14 @@
-package config.optimizer;
+package config.compile;
 
 /**
- * Graph-level transfer-cost preset for scored Metal accelerator region planning.
+ * Backend-neutral transfer-cost preset for scored accelerator region planning.
  *
- * <p>The model changes profitability scoring only. It does not change Metal legality, dtype support,
- * native bridge availability, or tensor storage synchronization rules. The conservative model matches
- * the current copy-based FFM bridge; less conservative models are intended for research benchmarking
- * and future shared-buffer/device-resident execution.</p>
+ * <p>The preset changes profitability scoring only. It does not change backend legality, dtype support,
+ * native bridge availability, or tensor storage synchronization rules.</p>
  */
-public enum MetalTransferModel {
+public enum TransferCostPreset {
     /**
-     * Penalizes Metal boundaries strongly because the current bridge copies inputs and outputs.
+     * Penalizes accelerator boundaries strongly when transfers or result copies dominate.
      */
     CONSERVATIVE(0.05d, 0.10d, 0.025d),
 
@@ -20,7 +18,7 @@ public enum MetalTransferModel {
     MEASURED(0.025d, 0.05d, 0.05d),
 
     /**
-     * Low-penalty research preset for exploring larger Metal regions.
+     * Low-penalty research preset for exploring larger accelerator regions.
      */
     AGGRESSIVE(0.01d, 0.02d, 0.10d);
 
@@ -28,14 +26,14 @@ public enum MetalTransferModel {
     private final double outputBytePenalty;
     private final double avoidedIntermediateByteCredit;
 
-    MetalTransferModel(double inputBytePenalty, double outputBytePenalty, double avoidedIntermediateByteCredit) {
+    TransferCostPreset(double inputBytePenalty, double outputBytePenalty, double avoidedIntermediateByteCredit) {
         this.inputBytePenalty = inputBytePenalty;
         this.outputBytePenalty = outputBytePenalty;
         this.avoidedIntermediateByteCredit = avoidedIntermediateByteCredit;
     }
 
     /**
-     * Returns the score penalty per byte entering a Metal region.
+     * Returns the score penalty per byte entering an accelerator region.
      *
      * @return non-negative input byte penalty
      */
@@ -44,7 +42,7 @@ public enum MetalTransferModel {
     }
 
     /**
-     * Returns the score penalty per byte leaving a Metal region.
+     * Returns the score penalty per byte leaving an accelerator region.
      *
      * @return non-negative output byte penalty
      */
@@ -53,7 +51,7 @@ public enum MetalTransferModel {
     }
 
     /**
-     * Returns the score credit per internal intermediate byte kept inside a Metal region.
+     * Returns the score credit per internal intermediate byte kept inside an accelerator region.
      *
      * @return non-negative avoided intermediate byte credit
      */

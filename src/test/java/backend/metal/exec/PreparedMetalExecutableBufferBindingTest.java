@@ -1272,7 +1272,7 @@ class PreparedMetalExecutableBufferBindingTest {
         Tensor middle = input.relu();
         Tensor output = middle.relu();
         CompiledGraph compiled = CompiledGraph.compile(output, CompileConfig.cpuOnlyBaseline());
-        List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
+        List<CompiledNode> nodes = compiled.program().compiledNodes();
         List<CompiledNode> reluNodes = nodes.stream()
                 .filter(node -> node.operation() != null && node.operation().opType() == Operation.OpType.RELU)
                 .sorted(java.util.Comparator.comparingInt(CompiledNode::id))
@@ -1289,10 +1289,10 @@ class PreparedMetalExecutableBufferBindingTest {
         }
         ExecutionState state = ExecutionState.create(
                 nodes,
-                compiled.compileArtifacts().descriptorIndex(),
+                compiled.program().descriptorIndex(),
                 metadata,
-                compiled.compileArtifacts().forwardOutputNode().id(),
-                compiled.compileArtifacts().publication()
+                compiled.program().forwardOutputNode().id(),
+                compiled.publication()
         );
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),
@@ -1310,7 +1310,7 @@ class PreparedMetalExecutableBufferBindingTest {
         Tensor relu = add.relu();
         Tensor exp = relu.exp();
         CompiledGraph compiled = CompiledGraph.compile(exp, CompileConfig.noGraphOptimizationBaseline());
-        List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
+        List<CompiledNode> nodes = compiled.program().compiledNodes();
         CompiledNode addNode = operationNode(nodes, Operation.OpType.ADD);
         CompiledNode reluNode = operationNode(nodes, Operation.OpType.RELU);
         CompiledNode expNode = operationNode(nodes, Operation.OpType.EXP);
@@ -1322,10 +1322,10 @@ class PreparedMetalExecutableBufferBindingTest {
         }
         ExecutionState state = ExecutionState.create(
                 nodes,
-                compiled.compileArtifacts().descriptorIndex(),
+                compiled.program().descriptorIndex(),
                 metadata,
-                compiled.compileArtifacts().forwardOutputNode().id(),
-                compiled.compileArtifacts().publication()
+                compiled.program().forwardOutputNode().id(),
+                compiled.publication()
         );
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),
@@ -1495,9 +1495,9 @@ class PreparedMetalExecutableBufferBindingTest {
 
     private static Fixture fixture(Tensor input, Tensor output) {
         CompiledGraph compiled = CompiledGraph.compile(output, CompileConfig.noGraphOptimizationBaseline());
-        List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
+        List<CompiledNode> nodes = compiled.program().compiledNodes();
         CompiledNode outputNode = nodes.stream()
-                .filter(node -> node.id() == compiled.compileArtifacts().publication().nodeIdsByPublicationTarget().get(output)
+                .filter(node -> node.id() == compiled.publication().nodeIdsByPublicationTarget().get(output)
                         || (node.operation() != null && node.operation().opType() == Operation.OpType.RELU))
                 .findFirst()
                 .orElseThrow();
@@ -1512,10 +1512,10 @@ class PreparedMetalExecutableBufferBindingTest {
         }
         ExecutionState state = ExecutionState.create(
                 nodes,
-                compiled.compileArtifacts().descriptorIndex(),
+                compiled.program().descriptorIndex(),
                 metadata,
-                compiled.compileArtifacts().forwardOutputNode().id(),
-                compiled.compileArtifacts().publication()
+                compiled.program().forwardOutputNode().id(),
+                compiled.publication()
         );
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),

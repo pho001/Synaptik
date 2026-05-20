@@ -1,3 +1,4 @@
+import backend.ComputeBackend;
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
@@ -36,7 +37,7 @@ public class TensorMutationGuardsTest {
         Tensor out = a.add(b);
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
 
-        List<CompiledNode> nodes = compiled.compiledNodes();
+        List<CompiledNode> nodes = compiled.program().compiledNodes();
 
         assertThrows(UnsupportedOperationException.class, () -> nodes.add(nodes.getFirst()));
     }
@@ -72,6 +73,98 @@ public class TensorMutationGuardsTest {
     }
 
     @Test
+    void preparedExecutionRejectsMutatedShapeAfterPrepare() {
+        Tensor a = new Tensor(new double[]{2.0, 3.0}, new int[]{2}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{5.0, 7.0}, new int[]{2}, null, "b", DataType.FLOAT64);
+        Tensor out = a.add(b);
+
+        PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        out.getShapeUnsafe()[0] = 1;
+
+        assertStaleGraphContract(() -> execution.execute(ExecutionMode.FORWARD), "shape changed");
+    }
+
+    @Test
+    void preparedExecutionRejectsMutatedLayoutStridesAfterPrepare() {
+        Tensor x = new Tensor(new double[]{
+                1.0, 2.0, 3.0,
+                4.0, 5.0, 6.0
+        }, new int[]{2, 3}, null, "x", DataType.FLOAT64);
+        Tensor selected = x.select(1, 1);
+        Tensor out = selected.add(Tensor.onesLike(selected));
+
+        PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        selected.getStridesUnsafe()[0] = 1;
+
+        assertStaleGraphContract(() -> execution.execute(ExecutionMode.FORWARD), "strides changed");
+    }
+
+    @Test
+    void preparedExecutionRejectsMutatedDTypeAfterPrepare() {
+        Tensor a = new Tensor(new double[]{2.0, 3.0}, new int[]{2}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{5.0, 7.0}, new int[]{2}, null, "b", DataType.FLOAT64);
+        Tensor out = a.add(b);
+
+        PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        out.setDataType(DataType.FLOAT32);
+
+        assertStaleGraphContract(() -> execution.execute(ExecutionMode.FORWARD), "dtype changed");
+    }
+
+    @Test
+    void preparedExecutionRejectsMutatedBackendIntentAfterPrepare() {
+        Tensor a = new Tensor(new double[]{2.0, 3.0}, new int[]{2}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{5.0, 7.0}, new int[]{2}, null, "b", DataType.FLOAT64);
+        Tensor out = a.add(b);
+
+        PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
+
+        assertStaleGraphContract(() -> execution.execute(ExecutionMode.FORWARD), "backend intent changed");
+    }
+
+    @Test
+    void preparedExecutionRejectsMutatedRequiresGradAfterPrepare() {
+        Tensor a = new Tensor(new double[]{2.0, 3.0}, new int[]{2}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{5.0, 7.0}, new int[]{2}, null, "b", DataType.FLOAT64);
+        Tensor out = a.add(b);
+
+        PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        a.setRequiresGrad(true);
+
+        assertStaleGraphContract(() -> execution.execute(ExecutionMode.FORWARD), "requiresGrad changed");
+    }
+
+    @Test
+    void preparedExecutionRejectsMutatedTrainableParameterAfterPrepare() {
+        Tensor a = new Tensor(new double[]{2.0, 3.0}, new int[]{2}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{5.0, 7.0}, new int[]{2}, null, "b", DataType.FLOAT64);
+        a.setRequiresGrad(true);
+        Tensor out = a.add(b);
+
+        PreparedExecution execution = CompiledGraph.compile(
+                        out,
+                        CompileConfig.noGraphOptimizationBaseline(),
+                        tensor.CompileMode.INFERENCE_ONLY
+                )
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        a.setTrainableParameter(true);
+
+        assertStaleGraphContract(() -> execution.execute(ExecutionMode.FORWARD), "trainableParameter changed");
+    }
+
+    @Test
     void preparedExecutionUsesCompiledSnapshotForForwardOutputBinding() {
         Tensor a = new Tensor(new double[]{2.0, 3.0}, new int[]{2}, null, "a", DataType.FLOAT64);
         Tensor b = new Tensor(new double[]{5.0, 7.0}, new int[]{2}, null, "b", DataType.FLOAT64);
@@ -80,7 +173,7 @@ public class TensorMutationGuardsTest {
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
 
-        CompiledNode forwardOutput = compiled.compiledNodes().stream()
+        CompiledNode forwardOutput = compiled.program().compiledNodes().stream()
                 .filter(t -> Tensor.SYSTEM_FORWARD_OUTPUT_LABEL.equals(t.label()))
                 .findFirst()
                 .orElseThrow();
@@ -120,7 +213,7 @@ public class TensorMutationGuardsTest {
     }
 
     @Test
-    void executePreparedRejectsPlanFromDifferentCompiledGraph() {
+    void preparedExecutionRejectsPlanFromDifferentCompiledGraph() {
         Tensor a = new Tensor(new double[]{1.0}, new int[]{1}, null, "a", DataType.FLOAT64);
         Tensor b = new Tensor(new double[]{2.0}, new int[]{1}, null, "b", DataType.FLOAT64);
         CompiledGraph first = CompiledGraph.compile(a.add(b), CompileConfig.noGraphOptimizationBaseline());
@@ -131,7 +224,10 @@ public class TensorMutationGuardsTest {
         PreparedExecution firstPlan = first.prepare(RuntimeConfig.inferenceDefaults());
 
         assertThrows(IllegalArgumentException.class,
-                () -> second.executePrepared(firstPlan, ExecutionMode.FORWARD));
+                () -> firstPlan.requireCompatibleGraph(
+                        second.publication().rootTensor(),
+                        second.publication().graphContract()
+                ));
     }
 
     @Test
@@ -144,5 +240,14 @@ public class TensorMutationGuardsTest {
 
         assertThrows(UnsupportedOperationException.class,
                 () -> TensorInternalAccess.replaceStorage(selected, new Float64Storage(2)));
+    }
+
+    private static void assertStaleGraphContract(Runnable action, String expectedDetail) {
+        IllegalStateException error = assertThrows(IllegalStateException.class, action::run);
+        org.junit.jupiter.api.Assertions.assertTrue(
+                error.getMessage().contains("Prepared execution graph contract is stale")
+                        && error.getMessage().contains(expectedDetail),
+                () -> "Expected stale graph contract detail '" + expectedDetail + "', got: " + error.getMessage()
+        );
     }
 }

@@ -48,7 +48,7 @@ public class OptimizerFuseTest {
         assertTrue(prepared.forwardSteps().size() < baselineForwardSteps,
                 "Prepared execution should have fewer forward steps after region fusion");
 
-        compiledGraph.execute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
+        compiledGraph.prepare(config.runtime.RuntimeConfig.trainingDefaults()).execute(backend.runtime.ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{1.0, 1.0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{1.0, 1.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);
@@ -116,7 +116,7 @@ public class OptimizerFuseTest {
                 .orElseThrow();
 
         assertEquals(1, fusedStep.metadata().executionInputNodeIds().size());
-        graph.CompiledNode fusedInput = compiledGraph.compiledNodes().get(fusedStep.metadata().executionInputNodeIds().getFirst());
+        graph.CompiledNode fusedInput = compiledGraph.program().compiledNodes().get(fusedStep.metadata().executionInputNodeIds().getFirst());
         assertNotNull(fusedInput.operation());
         assertEquals(Operation.OpType.GATHER, fusedInput.operation().opType());
     }
@@ -137,7 +137,7 @@ public class OptimizerFuseTest {
                 .orElseThrow();
 
         assertEquals(1, fusedStep.metadata().executionInputNodeIds().size());
-        graph.CompiledNode fusedInput = compiledGraph.compiledNodes().get(fusedStep.metadata().executionInputNodeIds().getFirst());
+        graph.CompiledNode fusedInput = compiledGraph.program().compiledNodes().get(fusedStep.metadata().executionInputNodeIds().getFirst());
         assertNotNull(fusedInput.operation());
         assertEquals(Operation.OpType.TAKE_ALONG_AXIS, fusedInput.operation().opType());
     }
@@ -159,7 +159,7 @@ public class OptimizerFuseTest {
                 .orElseThrow();
 
         assertEquals(1, fusedStep.metadata().executionInputNodeIds().size());
-        graph.CompiledNode fusedInput = compiledGraph.compiledNodes().get(fusedStep.metadata().executionInputNodeIds().getFirst());
+        graph.CompiledNode fusedInput = compiledGraph.program().compiledNodes().get(fusedStep.metadata().executionInputNodeIds().getFirst());
         assertNotNull(fusedInput.operation());
         assertEquals(Operation.OpType.SCATTER_ADD, fusedInput.operation().opType());
     }
@@ -179,7 +179,7 @@ public class OptimizerFuseTest {
                 .orElseThrow();
 
         assertEquals(1, fusedStep.metadata().executionInputNodeIds().size());
-        graph.CompiledNode fusedInput = compiledGraph.compiledNodes().get(fusedStep.metadata().executionInputNodeIds().getFirst());
+        graph.CompiledNode fusedInput = compiledGraph.program().compiledNodes().get(fusedStep.metadata().executionInputNodeIds().getFirst());
         assertNotNull(fusedInput.operation());
         assertEquals(Operation.OpType.SUM, fusedInput.operation().opType());
     }
@@ -200,7 +200,7 @@ public class OptimizerFuseTest {
                 .orElseThrow();
 
         assertEquals(1, fusedStep.metadata().executionInputNodeIds().size());
-        graph.CompiledNode fusedInput = compiledGraph.compiledNodes().get(fusedStep.metadata().executionInputNodeIds().getFirst());
+        graph.CompiledNode fusedInput = compiledGraph.program().compiledNodes().get(fusedStep.metadata().executionInputNodeIds().getFirst());
         assertNotNull(fusedInput.operation());
         assertEquals(Operation.OpType.MATMUL, fusedInput.operation().opType());
     }

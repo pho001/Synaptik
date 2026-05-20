@@ -25,7 +25,7 @@ public class NormalizationExecutionTest {
 
         Tensor out = input.batchNorm(gamma, beta, 1, 1e-12);
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 2, 1, 1}, out.getShape());
         assertArrayEquals(new double[]{
@@ -44,7 +44,7 @@ public class NormalizationExecutionTest {
 
         Tensor out = input.batchNorm(gamma, beta, mean, variance, 1, 1e-12);
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{14, 26}, out.toDoubleArrayCopy(), 1e-6);
     }
@@ -60,7 +60,7 @@ public class NormalizationExecutionTest {
 
         Tensor out = forwardInput.layerNorm(forwardGamma, forwardBeta, 1e-12);
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{8, 23, 8, 23}, out.toDoubleArrayCopy(), 1e-6);
 
         Tensor backwardInput = new Tensor(new double[]{
@@ -74,7 +74,7 @@ public class NormalizationExecutionTest {
 
         Tensor loss = backwardInput.layerNorm(gamma, beta, 1e-12).sum();
         CompiledGraph.compile(loss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{-2, 2}, gamma.getGradient().toDoubleArrayCopy(), 1e-6);
         assertArrayEquals(new double[]{2, 2}, beta.getGradient().toDoubleArrayCopy(), 1e-6);
@@ -87,7 +87,7 @@ public class NormalizationExecutionTest {
 
         Tensor out = input.rmsNorm(gamma, 1e-12);
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
                 3.0 / Math.sqrt(12.5),
@@ -102,7 +102,7 @@ public class NormalizationExecutionTest {
         Tensor layerCpuBeta = new Tensor(new float[]{0.5f, -0.25f, 0.125f}, new int[]{3}, null, "layerCpuBeta", DataType.FLOAT32);
         Tensor layerCpuOut = layerCpuInput.layerNorm(layerCpuGamma, layerCpuBeta, 1e-5);
         CompiledGraph.compile(layerCpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor layerGpuInput = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "layerGpuInput", DataType.FLOAT32);
         Tensor layerGpuGamma = new Tensor(new float[]{1.25f, 0.75f, 1.5f}, new int[]{3}, null, "layerGpuGamma", DataType.FLOAT32);
@@ -110,20 +110,20 @@ public class NormalizationExecutionTest {
         Tensor layerGpuOut = layerGpuInput.layerNorm(layerGpuGamma, layerGpuBeta, 1e-5);
         TensorInternalAccess.setBackendIntent(layerGpuOut, ComputeBackend.GPU_METAL);
         CompiledGraph.compile(layerGpuOut, CompileConfig.inference())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor rmsCpuInput = new Tensor(new float[]{1f, 2f, 4f, 8f, 16f, 32f}, new int[]{2, 3}, null, "rmsCpuInput", DataType.FLOAT32);
         Tensor rmsCpuGamma = new Tensor(new float[]{1.25f, 0.75f, 1.5f}, new int[]{3}, null, "rmsCpuGamma", DataType.FLOAT32);
         Tensor rmsCpuOut = rmsCpuInput.rmsNorm(rmsCpuGamma, 1e-5);
         CompiledGraph.compile(rmsCpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor rmsGpuInput = new Tensor(new float[]{1f, 2f, 4f, 8f, 16f, 32f}, new int[]{2, 3}, null, "rmsGpuInput", DataType.FLOAT32);
         Tensor rmsGpuGamma = new Tensor(new float[]{1.25f, 0.75f, 1.5f}, new int[]{3}, null, "rmsGpuGamma", DataType.FLOAT32);
         Tensor rmsGpuOut = rmsGpuInput.rmsNorm(rmsGpuGamma, 1e-5);
         TensorInternalAccess.setBackendIntent(rmsGpuOut, ComputeBackend.GPU_CUDA);
         CompiledGraph.compile(rmsGpuOut, CompileConfig.inference())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         float[] multiData = new float[64];
         for (int i = 0; i < multiData.length; i++) {
@@ -134,7 +134,7 @@ public class NormalizationExecutionTest {
         Tensor multiCpuBeta = new Tensor(new float[]{0f, 0.1f, -0.1f, 0.2f, -0.2f, 0.3f, -0.3f, 0.4f}, new int[]{8, 1}, null, "multiCpuBeta", DataType.FLOAT32);
         Tensor multiCpuOut = multiCpuInput.layerNorm(multiCpuGamma, multiCpuBeta, 1e-5);
         CompiledGraph.compile(multiCpuOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor multiGpuInput = new Tensor(multiData.clone(), new int[]{2, 4, 8, 1}, null, "multiGpuInput", DataType.FLOAT32);
         Tensor multiGpuGamma = new Tensor(new float[]{1f, 1.1f, 0.9f, 1.2f, 0.8f, 1.3f, 0.7f, 1.4f}, new int[]{8, 1}, null, "multiGpuGamma", DataType.FLOAT32);
@@ -142,7 +142,7 @@ public class NormalizationExecutionTest {
         Tensor multiGpuOut = multiGpuInput.layerNorm(multiGpuGamma, multiGpuBeta, 1e-5);
         TensorInternalAccess.setBackendIntent(multiGpuOut, ComputeBackend.GPU_METAL);
         CompiledGraph.compile(multiGpuOut, CompileConfig.inference())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(layerCpuOut.toDoubleArrayCopy(), layerGpuOut.toDoubleArrayCopy(), 1e-5);
         assertArrayEquals(rmsCpuOut.toDoubleArrayCopy(), rmsGpuOut.toDoubleArrayCopy(), 1e-5);
@@ -157,7 +157,7 @@ public class NormalizationExecutionTest {
 
         Tensor out = input.layerNorm(gamma, beta, 1e-12);
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{8, 23}, out.toDoubleArrayCopy(), 0.125);
     }
@@ -169,7 +169,7 @@ public class NormalizationExecutionTest {
 
         Tensor out = input.rmsNorm(gamma, 1e-12);
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
                 3.0 / Math.sqrt(12.5),
@@ -194,7 +194,7 @@ public class NormalizationExecutionTest {
 
         Tensor loss = input.layerNorm(gamma, beta, 1e-12).sum();
         CompiledGraph.compile(loss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertEquals(4, gamma.getGradient().getFlatDataSize());
         assertEquals(4, beta.getGradient().getFlatDataSize());
@@ -215,7 +215,7 @@ public class NormalizationExecutionTest {
 
         Tensor loss = input.rmsNorm(gamma, 1e-12).sum();
         CompiledGraph.compile(loss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertEquals(4, gamma.getGradient().getFlatDataSize());
     }

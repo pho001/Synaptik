@@ -27,12 +27,12 @@ public class ReductionBroadcastContractTest {
         Tensor all = mask.all(1, true);
         Tensor any = mask.any(1, true);
 
-        CompiledGraph.compile(sum, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(mean, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(min, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(max, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(all, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(any, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(sum, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
+        CompiledGraph.compile(mean, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
+        CompiledGraph.compile(min, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
+        CompiledGraph.compile(max, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
+        CompiledGraph.compile(all, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
+        CompiledGraph.compile(any, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 1}, sum.getShape());
         assertArrayEquals(new int[]{2, 1}, mean.getShape());
@@ -59,8 +59,8 @@ public class ReductionBroadcastContractTest {
         Tensor centeredBySum = x.sub(x.sum(1, true).mul(1.0 / 3.0));
         Tensor centeredByMean = x.sub(x.mean(1, true));
 
-        CompiledGraph.compile(centeredBySum, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        CompiledGraph.compile(centeredByMean, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(centeredBySum, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
+        CompiledGraph.compile(centeredByMean, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 3}, centeredBySum.getShape());
         assertArrayEquals(new int[]{2, 3}, centeredByMean.getShape());
@@ -80,7 +80,7 @@ public class ReductionBroadcastContractTest {
         Tensor loss = centered.mul(centered).sum();
 
         CompiledGraph.compile(loss, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new int[]{2, 3}, x.getGradient().getShape());
         assertArrayEquals(new double[]{-2.0, 0.0, 2.0, -2.0, 0.0, 2.0}, x.getGradient().toDoubleArrayCopy(), 1e-9);

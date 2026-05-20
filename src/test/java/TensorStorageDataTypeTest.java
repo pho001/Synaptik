@@ -22,7 +22,7 @@ public class TensorStorageDataTypeTest {
         b.setDataType(DataType.FLOAT32);
 
         Tensor out = a.add(b).mul(a);
-        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertTrue(out.getStorage() instanceof Float32Storage, "Output tensor should use Float32Storage");
 
@@ -44,7 +44,7 @@ public class TensorStorageDataTypeTest {
         b.setDataType(DataType.BFLOAT16);
 
         Tensor out = a.add(b).sigmoid();
-        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertTrue(out.getStorage() instanceof BFloat16Storage, "Output tensor should use BFloat16Storage");
 
@@ -78,7 +78,7 @@ public class TensorStorageDataTypeTest {
         // Typed path must read typed storage directly.
 
         Tensor out = a.add(b);
-        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         double[] expected = new double[aStorage.length];
         for (int i = 0; i < expected.length; i++) {
@@ -95,7 +95,7 @@ public class TensorStorageDataTypeTest {
         b.setDataType(DataType.BFLOAT16);
 
         Tensor out = a.add(b);
-        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         double[] expected = new double[out.toDoubleArrayCopy().length];
         double[] aVals = a.toDoubleArrayCopy();

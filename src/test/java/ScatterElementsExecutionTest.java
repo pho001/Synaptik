@@ -25,7 +25,7 @@ public class ScatterElementsExecutionTest {
         Tensor out = data.scatterElements(indices, updates, 1);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
-        compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        compiledGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
                 5, 20, 1,
@@ -46,7 +46,7 @@ public class ScatterElementsExecutionTest {
 
         assertThrows(IllegalArgumentException.class, () ->
                 CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                        .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD));
+                        .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD));
     }
 
     @Test
@@ -60,7 +60,7 @@ public class ScatterElementsExecutionTest {
         Tensor out = data.scatterElements(indices, updates, 1, ScatterReduction.ADD);
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
                 10, 26, 30,
@@ -79,7 +79,7 @@ public class ScatterElementsExecutionTest {
         Tensor out = data.scatterElements(indices, updates, -1);
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
                 5, 20, 1,
@@ -104,7 +104,7 @@ public class ScatterElementsExecutionTest {
         Tensor out = data.scatterElements(indices, updates, 1);
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
                 5, 30, 1,
@@ -126,11 +126,11 @@ public class ScatterElementsExecutionTest {
         Tensor min = data.scatterElements(indices, updates, 1, ScatterReduction.MIN);
 
         CompiledGraph.compile(mul, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         CompiledGraph.compile(max, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         CompiledGraph.compile(min, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{2, 120, 4, 40, 3, 12}, mul.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{2, 10, 4, 8, 3, 6}, max.toDoubleArrayCopy(), 1e-9);
@@ -151,7 +151,7 @@ public class ScatterElementsExecutionTest {
         Tensor bf16Out = bf16.scatterElements(indices, bf16Updates, 1);
 
         CompiledGraph.compile(bf16Out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
                 5.0, 20.0, 1.0,
@@ -164,7 +164,7 @@ public class ScatterElementsExecutionTest {
         Tensor boolOut = bools.scatterElements(boolIndices, boolUpdates, 1);
 
         CompiledGraph.compile(boolOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new boolean[]{true, false, true, false}, boolOut.toBooleanArrayCopy());
         assertThrows(IllegalArgumentException.class,
@@ -201,7 +201,7 @@ public class ScatterElementsExecutionTest {
         Tensor out = data.scatterElements(indices, updates, 1).mul(2.0);
 
         CompiledGraph.compile(out, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 0.0, 2.0, 0.0,
@@ -224,7 +224,7 @@ public class ScatterElementsExecutionTest {
         Tensor out = data.scatterElements(indices, updates, 1, ScatterReduction.ADD).mul(3.0);
 
         CompiledGraph.compile(out, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{3.0, 3.0, 3.0, 3.0, 3.0, 3.0}, data.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{3.0, 3.0, 3.0, 3.0}, updates.getGradient().toDoubleArrayCopy(), 1e-9);
@@ -246,7 +246,7 @@ public class ScatterElementsExecutionTest {
     }
 
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
-        return compiledGraph.compiledNodes().stream()
+        return compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)

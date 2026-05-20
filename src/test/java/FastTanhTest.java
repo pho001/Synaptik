@@ -15,7 +15,7 @@ public class FastTanhTest {
         Tensor a = new Tensor(new double[]{-5.0, -2.0, -1.0, 0.0, 1.0, 2.0, 5.0}, new int[]{7}, null, "a", DataType.FLOAT64);
         Tensor y = a.fastTanh();
         CompiledGraph.compile(y, CompileConfig.training())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         double[] x = a.toDoubleArrayCopy();
         double[] actual = y.toDoubleArrayCopy();
@@ -33,10 +33,10 @@ public class FastTanhTest {
         Tensor y = a.fastTanh();
         CompiledGraph graph = CompiledGraph.compile(y, CompileConfig.training());
 
-        graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        graph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         double[] forward = y.toDoubleArrayCopy();
 
-        graph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        graph.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         double[] grad = a.getGradient().toDoubleArrayCopy();
 
         for (int i = 0; i < grad.length; i++) {

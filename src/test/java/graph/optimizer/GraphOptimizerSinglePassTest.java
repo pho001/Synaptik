@@ -42,10 +42,10 @@ public class GraphOptimizerSinglePassTest {
 
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
 
-        assertEquals(1, compiled.compileArtifacts().partitions().size());
-        assertEquals(1, compiled.compileArtifacts().optimizedRegions().size());
-        assertEquals(PartitionTarget.CPU, compiled.compileArtifacts().partitions().getFirst().target());
-        assertEquals(1, compiled.compileArtifacts().memoryPlan().structuralView().optimizedRegionIds().size());
+        assertEquals(1, compiled.program().partitions().size());
+        assertEquals(1, compiled.program().optimizedRegions().size());
+        assertEquals(PartitionTarget.CPU, compiled.program().partitions().getFirst().target());
+        assertEquals(1, compiled.program().memoryPlan().structuralView().optimizedRegionIds().size());
     }
 
     private static List<Tensor> buildGraph() {

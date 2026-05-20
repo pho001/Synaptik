@@ -20,7 +20,7 @@ public class OnnxWave2CoreOpsExecutionTest {
 
         Tensor axis = x.prod(1, true);
         CompiledGraph axisGraph = CompiledGraph.compile(axis, CompileConfig.noGraphOptimizationBaseline());
-        axisGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        axisGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2, 1}, axis.getShape());
         assertArrayEquals(new double[]{6.0, 120.0}, axis.toDoubleArrayCopy(), 1e-9);
@@ -28,7 +28,7 @@ public class OnnxWave2CoreOpsExecutionTest {
 
         Tensor all = x.prod();
         CompiledGraph.compile(all, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{720.0}, all.toDoubleArrayCopy(), 1e-9);
     }
 
@@ -41,7 +41,7 @@ public class OnnxWave2CoreOpsExecutionTest {
         Tensor out = x.argMax(1, false);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
-        compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        compiledGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{2}, out.getShape());
         assertArrayEquals(new double[]{1.0, 0.0}, out.toDoubleArrayCopy(), 1e-9);
@@ -58,7 +58,7 @@ public class OnnxWave2CoreOpsExecutionTest {
         Tensor out = x.pad(new int[]{1, 2}, new int[]{0, 1}, -1.0);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
-        compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        compiledGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{3, 5}, out.getShape());
         assertArrayEquals(new double[]{
@@ -78,7 +78,7 @@ public class OnnxWave2CoreOpsExecutionTest {
         Tensor out = x.tile(2, 3);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
-        compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        compiledGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new int[]{4, 6}, out.getShape());
         assertArrayEquals(new double[]{
@@ -91,7 +91,7 @@ public class OnnxWave2CoreOpsExecutionTest {
     }
 
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
-        return compiledGraph.compiledNodes().stream()
+        return compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)

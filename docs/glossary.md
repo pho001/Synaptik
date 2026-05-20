@@ -168,7 +168,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **MTLBuffer**: Metal buffer object used by the native shim to pass tensor bytes to and from MPSGraph. Java sees it only as an opaque handle inside `MetalBufferHandle`; ownership and release are handled by the native shim and run-scoped execution resources. Source: [`MetalBufferHandle.java`](../src/main/java/backend/metal/buffer/MetalBufferHandle.java), [`synaptik_apple_mps_stub.m`](../src/main/native/apple/synaptik_apple_mps_stub.m), [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi).
 
-**Metal transfer model**: Compile planning cost preset used by scored Metal region planning to penalize input/output transfer bytes and credit avoided intermediate materialization. Source: [`MetalTransferModel.java`](../src/main/java/config/optimizer/MetalTransferModel.java), [`BackendPlanningCostConfig.java`](../src/main/java/config/compile/BackendPlanningCostConfig.java), [`ScoredCandidatePartitionPlanner.java`](../src/main/java/graph/compile/planning/partition/ScoredCandidatePartitionPlanner.java).
+**Transfer cost preset**: Backend-neutral compile planning cost preset used by scored accelerator region planning to penalize input/output transfer bytes and credit avoided intermediate materialization. Source: [`TransferCostPreset.java`](../src/main/java/config/compile/TransferCostPreset.java), [`BackendPlanningCostConfig.java`](../src/main/java/config/compile/BackendPlanningCostConfig.java), [`ScoredCandidatePartitionPlanner.java`](../src/main/java/graph/compile/planning/partition/ScoredCandidatePartitionPlanner.java).
 
 ## N
 

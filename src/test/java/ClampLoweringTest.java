@@ -23,14 +23,14 @@ public class ClampLoweringTest {
         Tensor lowerBase = Tensor.scalar(0.0, DataType.FLOAT64);
         Tensor baselineOut = Tensor.where(baselineInput.lessThan(lowerBase), lowerBase, baselineInput);
         CompiledGraph.compile(baselineOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         Tensor optimizedInput = new Tensor(new double[]{-2.0, 0.0, 0.5, 3.0}, new int[]{4}, null, "x_opt", DataType.FLOAT64);
         optimizedInput.setRequiresGrad(true);
         Tensor lowerOpt = Tensor.scalar(0.0, DataType.FLOAT64);
         Tensor optimizedOut = Tensor.where(optimizedInput.lessThan(lowerOpt), lowerOpt, optimizedInput);
         CompiledGraph compiledGraph = CompiledGraph.compile(optimizedOut, arOnlyConfig());
-        compiledGraph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        compiledGraph.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(baselineOut.toDoubleArrayCopy(), optimizedOut.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(baselineInput.getGradient().toDoubleArrayCopy(), optimizedInput.getGradient().toDoubleArrayCopy(), 1e-9);
@@ -45,14 +45,14 @@ public class ClampLoweringTest {
         Tensor upperBase = Tensor.scalar(1.0, DataType.FLOAT64);
         Tensor baselineOut = Tensor.where(baselineInput.greaterThan(upperBase), upperBase, baselineInput);
         CompiledGraph.compile(baselineOut, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         Tensor optimizedInput = new Tensor(new double[]{-2.0, 0.0, 0.5, 3.0}, new int[]{4}, null, "x_opt", DataType.FLOAT64);
         optimizedInput.setRequiresGrad(true);
         Tensor upperOpt = Tensor.scalar(1.0, DataType.FLOAT64);
         Tensor optimizedOut = Tensor.where(optimizedInput.greaterThan(upperOpt), upperOpt, optimizedInput);
         CompiledGraph compiledGraph = CompiledGraph.compile(optimizedOut, arOnlyConfig());
-        compiledGraph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        compiledGraph.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(baselineOut.toDoubleArrayCopy(), optimizedOut.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(baselineInput.getGradient().toDoubleArrayCopy(), optimizedInput.getGradient().toDoubleArrayCopy(), 1e-9);
@@ -69,8 +69,8 @@ public class ClampLoweringTest {
 
         CompiledGraph minGraph = CompiledGraph.compile(yMin, CompileConfig.noGraphOptimizationBaseline());
         CompiledGraph maxGraph = CompiledGraph.compile(yMax, CompileConfig.noGraphOptimizationBaseline());
-        minGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        maxGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        minGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
+        maxGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertTrue(containsOp(minGraph, Operation.OpType.CLAMP_MIN));
         assertTrue(containsOp(maxGraph, Operation.OpType.CLAMP_MAX));
@@ -86,15 +86,15 @@ public class ClampLoweringTest {
 
         CompiledGraph minGraph = CompiledGraph.compile(minOut, arWithPiecewiseConfig(new PiecewiseLoweringConfig(false, false, true)));
         CompiledGraph maxGraph = CompiledGraph.compile(maxOut, arWithPiecewiseConfig(new PiecewiseLoweringConfig(false, false, true)));
-        minGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
-        maxGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        minGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
+        maxGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertTrue(containsOp(minGraph, Operation.OpType.CLAMP_MIN));
         assertTrue(containsOp(maxGraph, Operation.OpType.CLAMP_MAX));
     }
 
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
-        return compiledGraph.compiledNodes().stream()
+        return compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)

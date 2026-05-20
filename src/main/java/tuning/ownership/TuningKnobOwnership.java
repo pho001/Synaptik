@@ -60,7 +60,7 @@ public final class TuningKnobOwnership {
                 "compile.backendPlanning.discoveryMode",
                 "compile.backendPlanning.failurePolicy",
                 "compile.backendPlanning.ownershipPlanner",
-                "compile.backendPlanning.cost.metalTransferModel",
+                "compile.backendPlanning.cost.transferCostPreset",
                 "compile.backendPlanning.cpuRegion.policy",
                 "compile.regionOptimization.cpuFusion.mode"
         );

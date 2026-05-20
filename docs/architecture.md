@@ -677,7 +677,7 @@ times. Each trace answers a different question:
 |---|---|---|---|
 | `CompileTrace` | `GraphCompiler.compile()` through `CompiledGraph.compile()` | What graph did compilation produce? | `CompiledGraph.compileTrace()` |
 | `PrepareTrace` | `PreparedExecutionBuilder.prepare(...)` | How did compile artifacts become executable steps? | `PreparedExecution.prepareTrace()` |
-| `RunTrace` | `PreparedExecution.executeTraced(...)` or `CompiledGraph.executeTraced(...)` | What actually ran in this execution? | returned from traced execution |
+| `RunTrace` | `PreparedExecution.executeTraced(...)` | What actually ran in this execution? | returned from traced execution |
 | `ExecutionTrace` | caller-assembled lifecycle record | How do compile, prepare, and one run relate? | `new ExecutionTrace(compile, prepare, run)` |
 
 ```mermaid

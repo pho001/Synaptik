@@ -89,7 +89,7 @@ class OnnxExportImportTest {
         imported.input("a").setData(new float[]{2f, 3f});
         imported.input("b").setData(new float[]{5f, 7f});
 
-        imported.compile(CompileConfig.inference()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        imported.compile(CompileConfig.inference()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{14.0, 30.0}, imported.output("out").toDoubleArrayCopy(), 1e-6);
     }
@@ -106,7 +106,7 @@ class OnnxExportImportTest {
         imported.input("a").setData(new float[]{1f, 2f, 3f, 4f, 5f, 6f});
         imported.input("b").setData(new float[]{7f, 8f, 9f, 10f, 11f, 12f});
 
-        imported.compile("scores", CompileConfig.inference()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        imported.compile("scores", CompileConfig.inference()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{50.0, 68.0, 122.0, 167.0}, imported.output("scores").toDoubleArrayCopy(), 1e-6);
     }
@@ -185,7 +185,7 @@ class OnnxExportImportTest {
                 2f, 2f, 2f, 2f, 2f, 2f, 2f, 2f, 2f, 2f, 2f, 2f
         });
 
-        imported.compile(CompileConfig.inference()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        imported.compile(CompileConfig.inference()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{12.0, 24.0}, imported.output("y").toDoubleArrayCopy(), 1e-6);
     }
@@ -1533,7 +1533,7 @@ class OnnxExportImportTest {
     }
 
     private static void execute(ImportedOnnxModel imported, String outputName) {
-        imported.compile(outputName, CompileConfig.inference()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        imported.compile(outputName, CompileConfig.inference()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
     }
 
     private static void assertBoolOutput(ImportedOnnxModel imported, String outputName, boolean... expected) {

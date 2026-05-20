@@ -21,7 +21,7 @@ public class ScatterAddExecutionTest {
         Tensor out = base.scatterAdd(indices, src, 1);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
-        compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        compiledGraph.prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{10, 20, 31, 45, 50, 60}, out.toDoubleArrayCopy(), 1e-9);
         assertTrue(containsOp(compiledGraph, Operation.OpType.SCATTER_ADD));
@@ -38,7 +38,7 @@ public class ScatterAddExecutionTest {
         Tensor out = base.scatterAdd(indices, src, 0);
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
                 11, 22, 30,
@@ -57,7 +57,7 @@ public class ScatterAddExecutionTest {
         Tensor out = base.scatterAdd(indices, src, 1);
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
                 10, 25, 30,
@@ -77,7 +77,7 @@ public class ScatterAddExecutionTest {
 
         assertThrows(IllegalArgumentException.class, () ->
                 CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                        .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD));
+                        .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD));
     }
 
     @Test
@@ -90,14 +90,14 @@ public class ScatterAddExecutionTest {
         Tensor out = base.scatterAdd(indices, src, 1);
 
         CompiledGraph.compile(out, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{1, 1, 1, 1, 1, 1}, base.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{1, 1}, src.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
-        return compiledGraph.compiledNodes().stream()
+        return compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)

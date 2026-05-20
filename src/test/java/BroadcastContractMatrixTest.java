@@ -105,7 +105,7 @@ public class BroadcastContractMatrixTest {
         };
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         double[] expected = expectedForward(op, left.toDoubleArrayCopy(), left.getShape(), right.toDoubleArrayCopy(), right.getShape(), dataType);
         assertArrayEquals(expected, out.toDoubleArrayCopy(), epsFor(dataType), "forward mismatch for op=" + op + ", dtype=" + dataType);
@@ -138,7 +138,7 @@ public class BroadcastContractMatrixTest {
         };
 
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         GradientPair expected = expectedBackward(op, left.toDoubleArrayCopy(), left.getShape(), right.toDoubleArrayCopy(), right.getShape());
         assertArrayEquals(expected.left(), left.getGradient().toDoubleArrayCopy(), epsFor(dataType), "left grad mismatch for op=" + op + ", dtype=" + dataType);

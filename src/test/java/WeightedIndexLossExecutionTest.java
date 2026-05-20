@@ -25,11 +25,11 @@ public class WeightedIndexLossExecutionTest {
         Tensor mean = logProbs.nllLossFromIndices(targetIndices, 1, classWeights, LossReduction.MEAN);
 
         graph.CompiledGraph.compile(none, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         graph.CompiledGraph.compile(sum, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         graph.CompiledGraph.compile(mean, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         double[] expectedNone = new double[]{
                 0.4076059644443804 * 2.0,
@@ -54,11 +54,11 @@ public class WeightedIndexLossExecutionTest {
         Tensor mean = logits.crossEntropyLossFromIndices(targetIndices, 1, -1, classWeights, LossReduction.MEAN);
 
         graph.CompiledGraph.compile(none, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         graph.CompiledGraph.compile(sum, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         graph.CompiledGraph.compile(mean, CompileConfig.noGraphOptimizationBaseline())
-                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         double weighted = 0.4076059644443804 * 2.0;
         assertArrayEquals(new double[]{weighted, 0.0}, none.toDoubleArrayCopy(), 1e-9);

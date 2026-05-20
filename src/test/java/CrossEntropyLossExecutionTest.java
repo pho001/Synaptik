@@ -25,7 +25,7 @@ public class CrossEntropyLossExecutionTest {
 
         Tensor reference = logitsA.logSoftmax(1).nllLoss(targetsA, 1);
         CompiledGraph.compile(reference, CompileConfig.training())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
         double[] referenceLoss = reference.toDoubleArrayCopy();
         double[] referenceGrad = logitsA.getGradient().toDoubleArrayCopy();
 
@@ -42,11 +42,11 @@ public class CrossEntropyLossExecutionTest {
         Tensor direct = logitsB.crossEntropyLoss(targetsB, 1);
         CompiledGraph compiledGraph = CompiledGraph.compile(direct, CompileConfig.training());
         compiledGraph
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(referenceLoss, direct.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(referenceGrad, logitsB.getGradient().toDoubleArrayCopy(), 1e-9);
-        assertTrue(compiledGraph.compiledNodes().stream()
+        assertTrue(compiledGraph.program().compiledNodes().stream()
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
