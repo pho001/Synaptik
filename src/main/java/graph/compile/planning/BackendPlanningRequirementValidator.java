@@ -4,7 +4,7 @@ import config.compile.BackendPlanningConfig;
 import config.compile.BackendPlanningFailurePolicy;
 import config.compile.BackendPlanningRequirementScope;
 import config.compile.BackendTarget;
-import graph.optimizer.partition.Partition;
+import graph.compile.planning.partition.Partition;
 
 import java.util.EnumSet;
 import java.util.LinkedHashSet;

@@ -8,7 +8,7 @@ import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.optimizer.partition.PartitionPlan;
+import graph.compile.planning.partition.PartitionPlan;
 
 import java.util.List;
 import java.util.Map;

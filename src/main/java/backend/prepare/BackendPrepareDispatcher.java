@@ -8,7 +8,7 @@ import backend.metal.prepare.MetalNodePreparer;
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.optimizer.partition.PartitionPlan;
+import graph.compile.planning.partition.PartitionPlan;
 
 import java.util.Objects;
 

@@ -23,20 +23,20 @@ import config.optimizer.FuseConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
 import graph.execution.trace.PartitionDecisionTrace;
-import graph.optimizer.memory.MemoryPlanner;
-import graph.optimizer.partition.Partition;
-import graph.optimizer.partition.PartitionBoundaryReason;
-import graph.optimizer.partition.PartitionCandidate;
-import graph.optimizer.partition.PartitionEdge;
-import graph.optimizer.partition.PartitionPlannerStrategy;
-import graph.optimizer.partition.PartitionPlanningContext;
-import graph.optimizer.partition.PartitionTarget;
-import graph.optimizer.partition.PartitionValue;
-import graph.optimizer.GraphValueRef;
-import graph.optimizer.region.DefaultRegionOptimizer;
-import graph.optimizer.region.ExecutionUnitKind;
-import graph.optimizer.region.OptimizedRegion;
-import graph.optimizer.region.RegionOptimizationContext;
+import graph.compile.planning.memory.MemoryPlanner;
+import graph.compile.planning.partition.Partition;
+import graph.compile.planning.partition.PartitionBoundaryReason;
+import graph.compile.planning.partition.PartitionCandidate;
+import graph.compile.planning.partition.PartitionEdge;
+import graph.compile.planning.partition.PartitionPlannerStrategy;
+import graph.compile.planning.partition.PartitionPlanningContext;
+import graph.compile.planning.partition.PartitionTarget;
+import graph.compile.planning.partition.PartitionValue;
+import graph.compile.planning.value.GraphValueRef;
+import graph.compile.planning.region.DefaultRegionOptimizer;
+import graph.compile.planning.region.ExecutionUnitKind;
+import graph.compile.planning.region.OptimizedRegion;
+import graph.compile.planning.region.RegionOptimizationContext;
 import operations.Operation;
 import operations.elementwise.unary.sign;
 import operations.elementwise.where.where;
@@ -124,7 +124,7 @@ class MetalRegionLowererTest {
                 List.of(),
                 List.of(PartitionBoundaryReason.NONE),
                 attachedPlan.estimatedWork(),
-                new graph.optimizer.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(candidate.orderedNodeIds().size(), 1, candidate.externalInputIds().size(), 0, 1),
+                new graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(candidate.orderedNodeIds().size(), 1, candidate.externalInputIds().size(), 0, 1),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
                         PartitionPlannerStrategy.GREEDY_MAX_REGION,
@@ -1751,7 +1751,7 @@ class MetalRegionLowererTest {
 
         List<Tensor> graph = out.topologicalSort();
         List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
-        graph.optimizer.partition.PartitionPlanningContext planningContext = new graph.optimizer.partition.PartitionPlanningContext(
+        graph.compile.planning.partition.PartitionPlanningContext planningContext = new graph.compile.planning.partition.PartitionPlanningContext(
                 RuntimeConfig.inferenceDefaults(),
                 false,
                 compiledNodes,
@@ -1778,7 +1778,7 @@ class MetalRegionLowererTest {
                 List.of(),
                 List.of(PartitionBoundaryReason.NONE),
                 attachedPlan.estimatedWork(),
-                new graph.optimizer.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(candidate.orderedNodeIds().size(), 1, candidate.externalInputIds().size(), 0, 1),
+                new graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(candidate.orderedNodeIds().size(), 1, candidate.externalInputIds().size(), 0, 1),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
                         PartitionPlannerStrategy.GREEDY_MAX_REGION,
@@ -1824,7 +1824,7 @@ class MetalRegionLowererTest {
 
         List<Tensor> graph = out.topologicalSort();
         List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
-        graph.optimizer.partition.PartitionPlanningContext planningContext = new graph.optimizer.partition.PartitionPlanningContext(
+        graph.compile.planning.partition.PartitionPlanningContext planningContext = new graph.compile.planning.partition.PartitionPlanningContext(
                 RuntimeConfig.inferenceDefaults(),
                 false,
                 compiledNodes,
@@ -1854,7 +1854,7 @@ class MetalRegionLowererTest {
                 List.of(),
                 List.of(PartitionBoundaryReason.NONE),
                 attachedPlan.estimatedWork(),
-                new graph.optimizer.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(candidate.orderedNodeIds().size(), 2, candidate.externalInputIds().size(), 0, 2),
+                new graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(candidate.orderedNodeIds().size(), 2, candidate.externalInputIds().size(), 0, 2),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
                         PartitionPlannerStrategy.GREEDY_MAX_REGION,
@@ -2379,7 +2379,7 @@ class MetalRegionLowererTest {
                 List.of(),
                 List.of(PartitionBoundaryReason.NONE),
                 orderedNodeIds.size(),
-                new graph.optimizer.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(orderedNodeIds.size(), internalEdges.size(), externalInputNodeIds.size(), 0, Math.max(0, orderedNodeIds.size() - 1)),
+                new graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(orderedNodeIds.size(), internalEdges.size(), externalInputNodeIds.size(), 0, Math.max(0, orderedNodeIds.size() - 1)),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
                         PartitionPlannerStrategy.GREEDY_MAX_REGION,

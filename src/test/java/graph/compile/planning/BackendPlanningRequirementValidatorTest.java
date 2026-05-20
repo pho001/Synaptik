@@ -2,8 +2,8 @@ package graph.compile.planning;
 
 import config.compile.BackendPlanningConfig;
 import config.compile.BackendTarget;
-import graph.optimizer.partition.Partition;
-import graph.optimizer.partition.PartitionTarget;
+import graph.compile.planning.partition.Partition;
+import graph.compile.planning.partition.PartitionTarget;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

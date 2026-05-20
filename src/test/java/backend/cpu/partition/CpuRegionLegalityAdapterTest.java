@@ -5,7 +5,7 @@ import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
-import graph.optimizer.partition.PartitionPlanningContext;
+import graph.compile.planning.partition.PartitionPlanningContext;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;

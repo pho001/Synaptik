@@ -1,6 +1,6 @@
 package tensor.ops.reduction;
 
-import graph.optimizer.intent.BackendIntentPropagator;
+import graph.compile.intent.BackendIntentPropagator;
 import operations.Operation;
 import operations.reduction.reduceAll;
 import operations.reduction.reduceAny;

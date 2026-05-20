@@ -2,7 +2,7 @@ package graph.optimizer.rewrite;
 
 import graph.optimizer.OptimizationRule;
 import graph.optimizer.OptimizerGraphSupport;
-import graph.optimizer.intent.BackendIntentPropagator;
+import graph.compile.intent.BackendIntentPropagator;
 import graph.optimizer.state.OptimizerState;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
@@ -24,7 +24,7 @@ public abstract class LocalTensorRewriteRule implements OptimizationRule {
      * Applies the rewrite to every tensor in topological order.
      *
      * @param state optimizer state to rewrite
-     * @return state with rewritten graph and downstream optimizer products cleared
+     * @return state with the rewritten graph and preserved graph-level optimizer metadata
      */
     @Override
     public final OptimizerState apply(OptimizerState state) {

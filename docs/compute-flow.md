@@ -102,7 +102,7 @@ The compute flow has several kinds of "storage". Some are Java objects kept in m
 |---|---|---|---|---|
 | Semantic graph | User-owned `Tensor` objects and their `prevTensors` links | Until user code drops references or mutates graph objects | Tensor constructors and operation methods | Represents the mathematical expression the user built. |
 | Leaf tensor data | Storage arrays inside user `Tensor` objects | User-controlled | Tensor constructors, `setData`, `copyDataFrom`, runtime publish | Provides inputs and receives output/gradient publications. |
-| Compile artifacts | Fields inside a `CompiledGraph` instance | As long as the `CompiledGraph` object is retained | `GraphCompiler.compile()` | Freezes graph topology, optimizer products, compiled nodes, partitions, memory plan, and gradient bindings. |
+| Compile artifacts | Fields inside a `CompiledGraph` instance | As long as the `CompiledGraph` object is retained | `GraphCompiler.compile()` | Freezes graph topology, graph-optimizer output, compiled nodes, partitions, memory plan, and gradient bindings. |
 | Prepare artifacts | Fields inside a `PreparedExecution` instance | As long as the `PreparedExecution` object is retained | `PreparedExecutionBuilder.prepare(...)` | Stores executable step order, backend metadata, prepared kernels/executables, workspaces templates, and prepare trace. |
 | Per-run tensors | `RuntimeTensorStore` behind `ExecutionState` | One `execute(...)` call | `ExecutionState.create(...)` | Isolates runtime mutation from reusable prepared metadata. |
 | Per-run workspaces | `RuntimeWorkspaceStore` behind `ExecutionState` | One `execute(...)` call | `ExecutionState.create(...)` | Prevents repeated runs from sharing mutable workspace buffers. |
@@ -632,7 +632,7 @@ Compile does the structural work:
 5. Snapshot the final graph as `CompiledNode` objects.
 6. Collect gradient bindings when backward is supported.
 7. Build partition planning metadata and compile-time backend plans.
-8. Complete lowering-ready optimizer state and memory planning when partitions require it.
+8. Complete lowering-ready compile-planning artifacts and memory planning when partitions require it.
 9. Publish a `CompileTrace`.
 
 Default compile flow for both inference and training is:
@@ -895,7 +895,7 @@ Another way to read the same split is by responsibility rather than by class nam
 | Physical storage and residency truth | `RuntimeResidencyStore`, `DeviceBindingRegistry`, `NativeCpuStorageRegistry` | Node `17` may be CPU-array current, native-CPU current, or device-owned with an active `DeviceBufferBinding`. |
 | Actions over storage | `RuntimeMemoryBinder`, `RuntimeMaterializationService`, `RuntimeResourceRegistry` | Memory-plan slots are bound at run start; a device-owned value is copied back only when a CPU boundary asks for it; owned resources are closed at run end. |
 
-The state package should not grow compile-time ownership. It does not own graph topology, optimizer products,
+The state package should not grow compile-time ownership. It does not own graph topology, graph-optimizer output,
 backend-selection decisions, or public device state on `Tensor`. Those stay in compile artifacts, prepared metadata,
 backend implementations, and user-visible tensors respectively.
 
@@ -1696,7 +1696,7 @@ RunTrace:
       kernel=CpuNoopKernel
 ```
 
-The exact kernel and dispatch mode depend on dtype, shape, runtime config, and optimizer products.
+The exact kernel and dispatch mode depend on dtype, shape, runtime config, graph-optimizer output, and compile-planning artifacts.
 
 ## Worked Example
 

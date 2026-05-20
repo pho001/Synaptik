@@ -6,7 +6,7 @@ import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
 import backend.accelerator.lowering.GpuLoweredRegionCandidateSpan;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
-import graph.optimizer.partition.PartitionPlan;
+import graph.compile.planning.partition.PartitionPlan;
 import backend.accelerator.dag.AcceleratorDagSpec;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
 import tensor.DataType;

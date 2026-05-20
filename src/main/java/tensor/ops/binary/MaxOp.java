@@ -1,6 +1,6 @@
 package tensor.ops.binary;
 
-import graph.optimizer.intent.BackendIntentPropagator;
+import graph.compile.intent.BackendIntentPropagator;
 import operations.Operation;
 import operations.elementwise.binary.max;
 import tensor.layout.BroadcastPlan;

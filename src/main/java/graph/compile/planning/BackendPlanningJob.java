@@ -2,10 +2,10 @@ package graph.compile.planning;
 
 import config.optimizer.CpuRegionConfig;
 import config.optimizer.MetalTransferModel;
-import graph.optimizer.partition.PartitionPlannerStrategy;
-import graph.optimizer.partition.PartitionSourcePolicy;
-import graph.optimizer.partition.PartitionTarget;
-import graph.optimizer.partition.cost.AcceleratorPartitionScoreModel;
+import graph.compile.planning.partition.PartitionPlannerStrategy;
+import graph.compile.planning.partition.PartitionSourcePolicy;
+import graph.compile.planning.partition.PartitionTarget;
+import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
 
 /**
  * Concrete partition planner invocation resolved from {@code BackendPlanningConfig}.

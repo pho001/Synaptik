@@ -198,7 +198,7 @@ The result becomes a leaf constant in the compile snapshot. Folding is deliberat
 
 Source area:
 
-- `src/main/java/graph/optimizer/cf/ConstantFoldingRule.java`
+- `src/main/java/graph/optimizer/cleanup/ConstantFoldingRule.java`
 
 ### CSE
 
@@ -218,7 +218,7 @@ Structural identity is stricter than "same Java method was called." Operations w
 
 Source area:
 
-- `src/main/java/graph/optimizer/cse/CommonSubexpressionEliminationRule.java`
+- `src/main/java/graph/optimizer/cleanup/CommonSubexpressionEliminationRule.java`
 
 ### DCE
 
@@ -246,7 +246,7 @@ after DCE:
 
 Source area:
 
-- `src/main/java/graph/optimizer/dce/DeadCodeEliminationRule.java`
+- `src/main/java/graph/optimizer/cleanup/DeadCodeEliminationRule.java`
 
 ### LOWER
 

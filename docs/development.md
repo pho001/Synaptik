@@ -54,8 +54,8 @@ The main code is under `src/main/java`:
 | `src/main/java/tensor` | Public tensor API, graph-building helpers, dtype/storage/layout support |
 | `src/main/java/tensor/ops` | Family-specific public operation builders and backward formulas |
 | `src/main/java/operations` | Immutable primitive descriptors implementing `operations.Operation` |
-| `src/main/java/graph` | Compilation, optimizer state, prepared graph artifacts, execution trace metadata |
-| `src/main/java/graph/optimizer` | Backend-neutral graph optimization: `AR`, `CF`, `CSE`, `DCE`, optional `LOWER`, plus implementation packages used by later planning phases |
+| `src/main/java/graph` | Compilation, compile planning, optimizer state, prepared graph artifacts, execution trace metadata |
+| `src/main/java/graph/optimizer` | Backend-neutral graph optimization: `AR`, `CF`, `CSE`, `DCE`, optional `LOWER` |
 | `src/main/java/backend` | Backend-neutral contracts and backend-specific CPU/Metal/CUDA/OpenCL roots |
 | `src/main/java/backend/cpu` | Complete CPU backend implementation, registry, prepare, lowering, kernels, fused execution |
 | `src/main/java/backend/metal` | Metal bridge/lowering/prepare scaffolding using the local MPS shim |
@@ -380,11 +380,11 @@ Add changes by ownership:
 | Change | Target path |
 |---|---|
 | Algebraic identity or lowering | `src/main/java/graph/optimizer/rewrite` |
-| Constant folding | `src/main/java/graph/optimizer/cf` |
-| Common subexpression behavior | `src/main/java/graph/optimizer/cse/CommonSubexpressionEliminationRule.java` |
-| Backend ownership planning | `src/main/java/graph/compile` and `src/main/java/graph/optimizer/partition` |
-| Region/fused execution units | `src/main/java/graph/optimizer/region` and CPU-specific fused policy under `src/main/java/backend/cpu/fused` |
-| Memory reuse or binding policy | `src/main/java/graph/optimizer/memory` |
+| Constant folding | `src/main/java/graph/optimizer/cleanup` |
+| Common subexpression behavior | `src/main/java/graph/optimizer/cleanup/CommonSubexpressionEliminationRule.java` |
+| Backend ownership planning | `src/main/java/graph/compile` and `src/main/java/graph/compile/planning/partition` |
+| Region/fused execution units | `src/main/java/graph/compile/planning/region` and CPU-specific fused policy under `src/main/java/backend/cpu/fused` |
+| Memory reuse or binding policy | `src/main/java/graph/compile/planning/memory` |
 
 `OptimizerFactory.create(...)` maps graph optimization config to concrete rules:
 
@@ -402,8 +402,8 @@ Use focused tests:
 ./gradlew test --no-daemon --tests AlgebraicRewritingPowTest
 ./gradlew test --no-daemon --tests CommonSubexpressionEliminationRuleTest
 ./gradlew test --no-daemon --tests graph.optimizer.GraphOptimizerSinglePassTest
-./gradlew test --no-daemon --tests graph.optimizer.region.RegionOptimizationRuleTest
-./gradlew test --no-daemon --tests graph.optimizer.memory.MemoryPlannerRegionViewTest
+./gradlew test --no-daemon --tests graph.compile.planning.region.DefaultRegionOptimizerServiceTest
+./gradlew test --no-daemon --tests graph.compile.planning.memory.MemoryPlannerRegionViewTest
 ```
 
 ## Adding Tuning Knobs And Families

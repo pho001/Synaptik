@@ -1,7 +1,7 @@
 package backend.select;
 
 import config.runtime.RuntimeConfig;
-import graph.optimizer.partition.PlannedPartition;
+import graph.compile.planning.partition.PlannedPartition;
 
 import java.util.List;
 

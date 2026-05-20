@@ -4,7 +4,7 @@ import tensor.TensorInternalAccess;
 
 import backend.cuda.CudaDTypeRolePolicy;
 import graph.CompiledNode;
-import graph.optimizer.partition.PartitionPlanningContext;
+import graph.compile.planning.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.index.gather;
 import operations.index.takeAlongAxis;

@@ -188,8 +188,8 @@ CPU region planning is not a GPU fallback afterthought. It gives the later regio
 Source:
 
 - `src/main/java/config/optimizer/CpuRegionConfig.java`
-- `src/main/java/graph/optimizer/partition/CpuNaturalExecutionRegionPlanner.java`
-- `src/main/java/graph/optimizer/region/CpuRegionOptimizationPolicy.java`
+- `src/main/java/graph/compile/planning/partition/CpuNaturalExecutionRegionPlanner.java`
+- `src/main/java/graph/compile/planning/region/CpuRegionOptimizationPolicy.java`
 
 `CpuRegionConfig.defaults()` enables natural CPU regions with a maximum region size. Current default `maxRegionNodes` is `64`.
 
@@ -244,9 +244,9 @@ Region optimization happens after ownership is decided.
 Source:
 
 - `src/main/java/config/compile/RegionOptimizationConfig.java`
-- `src/main/java/graph/optimizer/region/DefaultRegionOptimizer.java`
-- `src/main/java/graph/optimizer/region/CpuRegionOptimizationPolicy.java`
-- `src/main/java/graph/optimizer/region/GenericGpuRegionOptimizationPolicy.java`
+- `src/main/java/graph/compile/planning/region/DefaultRegionOptimizer.java`
+- `src/main/java/graph/compile/planning/region/CpuRegionOptimizationPolicy.java`
+- `src/main/java/graph/compile/planning/value/GraphValueRef.java`
 
 Region optimization answers:
 
@@ -281,8 +281,8 @@ Memory planning is compile-time lifetime analysis. It decides which temporary ru
 Source:
 
 - `src/main/java/config/compile/MemoryPlanningConfig.java`
-- `src/main/java/graph/optimizer/memory/MemoryPlanner.java`
-- `src/main/java/graph/optimizer/memory/MemoryPlan.java`
+- `src/main/java/graph/compile/planning/memory/MemoryPlanner.java`
+- `src/main/java/graph/compile/planning/memory/MemoryPlan.java`
 - `src/main/java/graph/execution/residency/RuntimeMemoryBinder.java`
 
 Example:

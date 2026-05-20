@@ -1,7 +1,7 @@
 package backend.accelerator.lowering;
 
 import backend.ComputeBackend;
-import graph.optimizer.partition.PartitionPlanningContext;
+import graph.compile.planning.partition.PartitionPlanningContext;
 import graph.CompiledNode;
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;

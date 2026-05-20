@@ -12,8 +12,8 @@ It is not a code generator by itself.
 
 ## Entry Points
 
-- rule:
-  - [region/RegionOptimizationRule.java](./region/RegionOptimizationRule.java)
+- optimizer:
+  - [../compile/planning/region/DefaultRegionOptimizer.java](../compile/planning/region/DefaultRegionOptimizer.java)
 - config:
   - [../../config/optimizer/FuseConfig.java](../../config/optimizer/FuseConfig.java)
 - cost model:
@@ -42,7 +42,7 @@ The current implementation consumes backend planning `Partition` artifacts and f
 2. optimize each partition into one or more execution units
 3. publish `OptimizedRegion` artifacts for lowering and prepare
 
-The rule does not mutate `Tensor.operation` or rewrite graph inputs directly. If no partition state is present, it returns no optimized regions.
+The optimizer does not mutate `Tensor.operation` or rewrite graph inputs directly. Compile session calls it only for accepted partitions.
 
 ## Consumer Maps
 

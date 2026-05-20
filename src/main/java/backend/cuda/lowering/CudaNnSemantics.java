@@ -1,7 +1,7 @@
 package backend.cuda.lowering;
 
 import graph.CompiledNode;
-import graph.optimizer.partition.PartitionPlanningContext;
+import graph.compile.planning.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.linalg.scaledDotProductAttention;
 import operations.loss.crossEntropyLoss;

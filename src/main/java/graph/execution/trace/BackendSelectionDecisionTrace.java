@@ -2,7 +2,7 @@ package graph.execution.trace;
 
 import backend.ComputeBackend;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
-import graph.optimizer.partition.cost.AcceleratorPartitionScoreModel;
+import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
 
 import java.util.List;
 

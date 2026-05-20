@@ -1,6 +1,6 @@
 package tensor.ops.reduction;
 
-import graph.optimizer.intent.BackendIntentPropagator;
+import graph.compile.intent.BackendIntentPropagator;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tensor.layout.TensorLayoutTransform;

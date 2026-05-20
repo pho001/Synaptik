@@ -11,39 +11,15 @@ Its job is to reduce allocation pressure by:
 
 ## Entry Points
 
-- rule:
-  - [memory/MemoryOptimizerRule.java](./memory/MemoryOptimizerRule.java)
 - planner:
-  - [memory/MemoryPlanner.java](./memory/MemoryPlanner.java)
+  - [../compile/planning/memory/MemoryPlanner.java](../compile/planning/memory/MemoryPlanner.java)
+- input:
+  - [../compile/planning/memory/MemoryPlanningInput.java](../compile/planning/memory/MemoryPlanningInput.java)
 - plan model:
-  - [memory/MemoryPlan.java](./memory/MemoryPlan.java)
-  - [memory/MemoryPlanSummary.java](./memory/MemoryPlanSummary.java)
+  - [../compile/planning/memory/MemoryPlan.java](../compile/planning/memory/MemoryPlan.java)
+  - [../compile/planning/memory/MemoryPlanSummary.java](../compile/planning/memory/MemoryPlanSummary.java)
 - policy:
-  - [memory/MemoryPlannerPolicy.java](./memory/MemoryPlannerPolicy.java)
-
-## Activation
-
-The stage is gated by:
-
-```text
-cg.optimizer.enableMemoryReuse
-```
-
-If that system property is `false`, the stage is a no-op.
-
-## Current Scope
-
-Today the rule runs only for uniform graphs of dtype:
-
-- `FLOAT64`
-- `FLOAT32`
-
-It bails out for:
-
-- mixed-dtype graphs
-- `BFLOAT16`
-- `INT32`
-- `BOOL`
+  - [../compile/planning/memory/MemoryPlannerPolicy.java](../compile/planning/memory/MemoryPlannerPolicy.java)
 
 ## High-Level Split
 
@@ -51,8 +27,8 @@ The implementation is split into:
 
 1. planning
    - pure analysis in `MemoryPlanner.plan(...)`
-2. publication
-   - `MemoryOptimizerRule.apply(...)` stores the finalized `MemoryPlan` in `OptimizerState`
+2. compile artifact publication
+   - `CompileSession` stores the finalized `MemoryPlan` in `CompileArtifacts`
 
 That split is useful because runtime binding can consume compile-time memory artifacts instead of rebuilding memory policy.
 
@@ -167,9 +143,9 @@ A free slot is compatible only if:
 
 Intervals with role `SAVED_FORWARD` are treated as `"shared"` for phase compatibility.
 
-## Step 7: Apply The Plan
+## Step 7: Apply The Plan At Runtime
 
-The rule then mutates runtime data assignment.
+`RuntimeMemoryBinder` consumes the plan during prepare/runtime binding.
 
 ### View aliases
 

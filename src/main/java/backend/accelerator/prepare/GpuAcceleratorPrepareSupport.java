@@ -10,7 +10,7 @@ import backend.lowering.LoweringFamily;
 import backend.prepare.BackendPrepareContext;
 import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.optimizer.partition.PartitionPlan;
+import graph.compile.planning.partition.PartitionPlan;
 
 import java.util.ArrayList;
 import java.util.List;

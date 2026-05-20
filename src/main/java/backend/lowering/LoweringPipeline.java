@@ -1,6 +1,6 @@
 package backend.lowering;
 
-import graph.optimizer.region.OptimizedRegion;
+import graph.compile.planning.region.OptimizedRegion;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -9,9 +9,9 @@ import java.util.Objects;
 /**
  * Runs registered backend lowerers over optimized regions after partition/fusion/memory planning.
  *
- * <p>Lowering is a prepare-time bridge between graph optimization and backend execution. It receives an
- * optimizer state with finalized memory planning, invokes backend-specific {@link RegionLowerer}s for
- * each optimized region, and returns lowering artifacts plus a simple trace.</p>
+ * <p>Lowering is a prepare-time bridge between compile planning and backend execution. It receives optimized regions
+ * with a finalized memory plan, invokes backend-specific {@link RegionLowerer}s for each region, and returns lowering
+ * artifacts plus a simple trace.</p>
  */
 public final class LoweringPipeline {
     private final List<RegionLowerer> lowerers;

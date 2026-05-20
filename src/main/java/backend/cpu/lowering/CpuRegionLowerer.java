@@ -42,10 +42,10 @@ import config.runtime.RuntimeConfig;
 import graph.AliasViewPolicy;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
-import graph.optimizer.region.ExecutionUnit;
-import graph.optimizer.region.ExecutionUnitKind;
-import graph.optimizer.region.RegionOptimizationTrace;
-import graph.optimizer.GraphValueRef;
+import graph.compile.planning.region.ExecutionUnit;
+import graph.compile.planning.region.ExecutionUnitKind;
+import graph.compile.planning.region.RegionOptimizationTrace;
+import graph.compile.planning.value.GraphValueRef;
 import operations.Operation;
 import tensor.DataType;
 
@@ -60,7 +60,7 @@ import java.util.stream.Collectors;
 public final class CpuRegionLowerer implements RegionLowerer {
     @Override
     public LoweringResult lower(LoweringRequest request) {
-        if (request == null || request.region().target() != graph.optimizer.partition.PartitionTarget.CPU) {
+        if (request == null || request.region().target() != graph.compile.planning.partition.PartitionTarget.CPU) {
             return null;
         }
         if (!request.capabilities().supports(ComputeBackend.CPU)) {
@@ -420,7 +420,7 @@ public final class CpuRegionLowerer implements RegionLowerer {
         );
         return new RegionExecutionPlan(
                 regionKey + "/plan",
-                graph.optimizer.partition.PartitionTarget.CPU,
+                graph.compile.planning.partition.PartitionTarget.CPU,
                 LoweringFamily.CPU_NATIVE_REGION,
                 anchorNodeId,
                 orderedNodeIds,
@@ -896,7 +896,7 @@ public final class CpuRegionLowerer implements RegionLowerer {
         );
         return new RegionExecutionPlan(
                 request.region().regionId() + "/" + unit.unitId(),
-                graph.optimizer.partition.PartitionTarget.CPU,
+                graph.compile.planning.partition.PartitionTarget.CPU,
                 family,
                 anchorNodeId,
                 orderedNodeIds,

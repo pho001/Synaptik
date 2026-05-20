@@ -88,7 +88,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **CPU kernel resolver**: Mapping from `Operation.OpType` to concrete CPU kernel instances. Source: [`CpuKernelResolver.java`](../src/main/java/backend/cpu/registry/CpuKernelResolver.java).
 
-**CSE**: Common subexpression elimination graph optimization stage. Source: [`CommonSubexpressionEliminationRule.java`](../src/main/java/graph/optimizer/cse/CommonSubexpressionEliminationRule.java), [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java).
+**CSE**: Common subexpression elimination graph optimization stage. Source: [`CommonSubexpressionEliminationRule.java`](../src/main/java/graph/optimizer/cleanup/CommonSubexpressionEliminationRule.java), [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java).
 
 ## D
 
@@ -116,7 +116,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Forward output wrapper**: System `NOOP` tensor created by `Tensor.forwardOutput()` to normalize publication. Source: [`Tensor.java`](../src/main/java/tensor/Tensor.java), [`GraphCompiler.java`](../src/main/java/graph/compile/GraphCompiler.java).
 
-**Fused region optimization**: Compile phase that creates fused and unit execution units inside already owned regions. It is no longer modeled as a graph optimizer stage. Source: [`DefaultRegionOptimizer.java`](../src/main/java/graph/optimizer/region/DefaultRegionOptimizer.java), [`RegionOptimizationConfig.java`](../src/main/java/config/compile/RegionOptimizationConfig.java).
+**Fused region optimization**: Compile phase that creates fused and unit execution units inside already owned regions. It is no longer modeled as a graph optimizer stage. Source: [`DefaultRegionOptimizer.java`](../src/main/java/graph/compile/planning/region/DefaultRegionOptimizer.java), [`RegionOptimizationConfig.java`](../src/main/java/config/compile/RegionOptimizationConfig.java).
 
 **Fused operation**: Backend-owned `Operation` descriptor for a fused expression plan. Source: [`FusedOperation.java`](../src/main/java/backend/cpu/fused/plan/FusedOperation.java).
 
@@ -150,11 +150,11 @@ Project-specific terms used in Synaptik, with source references.
 
 **Mask**: A `BOOL` tensor used to include or exclude positions. In sequence-shaped examples, `true` means the timestep is valid and contributes to masked reductions or masked cross entropy; `false` means padding and contributes zero. Source: [`SumOp.java`](../src/main/java/tensor/ops/reduction/SumOp.java), [`DenseCrossEntropyLossOp.java`](../src/main/java/tensor/ops/loss/DenseCrossEntropyLossOp.java), [Sequence Tensor Primitives: Masked Reductions](sequence-tensor-primitives.md#masked-reductions).
 
-**Memory planning**: Compile phase that builds `MemoryPlan` artifacts, including lifetimes, reusable intervals, slots, region-value bindings, and runtime binding policy. Source: [`MemoryPlanner.java`](../src/main/java/graph/optimizer/memory/MemoryPlanner.java), [`MemoryPlanningConfig.java`](../src/main/java/config/compile/MemoryPlanningConfig.java).
+**Memory planning**: Compile phase that builds `MemoryPlan` artifacts, including lifetimes, reusable intervals, slots, region-value bindings, and runtime binding policy. Source: [`MemoryPlanner.java`](../src/main/java/graph/compile/planning/memory/MemoryPlanner.java), [`MemoryPlanningConfig.java`](../src/main/java/config/compile/MemoryPlanningConfig.java).
 
-**Memory plan**: Compile-time lifetimes, reusable intervals, slots, region-value memory bindings, and runtime binding policies. Source: [`MemoryPlan.java`](../src/main/java/graph/optimizer/memory/MemoryPlan.java), [`MemoryPlanner.java`](../src/main/java/graph/optimizer/memory/MemoryPlanner.java).
+**Memory plan**: Compile-time lifetimes, reusable intervals, slots, region-value memory bindings, and runtime binding policies. Source: [`MemoryPlan.java`](../src/main/java/graph/compile/planning/memory/MemoryPlan.java), [`MemoryPlanner.java`](../src/main/java/graph/compile/planning/memory/MemoryPlanner.java).
 
-**Memory role**: Classification used by memory planning for temporaries, saved forward values, gradient targets, and related storage owners. Source: [`MemoryRole.java`](../src/main/java/graph/optimizer/memory/MemoryRole.java), [`NodeLifetime.java`](../src/main/java/graph/optimizer/memory/NodeLifetime.java).
+**Memory role**: Classification used by memory planning for temporaries, saved forward values, gradient targets, and related storage owners. Source: [`MemoryRole.java`](../src/main/java/graph/compile/planning/memory/MemoryRole.java), [`NodeLifetime.java`](../src/main/java/graph/compile/planning/memory/NodeLifetime.java).
 
 **Memory segment**: Java FFM view of a region of memory. In the OpenBLAS bridge, `MemorySegment.ofArray(...)` wraps Java tensor arrays and `asSlice(...)` applies element offsets for batched GEMM calls. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [Native Bridges & BLAS: Java FFM Step-By-Step](native-bridges-and-blas.md#java-ffm-step-by-step).
 
@@ -168,7 +168,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **MTLBuffer**: Metal buffer object used by the native shim to pass tensor bytes to and from MPSGraph. Java sees it only as an opaque handle inside `MetalBufferHandle`; ownership and release are handled by the native shim and run-scoped execution resources. Source: [`MetalBufferHandle.java`](../src/main/java/backend/metal/buffer/MetalBufferHandle.java), [`synaptik_apple_mps_stub.m`](../src/main/native/apple/synaptik_apple_mps_stub.m), [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi).
 
-**Metal transfer model**: Compile planning cost preset used by scored Metal region planning to penalize input/output transfer bytes and credit avoided intermediate materialization. Source: [`MetalTransferModel.java`](../src/main/java/config/optimizer/MetalTransferModel.java), [`BackendPlanningCostConfig.java`](../src/main/java/config/compile/BackendPlanningCostConfig.java), [`ScoredCandidatePartitionPlanner.java`](../src/main/java/graph/optimizer/partition/ScoredCandidatePartitionPlanner.java).
+**Metal transfer model**: Compile planning cost preset used by scored Metal region planning to penalize input/output transfer bytes and credit avoided intermediate materialization. Source: [`MetalTransferModel.java`](../src/main/java/config/optimizer/MetalTransferModel.java), [`BackendPlanningCostConfig.java`](../src/main/java/config/compile/BackendPlanningCostConfig.java), [`ScoredCandidatePartitionPlanner.java`](../src/main/java/graph/compile/planning/partition/ScoredCandidatePartitionPlanner.java).
 
 ## N
 
@@ -182,7 +182,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Operation descriptor**: Immutable semantic descriptor implementing `Operation`. Source: [`Operation.java`](../src/main/java/operations/Operation.java), [`operations/README.md`](../src/main/java/operations/README.md#core-contract).
 
-**Optimizer state**: Mutable optimizer pipeline carrier for graph, forward output, execution metadata, partitions, optimized regions, and memory plan. Source: [`OptimizerState.java`](../src/main/java/graph/optimizer/state/OptimizerState.java).
+**Optimizer state**: Immutable graph-optimizer pipeline carrier for graph nodes, semantic forward output, execution metadata, and optimizer trace data. It does not carry backend partitions, optimized regions, or memory plans. Source: [`OptimizerState.java`](../src/main/java/graph/optimizer/state/OptimizerState.java).
 
 **Optimizer stage**: Current documentation uses this term only for backend-neutral graph optimization phases: `AR`, `CF`, `CSE`, `DCE`, and `LOWER`. Backend planning, region optimization, and memory planning are compile phases, not optimizer stages. Source: [`GraphOptimizationConfig.java`](../src/main/java/config/compile/GraphOptimizationConfig.java), [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java).
 
@@ -190,7 +190,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Backend planning**: Compile-time phase that propagates backend intent and creates CPU or accelerator ownership regions. Source: [`BackendPlanningConfig.java`](../src/main/java/config/compile/BackendPlanningConfig.java), [`BackendPlanningService.java`](../src/main/java/graph/compile/planning/BackendPlanningService.java), [`BackendPlanningJobResolver.java`](../src/main/java/graph/compile/planning/BackendPlanningJobResolver.java).
 
-**Partition**: Internal implementation object for a backend-compatible ownership region discovered during backend planning. Architecture docs prefer "ownership region" to avoid confusing this with a public graph optimizer stage. Source: [`Partition.java`](../src/main/java/graph/optimizer/partition/Partition.java), [`GreedyMaxRegionPartitionPlanner.java`](../src/main/java/graph/optimizer/partition/GreedyMaxRegionPartitionPlanner.java).
+**Partition**: Internal implementation object for a backend-compatible ownership region discovered during backend planning. Architecture docs prefer "ownership region" to avoid confusing this with a public graph optimizer stage. Source: [`Partition.java`](../src/main/java/graph/compile/planning/partition/Partition.java), [`GreedyMaxRegionPartitionPlanner.java`](../src/main/java/graph/compile/planning/partition/GreedyMaxRegionPartitionPlanner.java).
 
 **Partition anchor**: Executable node representing a lowered partition while interior nodes are skipped as standalone execution steps. Source: [`PartitionExecutionRole.java`](../src/main/java/backend/accelerator/exec/PartitionExecutionRole.java), [`CpuNodePreparer.java`](../src/main/java/backend/cpu/prepare/CpuNodePreparer.java).
 
@@ -204,7 +204,7 @@ Project-specific terms used in Synaptik, with source references.
 
 ## R
 
-**Region optimization**: FUSE-stage conversion of partitions into optimized regions. Source: [`RegionOptimizationRule.java`](../src/main/java/graph/optimizer/region/RegionOptimizationRule.java), [`DefaultRegionOptimizer.java`](../src/main/java/graph/optimizer/region/DefaultRegionOptimizer.java).
+**Region optimization**: Compile-planning conversion of partitions into optimized regions. Source: [`DefaultRegionOptimizer.java`](../src/main/java/graph/compile/planning/region/DefaultRegionOptimizer.java), [`RegionOptimizationConfig.java`](../src/main/java/config/compile/RegionOptimizationConfig.java).
 
 **Row-major**: Matrix storage order where adjacent elements in the same row are adjacent in memory. Synaptik's OpenBLAS bridge uses row-major no-transpose CBLAS calls for dense contiguous matmul buffers. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [Native Bridges & BLAS: Matrix Storage Terms](native-bridges-and-blas.md#matrix-storage-terms).
 

@@ -14,8 +14,8 @@ import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedNodeExecution;
 import graph.execution.trace.PrepareTrace;
-import graph.optimizer.partition.PartitionPlan;
-import graph.optimizer.partition.PlannedPartition;
+import graph.compile.planning.partition.PartitionPlan;
+import graph.compile.planning.partition.PlannedPartition;
 
 import java.util.ArrayList;
 import java.util.HashMap;

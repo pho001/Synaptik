@@ -1,6 +1,6 @@
 package backend.prepare;
 
-import graph.optimizer.partition.PartitionPlan;
+import graph.compile.planning.partition.PartitionPlan;
 
 import java.util.HashMap;
 import java.util.List;

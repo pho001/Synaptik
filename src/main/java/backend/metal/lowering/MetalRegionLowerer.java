@@ -21,9 +21,9 @@ import backend.lowering.region.RegionLegalityStatus;
 import backend.lowering.region.RegionNodePlan;
 import backend.lowering.region.RegionRole;
 import backend.lowering.region.RegionStorageContract;
-import graph.optimizer.partition.PartitionPlan;
-import graph.optimizer.partition.PartitionTarget;
-import graph.optimizer.region.ExecutionUnit;
+import graph.compile.planning.partition.PartitionPlan;
+import graph.compile.planning.partition.PartitionTarget;
+import graph.compile.planning.region.ExecutionUnit;
 import operations.Operation;
 
 import java.util.List;

@@ -192,12 +192,9 @@ Main paths:
 - `src/main/java/graph/optimizer/GraphOptimizer.java`
 - `src/main/java/graph/optimizer/OptimizerFactory.java`
 - `src/main/java/graph/optimizer/rewrite/**`
-- `src/main/java/graph/optimizer/cf/ConstantFoldingRule.java`
-- `src/main/java/graph/optimizer/cse/CommonSubexpressionEliminationRule.java`
-- `src/main/java/graph/optimizer/dce/DeadCodeEliminationRule.java`
-- `src/main/java/graph/optimizer/partition/**`
-- `src/main/java/graph/optimizer/region/**`
-- `src/main/java/graph/optimizer/memory/**`
+- `src/main/java/graph/optimizer/cleanup/ConstantFoldingRule.java`
+- `src/main/java/graph/optimizer/cleanup/CommonSubexpressionEliminationRule.java`
+- `src/main/java/graph/optimizer/cleanup/DeadCodeEliminationRule.java`
 - `src/main/java/graph/optimizer/README.md`
 
 `GraphOptimizer` runs backend-neutral graph cleanup and lowering. `OptimizerFactory` maps `GraphOptimizationConfig` to:
@@ -205,14 +202,14 @@ Main paths:
 | Stage | Package | Role |
 |---|---|---|
 | `AR` | `graph.optimizer.rewrite` | Algebraic simplification and semantic lowerings |
-| `CF` | `graph.optimizer.cf` | Constant folding |
-| `CSE` | `graph.optimizer.cse` | Structural duplicate elimination |
-| `DCE` | `graph.optimizer.dce` | Dead-code elimination |
+| `CF` | `graph.optimizer.cleanup` | Constant folding |
+| `CSE` | `graph.optimizer.cleanup` | Structural duplicate elimination |
+| `DCE` | `graph.optimizer.cleanup` | Dead-code elimination |
 | `LOWER` | `graph.optimizer.rewrite` | Optional backend-neutral operation lowering |
 
-Backend planning, region optimization, and memory planning still use implementation packages under `graph.optimizer.partition`, `graph.optimizer.region`, and `graph.optimizer.memory`, but they are compile-flow phases controlled by `CompileConfig`, not public graph optimizer stages. See [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions).
+Backend planning, region optimization, and memory planning use implementation packages under `graph.compile.planning.partition`, `graph.compile.planning.region`, `graph.compile.planning.memory`, and `graph.compile.planning.value`, but they are compile-flow phases controlled by `CompileConfig`, not graph optimizer stages. See [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions).
 
-The optimizer receives an `OptimizerState`, not a live semantic graph. That state can carry graph nodes, forward output, execution metadata, memory plan, optimized regions, and traces. This is the boundary that keeps optimizer rewrites from accumulating directly on user-owned `Tensor` nodes.
+The optimizer receives an `OptimizerState`, not a live semantic graph. That state carries graph nodes, the semantic forward output, execution metadata, and optimizer trace data. It deliberately does not carry partition plans, optimized regions, or memory plans, so graph rewrites cannot retain stale compile-planning artifacts.
 
 ## `backend`: Backend Contracts, Selection, Lowering, And Runtime Context
 
@@ -577,7 +574,7 @@ Useful tests for understanding module behavior:
 
 - Tensor API and dtype/storage: `TensorAddTest`, `TensorConstructorDataTypeTest`, `TensorStorageDataTypeTest`, `TensorComputeConvenienceApiTest`
 - Graph compile/prepare: `CompiledGraphIdempotencyTest`, `CompiledGraphTraceTest`, `PreparedExecutionBuildTest`, `PreparedExecutionTrainingCapabilityTest`
-- Optimizer: `AlgebraicRewriting*Test`, `CommonSubexpressionEliminationRuleTest`, `OptimizerFuseTest`, `MemoryOptimizerRuleDataTypeTest`, `MemoryPlannerSummaryTest`
+- Optimizer and compile planning: `AlgebraicRewriting*Test`, `CommonSubexpressionEliminationRuleTest`, `graph.optimizer.GraphOptimizerSinglePassTest`, `MemoryPlanningDataTypeTest`, `MemoryPlannerSummaryTest`
 - CPU kernels and execution: `DataTypeExecutionCoverageTest`, `CpuExecutionPlannerDispatchHeuristicsTest`, `CpuKernelFamilyArchitectureTest`, operation-specific execution tests
 - Tuning/calibration: `AutotuneSessionTest`, `GraphAutotuneCandidateSpaceTest`, `BenchmarkSessionTest`, `PlatformCalibrationSessionTest`, `TuningStoreTest`
 - Source/package hygiene: `LowercasePackageNamingTest`, `SourceTreeHygieneTest`

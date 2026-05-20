@@ -32,7 +32,7 @@ import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.state.ExecutionState;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedNodeExecution;
-import graph.optimizer.partition.PartitionPlanningContext;
+import graph.compile.planning.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.index.gatherGrad;
 import operations.index.takeAlongAxisGrad;
@@ -3362,7 +3362,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void minimumWorkRejectionStillWinsOverProfileDerivedCost() {
-        graph.optimizer.partition.PartitionPlan plan = new graph.optimizer.partition.PartitionPlan() {
+        graph.compile.planning.partition.PartitionPlan plan = new graph.compile.planning.partition.PartitionPlan() {
             @Override
             public ComputeBackend backend() {
                 return ComputeBackend.GPU_METAL;
@@ -3409,7 +3409,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void staticCostDoesNotSelectAcceleratorWhenCpuPathIsClearlyCompetitive() {
-        graph.optimizer.partition.PartitionPlan tinyBoundaryHeavyPlan = new graph.optimizer.partition.PartitionPlan() {
+        graph.compile.planning.partition.PartitionPlan tinyBoundaryHeavyPlan = new graph.compile.planning.partition.PartitionPlan() {
             @Override
             public ComputeBackend backend() {
                 return ComputeBackend.GPU_METAL;

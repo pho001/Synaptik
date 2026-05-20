@@ -1,7 +1,7 @@
 package backend.metal.lowering;
 
 import graph.CompiledNode;
-import graph.optimizer.partition.PartitionPlanningContext;
+import graph.compile.planning.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.nn.conv.conv2d;
 import operations.nn.conv.conv2dBackwardInput;

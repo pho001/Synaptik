@@ -134,8 +134,8 @@ Use this table when updating docs.
 | Prepare lifecycle | `backend/prepare/**`, `PreparedExecutionBuilder.java` |
 | Execution lifecycle | `PreparedExecution.java`, `ExecutionState.java`, `ComputeEngine.java` |
 | Graph optimizer stages | `GraphOptimizationConfig.java`, `OptimizerFactory.java`, `graph/optimizer/**` |
-| Backend planning | `BackendPlanningConfig.java`, `graph/optimizer/partition/**`, `graph/optimizer/region/**` |
-| Memory planning | `MemoryPlanningConfig.java`, `graph/optimizer/memory/**` |
+| Backend planning | `BackendPlanningConfig.java`, `graph/compile/planning/partition/**`, `graph/compile/planning/region/**` |
+| Memory planning | `MemoryPlanningConfig.java`, `graph/compile/planning/memory/**` |
 | ONNX public API | `src/main/java/onnx/Onnx.java`, `OnnxModel.java`, `ImportedOnnxModel.java` |
 | ONNX supported ops | `OnnxGraphImporter.java`, `OnnxGraphExporter.java`, `OnnxCoverageMatrix.java`, ONNX tests |
 | GPU lowering coverage | `GpuLoweringCoverageMatrix.java`, backend-specific lowering/semantics classes |
@@ -398,7 +398,7 @@ For docs that touch Tensor API operation semantics:
 For docs that touch backend planning or accelerator behavior:
 
 ```bash
-./gradlew test --tests 'graph.optimizer.partition.*'
+./gradlew test --tests 'graph.compile.planning.partition.*'
 ./gradlew metalTest
 ```
 

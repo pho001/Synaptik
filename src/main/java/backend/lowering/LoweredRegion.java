@@ -1,6 +1,6 @@
 package backend.lowering;
 
-import graph.optimizer.partition.PartitionTarget;
+import graph.compile.planning.partition.PartitionTarget;
 
 import java.util.List;
 

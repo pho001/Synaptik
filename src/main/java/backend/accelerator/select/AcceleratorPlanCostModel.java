@@ -1,8 +1,8 @@
 package backend.accelerator.select;
 
 import config.runtime.RuntimeConfig;
-import graph.optimizer.partition.cost.AcceleratorPartitionScoreModel;
-import graph.optimizer.partition.PartitionPlan;
+import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
+import graph.compile.planning.partition.PartitionPlan;
 
 /**
  * Cost gate used before accepting an accelerator partition plan.

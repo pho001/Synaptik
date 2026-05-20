@@ -5,11 +5,11 @@ import graph.CompiledGradientBinding;
 import graph.CompiledNode;
 import graph.execution.trace.PartitionCompileTrace;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
-import graph.optimizer.memory.MemoryPlan;
-import graph.optimizer.partition.Partition;
-import graph.optimizer.partition.PartitionPlan;
-import graph.optimizer.partition.PlannedPartition;
-import graph.optimizer.region.OptimizedRegion;
+import graph.compile.planning.memory.MemoryPlan;
+import graph.compile.planning.partition.Partition;
+import graph.compile.planning.partition.PartitionPlan;
+import graph.compile.planning.partition.PlannedPartition;
+import graph.compile.planning.region.OptimizedRegion;
 import tensor.Tensor;
 
 import java.util.List;

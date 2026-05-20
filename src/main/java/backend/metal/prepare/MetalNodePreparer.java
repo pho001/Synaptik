@@ -16,7 +16,7 @@ import backend.prepare.BackendPrepareContext;
 import backend.prepare.RegionPlanValidator;
 import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.optimizer.partition.PartitionPlan;
+import graph.compile.planning.partition.PartitionPlan;
 
 /**
  * Prepares compiled nodes for Metal partition execution.

@@ -20,7 +20,7 @@ import graph.execution.state.ExecutionState;
 import graph.execution.trace.ExecutionStepTrace;
 import graph.execution.trace.PrepareTrace;
 import graph.execution.trace.RunTrace;
-import graph.optimizer.memory.MemoryPlan;
+import graph.compile.planning.memory.MemoryPlan;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import training.optimizer.OptimizerStepContext;

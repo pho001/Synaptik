@@ -1,7 +1,7 @@
 package graph.compile.planning;
 
 import graph.execution.trace.PartitionCompileTrace;
-import graph.optimizer.partition.PlannedPartition;
+import graph.compile.planning.partition.PlannedPartition;
 
 import java.util.List;
 

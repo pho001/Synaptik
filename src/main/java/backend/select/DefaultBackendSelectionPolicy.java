@@ -6,8 +6,8 @@ import backend.accelerator.select.AcceleratorRuntimeAvailability;
 import config.runtime.RuntimeConfig;
 import graph.execution.trace.BackendSelectionDecisionTrace;
 import graph.execution.trace.BackendSelectionTrace;
-import graph.optimizer.partition.PartitionPlan;
-import graph.optimizer.partition.PlannedPartition;
+import graph.compile.planning.partition.PartitionPlan;
+import graph.compile.planning.partition.PlannedPartition;
 
 import java.util.ArrayList;
 import java.util.Comparator;

@@ -104,9 +104,9 @@ public class SourceTreeHygieneTest {
                     .flatMap(path -> {
                         try {
                             return Files.readAllLines(path).stream()
-                                    .filter(line -> line.contains("graph.optimizer.memory.MemoryPlanner")
-                                            || line.contains("graph.optimizer.region.DefaultRegionOptimizer")
-                                            || line.contains("graph.optimizer.region.RegionOptimizationContext"))
+                                    .filter(line -> line.contains("graph.compile.planning.memory.MemoryPlanner")
+                                            || line.contains("graph.compile.planning.region.DefaultRegionOptimizer")
+                                            || line.contains("graph.compile.planning.region.RegionOptimizationContext"))
                                     .map(line -> path + ": " + line.trim());
                         } catch (IOException e) {
                             throw new RuntimeException(e);
@@ -155,8 +155,41 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void graphOptimizerDoesNotOwnCompilePlanningPackages() throws IOException {
+        List<Path> legacyDirs = List.of(
+                Path.of("src/main/java/graph/optimizer/partition"),
+                Path.of("src/main/java/graph/optimizer/region"),
+                Path.of("src/main/java/graph/optimizer/memory"),
+                Path.of("src/main/java/graph/optimizer/intent"),
+                Path.of("src/main/java/graph/optimizer/cf"),
+                Path.of("src/main/java/graph/optimizer/cse"),
+                Path.of("src/main/java/graph/optimizer/dce")
+        );
+        List<String> offenders = legacyDirs.stream()
+                .filter(Files::exists)
+                .map(Path::toString)
+                .sorted()
+                .toList();
+        assertTrue(offenders.isEmpty(), () -> "graph.optimizer must stay graph-rewrite-only: " + offenders);
+    }
+
+    @Test
+    void graphOptimizerDoesNotOwnCompilePlanningValueReferences() {
+        List<Path> legacyFiles = List.of(
+                Path.of("src/main/java/graph/optimizer/GraphValueRef.java"),
+                Path.of("src/main/java/graph/optimizer/GraphValueKind.java")
+        );
+        List<String> offenders = legacyFiles.stream()
+                .filter(Files::exists)
+                .map(Path::toString)
+                .sorted()
+                .toList();
+        assertTrue(offenders.isEmpty(), () -> "compile-planning value references belong under graph.compile.planning.value: " + offenders);
+    }
+
+    @Test
     void graphPartitionPackageDoesNotImportConcreteBackendImplementations() throws IOException {
-        Path root = Path.of("src/main/java/graph/optimizer/partition");
+        Path root = Path.of("src/main/java/graph/compile/planning/partition");
         try (Stream<Path> paths = Files.walk(root)) {
             List<String> offenders = paths
                     .filter(Files::isRegularFile)
@@ -175,7 +208,7 @@ public class SourceTreeHygieneTest {
                     })
                     .sorted()
                     .toList();
-            assertTrue(offenders.isEmpty(), () -> "graph.optimizer.partition imports concrete backend implementations: " + offenders);
+            assertTrue(offenders.isEmpty(), () -> "graph.compile.planning.partition imports concrete backend implementations: " + offenders);
         }
     }
 
@@ -545,7 +578,7 @@ public class SourceTreeHygieneTest {
 
     @Test
     void defaultRegionOptimizerDoesNotOwnCpuMixedUnitPolicy() throws IOException {
-        Path optimizer = Path.of("src/main/java/graph/optimizer/region/DefaultRegionOptimizer.java");
+        Path optimizer = Path.of("src/main/java/graph/compile/planning/region/DefaultRegionOptimizer.java");
         String source = Files.readString(optimizer);
         assertTrue(!source.contains("buildMixedCpuUnits"), "CPU mixed-unit policy belongs in CpuRegionOptimizationPolicy.");
         assertTrue(!source.contains("fused-subchain"), "CPU fused-subchain policy belongs outside DefaultRegionOptimizer.");
@@ -555,7 +588,7 @@ public class SourceTreeHygieneTest {
 
     @Test
     void regionOptimizerDoesNotOwnBackendLoweringPolicy() throws IOException {
-        Path regionRoot = Path.of("src/main/java/graph/optimizer/region");
+        Path regionRoot = Path.of("src/main/java/graph/compile/planning/region");
         assertTrue(!Files.exists(regionRoot.resolve("RegionOptimizationPolicy.java")),
                 "Region optimizer should not keep an extra policy abstraction layer.");
         assertTrue(!Files.exists(regionRoot.resolve("GenericGpuRegionOptimizationPolicy.java")),
@@ -583,12 +616,9 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
-    void regionOptimizationRuleDoesNotKeepLegacyGraphMutationFallback() throws IOException {
-        Path rule = Path.of("src/main/java/graph/optimizer/region/RegionOptimizationRule.java");
-        String source = Files.readString(rule);
-        assertTrue(!source.contains("applyLegacyGraphFusion"), "FUSE must consume partition state instead of running legacy graph-mutating fusion.");
-        assertTrue(!source.contains("TensorInternalAccess"), "FUSE must not mutate tensor operation/input structure directly.");
-        assertTrue(!source.contains("FusedOperationFactory"), "FUSED descriptors are backend CPU plan artifacts, not graph optimizer output.");
+    void regionOptimizationRuleAdapterIsRemoved() {
+        Path rule = Path.of("src/main/java/graph/compile/planning/region/RegionOptimizationRule.java");
+        assertTrue(!Files.exists(rule), "Region optimization is a compile-planning service, not an optimizer rule adapter.");
     }
 
     @Test
@@ -844,7 +874,7 @@ public class SourceTreeHygieneTest {
             List<String> offenders = paths
                     .filter(Files::isRegularFile)
                     .filter(path -> path.toString().endsWith(".java"))
-                    .filter(path -> path.toString().contains("graph/optimizer/partition/" + packageName))
+                    .filter(path -> path.toString().contains("graph/compile/planning/partition/" + packageName))
                     .map(Path::toString)
                     .sorted()
                     .toList();

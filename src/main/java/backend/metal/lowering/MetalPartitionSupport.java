@@ -10,7 +10,7 @@ import backend.metal.MetalCastPolicy;
 import backend.metal.MetalMpsCapabilities;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
-import graph.optimizer.partition.PartitionPlanningContext;
+import graph.compile.planning.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.index.gather;
 import operations.index.gatherAxis;

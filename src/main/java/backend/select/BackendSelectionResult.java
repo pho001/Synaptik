@@ -1,8 +1,8 @@
 package backend.select;
 
 import graph.execution.trace.BackendSelectionTrace;
-import graph.optimizer.partition.PartitionPlan;
-import graph.optimizer.partition.PlannedPartition;
+import graph.compile.planning.partition.PartitionPlan;
+import graph.compile.planning.partition.PlannedPartition;
 
 import java.util.List;
 

@@ -1,6 +1,6 @@
 package tensor.ops.loss;
 
-import graph.optimizer.intent.BackendIntentPropagator;
+import graph.compile.intent.BackendIntentPropagator;
 import operations.loss.crossEntropyLossIndices;
 import tensor.DataType;
 import tensor.Tensor;

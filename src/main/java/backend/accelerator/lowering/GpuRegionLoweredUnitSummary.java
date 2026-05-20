@@ -1,7 +1,7 @@
 package backend.accelerator.lowering;
 
-import graph.optimizer.region.ExecutionUnit;
-import graph.optimizer.region.ExecutionUnitKind;
+import graph.compile.planning.region.ExecutionUnit;
+import graph.compile.planning.region.ExecutionUnitKind;
 
 import java.util.List;
 

@@ -154,9 +154,9 @@ Meanings:
 | Stage | Implementation | Responsibility |
 |---|---|---|
 | `AR` | `graph.optimizer.rewrite.canonical.PiecewiseCanonicalizationRule`, `graph.optimizer.rewrite.algebraic.AlgebraicSimplificationRule` | Algebraic simplification and light canonical rewrites. |
-| `CF` | `graph.optimizer.cf.ConstantFoldingRule` | Conservative constant-only graph folding. |
-| `CSE` | `graph.optimizer.cse.CommonSubexpressionEliminationRule` | Structural common-subexpression elimination. |
-| `DCE` | `graph.optimizer.dce.DeadCodeEliminationRule` | Remove nodes not reachable from observable roots. |
+| `CF` | `graph.optimizer.cleanup.ConstantFoldingRule` | Conservative constant-only graph folding. |
+| `CSE` | `graph.optimizer.cleanup.CommonSubexpressionEliminationRule` | Structural common-subexpression elimination. |
+| `DCE` | `graph.optimizer.cleanup.DeadCodeEliminationRule` | Remove nodes not reachable from observable roots. |
 | `LOWER` | `graph.optimizer.rewrite.lowering.*Rule` | Optional backend-neutral graph lowering. |
 
 Execution planning is separate:
@@ -603,7 +603,7 @@ The no-argument CLI default is `full f64`.
 
 Layout is first-class in both semantic tensors and runtime execution. `TensorMetadata` stores shape, strides, storage offset, dtype, and label. Layout operations such as reshape, permute, expand, squeeze, select, and contiguous are explicit operation descriptors under `src/main/java/operations/layout` and public builders under `src/main/java/tensor/ops/layout`.
 
-The memory planning compile phase produces a `MemoryPlan` under `src/main/java/graph/optimizer/memory`. `PreparedExecution` passes that plan to `RuntimeMemoryBinder` before running steps. This keeps allocation/reuse decisions tied to compile artifacts while per-run storage lives behind `ExecutionState`.
+The memory planning compile phase produces a `MemoryPlan` under `src/main/java/graph/compile/planning/memory`. `PreparedExecution` passes that plan to `RuntimeMemoryBinder` before running steps. This keeps allocation/reuse decisions tied to compile artifacts while per-run storage lives behind `ExecutionState`.
 
 `ExecutionState` is the public per-run entrypoint; it does not keep every runtime concern inline. Runtime tensor identity and input rewiring live in `RuntimeTensorStore`, CPU workspaces and prepared inputs live in `RuntimeWorkspaceStore`, CPU/native/device materialization lives in `RuntimeMaterializationService`, run-owned resources and native CPU allocation live in `RuntimeResourceRegistry`, and residency/binding state is split between `RuntimeResidencyStore`, `DeviceBindingRegistry`, and `NativeCpuStorageRegistry`. These concrete run-scoped classes are not new lifecycle artifacts, not public user API, and not places to store compile-time topology or optimizer decisions.
 

@@ -3,7 +3,7 @@ package backend.metal.lowering;
 import tensor.TensorInternalAccess;
 
 import graph.CompiledNode;
-import graph.optimizer.partition.PartitionPlanningContext;
+import graph.compile.planning.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.loss.crossEntropyLoss;
 import operations.loss.crossEntropyLossIndices;

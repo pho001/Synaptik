@@ -440,9 +440,9 @@ Graph optimization mapping is in `src/main/java/graph/optimizer/OptimizerFactory
 ```text
 AR    -> graph.optimizer.rewrite.canonical.PiecewiseCanonicalizationRule
 AR    -> graph.optimizer.rewrite.algebraic.AlgebraicSimplificationRule
-CF    -> graph.optimizer.cf.ConstantFoldingRule
-CSE   -> graph.optimizer.cse.CommonSubexpressionEliminationRule
-DCE   -> graph.optimizer.dce.DeadCodeEliminationRule
+CF    -> graph.optimizer.cleanup.ConstantFoldingRule
+CSE   -> graph.optimizer.cleanup.CommonSubexpressionEliminationRule
+DCE   -> graph.optimizer.cleanup.DeadCodeEliminationRule
 LOWER -> graph.optimizer.rewrite.lowering.*Rule
 ```
 
@@ -457,7 +457,7 @@ Fix path:
 ./gradlew test --no-daemon --tests AlgebraicRewritingSigmoidTest
 ./gradlew test --no-daemon --tests CommonSubexpressionEliminationRuleTest
 ./gradlew test --no-daemon --tests graph.optimizer.GraphOptimizerSinglePassTest
-./gradlew test --no-daemon --tests graph.optimizer.region.RegionOptimizationRuleTest
+./gradlew test --no-daemon --tests graph.compile.planning.region.DefaultRegionOptimizerServiceTest
 ```
 
 If a new operation has parameters, update `CommonSubexpressionEliminationRule.parameterKey(...)`; otherwise CSE may treat parameterized nodes incorrectly.
@@ -468,7 +468,7 @@ For memory-related optimizer failures, disable memory reuse to isolate:
 ./gradlew test --no-daemon --tests MemoryPlannerSummaryTest -Dcg.optimizer.enableMemoryReuse=false
 ```
 
-The property is read by `MemoryOptimizerRule`.
+Memory planning is controlled through `CompileConfig.memoryPlanning()`.
 
 ## Gradients Missing Or Wrong
 
@@ -655,7 +655,7 @@ Fix by moving code to the owner package:
 | Generic lowering contracts | `src/main/java/backend/lowering` |
 | Generic prepare orchestration | `src/main/java/backend/prepare` |
 | Optimizer rewrite | `src/main/java/graph/optimizer/rewrite` |
-| Optimizer region policy | `src/main/java/graph/optimizer/region` plus CPU-specific policy under `backend.cpu.fused` |
+| Optimizer region policy | `src/main/java/graph/compile/planning/region` plus CPU-specific policy under `backend.cpu.fused` |
 | Graph autotune policy candidates | `src/main/java/tuning/candidate/graph` without runtime/backend imports |
 
 Run:

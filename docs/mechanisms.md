@@ -536,8 +536,8 @@ Compile-time memory planning computes lifetimes and reusable slots. Runtime bind
 
 **Where It Lives**
 
-- [`MemoryPlanner.java`](../src/main/java/graph/optimizer/memory/MemoryPlanner.java)
-- [`MemoryOptimizerRule.java`](../src/main/java/graph/optimizer/memory/MemoryOptimizerRule.java)
+- [`MemoryPlanner.java`](../src/main/java/graph/compile/planning/memory/MemoryPlanner.java)
+- [`MemoryPlanningInput.java`](../src/main/java/graph/compile/planning/memory/MemoryPlanningInput.java)
 - [`RuntimeMemoryBinder.java`](../src/main/java/graph/execution/residency/RuntimeMemoryBinder.java)
 - [`MemoryPlannerSummaryTest.java`](../src/test/java/MemoryPlannerSummaryTest.java)
 - [`RuntimeMemoryBinderTest.java`](../src/test/java/graph/execution/RuntimeMemoryBinderTest.java)
@@ -565,7 +565,7 @@ If `t1` is no longer needed after `t2`, its buffer may become reusable. A strict
 
 **Internals**
 
-`MemoryOptimizerRule` can be disabled with system property `cg.optimizer.enableMemoryReuse=false`. `MemoryPlanner` skips region binding for workspace-sensitive operations such as `MAX_POOL2D` and `MAX_POOL2D_BACKWARD_INPUT`. `RuntimeMemoryBinder` binds dtype-specific slot arrays for `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL`; the binding remains a runtime storage optimization and does not change semantic tensor shapes, dtypes, or graph edges.
+`MemoryPlanner` consumes explicit compile-planning input and skips region binding for workspace-sensitive operations such as `MAX_POOL2D` and `MAX_POOL2D_BACKWARD_INPUT`. `RuntimeMemoryBinder` binds dtype-specific slot arrays for `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL`; the binding remains a runtime storage optimization and does not change semantic tensor shapes, dtypes, or graph edges.
 
 **Edge Cases**
 

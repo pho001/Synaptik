@@ -650,7 +650,6 @@ This section covers build, core runtime, optimizer, native bridge, diagnostic, a
 | `synaptik.cuda.graph.lib` | library name `synaptik_cuda_graph` | Explicit CUDA graph bridge library path/name for FFM lookup. | `backend/cuda/bridge/CudaFfmBridge.java` |
 | `cg.cpu.fused.profile` | `false` | Enables fused execution profiler collection. | `backend/cpu/kernels/fused/FusedExecutionProfiler.java` |
 | `cg.math.forceExactTranscendentals` | `false` | Forces utility fast transcendental methods to call exact `Math` functions. | `utils/FastTranscendentals.java` |
-| `cg.optimizer.enableMemoryReuse` | `true` | Enables memory reuse in memory optimizer rule. | `graph/optimizer/memory/MemoryOptimizerRule.java` |
 | `cg.optimizer.ar.disableAllTransforms` | `false` | Disables all algebraic rewrite transforms. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
 | `cg.optimizer.ar.disableRebuildTopologicalClosure` | `false` | Disables AR topological closure rebuild. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |
 | `cg.optimizer.ar.disablePow2ToMul` | `false` | Disables `pow(x, 2)` to multiply rewrite. | `graph/optimizer/rewrite/algebraic/AlgebraicRewriteSwitches.java` |

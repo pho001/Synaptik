@@ -1,8 +1,8 @@
 package backend.partition;
 
 import backend.lowering.RegionLowerer;
-import graph.optimizer.partition.PartitionTarget;
-import graph.optimizer.partition.RegionLegalityAdapter;
+import graph.compile.planning.partition.PartitionTarget;
+import graph.compile.planning.partition.RegionLegalityAdapter;
 
 import java.util.List;
 

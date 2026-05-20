@@ -5,20 +5,20 @@ import backend.ComputeBackend;
 import config.optimizer.FuseConfig;
 import graph.CompiledNode;
 import graph.execution.trace.PartitionDecisionTrace;
-import graph.optimizer.memory.MemoryPlan;
-import graph.optimizer.memory.MemoryPlanner;
-import graph.optimizer.memory.MemoryPlannerPolicy;
-import graph.optimizer.partition.Partition;
-import graph.optimizer.partition.PartitionBoundaryReason;
-import graph.optimizer.partition.PartitionEdge;
-import graph.optimizer.partition.PartitionPlannerStrategy;
-import graph.optimizer.partition.PartitionPlan;
-import graph.optimizer.partition.PartitionTarget;
-import graph.optimizer.partition.PartitionValue;
-import graph.optimizer.GraphValueRef;
-import graph.optimizer.region.DefaultRegionOptimizer;
-import graph.optimizer.region.OptimizedRegion;
-import graph.optimizer.region.RegionOptimizationContext;
+import graph.compile.planning.memory.MemoryPlan;
+import graph.compile.planning.memory.MemoryPlanner;
+import graph.compile.planning.memory.MemoryPlannerPolicy;
+import graph.compile.planning.partition.Partition;
+import graph.compile.planning.partition.PartitionBoundaryReason;
+import graph.compile.planning.partition.PartitionEdge;
+import graph.compile.planning.partition.PartitionPlannerStrategy;
+import graph.compile.planning.partition.PartitionPlan;
+import graph.compile.planning.partition.PartitionTarget;
+import graph.compile.planning.partition.PartitionValue;
+import graph.compile.planning.value.GraphValueRef;
+import graph.compile.planning.region.DefaultRegionOptimizer;
+import graph.compile.planning.region.OptimizedRegion;
+import graph.compile.planning.region.RegionOptimizationContext;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -194,7 +194,7 @@ class LoweringPipelineTest {
                 List.of(),
                 List.of(PartitionBoundaryReason.NONE),
                 orderedNodeIds.size(),
-                new graph.optimizer.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(orderedNodeIds.size(), internalEdges.size(), externalInputNodeIds.size(), 0, Math.max(0, orderedNodeIds.size() - 1)),
+                new graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(orderedNodeIds.size(), internalEdges.size(), externalInputNodeIds.size(), 0, Math.max(0, orderedNodeIds.size() - 1)),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
                         PartitionPlannerStrategy.GREEDY_MAX_REGION,

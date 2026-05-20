@@ -15,15 +15,16 @@ import graph.compile.planning.BackendPlanningRequest;
 import graph.compile.planning.BackendPlanningResult;
 import graph.compile.planning.BackendPlanningService;
 import graph.optimizer.GraphOptimizer;
-import graph.optimizer.intent.BackendIntentPropagator;
-import graph.optimizer.memory.MemoryPlan;
-import graph.optimizer.memory.MemoryPlanner;
-import graph.optimizer.memory.MemoryPlannerPolicy;
-import graph.optimizer.partition.PartitionPlan;
-import graph.optimizer.partition.PlannedPartition;
-import graph.optimizer.region.DefaultRegionOptimizer;
-import graph.optimizer.region.OptimizedRegion;
-import graph.optimizer.region.RegionOptimizationContext;
+import graph.compile.intent.BackendIntentPropagator;
+import graph.compile.planning.memory.MemoryPlan;
+import graph.compile.planning.memory.MemoryPlanner;
+import graph.compile.planning.memory.MemoryPlannerPolicy;
+import graph.compile.planning.memory.MemoryPlanningInput;
+import graph.compile.planning.partition.PartitionPlan;
+import graph.compile.planning.partition.PlannedPartition;
+import graph.compile.planning.region.DefaultRegionOptimizer;
+import graph.compile.planning.region.OptimizedRegion;
+import graph.compile.planning.region.RegionOptimizationContext;
 import graph.optimizer.state.OptimizerState;
 import graph.optimizer.state.OptimizerTrace;
 import graph.execution.trace.PartitionCompileTrace;
@@ -244,7 +245,6 @@ public final class CompileSession {
         sourceTensors.clear();
         sourceTensors.putAll(composed);
         forwardOutput = optimizedState.forwardOutput();
-        compiledMemoryPlan = optimizedState.memoryPlan();
         compiledOptimizerState = optimizedState;
         return optimized;
     }
@@ -295,25 +295,26 @@ public final class CompileSession {
         OptimizerState base = compiledOptimizerState == null
                 ? OptimizerState.ofGraph(finalGraph, compiledForwardOutput.semanticTensor())
                 : compiledOptimizerState;
-        OptimizerState planningState = base
-                .withExecutionMetadata(
-                        compiledSupportsBackward ? ExecutionMode.FORWARD_BACKWARD : ExecutionMode.FORWARD,
-                        compiledSupportsBackward,
-                        forwardEndIndex
-                )
-                .withPartitions(
-                        compiledPlannedPartitions.stream().map(PlannedPartition::partition).toList(),
-                        planByPartitionId()
-                )
-                .withOptimizedRegions(compiledOptimizedRegions);
+        ExecutionMode executionMode = compiledSupportsBackward ? ExecutionMode.FORWARD_BACKWARD : ExecutionMode.FORWARD;
+        compiledOptimizerState = base.withExecutionMetadata(
+                executionMode,
+                compiledSupportsBackward,
+                forwardEndIndex
+        );
         boolean memoryRequired = !compiledPlannedPartitions.isEmpty();
-        compiledOptimizerState = (compileConfig.memoryPlanning().enabled() || memoryRequired)
-                ? planningState.withMemoryPlan(MemoryPlanner.plan(
-                        planningState,
+        compiledMemoryPlan = (compileConfig.memoryPlanning().enabled() || memoryRequired)
+                ? MemoryPlanner.plan(
+                        new MemoryPlanningInput(
+                                compiledNodes,
+                                compiledOptimizedRegions,
+                                planByPartitionId(),
+                                executionMode,
+                                compiledSupportsBackward,
+                                forwardEndIndex
+                        ),
                         MemoryPlannerPolicy.fromConfig(compileConfig.memoryPlanning().memory())
-                ))
-                : planningState;
-        compiledMemoryPlan = compiledOptimizerState.memoryPlan();
+                )
+                : null;
     }
 
     private Map<String, PartitionPlan> planByPartitionId() {

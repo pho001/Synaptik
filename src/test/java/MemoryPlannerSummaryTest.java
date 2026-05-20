@@ -1,15 +1,11 @@
 import config.compile.CompileConfig;
 import graph.CompiledGraph;
-import graph.optimizer.OptimizationRule;
-import graph.optimizer.OptimizerFactory;
-import graph.optimizer.memory.MemoryPlan;
-import graph.optimizer.memory.MemoryPlanner;
-import graph.optimizer.memory.MemoryPlannerPolicy;
-import graph.optimizer.memory.MemoryOptimizerRule;
+import graph.compile.planning.memory.MemoryPlan;
+import graph.compile.planning.memory.MemoryPlanner;
+import graph.compile.planning.memory.MemoryPlannerPolicy;
 import org.junit.jupiter.api.Test;
 import tensor.Tensor;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -67,21 +63,6 @@ public class MemoryPlannerSummaryTest {
     }
 
     @Test
-    void memoryRuleExposesLastPlanSummaryAndExplainHooks() {
-        Tensor a = Tensor.scalar(4.0);
-        Tensor b = Tensor.scalar(2.0);
-        a.setRequiresGrad(true);
-        b.setRequiresGrad(true);
-
-        Tensor out = a.mul(b).add(a).pow(2.0);
-        new MemoryOptimizerRule().apply(CompiledGraph.compile(out, CompileConfig.training()).getCompiledGraphAsList());
-
-        assertNotNull(MemoryOptimizerRule.lastPlan());
-        assertNotNull(MemoryOptimizerRule.lastSummary());
-        assertTrue(MemoryOptimizerRule.lastExplain().contains("=== MemoryPlan Summary ==="));
-    }
-
-    @Test
     void largerBufferReusePolicyCanReduceSlotCount() {
         Tensor a = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2}, null, "a");
         Tensor b = new Tensor(new double[]{5, 6, 7, 8}, new int[]{2, 2}, null, "b");
@@ -116,26 +97,15 @@ public class MemoryPlannerSummaryTest {
     }
 
     @Test
-    void memoryRuleUsesInjectedPolicy() {
-        MemoryPlannerPolicy policy = new MemoryPlannerPolicy(true, false, true, 8);
-        MemoryOptimizerRule rule = new MemoryOptimizerRule(policy);
-        assertEquals(policy, rule.policy());
-    }
-
-    @Test
-    void optimizerFactoryPassesConfiguredMemoryPolicyToMemStage() {
+    void memoryPlannerPolicyUsesCompileMemoryConfig() {
         var optimizerConfig = CompileConfig.training().withMemoryPlanning(
                 new config.compile.MemoryPlanningConfig(true, new config.optimizer.MemoryConfig(false, false, true, 16))
         );
 
-        MemoryOptimizerRule memRule = new MemoryOptimizerRule(
-                MemoryPlannerPolicy.fromConfig(optimizerConfig.memoryPlanning().memory())
-        );
-
-        assertNotNull(memRule);
         assertEquals(
+                new MemoryPlannerPolicy(false, false, true, 16),
                 MemoryPlannerPolicy.fromConfig(optimizerConfig.memoryPlanning().memory()),
-                memRule.policy()
+                "Memory planning policy must be derived directly from CompileConfig."
         );
     }
 

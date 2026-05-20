@@ -4,7 +4,7 @@ import backend.ComputeBackend;
 import backend.lowering.LoweringInput;
 import backend.select.BackendSelectionResult;
 import graph.execution.trace.BackendPrepareDiagnosticTrace;
-import graph.optimizer.partition.PlannedPartition;
+import graph.compile.planning.partition.PlannedPartition;
 
 import java.util.LinkedHashMap;
 import java.util.List;

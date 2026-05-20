@@ -1,8 +1,8 @@
 package backend.lowering;
 
-import graph.optimizer.memory.MemoryPlan;
-import graph.optimizer.partition.PartitionPlan;
-import graph.optimizer.region.OptimizedRegion;
+import graph.compile.planning.memory.MemoryPlan;
+import graph.compile.planning.partition.PartitionPlan;
+import graph.compile.planning.region.OptimizedRegion;
 
 import java.util.List;
 import java.util.Map;

@@ -2,7 +2,7 @@ package graph.optimizer;
 
 import config.compile.CompileConfig;
 import graph.CompiledGraph;
-import graph.optimizer.partition.PartitionTarget;
+import graph.compile.planning.partition.PartitionTarget;
 import graph.optimizer.state.OptimizerState;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;

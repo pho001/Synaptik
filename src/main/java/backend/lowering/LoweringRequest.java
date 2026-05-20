@@ -1,7 +1,7 @@
 package backend.lowering;
 
-import graph.optimizer.memory.MemoryPlan;
-import graph.optimizer.region.OptimizedRegion;
+import graph.compile.planning.memory.MemoryPlan;
+import graph.compile.planning.region.OptimizedRegion;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 
 import java.util.Objects;

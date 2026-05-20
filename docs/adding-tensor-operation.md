@@ -101,7 +101,7 @@ This composition-first path keeps the semantic graph clean. It avoids creating a
 | DType helpers | [`TensorDataTypeUtil.java`](../src/main/java/tensor/dtype/TensorDataTypeUtil.java), [`DataType.java`](../src/main/java/tensor/DataType.java) |
 | CPU kernel resolver | [`CpuKernelResolver.java`](../src/main/java/backend/cpu/registry/CpuKernelResolver.java) |
 | CPU prepare | [`CpuNodePreparer.java`](../src/main/java/backend/cpu/prepare/CpuNodePreparer.java) |
-| CSE parameter signatures | [`CommonSubexpressionEliminationRule.java`](../src/main/java/graph/optimizer/cse/CommonSubexpressionEliminationRule.java) |
+| CSE parameter signatures | [`CommonSubexpressionEliminationRule.java`](../src/main/java/graph/optimizer/cleanup/CommonSubexpressionEliminationRule.java) |
 | CPU fused planning/codegen | [`backend/cpu/fused`](../src/main/java/backend/cpu/fused) |
 | Metal allowlist and lowering | [`MetalPartitionSupport.java`](../src/main/java/backend/metal/lowering/MetalPartitionSupport.java), [`AcceleratorSubgraphLowerer.java`](../src/main/java/backend/accelerator/lowering/AcceleratorSubgraphLowerer.java) |
 | Operation documentation | [`tensor-api.md`](tensor-api.md#operation-catalog) |

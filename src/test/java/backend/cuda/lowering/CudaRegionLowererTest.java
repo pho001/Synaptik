@@ -18,15 +18,15 @@ import config.optimizer.FuseConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
 import graph.execution.trace.PartitionDecisionTrace;
-import graph.optimizer.memory.MemoryPlanner;
-import graph.optimizer.partition.Partition;
-import graph.optimizer.partition.PartitionBoundaryReason;
-import graph.optimizer.partition.PartitionEdge;
-import graph.optimizer.partition.PartitionPlannerStrategy;
-import graph.optimizer.partition.PartitionTarget;
-import graph.optimizer.partition.PartitionValue;
-import graph.optimizer.GraphValueRef;
-import graph.optimizer.partition.PartitionPlanningContext;
+import graph.compile.planning.memory.MemoryPlanner;
+import graph.compile.planning.partition.Partition;
+import graph.compile.planning.partition.PartitionBoundaryReason;
+import graph.compile.planning.partition.PartitionEdge;
+import graph.compile.planning.partition.PartitionPlannerStrategy;
+import graph.compile.planning.partition.PartitionTarget;
+import graph.compile.planning.partition.PartitionValue;
+import graph.compile.planning.value.GraphValueRef;
+import graph.compile.planning.partition.PartitionPlanningContext;
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;
 import backend.accelerator.dag.AcceleratorDagNodeType;
@@ -34,10 +34,10 @@ import backend.accelerator.dag.AcceleratorDagSpec;
 import backend.accelerator.dag.AcceleratorDagValueRef;
 import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
-import graph.optimizer.region.DefaultRegionOptimizer;
-import graph.optimizer.region.ExecutionUnitKind;
-import graph.optimizer.region.OptimizedRegion;
-import graph.optimizer.region.RegionOptimizationContext;
+import graph.compile.planning.region.DefaultRegionOptimizer;
+import graph.compile.planning.region.ExecutionUnitKind;
+import graph.compile.planning.region.OptimizedRegion;
+import graph.compile.planning.region.RegionOptimizationContext;
 import operations.Operation;
 import operations.index.gatherGrad;
 import operations.index.takeAlongAxisGrad;
@@ -1124,7 +1124,7 @@ class CudaRegionLowererTest {
                 List.of(),
                 List.of(PartitionBoundaryReason.NONE),
                 orderedNodeIds.size(),
-                new graph.optimizer.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(orderedNodeIds.size(), internalEdges.size(), externalInputNodeIds.size(), 0, Math.max(0, orderedNodeIds.size() - 1)),
+                new graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(orderedNodeIds.size(), internalEdges.size(), externalInputNodeIds.size(), 0, Math.max(0, orderedNodeIds.size() - 1)),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
                         PartitionPlannerStrategy.GREEDY_MAX_REGION,

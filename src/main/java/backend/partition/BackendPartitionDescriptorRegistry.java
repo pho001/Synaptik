@@ -7,9 +7,9 @@ import backend.cpu.partition.CpuRegionLegalityAdapter;
 import backend.cuda.lowering.CudaGpuRegionLegalityAdapter;
 import backend.cuda.lowering.CudaRegionLowerer;
 import backend.lowering.RegionLowerer;
-import graph.optimizer.partition.PartitionTarget;
-import graph.optimizer.partition.RegionLegalityAdapter;
-import graph.optimizer.partition.UnsupportedRegionLegalityAdapter;
+import graph.compile.planning.partition.PartitionTarget;
+import graph.compile.planning.partition.RegionLegalityAdapter;
+import graph.compile.planning.partition.UnsupportedRegionLegalityAdapter;
 
 import java.util.List;
 import java.util.function.Supplier;

@@ -1,7 +1,7 @@
 package graph.execution.trace;
 
-import graph.optimizer.partition.PartitionTarget;
-import graph.optimizer.partition.PartitionPlannerStrategy;
+import graph.compile.planning.partition.PartitionTarget;
+import graph.compile.planning.partition.PartitionPlannerStrategy;
 
 import java.util.List;
 

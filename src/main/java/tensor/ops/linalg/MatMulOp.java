@@ -1,6 +1,6 @@
 package tensor.ops.linalg;
 
-import graph.optimizer.intent.BackendIntentPropagator;
+import graph.compile.intent.BackendIntentPropagator;
 import operations.Operation;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;

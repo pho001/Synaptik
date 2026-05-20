@@ -4,7 +4,7 @@ import backend.ComputeBackend;
 import backend.accelerator.lowering.AcceleratorMatMulSpec;
 import backend.accelerator.lowering.AcceleratorSubgraphLoweringResult;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
-import graph.optimizer.partition.PartitionPlan;
+import graph.compile.planning.partition.PartitionPlan;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
 
 import java.util.List;

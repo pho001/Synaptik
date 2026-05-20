@@ -10,10 +10,10 @@ import java.util.Objects;
 /**
  * Ordered optimizer pipeline for compiled tensor graphs.
  *
- * <p>Rules are applied sequentially to an immutable {@link OptimizerState} value. Each rule may replace the graph and
- * reset downstream optimizer products such as partitions, optimized regions, or memory plans. The standard stage order
- * is configured by {@link OptimizerFactory}: algebraic/semantic rewrite, common subexpression elimination, partition
- * planning, region fusion, and memory planning.
+ * <p>Rules are applied sequentially to an immutable {@link OptimizerState} value. Each rule may replace the graph,
+ * adjust graph-level compile metadata, or append optimization trace entries. Backend ownership, region planning, and
+ * memory planning are compile-planning stages outside this package. The standard optimizer pipeline is configured by
+ * {@link OptimizerFactory}: semantic cleanup, algebraic rewrite, operation lowering, and cleanup fixpoint passes.
  *
  * <p>This class owns a mutable rule list. Configure a pipeline before sharing it; concurrent calls to {@link #addRule}
  * and {@link #optimize(OptimizerState)} are not supported.
@@ -68,7 +68,7 @@ public final class GraphOptimizer {
     /**
      * Applies all rules to an optimizer state.
      *
-     * @param initial initial state carrying graph and compile metadata
+     * @param initial initial state carrying graph-level compile metadata
      * @return final optimizer state after all rules
      * @throws NullPointerException if {@code initial} is {@code null} or any rule returns {@code null}
      */

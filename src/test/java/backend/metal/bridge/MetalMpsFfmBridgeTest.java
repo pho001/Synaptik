@@ -24,7 +24,7 @@ import backend.metal.kernel.MetalCustomKernelExecutable;
 import backend.metal.lowering.MetalPartitionPlan;
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
-import graph.optimizer.partition.PartitionPlanningContext;
+import graph.compile.planning.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.layout.sliceGrad;
 import org.junit.jupiter.api.Test;

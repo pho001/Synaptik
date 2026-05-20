@@ -240,8 +240,8 @@ Use this rule of thumb:
 - backend ownership policy:
   - `BackendPlanningConfig` and `graph.compile.planning.BackendPlanningService`
 - elementwise cluster profitability inside regions:
-  - `RegionOptimizationConfig` and `graph.optimizer.region`
+  - `RegionOptimizationConfig` and `graph.compile.planning.region`
 - allocation/reuse policy:
-  - `MemoryPlanningConfig` and `graph.optimizer.memory`
+  - `MemoryPlanningConfig` and `graph.compile.planning.memory`
 
 If a change depends on runtime sizes, thresholds, or hardware policy, it probably belongs outside the optimizer.
