@@ -130,7 +130,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Graph optimizer**: Backend-neutral graph simplification and lowering pipeline: `AR`, `CF`, `CSE`, `DCE`, and optional `LOWER`. Source: [`GraphOptimizer.java`](../src/main/java/graph/optimizer/GraphOptimizer.java), [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java).
 
-**Gradient binding**: Mapping from semantic/source tensors to compiled gradient nodes or constant gradient templates. Source: [`CompiledGradientBinding.java`](../src/main/java/graph/CompiledGradientBinding.java), [`GradientBindingCollector.java`](../src/main/java/graph/compile/session/GradientBindingCollector.java).
+**Gradient binding**: Mapping from publication tensors to compiled gradient nodes or constant gradient templates. Source: [`CompiledGradientBinding.java`](../src/main/java/graph/CompiledGradientBinding.java), [`GradientBindingCollector.java`](../src/main/java/graph/compile/session/GradientBindingCollector.java).
 
 ## J
 
@@ -150,9 +150,9 @@ Project-specific terms used in Synaptik, with source references.
 
 **Mask**: A `BOOL` tensor used to include or exclude positions. In sequence-shaped examples, `true` means the timestep is valid and contributes to masked reductions or masked cross entropy; `false` means padding and contributes zero. Source: [`SumOp.java`](../src/main/java/tensor/ops/reduction/SumOp.java), [`DenseCrossEntropyLossOp.java`](../src/main/java/tensor/ops/loss/DenseCrossEntropyLossOp.java), [Sequence Tensor Primitives: Masked Reductions](sequence-tensor-primitives.md#masked-reductions).
 
-**Memory planning**: Compile phase that builds `MemoryPlan` artifacts, including lifetimes, reusable intervals, slots, region-value bindings, and runtime binding policy. Source: [`MemoryPlanner.java`](../src/main/java/graph/compile/planning/memory/MemoryPlanner.java), [`MemoryPlanningConfig.java`](../src/main/java/config/compile/MemoryPlanningConfig.java).
+**Memory planning**: Compile phase that builds `MemoryPlan` artifacts, including lifetimes, reusable intervals, slots, region-value flow, region-value bindings, handoff requirements, runtime binding policy, and summary metrics. `MemoryPlanner` is the public entry point; package-local planners own the individual algorithms. Source: [`MemoryPlanner.java`](../src/main/java/graph/compile/planning/memory/MemoryPlanner.java), [`TensorLifetimePlanner.java`](../src/main/java/graph/compile/planning/memory/TensorLifetimePlanner.java), [`RegionValueFlowPlanner.java`](../src/main/java/graph/compile/planning/memory/RegionValueFlowPlanner.java), [`MemoryPlanningConfig.java`](../src/main/java/config/compile/MemoryPlanningConfig.java).
 
-**Memory plan**: Compile-time lifetimes, reusable intervals, slots, region-value memory bindings, and runtime binding policies. Source: [`MemoryPlan.java`](../src/main/java/graph/compile/planning/memory/MemoryPlan.java), [`MemoryPlanner.java`](../src/main/java/graph/compile/planning/memory/MemoryPlanner.java).
+**Memory plan**: Compile-time lifetimes, reusable intervals, slots, region-value lifetimes, materialization decisions, region-value memory bindings, node-id to graph-value mappings, handoff requirements, and runtime binding policies. Source: [`MemoryPlan.java`](../src/main/java/graph/compile/planning/memory/MemoryPlan.java), [`MemoryPlanner.java`](../src/main/java/graph/compile/planning/memory/MemoryPlanner.java).
 
 **Memory role**: Classification used by memory planning for temporaries, saved forward values, gradient targets, and related storage owners. Source: [`MemoryRole.java`](../src/main/java/graph/compile/planning/memory/MemoryRole.java), [`NodeLifetime.java`](../src/main/java/graph/compile/planning/memory/NodeLifetime.java).
 

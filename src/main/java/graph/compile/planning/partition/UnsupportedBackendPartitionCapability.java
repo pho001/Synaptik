@@ -7,20 +7,20 @@ import graph.CompiledNode;
 import java.util.Set;
 
 /**
- * Null-object legality adapter for targets that have no region lowerer.
+ * Null-object partition capability for targets that have no region lowerer.
  *
  * <p>Every support and lowering check rejects the candidate, allowing planners to run without special casing missing
  * backend support.
  */
-public final class UnsupportedRegionLegalityAdapter implements RegionLegalityAdapter {
+public final class UnsupportedBackendPartitionCapability implements BackendPartitionCapability {
     private final PartitionTarget target;
 
     /**
-     * Creates an adapter for an unsupported target.
+     * Creates a capability for an unsupported target.
      *
      * @param target target to report from {@link #target()}
      */
-    public UnsupportedRegionLegalityAdapter(PartitionTarget target) {
+    public UnsupportedBackendPartitionCapability(PartitionTarget target) {
         this.target = target == null ? PartitionTarget.NONE : target;
     }
 
@@ -30,7 +30,7 @@ public final class UnsupportedRegionLegalityAdapter implements RegionLegalityAda
     }
 
     @Override
-    public boolean isNodeSupported(CompiledNode node, PartitionPlanningContext context) {
+    public boolean canExecute(CompiledNode node, PartitionPlanningContext context) {
         return false;
     }
 
@@ -40,7 +40,7 @@ public final class UnsupportedRegionLegalityAdapter implements RegionLegalityAda
     }
 
     @Override
-    public boolean canUseAsExternalInput(
+    public boolean canUseExternalInput(
             CompiledNode producer,
             CompiledNode consumer,
             Set<Integer> selectedNodeIds,
@@ -50,7 +50,7 @@ public final class UnsupportedRegionLegalityAdapter implements RegionLegalityAda
     }
 
     @Override
-    public PartitionCandidate tryCreateStructuralCandidate(
+    public PartitionCandidate createCandidate(
             Set<Integer> selectedNodeIds,
             PartitionPlanningContext context,
             Set<GraphValueRef> requiredMaterializedValueRefs
@@ -59,7 +59,7 @@ public final class UnsupportedRegionLegalityAdapter implements RegionLegalityAda
     }
 
     @Override
-    public PartitionPlan tryCreatePlan(PartitionCandidate candidate, PartitionPlanningContext context) {
+    public PartitionPlan createPlan(PartitionCandidate candidate, PartitionPlanningContext context) {
         return null;
     }
 }

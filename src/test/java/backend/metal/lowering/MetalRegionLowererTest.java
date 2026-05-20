@@ -89,14 +89,14 @@ class MetalRegionLowererTest {
         );
         int linearNodeId = nodeId(context, Operation.OpType.LINEAR);
         int reluNodeId = nodeId(context, Operation.OpType.RELU);
-        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
-        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
+        MetalBackendPartitionCapability adapter = new MetalBackendPartitionCapability();
+        PartitionCandidate candidate = adapter.createCandidate(
                 Set.of(linearNodeId, reluNodeId),
                 context,
                 Set.of(GraphValueRef.node(reluNodeId))
         );
         assertNotNull(candidate);
-        MetalPartitionPlan attachedPlan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, context);
+        MetalPartitionPlan attachedPlan = (MetalPartitionPlan) adapter.createPlan(candidate, context);
 
         assertNotNull(attachedPlan);
         assertEquals(GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION, attachedPlan.lowering().compoundSummary().patternType());
@@ -192,14 +192,14 @@ class MetalRegionLowererTest {
         int reluNodeId = nodeId(planningContext, Operation.OpType.RELU);
         int expNodeId = nodeId(planningContext, Operation.OpType.EXP);
         List<Integer> selectedNodeIds = List.of(matmulNodeId, reluNodeId, expNodeId);
-        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
-        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
+        MetalBackendPartitionCapability adapter = new MetalBackendPartitionCapability();
+        PartitionCandidate candidate = adapter.createCandidate(
                 Set.copyOf(selectedNodeIds),
                 planningContext,
                 Set.of(GraphValueRef.node(expNodeId))
         );
         assertNotNull(candidate);
-        MetalPartitionPlan attachedPlan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, planningContext);
+        MetalPartitionPlan attachedPlan = (MetalPartitionPlan) adapter.createPlan(candidate, planningContext);
         assertNotNull(attachedPlan);
         Partition partition = partition(
                 "phase19-metal-multi-op",
@@ -534,15 +534,15 @@ class MetalRegionLowererTest {
         PartitionPlanningContext context = planningContext(out);
         int matmulNodeId = nodeId(context, Operation.OpType.MATMUL);
         int logSoftmaxNodeId = nodeId(context, Operation.OpType.LOG_SOFTMAX);
-        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
-        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
+        MetalBackendPartitionCapability adapter = new MetalBackendPartitionCapability();
+        PartitionCandidate candidate = adapter.createCandidate(
                 Set.of(matmulNodeId, logSoftmaxNodeId),
                 context,
                 Set.of(GraphValueRef.node(logSoftmaxNodeId))
         );
         assertNotNull(candidate);
 
-        MetalPartitionPlan plan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, context);
+        MetalPartitionPlan plan = (MetalPartitionPlan) adapter.createPlan(candidate, context);
 
         assertNotNull(plan);
         List<AcceleratorDagNodeType> types = plan.lowering().dagSpec().nodes().stream()
@@ -1492,14 +1492,14 @@ class MetalRegionLowererTest {
         assertEquals("", gemmReason);
         assertEquals("", maxPoolReason);
         assertEquals("", avgPoolReason);
-        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
-        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
+        MetalBackendPartitionCapability adapter = new MetalBackendPartitionCapability();
+        PartitionCandidate candidate = adapter.createCandidate(
                 Set.of(nodeId(convContext, Operation.OpType.CONV2D)),
                 convContext,
                 Set.of(GraphValueRef.node(nodeId(convContext, Operation.OpType.CONV2D)))
         );
         assertNotNull(candidate);
-        MetalPartitionPlan plan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, convContext);
+        MetalPartitionPlan plan = (MetalPartitionPlan) adapter.createPlan(candidate, convContext);
         assertNotNull(plan);
         assertTrue(plan.lowering().dagSpec().nodes().stream()
                 .anyMatch(node -> node.type() == AcceleratorDagNodeType.CONV2D));
@@ -1701,7 +1701,7 @@ class MetalRegionLowererTest {
                 "SUPPORTED",
                 GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, Operation.OpType.GE).reason().name()
         );
-        assertNotNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
+        assertNotNull(new MetalBackendPartitionCapability().createCandidate(
                 Set.of(compareNodeId),
                 context,
                 Set.of(GraphValueRef.node(compareNodeId))
@@ -1720,15 +1720,15 @@ class MetalRegionLowererTest {
         PartitionPlanningContext context = planningContext(reduced);
         int logicalNodeId = nodeId(context, Operation.OpType.LOGICAL_AND);
         int reduceNodeId = nodeId(context, Operation.OpType.REDUCE_ANY);
-        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
-        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
+        MetalBackendPartitionCapability adapter = new MetalBackendPartitionCapability();
+        PartitionCandidate candidate = adapter.createCandidate(
                 Set.of(logicalNodeId, reduceNodeId),
                 context,
                 Set.of(GraphValueRef.node(reduceNodeId))
         );
 
         assertNotNull(candidate);
-        MetalPartitionPlan plan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, context);
+        MetalPartitionPlan plan = (MetalPartitionPlan) adapter.createPlan(candidate, context);
         assertNotNull(plan);
         List<AcceleratorDagNodeType> types = plan.lowering().dagSpec().nodes().stream()
                 .map(backend.accelerator.dag.AcceleratorDagNode::type)
@@ -1755,13 +1755,13 @@ class MetalRegionLowererTest {
                 CompiledTensorDescriptorBuilder.build(compiledNodes),
                 consumers(compiledNodes)
         );
-        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
-        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
+        MetalBackendPartitionCapability adapter = new MetalBackendPartitionCapability();
+        PartitionCandidate candidate = adapter.createCandidate(
                 Set.of(2, 3),
                 planningContext,
                 Set.of(GraphValueRef.node(3))
         );
-        var attachedPlan = adapter.tryCreatePlan(candidate, planningContext);
+        var attachedPlan = adapter.createPlan(candidate, planningContext);
         Partition partition = new Partition(
                 "metal-partition",
                 PartitionTarget.GPU_METAL,
@@ -1827,14 +1827,14 @@ class MetalRegionLowererTest {
                 CompiledTensorDescriptorBuilder.build(compiledNodes),
                 consumers(compiledNodes)
         );
-        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
-        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
+        MetalBackendPartitionCapability adapter = new MetalBackendPartitionCapability();
+        PartitionCandidate candidate = adapter.createCandidate(
                 Set.of(2, 3, 4),
                 planningContext,
                 Set.of(GraphValueRef.node(4))
         );
         assertNotNull(candidate);
-        var attachedPlan = adapter.tryCreatePlan(candidate, planningContext);
+        var attachedPlan = adapter.createPlan(candidate, planningContext);
         assertNotNull(attachedPlan);
 
         Partition partition = new Partition(
@@ -1921,14 +1921,14 @@ class MetalRegionLowererTest {
         int reluNodeId = nodeId(planningContext, Operation.OpType.RELU);
         int expNodeId = nodeId(planningContext, Operation.OpType.EXP);
         List<Integer> selectedNodeIds = List.of(matmulNodeId, addNodeId, reluNodeId, expNodeId);
-        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
-        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
+        MetalBackendPartitionCapability adapter = new MetalBackendPartitionCapability();
+        PartitionCandidate candidate = adapter.createCandidate(
                 Set.copyOf(selectedNodeIds),
                 planningContext,
                 Set.of(GraphValueRef.node(expNodeId))
         );
         assertNotNull(candidate);
-        MetalPartitionPlan attachedPlan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, planningContext);
+        MetalPartitionPlan attachedPlan = (MetalPartitionPlan) adapter.createPlan(candidate, planningContext);
         assertNotNull(attachedPlan);
 
         Partition partition = partition(
@@ -1985,14 +1985,14 @@ class MetalRegionLowererTest {
         int addNodeId = nodeId(planningContext, Operation.OpType.ADD);
         int reluNodeId = nodeId(planningContext, Operation.OpType.RELU);
         List<Integer> selectedNodeIds = List.of(matmulNodeId, addNodeId, reluNodeId);
-        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
-        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
+        MetalBackendPartitionCapability adapter = new MetalBackendPartitionCapability();
+        PartitionCandidate candidate = adapter.createCandidate(
                 Set.copyOf(selectedNodeIds),
                 planningContext,
                 Set.of(GraphValueRef.node(reluNodeId))
         );
         assertNotNull(candidate);
-        MetalPartitionPlan plan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, planningContext);
+        MetalPartitionPlan plan = (MetalPartitionPlan) adapter.createPlan(candidate, planningContext);
         assertNotNull(plan);
         var epilogue = plan.manifest().fusedSubpatterns().stream()
                 .filter(candidateSubpattern -> candidateSubpattern.patternType() == GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION)
@@ -2037,7 +2037,7 @@ class MetalRegionLowererTest {
         TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
-        assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
+        assertNull(new MetalBackendPartitionCapability().createCandidate(
                 operationNodeIds(context),
                 context,
                 Set.of(GraphValueRef.node(nodeId(context, Operation.OpType.RELU)))
@@ -2054,15 +2054,15 @@ class MetalRegionLowererTest {
         TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
-        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
-        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
+        MetalBackendPartitionCapability adapter = new MetalBackendPartitionCapability();
+        PartitionCandidate candidate = adapter.createCandidate(
                 operationNodeIds(context),
                 context,
                 Set.of(GraphValueRef.node(nodeId(context, Operation.OpType.RELU)))
         );
 
         assertNotNull(candidate);
-        MetalPartitionPlan plan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, context);
+        MetalPartitionPlan plan = (MetalPartitionPlan) adapter.createPlan(candidate, context);
         assertNotNull(plan);
         assertTrue(plan.lowering().dagSpec().externalInputs().stream().allMatch(input -> input.dataType() == DataType.BFLOAT16));
         assertTrue(plan.lowering().dagSpec().nodes().stream().allMatch(node -> node.outputDataType() == DataType.BFLOAT16));
@@ -2075,7 +2075,7 @@ class MetalRegionLowererTest {
         TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
-        assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
+        assertNull(new MetalBackendPartitionCapability().createCandidate(
                 operationNodeIds(context),
                 context,
                 Set.of(GraphValueRef.node(nodeId(context, Operation.OpType.CONTIGUOUS)))
@@ -2091,15 +2091,15 @@ class MetalRegionLowererTest {
         TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
-        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
-        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
+        MetalBackendPartitionCapability adapter = new MetalBackendPartitionCapability();
+        PartitionCandidate candidate = adapter.createCandidate(
                 operationNodeIds(context),
                 context,
                 Set.of(GraphValueRef.node(nodeId(context, Operation.OpType.WHERE)))
         );
 
         assertNotNull(candidate);
-        assertNotNull(adapter.tryCreatePlan(candidate, context));
+        assertNotNull(adapter.createPlan(candidate, context));
     }
 
     @Test
@@ -2111,7 +2111,7 @@ class MetalRegionLowererTest {
         TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
 
         PartitionPlanningContext context = planningContext(out);
-        assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
+        assertNull(new MetalBackendPartitionCapability().createCandidate(
                 operationNodeIds(context),
                 context,
                 Set.of(GraphValueRef.node(nodeId(context, Operation.OpType.WHERE)))
@@ -2138,7 +2138,7 @@ class MetalRegionLowererTest {
                 .filter(node -> node.operation() != null)
                 .map(CompiledNode::id)
                 .toList();
-        PartitionCandidate candidate = new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
+        PartitionCandidate candidate = new MetalBackendPartitionCapability().createCandidate(
                 Set.copyOf(selectedNodeIds),
                 context,
                 Set.of(GraphValueRef.node(sdpaNodeId))
@@ -2147,7 +2147,7 @@ class MetalRegionLowererTest {
         assertNotNull(candidate);
         CompiledNode sdpaNode = context.compiledNode(sdpaNodeId);
         assertTrue(candidate.outputNodeIds().containsAll(sdpaNode.inputIds()));
-        MetalPartitionPlan plan = (MetalPartitionPlan) new MetalRegionLegalityAdapter().tryCreatePlan(candidate, context);
+        MetalPartitionPlan plan = (MetalPartitionPlan) new MetalBackendPartitionCapability().createPlan(candidate, context);
         assertNotNull(plan);
         assertTrue(plan.producedOutputNodeIds().containsAll(sdpaNode.inputIds()));
         assertTrue(plan.lowering().dagSpec().outputNodeIds().containsAll(sdpaNode.inputIds()));
@@ -2164,7 +2164,7 @@ class MetalRegionLowererTest {
         PartitionPlanningContext context = planningContext(out);
         int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
         assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(sdpaNodeId), context));
-        assertNotNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
+        assertNotNull(new MetalBackendPartitionCapability().createCandidate(
                 Set.of(sdpaNodeId),
                 context,
                 Set.of(GraphValueRef.node(sdpaNodeId))
@@ -2212,7 +2212,7 @@ class MetalRegionLowererTest {
                 "",
                 MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(sdpaNodeId), context)
         );
-        PartitionCandidate candidate = new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
+        PartitionCandidate candidate = new MetalBackendPartitionCapability().createCandidate(
                 Set.of(sdpaNodeId),
                 context,
                 Set.of(GraphValueRef.node(sdpaNodeId))
@@ -2249,7 +2249,7 @@ class MetalRegionLowererTest {
                 "",
                 MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(sdpaNodeId), context)
         );
-        PartitionCandidate candidate = new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
+        PartitionCandidate candidate = new MetalBackendPartitionCapability().createCandidate(
                 Set.of(sdpaNodeId),
                 context,
                 Set.of(GraphValueRef.node(sdpaNodeId))
@@ -2337,7 +2337,7 @@ class MetalRegionLowererTest {
                 backend.metal.MetalMpsCapabilities.unsupportedDTypeMessage(DataType.FLOAT64),
                 MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(sdpaNodeId), context)
         );
-        assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
+        assertNull(new MetalBackendPartitionCapability().createCandidate(
                 Set.of(sdpaNodeId),
                 context,
                 Set.of(GraphValueRef.node(sdpaNodeId))
@@ -2427,14 +2427,14 @@ class MetalRegionLowererTest {
     private static MetalPartitionPlan planFor(Tensor out, Operation.OpType opType) {
         PartitionPlanningContext context = planningContext(out);
         int nodeId = nodeId(context, opType);
-        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
-        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
+        MetalBackendPartitionCapability adapter = new MetalBackendPartitionCapability();
+        PartitionCandidate candidate = adapter.createCandidate(
                 Set.of(nodeId),
                 context,
                 Set.of(GraphValueRef.node(nodeId))
         );
         assertNotNull(candidate);
-        MetalPartitionPlan plan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, context);
+        MetalPartitionPlan plan = (MetalPartitionPlan) adapter.createPlan(candidate, context);
         assertNotNull(plan);
         return plan;
     }

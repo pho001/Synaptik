@@ -1,7 +1,5 @@
 package graph;
 
-import tensor.TensorInternalAccess;
-
 import backend.runtime.ExecutionMode;
 import backend.prepare.PreparedExecutionBuilder;
 import config.compile.CompileConfig;
@@ -14,8 +12,8 @@ import graph.execution.trace.RunTrace;
 import graph.optimizer.GraphOptimizer;
 import tensor.CompileMode;
 import tensor.Tensor;
-import training.optimizer.TrainingOptimizer;
 
+import java.util.IdentityHashMap;
 import java.util.List;
 
 /**
@@ -36,12 +34,11 @@ import java.util.List;
  * and backend workspaces. Instances are not intended to be used concurrently for recompilation or execution against the
  * same user-visible tensors.
  */
-public class CompiledGraph {
+public final class CompiledGraph {
     private final Tensor rootTensor;
     private final CompileMode compileMode;
-    private final GraphCompiler compiler;
-    private CompileTrace compileTrace = CompileTrace.skipped();
-    private CompileArtifacts artifacts;
+    private final CompileTrace compileTrace;
+    private final CompileArtifacts artifacts;
 
     private CompiledGraph(
             Tensor rootTensor,
@@ -52,26 +49,16 @@ public class CompiledGraph {
     ) {
         this.rootTensor = rootTensor;
         this.compileMode = compileMode == null ? CompileMode.AUTO : compileMode;
-        this.compiler = new GraphCompiler(
+        GraphCompiler compiler = new GraphCompiler(
                 rootTensor,
                 forwardCanonicalizer,
                 forwardOptimizer,
                 compileConfig,
                 this.compileMode
         );
-        compile();
-    }
-
-    /**
-     * Compiles {@code rootTensor} using a compile configuration and automatic compile mode.
-     *
-     * @param rootTensor output tensor that anchors the graph to compile
-     * @param compileConfig compile-time semantic, graph, backend, region, and memory planning configuration
-     * @return compiled graph facade ready for preparation or direct execution
-     * @throws IllegalArgumentException if either argument is {@code null}
-     */
-    public static CompiledGraph compile(Tensor rootTensor, CompileConfig compileConfig) {
-        return compile(rootTensor, compileConfig, CompileMode.AUTO);
+        GraphCompiler.Result result = compiler.compile();
+        this.artifacts = result.artifacts();
+        this.compileTrace = result.trace();
     }
 
     /**
@@ -100,6 +87,18 @@ public class CompiledGraph {
                 compileConfig,
                 compileMode
         );
+    }
+
+    /**
+     * Compiles {@code rootTensor} using a compile configuration and automatic compile mode.
+     *
+     * @param rootTensor output tensor that anchors the graph to compile
+     * @param compileConfig compile-time semantic, graph, backend, region, and memory planning configuration
+     * @return compiled graph facade ready for preparation or direct execution
+     * @throws IllegalArgumentException if either argument is {@code null}
+     */
+    public static CompiledGraph compile(Tensor rootTensor, CompileConfig compileConfig) {
+        return compile(rootTensor, compileConfig, CompileMode.AUTO);
     }
 
     /**
@@ -137,24 +136,12 @@ public class CompiledGraph {
     }
 
     /**
-     * Rebuilds compile artifacts from the current tensor graph state.
-     *
-     * <p>Recompilation refreshes snapshots, optimizer state, partition plans, memory plans, and compile trace metadata.
-     * It does not execute kernels or clear existing publication tensor gradients.
-     */
-    public void compile() {
-        GraphCompiler.Result result = compiler.compile();
-        artifacts = result.artifacts();
-        compileTrace = result.trace();
-    }
-
-    /**
      * Returns whether the compiled artifacts include backward execution steps.
      *
      * @return {@code true} when {@link ExecutionMode#FORWARD_BACKWARD} can be run
      */
     public boolean supportsBackward() {
-        return compileArtifacts().supportsBackward();
+        return compileArtifacts().program().supportsBackward();
     }
 
     /**
@@ -343,7 +330,10 @@ public class CompiledGraph {
      * @param mode execution mode to run
      */
     public void executePrepared(PreparedExecution execution, ExecutionMode mode) {
-        execution.requireCompatibleGraph(rootTensor, compileArtifacts().graphContract());
+        execution.requireCompatibleGraph(
+                compileArtifacts().publication().rootTensor(),
+                compileArtifacts().publication().graphContract()
+        );
         execution.execute(mode);
     }
 
@@ -355,98 +345,13 @@ public class CompiledGraph {
      * @param publicationPolicy values to publish back to user-visible tensors after execution
      */
     public void executePrepared(PreparedExecution execution, ExecutionMode mode, PublicationPolicy publicationPolicy) {
-        execution.requireCompatibleGraph(rootTensor, compileArtifacts().graphContract());
+        execution.requireCompatibleGraph(
+                compileArtifacts().publication().rootTensor(),
+                compileArtifacts().publication().graphContract()
+        );
         execution.execute(mode, publicationPolicy);
     }
 
-    /**
-     * Executes forward/backward and applies an optimizer to trainable parameters without eager public gradient
-     * publication.
-     *
-     * @param runtimeConfig runtime settings, or {@code null} for defaults
-     * @param optimizer optimizer to apply
-     */
-    public void executeOptimizerStep(config.runtime.RuntimeConfig runtimeConfig, TrainingOptimizer optimizer) {
-        try (PreparedExecution execution = prepare(runtimeConfig)) {
-            execution.executeOptimizerStep(optimizer);
-        }
-    }
-
-    /**
-     * Executes forward/backward, applies an optimizer, and publishes values according to policy.
-     *
-     * @param runtimeConfig runtime settings, or {@code null} for defaults
-     * @param optimizer optimizer to apply
-     * @param publicationPolicy values to publish back to user-visible tensors after execution
-     */
-    public void executeOptimizerStep(
-            config.runtime.RuntimeConfig runtimeConfig,
-            TrainingOptimizer optimizer,
-            PublicationPolicy publicationPolicy
-    ) {
-        try (PreparedExecution execution = prepare(runtimeConfig)) {
-            execution.executeOptimizerStep(optimizer, publicationPolicy);
-        }
-    }
-
-    /**
-     * Executes a traced forward/backward optimizer step.
-     *
-     * @param runtimeConfig runtime settings, or {@code null} for defaults
-     * @param optimizer optimizer to apply
-     * @return run trace
-     */
-    public RunTrace executeOptimizerStepTraced(config.runtime.RuntimeConfig runtimeConfig, TrainingOptimizer optimizer) {
-        try (PreparedExecution execution = prepare(runtimeConfig)) {
-            return execution.executeOptimizerStepTraced(optimizer);
-        }
-    }
-
-    /**
-     * Executes a traced forward/backward optimizer step with an explicit publication policy.
-     *
-     * @param runtimeConfig runtime settings, or {@code null} for defaults
-     * @param optimizer optimizer to apply
-     * @param publicationPolicy values to publish back to user-visible tensors after execution
-     * @return run trace
-     */
-    public RunTrace executeOptimizerStepTraced(
-            config.runtime.RuntimeConfig runtimeConfig,
-            TrainingOptimizer optimizer,
-            PublicationPolicy publicationPolicy
-    ) {
-        try (PreparedExecution execution = prepare(runtimeConfig)) {
-            return execution.executeOptimizerStepTraced(optimizer, publicationPolicy);
-        }
-    }
-
-    /**
-     * Clears gradient buffers for the publication tensors represented by forward compiled nodes.
-     *
-     * <p>This method mutates existing gradient tensors in place and skips backward-only compiled nodes. It does not
-     * allocate missing gradient buffers.
-     */
-    public void zeroGrad() {
-        for (CompiledNode node : compileArtifacts().compiledNodes()) {
-            if (node.backwardNode()) {
-                continue;
-            }
-            Tensor gradient = node.publicationTensor().getGradient();
-            if (gradient == null) {
-                continue;
-            }
-            GradientDTypePolicy.requireGradientSupported(gradient.getDataType(), "zeroGrad");
-            switch (gradient.getDataType()) {
-                case FLOAT64 -> java.util.Arrays.fill(TensorInternalAccess.float64Data(gradient), 0.0d);
-                case FLOAT32 -> java.util.Arrays.fill(TensorInternalAccess.float32Data(gradient), 0.0f);
-                case BFLOAT16 -> java.util.Arrays.fill(TensorInternalAccess.bfloat16Data(gradient), (short) 0);
-                case INT32, INT64, BOOL -> throw GradientDTypePolicy.unsupportedGradientDType(
-                        gradient.getDataType(),
-                        "zeroGrad"
-                );
-            }
-        }
-    }
 
     /**
      * Returns publication tensors marked as trainable parameters in the compiled forward graph.
@@ -454,11 +359,10 @@ public class CompiledGraph {
      * @return immutable trainable parameter list
      */
     public List<Tensor> trainableParameters() {
-        return compileArtifacts().compiledNodes().stream()
-                .filter(node -> !node.backwardNode())
-                .filter(CompiledNode::trainableParameter)
-                .map(CompiledNode::publicationTensor)
-                .distinct()
+        IdentityHashMap<Tensor, Boolean> seen = new IdentityHashMap<>();
+        return compileArtifacts().publication().trainableParameters().stream()
+                .map(graph.compile.publication.PublicationPlan.TrainableParameterBinding::parameterTensor)
+                .filter(tensor -> seen.put(tensor, Boolean.TRUE) == null)
                 .toList();
     }
 
@@ -472,12 +376,12 @@ public class CompiledGraph {
     }
 
     /**
-     * Returns the optimized graph tensors in execution order.
+     * Returns the compiled program nodes in execution order.
      *
-     * @return immutable final graph view from the latest compile artifacts
+     * @return immutable compiled node snapshots from the latest compile artifacts
      */
-    public List<Tensor> getCompiledGraphAsList() {
-        return compileArtifacts().finalGraph();
+    public List<CompiledNode> compiledNodes() {
+        return compileArtifacts().program().compiledNodes();
     }
 
     /**
@@ -496,9 +400,6 @@ public class CompiledGraph {
      * @throws IllegalStateException if this facade has not compiled successfully
      */
     public CompileArtifacts compileArtifacts() {
-        if (artifacts == null) {
-            throw new IllegalStateException("CompiledGraph has not been compiled.");
-        }
         return artifacts;
     }
 

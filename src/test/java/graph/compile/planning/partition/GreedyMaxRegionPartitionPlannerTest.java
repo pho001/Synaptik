@@ -142,14 +142,15 @@ class GreedyMaxRegionPartitionPlannerTest {
         );
         var instance = StandardWorkloads.reductionChain("metal_reduction_producer_closure_bf16", 64, 1024)
                 .instantiate(new WorkloadEnvironment(profile));
-        CompileArtifacts artifacts = CompiledGraph.compile(instance.root(), profile.compile()).compileArtifacts();
+        CompiledGraph compiled = CompiledGraph.compile(instance.root(), profile.compile());
+        CompileArtifacts artifacts = compiled.compileArtifacts();
 
         List<Partition> gpuPartitions = artifacts.partitions().stream()
                 .filter(partition -> partition.target().backend() == ComputeBackend.GPU_METAL)
                 .toList();
 
         assertEquals(1, gpuPartitions.size(), () -> "Expected one Metal region, nodes=" + describeNodes(artifacts.compiledNodes())
-                + " trace=" + artifacts.partitionPlanningTrace().decisions());
+                + " trace=" + compiled.compileTrace().partitionPlanning().decisions());
         Partition partition = gpuPartitions.getFirst();
         List<Operation.OpType> regionOps = opTypes(partition, artifacts.compiledNodes());
         assertTrue(regionOps.contains(Operation.OpType.EXPAND));

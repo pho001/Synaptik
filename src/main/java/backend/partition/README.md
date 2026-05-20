@@ -2,14 +2,14 @@
 
 `backend.partition` is a descriptor composition layer.
 
-It connects partition targets to backend-owned legality adapters and lowerers.
+It connects partition targets to backend-owned partition capabilities and lowerers.
 It should stay small and declarative.
 
 Allowed responsibilities:
 
 - backend partition descriptor records
 - descriptor registry composition
-- target-to-adapter wiring
+- target-to-capability wiring
 
 Not allowed:
 

@@ -9,7 +9,9 @@ import backend.lowering.LoweringContext;
 import backend.lowering.LoweringPipeline;
 import backend.partition.BackendPartitionDescriptorRegistry;
 import graph.CompiledNode;
+import graph.CompiledProgram;
 import graph.compile.CompileArtifacts;
+import graph.compile.publication.PublicationPlan;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedNodeExecution;
@@ -31,15 +33,17 @@ public final class PreparedExecutionBuilder {
     public static PreparedExecution prepare(CompileArtifacts artifacts, config.runtime.RuntimeConfig runtimeConfig) {
         Objects.requireNonNull(artifacts, "artifacts cannot be null");
         Objects.requireNonNull(runtimeConfig, "runtimeConfig cannot be null");
-        artifacts.graphContract().validateOrThrow(artifacts.rootTensor());
+        CompiledProgram program = artifacts.program();
+        PublicationPlan publication = artifacts.publication();
+        publication.graphContract().validateOrThrow(publication.rootTensor());
         long t0 = System.nanoTime();
-        List<CompiledNode> compiledNodes = artifacts.compiledNodes();
+        List<CompiledNode> compiledNodes = program.compiledNodes();
         Map<Integer, List<CompiledNode>> consumers = buildConsumerMap(compiledNodes);
         BackendPrepareContext context = new BackendPrepareContext(
                 runtimeConfig,
-                artifacts.supportsBackward(),
+                program.supportsBackward(),
                 compiledNodes,
-                artifacts.descriptorIndex(),
+                program.descriptorIndex(),
                 consumers
         );
         BackendSelectionResult selection = new DefaultBackendSelectionPolicy().select(
@@ -65,7 +69,7 @@ public final class PreparedExecutionBuilder {
             }
             PreparedNodeExecution step = new PreparedNodeExecution(node, metadata);
             executionSteps.add(step);
-            if (node.id() <= artifacts.forwardBoundaryNodeId()) {
+            if (node.id() <= program.forwardBoundaryNodeId()) {
                 forwardSteps.add(step);
             } else {
                 backwardSteps.add(step);
@@ -73,18 +77,15 @@ public final class PreparedExecutionBuilder {
         }
         return new PreparedExecution(
                 runtimeConfig,
-                artifacts.supportsBackward(),
+                program.supportsBackward(),
                 executionSteps,
                 forwardSteps,
                 backwardSteps,
                 compiledNodes,
-                artifacts.descriptorIndex(),
-                artifacts.gradientBindings(),
-                artifacts.rootTensor(),
-                artifacts.graphContract(),
-                artifacts.forwardOutputNode(),
-                artifacts.forwardSeedGradient(),
-                loweringInput == null ? artifacts.memoryPlan() : loweringInput.memoryPlan(),
+                program.descriptorIndex(),
+                publication,
+                program.forwardOutputNode(),
+                loweringInput == null ? program.memoryPlan() : loweringInput.memoryPlan(),
                 new PrepareTrace(
                         true,
                         System.nanoTime() - t0,

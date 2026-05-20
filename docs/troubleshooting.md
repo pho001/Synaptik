@@ -462,13 +462,11 @@ Fix path:
 
 If a new operation has parameters, update `CommonSubexpressionEliminationRule.parameterKey(...)`; otherwise CSE may treat parameterized nodes incorrectly.
 
-For memory-related optimizer failures, disable memory reuse to isolate:
+For memory-related compile failures, isolate memory planning by running the focused memory tests. Memory planning is controlled through `CompileConfig.memoryPlanning()` and `MemoryPlanningConfig`; it is not toggled by a JVM system property.
 
 ```bash
-./gradlew test --no-daemon --tests MemoryPlannerSummaryTest -Dcg.optimizer.enableMemoryReuse=false
+./gradlew test --no-daemon --tests MemoryPlannerSummaryTest --tests graph.compile.planning.memory.MemoryPlannerRegionViewTest
 ```
-
-Memory planning is controlled through `CompileConfig.memoryPlanning()`.
 
 ## Gradients Missing Or Wrong
 

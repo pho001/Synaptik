@@ -23,13 +23,13 @@ public class AlgebraicRewritingPowTest {
         compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{0.5, 0.25}, powNeg1.toDoubleArrayCopy(), 1e-9);
-        assertTrue(compiledGraph.getCompiledGraphAsList().stream()
-                .map(Tensor::getOperation)
+        assertTrue(compiledGraph.compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.INV));
-        assertTrue(compiledGraph.getCompiledGraphAsList().stream()
-                .map(Tensor::getOperation)
+        assertTrue(compiledGraph.compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .noneMatch(opType -> opType == Operation.OpType.POW));

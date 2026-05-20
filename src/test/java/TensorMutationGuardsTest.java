@@ -1,6 +1,7 @@
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
+import graph.CompiledNode;
 import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
 import org.junit.jupiter.api.Test;
@@ -35,9 +36,9 @@ public class TensorMutationGuardsTest {
         Tensor out = a.add(b);
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
 
-        List<Tensor> nodes = compiled.getCompiledGraphAsList();
+        List<CompiledNode> nodes = compiled.compiledNodes();
 
-        assertThrows(UnsupportedOperationException.class, () -> nodes.add(out));
+        assertThrows(UnsupportedOperationException.class, () -> nodes.add(nodes.getFirst()));
     }
 
     @Test
@@ -56,6 +57,21 @@ public class TensorMutationGuardsTest {
     }
 
     @Test
+    void preparedExecutionRejectsMutatedStorageOwnerAfterPrepare() {
+        Tensor a = new Tensor(new double[]{2.0, 3.0}, new int[]{2}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{5.0, 7.0}, new int[]{2}, null, "b", DataType.FLOAT64);
+        Tensor out = a.add(b);
+
+        PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        Tensor replacement = new Tensor(new double[]{11.0, 13.0}, new int[]{2}, null, "replacement", DataType.FLOAT64);
+        TensorInternalAccess.aliasRuntimeFrom(out, replacement);
+
+        assertThrows(IllegalStateException.class, () -> execution.execute(ExecutionMode.FORWARD));
+    }
+
+    @Test
     void preparedExecutionUsesCompiledSnapshotForForwardOutputBinding() {
         Tensor a = new Tensor(new double[]{2.0, 3.0}, new int[]{2}, null, "a", DataType.FLOAT64);
         Tensor b = new Tensor(new double[]{5.0, 7.0}, new int[]{2}, null, "b", DataType.FLOAT64);
@@ -64,13 +80,12 @@ public class TensorMutationGuardsTest {
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
 
-        Tensor forwardOutput = compiled.getCompiledGraphAsList().stream()
-                .filter(t -> Tensor.SYSTEM_FORWARD_OUTPUT_LABEL.equals(t.getLabel()))
+        CompiledNode forwardOutput = compiled.compiledNodes().stream()
+                .filter(t -> Tensor.SYSTEM_FORWARD_OUTPUT_LABEL.equals(t.label()))
                 .findFirst()
                 .orElseThrow();
-        TensorInternalAccess.setPrevTensors(forwardOutput, List.of(a));
 
-        execution.execute(ExecutionMode.FORWARD);
+        assertDoesNotThrow(() -> execution.execute(ExecutionMode.FORWARD));
         assertArrayEquals(new double[]{7.0, 10.0}, out.toDoubleArrayCopy(), 1e-9);
     }
 

@@ -48,7 +48,7 @@ abstract class AbstractTrainableOptimizer implements TrainingOptimizer {
         Objects.requireNonNull(context, "context cannot be null");
         ExecutionContext execution = context.executionContext();
         for (TrainableParameterRef ref : selectedParameters(context)) {
-            OwnedMetalBinding owned = metalParameters.get(ref.parameterNode().publicationTensor());
+            OwnedMetalBinding owned = metalParameters.get(ref.parameterTensor());
             if (owned == null || !owned.binding().available()) {
                 continue;
             }
@@ -80,7 +80,7 @@ abstract class AbstractTrainableOptimizer implements TrainingOptimizer {
                 continue;
             }
             if (nativeCpuStep(context, ref, gradientNodeId)) {
-                clearMetalParameter(ref.parameterNode().publicationTensor());
+                clearMetalParameter(ref.parameterTensor());
                 recordOptimizerTrace(context, ref, gradientNodeId, "CPU_NATIVE", "", before);
                 continue;
             }
@@ -90,7 +90,7 @@ abstract class AbstractTrainableOptimizer implements TrainingOptimizer {
             }
             cpuStep(context, ref, gradientNodeId);
             recordOptimizerTrace(context, ref, gradientNodeId, "CPU_ARRAY", fallbackReason, before);
-            clearMetalParameter(ref.parameterNode().publicationTensor());
+            clearMetalParameter(ref.parameterTensor());
         }
     }
 
@@ -248,7 +248,7 @@ abstract class AbstractTrainableOptimizer implements TrainingOptimizer {
 
     protected List<TrainableParameterRef> selectedParameters(OptimizerStepContext context) {
         return context.trainableParameters().stream()
-                .filter(ref -> explicitParameters.isEmpty() || explicitParameters.containsKey(ref.parameterNode().publicationTensor()))
+                .filter(ref -> explicitParameters.isEmpty() || explicitParameters.containsKey(ref.parameterTensor()))
                 .toList();
     }
 
@@ -285,7 +285,7 @@ abstract class AbstractTrainableOptimizer implements TrainingOptimizer {
         } catch (RuntimeException ex) {
             return false;
         }
-        replaceMetalParameter(ref.parameterNode(), allocator, output, execution);
+        replaceMetalParameter(ref, allocator, output, execution);
         return true;
     }
 
@@ -295,12 +295,13 @@ abstract class AbstractTrainableOptimizer implements TrainingOptimizer {
     }
 
     private void replaceMetalParameter(
-            CompiledNode parameterNode,
+            TrainableParameterRef ref,
             MetalBufferAllocator allocator,
             MetalBufferBinding output,
             ExecutionContext execution
     ) {
-        Tensor source = parameterNode.publicationTensor();
+        CompiledNode parameterNode = ref.parameterNode();
+        Tensor source = ref.parameterTensor();
         OwnedMetalBinding previous = metalParameters.put(source, new OwnedMetalBinding(allocator, output));
         if (previous != null && previous.binding().handle().nativeHandle() != output.handle().nativeHandle()) {
             previous.allocator().destroy(previous.binding().handle());

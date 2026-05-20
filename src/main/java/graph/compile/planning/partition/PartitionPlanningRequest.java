@@ -3,7 +3,6 @@ package graph.compile.planning.partition;
 import graph.compile.planning.value.GraphValueRef;
 
 import config.optimizer.CpuRegionConfig;
-import config.optimizer.MetalTransferModel;
 import graph.CompiledNode;
 import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
 
@@ -18,30 +17,30 @@ import java.util.Set;
  * @param target backend target to plan for
  * @param context compiled graph context
  * @param policy scoring and search policy
- * @param adapter backend legality and lowering adapter
+ * @param capability backend partition capability
  * @param sourcePolicy backend-intent eligibility for candidate source nodes
  * @param requiredMaterializedValueRefs values that must remain materialized across region boundaries
  * @param cpuRegionConfig CPU region policy when {@link #strategy()} is
  *                        {@link PartitionPlannerStrategy#CPU_NATURAL_EXECUTION_REGION}
- * @param metalTransferModel transfer-cost model for scored Metal planning
+ * @param costPreset static materialization cost preset for scored planning
  */
 public record PartitionPlanningRequest(
         PartitionPlannerStrategy strategy,
         PartitionTarget target,
         PartitionPlanningContext context,
         AcceleratorPartitionScoreModel.PlannerPolicy policy,
-        RegionLegalityAdapter adapter,
+        BackendPartitionCapability capability,
         PartitionSourcePolicy sourcePolicy,
         Set<GraphValueRef> requiredMaterializedValueRefs,
         CpuRegionConfig cpuRegionConfig,
-        MetalTransferModel metalTransferModel
+        AcceleratorPartitionScoreModel.StaticCostPreset costPreset
 ) {
     public PartitionPlanningRequest(
             PartitionPlannerStrategy strategy,
             PartitionTarget target,
             PartitionPlanningContext context,
             AcceleratorPartitionScoreModel.PlannerPolicy policy,
-            RegionLegalityAdapter adapter,
+            BackendPartitionCapability capability,
             Set<GraphValueRef> requiredMaterializedValueRefs
     ) {
         this(
@@ -49,11 +48,11 @@ public record PartitionPlanningRequest(
                 target,
                 context,
                 policy,
-                adapter,
+                capability,
                 PartitionSourcePolicy.TARGET_BACKEND_ONLY,
                 requiredMaterializedValueRefs,
                 CpuRegionConfig.defaults(),
-                MetalTransferModel.CONSERVATIVE
+                AcceleratorPartitionScoreModel.StaticCostPreset.conservative()
         );
     }
 
@@ -62,7 +61,7 @@ public record PartitionPlanningRequest(
             PartitionTarget target,
             PartitionPlanningContext context,
             AcceleratorPartitionScoreModel.PlannerPolicy policy,
-            RegionLegalityAdapter adapter,
+            BackendPartitionCapability capability,
             PartitionSourcePolicy sourcePolicy,
             Set<GraphValueRef> requiredMaterializedValueRefs,
             CpuRegionConfig cpuRegionConfig
@@ -72,11 +71,11 @@ public record PartitionPlanningRequest(
                 target,
                 context,
                 policy,
-                adapter,
+                capability,
                 sourcePolicy,
                 requiredMaterializedValueRefs,
                 cpuRegionConfig,
-                MetalTransferModel.CONSERVATIVE
+                AcceleratorPartitionScoreModel.StaticCostPreset.conservative()
         );
     }
 
@@ -85,7 +84,7 @@ public record PartitionPlanningRequest(
             PartitionTarget target,
             PartitionPlanningContext context,
             AcceleratorPartitionScoreModel.PlannerPolicy policy,
-            RegionLegalityAdapter adapter,
+            BackendPartitionCapability capability,
             Set<GraphValueRef> requiredMaterializedValueRefs,
             CpuRegionConfig cpuRegionConfig
     ) {
@@ -94,11 +93,11 @@ public record PartitionPlanningRequest(
                 target,
                 context,
                 policy,
-                adapter,
+                capability,
                 PartitionSourcePolicy.TARGET_BACKEND_ONLY,
                 requiredMaterializedValueRefs,
                 cpuRegionConfig,
-                MetalTransferModel.CONSERVATIVE
+                AcceleratorPartitionScoreModel.StaticCostPreset.conservative()
         );
     }
 
@@ -107,11 +106,11 @@ public record PartitionPlanningRequest(
         target = target == null ? PartitionTarget.NONE : target;
         context = Objects.requireNonNull(context, "context cannot be null");
         policy = policy == null ? AcceleratorPartitionScoreModel.PlannerPolicy.defaults() : policy;
-        adapter = Objects.requireNonNull(adapter, "adapter cannot be null");
+        capability = Objects.requireNonNull(capability, "capability cannot be null");
         sourcePolicy = sourcePolicy == null ? PartitionSourcePolicy.TARGET_BACKEND_ONLY : sourcePolicy;
         requiredMaterializedValueRefs = Set.copyOf(requiredMaterializedValueRefs == null ? Set.of() : new LinkedHashSet<>(requiredMaterializedValueRefs));
         cpuRegionConfig = cpuRegionConfig == null ? CpuRegionConfig.defaults() : cpuRegionConfig;
-        metalTransferModel = metalTransferModel == null ? MetalTransferModel.CONSERVATIVE : metalTransferModel;
+        costPreset = costPreset == null ? AcceleratorPartitionScoreModel.StaticCostPreset.conservative() : costPreset;
     }
 
     /**

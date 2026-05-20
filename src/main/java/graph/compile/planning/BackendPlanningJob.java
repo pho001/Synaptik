@@ -1,7 +1,6 @@
 package graph.compile.planning;
 
 import config.optimizer.CpuRegionConfig;
-import config.optimizer.MetalTransferModel;
 import graph.compile.planning.partition.PartitionPlannerStrategy;
 import graph.compile.planning.partition.PartitionSourcePolicy;
 import graph.compile.planning.partition.PartitionTarget;
@@ -16,7 +15,6 @@ public record BackendPlanningJob(
         AcceleratorPartitionScoreModel.PlannerPolicy policy,
         PartitionSourcePolicy sourcePolicy,
         CpuRegionConfig cpuRegionConfig,
-        MetalTransferModel metalTransferModel,
         String reason
 ) {
     public BackendPlanningJob {
@@ -27,7 +25,6 @@ public record BackendPlanningJob(
                 : policy;
         sourcePolicy = sourcePolicy == null ? PartitionSourcePolicy.TARGET_BACKEND_ONLY : sourcePolicy;
         cpuRegionConfig = cpuRegionConfig == null ? CpuRegionConfig.defaults() : cpuRegionConfig;
-        metalTransferModel = metalTransferModel == null ? MetalTransferModel.CONSERVATIVE : metalTransferModel;
         reason = reason == null ? "" : reason;
     }
 }

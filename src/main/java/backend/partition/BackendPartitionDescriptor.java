@@ -2,12 +2,12 @@ package backend.partition;
 
 import backend.lowering.RegionLowerer;
 import graph.compile.planning.partition.PartitionTarget;
-import graph.compile.planning.partition.RegionLegalityAdapter;
+import graph.compile.planning.partition.BackendPartitionCapability;
 
 import java.util.List;
 
 /**
- * Backend registration descriptor for partition legality and lowering.
+ * Backend registration descriptor for partition capability and lowering.
  */
 public interface BackendPartitionDescriptor {
     /**
@@ -16,9 +16,9 @@ public interface BackendPartitionDescriptor {
     PartitionTarget target();
 
     /**
-     * @return legality adapter used to decide whether graph regions can run on this backend
+     * @return capability used to decide whether graph regions can run on this backend
      */
-    RegionLegalityAdapter legalityAdapter();
+    BackendPartitionCapability partitionCapability();
 
     /**
      * @return region lowerers that can translate optimized regions for this backend

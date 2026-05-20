@@ -19,10 +19,10 @@ public class CompiledGraphIdempotencyTest {
         Tensor loss = a.mul(a);
 
         CompiledGraph first = CompiledGraph.compile(loss, CompileConfig.training());
-        int firstNodeCount = first.getCompiledGraphAsList().size();
+        int firstNodeCount = first.compiledNodes().size();
 
         CompiledGraph second = CompiledGraph.compile(loss, CompileConfig.training());
-        int secondNodeCount = second.getCompiledGraphAsList().size();
+        int secondNodeCount = second.compiledNodes().size();
 
         assertEquals(firstNodeCount, secondNodeCount);
 
@@ -41,8 +41,8 @@ public class CompiledGraphIdempotencyTest {
         assertEquals(4.0d, a.getGradient().scalarAsDouble(), 1e-9);
 
         CompiledGraph second = CompiledGraph.compile(loss, CompileConfig.training());
-        int firstNodeCount = first.getCompiledGraphAsList().size();
-        int secondNodeCount = second.getCompiledGraphAsList().size();
+        int firstNodeCount = first.compiledNodes().size();
+        int secondNodeCount = second.compiledNodes().size();
 
         assertEquals(firstNodeCount, secondNodeCount);
 

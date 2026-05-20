@@ -2,12 +2,10 @@ package graph.compile.planning;
 
 import config.compile.BackendDiscoveryMode;
 import config.compile.BackendPlanningConfig;
-import config.compile.BackendPlanningCostConfig;
 import config.compile.BackendTarget;
 import config.compile.PartitionSearchConfig;
 import config.optimizer.CpuRegionConfig;
 import config.optimizer.CpuRegionPolicy;
-import config.optimizer.MetalTransferModel;
 import graph.CompiledNode;
 import graph.compile.planning.partition.PartitionPlannerStrategy;
 import graph.compile.planning.partition.PartitionSourcePolicy;
@@ -98,7 +96,6 @@ public final class BackendPlanningJobResolver {
                 acceleratorPlannerPolicy(config.search(), nodes),
                 sourcePolicy,
                 CpuRegionConfig.defaults(),
-                target == PartitionTarget.GPU_METAL ? metalTransferModel(config.cost()) : MetalTransferModel.CONSERVATIVE,
                 reason
         );
     }
@@ -110,7 +107,6 @@ public final class BackendPlanningJobResolver {
                 cpuPlannerPolicy(config.search(), config.cpuRegions()),
                 PartitionSourcePolicy.TARGET_BACKEND_ONLY,
                 config.cpuRegions(),
-                MetalTransferModel.CONSERVATIVE,
                 "cpu-natural-region"
         );
     }
@@ -151,10 +147,6 @@ public final class BackendPlanningJobResolver {
                 weights.externalInputPenalty(),
                 weights.workWeight()
         );
-    }
-
-    private static MetalTransferModel metalTransferModel(BackendPlanningCostConfig cost) {
-        return cost.planningCostProfile().metalTransferModel();
     }
 
     private static PartitionSourcePolicy sourcePolicy(BackendDiscoveryMode mode) {

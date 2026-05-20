@@ -23,8 +23,8 @@ public class MeanPrimitiveTest {
         compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{2.0, 5.0}, mean.toDoubleArrayCopy(), 1e-9);
-        assertTrue(compiledGraph.getCompiledGraphAsList().stream()
-                .map(Tensor::getOperation)
+        assertTrue(compiledGraph.compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.MEAN));
@@ -39,8 +39,8 @@ public class MeanPrimitiveTest {
         compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{3.5}, mean.toDoubleArrayCopy(), 1e-9);
-        assertTrue(compiledGraph.getCompiledGraphAsList().stream()
-                .map(Tensor::getOperation)
+        assertTrue(compiledGraph.compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.MEAN));

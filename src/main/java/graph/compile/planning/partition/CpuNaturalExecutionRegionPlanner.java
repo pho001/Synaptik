@@ -55,12 +55,12 @@ public final class CpuNaturalExecutionRegionPlanner implements PartitionPlanner 
                 }
                 break;
             }
-            PartitionCandidate candidate = request.adapter().tryCreateStructuralCandidate(
+            PartitionCandidate candidate = request.capability().createCandidate(
                     selected,
                     context,
                     request.requiredMaterializedValueRefs()
             );
-            PartitionPlan plan = candidate == null ? null : request.adapter().tryCreatePlan(candidate, context);
+            PartitionPlan plan = candidate == null ? null : request.capability().createPlan(candidate, context);
             if (candidate == null || plan == null) {
                 decisions.add(rejectedDecision(request, start, "cpu-natural-region-lowerer-rejected"));
                 index++;
@@ -95,7 +95,7 @@ public final class CpuNaturalExecutionRegionPlanner implements PartitionPlanner 
     private boolean isSupportedCpuNode(CompiledNode node, PartitionPlanningRequest request) {
         return node != null
                 && node.backend() == request.target().backend()
-                && request.adapter().isNodeSupported(node, request.context())
+                && request.capability().canExecute(node, request.context())
                 && allowedByCpuRegionPolicy(node, request);
     }
 

@@ -19,7 +19,7 @@ import java.util.Set;
  * Anchor-first accelerator planner.
  *
  * <p>Unlike node-order greedy planning, this planner starts from high-value compute anchors before cheap layout/view
- * nodes can become covered singleton regions. It then uses the same legality and lowering adapter as the other
+ * nodes can become covered singleton regions. It then uses the same backend partition capability as the other
  * planners, so accepted regions are executable by the backend-specific lowering pipeline.</p>
  */
 public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
@@ -92,7 +92,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
     private List<Integer> anchorOrder(PartitionPlanningRequest request) {
         return request.context().compiledNodes().stream()
                 .filter(node -> request.canConsiderNode(node))
-                .filter(node -> request.adapter().canSeed(node, request.context()))
+                .filter(node -> request.capability().canSeed(node, request.context()))
                 .sorted(anchorComparator(request))
                 .map(CompiledNode::id)
                 .toList();
@@ -153,7 +153,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
     private AttemptResult tryBuildPlan(int startNodeId, PartitionPlanningRequest request, boolean[] covered) {
         PartitionPlanningContext context = request.context();
         CompiledNode start = context.compiledNode(startNodeId);
-        if (!request.adapter().canSeed(start, context)) {
+        if (!request.capability().canSeed(start, context)) {
             return rejected(request, startNodeId, "unsupported-start-node", 0, false, -1);
         }
 
@@ -174,12 +174,12 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
                     List.copyOf(selected)
             );
         }
-        PartitionCandidate bestCandidate = request.adapter().tryCreateStructuralCandidate(
+        PartitionCandidate bestCandidate = request.capability().createCandidate(
                 selected,
                 context,
                 request.requiredMaterializedValueRefs()
         );
-        PartitionPlan bestPlan = bestCandidate == null ? null : request.adapter().tryCreatePlan(bestCandidate, context);
+        PartitionPlan bestPlan = bestCandidate == null ? null : request.capability().createPlan(bestCandidate, context);
         if (bestPlan == null) {
             String reason = bestCandidate == null ? "missing-structural-candidate" : "lowerer-rejected";
             return rejected(
@@ -314,7 +314,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
         if (rejection != null) {
             return null;
         }
-        PartitionCandidate candidate = request.adapter().tryCreateStructuralCandidate(
+        PartitionCandidate candidate = request.capability().createCandidate(
                 expanded,
                 request.context(),
                 request.requiredMaterializedValueRefs()
@@ -322,7 +322,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
         if (candidate == null) {
             return null;
         }
-        PartitionPlan plan = request.adapter().tryCreatePlan(candidate, request.context());
+        PartitionPlan plan = request.capability().createPlan(candidate, request.context());
         if (plan == null) {
             return null;
         }
@@ -355,7 +355,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
             if (covered[currentNodeId]) {
                 return new Rejection("covered-by-earlier-partition", currentNodeId);
             }
-            if (!request.canConsiderNode(current) || !request.adapter().isNodeSupported(current, request.context())) {
+            if (!request.canConsiderNode(current) || !request.capability().canExecute(current, request.context())) {
                 return new Rejection("unsupported-node", currentNodeId);
             }
             expanded.add(currentNodeId);
@@ -369,7 +369,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
                 if (producer == null) {
                     return new Rejection("missing-input-node", inputId);
                 }
-                boolean externalInputAllowed = request.adapter().canUseAsExternalInput(
+                boolean externalInputAllowed = request.capability().canUseExternalInput(
                         producer,
                         current,
                         expanded,
@@ -377,7 +377,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
                 );
                 boolean sameTargetSupported = request.canConsiderNode(producer)
                         && !covered[inputId]
-                        && request.adapter().isNodeSupported(producer, request.context());
+                        && request.capability().canExecute(producer, request.context());
                 boolean autoDiscoveryCpuProducer = request.sourcePolicy() == PartitionSourcePolicy.CPU_OR_TARGET_BACKEND
                         && producer.backend() != request.target().backend();
                 if (sameTargetSupported && (!externalInputAllowed || autoDiscoveryCpuProducer)) {
@@ -416,7 +416,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
                         return new Rejection("covered-by-earlier-partition", consumer.id());
                     }
                     if (!request.canConsiderNode(consumer)
-                            || !request.adapter().isNodeSupported(consumer, request.context())) {
+                            || !request.capability().canExecute(consumer, request.context())) {
                         continue;
                     }
                     Rejection rejection = absorbWithProducerClosure(consumer.id(), expanded, request, covered);
@@ -468,7 +468,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
                 || selectedNodeIds.contains(nodeId)
                 || covered[nodeId]
                 || !request.canConsiderNode(node)
-                || !request.adapter().isNodeSupported(node, request.context())) {
+                || !request.capability().canExecute(node, request.context())) {
             return;
         }
         out.add(nodeId);
@@ -511,7 +511,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
         if (crossesSelectedPhase(selected, frontierNodeId, request)) {
             return phaseBoundaryReason(selected, frontierNodeId, request.context());
         }
-        if (!request.canConsiderNode(node) || !request.adapter().isNodeSupported(node, request.context())) {
+        if (!request.canConsiderNode(node) || !request.capability().canExecute(node, request.context())) {
             return "unsupported-node";
         }
         LinkedHashSet<Integer> expanded = new LinkedHashSet<>(selected);
@@ -523,7 +523,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
         if (rejection != null) {
             return rejection.reason();
         }
-        PartitionCandidate candidate = request.adapter().tryCreateStructuralCandidate(
+        PartitionCandidate candidate = request.capability().createCandidate(
                 expanded,
                 request.context(),
                 request.requiredMaterializedValueRefs()
@@ -531,7 +531,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
         if (candidate == null) {
             return "missing-structural-candidate";
         }
-        PartitionPlan plan = request.adapter().tryCreatePlan(candidate, request.context());
+        PartitionPlan plan = request.capability().createPlan(candidate, request.context());
         if (plan == null) {
             return "lowerer-rejected";
         }

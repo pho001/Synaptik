@@ -84,7 +84,13 @@ class RuntimeMemoryBinderTest {
         Tensor peer = new Tensor(new int[]{4}, List.of(input), new TestOperation(Operation.OpType.ADD), "peer", DataType.BFLOAT16);
         Tensor root = new Tensor(new int[]{4}, List.of(alias, peer), new TestOperation(Operation.OpType.ADD), "root", DataType.BFLOAT16);
         List<CompiledNode> nodes = CompiledNode.snapshot(root.topologicalSort());
-        ExecutionState state = ExecutionState.create(nodes, CompiledTensorDescriptorBuilder.build(nodes), Map.of(), nodes.getLast().id());
+        ExecutionState state = ExecutionState.create(
+                nodes,
+                CompiledTensorDescriptorBuilder.build(nodes),
+                Map.of(),
+                nodes.getLast().id(),
+                testsupport.PublicationPlans.forRoot(root, nodes, nodes.getLast().id())
+        );
         MemoryPlan memoryPlan = memoryPlanFor(nodes, List.of("alias", "peer"), DataType.BFLOAT16);
 
         RuntimeMemoryBinder.bind(memoryPlan, nodes, CompiledTensorDescriptorBuilder.build(nodes), state);
@@ -106,7 +112,13 @@ class RuntimeMemoryBinderTest {
         Tensor peer = new Tensor(new int[]{2}, List.of(input), new TestOperation(Operation.OpType.ADD), "peer", DataType.FLOAT32);
         Tensor root = new Tensor(new int[]{2}, List.of(slice, peer), new TestOperation(Operation.OpType.ADD), "root", DataType.FLOAT32);
         List<CompiledNode> nodes = CompiledNode.snapshot(root.topologicalSort());
-        ExecutionState state = ExecutionState.create(nodes, CompiledTensorDescriptorBuilder.build(nodes), Map.of(), nodes.getLast().id());
+        ExecutionState state = ExecutionState.create(
+                nodes,
+                CompiledTensorDescriptorBuilder.build(nodes),
+                Map.of(),
+                nodes.getLast().id(),
+                testsupport.PublicationPlans.forRoot(root, nodes, nodes.getLast().id())
+        );
         MemoryPlan memoryPlan = memoryPlanFor(nodes, List.of("peer", slice.getLabel()), DataType.FLOAT32);
 
         RuntimeMemoryBinder.bind(memoryPlan, nodes, CompiledTensorDescriptorBuilder.build(nodes), state);
@@ -153,7 +165,13 @@ class RuntimeMemoryBinderTest {
         for (PreparedNodeExecution step : prepared.executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
-        ExecutionState state = ExecutionState.create(nodes, compiled.compileArtifacts().descriptorIndex(), metadata, compiled.compileArtifacts().forwardOutputNode().id());
+        ExecutionState state = ExecutionState.create(
+                nodes,
+                compiled.compileArtifacts().descriptorIndex(),
+                metadata,
+                compiled.compileArtifacts().forwardOutputNode().id(),
+                compiled.compileArtifacts().publication()
+        );
 
         CompiledNode maxPoolNode = nodes.stream()
                 .filter(node -> node.operation() != null && node.operation().opType() == Operation.OpType.MAX_POOL2D)
@@ -205,7 +223,13 @@ class RuntimeMemoryBinderTest {
         Tensor second = new Tensor(new int[]{4}, List.of(input), operation, "second", dataType);
         Tensor root = new Tensor(new int[]{4}, List.of(first, second), operation, "root", dataType);
         List<CompiledNode> nodes = CompiledNode.snapshot(root.topologicalSort());
-        ExecutionState state = ExecutionState.create(nodes, CompiledTensorDescriptorBuilder.build(nodes), Map.of(), nodes.getLast().id());
+        ExecutionState state = ExecutionState.create(
+                nodes,
+                CompiledTensorDescriptorBuilder.build(nodes),
+                Map.of(),
+                nodes.getLast().id(),
+                testsupport.PublicationPlans.forRoot(root, nodes, nodes.getLast().id())
+        );
         MemoryPlan memoryPlan = memoryPlanFor(nodes, List.of("first", "second"), dataType);
         return new RuntimeBindingFixture(nodes, state, memoryPlan);
     }

@@ -115,10 +115,10 @@ public final class GraphCompiler {
         CompileTrace trace = new CompileTrace(
                 true,
                 System.nanoTime() - t0,
-                artifacts.finalGraph().size(),
+                artifacts.compiledNodes().size(),
                 session.forwardGraphSize(),
                 artifacts.supportsBackward(),
-                artifacts.partitionPlanningTrace(),
+                session.partitionPlanningTrace(),
                 session.optimizerTrace()
         );
         return new Result(artifacts, trace);

@@ -48,8 +48,8 @@ public class AbsExecutionTest {
     }
 
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
-        return compiledGraph.getCompiledGraphAsList().stream()
-                .map(Tensor::getOperation)
+        return compiledGraph.compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(type -> type == opType);

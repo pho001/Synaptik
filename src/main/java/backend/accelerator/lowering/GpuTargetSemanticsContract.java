@@ -13,7 +13,7 @@ import java.util.stream.Collectors;
  *
  * <p>These contracts describe the semantic facts a backend implementation must preserve before
  * planner admission. They are deliberately backend-neutral; Metal/CUDA capability differences are
- * still handled by legality adapters and prepared executables.</p>
+ * still handled by backend partition capabilities and prepared executables.</p>
  */
 public record GpuTargetSemanticsContract(
         Operation.OpType opType,

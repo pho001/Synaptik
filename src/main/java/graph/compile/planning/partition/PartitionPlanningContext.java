@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Read-only graph context used by partition planners and legality adapters.
+ * Read-only graph context used by partition planners and backend partition capabilities.
  *
  * @param supportsBackward whether the compiled graph includes backward execution
  * @param compiledNodes compiled node snapshots in graph order

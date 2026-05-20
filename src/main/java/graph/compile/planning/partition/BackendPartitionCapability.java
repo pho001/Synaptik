@@ -1,5 +1,7 @@
 package graph.compile.planning.partition;
 
+import config.compile.BackendPlanningCostConfig;
+import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
 import graph.compile.planning.value.GraphValueRef;
 
 import graph.CompiledNode;
@@ -7,19 +9,29 @@ import graph.CompiledNode;
 import java.util.Set;
 
 /**
- * Backend-specific legality and lowering hook used by partition planners.
+ * Backend-specific partition capability used by partition planners.
  *
- * <p>The planner owns search strategy; the adapter owns backend facts. It decides which nodes can seed or join a
+ * <p>The planner owns search strategy; the capability owns backend facts. It decides which nodes can seed or join a
  * region, whether dependencies may remain outside the region, and whether a structurally valid candidate can be lowered
  * to an executable {@link PartitionPlan}.
  */
-public interface RegionLegalityAdapter {
+public interface BackendPartitionCapability {
     /**
-     * Returns the partition target this adapter describes.
+     * Returns the partition target this capability describes.
      *
      * @return backend target
      */
     PartitionTarget target();
+
+    /**
+     * Resolves the static materialization cost preset for this backend target.
+     *
+     * @param costConfig compile-time cost configuration
+     * @return backend-specific static cost preset, or conservative defaults
+     */
+    default AcceleratorPartitionScoreModel.StaticCostPreset costPreset(BackendPlanningCostConfig costConfig) {
+        return AcceleratorPartitionScoreModel.StaticCostPreset.conservative();
+    }
 
     /**
      * Returns whether a node can be part of a region for this backend.
@@ -28,7 +40,7 @@ public interface RegionLegalityAdapter {
      * @param context planning context
      * @return {@code true} when the backend can execute the node inside a partition
      */
-    boolean isNodeSupported(CompiledNode node, PartitionPlanningContext context);
+    boolean canExecute(CompiledNode node, PartitionPlanningContext context);
 
     /**
      * Returns whether a node can start a candidate partition.
@@ -48,7 +60,7 @@ public interface RegionLegalityAdapter {
      * @param context planning context
      * @return {@code true} if the dependency can be represented as an external input
      */
-    boolean canUseAsExternalInput(
+    boolean canUseExternalInput(
             CompiledNode producer,
             CompiledNode consumer,
             Set<Integer> selectedNodeIds,
@@ -63,7 +75,7 @@ public interface RegionLegalityAdapter {
      * @param requiredMaterializedValueRefs values that must survive the region boundary
      * @return structural candidate, or {@code null} if the selected set is not representable
      */
-    PartitionCandidate tryCreateStructuralCandidate(
+    PartitionCandidate createCandidate(
             Set<Integer> selectedNodeIds,
             PartitionPlanningContext context,
             Set<GraphValueRef> requiredMaterializedValueRefs
@@ -76,7 +88,7 @@ public interface RegionLegalityAdapter {
      * @param context planning context
      * @return backend plan, or {@code null} if lowering rejects the candidate
      */
-    PartitionPlan tryCreatePlan(
+    PartitionPlan createPlan(
             PartitionCandidate candidate,
             PartitionPlanningContext context
     );

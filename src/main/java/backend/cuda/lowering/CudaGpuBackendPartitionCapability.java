@@ -11,7 +11,7 @@ import graph.compile.planning.partition.PartitionPlan;
 import graph.compile.planning.partition.PartitionPlanningContext;
 import graph.compile.planning.partition.PartitionTarget;
 import graph.compile.planning.value.GraphValueRef;
-import graph.compile.planning.partition.RegionLegalityAdapter;
+import graph.compile.planning.partition.BackendPartitionCapability;
 import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
 import operations.Operation;
@@ -27,9 +27,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Partition legality adapter for CUDA accelerator graph regions.
+ * Partition capability for CUDA accelerator graph regions.
  */
-public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter {
+public final class CudaGpuBackendPartitionCapability implements BackendPartitionCapability {
     private final AcceleratorSubgraphLowerer lowerer = new AcceleratorSubgraphLowerer();
 
     /**
@@ -44,7 +44,7 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
      * Returns whether a compiled node can be represented in the CUDA accelerator DAG.
      */
     @Override
-    public boolean isNodeSupported(CompiledNode node, PartitionPlanningContext context) {
+    public boolean canExecute(CompiledNode node, PartitionPlanningContext context) {
         return plannerUnsupportedReason(node, context).isBlank();
     }
 
@@ -105,14 +105,14 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
      */
     @Override
     public boolean canSeed(CompiledNode node, PartitionPlanningContext context) {
-        return isNodeSupported(node, context);
+        return canExecute(node, context);
     }
 
     /**
      * Returns whether a producer outside the selected CUDA candidate may be read as an external input.
      */
     @Override
-    public boolean canUseAsExternalInput(
+    public boolean canUseExternalInput(
             CompiledNode producer,
             CompiledNode consumer,
             Set<Integer> selectedNodeIds,
@@ -127,14 +127,14 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
         if (producer.operation() == null) {
             return true;
         }
-        return !isNodeSupported(producer, context);
+        return !canExecute(producer, context);
     }
 
     /**
      * Builds a structurally valid CUDA partition candidate from selected node ids.
      */
     @Override
-    public PartitionCandidate tryCreateStructuralCandidate(
+    public PartitionCandidate createCandidate(
             Set<Integer> selectedNodeIds,
             PartitionPlanningContext context,
             Set<GraphValueRef> requiredMaterializedValueRefs
@@ -182,7 +182,7 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
      * Lowers a CUDA candidate into a concrete CUDA partition plan.
      */
     @Override
-    public PartitionPlan tryCreatePlan(PartitionCandidate candidate, PartitionPlanningContext context) {
+    public PartitionPlan createPlan(PartitionCandidate candidate, PartitionPlanningContext context) {
         if (candidate == null) {
             return null;
         }

@@ -63,7 +63,7 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
                     && !nativeBf16Experimental(context, ref)) {
                 continue;
             }
-            OwnedNativeParameter owned = nativeParameterFor(ref.parameterNode());
+            OwnedNativeParameter owned = nativeParameterFor(ref);
             context.executionContext().attachNativeStorage(
                     ref.parameterNode().id(),
                     owned.view(),
@@ -98,7 +98,7 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
         Tensor gradient = context.executionContext().runtimeTensorForNodeId(gradientNodeId);
         updateCpu(parameter, gradient, learningRate, ref.parameterNode());
         TensorInternalAccess.markStorageModified(parameter);
-        TensorInternalAccess.markStorageModified(ref.parameterNode().publicationTensor());
+        TensorInternalAccess.markStorageModified(ref.parameterTensor());
         context.executionContext().markCpuCurrent(ref.parameterNode().id(), "optimizer CPU SGD update");
     }
 
@@ -238,8 +238,8 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
                 && java.util.Arrays.equals(ref.parameterNode().shape(), gradient.getShapeUnsafe());
     }
 
-    private OwnedNativeParameter nativeParameterFor(CompiledNode node) {
-        Tensor source = node.publicationTensor();
+    private OwnedNativeParameter nativeParameterFor(TrainableParameterRef ref) {
+        Tensor source = ref.parameterTensor();
         OwnedNativeParameter owned = nativeParameters.get(source);
         if (owned == null || owned.storage().closed() || owned.storage().getSize() != source.getFlatDataSize()) {
             if (owned != null) {

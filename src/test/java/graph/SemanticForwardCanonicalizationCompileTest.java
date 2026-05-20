@@ -59,8 +59,8 @@ public class SemanticForwardCanonicalizationCompileTest {
         assertArrayEquals(directInput.getGradient().toDoubleArrayCopy(), manualInput.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(directWeight.getGradient().toDoubleArrayCopy(), manualWeight.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(directBias.getGradient().toDoubleArrayCopy(), manualBias.getGradient().toDoubleArrayCopy(), 1e-9);
-        assertFalse(compiled.getCompiledGraphAsList().stream()
-                .map(Tensor::getOperation)
+        assertFalse(compiled.compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.LINEAR));
@@ -90,8 +90,8 @@ public class SemanticForwardCanonicalizationCompileTest {
 
         assertArrayEquals(direct.toDoubleArrayCopy(), manual.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(directLogits.getGradient().toDoubleArrayCopy(), manualLogits.getGradient().toDoubleArrayCopy(), 1e-9);
-        assertFalse(compiled.getCompiledGraphAsList().stream()
-                .map(Tensor::getOperation)
+        assertFalse(compiled.compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.CROSS_ENTROPY_LOSS_INDICES));
@@ -125,8 +125,8 @@ public class SemanticForwardCanonicalizationCompileTest {
     }
 
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
-        return compiledGraph.getCompiledGraphAsList().stream()
-                .map(Tensor::getOperation)
+        return compiledGraph.compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(type -> type == opType);

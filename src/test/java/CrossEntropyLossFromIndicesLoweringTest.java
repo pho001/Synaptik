@@ -22,18 +22,18 @@ public class CrossEntropyLossFromIndicesLoweringTest {
         Tensor canonical = logits.logSoftmax(1).nllLossFromIndices(targetIndices, 1);
         CompiledGraph compiled = CompiledGraph.compile(canonical, CompileConfig.inference());
 
-        assertFalse(compiled.getCompiledGraphAsList().stream()
-                .map(Tensor::getOperation)
+        assertFalse(compiled.compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.CROSS_ENTROPY_LOSS_INDICES));
-        assertTrue(compiled.getCompiledGraphAsList().stream()
-                .map(Tensor::getOperation)
+        assertTrue(compiled.compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.GATHER));
-        assertTrue(compiled.getCompiledGraphAsList().stream()
-                .map(Tensor::getOperation)
+        assertTrue(compiled.compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.MEAN));

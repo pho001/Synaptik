@@ -28,9 +28,7 @@ public sealed interface CompiledGradientBinding permits CompiledGradientBinding.
      */
     static CompiledGradientBinding constant(Tensor template) {
         Objects.requireNonNull(template, "template cannot be null");
-        Tensor copy = new Tensor(template.getShape(), null, template.getLabel(), template.getDataType());
-        copy.copyDataFrom(template);
-        return new ConstantBinding(copy);
+        return new ConstantBinding(ConstantGradientValue.capture(template));
     }
 
     /**
@@ -49,11 +47,11 @@ public sealed interface CompiledGradientBinding permits CompiledGradientBinding.
     /**
      * Gradient binding to a constant tensor template.
      *
-     * @param template detached tensor template copied during publication
+     * @param value immutable detached tensor value copied during publication
      */
-    record ConstantBinding(Tensor template) implements CompiledGradientBinding {
+    record ConstantBinding(ConstantGradientValue value) implements CompiledGradientBinding {
         public ConstantBinding {
-            Objects.requireNonNull(template, "template cannot be null");
+            Objects.requireNonNull(value, "value cannot be null");
         }
     }
 }

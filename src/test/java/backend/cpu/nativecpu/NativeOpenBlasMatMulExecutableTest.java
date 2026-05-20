@@ -240,7 +240,8 @@ class NativeOpenBlasMatMulExecutableTest {
                 compiled.compileArtifacts().compiledNodes(),
                 compiled.compileArtifacts().descriptorIndex(),
                 metadataIndex,
-                compiled.compileArtifacts().forwardBoundaryNodeId()
+                compiled.compileArtifacts().forwardBoundaryNodeId(),
+                compiled.compileArtifacts().publication()
         );
         PreparedNodeExecution matmul = prepared.forwardSteps().stream()
                 .filter(step -> step.compiledNode().operation() != null

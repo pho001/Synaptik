@@ -1,92 +1,74 @@
 package graph.compile;
 
 import backend.lowering.LoweringInput;
-import graph.CompiledGradientBinding;
 import graph.CompiledNode;
-import graph.execution.trace.PartitionCompileTrace;
+import graph.CompiledProgram;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.planning.memory.MemoryPlan;
 import graph.compile.planning.partition.Partition;
 import graph.compile.planning.partition.PartitionPlan;
 import graph.compile.planning.partition.PlannedPartition;
 import graph.compile.planning.region.OptimizedRegion;
-import tensor.Tensor;
+import graph.compile.publication.PublicationPlan;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 /**
- * Immutable output of graph compilation.
- *
- * <p>Artifacts are the boundary between compile and prepare. They contain the optimized tensor graph, stable
- * {@link CompiledNode} snapshots, gradient publication bindings, planned backend partitions, optimized regions needed
- * by lowering, and the memory plan consumed by runtime binding. Preparation must treat this record as read-only.
- *
- * @param rootTensor user-visible root tensor that initiated compilation
- * @param graphContract user-visible graph structure captured at compilation
- * @param finalGraph optimized tensors in execution order
- * @param compiledNodes immutable node snapshots derived from {@code finalGraph}
- * @param descriptorIndex immutable tensor descriptor index derived from {@code compiledNodes}
- * @param gradientBindings mappings used to publish compiled backward outputs to publication tensor gradients
- * @param forwardSeedGradient binding used to seed the root gradient for backward execution
- * @param forwardOutputNode compiled node that represents the forward output value
- * @param memoryPlan storage reuse and region handoff plan, if memory planning ran
- * @param optimizedRegions optimized regions derived from accepted partitions
- * @param plannedPartitions accepted backend partitions with attached backend plans
- * @param supportsBackward whether the artifact bundle contains backward execution work
- * @param forwardBoundaryNodeId id of the last forward node in the compiled graph
- * @param partitionPlanningTrace partition planning diagnostics captured during compilation
+ * Thin compile-result aggregate that separates executable program data from publication bindings.
  */
 public record CompileArtifacts(
-        Tensor rootTensor,
-        GraphStructureContract graphContract,
-        List<Tensor> finalGraph,
-        List<CompiledNode> compiledNodes,
-        CompiledTensorDescriptorIndex descriptorIndex,
-        Map<Tensor, CompiledGradientBinding> gradientBindings,
-        CompiledGradientBinding forwardSeedGradient,
-        CompiledNode forwardOutputNode,
-        MemoryPlan memoryPlan,
-        List<OptimizedRegion> optimizedRegions,
-        List<PlannedPartition> plannedPartitions,
-        boolean supportsBackward,
-        int forwardBoundaryNodeId,
-        PartitionCompileTrace partitionPlanningTrace
+        CompiledProgram program,
+        PublicationPlan publication
 ) {
     public CompileArtifacts {
-        rootTensor = Objects.requireNonNull(rootTensor, "rootTensor cannot be null");
-        graphContract = graphContract == null ? GraphStructureContract.unchecked() : graphContract;
-        finalGraph = List.copyOf(finalGraph == null ? List.of() : finalGraph);
-        compiledNodes = List.copyOf(compiledNodes == null ? List.of() : compiledNodes);
-        descriptorIndex = Objects.requireNonNull(descriptorIndex, "descriptorIndex cannot be null");
-        gradientBindings = Map.copyOf(gradientBindings == null ? Map.of() : gradientBindings);
-        optimizedRegions = List.copyOf(optimizedRegions == null ? List.of() : optimizedRegions);
-        plannedPartitions = List.copyOf(plannedPartitions == null ? List.of() : plannedPartitions);
-        partitionPlanningTrace = partitionPlanningTrace == null ? PartitionCompileTrace.empty() : partitionPlanningTrace;
+        program = Objects.requireNonNull(program, "program cannot be null");
+        publication = Objects.requireNonNull(publication, "publication cannot be null");
     }
 
-    /**
-     * Returns accepted backend partitions.
-     *
-     * @return partitions derived from planned partitions
-     */
+    public List<CompiledNode> compiledNodes() {
+        return program.compiledNodes();
+    }
+
+    public CompiledTensorDescriptorIndex descriptorIndex() {
+        return program.descriptorIndex();
+    }
+
+    public boolean supportsBackward() {
+        return program.supportsBackward();
+    }
+
+    public int forwardBoundaryNodeId() {
+        return program.forwardBoundaryNodeId();
+    }
+
+    public int forwardOutputNodeId() {
+        return program.forwardOutputNodeId();
+    }
+
+    public CompiledNode forwardOutputNode() {
+        return program.forwardOutputNode();
+    }
+
+    public MemoryPlan memoryPlan() {
+        return program.memoryPlan();
+    }
+
+    public List<OptimizedRegion> optimizedRegions() {
+        return program.optimizedRegions();
+    }
+
+    public List<PlannedPartition> plannedPartitions() {
+        return program.plannedPartitions();
+    }
+
     public List<Partition> partitions() {
-        return plannedPartitions.stream()
-                .map(PlannedPartition::partition)
-                .toList();
+        return program.partitions();
     }
 
-    /**
-     * Returns non-null backend plans attached to accepted partitions.
-     *
-     * @return backend plans derived from planned partitions
-     */
     public List<PartitionPlan> backendPlans() {
-        return plannedPartitions.stream()
-                .map(PlannedPartition::plan)
-                .filter(Objects::nonNull)
-                .toList();
+        return program.backendPlans();
     }
 
     /**
@@ -99,19 +81,19 @@ public record CompileArtifacts(
         if (!requiresLoweringInput()) {
             return null;
         }
-        if (optimizedRegions.isEmpty() || memoryPlan == null) {
+        if (program.optimizedRegions().isEmpty() || program.memoryPlan() == null) {
             throw new IllegalStateException("Compile artifacts are missing lowering input.");
         }
-        return new LoweringInput(optimizedRegions, memoryPlan, planByPartitionId());
+        return new LoweringInput(program.optimizedRegions(), program.memoryPlan(), planByPartitionId());
     }
 
     public boolean requiresLoweringInput() {
-        return !plannedPartitions.isEmpty() && !optimizedRegions.isEmpty();
+        return !program.plannedPartitions().isEmpty() && !program.optimizedRegions().isEmpty();
     }
 
     private Map<String, PartitionPlan> planByPartitionId() {
         java.util.HashMap<String, PartitionPlan> out = new java.util.HashMap<>();
-        for (PlannedPartition plannedPartition : plannedPartitions) {
+        for (PlannedPartition plannedPartition : program.plannedPartitions()) {
             if (plannedPartition == null || plannedPartition.partition() == null || plannedPartition.plan() == null) {
                 continue;
             }

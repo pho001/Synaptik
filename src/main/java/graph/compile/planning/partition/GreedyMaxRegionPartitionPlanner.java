@@ -97,7 +97,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
     private AttemptResult tryBuildPlan(int startIndex, PartitionPlanningRequest request, boolean[] covered) {
         PartitionPlanningContext context = request.context();
         CompiledNode start = context.compiledNodes().get(startIndex);
-        if (!request.adapter().canSeed(start, context)) {
+        if (!request.capability().canSeed(start, context)) {
             return new AttemptResult(
                     null,
                     null,
@@ -168,12 +168,12 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
                     )
             );
         }
-        PartitionCandidate bestCandidate = request.adapter().tryCreateStructuralCandidate(
+        PartitionCandidate bestCandidate = request.capability().createCandidate(
                 selected,
                 context,
                 request.requiredMaterializedValueRefs()
         );
-        PartitionPlan bestPlan = bestCandidate == null ? null : request.adapter().tryCreatePlan(bestCandidate, context);
+        PartitionPlan bestPlan = bestCandidate == null ? null : request.capability().createPlan(bestCandidate, context);
         if (bestPlan == null) {
             String reason = bestCandidate == null ? "missing-structural-candidate" : "lowerer-rejected";
             return new AttemptResult(
@@ -274,7 +274,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
         if (rejection != null) {
             return null;
         }
-        PartitionCandidate candidate = request.adapter().tryCreateStructuralCandidate(
+        PartitionCandidate candidate = request.capability().createCandidate(
                 expanded,
                 request.context(),
                 request.requiredMaterializedValueRefs()
@@ -282,7 +282,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
         if (candidate == null) {
             return null;
         }
-        PartitionPlan plan = request.adapter().tryCreatePlan(candidate, request.context());
+        PartitionPlan plan = request.capability().createPlan(candidate, request.context());
         if (plan == null) {
             return null;
         }
@@ -315,7 +315,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
             if (covered[currentNodeId]) {
                 return new Rejection("covered-by-earlier-partition", currentNodeId);
             }
-            if (!request.canConsiderNode(current) || !request.adapter().isNodeSupported(current, request.context())) {
+            if (!request.canConsiderNode(current) || !request.capability().canExecute(current, request.context())) {
                 return new Rejection("unsupported-node", currentNodeId);
             }
             expanded.add(currentNodeId);
@@ -329,7 +329,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
                 if (producer == null) {
                     return new Rejection("missing-input-node", inputId);
                 }
-                boolean externalInputAllowed = request.adapter().canUseAsExternalInput(
+                boolean externalInputAllowed = request.capability().canUseExternalInput(
                         producer,
                         current,
                         expanded,
@@ -337,7 +337,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
                 );
                 boolean sameTargetSupported = request.canConsiderNode(producer)
                         && !covered[inputId]
-                        && request.adapter().isNodeSupported(producer, request.context());
+                        && request.capability().canExecute(producer, request.context());
                 if (sameTargetSupported && !externalInputAllowed) {
                     if (crossesSelectedPhase(expanded, inputId, request)) {
                         return new Rejection("producer-closure-phase-boundary", inputId);
@@ -374,7 +374,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
                         return new Rejection("covered-by-earlier-partition", consumer.id());
                     }
                     if (!request.canConsiderNode(consumer)
-                            || !request.adapter().isNodeSupported(consumer, request.context())) {
+                            || !request.capability().canExecute(consumer, request.context())) {
                         continue;
                     }
                     Rejection rejection = absorbWithProducerClosure(consumer.id(), expanded, request, covered);
@@ -404,7 +404,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
         if (crossesSelectedPhase(selected, frontierNodeId, request)) {
             return "consumer-closure-phase-boundary";
         }
-        if (!request.canConsiderNode(node) || !request.adapter().isNodeSupported(node, request.context())) {
+        if (!request.canConsiderNode(node) || !request.capability().canExecute(node, request.context())) {
             return "unsupported-node";
         }
         for (int inputId : node.inputIds()) {
@@ -415,7 +415,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
             if (producer == null) {
                 return "missing-input-node";
             }
-            boolean externalInputAllowed = request.adapter().canUseAsExternalInput(
+            boolean externalInputAllowed = request.capability().canUseExternalInput(
                     producer,
                     node,
                     selected,
@@ -423,7 +423,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
             );
             boolean sameTargetSupported = request.canConsiderNode(producer)
                     && !covered[inputId]
-                    && request.adapter().isNodeSupported(producer, request.context());
+                    && request.capability().canExecute(producer, request.context());
             if (sameTargetSupported && !externalInputAllowed) {
                 if (crossesSelectedPhase(selected, inputId, request)) {
                     return "producer-closure-phase-boundary";
@@ -442,7 +442,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
         if (rejection != null) {
             return rejection.reason();
         }
-        PartitionCandidate candidate = request.adapter().tryCreateStructuralCandidate(
+        PartitionCandidate candidate = request.capability().createCandidate(
                 expanded,
                 request.context(),
                 request.requiredMaterializedValueRefs()
@@ -450,7 +450,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
         if (candidate == null) {
             return "missing-structural-candidate";
         }
-        PartitionPlan plan = request.adapter().tryCreatePlan(candidate, request.context());
+        PartitionPlan plan = request.capability().createPlan(candidate, request.context());
         if (plan == null) {
             return "lowerer-rejected";
         }

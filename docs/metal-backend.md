@@ -106,7 +106,7 @@ flowchart LR
 |---|---|
 | Metal capability and dtype boundary | [`MetalMpsCapabilities.java`](../src/main/java/backend/metal/MetalMpsCapabilities.java) |
 | Planner allowlist and unsupported reasons | [`MetalPartitionSupport.java`](../src/main/java/backend/metal/lowering/MetalPartitionSupport.java) |
-| Region legality | [`MetalRegionLegalityAdapter.java`](../src/main/java/backend/metal/lowering/MetalRegionLegalityAdapter.java) |
+| Region legality | [`MetalBackendPartitionCapability.java`](../src/main/java/backend/metal/lowering/MetalBackendPartitionCapability.java) |
 | Region lowering | [`MetalRegionLowerer.java`](../src/main/java/backend/metal/lowering/MetalRegionLowerer.java) |
 | Prepare step | [`MetalNodePreparer.java`](../src/main/java/backend/metal/prepare/MetalNodePreparer.java) |
 | Runtime executable and fallback policy | [`PreparedMetalExecutable.java`](../src/main/java/backend/metal/exec/PreparedMetalExecutable.java) |

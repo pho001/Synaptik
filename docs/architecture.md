@@ -165,7 +165,7 @@ Execution planning is separate:
 |---|---|---|
 | Backend planning | `BackendPlanningConfig`, `BackendPlanningService`, `BackendPlanningJobResolver` | CPU-only, explicit accelerator, or automatic accelerator ownership regions. |
 | Region optimization | `RegionOptimizationConfig`, `DefaultRegionOptimizer` | Fused/unit execution units inside owned regions. |
-| Memory planning | `MemoryPlanningConfig`, `MemoryPlanner` | Lifetimes, reusable slots, and region handoff bindings. |
+| Memory planning | `MemoryPlanningConfig`, `MemoryPlanner`, package-local memory planners | Lifetimes, reusable slots, region value flow, region bindings, handoff requirements, runtime binding policy, and summary metrics. |
 | Runtime selection | `RuntimeConfig`, backend preparers | Runtime availability, BLAS/vector/parallel thresholds, buffer binding, fallback. |
 
 This split is the reason `CompileConfig.noGraphOptimization()` disables graph simplification only. It does not mean "skip backend planning", "ignore explicit accelerator intent", or "disable runtime backend selection." For detailed examples, see [Graph Optimizer](graph-optimizer.md#graph-optimizer) and [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions).
@@ -330,7 +330,7 @@ The current Metal path is intentionally narrower than the full tensor dtype mode
 - Dense `FLOAT32` `CONV2D`, `CONV2D_GEMM`, `MAX_POOL2D`, and `AVG_POOL2D` forward paths are supported through MPSGraph when their operation-specific rank, layout, stride/padding, group/dilation, and divisor gates pass.
 - `FLOAT64`, generic `INT32`/`INT64` compute/output, unsupported `BOOL` consumers, grouped/dilated conv, dtype-mismatched floating inputs, and `AVG_POOL2D countIncludePad=true` remain explicit rejection/fallback cases.
 
-That boundary is checked in two places for different reasons. `MetalRegionLegalityAdapter` and `MetalPartitionSupport` reject illegal candidates during partition planning so traces do not claim a Metal region for a dtype the bridge cannot execute. `PreparedMetalExecutable` repeats cheap runtime checks for contiguity, storage offset, and direct Java array availability because legal compile-time dtype does not guarantee that a particular runtime tensor layout can be handed to the FFM bridge.
+That boundary is checked in two places for different reasons. `MetalBackendPartitionCapability` and `MetalPartitionSupport` reject illegal candidates during partition planning so traces do not claim a Metal region for a dtype the bridge cannot execute. `PreparedMetalExecutable` repeats cheap runtime checks for contiguity, storage offset, and direct Java array availability because legal compile-time dtype does not guarantee that a particular runtime tensor layout can be handed to the FFM bridge.
 
 Direct FLOAT32/BFLOAT16 rank-3/4 `SCALED_DOT_PRODUCT_ATTENTION` can be selected for Metal partitions after native scale and mask parity verification. The lowerer encodes the operation scale into the accelerator DAG scalar bits and the native bridge executes the SDPA node as a primitive MPSGraph DAG: `Q * K^T`, scale, optional BOOL mask select using public mask polarity, softmax, and `* V`. External BOOL masks, causal masks, and external+causal effective masks use SDPA input 3 when the effective mask layout is dense.
 
@@ -603,7 +603,7 @@ The no-argument CLI default is `full f64`.
 
 Layout is first-class in both semantic tensors and runtime execution. `TensorMetadata` stores shape, strides, storage offset, dtype, and label. Layout operations such as reshape, permute, expand, squeeze, select, and contiguous are explicit operation descriptors under `src/main/java/operations/layout` and public builders under `src/main/java/tensor/ops/layout`.
 
-The memory planning compile phase produces a `MemoryPlan` under `src/main/java/graph/compile/planning/memory`. `PreparedExecution` passes that plan to `RuntimeMemoryBinder` before running steps. This keeps allocation/reuse decisions tied to compile artifacts while per-run storage lives behind `ExecutionState`.
+The memory planning compile phase produces a `MemoryPlan` under `src/main/java/graph/compile/planning/memory`. `MemoryPlanner` is the public entry point, while package-local classes own tensor lifetime planning, reusable interval filtering, slot allocation, region value flow, region binding allocation, handoff requirements, runtime binding policy, and summary metrics. `PreparedExecution` passes the final plan to `RuntimeMemoryBinder` before running steps. This keeps allocation/reuse decisions tied to compile artifacts while per-run storage lives behind `ExecutionState`.
 
 `ExecutionState` is the public per-run entrypoint; it does not keep every runtime concern inline. Runtime tensor identity and input rewiring live in `RuntimeTensorStore`, CPU workspaces and prepared inputs live in `RuntimeWorkspaceStore`, CPU/native/device materialization lives in `RuntimeMaterializationService`, run-owned resources and native CPU allocation live in `RuntimeResourceRegistry`, and residency/binding state is split between `RuntimeResidencyStore`, `DeviceBindingRegistry`, and `NativeCpuStorageRegistry`. These concrete run-scoped classes are not new lifecycle artifacts, not public user API, and not places to store compile-time topology or optimizer decisions.
 

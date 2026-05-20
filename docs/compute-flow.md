@@ -663,7 +663,7 @@ flowchart TD
     Optimizer --> Snapshot --> Gradients --> Partition --> LowerReady --> Artifacts
 ```
 
-`CompiledNode` snapshots the fields prepare/run must not read from mutable graph topology: node id, semantic/source tensors, operation, backend, input ids, shape, strides, storage offset, dtype, backward flag, leaf flag, contiguity, flat data size, and label.
+`CompiledNode` snapshots the fields prepare/run must not read from mutable graph topology: node id, publication tensor, operation, backend, input ids, storage owner id, shape, strides, storage offset, dtype, backward flag, leaf/gradient/publication flags, contiguity, flat data size, label, and static data snapshot. Compile topology and input relationships are value-based; the remaining tensor reference is the publication/debug boundary.
 
 ## Prepare
 
@@ -1527,8 +1527,9 @@ regionF64Slots: slot id -> double[] buffer
 regionF32Slots: slot id -> float[] buffer
 regionBF16Slots: slot id -> short[] buffer
 regionI32Slots: slot id -> int[] buffer
+regionI64Slots: slot id -> long[] buffer
 regionBoolSlots: slot id -> byte[] buffer
-runtimeTensorBySemanticTensor: semantic Tensor identity -> runtime Tensor
+compiled node id -> runtime Tensor lookup through ExecutionState
 ```
 
 The binder walks compiled nodes and decides whether a runtime tensor can share a memory slot:
@@ -1537,7 +1538,7 @@ The binder walks compiled nodes and decides whether a runtime tensor can share a
 2. Skip leaves.
 3. Skip nodes whose memory binding policy disallows region binding.
 4. Preserve runtime alias views such as `NOOP`, `EXPAND`, `SELECT`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and contiguous `RESHAPE`.
-5. Look up the node's `GraphValueRef`.
+5. Look up the node's `GraphValueRef` through the memory plan's node-id mapping.
 6. Look up the `RegionMemoryBinding`.
 7. Require a non-`NONE` binding kind.
 8. Require a slot id.

@@ -277,7 +277,7 @@ class TrainingOptimizerTest {
         CompiledGraph graph = CompiledGraph.compile(loss, CompileConfig.training());
         AdamOptimizer optimizer = new AdamOptimizer(0.1f);
 
-        graph.executeOptimizerStep(RuntimeConfig.trainingDefaults(), optimizer);
+        graph.prepare(RuntimeConfig.trainingDefaults()).executeOptimizerStep(optimizer);
 
         assertArrayEquals(new float[]{0.9f, -1.9f}, w.getFloat32Data(), 1.0e-5f);
         assertArrayEquals(new float[]{2.0f, -3.0f}, x.getFloat32Data(), 0.0f);
@@ -524,7 +524,7 @@ class TrainingOptimizerTest {
 
         assertEquals(List.of(w), graph.trainableParameters());
 
-        graph.executeOptimizerStep(RuntimeConfig.trainingDefaults(), optimizer);
+        graph.prepare(RuntimeConfig.trainingDefaults()).executeOptimizerStep(optimizer);
 
         assertArrayEquals(new float[]{1.0f, 2.0f}, w.getFloat32Data(), 0.0f);
         assertArrayEquals(new float[]{2.0f, 3.0f}, x.getFloat32Data(), 0.0f);

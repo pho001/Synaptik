@@ -132,7 +132,13 @@ class CompiledTensorDescriptorIndexTest {
         input.setRequiresGrad(false);
         out.setRequiresGrad(false);
 
-        ExecutionState state = ExecutionState.create(nodes, index, Map.of(), nodes.getLast().id());
+        ExecutionState state = ExecutionState.create(
+                nodes,
+                index,
+                Map.of(),
+                nodes.getLast().id(),
+                testsupport.PublicationPlans.forRoot(out, nodes, nodes.getLast().id())
+        );
 
         assertTrue(index.byNodeId(0).requiresGrad());
         assertTrue(index.byNodeId(1).requiresGrad());

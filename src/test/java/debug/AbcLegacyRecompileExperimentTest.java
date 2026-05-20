@@ -3,6 +3,7 @@ package debug;
 import backend.runtime.ExecutionMode;
 import config.profile.ExecutionProfile;
 import graph.CompiledGraph;
+import graph.CompiledNode;
 import graph.execution.PreparedExecution;
 import graph.optimizer.GraphOptimizer;
 import graph.optimizer.OptimizerFactory;
@@ -59,10 +60,10 @@ final class AbcLegacyRecompileExperimentTest {
 
         Stats stats = benchmark(prepared, profile.mode(), 30, 100, 3);
 
-        List<Tensor> graph = compiled.getCompiledGraphAsList();
-        long backwardNodes = graph.stream().filter(Tensor::isBackward).count();
+        List<CompiledNode> graph = compiled.compiledNodes();
+        long backwardNodes = graph.stream().filter(CompiledNode::backwardNode).count();
         long fusedNodes = graph.stream()
-                .filter(t -> t.getOperation() != null && t.getOperation().opType() == Operation.OpType.FUSED)
+                .filter(t -> t.operation() != null && t.operation().opType() == Operation.OpType.FUSED)
                 .count();
         prepared.execute(profile.mode());
         double outputDiff = Math.abs(root.scalarAsDouble() - reference.output());
@@ -86,7 +87,7 @@ final class AbcLegacyRecompileExperimentTest {
         );
         if ("preopt-x1".equals(name)) {
             dumpGraph("PREOPT_FORWARD_ROOT", root.topologicalSort());
-            dumpGraph("PREOPT_COMPILED_GRAPH", graph);
+            dumpCompiledGraph("PREOPT_COMPILED_GRAPH", graph);
         }
     }
 
@@ -240,6 +241,25 @@ final class AbcLegacyRecompileExperimentTest {
                     expr,
                     tensor.isBackward(),
                     inputs
+            );
+        }
+    }
+
+    private static void dumpCompiledGraph(String title, List<CompiledNode> graph) {
+        System.out.println(title);
+        for (int i = 0; i < graph.size(); i++) {
+            CompiledNode node = graph.get(i);
+            String op = node.operation() == null ? "LEAF" : node.operation().opType().name();
+            String expr = node.operation() == null ? "" : node.operation().getExpression();
+            System.out.printf(
+                    java.util.Locale.US,
+                    "  [%02d] label=%s op=%s expr=%s backward=%s inputs=%s%n",
+                    i,
+                    node.label(),
+                    op,
+                    expr,
+                    node.backwardNode(),
+                    node.inputIds()
             );
         }
     }

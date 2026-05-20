@@ -477,6 +477,8 @@ Most ordinary operations need no memory planner change. Update memory planning o
 - has non-standard output ownership
 - interacts with region outputs or layout boundaries
 
+The public entry point is `MemoryPlanner`, but the implementation is split by responsibility. View and alias ownership belongs in `TensorLifetimePlanner`; reusable tensor interval rules belong in `ReusableIntervalBuilder`; slot packing belongs in `ReusableSlotAllocator`; workspace-sensitive binding exclusions belong in `RuntimeMemoryBindingPolicyPlanner`; region value, binding, and handoff changes belong in `RegionValueFlowPlanner`, `RegionBindingAllocator`, and `RegionHandoffPlanner`.
+
 ## Fusion And Accelerator Integration
 
 ### CPU fusion

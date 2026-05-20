@@ -191,7 +191,7 @@ class MemoryPlannerRegionViewTest {
                 .toList();
         assertEquals(2, materializedGradientValues.size());
         assertTrue(materializedValues.stream()
-                .allMatch(valueRef -> plan.regionValueLifetimeOf(valueRef).lastUseStep() == compiled.getCompiledGraphAsList().size()));
+                .allMatch(valueRef -> plan.regionValueLifetimeOf(valueRef).lastUseStep() == compiled.compiledNodes().size()));
         long distinctSlotCount = materializedValues.stream()
                 .map(plan::regionSlotIdOf)
                 .distinct()

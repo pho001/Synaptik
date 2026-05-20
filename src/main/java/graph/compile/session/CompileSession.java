@@ -5,6 +5,7 @@ import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import graph.CompiledGradientBinding;
 import graph.CompiledNode;
+import graph.CompiledProgram;
 import graph.GradientDTypePolicy;
 import graph.SemanticForwardCanonicalizer;
 import graph.compile.CompileArtifacts;
@@ -25,6 +26,7 @@ import graph.compile.planning.partition.PlannedPartition;
 import graph.compile.planning.region.DefaultRegionOptimizer;
 import graph.compile.planning.region.OptimizedRegion;
 import graph.compile.planning.region.RegionOptimizationContext;
+import graph.compile.publication.PublicationPlan;
 import graph.optimizer.state.OptimizerState;
 import graph.optimizer.state.OptimizerTrace;
 import graph.execution.trace.PartitionCompileTrace;
@@ -65,6 +67,7 @@ public final class CompileSession {
     private List<PlannedPartition> compiledPlannedPartitions = List.of();
     private PartitionCompileTrace compiledPartitionPlanningTrace = PartitionCompileTrace.empty();
     private GraphStructureContract graphContract = GraphStructureContract.unchecked();
+    private PublicationPlan publicationPlan;
     private Tensor forwardOutput;
     private int forwardEndIndex = -1;
     private boolean compiledSupportsBackward;
@@ -120,6 +123,10 @@ public final class CompileSession {
         return compiledOptimizerState == null ? OptimizerTrace.empty() : compiledOptimizerState.trace();
     }
 
+    public PartitionCompileTrace partitionPlanningTrace() {
+        return compiledPartitionPlanningTrace;
+    }
+
     private List<Tensor> buildTrainingWorkingGraph() {
         GradientDTypePolicy.requireGradientSupported(rootTensor.getDataType(), "Backward execution");
 
@@ -147,13 +154,13 @@ public final class CompileSession {
         }
         mapComputedForwardRootForPublish(publicationTensors);
         rebuildCompiledNodeSnapshot(publicationTensors);
-        if (captureGradients) {
-            compiledGradients = GradientBindingCollector.captureCompiledGradients(
-                    finalGraph,
-                    publicationTensors,
-                    compiledNodeByTensor
-            );
-        }
+        compiledGradients = captureGradients
+                ? GradientBindingCollector.captureCompiledGradients(
+                        finalGraph,
+                        publicationTensors,
+                        compiledNodeByTensor
+                )
+                : Map.of();
         forwardSeedGradient = GradientBindingCollector.captureForwardSeedGradient(
                 requireForwardRoot(),
                 compiledNodeByTensor
@@ -161,25 +168,23 @@ public final class CompileSession {
         rebuildPartitionPlanningSnapshot();
         finalizeCompilePlanningArtifacts();
         graphContract = GraphStructureContract.capture(rootTensor);
+        publicationPlan = buildPublicationPlan(publicationTensors);
         return artifacts();
     }
 
     private CompileArtifacts artifacts() {
         return new CompileArtifacts(
-                rootTensor,
-                graphContract,
-                finalGraph,
-                compiledNodes,
-                compiledDescriptorIndex,
-                compiledGradients,
-                forwardSeedGradient,
-                compiledForwardOutput,
-                compiledMemoryPlan,
-                compiledOptimizedRegions,
-                compiledPlannedPartitions,
-                compiledSupportsBackward,
-                forwardEndIndex,
-                compiledPartitionPlanningTrace
+                new CompiledProgram(
+                        compiledNodes,
+                        compiledDescriptorIndex,
+                        compiledForwardOutput == null ? -1 : compiledForwardOutput.id(),
+                        forwardEndIndex,
+                        compiledSupportsBackward,
+                        compiledPlannedPartitions,
+                        compiledOptimizedRegions,
+                        compiledMemoryPlan
+                ),
+                Objects.requireNonNull(publicationPlan, "publicationPlan cannot be null")
         );
     }
 
@@ -251,7 +256,7 @@ public final class CompileSession {
 
     private void rebuildCompiledNodeSnapshot(Map<Tensor, Tensor> publicationTensors) {
         BackendIntentPropagator.propagateBackwardClosure(finalGraph);
-        compiledNodes = CompiledNode.snapshot(finalGraph, publicationTensors);
+        compiledNodes = CompiledNode.snapshot(finalGraph);
         compiledDescriptorIndex = CompiledTensorDescriptorBuilder.build(compiledNodes);
         IdentityHashMap<Tensor, CompiledNode> index = new IdentityHashMap<>();
         for (int i = 0; i < compiledNodes.size(); i++) {
@@ -341,5 +346,87 @@ public final class CompileSession {
         if (actualForwardRoot.getOperation() != null) {
             publicationTensors.put(actualForwardRoot, rootTensor);
         }
+    }
+
+    private PublicationPlan buildPublicationPlan(Map<Tensor, Tensor> publicationTensors) {
+        Map<Tensor, Tensor> sources = publicationTensors == null ? Map.of() : publicationTensors;
+        ArrayList<PublicationPlan.RuntimeInputBinding> runtimeInputs = new ArrayList<>();
+        ArrayList<PublicationPlan.ForwardPublicationBinding> forwardPublications = new ArrayList<>();
+        ArrayList<PublicationPlan.GradientPublicationBinding> gradientPublications = new ArrayList<>();
+        ArrayList<PublicationPlan.TrainableParameterBinding> trainableParameters = new ArrayList<>();
+        IdentityHashMap<Tensor, Boolean> gradientClearTargets = new IdentityHashMap<>();
+
+        for (Tensor tensor : finalGraph) {
+            CompiledNode node = compiledNodeByTensor.get(tensor);
+            if (node == null) {
+                continue;
+            }
+            Tensor publicationTarget = sources.getOrDefault(tensor, tensor);
+            if (node.leaf()) {
+                runtimeInputs.add(new PublicationPlan.RuntimeInputBinding(
+                        node.id(),
+                        publicationTarget,
+                        runtimeInputKind(node)
+                ));
+            }
+            if (node.backwardNode()) {
+                continue;
+            }
+            forwardPublications.add(new PublicationPlan.ForwardPublicationBinding(
+                    publicationTarget,
+                    node.id(),
+                    PublicationPlan.PublicationKind.FORWARD_VALUE,
+                    PublicationPlan.aliasRepairChainFor(publicationTarget)
+            ));
+            gradientClearTargets.put(publicationTarget, Boolean.TRUE);
+            CompiledGradientBinding gradientBinding = compiledGradients.get(publicationTarget);
+            if (node.trainableParameter() && gradientBinding != null) {
+                trainableParameters.add(new PublicationPlan.TrainableParameterBinding(
+                        publicationTarget,
+                        node.id(),
+                        gradientBinding
+                ));
+            }
+        }
+
+        for (Map.Entry<Tensor, CompiledGradientBinding> entry : compiledGradients.entrySet()) {
+            gradientPublications.add(new PublicationPlan.GradientPublicationBinding(entry.getKey(), entry.getValue()));
+            gradientClearTargets.put(entry.getKey(), Boolean.TRUE);
+        }
+
+        return new PublicationPlan(
+                rootTensor,
+                graphContract,
+                runtimeInputs,
+                new PublicationPlan.ForwardPublicationBinding(
+                        rootTensor,
+                        rootOutputSourceNodeId(),
+                        PublicationPlan.PublicationKind.ROOT_OUTPUT,
+                        PublicationPlan.aliasRepairChainFor(rootTensor)
+                ),
+                forwardPublications,
+                gradientPublications,
+                new ArrayList<>(gradientClearTargets.keySet()),
+                forwardSeedGradient,
+                trainableParameters
+        );
+    }
+
+    private PublicationPlan.RuntimeInputBindingKind runtimeInputKind(CompiledNode node) {
+        if (node.id() <= forwardEndIndex) {
+            return PublicationPlan.RuntimeInputBindingKind.FORWARD_LEAF_ALIAS;
+        }
+        return node.backwardNode()
+                ? PublicationPlan.RuntimeInputBindingKind.BACKWARD_LEAF_COPY
+                : PublicationPlan.RuntimeInputBindingKind.STATIC_LEAF_COPY;
+    }
+
+    private int rootOutputSourceNodeId() {
+        Tensor actualForwardRoot = requireForwardRoot();
+        CompiledNode actualRootNode = compiledNodeByTensor.get(actualForwardRoot);
+        if (actualRootNode != null) {
+            return actualRootNode.id();
+        }
+        return compiledForwardOutput.id();
     }
 }

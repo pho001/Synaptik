@@ -330,10 +330,12 @@ class PreparedMetalExecutableBufferBindingTest {
                 List.of(),
                 List.of(fixture.inputNode(), fixture.outputNode()),
                 CompiledTensorDescriptorBuilder.build(List.of(fixture.inputNode(), fixture.outputNode())),
-                Map.of(),
-                fixture.outputNode().publicationTensor(),
+                testsupport.PublicationPlans.forRoot(
+                        tensorForNode(fixture.outputNode()),
+                        List.of(fixture.inputNode(), fixture.outputNode()),
+                        fixture.outputNode().id()
+                ),
                 fixture.outputNode(),
-                null,
                 null,
                 graph.execution.trace.PrepareTrace.skipped()
         );
@@ -376,10 +378,12 @@ class PreparedMetalExecutableBufferBindingTest {
                 List.of(),
                 List.of(fixture.inputNode(), fixture.outputNode()),
                 CompiledTensorDescriptorBuilder.build(List.of(fixture.inputNode(), fixture.outputNode())),
-                Map.of(),
-                fixture.outputNode().publicationTensor(),
+                testsupport.PublicationPlans.forRoot(
+                        tensorForNode(fixture.outputNode()),
+                        List.of(fixture.inputNode(), fixture.outputNode()),
+                        fixture.outputNode().id()
+                ),
                 fixture.outputNode(),
-                null,
                 null,
                 graph.execution.trace.PrepareTrace.skipped()
         );
@@ -1283,7 +1287,13 @@ class PreparedMetalExecutableBufferBindingTest {
         for (PreparedNodeExecution step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
-        ExecutionState state = ExecutionState.create(nodes, compiled.compileArtifacts().descriptorIndex(), metadata, compiled.compileArtifacts().forwardOutputNode().id());
+        ExecutionState state = ExecutionState.create(
+                nodes,
+                compiled.compileArtifacts().descriptorIndex(),
+                metadata,
+                compiled.compileArtifacts().forwardOutputNode().id(),
+                compiled.compileArtifacts().publication()
+        );
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),
                 ExecutionMode.FORWARD,
@@ -1310,7 +1320,13 @@ class PreparedMetalExecutableBufferBindingTest {
         for (PreparedNodeExecution step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
-        ExecutionState state = ExecutionState.create(nodes, compiled.compileArtifacts().descriptorIndex(), metadata, compiled.compileArtifacts().forwardOutputNode().id());
+        ExecutionState state = ExecutionState.create(
+                nodes,
+                compiled.compileArtifacts().descriptorIndex(),
+                metadata,
+                compiled.compileArtifacts().forwardOutputNode().id(),
+                compiled.compileArtifacts().publication()
+        );
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),
                 ExecutionMode.FORWARD,
@@ -1370,7 +1386,13 @@ class PreparedMetalExecutableBufferBindingTest {
         CompiledNode inputNode = nodes.get(0);
         CompiledNode outputNode = nodes.get(1);
         Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
-        ExecutionState state = ExecutionState.create(nodes, CompiledTensorDescriptorBuilder.build(nodes), metadata, outputNode.id());
+        ExecutionState state = ExecutionState.create(
+                nodes,
+                CompiledTensorDescriptorBuilder.build(nodes),
+                metadata,
+                outputNode.id(),
+                testsupport.PublicationPlans.forRoot(output, nodes, outputNode.id())
+        );
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),
                 ExecutionMode.FORWARD,
@@ -1475,7 +1497,7 @@ class PreparedMetalExecutableBufferBindingTest {
         CompiledGraph compiled = CompiledGraph.compile(output, CompileConfig.noGraphOptimizationBaseline());
         List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
         CompiledNode outputNode = nodes.stream()
-                .filter(node -> node.publicationTensor() == output
+                .filter(node -> node.id() == compiled.compileArtifacts().publication().nodeIdsByPublicationTarget().get(output)
                         || (node.operation() != null && node.operation().opType() == Operation.OpType.RELU))
                 .findFirst()
                 .orElseThrow();
@@ -1488,7 +1510,13 @@ class PreparedMetalExecutableBufferBindingTest {
         for (PreparedNodeExecution step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
-        ExecutionState state = ExecutionState.create(nodes, compiled.compileArtifacts().descriptorIndex(), metadata, compiled.compileArtifacts().forwardOutputNode().id());
+        ExecutionState state = ExecutionState.create(
+                nodes,
+                compiled.compileArtifacts().descriptorIndex(),
+                metadata,
+                compiled.compileArtifacts().forwardOutputNode().id(),
+                compiled.compileArtifacts().publication()
+        );
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),
                 ExecutionMode.FORWARD,
@@ -1740,6 +1768,10 @@ class PreparedMetalExecutableBufferBindingTest {
 
     private static List<Integer> shapeList(int[] shape) {
         return java.util.Arrays.stream(shape).boxed().toList();
+    }
+
+    private static Tensor tensorForNode(CompiledNode node) {
+        return new Tensor(node.shape(), null, node.label(), node.dataType());
     }
 
     private record Fixture(

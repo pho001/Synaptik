@@ -288,7 +288,7 @@ Compile sees a forward DAG with leaf `a`, leaf `b`, `ADD`, `RELU`, and a system 
 
 **Internals**
 
-`CompiledNode.snapshot(...)` records node id, semantic tensor, source tensor, operation, resolved backend, input ids, shape, strides, storage offset, dtype, backward marker, leaf flag, contiguity, flat size, and label. This lets prepare avoid depending on mutable topology in the original tensor objects.
+`CompiledNode.snapshot(...)` records node id, publication tensor, operation, resolved backend, input ids, storage owner id, shape, strides, storage offset, dtype, backward marker, leaf flag, gradient/publication flags, contiguity, flat size, label, and static data snapshot. Compile topology and input relationships are value-based, so prepare/lowering does not depend on mutable topology in the original tensor objects.
 
 **Edge Cases**
 
@@ -522,21 +522,29 @@ Execution creates many temporary tensors. Reusing compatible buffers reduces all
 
 **Mental Model**
 
-Compile-time memory planning computes lifetimes and reusable slots. Runtime binding assigns actual arrays to eligible runtime tensors before execution.
+Compile-time memory planning computes lifetimes, reusable slots, region value flow, region bindings, handoff requirements, and runtime binding policy. Runtime binding assigns actual arrays to eligible runtime tensors before execution.
 
 **Key Concepts**
 
 - `MemoryPlanner`
 - `MemoryPlan`
+- tensor lifetime planning
 - reusable intervals
 - slot assignment
 - region value lifetimes
+- region memory bindings
+- region handoff requirements
 - runtime binding policy
 - `RuntimeMemoryBinder`
 
 **Where It Lives**
 
 - [`MemoryPlanner.java`](../src/main/java/graph/compile/planning/memory/MemoryPlanner.java)
+- [`TensorLifetimePlanner.java`](../src/main/java/graph/compile/planning/memory/TensorLifetimePlanner.java)
+- [`ReusableSlotAllocator.java`](../src/main/java/graph/compile/planning/memory/ReusableSlotAllocator.java)
+- [`RegionValueFlowPlanner.java`](../src/main/java/graph/compile/planning/memory/RegionValueFlowPlanner.java)
+- [`RegionBindingAllocator.java`](../src/main/java/graph/compile/planning/memory/RegionBindingAllocator.java)
+- [`RegionHandoffPlanner.java`](../src/main/java/graph/compile/planning/memory/RegionHandoffPlanner.java)
 - [`MemoryPlanningInput.java`](../src/main/java/graph/compile/planning/memory/MemoryPlanningInput.java)
 - [`RuntimeMemoryBinder.java`](../src/main/java/graph/execution/residency/RuntimeMemoryBinder.java)
 - [`MemoryPlannerSummaryTest.java`](../src/test/java/MemoryPlannerSummaryTest.java)
@@ -550,8 +558,10 @@ Compile-time memory planning computes lifetimes and reusable slots. Runtime bind
 4. Mark saved forward owners crossing the forward/backward boundary.
 5. Build lifetimes and reusable intervals.
 6. Assign compatible intervals to slots.
-7. Build region-value memory artifacts for optimized regions.
-8. During execution, bind eligible runtime tensors to shared slot arrays.
+7. Build region-value flow artifacts for optimized regions.
+8. Allocate region memory bindings for materialized and continuation values.
+9. Build cross-region handoff requirements.
+10. During execution, bind eligible runtime tensors to shared slot arrays.
 
 **Worked Example**
 
@@ -565,7 +575,7 @@ If `t1` is no longer needed after `t2`, its buffer may become reusable. A strict
 
 **Internals**
 
-`MemoryPlanner` consumes explicit compile-planning input and skips region binding for workspace-sensitive operations such as `MAX_POOL2D` and `MAX_POOL2D_BACKWARD_INPUT`. `RuntimeMemoryBinder` binds dtype-specific slot arrays for `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL`; the binding remains a runtime storage optimization and does not change semantic tensor shapes, dtypes, or graph edges.
+`MemoryPlanner` is the public assembler for `MemoryPlan`. Tensor lifetime analysis, interval filtering, slot allocation, region value flow, region binding allocation, handoff planning, runtime binding policy, and summary reporting live in separate package-local classes with no public compatibility layer. `RuntimeMemoryBindingPolicyPlanner` marks workspace-sensitive operations such as `MAX_POOL2D` as not region-bindable. `RuntimeMemoryBinder` binds dtype-specific slot arrays for `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL`; the binding remains a runtime storage optimization and does not change semantic tensor shapes, dtypes, or graph edges.
 
 **Edge Cases**
 

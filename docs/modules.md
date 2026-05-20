@@ -365,9 +365,9 @@ Shared accelerator code includes:
 
 Metal and CUDA have more complete source-level scaffolding than OpenCL:
 
-- Metal: legality adapter, partition plan, region lowerer, node preparer, prepared executable, MPS FFM bridge wrappers,
+- Metal: partition capability, partition plan, region lowerer, node preparer, prepared executable, MPS FFM bridge wrappers,
   bridge execution stats, and Java-side buffer binding contracts under `backend.metal.buffer`.
-- CUDA: legality adapter, partition plan, region lowerer, node preparer, prepared executable, CUDA FFM bridge wrappers.
+- CUDA: partition capability, partition plan, region lowerer, node preparer, prepared executable, CUDA FFM bridge wrappers.
 - OpenCL: backend and kernel registry classes exist, but `OpenClKernelRegistry` currently registers only `NOOP`.
 
 Needs verification: whether Metal or CUDA execution is available on a specific machine depends on native bridge availability and external runtime libraries. Source-level availability checks live in `backend.accelerator.select.AcceleratorRuntimeAvailability`.
@@ -574,7 +574,7 @@ Useful tests for understanding module behavior:
 
 - Tensor API and dtype/storage: `TensorAddTest`, `TensorConstructorDataTypeTest`, `TensorStorageDataTypeTest`, `TensorComputeConvenienceApiTest`
 - Graph compile/prepare: `CompiledGraphIdempotencyTest`, `CompiledGraphTraceTest`, `PreparedExecutionBuildTest`, `PreparedExecutionTrainingCapabilityTest`
-- Optimizer and compile planning: `AlgebraicRewriting*Test`, `CommonSubexpressionEliminationRuleTest`, `graph.optimizer.GraphOptimizerSinglePassTest`, `MemoryPlanningDataTypeTest`, `MemoryPlannerSummaryTest`
+- Optimizer and compile planning: `AlgebraicRewriting*Test`, `CommonSubexpressionEliminationRuleTest`, `graph.optimizer.GraphOptimizerSinglePassTest`, `MemoryPlanningDataTypeTest`, `MemoryPlannerSummaryTest`, `graph.compile.planning.memory.MemoryPlannerRegionViewTest`
 - CPU kernels and execution: `DataTypeExecutionCoverageTest`, `CpuExecutionPlannerDispatchHeuristicsTest`, `CpuKernelFamilyArchitectureTest`, operation-specific execution tests
 - Tuning/calibration: `AutotuneSessionTest`, `GraphAutotuneCandidateSpaceTest`, `BenchmarkSessionTest`, `PlatformCalibrationSessionTest`, `TuningStoreTest`
 - Source/package hygiene: `LowercasePackageNamingTest`, `SourceTreeHygieneTest`

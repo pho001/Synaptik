@@ -11,9 +11,9 @@ import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.elementwise.strided.StridedLayoutDecision;
 import backend.cpu.plan.CpuLayoutPlan;
 import backend.cpu.plan.CpuPreparedInput;
-import backend.cuda.lowering.CudaGpuRegionLegalityAdapter;
+import backend.cuda.lowering.CudaGpuBackendPartitionCapability;
 import backend.metal.exec.PreparedMetalExecutable;
-import backend.metal.lowering.MetalRegionLegalityAdapter;
+import backend.metal.lowering.MetalBackendPartitionCapability;
 import backend.metal.lowering.MetalPartitionSupport;
 import backend.cuda.exec.PreparedCudaExecutable;
 import backend.runtime.ExecutionContext;
@@ -259,7 +259,13 @@ public class PreparedExecutionBuildTest {
         Tensor out = input.relu().exp();
         List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort());
         Map<Integer, CompiledNodeExecutionMetadata> metadata = Map.of();
-        ExecutionState state = ExecutionState.create(nodes, CompiledTensorDescriptorBuilder.build(nodes), metadata, nodes.getLast().id());
+        ExecutionState state = ExecutionState.create(
+                nodes,
+                CompiledTensorDescriptorBuilder.build(nodes),
+                metadata,
+                nodes.getLast().id(),
+                testsupport.PublicationPlans.forRoot(out, nodes, nodes.getLast().id())
+        );
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),
                 ExecutionMode.FORWARD,
@@ -323,7 +329,13 @@ public class PreparedExecutionBuildTest {
         );
         CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.cpuMetadata(cpuPlan);
         Map<Integer, CompiledNodeExecutionMetadata> metadataIndex = Map.of(consumerNodeId, metadata);
-        ExecutionState state = ExecutionState.create(nodes, CompiledTensorDescriptorBuilder.build(nodes), metadataIndex, nodes.getLast().id());
+        ExecutionState state = ExecutionState.create(
+                nodes,
+                CompiledTensorDescriptorBuilder.build(nodes),
+                metadataIndex,
+                nodes.getLast().id(),
+                testsupport.PublicationPlans.forRoot(out, nodes, nodes.getLast().id())
+        );
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),
                 ExecutionMode.FORWARD,
@@ -367,7 +379,7 @@ public class PreparedExecutionBuildTest {
                 consumerMap(nodes)
         );
 
-        assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
+        assertNull(new MetalBackendPartitionCapability().createCandidate(
                 Set.of(earlyProducerNodeId, laterProducerNodeId, gpuMergeNodeId),
                 context,
                 Set.of()
@@ -476,7 +488,7 @@ public class PreparedExecutionBuildTest {
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
         int reductionNodeId = nodeId(compiled, Operation.OpType.SUM);
-        String plannerReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(compiledNode(compiled, reductionNodeId), null);
+        String plannerReason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(compiledNode(compiled, reductionNodeId), null);
 
         assertEquals("", plannerReason);
         assertTrue(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_CUDA, reductionNodeId));
@@ -616,7 +628,7 @@ public class PreparedExecutionBuildTest {
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution execution = compiled.prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_CUDA));
         int layerNormNodeId = nodeId(compiled, Operation.OpType.LAYER_NORM);
-        String plannerReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+        String plannerReason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                 compiledNode(compiled, layerNormNodeId),
                 planningContext(compiled)
         );
@@ -747,7 +759,7 @@ public class PreparedExecutionBuildTest {
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
         execution.execute(ExecutionMode.FORWARD);
         int layerNormNodeId = nodeId(compiled, Operation.OpType.LAYER_NORM);
-        String plannerReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+        String plannerReason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                 compiledNode(compiled, layerNormNodeId),
                 planningContext(compiled)
         );

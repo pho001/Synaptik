@@ -3,7 +3,6 @@ package graph.compile.planning.partition.cost;
 import backend.ComputeBackend;
 import backend.accelerator.select.ProfileDerivedAcceleratorCostFactors;
 import config.backend.CpuKernelConfig;
-import config.optimizer.MetalTransferModel;
 import config.runtime.AcceleratorBackendConfig;
 import config.runtime.AcceleratorConfig;
 import config.runtime.ApproximationConfig;
@@ -71,20 +70,6 @@ class AcceleratorPartitionScoreModelTest {
 
         assertTrue(largerRegion > smallRegion);
         assertEquals(500.0, largerRegion - smallRegion, 0.0001);
-    }
-
-    @Test
-    void transferPolicyCanBeBuiltFromMetalTransferModel() {
-        var conservative = AcceleratorPartitionScoreModel.TransferPolicy.fromMetalTransferModel(
-                MetalTransferModel.CONSERVATIVE
-        );
-        var aggressive = AcceleratorPartitionScoreModel.TransferPolicy.fromMetalTransferModel(
-                MetalTransferModel.AGGRESSIVE
-        );
-
-        assertTrue(aggressive.inputBytePenalty() < conservative.inputBytePenalty());
-        assertTrue(aggressive.outputBytePenalty() < conservative.outputBytePenalty());
-        assertTrue(aggressive.avoidedIntermediateByteCredit() > conservative.avoidedIntermediateByteCredit());
     }
 
     @Test

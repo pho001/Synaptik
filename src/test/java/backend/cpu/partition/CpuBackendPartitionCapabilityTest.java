@@ -18,8 +18,8 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class CpuRegionLegalityAdapterTest {
-    private final CpuRegionLegalityAdapter adapter = new CpuRegionLegalityAdapter();
+class CpuBackendPartitionCapabilityTest {
+    private final CpuBackendPartitionCapability adapter = new CpuBackendPartitionCapability();
 
     @Test
     void keepsRepresentativeDeferredFamiliesEnabled() {
@@ -47,11 +47,11 @@ class CpuRegionLegalityAdapterTest {
 
         PartitionPlanningContext context = contextOf(List.of(where, reshape, select, maxPool, layerNorm));
 
-        assertTrue(adapter.isNodeSupported(nodeFor(where, context), context));
-        assertTrue(adapter.isNodeSupported(nodeFor(reshape, context), context));
-        assertTrue(adapter.isNodeSupported(nodeFor(select, context), context));
-        assertTrue(adapter.isNodeSupported(nodeFor(maxPool, context), context));
-        assertTrue(adapter.isNodeSupported(nodeFor(layerNorm, context), context));
+        assertTrue(adapter.canExecute(nodeFor(where, context), context));
+        assertTrue(adapter.canExecute(nodeFor(reshape, context), context));
+        assertTrue(adapter.canExecute(nodeFor(select, context), context));
+        assertTrue(adapter.canExecute(nodeFor(maxPool, context), context));
+        assertTrue(adapter.canExecute(nodeFor(layerNorm, context), context));
     }
 
     @Test
@@ -65,7 +65,7 @@ class CpuRegionLegalityAdapterTest {
         Tensor reduced = poolInput.maxPool2d(Pool2dOptions.square(2)).sum();
 
         PartitionPlanningContext context = contextOf(List.of(reduced));
-        assertTrue(adapter.isNodeSupported(nodeFor(reduced, context), context));
+        assertTrue(adapter.canExecute(nodeFor(reduced, context), context));
     }
 
     @Test
@@ -81,9 +81,9 @@ class CpuRegionLegalityAdapterTest {
 
         PartitionPlanningContext context = contextOf(List.of(sum, matmul));
 
-        assertTrue(adapter.isNodeSupported(nodeFor(add, context), context));
-        assertTrue(adapter.isNodeSupported(nodeFor(sum, context), context));
-        assertTrue(adapter.isNodeSupported(nodeFor(matmul, context), context));
+        assertTrue(adapter.canExecute(nodeFor(add, context), context));
+        assertTrue(adapter.canExecute(nodeFor(sum, context), context));
+        assertTrue(adapter.canExecute(nodeFor(matmul, context), context));
     }
 
     private static PartitionPlanningContext contextOf(List<Tensor> roots) {
@@ -106,7 +106,11 @@ class CpuRegionLegalityAdapterTest {
 
     private static CompiledNode nodeFor(Tensor tensor, PartitionPlanningContext context) {
         for (CompiledNode node : context.compiledNodes()) {
-            if (node.publicationTensor() == tensor) {
+            if (node.label().equals(tensor.getLabel())
+                    && ((node.operation() == null && tensor.getOperation() == null)
+                    || (node.operation() != null
+                    && tensor.getOperation() != null
+                    && node.operation().opType() == tensor.getOperation().opType()))) {
                 return node;
             }
         }

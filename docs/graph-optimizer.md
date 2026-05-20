@@ -298,7 +298,7 @@ The old mental model treated backend partitioning, fusion, and memory planning a
 | Backend-neutral graph simplification | `GraphOptimizationConfig` + `GraphOptimizer` |
 | Backend ownership planning | `BackendPlanningConfig` + `BackendPlanningService` |
 | CPU and accelerator region optimization | `RegionOptimizationConfig` + `DefaultRegionOptimizer` |
-| Memory reuse and handoff planning | `MemoryPlanningConfig` + `MemoryPlanner` |
+| Memory reuse and handoff planning | `MemoryPlanningConfig` + `MemoryPlanner` public entry point; package-local memory planners own lifetimes, slots, region flow, bindings, handoffs, policy, and summary |
 | Runtime backend and hardware policy | `RuntimeConfig` |
 | Value publication after execution | `PublicationPolicy` |
 

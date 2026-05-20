@@ -1,5 +1,4 @@
 import config.compile.CompileConfig;
-import graph.CompiledGraph;
 import graph.compile.planning.memory.MemoryPlan;
 import graph.compile.planning.memory.MemoryPlanner;
 import graph.compile.planning.memory.MemoryPlannerPolicy;
@@ -20,9 +19,7 @@ public class MemoryPlannerSummaryTest {
         c.setRequiresGrad(true);
 
         Tensor graph = a.div(b).div(a.sub(c)).add(b.add(c).mul(a.div(b).div(a.sub(c)))).pow(2);
-        CompiledGraph compiled = CompiledGraph.compile(graph, CompileConfig.training());
-
-        MemoryPlan plan = MemoryPlanner.plan(compiled.getCompiledGraphAsList(), MemoryPlannerPolicy.defaults());
+        MemoryPlan plan = MemoryPlanner.plan(graph.topologicalSort(), MemoryPlannerPolicy.defaults());
         String explain = plan.explain();
 
         assertTrue(plan.summary().reusableIntervalCount() > 0);
@@ -54,7 +51,7 @@ public class MemoryPlannerSummaryTest {
         c.setRequiresGrad(true);
 
         Tensor loss = a.div(b).div(a.sub(c)).add(b.add(c).mul(a.div(b).div(a.sub(c)))).pow(2);
-        var graph = CompiledGraph.compile(loss, CompileConfig.training()).getCompiledGraphAsList();
+        var graph = loss.topologicalSort();
         MemoryPlan plan = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 1));
 
         assertTrue(plan.summary().peakSavedForwardBytes() > 0L);
@@ -72,7 +69,7 @@ public class MemoryPlannerSummaryTest {
         Tensor t2 = t1.sum(1, true);   // size 2
         Tensor out = t2.add(c.reshape(2, 1)); // size 2
 
-        var graph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).getCompiledGraphAsList();
+        var graph = out.topologicalSort();
         MemoryPlan strict = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 1));
         MemoryPlan flexible = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, true, 1));
 
@@ -88,7 +85,7 @@ public class MemoryPlannerSummaryTest {
         Tensor t1 = a.add(b);          // size 4
         Tensor out = t1.sum(1, true);  // size 2
 
-        var graph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).getCompiledGraphAsList();
+        var graph = out.topologicalSort();
         MemoryPlan smallAllowed = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 1));
         MemoryPlan smallExcluded = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 3));
 
@@ -128,7 +125,7 @@ public class MemoryPlannerSummaryTest {
         Tensor t2 = t1.sum(1, true);         // size 2
         Tensor out = t2.add(c.reshape(2, 1)); // size 2
 
-        var graph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).getCompiledGraphAsList();
+        var graph = out.topologicalSort();
         MemoryPlan strict = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 1));
         MemoryPlan flexible = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, true, 1));
 
@@ -144,7 +141,7 @@ public class MemoryPlannerSummaryTest {
         Tensor t1 = a.add(b);         // size 4
         Tensor out = t1.sum(1, true); // size 2
 
-        var graph = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).getCompiledGraphAsList();
+        var graph = out.topologicalSort();
         MemoryPlan allIntervals = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 1));
         MemoryPlan largerOnly = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 3));
 

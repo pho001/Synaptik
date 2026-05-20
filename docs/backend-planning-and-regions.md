@@ -53,7 +53,7 @@ The layers are:
 | Graph optimization | `GraphOptimizationConfig` | Backend-neutral `AR`, `CF`, `CSE`, `DCE`, `LOWER`. |
 | Backend planning | `BackendPlanningConfig` | CPU-only, explicit accelerator, or automatic accelerator region discovery. |
 | Region optimization | `RegionOptimizationConfig` | Fusion and execution-unit planning inside owned regions. |
-| Memory planning | `MemoryPlanningConfig` | Reusable runtime slots, lifetimes, region handoff bindings. |
+| Memory planning | `MemoryPlanningConfig` | Lifetimes, reusable runtime slots, region value flow, region bindings, handoff requirements, runtime binding policy, and summary metrics. |
 
 ## BackendPlanningConfig
 
@@ -90,7 +90,7 @@ CompileConfig compile = CompileConfig.training()
         .withBackendPlanning(BackendPlanningConfig.cpuOnly());
 ```
 
-`EXPLICIT` means only nodes that already carry explicit accelerator backend intent can seed accelerator planning. The planner can still include legal supporting nodes required for a valid closed region when the target legality adapter allows it.
+`EXPLICIT` means only nodes that already carry explicit accelerator backend intent can seed accelerator planning. The planner can still include legal supporting nodes required for a valid closed region when the target backend partition capability allows it.
 
 ```java
 CompileConfig compile = CompileConfig.training()
@@ -276,13 +276,16 @@ The sum is a reduction and usually acts as a boundary. The elementwise prefix is
 
 ## Memory Planning
 
-Memory planning is compile-time lifetime analysis. It decides which temporary runtime storage slots may be reused and where region handoff values must be materialized.
+Memory planning is compile-time lifetime analysis. It decides which temporary runtime storage slots may be reused and where region handoff values must be materialized. `MemoryPlanner` is the public entry point; the package-local planners under `graph.compile.planning.memory` own tensor lifetimes, reusable interval filtering, slot allocation, region value flow, region bindings, handoff requirements, runtime binding policy, and summary metrics.
 
 Source:
 
 - `src/main/java/config/compile/MemoryPlanningConfig.java`
 - `src/main/java/graph/compile/planning/memory/MemoryPlanner.java`
 - `src/main/java/graph/compile/planning/memory/MemoryPlan.java`
+- `src/main/java/graph/compile/planning/memory/TensorLifetimePlanner.java`
+- `src/main/java/graph/compile/planning/memory/RegionValueFlowPlanner.java`
+- `src/main/java/graph/compile/planning/memory/RegionBindingAllocator.java`
 - `src/main/java/graph/execution/residency/RuntimeMemoryBinder.java`
 
 Example:
@@ -293,7 +296,7 @@ t2 = relu(t1)
 t3 = sum(t2)
 ```
 
-If `t1` is consumed only by `t2` and no public tensor needs `t1`, memory planning can avoid treating `t1` as an independently published long-lived value. If a later region boundary needs `t2`, the planner creates a handoff requirement for `t2`.
+If `t1` is consumed only by `t2` and no public tensor needs `t1`, memory planning can avoid treating `t1` as an independently published long-lived value. If a later region boundary needs `t2`, region value flow records the node-id to graph-value mapping, region binding allocation chooses reusable region slots, and handoff planning creates a requirement for `t2`.
 
 Memory planning is not publication. Publication happens after runtime execution and is controlled by `PublicationPolicy`.
 

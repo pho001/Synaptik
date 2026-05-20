@@ -13,6 +13,7 @@ import config.runtime.DeviceTransferPolicy;
 import config.runtime.NativeCpuMemoryConfig;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import graph.compile.publication.PublicationPlan;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.residency.DeviceBindingRegistry;
 import graph.execution.residency.NativeCpuStorageRegistry;
@@ -93,24 +94,28 @@ public final class ExecutionState {
      * @param descriptorIndex immutable tensor descriptor facts for {@code compiledNodes}
      * @param metadataIndex prepared execution metadata keyed by node id
      * @param forwardBoundaryNodeId last forward node id, used to decide leaf aliasing versus copying
+     * @param publicationPlan runtime input and publication bindings captured at compile time
      * @return mutable execution state for one run
      */
     public static ExecutionState create(
             List<CompiledNode> compiledNodes,
             CompiledTensorDescriptorIndex descriptorIndex,
             Map<Integer, CompiledNodeExecutionMetadata> metadataIndex,
-            int forwardBoundaryNodeId
+            int forwardBoundaryNodeId,
+            PublicationPlan publicationPlan
     ) {
         Objects.requireNonNull(compiledNodes, "compiledNodes cannot be null");
         Objects.requireNonNull(descriptorIndex, "descriptorIndex cannot be null");
         Objects.requireNonNull(metadataIndex, "metadataIndex cannot be null");
+        Objects.requireNonNull(publicationPlan, "publicationPlan cannot be null");
 
         Map<Integer, TensorResidencyState> residency = new HashMap<>(compiledNodes.size());
         RuntimeTensorStore tensorStore = RuntimeTensorStore.create(
                 compiledNodes,
                 descriptorIndex,
                 forwardBoundaryNodeId,
-                residency
+                residency,
+                publicationPlan
         );
         return new ExecutionState(
                 tensorStore,

@@ -3,12 +3,15 @@ package backend.metal.lowering;
 import backend.ComputeBackend;
 import backend.accelerator.lowering.AcceleratorSubgraphLowerer;
 import backend.accelerator.lowering.AcceleratorSubgraphLoweringResult;
+import config.compile.BackendPlanningCostConfig;
+import config.optimizer.MetalTransferModel;
 import graph.compile.planning.partition.PartitionPlanningContext;
 import graph.CompiledNode;
 import graph.compile.planning.partition.PartitionPlan;
-import graph.compile.planning.partition.RegionLegalityAdapter;
+import graph.compile.planning.partition.BackendPartitionCapability;
 import graph.compile.planning.partition.PartitionCandidate;
 import graph.compile.planning.partition.PartitionTarget;
+import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
 import graph.compile.planning.value.GraphValueRef;
 import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
@@ -19,9 +22,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Partition legality adapter for Metal accelerator graph regions.
+ * Partition capability for Metal accelerator graph regions.
  */
-public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
+public final class MetalBackendPartitionCapability implements BackendPartitionCapability {
     private final AcceleratorSubgraphLowerer lowerer = new AcceleratorSubgraphLowerer();
 
     /**
@@ -32,11 +35,23 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
         return PartitionTarget.GPU_METAL;
     }
 
+    @Override
+    public AcceleratorPartitionScoreModel.StaticCostPreset costPreset(BackendPlanningCostConfig costConfig) {
+        MetalTransferModel model = costConfig == null
+                ? MetalTransferModel.CONSERVATIVE
+                : costConfig.planningCostProfile().metalTransferModel();
+        return switch (model) {
+            case CONSERVATIVE -> AcceleratorPartitionScoreModel.StaticCostPreset.conservative();
+            case MEASURED -> AcceleratorPartitionScoreModel.StaticCostPreset.measured();
+            case AGGRESSIVE -> AcceleratorPartitionScoreModel.StaticCostPreset.aggressive();
+        };
+    }
+
     /**
      * Returns whether a compiled node can be represented in the Metal accelerator DAG.
      */
     @Override
-    public boolean isNodeSupported(CompiledNode node, PartitionPlanningContext context) {
+    public boolean canExecute(CompiledNode node, PartitionPlanningContext context) {
         return MetalPartitionSupport.isPlannerSupported(node, context);
     }
 
@@ -52,7 +67,7 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
      * Returns whether a producer outside the selected Metal candidate may be read as an external input.
      */
     @Override
-    public boolean canUseAsExternalInput(
+    public boolean canUseExternalInput(
             CompiledNode producer,
             CompiledNode consumer,
             Set<Integer> selectedNodeIds,
@@ -100,7 +115,7 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
      * Builds a structurally valid Metal partition candidate from selected node ids.
      */
     @Override
-    public PartitionCandidate tryCreateStructuralCandidate(
+    public PartitionCandidate createCandidate(
             Set<Integer> selectedNodeIds,
             PartitionPlanningContext context,
             Set<GraphValueRef> requiredMaterializedValueRefs
@@ -155,7 +170,7 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
      * Lowers a Metal candidate into a concrete Metal partition plan.
      */
     @Override
-    public PartitionPlan tryCreatePlan(
+    public PartitionPlan createPlan(
             PartitionCandidate candidate,
             PartitionPlanningContext context
     ) {

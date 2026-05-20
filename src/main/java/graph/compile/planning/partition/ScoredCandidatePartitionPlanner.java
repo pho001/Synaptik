@@ -99,7 +99,7 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
     private AttemptResult tryBuildPlan(int startIndex, PartitionPlanningRequest request, boolean[] covered) {
         PartitionPlanningContext context = request.context();
         CompiledNode start = context.compiledNodes().get(startIndex);
-        if (!request.adapter().canSeed(start, context)) {
+        if (!request.capability().canSeed(start, context)) {
             return new AttemptResult(
                     null,
                     null,
@@ -172,7 +172,7 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
                     )
             );
         }
-        PartitionPlan plan = request.adapter().tryCreatePlan(accepted, context);
+        PartitionPlan plan = request.capability().createPlan(accepted, context);
         if (plan == null) {
             return new AttemptResult(
                     null,
@@ -263,7 +263,7 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
             accumulator.searchBudgetHit = true;
             return;
         }
-        PartitionCandidate structural = request.adapter().tryCreateStructuralCandidate(
+        PartitionCandidate structural = request.capability().createCandidate(
                 selected,
                 request.context(),
                 request.requiredMaterializedValueRefs()
@@ -275,7 +275,7 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
                 accumulator.bestStructural = structural;
                 accumulator.bestStructuralScore = structuralScore;
             }
-            PartitionPlan acceptedPlan = request.adapter().tryCreatePlan(structural, request.context());
+            PartitionPlan acceptedPlan = request.capability().createPlan(structural, request.context());
             if (acceptedPlan != null) {
                 AcceleratorPartitionScoreModel.MaterializationCostSummary costSummary =
                         costSummaryFor(structural, acceptedPlan, metrics, request);
@@ -326,15 +326,12 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
             AcceleratorPartitionScoreModel.CandidateMetrics metrics,
             PartitionPlanningRequest request
     ) {
-        AcceleratorPartitionScoreModel.StaticCostPreset preset = request.target() == PartitionTarget.GPU_METAL
-                ? AcceleratorPartitionScoreModel.StaticCostPreset.fromMetalTransferModel(request.metalTransferModel())
-                : AcceleratorPartitionScoreModel.StaticCostPreset.conservative();
         return AcceleratorPartitionScoreModel.scoreMaterializationAware(
                 metrics,
                 acceptedPlan.estimatedWork(),
                 materializationSignalsFor(candidate, request.context()),
                 request.policy(),
-                preset
+                request.costPreset()
         );
     }
 
@@ -350,7 +347,7 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
                         || selectedNodeIds.contains(consumer.id())
                         || covered[consumer.id()]
                         || !request.canConsiderNode(consumer)
-                        || !request.adapter().isNodeSupported(consumer, request.context())) {
+                        || !request.capability().canExecute(consumer, request.context())) {
                     continue;
                 }
                 if (inputsResolvable(consumer, selectedNodeIds)) {

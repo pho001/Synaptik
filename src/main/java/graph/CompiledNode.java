@@ -10,21 +10,18 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 /**
  * Immutable compile-time snapshot of a tensor graph node.
  *
- * <p>The user-visible publication tensor reference remains available for runtime input seeding, output and
- * gradient publication, and debug introspection. Compile topology and node metadata are captured as values so
- * prepare/lowering does not depend on the mutable Tensor graph. Operation instances referenced by compiled nodes
- * are compile metadata and must be treated as immutable.
+ * <p>Compile topology and node metadata are captured as values so prepare/lowering does not depend on the mutable
+ * Tensor graph. User-visible publication bindings live in {@code PublicationPlan}, not in node snapshots. Operation
+ * instances referenced by compiled nodes are compile metadata and must be treated as immutable.
  */
 public final class CompiledNode {
     private final int id;
-    private final Tensor publicationTensor;
     private final Operation operation;
     private final ComputeBackend backend;
     private final List<Integer> inputIds;
@@ -46,7 +43,6 @@ public final class CompiledNode {
 
     private CompiledNode(
             int id,
-            Tensor publicationTensor,
             Operation operation,
             ComputeBackend backend,
             List<Integer> inputIds,
@@ -67,7 +63,6 @@ public final class CompiledNode {
             CompiledTensorDataSnapshot staticDataSnapshot
     ) {
         this.id = id;
-        this.publicationTensor = Objects.requireNonNull(publicationTensor, "publicationTensor cannot be null");
         this.operation = operation;
         this.backend = Objects.requireNonNull(backend, "backend cannot be null");
         this.inputIds = List.copyOf(inputIds == null ? List.of() : inputIds);
@@ -89,27 +84,15 @@ public final class CompiledNode {
     }
 
     /**
-     * Captures compiled node snapshots for an ordered graph.
+     * Captures compiled node snapshots.
      *
      * @param orderedGraph tensors in topological order
      * @return immutable compiled node snapshots
      */
     public static List<CompiledNode> snapshot(List<Tensor> orderedGraph) {
-        return snapshot(orderedGraph, Map.of());
-    }
-
-    /**
-     * Captures compiled node snapshots with optional publication tensor remapping.
-     *
-     * @param orderedGraph tensors in topological order
-     * @param publicationTensors mapping from compiled graph tensors to user-visible publication tensors
-     * @return immutable compiled node snapshots
-     */
-    public static List<CompiledNode> snapshot(List<Tensor> orderedGraph, Map<Tensor, Tensor> publicationTensors) {
         if (orderedGraph == null || orderedGraph.isEmpty()) {
             return List.of();
         }
-        publicationTensors = publicationTensors == null ? Map.of() : Map.copyOf(publicationTensors);
         IdentityHashMap<Tensor, Integer> ids = new IdentityHashMap<>();
         for (int i = 0; i < orderedGraph.size(); i++) {
             ids.put(orderedGraph.get(i), i);
@@ -140,7 +123,6 @@ public final class CompiledNode {
             storageOwnerIds.put(tensor, storageOwnerId);
             out.add(new CompiledNode(
                     i,
-                    publicationTensors.getOrDefault(tensor, tensor),
                     tensor.getOperation(),
                     TensorInternalAccess.backendIntent(tensor),
                     inputIds,
@@ -179,10 +161,6 @@ public final class CompiledNode {
 
     public int id() {
         return id;
-    }
-
-    public Tensor publicationTensor() {
-        return publicationTensor;
     }
 
     public Operation operation() {

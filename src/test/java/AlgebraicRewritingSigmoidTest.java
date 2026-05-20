@@ -90,16 +90,16 @@ public class AlgebraicRewritingSigmoidTest {
         CompiledGraph compiledGraph = CompiledGraph.compile(out, arOnlyInferenceConfig());
         compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
 
-        assertEquals(1, compiledGraph.getCompiledGraphAsList().stream()
-                .map(Tensor::getOperation)
+        assertEquals(1, compiledGraph.compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
                 .filter(op -> op != null && op.opType() == Operation.OpType.GT)
                 .count());
         assertArrayEquals(new byte[]{0, 1, 0}, out.getBoolData());
     }
 
     private static boolean containsSigmoid(CompiledGraph compiledGraph) {
-        return compiledGraph.getCompiledGraphAsList().stream()
-                .map(Tensor::getOperation)
+        return compiledGraph.compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.SIGMOID);

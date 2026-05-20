@@ -445,7 +445,8 @@ class ExecutionStateResidencyTest {
                 nodes,
                 compiled.compileArtifacts().descriptorIndex(),
                 metadata,
-                compiled.compileArtifacts().forwardOutputNode().id()
+                compiled.compileArtifacts().forwardOutputNode().id(),
+                compiled.compileArtifacts().publication()
         );
         return new Fixture(compiled, state, Map.copyOf(metadata));
     }

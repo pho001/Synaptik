@@ -4,6 +4,7 @@ import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import config.optimizer.PiecewiseLoweringConfig;
 import graph.CompiledGraph;
+import graph.CompiledNode;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -53,11 +54,11 @@ final class PiecewiseLoweringRealGraphAuditTest {
                 EnumMap<Operation.OpType, Integer> baselineCounts = countInterestingOps(baselineGraph);
                 EnumMap<Operation.OpType, Integer> piecewiseCounts = countInterestingOps(piecewiseGraph);
 
-                System.out.println("baselineNodes=" + baselineGraph.getCompiledGraphAsList().size());
-                System.out.println("piecewiseNodes=" + piecewiseGraph.getCompiledGraphAsList().size());
+                System.out.println("baselineNodes=" + baselineGraph.compiledNodes().size());
+                System.out.println("piecewiseNodes=" + piecewiseGraph.compiledNodes().size());
                 System.out.println("baselineInteresting=" + baselineCounts);
                 System.out.println("piecewiseInteresting=" + piecewiseCounts);
-                System.out.println("deltaNodes=" + (piecewiseGraph.getCompiledGraphAsList().size() - baselineGraph.getCompiledGraphAsList().size()));
+                System.out.println("deltaNodes=" + (piecewiseGraph.compiledNodes().size() - baselineGraph.compiledNodes().size()));
             } catch (Exception e) {
                 System.out.println("compileError=" + e.getClass().getSimpleName() + ": " + e.getMessage());
             }
@@ -67,8 +68,8 @@ final class PiecewiseLoweringRealGraphAuditTest {
 
     private static EnumMap<Operation.OpType, Integer> countInterestingOps(CompiledGraph graph) {
         EnumMap<Operation.OpType, Integer> counts = new EnumMap<>(Operation.OpType.class);
-        for (Tensor tensor : graph.getCompiledGraphAsList()) {
-            Operation op = tensor.getOperation();
+        for (CompiledNode tensor : graph.compiledNodes()) {
+            Operation op = tensor.operation();
             if (op == null) {
                 continue;
             }

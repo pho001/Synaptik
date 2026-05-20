@@ -5,6 +5,7 @@ import graph.AliasViewPolicy;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import graph.compile.publication.PublicationPlan;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
@@ -26,11 +27,14 @@ final class RuntimeTensorStore {
             List<CompiledNode> compiledNodes,
             CompiledTensorDescriptorIndex descriptorIndex,
             int forwardBoundaryNodeId,
-            Map<Integer, TensorResidencyState> residencyByNodeId
+            Map<Integer, TensorResidencyState> residencyByNodeId,
+            PublicationPlan publicationPlan
     ) {
         Objects.requireNonNull(compiledNodes, "compiledNodes cannot be null");
         Objects.requireNonNull(descriptorIndex, "descriptorIndex cannot be null");
         Objects.requireNonNull(residencyByNodeId, "residencyByNodeId cannot be null");
+        Objects.requireNonNull(publicationPlan, "publicationPlan cannot be null");
+        Map<Integer, PublicationPlan.RuntimeInputBinding> runtimeInputs = publicationPlan.runtimeInputsByNodeId();
         Map<Integer, Tensor> runtimeTensors = new HashMap<>(compiledNodes.size());
         Map<Tensor, Integer> runtimeNodeIds = new IdentityHashMap<>(compiledNodes.size());
         for (CompiledNode node : compiledNodes) {
@@ -47,10 +51,14 @@ final class RuntimeTensorStore {
             runtimeTensor.setRequiresGrad(descriptor.requiresGrad());
             runtimeTensor.setTrainableParameter(descriptor.trainableParameter());
             if (node.leaf()) {
-                if (node.id() <= forwardBoundaryNodeId) {
-                    TensorInternalAccess.aliasRuntimeFrom(runtimeTensor, node.publicationTensor());
+                PublicationPlan.RuntimeInputBinding binding = runtimeInputs.get(node.id());
+                if (binding == null) {
+                    throw new IllegalStateException("Missing runtime input binding for leaf nodeId=" + node.id());
+                }
+                if (binding.kind() == PublicationPlan.RuntimeInputBindingKind.FORWARD_LEAF_ALIAS) {
+                    TensorInternalAccess.aliasRuntimeFrom(runtimeTensor, binding.sourceTensor());
                 } else {
-                    runtimeTensor.copyDataFrom(node.publicationTensor());
+                    runtimeTensor.copyDataFrom(binding.sourceTensor());
                 }
                 residencyByNodeId.put(node.id(), TensorResidencyState.cpuArrayCurrent("leaf runtime binding"));
             } else {

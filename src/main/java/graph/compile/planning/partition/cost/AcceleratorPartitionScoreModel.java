@@ -1,6 +1,5 @@
 package graph.compile.planning.partition.cost;
 
-import config.optimizer.MetalTransferModel;
 import config.compile.PartitionSearchConfig;
 import graph.optimizer.cost.CostComponent;
 import graph.optimizer.cost.CostScore;
@@ -245,20 +244,6 @@ public final class AcceleratorPartitionScoreModel {
             return new TransferPolicy(0.05d, 0.10d, 0.025d);
         }
 
-        /**
-         * Builds a transfer policy from a graph-level Metal transfer model.
-         *
-         * @param model transfer model, or {@code null} for conservative defaults
-         * @return transfer score policy
-         */
-        public static TransferPolicy fromMetalTransferModel(MetalTransferModel model) {
-            MetalTransferModel resolved = model == null ? MetalTransferModel.CONSERVATIVE : model;
-            return new TransferPolicy(
-                    resolved.inputBytePenalty(),
-                    resolved.outputBytePenalty(),
-                    resolved.avoidedIntermediateByteCredit()
-            );
-        }
     }
 
     /**
@@ -374,21 +359,6 @@ public final class AcceleratorPartitionScoreModel {
          */
         public static StaticCostPreset aggressive() {
             return new StaticCostPreset("AGGRESSIVE", 40.0d, 0.01d, 0.02d, 0.02d, 0.02d, 0.10d, 60.0d, 1.0d);
-        }
-
-        /**
-         * Builds a static preset from the graph-level Metal transfer model.
-         *
-         * @param model transfer model
-         * @return matching static preset
-         */
-        public static StaticCostPreset fromMetalTransferModel(MetalTransferModel model) {
-            MetalTransferModel resolved = model == null ? MetalTransferModel.CONSERVATIVE : model;
-            return switch (resolved) {
-                case CONSERVATIVE -> conservative();
-                case MEASURED -> measured();
-                case AGGRESSIVE -> aggressive();
-            };
         }
 
         private static StaticCostPreset fromTransferPolicy(String name, TransferPolicy transferPolicy) {

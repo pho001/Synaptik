@@ -46,8 +46,8 @@ public class CrossEntropyLossExecutionTest {
 
         assertArrayEquals(referenceLoss, direct.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(referenceGrad, logitsB.getGradient().toDoubleArrayCopy(), 1e-9);
-        assertTrue(compiledGraph.getCompiledGraphAsList().stream()
-                .map(Tensor::getOperation)
+        assertTrue(compiledGraph.compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.CROSS_ENTROPY_LOSS));

@@ -7,20 +7,20 @@ import graph.compile.planning.partition.PartitionPlan;
 import graph.compile.planning.partition.PartitionPlanningContext;
 import graph.compile.planning.partition.PartitionTarget;
 import graph.compile.planning.value.GraphValueRef;
-import graph.compile.planning.partition.RegionLegalityAdapter;
+import graph.compile.planning.partition.BackendPartitionCapability;
 
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-public final class CpuRegionLegalityAdapter implements RegionLegalityAdapter {
+public final class CpuBackendPartitionCapability implements BackendPartitionCapability {
     @Override
     public PartitionTarget target() {
         return PartitionTarget.CPU;
     }
 
     @Override
-    public boolean isNodeSupported(CompiledNode node, PartitionPlanningContext context) {
+    public boolean canExecute(CompiledNode node, PartitionPlanningContext context) {
         return node != null
                 && node.backend() == ComputeBackend.CPU
                 && node.operation() != null
@@ -36,11 +36,11 @@ public final class CpuRegionLegalityAdapter implements RegionLegalityAdapter {
 
     @Override
     public boolean canSeed(CompiledNode node, PartitionPlanningContext context) {
-        return isNodeSupported(node, context);
+        return canExecute(node, context);
     }
 
     @Override
-    public boolean canUseAsExternalInput(
+    public boolean canUseExternalInput(
             CompiledNode producer,
             CompiledNode consumer,
             Set<Integer> selectedNodeIds,
@@ -52,11 +52,11 @@ public final class CpuRegionLegalityAdapter implements RegionLegalityAdapter {
         if (selectedNodeIds.contains(producer.id())) {
             return true;
         }
-        return producer.operation() == null || !isNodeSupported(producer, context);
+        return producer.operation() == null || !canExecute(producer, context);
     }
 
     @Override
-    public PartitionCandidate tryCreateStructuralCandidate(
+    public PartitionCandidate createCandidate(
             Set<Integer> selectedNodeIds,
             PartitionPlanningContext context,
             Set<GraphValueRef> requiredMaterializedValueRefs
@@ -100,7 +100,7 @@ public final class CpuRegionLegalityAdapter implements RegionLegalityAdapter {
     }
 
     @Override
-    public PartitionPlan tryCreatePlan(PartitionCandidate candidate, PartitionPlanningContext context) {
+    public PartitionPlan createPlan(PartitionCandidate candidate, PartitionPlanningContext context) {
         if (candidate == null) {
             return null;
         }

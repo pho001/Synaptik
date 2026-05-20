@@ -3,7 +3,7 @@ package graph.compile.planning.partition;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 
-import backend.cpu.partition.CpuRegionLegalityAdapter;
+import backend.cpu.partition.CpuBackendPartitionCapability;
 import config.optimizer.CpuRegionConfig;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
@@ -48,7 +48,7 @@ class CpuNaturalExecutionRegionPlannerTest {
                 PartitionTarget.CPU,
                 context,
                 new AcceleratorPartitionScoreModel.PlannerPolicy(64, 512, 1, 1, 1, 1, 1, 1),
-                new CpuRegionLegalityAdapter(),
+                new CpuBackendPartitionCapability(),
                 Set.of(GraphValueRef.node(nodes.size() - 1))
         ));
 

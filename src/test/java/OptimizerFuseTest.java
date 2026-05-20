@@ -116,9 +116,9 @@ public class OptimizerFuseTest {
                 .orElseThrow();
 
         assertEquals(1, fusedStep.metadata().executionInputNodeIds().size());
-        Tensor fusedInput = compiledGraph.getCompiledGraphAsList().get(fusedStep.metadata().executionInputNodeIds().getFirst());
-        assertNotNull(fusedInput.getOperation());
-        assertEquals(Operation.OpType.GATHER, fusedInput.getOperation().opType());
+        graph.CompiledNode fusedInput = compiledGraph.compiledNodes().get(fusedStep.metadata().executionInputNodeIds().getFirst());
+        assertNotNull(fusedInput.operation());
+        assertEquals(Operation.OpType.GATHER, fusedInput.operation().opType());
     }
 
     @Test
@@ -137,9 +137,9 @@ public class OptimizerFuseTest {
                 .orElseThrow();
 
         assertEquals(1, fusedStep.metadata().executionInputNodeIds().size());
-        Tensor fusedInput = compiledGraph.getCompiledGraphAsList().get(fusedStep.metadata().executionInputNodeIds().getFirst());
-        assertNotNull(fusedInput.getOperation());
-        assertEquals(Operation.OpType.TAKE_ALONG_AXIS, fusedInput.getOperation().opType());
+        graph.CompiledNode fusedInput = compiledGraph.compiledNodes().get(fusedStep.metadata().executionInputNodeIds().getFirst());
+        assertNotNull(fusedInput.operation());
+        assertEquals(Operation.OpType.TAKE_ALONG_AXIS, fusedInput.operation().opType());
     }
 
     @Test
@@ -159,9 +159,9 @@ public class OptimizerFuseTest {
                 .orElseThrow();
 
         assertEquals(1, fusedStep.metadata().executionInputNodeIds().size());
-        Tensor fusedInput = compiledGraph.getCompiledGraphAsList().get(fusedStep.metadata().executionInputNodeIds().getFirst());
-        assertNotNull(fusedInput.getOperation());
-        assertEquals(Operation.OpType.SCATTER_ADD, fusedInput.getOperation().opType());
+        graph.CompiledNode fusedInput = compiledGraph.compiledNodes().get(fusedStep.metadata().executionInputNodeIds().getFirst());
+        assertNotNull(fusedInput.operation());
+        assertEquals(Operation.OpType.SCATTER_ADD, fusedInput.operation().opType());
     }
 
     @Test
@@ -179,9 +179,9 @@ public class OptimizerFuseTest {
                 .orElseThrow();
 
         assertEquals(1, fusedStep.metadata().executionInputNodeIds().size());
-        Tensor fusedInput = compiledGraph.getCompiledGraphAsList().get(fusedStep.metadata().executionInputNodeIds().getFirst());
-        assertNotNull(fusedInput.getOperation());
-        assertEquals(Operation.OpType.SUM, fusedInput.getOperation().opType());
+        graph.CompiledNode fusedInput = compiledGraph.compiledNodes().get(fusedStep.metadata().executionInputNodeIds().getFirst());
+        assertNotNull(fusedInput.operation());
+        assertEquals(Operation.OpType.SUM, fusedInput.operation().opType());
     }
 
     @Test
@@ -200,9 +200,9 @@ public class OptimizerFuseTest {
                 .orElseThrow();
 
         assertEquals(1, fusedStep.metadata().executionInputNodeIds().size());
-        Tensor fusedInput = compiledGraph.getCompiledGraphAsList().get(fusedStep.metadata().executionInputNodeIds().getFirst());
-        assertNotNull(fusedInput.getOperation());
-        assertEquals(Operation.OpType.MATMUL, fusedInput.getOperation().opType());
+        graph.CompiledNode fusedInput = compiledGraph.compiledNodes().get(fusedStep.metadata().executionInputNodeIds().getFirst());
+        assertNotNull(fusedInput.operation());
+        assertEquals(Operation.OpType.MATMUL, fusedInput.operation().opType());
     }
 
     @Test

@@ -168,10 +168,8 @@ class CudaLayoutTransformDeviceFlowTest {
                 List.of(),
                 nodes,
                 CompiledTensorDescriptorBuilder.build(nodes),
-                Map.of(),
-                rootTensor,
+                testsupport.PublicationPlans.forRoot(rootTensor, nodes, forwardOutputNode.id()),
                 forwardOutputNode,
-                null,
                 null,
                 graph.execution.trace.PrepareTrace.skipped()
         );
@@ -198,7 +196,11 @@ class CudaLayoutTransformDeviceFlowTest {
 
     private static CompiledNode nodeFor(List<CompiledNode> nodes, Tensor tensor) {
         return nodes.stream()
-                .filter(node -> node.publicationTensor() == tensor)
+                .filter(node -> node.label().equals(tensor.getLabel())
+                        && ((node.operation() == null && tensor.getOperation() == null)
+                        || (node.operation() != null
+                        && tensor.getOperation() != null
+                        && node.operation().opType() == tensor.getOperation().opType())))
                 .findFirst()
                 .orElseThrow();
     }

@@ -5,6 +5,7 @@ import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
+import tensor.storage.TensorStorage;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,8 +57,15 @@ public final class GraphStructureContract {
                     operation == null ? null : operation.opType(),
                     parentIds,
                     tensor.getShapeUnsafe(),
+                    tensor.getStridesUnsafe(),
+                    tensor.getStorageOffsetUnsafe(),
                     tensor.getDataType(),
-                    TensorInternalAccess.backendIntent(tensor)
+                    TensorInternalAccess.storage(tensor),
+                    TensorInternalAccess.backendIntent(tensor),
+                    tensor.isContiguous(),
+                    tensor.hasStorageOffset(),
+                    tensor.getRequiresGrad(),
+                    tensor.isTrainableParameter()
             ));
         }
         return new GraphStructureContract(nodes, true);
@@ -97,11 +105,32 @@ public final class GraphStructureContract {
             if (!Arrays.equals(actual.getShapeUnsafe(), expected.shape())) {
                 throw stale("shape changed at index " + i);
             }
+            if (!Arrays.equals(actual.getStridesUnsafe(), expected.strides())) {
+                throw stale("strides changed at index " + i);
+            }
+            if (actual.getStorageOffsetUnsafe() != expected.storageOffset()) {
+                throw stale("storage offset changed at index " + i);
+            }
             if (actual.getDataType() != expected.dataType()) {
                 throw stale("dtype changed at index " + i);
             }
+            if (expected.operation() != null && TensorInternalAccess.storage(actual) != expected.storage()) {
+                throw stale("storage owner changed at index " + i);
+            }
             if (TensorInternalAccess.backendIntent(actual) != expected.backend()) {
                 throw stale("backend intent changed at index " + i);
+            }
+            if (actual.isContiguous() != expected.contiguous()) {
+                throw stale("contiguous flag changed at index " + i);
+            }
+            if (actual.hasStorageOffset() != expected.hasStorageOffset()) {
+                throw stale("storage offset flag changed at index " + i);
+            }
+            if (actual.getRequiresGrad() != expected.requiresGrad()) {
+                throw stale("requiresGrad changed at index " + i);
+            }
+            if (actual.isTrainableParameter() != expected.trainableParameter()) {
+                throw stale("trainableParameter changed at index " + i);
             }
             List<Tensor> parents = actual.getPrevTensors();
             int[] expectedParentIds = expected.parentIds();
@@ -127,14 +156,23 @@ public final class GraphStructureContract {
             Operation.OpType opType,
             int[] parentIds,
             int[] shape,
+            int[] strides,
+            int storageOffset,
             DataType dataType,
-            ComputeBackend backend
+            TensorStorage storage,
+            ComputeBackend backend,
+            boolean contiguous,
+            boolean hasStorageOffset,
+            boolean requiresGrad,
+            boolean trainableParameter
     ) {
         private Node {
             Objects.requireNonNull(tensor, "tensor cannot be null");
             parentIds = parentIds == null ? new int[0] : parentIds.clone();
             shape = shape == null ? new int[0] : shape.clone();
+            strides = strides == null ? new int[0] : strides.clone();
             Objects.requireNonNull(dataType, "dataType cannot be null");
+            Objects.requireNonNull(storage, "storage cannot be null");
             Objects.requireNonNull(backend, "backend cannot be null");
         }
 
@@ -146,6 +184,11 @@ public final class GraphStructureContract {
         @Override
         public int[] shape() {
             return shape.clone();
+        }
+
+        @Override
+        public int[] strides() {
+            return strides.clone();
         }
     }
 }

@@ -14,7 +14,7 @@ import backend.accelerator.lowering.GpuLoweredRegionOriginalOp;
 import backend.accelerator.lowering.GpuLoweredRegionRejection;
 import backend.accelerator.lowering.GpuLoweredRegionValueAssumption;
 import backend.accelerator.lowering.GpuLoweringUnsupportedReason;
-import backend.cuda.lowering.CudaGpuRegionLegalityAdapter;
+import backend.cuda.lowering.CudaGpuBackendPartitionCapability;
 import backend.lowering.LoweringFamily;
 import backend.lowering.region.EmptyRegionPayload;
 import backend.lowering.region.RegionCost;
@@ -115,7 +115,7 @@ public class CompiledGraphTraceTest {
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
         int sumNodeId = nodeId(compiled, operations.Operation.OpType.SUM);
-        String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(compiledNode(compiled, sumNodeId), null);
+        String reason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(compiledNode(compiled, sumNodeId), null);
 
         assertEquals("", reason);
         assertTrue(prepared.prepareTrace().backendSelection().decisions().stream()
@@ -135,7 +135,7 @@ public class CompiledGraphTraceTest {
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
         int layerNormNodeId = nodeId(compiled, operations.Operation.OpType.LAYER_NORM);
-        String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+        String reason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                 compiledNode(compiled, layerNormNodeId),
                 planningContext(compiled)
         );
@@ -306,10 +306,7 @@ public class CompiledGraphTraceTest {
         Tensor b = new Tensor(new float[]{3f, 4f}, new int[]{2}, null, "traceB", DataType.FLOAT32);
         Tensor out = a.add(b);
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
-        CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
-                .filter(node -> node.publicationTensor() == out)
-                .findFirst()
-                .orElseThrow();
+        CompiledNode outputNode = publicationNode(compiled, out);
         SyntheticAcceleratorExecutable executable = new SyntheticAcceleratorExecutable(outputNode.id());
         CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_CUDA, executable, backend.accelerator.exec.PartitionExecutionRole.NONE);
         PreparedNodeExecution step = new PreparedNodeExecution(outputNode, metadata);
@@ -321,10 +318,8 @@ public class CompiledGraphTraceTest {
                 List.of(),
                 compiled.compileArtifacts().compiledNodes(),
                 compiled.compileArtifacts().descriptorIndex(),
-                java.util.Map.of(),
-                out,
+                compiled.compileArtifacts().publication(),
                 outputNode,
-                null,
                 null,
                 graph.execution.trace.PrepareTrace.skipped()
         );
@@ -342,10 +337,7 @@ public class CompiledGraphTraceTest {
     void gpuLoweredRegionRunTraceReferencesRegionIdOnly() {
         Tensor out = Tensor.scalar(1.0f).relu();
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
-        CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
-                .filter(node -> node.publicationTensor() == out)
-                .findFirst()
-                .orElseThrow();
+        CompiledNode outputNode = publicationNode(compiled, out);
         GpuLoweredRegionManifest manifest = sampleManifest(outputNode.id());
         SyntheticAcceleratorExecutable executable = new SyntheticAcceleratorExecutable(outputNode.id(), manifest);
         CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_CUDA, executable, backend.accelerator.exec.PartitionExecutionRole.NONE);
@@ -358,10 +350,8 @@ public class CompiledGraphTraceTest {
                 List.of(),
                 compiled.compileArtifacts().compiledNodes(),
                 compiled.compileArtifacts().descriptorIndex(),
-                java.util.Map.of(),
-                out,
+                compiled.compileArtifacts().publication(),
                 outputNode,
-                null,
                 null,
                 graph.execution.trace.PrepareTrace.skipped()
         );
@@ -376,10 +366,7 @@ public class CompiledGraphTraceTest {
     void phaseNineteenPreparedTraceCarriesMultiOpRegionMetrics() {
         Tensor out = Tensor.scalar(1.0f).relu();
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
-        CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
-                .filter(node -> node.publicationTensor() == out)
-                .findFirst()
-                .orElseThrow();
+        CompiledNode outputNode = publicationNode(compiled, out);
         GpuLoweredRegionManifest manifest = sampleMultiOpFusedManifest(outputNode.id());
 
         var attrs = syntheticTraceAttributes(
@@ -412,10 +399,7 @@ public class CompiledGraphTraceTest {
     void phaseNineteenTraceDistinguishesBufferBindingTensorArrayAndCpuFallback() {
         Tensor out = Tensor.scalar(1.0f).relu();
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
-        CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
-                .filter(node -> node.publicationTensor() == out)
-                .findFirst()
-                .orElseThrow();
+        CompiledNode outputNode = publicationNode(compiled, out);
 
         var bufferAttrs = syntheticTraceAttributes(
                 out,
@@ -534,10 +518,7 @@ public class CompiledGraphTraceTest {
     void traceRendersGpuFusedSubpatternSpanAndPrimitiveCount() {
         Tensor out = Tensor.scalar(1.0f).relu();
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
-        CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
-                .filter(node -> node.publicationTensor() == out)
-                .findFirst()
-                .orElseThrow();
+        CompiledNode outputNode = publicationNode(compiled, out);
         GpuLoweredRegionManifest manifest = sampleFusedManifest(outputNode.id());
         SyntheticAcceleratorExecutable executable = new SyntheticAcceleratorExecutable(outputNode.id(), manifest);
         CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_CUDA, executable, backend.accelerator.exec.PartitionExecutionRole.NONE);
@@ -550,10 +531,8 @@ public class CompiledGraphTraceTest {
                 List.of(),
                 compiled.compileArtifacts().compiledNodes(),
                 compiled.compileArtifacts().descriptorIndex(),
-                java.util.Map.of(),
-                out,
+                compiled.compileArtifacts().publication(),
                 outputNode,
-                null,
                 null,
                 graph.execution.trace.PrepareTrace.skipped()
         );
@@ -770,10 +749,8 @@ public class CompiledGraphTraceTest {
                 List.of(),
                 compiled.compileArtifacts().compiledNodes(),
                 compiled.compileArtifacts().descriptorIndex(),
-                java.util.Map.of(),
-                out,
+                compiled.compileArtifacts().publication(),
                 outputNode,
-                null,
                 null,
                 graph.execution.trace.PrepareTrace.skipped()
         );
@@ -1066,6 +1043,14 @@ public class CompiledGraphTraceTest {
                 .filter(node -> node.id() == nodeId)
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private static CompiledNode publicationNode(graph.CompiledGraph compiled, Tensor tensor) {
+        Integer nodeId = compiled.compileArtifacts().publication().nodeIdsByPublicationTarget().get(tensor);
+        if (nodeId == null) {
+            throw new IllegalStateException("Missing publication node for tensor " + tensor.getLabel());
+        }
+        return compiledNode(compiled, nodeId);
     }
 
     private static PartitionPlanningContext planningContext(graph.CompiledGraph compiled) {

@@ -9,6 +9,7 @@ import graph.execution.trace.PartitionCompileTrace;
 import graph.execution.trace.PartitionDecisionTrace;
 import graph.compile.planning.value.GraphValueRef;
 import graph.compile.planning.partition.AnchorBasedPartitionPlanner;
+import graph.compile.planning.partition.BackendPartitionCapability;
 import graph.compile.planning.partition.CpuNaturalExecutionRegionPlanner;
 import graph.compile.planning.partition.GreedyMaxRegionPartitionPlanner;
 import graph.compile.planning.partition.Partition;
@@ -81,17 +82,18 @@ public final class BackendPlanningService {
         LinkedHashMap<String, PartitionPlan> plansByPartitionId = new LinkedHashMap<>();
         List<PartitionCompileTrace> traces = new ArrayList<>();
         for (BackendPlanningJob job : jobs) {
+            BackendPartitionCapability capability = backendPartitionDescriptors.partitionCapabilityFor(job.target());
             PartitionPlanningResult planning = selectPlanner(job.strategy()).plan(
                     new PartitionPlanningRequest(
                             job.strategy(),
                             job.target(),
                             planningContext,
                             job.policy(),
-                            backendPartitionDescriptors.legalityAdapterFor(job.target()),
+                            capability,
                             job.sourcePolicy(),
                             requiredMaterialized,
                             job.cpuRegionConfig(),
-                            job.metalTransferModel()
+                            capability.costPreset(config.cost())
                     )
             );
             partitions.addAll(planning.partitions());

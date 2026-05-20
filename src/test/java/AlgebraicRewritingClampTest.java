@@ -22,8 +22,8 @@ public class AlgebraicRewritingClampTest {
         compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{3.0, 3.0, 7.0}, nested.toDoubleArrayCopy(), 1e-9);
-        long clampMinCount = compiledGraph.getCompiledGraphAsList().stream()
-                .map(Tensor::getOperation)
+        long clampMinCount = compiledGraph.compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
                 .filter(op -> op != null && op.opType() == Operation.OpType.CLAMP_MIN)
                 .count();
         assertEquals(1L, clampMinCount);
@@ -38,8 +38,8 @@ public class AlgebraicRewritingClampTest {
         compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{-5.0, 2.0, 4.0}, nested.toDoubleArrayCopy(), 1e-9);
-        long clampMaxCount = compiledGraph.getCompiledGraphAsList().stream()
-                .map(Tensor::getOperation)
+        long clampMaxCount = compiledGraph.compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
                 .filter(op -> op != null && op.opType() == Operation.OpType.CLAMP_MAX)
                 .count();
         assertEquals(1L, clampMaxCount);

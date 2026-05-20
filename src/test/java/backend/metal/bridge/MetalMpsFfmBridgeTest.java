@@ -2143,9 +2143,7 @@ class MetalMpsFfmBridgeTest {
         Tensor out = specialSdpa(q, k, v, mask, options);
         PartitionPlanningContext planningContext = planningContext(out);
         CompiledNode sdpaNode = planningContext.compiledNode(nodeId(planningContext, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
-        Tensor runtimeMask = sdpaNode.inputIds().size() > 3
-                ? planningContext.compiledNode(sdpaNode.inputIds().get(3)).publicationTensor()
-                : null;
+        Tensor runtimeMask = sdpaNode.inputIds().size() > 3 ? mask : null;
         if (runtimeMask != null) {
             runtimeMask.compute();
         }
@@ -2250,9 +2248,7 @@ class MetalMpsFfmBridgeTest {
         PartitionPlanningContext planningContext = planningContext(weights);
         CompiledNode weightsNode = planningContext.compiledNode(nodeId(planningContext, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS));
         CompiledNode attentionNode = planningContext.compiledNode(weightsNode.inputIds().getFirst());
-        Tensor runtimeMask = attentionNode.inputIds().size() > 3
-                ? planningContext.compiledNode(attentionNode.inputIds().get(3)).publicationTensor()
-                : null;
+        Tensor runtimeMask = attentionNode.inputIds().size() > 3 ? mask : null;
         if (runtimeMask != null) {
             runtimeMask.compute();
         }

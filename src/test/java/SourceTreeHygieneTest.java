@@ -710,6 +710,69 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void compiledNodesDoNotExposePublicationTensorBindings() throws IOException {
+        List<String> offenders = sourceLinesContaining(
+                List.of(Path.of("src/main/java")),
+                List.of("publicationTensor(")
+        );
+        assertTrue(offenders.isEmpty(), () -> "Publication tensors belong in PublicationPlan, not CompiledNode: " + offenders);
+    }
+
+    @Test
+    void compileArtifactsDoesNotExposeMutableFinalGraphOrTrace() throws IOException {
+        String source = Files.readString(Path.of("src/main/java/graph/compile/CompileArtifacts.java"));
+        assertTrue(!source.contains("finalGraph("), "CompileArtifacts must not expose mutable Tensor finalGraph.");
+        assertTrue(!source.contains("partitionPlanningTrace"), "CompileArtifacts must not own diagnostic partition trace.");
+    }
+
+    @Test
+    void partitionPlanningRequestUsesBackendCapabilityAndNeutralCostPreset() throws IOException {
+        String source = Files.readString(Path.of("src/main/java/graph/compile/planning/partition/PartitionPlanningRequest.java"));
+        assertTrue(source.contains("BackendPartitionCapability"), "Partition planning must consume backend capability directly.");
+        assertTrue(source.contains("StaticCostPreset"), "Partition planning cost input must stay backend-neutral.");
+        assertTrue(!source.contains("RegionLegalityAdapter"), "Graph partition planning must not depend on adapter contracts.");
+        assertTrue(!source.contains("MetalTransferModel"), "Graph partition planning request must not own Metal-specific cost details.");
+        assertTrue(!source.contains("metalTransferModel"), "Graph partition planning request must not expose Metal-specific fields.");
+    }
+
+    @Test
+    void productionPartitionContractsDoNotUseLegalityAdapters() throws IOException {
+        List<String> offenders = sourceLinesContaining(
+                List.of(Path.of("src/main/java/backend/partition"), Path.of("src/main/java/graph/compile/planning/partition")),
+                List.of("RegionLegalityAdapter", "legalityAdapter")
+        );
+        assertTrue(offenders.isEmpty(), () -> "Partition ownership must use backend capabilities, not adapters: " + offenders);
+    }
+
+    @Test
+    void compiledProgramStaysExecutableValueOnly() throws IOException {
+        String source = Files.readString(Path.of("src/main/java/graph/CompiledProgram.java"));
+        List<String> offenders = List.of("tensor.Tensor", "PublicationPlan", "CompileTrace", "PartitionCompileTrace")
+                .stream()
+                .filter(source::contains)
+                .toList();
+        assertTrue(offenders.isEmpty(), () -> "CompiledProgram must not own publication or diagnostics: " + offenders);
+    }
+
+    @Test
+    void compiledGraphDoesNotExposeMutableCompileOrTrainingConvenience() throws IOException {
+        String source = Files.readString(Path.of("src/main/java/graph/CompiledGraph.java"));
+        assertTrue(!source.contains("public void compile("), "CompiledGraph must be an immutable compile result.");
+        assertTrue(!source.contains("executeOptimizerStep("),
+                "Optimizer-step convenience belongs on PreparedExecution, not CompiledGraph.");
+        assertTrue(!source.contains("zeroGrad("), "Gradient mutation convenience must stay out of CompiledGraph.");
+    }
+
+    @Test
+    void preparedExecutionDelegatesPerRunStateToExecutionRun() throws IOException {
+        String source = Files.readString(Path.of("src/main/java/graph/execution/PreparedExecution.java"));
+        assertTrue(source.contains("new ExecutionRun("), "PreparedExecution should delegate one-run state ownership.");
+        assertTrue(!source.contains("ExecutionState.create("), "ExecutionRun must own per-run execution state creation.");
+        assertTrue(!source.contains("ExecutionPublisher."), "ExecutionRun must own runtime publication orchestration.");
+        assertTrue(!source.contains("RuntimeMemoryBinder.bind("), "ExecutionRun must own runtime memory binding.");
+    }
+
+    @Test
     void preparedExecutionDoesNotOwnBackendTraceAttributeDetails() throws IOException {
         String preparedExecution = Files.readString(Path.of("src/main/java/graph/execution/PreparedExecution.java"));
         String stepTracer = Files.readString(Path.of("src/main/java/graph/execution/trace/contrib/StepExecutionTracer.java"));

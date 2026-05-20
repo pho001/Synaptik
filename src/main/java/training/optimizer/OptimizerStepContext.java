@@ -2,15 +2,13 @@ package training.optimizer;
 
 import backend.runtime.ExecutionContext;
 import config.runtime.RuntimeConfig;
-import graph.CompiledGradientBinding;
 import graph.CompiledNode;
+import graph.compile.publication.PublicationPlan;
 import graph.execution.PublicationPolicy;
 import graph.execution.trace.NativeOptimizerTrace;
-import tensor.Tensor;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -21,7 +19,7 @@ public final class OptimizerStepContext {
     private final ExecutionContext executionContext;
     private final PublicationPolicy publicationPolicy;
     private final List<CompiledNode> allNodes;
-    private final Map<Tensor, CompiledGradientBinding> gradientBindings;
+    private final PublicationPlan publicationPlan;
     private final List<NativeOptimizerTrace> nativeOptimizerTraces;
 
     public OptimizerStepContext(
@@ -29,7 +27,7 @@ public final class OptimizerStepContext {
             ExecutionContext executionContext,
             PublicationPolicy publicationPolicy,
             List<CompiledNode> allNodes,
-            Map<Tensor, CompiledGradientBinding> gradientBindings
+            PublicationPlan publicationPlan
     ) {
         this.runtimeConfig = Objects.requireNonNull(runtimeConfig, "runtimeConfig cannot be null");
         this.executionContext = Objects.requireNonNull(executionContext, "executionContext cannot be null");
@@ -37,7 +35,7 @@ public final class OptimizerStepContext {
                 ? PublicationPolicy.defaultOptimizerStep()
                 : publicationPolicy;
         this.allNodes = List.copyOf(allNodes == null ? List.of() : allNodes);
-        this.gradientBindings = Map.copyOf(gradientBindings == null ? Map.of() : gradientBindings);
+        this.publicationPlan = Objects.requireNonNull(publicationPlan, "publicationPlan cannot be null");
         this.nativeOptimizerTraces = new ArrayList<>();
     }
 
@@ -57,19 +55,17 @@ public final class OptimizerStepContext {
         return allNodes;
     }
 
-    public Map<Tensor, CompiledGradientBinding> gradientBindings() {
-        return gradientBindings;
+    public PublicationPlan publicationPlan() {
+        return publicationPlan;
     }
 
     public List<TrainableParameterRef> trainableParameters() {
-        return allNodes.stream()
-                .filter(node -> !node.backwardNode())
-                .filter(CompiledNode::trainableParameter)
-                .map(node -> {
-                    CompiledGradientBinding binding = gradientBindings.get(node.publicationTensor());
-                    return binding == null ? null : new TrainableParameterRef(node, binding);
-                })
-                .filter(Objects::nonNull)
+        return publicationPlan.trainableParameters().stream()
+                .map(binding -> new TrainableParameterRef(
+                        allNodes.get(binding.parameterNodeId()),
+                        binding.parameterTensor(),
+                        binding.gradientBinding()
+                ))
                 .toList();
     }
 

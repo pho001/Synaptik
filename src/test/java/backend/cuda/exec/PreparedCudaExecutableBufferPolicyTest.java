@@ -354,10 +354,8 @@ class PreparedCudaExecutableBufferPolicyTest {
                 List.of(),
                 fixture.nodes(),
                 CompiledTensorDescriptorBuilder.build(fixture.nodes()),
-                Map.of(),
-                fixture.rootTensor(),
+                testsupport.PublicationPlans.forRoot(fixture.rootTensor(), fixture.nodes(), fixture.outputNode().id()),
                 fixture.outputNode(),
-                null,
                 null,
                 graph.execution.trace.PrepareTrace.skipped()
         );
@@ -507,13 +505,17 @@ class PreparedCudaExecutableBufferPolicyTest {
             CudaGraphBridge bridge,
             AcceleratorBackendConfig backendConfig
     ) {
+        CompiledNodeExecutionMetadata fallbackMetadata = metadata.getOrDefault(
+                outputNode.id(),
+                testsupport.MetadataArtifacts.metadata(backend.ComputeBackend.CPU, PartitionExecutionRole.NONE)
+        );
         return new PreparedCudaExecutable(
                 dag(inputNode, outputNode),
                 LoweringFamily.CUDA_GRAPH_REGION,
                 bridge,
                 List.of(new PreparedAcceleratorExecutionSupport.CpuFallbackStep(
                         outputNode,
-                        metadata.get(outputNode.id())
+                        fallbackMetadata
                 )),
                 backendConfig
         );
@@ -536,7 +538,13 @@ class PreparedCudaExecutableBufferPolicyTest {
         for (PreparedNodeExecution step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
-        ExecutionState state = ExecutionState.create(nodes, compiled.compileArtifacts().descriptorIndex(), metadata, compiled.compileArtifacts().forwardOutputNode().id());
+        ExecutionState state = ExecutionState.create(
+                nodes,
+                compiled.compileArtifacts().descriptorIndex(),
+                metadata,
+                compiled.compileArtifacts().forwardOutputNode().id(),
+                compiled.compileArtifacts().publication()
+        );
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),
                 ExecutionMode.FORWARD,
@@ -566,7 +574,13 @@ class PreparedCudaExecutableBufferPolicyTest {
         for (PreparedNodeExecution step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
-        ExecutionState state = ExecutionState.create(nodes, compiled.compileArtifacts().descriptorIndex(), metadata, compiled.compileArtifacts().forwardOutputNode().id());
+        ExecutionState state = ExecutionState.create(
+                nodes,
+                compiled.compileArtifacts().descriptorIndex(),
+                metadata,
+                compiled.compileArtifacts().forwardOutputNode().id(),
+                compiled.compileArtifacts().publication()
+        );
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),
                 ExecutionMode.FORWARD,
@@ -593,7 +607,13 @@ class PreparedCudaExecutableBufferPolicyTest {
         for (PreparedNodeExecution step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
-        ExecutionState state = ExecutionState.create(nodes, compiled.compileArtifacts().descriptorIndex(), metadata, compiled.compileArtifacts().forwardOutputNode().id());
+        ExecutionState state = ExecutionState.create(
+                nodes,
+                compiled.compileArtifacts().descriptorIndex(),
+                metadata,
+                compiled.compileArtifacts().forwardOutputNode().id(),
+                compiled.compileArtifacts().publication()
+        );
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(
                 RuntimeConfig.inferenceDefaults(),
                 ExecutionMode.FORWARD,
