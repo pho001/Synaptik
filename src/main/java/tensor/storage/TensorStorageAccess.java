@@ -4,8 +4,8 @@ import tensor.DataType;
 import tensor.TensorMetadata;
 import tensor.dtype.BFloat16Bits;
 
-public final class TensorStorageSupport {
-    private TensorStorageSupport() {
+public final class TensorStorageAccess {
+    private TensorStorageAccess() {
     }
 
     public static TensorStorage emptyStorage(TensorMetadata metadata) {

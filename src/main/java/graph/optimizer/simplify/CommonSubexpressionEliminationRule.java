@@ -4,7 +4,6 @@ import config.optimizer.CseConfig;
 import graph.optimizer.OptimizerGraph;
 import graph.optimizer.OptimizationRule;
 import graph.optimizer.state.OptimizerState;
-import backend.cpu.fused.plan.FusedOperation;
 import operations.Operation;
 import operations.nn.pool.avgPool2d;
 import operations.nn.pool.avgPool2dBackwardInput;
@@ -189,7 +188,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             return null;
         }
 
-        if (op instanceof noop || op instanceof FusedOperation || op.opType() == Operation.OpType.FUSED) {
+        if (op instanceof noop || op.opType() == Operation.OpType.FUSED) {
             return null;
         }
 

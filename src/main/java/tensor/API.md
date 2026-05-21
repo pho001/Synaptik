@@ -25,13 +25,13 @@ Important scope note:
 - the operation sections in this document describe the preferred modeling surface
 - the later metadata/storage/graph-wiring sections also include low-level and runtime-oriented methods that still exist on `Tensor`
 - those low-level methods are real and supported, but they are not the recommended starting point for adding new user-facing tensor operations
-- low-level storage allocation/conversion and graph traversal internals are increasingly being pushed into package-private helpers such as:
-  - [src/main/java/tensor/storage/TensorStorageSupport.java](../tensor/storage/TensorStorageSupport.java)
+- low-level storage allocation/conversion and graph traversal internals are increasingly being pushed into package-private internals such as:
+  - [src/main/java/tensor/storage/TensorStorageAccess.java](../tensor/storage/TensorStorageAccess.java)
   - [src/main/java/tensor/internal/TensorGraphTraversal.java](../tensor/internal/TensorGraphTraversal.java)
-  - [src/main/java/tensor/TensorDebugSupport.java](../tensor/TensorDebugSupport.java)
-  - [src/main/java/tensor/internal/TensorExecutionSupport.java](../tensor/internal/TensorExecutionSupport.java)
+  - [src/main/java/tensor/TensorInspection.java](../tensor/TensorInspection.java)
+  - [src/main/java/tensor/internal/TensorExecution.java](../tensor/internal/TensorExecution.java)
 
-Related construction helpers:
+Related construction classes:
 
 - [src/main/java/tensor/factory/TensorDataFactory.java](../tensor/factory/TensorDataFactory.java)
   - leaf constants and convenience tensor factories
@@ -191,7 +191,7 @@ When adding new tensor semantics:
   - [`crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex, LossReduction reduction)`](#crossentropylossfromindicestensor-targetindices-int-classdimension-int-ignoreindex-lossreduction-reduction)
   - [`crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, Tensor classWeights, LossReduction reduction)`](#crossentropylossfromindicestensor-targetindices-int-classdimension-tensor-classweights-lossreduction-reduction)
   - [`crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex, Tensor classWeights, LossReduction reduction)`](#crossentropylossfromindicestensor-targetindices-int-classdimension-int-ignoreindex-tensor-classweights-lossreduction-reduction)
-- [Execution Anchor / Autodiff Helpers](#execution-anchor--autodiff-helpers)
+- [Execution Anchor / Autodiff Internals](#execution-anchor--autodiff-internals)
   - [`forwardOutput()`](#forwardoutput)
 - [Metadata and Data Access](#metadata-and-data-access)
   - [Shape / layout accessors](#shape--layout)
@@ -3508,7 +3508,7 @@ Returns:
 Behavior:
 - ignored samples contribute neither to weighted loss nor to the weighted `MEAN` denominator
 
-## Execution Anchor / Autodiff Helpers
+## Execution Anchor / Autodiff Internals
 
 ### `forwardOutput()`
 

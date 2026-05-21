@@ -3,12 +3,17 @@ package tensor.layout;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tensor.DataType;
-import tensor.internal.TensorParallelSupport;
-import tensor.storage.TensorStorageSupport;
+import tensor.storage.TensorStorageAccess;
 
 import java.util.Arrays;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ForkJoinPool;
+import java.util.function.IntConsumer;
+import java.util.stream.IntStream;
 
 public final class TensorRemap {
+    private static final ConcurrentHashMap<Integer, ForkJoinPool> POOLS = new ConcurrentHashMap<>();
+
     private TensorRemap() {}
 
     public static final class RemapPlan {
@@ -40,6 +45,77 @@ public final class TensorRemap {
             this.denseStrides = denseStrides;
             this.logicalSize = logicalSize;
         }
+    }
+
+    public static void copyLinearized(Tensor src, Tensor dst) {
+        if (src == null || dst == null) {
+            throw new IllegalArgumentException("Source and destination tensors cannot be null.");
+        }
+        if (src.getFlatDataSize() != dst.getFlatDataSize()) {
+            throw new IllegalArgumentException("copyLinearized requires matching number of elements.");
+        }
+        if (src.getDataType() != dst.getDataType() && !canConvertNumeric(src.getDataType(), dst.getDataType())) {
+            throw new IllegalArgumentException("copyLinearized requires matching tensor dtypes or supported numeric conversion. src="
+                    + src.getDataType() + ", dst=" + dst.getDataType());
+        }
+
+        int[] srcShape = src.getShapeUnsafe();
+        int[] dstShape = dst.getShapeUnsafe();
+        int[] srcDenseStrides = denseStrides(srcShape);
+        int[] dstDenseStrides = denseStrides(dstShape);
+        int size = src.getFlatDataSize();
+        copyLinearizedByType(
+                src,
+                dst,
+                srcShape,
+                src.getStridesUnsafe(),
+                srcDenseStrides,
+                src.getStorageOffsetUnsafe(),
+                dstShape,
+                dst.getStridesUnsafe(),
+                dstDenseStrides,
+                dst.getStorageOffsetUnsafe(),
+                size
+        );
+        TensorInternalAccess.markStorageModified(dst);
+    }
+
+    public static void copyPermuted(Tensor src, Tensor dst, int[] axes) {
+        if (src == null || dst == null) {
+            throw new IllegalArgumentException("Source and destination tensors cannot be null.");
+        }
+        int rank = src.getShapeUnsafe().length;
+        int[] normalizedAxes = TensorLayoutTransform.normalizeAxes(rank, axes);
+        if (dst.getShapeUnsafe().length != rank) {
+            throw new IllegalArgumentException("Destination rank must match source rank for permutation.");
+        }
+        for (int i = 0; i < rank; i++) {
+            int expected = src.getShapeUnsafe()[normalizedAxes[i]];
+            if (dst.getShapeUnsafe()[i] != expected) {
+                throw new IllegalArgumentException("Destination shape does not match permutation.");
+            }
+        }
+        if (src.getDataType() != dst.getDataType() && !canConvertNumeric(src.getDataType(), dst.getDataType())) {
+            throw new IllegalArgumentException("copyPermuted requires matching tensor dtypes or supported numeric conversion. src="
+                    + src.getDataType() + ", dst=" + dst.getDataType());
+        }
+
+        int[] dstShape = dst.getShapeUnsafe();
+        int[] dstDenseStrides = denseStrides(dstShape);
+        copyPermutedByType(
+                src,
+                dst,
+                normalizedAxes,
+                src.getStridesUnsafe(),
+                src.getStorageOffsetUnsafe(),
+                dstShape,
+                dst.getStridesUnsafe(),
+                dstDenseStrides,
+                dst.getStorageOffsetUnsafe(),
+                dst.getFlatDataSize(),
+                rank
+        );
+        TensorInternalAccess.markStorageModified(dst);
     }
 
     public static RemapPlan buildPlan(Tensor src, Tensor dst) {
@@ -153,6 +229,352 @@ public final class TensorRemap {
         TensorInternalAccess.markStorageModified(dst);
     }
 
+    private static void copyLinearizedByType(
+            Tensor src,
+            Tensor dst,
+            int[] srcShape,
+            int[] srcStrides,
+            int[] srcDenseStrides,
+            int srcBaseOffset,
+            int[] dstShape,
+            int[] dstStrides,
+            int[] dstDenseStrides,
+            int dstBaseOffset,
+            int size
+    ) {
+        if (src.getDataType() != dst.getDataType()) {
+            copyLinearizedConverted(src, dst, srcShape, srcStrides, srcDenseStrides, srcBaseOffset, dstShape, dstStrides, dstDenseStrides, dstBaseOffset, size);
+            return;
+        }
+        switch (src.getDataType()) {
+            case FLOAT64 -> copyLinearizedF64(src, dst, srcShape, srcStrides, srcDenseStrides, srcBaseOffset, dstShape, dstStrides, dstDenseStrides, dstBaseOffset, size);
+            case FLOAT32 -> copyLinearizedF32(src, dst, srcShape, srcStrides, srcDenseStrides, srcBaseOffset, dstShape, dstStrides, dstDenseStrides, dstBaseOffset, size);
+            case BFLOAT16 -> copyLinearizedBF16(src, dst, srcShape, srcStrides, srcDenseStrides, srcBaseOffset, dstShape, dstStrides, dstDenseStrides, dstBaseOffset, size);
+            case INT32 -> copyLinearizedI32(src, dst, srcShape, srcStrides, srcDenseStrides, srcBaseOffset, dstShape, dstStrides, dstDenseStrides, dstBaseOffset, size);
+            case INT64 -> copyLinearizedI64(src, dst, srcShape, srcStrides, srcDenseStrides, srcBaseOffset, dstShape, dstStrides, dstDenseStrides, dstBaseOffset, size);
+            case BOOL -> copyLinearizedBool(src, dst, srcShape, srcStrides, srcDenseStrides, srcBaseOffset, dstShape, dstStrides, dstDenseStrides, dstBaseOffset, size);
+        }
+    }
+
+    private static void copyPermutedByType(
+            Tensor src,
+            Tensor dst,
+            int[] normalizedAxes,
+            int[] srcStrides,
+            int srcBaseOffset,
+            int[] dstShape,
+            int[] dstStrides,
+            int[] dstDenseStrides,
+            int dstBaseOffset,
+            int size,
+            int rank
+    ) {
+        if (src.getDataType() != dst.getDataType()) {
+            copyPermutedConverted(src, dst, normalizedAxes, srcStrides, srcBaseOffset, dstShape, dstStrides, dstDenseStrides, dstBaseOffset, size, rank);
+            return;
+        }
+        switch (src.getDataType()) {
+            case FLOAT64 -> copyPermutedF64(src, dst, normalizedAxes, srcStrides, srcBaseOffset, dstShape, dstStrides, dstDenseStrides, dstBaseOffset, size, rank);
+            case FLOAT32 -> copyPermutedF32(src, dst, normalizedAxes, srcStrides, srcBaseOffset, dstShape, dstStrides, dstDenseStrides, dstBaseOffset, size, rank);
+            case BFLOAT16 -> copyPermutedBF16(src, dst, normalizedAxes, srcStrides, srcBaseOffset, dstShape, dstStrides, dstDenseStrides, dstBaseOffset, size, rank);
+            case INT32 -> copyPermutedI32(src, dst, normalizedAxes, srcStrides, srcBaseOffset, dstShape, dstStrides, dstDenseStrides, dstBaseOffset, size, rank);
+            case INT64 -> copyPermutedI64(src, dst, normalizedAxes, srcStrides, srcBaseOffset, dstShape, dstStrides, dstDenseStrides, dstBaseOffset, size, rank);
+            case BOOL -> copyPermutedBool(src, dst, normalizedAxes, srcStrides, srcBaseOffset, dstShape, dstStrides, dstDenseStrides, dstBaseOffset, size, rank);
+        }
+    }
+
+    private static void copyLinearizedConverted(
+            Tensor src,
+            Tensor dst,
+            int[] srcShape,
+            int[] srcStrides,
+            int[] srcDenseStrides,
+            int srcBaseOffset,
+            int[] dstShape,
+            int[] dstStrides,
+            int[] dstDenseStrides,
+            int dstBaseOffset,
+            int size
+    ) {
+        for (int i = 0; i < size; i++) {
+            int srcOffset = logicalToOffset(i, srcShape, srcStrides, srcDenseStrides, srcBaseOffset);
+            int dstOffset = logicalToOffset(i, dstShape, dstStrides, dstDenseStrides, dstBaseOffset);
+            TensorInternalAccess.setByStorageOffset(dst, dstOffset, TensorInternalAccess.getByStorageOffset(src, srcOffset));
+        }
+    }
+
+    private static void copyPermutedConverted(
+            Tensor src,
+            Tensor dst,
+            int[] normalizedAxes,
+            int[] srcStrides,
+            int srcBaseOffset,
+            int[] dstShape,
+            int[] dstStrides,
+            int[] dstDenseStrides,
+            int dstBaseOffset,
+            int size,
+            int rank
+    ) {
+        for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
+            int srcOffset = permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, rank);
+            int dstOffset = logicalToOffset(logicalIndex, dstShape, dstStrides, dstDenseStrides, dstBaseOffset);
+            TensorInternalAccess.setByStorageOffset(dst, dstOffset, TensorInternalAccess.getByStorageOffset(src, srcOffset));
+        }
+    }
+
+    private static void copyLinearizedF64(
+            Tensor src,
+            Tensor dst,
+            int[] srcShape,
+            int[] srcStrides,
+            int[] srcDenseStrides,
+            int srcBaseOffset,
+            int[] dstShape,
+            int[] dstStrides,
+            int[] dstDenseStrides,
+            int dstBaseOffset,
+            int size
+    ) {
+        double[] srcData = TensorInternalAccess.float64Data(src);
+        double[] dstData = TensorInternalAccess.float64Data(dst);
+        for (int i = 0; i < size; i++) {
+            dstData[logicalToOffset(i, dstShape, dstStrides, dstDenseStrides, dstBaseOffset)] =
+                    srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides, srcBaseOffset)];
+        }
+    }
+
+    private static void copyLinearizedF32(
+            Tensor src,
+            Tensor dst,
+            int[] srcShape,
+            int[] srcStrides,
+            int[] srcDenseStrides,
+            int srcBaseOffset,
+            int[] dstShape,
+            int[] dstStrides,
+            int[] dstDenseStrides,
+            int dstBaseOffset,
+            int size
+    ) {
+        float[] srcData = TensorInternalAccess.float32Data(src);
+        float[] dstData = TensorInternalAccess.float32Data(dst);
+        for (int i = 0; i < size; i++) {
+            dstData[logicalToOffset(i, dstShape, dstStrides, dstDenseStrides, dstBaseOffset)] =
+                    srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides, srcBaseOffset)];
+        }
+    }
+
+    private static void copyLinearizedBF16(
+            Tensor src,
+            Tensor dst,
+            int[] srcShape,
+            int[] srcStrides,
+            int[] srcDenseStrides,
+            int srcBaseOffset,
+            int[] dstShape,
+            int[] dstStrides,
+            int[] dstDenseStrides,
+            int dstBaseOffset,
+            int size
+    ) {
+        short[] srcData = TensorInternalAccess.bfloat16Data(src);
+        short[] dstData = TensorInternalAccess.bfloat16Data(dst);
+        for (int i = 0; i < size; i++) {
+            dstData[logicalToOffset(i, dstShape, dstStrides, dstDenseStrides, dstBaseOffset)] =
+                    srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides, srcBaseOffset)];
+        }
+    }
+
+    private static void copyLinearizedI32(
+            Tensor src,
+            Tensor dst,
+            int[] srcShape,
+            int[] srcStrides,
+            int[] srcDenseStrides,
+            int srcBaseOffset,
+            int[] dstShape,
+            int[] dstStrides,
+            int[] dstDenseStrides,
+            int dstBaseOffset,
+            int size
+    ) {
+        int[] srcData = TensorInternalAccess.int32Data(src);
+        int[] dstData = TensorInternalAccess.int32Data(dst);
+        for (int i = 0; i < size; i++) {
+            dstData[logicalToOffset(i, dstShape, dstStrides, dstDenseStrides, dstBaseOffset)] =
+                    srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides, srcBaseOffset)];
+        }
+    }
+
+    private static void copyLinearizedI64(
+            Tensor src,
+            Tensor dst,
+            int[] srcShape,
+            int[] srcStrides,
+            int[] srcDenseStrides,
+            int srcBaseOffset,
+            int[] dstShape,
+            int[] dstStrides,
+            int[] dstDenseStrides,
+            int dstBaseOffset,
+            int size
+    ) {
+        long[] srcData = TensorInternalAccess.int64Data(src);
+        long[] dstData = TensorInternalAccess.int64Data(dst);
+        for (int i = 0; i < size; i++) {
+            dstData[logicalToOffset(i, dstShape, dstStrides, dstDenseStrides, dstBaseOffset)] =
+                    srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides, srcBaseOffset)];
+        }
+    }
+
+    private static void copyLinearizedBool(
+            Tensor src,
+            Tensor dst,
+            int[] srcShape,
+            int[] srcStrides,
+            int[] srcDenseStrides,
+            int srcBaseOffset,
+            int[] dstShape,
+            int[] dstStrides,
+            int[] dstDenseStrides,
+            int dstBaseOffset,
+            int size
+    ) {
+        byte[] srcData = TensorInternalAccess.boolData(src);
+        byte[] dstData = TensorInternalAccess.boolData(dst);
+        for (int i = 0; i < size; i++) {
+            dstData[logicalToOffset(i, dstShape, dstStrides, dstDenseStrides, dstBaseOffset)] =
+                    srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides, srcBaseOffset)];
+        }
+    }
+
+    private static void copyPermutedF64(
+            Tensor src,
+            Tensor dst,
+            int[] normalizedAxes,
+            int[] srcStrides,
+            int srcBaseOffset,
+            int[] dstShape,
+            int[] dstStrides,
+            int[] dstDenseStrides,
+            int dstBaseOffset,
+            int size,
+            int rank
+    ) {
+        double[] srcData = TensorInternalAccess.float64Data(src);
+        double[] dstData = TensorInternalAccess.float64Data(dst);
+        for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
+            dstData[logicalToOffset(logicalIndex, dstShape, dstStrides, dstDenseStrides, dstBaseOffset)] =
+                    srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, rank)];
+        }
+    }
+
+    private static void copyPermutedF32(
+            Tensor src,
+            Tensor dst,
+            int[] normalizedAxes,
+            int[] srcStrides,
+            int srcBaseOffset,
+            int[] dstShape,
+            int[] dstStrides,
+            int[] dstDenseStrides,
+            int dstBaseOffset,
+            int size,
+            int rank
+    ) {
+        float[] srcData = TensorInternalAccess.float32Data(src);
+        float[] dstData = TensorInternalAccess.float32Data(dst);
+        for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
+            dstData[logicalToOffset(logicalIndex, dstShape, dstStrides, dstDenseStrides, dstBaseOffset)] =
+                    srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, rank)];
+        }
+    }
+
+    private static void copyPermutedBF16(
+            Tensor src,
+            Tensor dst,
+            int[] normalizedAxes,
+            int[] srcStrides,
+            int srcBaseOffset,
+            int[] dstShape,
+            int[] dstStrides,
+            int[] dstDenseStrides,
+            int dstBaseOffset,
+            int size,
+            int rank
+    ) {
+        short[] srcData = TensorInternalAccess.bfloat16Data(src);
+        short[] dstData = TensorInternalAccess.bfloat16Data(dst);
+        for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
+            dstData[logicalToOffset(logicalIndex, dstShape, dstStrides, dstDenseStrides, dstBaseOffset)] =
+                    srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, rank)];
+        }
+    }
+
+    private static void copyPermutedI32(
+            Tensor src,
+            Tensor dst,
+            int[] normalizedAxes,
+            int[] srcStrides,
+            int srcBaseOffset,
+            int[] dstShape,
+            int[] dstStrides,
+            int[] dstDenseStrides,
+            int dstBaseOffset,
+            int size,
+            int rank
+    ) {
+        int[] srcData = TensorInternalAccess.int32Data(src);
+        int[] dstData = TensorInternalAccess.int32Data(dst);
+        for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
+            dstData[logicalToOffset(logicalIndex, dstShape, dstStrides, dstDenseStrides, dstBaseOffset)] =
+                    srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, rank)];
+        }
+    }
+
+    private static void copyPermutedI64(
+            Tensor src,
+            Tensor dst,
+            int[] normalizedAxes,
+            int[] srcStrides,
+            int srcBaseOffset,
+            int[] dstShape,
+            int[] dstStrides,
+            int[] dstDenseStrides,
+            int dstBaseOffset,
+            int size,
+            int rank
+    ) {
+        long[] srcData = TensorInternalAccess.int64Data(src);
+        long[] dstData = TensorInternalAccess.int64Data(dst);
+        for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
+            dstData[logicalToOffset(logicalIndex, dstShape, dstStrides, dstDenseStrides, dstBaseOffset)] =
+                    srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, rank)];
+        }
+    }
+
+    private static void copyPermutedBool(
+            Tensor src,
+            Tensor dst,
+            int[] normalizedAxes,
+            int[] srcStrides,
+            int srcBaseOffset,
+            int[] dstShape,
+            int[] dstStrides,
+            int[] dstDenseStrides,
+            int dstBaseOffset,
+            int size,
+            int rank
+    ) {
+        byte[] srcData = TensorInternalAccess.boolData(src);
+        byte[] dstData = TensorInternalAccess.boolData(dst);
+        for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
+            dstData[logicalToOffset(logicalIndex, dstShape, dstStrides, dstDenseStrides, dstBaseOffset)] =
+                    srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, rank)];
+        }
+    }
+
     private static void applyConverted(Tensor src, Tensor dst, RemapPlan plan, int parallelThreshold) {
         if (plan.logicalSize > parallelThreshold) {
             parallelApplyConverted(src, dst, plan);
@@ -210,6 +632,28 @@ public final class TensorRemap {
 
     private static int logicalSize(int[] shape) {
         return TensorShape.checkedFlatSize(shape);
+    }
+
+    private static int logicalToOffset(int logicalIndex, int[] shape, int[] strides, int[] denseStrides, int baseOffset) {
+        int rem = logicalIndex;
+        int offset = baseOffset;
+        for (int dim = 0; dim < shape.length; dim++) {
+            int coord = rem / denseStrides[dim];
+            rem %= denseStrides[dim];
+            offset += coord * strides[dim];
+        }
+        return offset;
+    }
+
+    private static int permutedSourceOffset(int logicalIndex, int[] normalizedAxes, int[] srcStrides, int[] dstDenseStrides, int srcBaseOffset, int rank) {
+        int rem = logicalIndex;
+        int srcOffset = srcBaseOffset;
+        for (int dim = 0; dim < rank; dim++) {
+            int coord = rem / dstDenseStrides[dim];
+            rem %= dstDenseStrides[dim];
+            srcOffset += coord * srcStrides[normalizedAxes[dim]];
+        }
+        return srcOffset;
     }
 
     private static void applyF32(Tensor src, Tensor dst, RemapPlan plan, int parallelThreshold) {
@@ -362,11 +806,29 @@ public final class TensorRemap {
         int targetChunks = Math.max(workers, workers * 4);
         int chunkSize = Math.max(1024, (logicalSize + targetChunks - 1) / targetChunks);
         int chunks = (logicalSize + chunkSize - 1) / chunkSize;
-        TensorParallelSupport.runChunks(chunks, workers, chunk -> {
+        runChunks(chunks, workers, chunk -> {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, logicalSize);
             body.accept(start, end);
         });
+    }
+
+    private static void runChunks(int chunks, int parallelism, IntConsumer chunkBody) {
+        if (chunks <= 0) {
+            return;
+        }
+        if (chunks == 1 || parallelism <= 1) {
+            for (int i = 0; i < chunks; i++) {
+                chunkBody.accept(i);
+            }
+            return;
+        }
+        ForkJoinPool pool = POOLS.computeIfAbsent(parallelism, ForkJoinPool::new);
+        try {
+            pool.submit(() -> IntStream.range(0, chunks).parallel().forEach(chunkBody)).get();
+        } catch (Exception e) {
+            throw new RuntimeException("Parallel tensor remap failed", e);
+        }
     }
 
     private static void walkOffsets(
@@ -415,8 +877,8 @@ public final class TensorRemap {
     }
 
     private static boolean tryFastCopyF64(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
-        double[] srcData = TensorStorageSupport.float64DataOrNull(TensorInternalAccess.storage(src));
-        double[] dstData = TensorStorageSupport.float64DataOrNull(TensorInternalAccess.storage(dst));
+        double[] srcData = TensorStorageAccess.float64DataOrNull(TensorInternalAccess.storage(src));
+        double[] dstData = TensorStorageAccess.float64DataOrNull(TensorInternalAccess.storage(dst));
         if (srcData == null || dstData == null) {
             return false;
         }
@@ -428,8 +890,8 @@ public final class TensorRemap {
     }
 
     private static boolean tryFastCopyF32(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
-        float[] srcData = TensorStorageSupport.float32DataOrNull(TensorInternalAccess.storage(src));
-        float[] dstData = TensorStorageSupport.float32DataOrNull(TensorInternalAccess.storage(dst));
+        float[] srcData = TensorStorageAccess.float32DataOrNull(TensorInternalAccess.storage(src));
+        float[] dstData = TensorStorageAccess.float32DataOrNull(TensorInternalAccess.storage(dst));
         if (srcData == null || dstData == null) {
             return false;
         }
@@ -441,8 +903,8 @@ public final class TensorRemap {
     }
 
     private static boolean tryFastCopyF16(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
-        short[] srcData = TensorStorageSupport.bfloat16DataOrNull(TensorInternalAccess.storage(src));
-        short[] dstData = TensorStorageSupport.bfloat16DataOrNull(TensorInternalAccess.storage(dst));
+        short[] srcData = TensorStorageAccess.bfloat16DataOrNull(TensorInternalAccess.storage(src));
+        short[] dstData = TensorStorageAccess.bfloat16DataOrNull(TensorInternalAccess.storage(dst));
         if (srcData == null || dstData == null) {
             return false;
         }
@@ -454,8 +916,8 @@ public final class TensorRemap {
     }
 
     private static boolean tryFastCopyBool(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
-        byte[] srcData = TensorStorageSupport.boolDataOrNull(TensorInternalAccess.storage(src));
-        byte[] dstData = TensorStorageSupport.boolDataOrNull(TensorInternalAccess.storage(dst));
+        byte[] srcData = TensorStorageAccess.boolDataOrNull(TensorInternalAccess.storage(src));
+        byte[] dstData = TensorStorageAccess.boolDataOrNull(TensorInternalAccess.storage(dst));
         if (srcData == null || dstData == null) {
             return false;
         }
@@ -467,8 +929,8 @@ public final class TensorRemap {
     }
 
     private static boolean tryFastCopyI32(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
-        int[] srcData = TensorStorageSupport.int32DataOrNull(TensorInternalAccess.storage(src));
-        int[] dstData = TensorStorageSupport.int32DataOrNull(TensorInternalAccess.storage(dst));
+        int[] srcData = TensorStorageAccess.int32DataOrNull(TensorInternalAccess.storage(src));
+        int[] dstData = TensorStorageAccess.int32DataOrNull(TensorInternalAccess.storage(dst));
         if (srcData == null || dstData == null) {
             return false;
         }
@@ -480,8 +942,8 @@ public final class TensorRemap {
     }
 
     private static boolean tryFastCopyI64(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
-        long[] srcData = TensorStorageSupport.int64DataOrNull(TensorInternalAccess.storage(src));
-        long[] dstData = TensorStorageSupport.int64DataOrNull(TensorInternalAccess.storage(dst));
+        long[] srcData = TensorStorageAccess.int64DataOrNull(TensorInternalAccess.storage(src));
+        long[] dstData = TensorStorageAccess.int64DataOrNull(TensorInternalAccess.storage(dst));
         if (srcData == null || dstData == null) {
             return false;
         }

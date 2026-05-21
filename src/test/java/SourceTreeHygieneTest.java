@@ -622,6 +622,20 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void graphPackageDoesNotImportCpuImplementationDetails() throws IOException {
+        List<String> offenders = sourceLinesContaining(
+                List.of(Path.of("src/main/java/graph")),
+                List.of(
+                        "import backend.cpu.fused.plan.FusedOperation",
+                        "import backend.cpu.kernels.CpuDTypeOps"
+                )
+        );
+        assertTrue(offenders.isEmpty(),
+                () -> "graph package must stay backend-neutral and must not import CPU fused/kernel implementation details: "
+                        + offenders);
+    }
+
+    @Test
     void backendIntentPlanDoesNotUseGlobalRecordingSideChannel() throws IOException {
         List<String> offenders = sourceLinesContaining(
                 List.of(Path.of("src/main/java"), Path.of("src/test/java")),
@@ -650,6 +664,27 @@ public class SourceTreeHygieneTest {
         }
         assertTrue(offenders.isEmpty(),
                 () -> "tensor.ops should use concrete operation classes or narrow domain names, not generic cleanup classes: "
+                        + offenders);
+    }
+
+    @Test
+    void tensorPackageDoesNotContainGenericSupportHelperAdapterOrV2Classes() throws IOException {
+        List<String> offenders;
+        try (Stream<Path> paths = Files.walk(Path.of("src/main/java/tensor"))) {
+            offenders = paths
+                    .filter(Files::isRegularFile)
+                    .map(Path::getFileName)
+                    .map(Path::toString)
+                    .filter(name -> name.endsWith("Support.java")
+                            || name.endsWith("Helper.java")
+                            || name.endsWith("Adapter.java")
+                            || name.endsWith("Bridge.java")
+                            || name.contains("V2"))
+                    .sorted()
+                    .toList();
+        }
+        assertTrue(offenders.isEmpty(),
+                () -> "tensor package should use domain names, not generic support/helper/adapter/bridge/V2 classes: "
                         + offenders);
     }
 
@@ -903,6 +938,8 @@ public class SourceTreeHygieneTest {
                 "Anchor-first max-region planning must not keep a duplicate planner class.");
         String source = Files.readString(Path.of("src/main/java/graph/compile/planning/partition/MaxRegionPartitionPlanner.java"));
         assertTrue(source.contains("enum SeedOrdering"), "The max-region planner should express mode differences through seed ordering.");
+        assertTrue(source.contains(".partitionPriority("), "Backend-specific partition priority must come from backend capability.");
+        assertTrue(!source.contains("Operation.OpType"), "Max-region traversal must not hardcode backend operation-family priorities.");
     }
 
     @Test

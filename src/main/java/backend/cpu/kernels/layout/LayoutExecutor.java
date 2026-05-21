@@ -3,7 +3,6 @@ package backend.cpu.kernels.layout;
 import backend.cpu.kernels.CpuKernelContext;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
-import tensor.layout.TensorLayoutTransform;
 import tensor.layout.TensorRemap;
 
 import java.util.List;
@@ -31,7 +30,7 @@ final class LayoutExecutor {
             TensorInternalAccess.aliasRuntimeFrom(node, src);
             return;
         }
-        TensorLayoutTransform.copyLinearized(src, node);
+        TensorRemap.copyLinearized(src, node);
     }
 
     static void contiguous(List<Tensor> inputs, Tensor node, CpuKernelContext context) {

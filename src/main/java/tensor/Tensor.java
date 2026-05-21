@@ -11,7 +11,7 @@ import tensor.factory.TensorArrayData;
 import tensor.factory.TensorDataFactory;
 import tensor.autograd.GradientContext;
 import tensor.autograd.GradientRule;
-import tensor.internal.TensorExecutionSupport;
+import tensor.internal.TensorExecution;
 import tensor.internal.TensorGraphTraversal;
 import tensor.internal.TensorPiecewiseOps;
 import tensor.internal.TensorPrimitiveBuilder;
@@ -22,7 +22,7 @@ import tensor.options.AttentionOptions;
 import tensor.options.Conv2dOptions;
 import tensor.options.Pool2dOptions;
 import tensor.storage.TensorStorage;
-import tensor.storage.TensorStorageSupport;
+import tensor.storage.TensorStorageAccess;
 
 import java.util.*;
 
@@ -84,7 +84,7 @@ public class Tensor {
         int[] computedShape = TensorArrayData.inferShape(multiDimArray);
         this.metadata = new TensorMetadata(computedShape, label, previous != null && previous.stream().anyMatch(Tensor::getRequiresGrad), dataType);
         resetNode(null, previous);
-        storage = TensorStorageSupport.fromDoubleArray(metadata, TensorArrayData.flattenToDouble(multiDimArray, metadata.getFlatSize()));
+        storage = TensorStorageAccess.fromDoubleArray(metadata, TensorArrayData.flattenToDouble(multiDimArray, metadata.getFlatSize()));
     }
 
     /**
@@ -110,7 +110,7 @@ public class Tensor {
         resetNode(null, previous);
 
         this.metadata = new TensorMetadata(dimensions, label, previous != null && previous.stream().anyMatch(Tensor::getRequiresGrad), dataType);
-        storage = TensorStorageSupport.emptyStorage(metadata);
+        storage = TensorStorageAccess.emptyStorage(metadata);
     }
 
     /**
@@ -137,7 +137,7 @@ public class Tensor {
     public Tensor(int[] shape, List<Tensor> previous, Operation operation, String label, DataType dataType) {
         resetNode(operation, previous);
         this.metadata = new TensorMetadata(shape, label, previous != null && previous.stream().anyMatch(Tensor::getRequiresGrad), dataType);
-        storage = TensorStorageSupport.emptyStorage(metadata, TensorShape.checkedFlatSize(shape));
+        storage = TensorStorageAccess.emptyStorage(metadata, TensorShape.checkedFlatSize(shape));
     }
 
     /**
@@ -168,7 +168,7 @@ public class Tensor {
     public Tensor(int[] shape, int[] strides, int storageOffset, List<Tensor> previous, Operation operation, String label, DataType dataType) {
         resetNode(operation, previous);
         this.metadata = new TensorMetadata(shape, strides, storageOffset, label, previous != null && previous.stream().anyMatch(Tensor::getRequiresGrad), dataType);
-        storage = TensorStorageSupport.emptyStorage(metadata);
+        storage = TensorStorageAccess.emptyStorage(metadata);
     }
 
     /**
@@ -224,8 +224,8 @@ public class Tensor {
     public Tensor(double[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType) {
         this.metadata = new TensorMetadata(shape, strides, label, previous != null && previous.stream().anyMatch(Tensor::getRequiresGrad), dataType);
         resetNode(null, previous);
-        TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "double[]");
-        storage = TensorStorageSupport.fromDoubleArray(metadata, data);
+        TensorStorageAccess.validateInputLength(data.length, metadata.getFlatSize(), "double[]");
+        storage = TensorStorageAccess.fromDoubleArray(metadata, data);
     }
 
     /**
@@ -281,8 +281,8 @@ public class Tensor {
     public Tensor(float[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType) {
         this.metadata = new TensorMetadata(shape, strides, label, previous != null && previous.stream().anyMatch(Tensor::getRequiresGrad), dataType);
         resetNode(null, previous);
-        TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "float[]");
-        storage = TensorStorageSupport.fromFloatArray(metadata, data);
+        TensorStorageAccess.validateInputLength(data.length, metadata.getFlatSize(), "float[]");
+        storage = TensorStorageAccess.fromFloatArray(metadata, data);
     }
 
     /**
@@ -338,8 +338,8 @@ public class Tensor {
     public Tensor(short[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType) {
         this.metadata = new TensorMetadata(shape, strides, label, previous != null && previous.stream().anyMatch(Tensor::getRequiresGrad), dataType);
         resetNode(null, previous);
-        TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "short[]");
-        storage = TensorStorageSupport.fromBFloat16Array(metadata, data);
+        TensorStorageAccess.validateInputLength(data.length, metadata.getFlatSize(), "short[]");
+        storage = TensorStorageAccess.fromBFloat16Array(metadata, data);
     }
 
     /**
@@ -395,8 +395,8 @@ public class Tensor {
     public Tensor(byte[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType) {
         this.metadata = new TensorMetadata(shape, strides, label, previous != null && previous.stream().anyMatch(Tensor::getRequiresGrad), dataType);
         resetNode(null, previous);
-        TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "byte[]");
-        storage = TensorStorageSupport.fromBoolArray(metadata, data);
+        TensorStorageAccess.validateInputLength(data.length, metadata.getFlatSize(), "byte[]");
+        storage = TensorStorageAccess.fromBoolArray(metadata, data);
     }
 
     /**
@@ -439,8 +439,8 @@ public class Tensor {
     public Tensor(int[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType) {
         this.metadata = new TensorMetadata(shape, strides, label, previous != null && previous.stream().anyMatch(Tensor::getRequiresGrad), dataType);
         resetNode(null, previous);
-        TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "int[]");
-        storage = TensorStorageSupport.fromIntArray(metadata, data);
+        TensorStorageAccess.validateInputLength(data.length, metadata.getFlatSize(), "int[]");
+        storage = TensorStorageAccess.fromIntArray(metadata, data);
     }
 
     /**
@@ -483,8 +483,8 @@ public class Tensor {
     public Tensor(long[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType) {
         this.metadata = new TensorMetadata(shape, strides, label, previous != null && previous.stream().anyMatch(Tensor::getRequiresGrad), dataType);
         resetNode(null, previous);
-        TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "long[]");
-        storage = TensorStorageSupport.fromLongArray(metadata, data);
+        TensorStorageAccess.validateInputLength(data.length, metadata.getFlatSize(), "long[]");
+        storage = TensorStorageAccess.fromLongArray(metadata, data);
     }
 
     /**
@@ -797,7 +797,7 @@ public class Tensor {
         if (index < 0 || index >= getFlatDataSize()) {
             throw new IndexOutOfBoundsException("Index out of bounds.");
         }
-        return getByStorageOffset(TensorStorageSupport.logicalFlatIndexToStorageOffset(metadata, index));
+        return getByStorageOffset(TensorStorageAccess.logicalFlatIndexToStorageOffset(metadata, index));
     }
 
     /**
@@ -815,7 +815,7 @@ public class Tensor {
         if (index < 0 || index >= getFlatDataSize()) {
             throw new IndexOutOfBoundsException("Index out of bounds.");
         }
-        return int64DataInternal()[TensorStorageSupport.logicalFlatIndexToStorageOffset(metadata, index)];
+        return int64DataInternal()[TensorStorageAccess.logicalFlatIndexToStorageOffset(metadata, index)];
     }
 
     /**
@@ -829,7 +829,7 @@ public class Tensor {
         if (index < 0 || index >= getFlatDataSize()) {
             throw new IndexOutOfBoundsException("Index out of bounds.");
         }
-        int offset = TensorStorageSupport.logicalFlatIndexToStorageOffset(metadata, index);
+        int offset = TensorStorageAccess.logicalFlatIndexToStorageOffset(metadata, index);
         return switch (metadata.getDataType()) {
             case INT32 -> int32DataInternal()[offset];
             case INT64 -> int64DataInternal()[offset];
@@ -849,7 +849,7 @@ public class Tensor {
         if (isBroadcastView()) {
             throw new UnsupportedOperationException("Cannot write through broadcast view tensor.");
         }
-        setByStorageOffset(TensorStorageSupport.logicalFlatIndexToStorageOffset(metadata, flatindex), value);
+        setByStorageOffset(TensorStorageAccess.logicalFlatIndexToStorageOffset(metadata, flatindex), value);
         markStorageModifiedInternal();
     }
 
@@ -891,8 +891,8 @@ public class Tensor {
             throw new IllegalArgumentException("data cannot be null");
         }
         requireDenseStorageReplacement("setData(double[])");
-        TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "double[]");
-        storage = TensorStorageSupport.fromDoubleArray(metadata, data);
+        TensorStorageAccess.validateInputLength(data.length, metadata.getFlatSize(), "double[]");
+        storage = TensorStorageAccess.fromDoubleArray(metadata, data);
     }
 
     /**
@@ -906,8 +906,8 @@ public class Tensor {
             throw new IllegalArgumentException("data cannot be null");
         }
         requireDenseStorageReplacement("setData(float[])");
-        TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "float[]");
-        storage = TensorStorageSupport.fromFloatArray(metadata, data);
+        TensorStorageAccess.validateInputLength(data.length, metadata.getFlatSize(), "float[]");
+        storage = TensorStorageAccess.fromFloatArray(metadata, data);
     }
 
     /**
@@ -921,8 +921,8 @@ public class Tensor {
             throw new IllegalArgumentException("data cannot be null");
         }
         requireDenseStorageReplacement("setData(short[])");
-        TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "short[]");
-        storage = TensorStorageSupport.fromBFloat16Array(metadata, data);
+        TensorStorageAccess.validateInputLength(data.length, metadata.getFlatSize(), "short[]");
+        storage = TensorStorageAccess.fromBFloat16Array(metadata, data);
     }
 
     /**
@@ -936,8 +936,8 @@ public class Tensor {
             throw new IllegalArgumentException("data cannot be null");
         }
         requireDenseStorageReplacement("setData(byte[])");
-        TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "byte[]");
-        storage = TensorStorageSupport.fromBoolArray(metadata, data);
+        TensorStorageAccess.validateInputLength(data.length, metadata.getFlatSize(), "byte[]");
+        storage = TensorStorageAccess.fromBoolArray(metadata, data);
     }
 
     /**
@@ -951,8 +951,8 @@ public class Tensor {
             throw new IllegalArgumentException("data cannot be null");
         }
         requireDenseStorageReplacement("setData(int[])");
-        TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "int[]");
-        storage = TensorStorageSupport.fromIntArray(metadata, data);
+        TensorStorageAccess.validateInputLength(data.length, metadata.getFlatSize(), "int[]");
+        storage = TensorStorageAccess.fromIntArray(metadata, data);
     }
 
     /**
@@ -966,8 +966,8 @@ public class Tensor {
             throw new IllegalArgumentException("data cannot be null");
         }
         requireDenseStorageReplacement("setData(long[])");
-        TensorStorageSupport.validateInputLength(data.length, metadata.getFlatSize(), "long[]");
-        storage = TensorStorageSupport.fromLongArray(metadata, data);
+        TensorStorageAccess.validateInputLength(data.length, metadata.getFlatSize(), "long[]");
+        storage = TensorStorageAccess.fromLongArray(metadata, data);
     }
 
     /**
@@ -1132,9 +1132,9 @@ public class Tensor {
         if ((current == DataType.BOOL) != (dataType == DataType.BOOL)) {
             throw new UnsupportedOperationException("Implicit BOOL <-> numeric dtype conversion is not supported.");
         }
-        double[] snapshot = TensorDebugSupport.toDoubleStorageOrderCopy(this);
+        double[] snapshot = TensorInspection.toDoubleStorageOrderCopy(this);
         metadata.setDataType(dataType);
-        storage = TensorStorageSupport.fromDoubleArray(metadata, snapshot);
+        storage = TensorStorageAccess.fromDoubleArray(metadata, snapshot);
     }
 
     /**
@@ -1143,7 +1143,7 @@ public class Tensor {
      * @return storage mutation counter
      */
     public long storageVersion() {
-        return TensorStorageSupport.version(storage);
+        return TensorStorageAccess.version(storage);
     }
 
     /**
@@ -1187,7 +1187,7 @@ public class Tensor {
      * @return human-readable structure string
      */
     public String toStructString(){
-        return TensorDebugSupport.toStructString(this);
+        return TensorInspection.toStructString(this);
     }
 
     /**
@@ -1205,7 +1205,7 @@ public class Tensor {
      * @return logical row-major copy converted to double values
      */
     public double[] toDoubleArrayCopy() {
-        return TensorDebugSupport.toDoubleArrayCopy(this);
+        return TensorInspection.toDoubleArrayCopy(this);
     }
 
     /**
@@ -1214,7 +1214,7 @@ public class Tensor {
      * @return logical row-major boolean copy
      */
     public boolean[] toBooleanArrayCopy() {
-        return TensorDebugSupport.toBooleanArrayCopy(this);
+        return TensorInspection.toBooleanArrayCopy(this);
     }
 
     /**
@@ -1224,7 +1224,7 @@ public class Tensor {
      * @throws UnsupportedOperationException if this tensor is not FLOAT32
      */
     public float[] toFloat32ArrayCopy() {
-        return TensorDebugSupport.toFloat32ArrayCopy(this);
+        return TensorInspection.toFloat32ArrayCopy(this);
     }
 
     /**
@@ -1234,7 +1234,7 @@ public class Tensor {
      * @throws UnsupportedOperationException if this tensor is not FLOAT64
      */
     public double[] toFloat64ArrayCopy() {
-        return TensorDebugSupport.toFloat64ArrayCopy(this);
+        return TensorInspection.toFloat64ArrayCopy(this);
     }
 
     /**
@@ -1244,7 +1244,7 @@ public class Tensor {
      * @throws UnsupportedOperationException if this tensor is not BFLOAT16
      */
     public short[] toBFloat16BitsArrayCopy() {
-        return TensorDebugSupport.toBFloat16BitsArrayCopy(this);
+        return TensorInspection.toBFloat16BitsArrayCopy(this);
     }
 
     /**
@@ -1254,7 +1254,7 @@ public class Tensor {
      * @throws UnsupportedOperationException if this tensor is not INT32
      */
     public int[] toInt32ArrayCopy() {
-        return TensorDebugSupport.toInt32ArrayCopy(this);
+        return TensorInspection.toInt32ArrayCopy(this);
     }
 
     /**
@@ -1264,7 +1264,7 @@ public class Tensor {
      * @throws UnsupportedOperationException if this tensor is not INT64
      */
     public long[] toInt64ArrayCopy() {
-        return TensorDebugSupport.toInt64ArrayCopy(this);
+        return TensorInspection.toInt64ArrayCopy(this);
     }
 
     /**
@@ -1274,7 +1274,7 @@ public class Tensor {
      * @throws UnsupportedOperationException if this tensor is not BOOL
      */
     public byte[] toBoolByteArrayCopy() {
-        return TensorDebugSupport.toBoolByteArrayCopy(this);
+        return TensorInspection.toBoolByteArrayCopy(this);
     }
 
     /**
@@ -1284,7 +1284,7 @@ public class Tensor {
      * @throws IllegalStateException if the tensor does not contain exactly one element
      */
     public double scalarAsDouble() {
-        return TensorDebugSupport.scalarAsDouble(this);
+        return TensorInspection.scalarAsDouble(this);
     }
 
     void setOperationInternal(Operation operation){
@@ -1327,7 +1327,7 @@ public class Tensor {
      * @return prepared execution artifact
      */
     public PreparedExecution prepare(ExecutionProfile profile) {
-        return TensorExecutionSupport.prepare(this, profile);
+        return TensorExecution.prepare(this, profile);
     }
 
     /**
@@ -1336,7 +1336,7 @@ public class Tensor {
      * @return compiled graph artifact
      */
     public CompiledGraph compile() {
-        return TensorExecutionSupport.compile(this, CompileMode.INFERENCE_ONLY);
+        return TensorExecution.compile(this, CompileMode.INFERENCE_ONLY);
     }
 
     /**
@@ -1346,7 +1346,7 @@ public class Tensor {
      * @return compiled graph artifact
      */
     public CompiledGraph compile(CompileMode compileMode) {
-        return TensorExecutionSupport.compile(this, compileMode);
+        return TensorExecution.compile(this, compileMode);
     }
 
     /**
@@ -1355,7 +1355,7 @@ public class Tensor {
      * @return computed output tensor
      */
     public Tensor compute() {
-        return TensorExecutionSupport.compute(this);
+        return TensorExecution.compute(this);
     }
 
     /**
@@ -1365,7 +1365,7 @@ public class Tensor {
      * @return computed output tensor
      */
     public Tensor compute(CompileMode compileMode) {
-        return TensorExecutionSupport.compute(this, compileMode);
+        return TensorExecution.compute(this, compileMode);
     }
 
     /**
@@ -1376,7 +1376,7 @@ public class Tensor {
      * @return computed output tensor
      */
     public Tensor compute(ComputeOptions options) {
-        return TensorExecutionSupport.compute(this, options);
+        return TensorExecution.compute(this, options);
     }
 
     /**
@@ -1385,7 +1385,7 @@ public class Tensor {
      * @param profile execution profile; must be non-null
      */
     public void compute(ExecutionProfile profile) {
-        TensorExecutionSupport.compute(this, profile);
+        TensorExecution.compute(this, profile);
     }
 
     /**
@@ -1395,7 +1395,7 @@ public class Tensor {
      * @param mode runtime execution mode; must be non-null
      */
     public void compute(PreparedExecution execution, ExecutionMode mode) {
-        TensorExecutionSupport.compute(execution, mode);
+        TensorExecution.compute(execution, mode);
     }
 
 
@@ -2841,11 +2841,11 @@ public class Tensor {
     }
 
     double getByStorageOffset(int offset) {
-        return TensorStorageSupport.getByStorageOffset(storage, getStorageSize(), offset);
+        return TensorStorageAccess.getByStorageOffset(storage, getStorageSize(), offset);
     }
 
     void setByStorageOffset(int offset, double value) {
-        TensorStorageSupport.setByStorageOffset(storage, getStorageSize(), offset, value);
+        TensorStorageAccess.setByStorageOffset(storage, getStorageSize(), offset, value);
     }
 
     TensorMetadata metadataInternal() {
@@ -2857,31 +2857,31 @@ public class Tensor {
     }
 
     float[] float32DataInternal() {
-        return TensorStorageSupport.float32Data(storage);
+        return TensorStorageAccess.float32Data(storage);
     }
 
     double[] float64DataInternal() {
-        return TensorStorageSupport.float64Data(storage);
+        return TensorStorageAccess.float64Data(storage);
     }
 
     short[] bfloat16DataInternal() {
-        return TensorStorageSupport.bfloat16Data(storage);
+        return TensorStorageAccess.bfloat16Data(storage);
     }
 
     int[] int32DataInternal() {
-        return TensorStorageSupport.int32Data(storage);
+        return TensorStorageAccess.int32Data(storage);
     }
 
     long[] int64DataInternal() {
-        return TensorStorageSupport.int64Data(storage);
+        return TensorStorageAccess.int64Data(storage);
     }
 
     byte[] boolDataInternal() {
-        return TensorStorageSupport.boolData(storage);
+        return TensorStorageAccess.boolData(storage);
     }
 
     void markStorageModifiedInternal() {
-        TensorStorageSupport.markModified(storage);
+        TensorStorageAccess.markModified(storage);
     }
 
     void aliasRuntimeFromInternal(Tensor source) {
@@ -2898,7 +2898,7 @@ public class Tensor {
             throw new IllegalArgumentException("replacement storage dtype " + replacement.getType()
                     + " does not match tensor dtype " + metadata.getDataType());
         }
-        TensorStorageSupport.validateInputLength(replacement.getSize(), metadata.getFlatSize(), "TensorStorage");
+        TensorStorageAccess.validateInputLength(replacement.getSize(), metadata.getFlatSize(), "TensorStorage");
         this.storage = replacement;
     }
 

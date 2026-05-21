@@ -4,7 +4,6 @@ import graph.CompiledNode;
 import graph.compile.planning.value.GraphValueRef;
 import graph.execution.trace.PartitionCompileTrace;
 import graph.execution.trace.PartitionDecisionTrace;
-import operations.Operation;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -117,7 +116,7 @@ public final class MaxRegionPartitionPlanner implements PartitionPlanner {
 
     private Comparator<CompiledNode> anchorComparator(PartitionPlanningRequest request) {
         Comparator<CompiledNode> comparator = Comparator
-                .comparingInt((CompiledNode node) -> anchorPriority(node, request))
+                .comparingInt((CompiledNode node) -> seedPriority(node, request))
                 .reversed();
         if (allowsMixedTrainingPhases(request)) {
             return comparator.thenComparing(CompiledNode::id, Comparator.reverseOrder());
@@ -125,34 +124,11 @@ public final class MaxRegionPartitionPlanner implements PartitionPlanner {
         return comparator.thenComparingInt(CompiledNode::id);
     }
 
-    private int anchorPriority(CompiledNode node) {
-        return anchorPriority(node, null);
-    }
-
-    private int anchorPriority(CompiledNode node, PartitionPlanningRequest request) {
+    private int seedPriority(CompiledNode node, PartitionPlanningRequest request) {
         if (node == null || node.operation() == null) {
             return 0;
         }
-        Operation.OpType opType = node.operation().opType();
-        int priority = switch (opType) {
-            case SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> 10_000;
-            case SCALED_DOT_PRODUCT_ATTENTION -> 9_500;
-            case CONV2D, CONV2D_GEMM, CONV2D_BACKWARD_INPUT, CONV2D_BACKWARD_INPUT_GEMM,
-                    CONV2D_BACKWARD_WEIGHT, CONV2D_BACKWARD_WEIGHT_GEMM -> 9_000;
-            case MATMUL, LINEAR -> 8_500;
-            case CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD,
-                    NLL_LOSS -> 8_000;
-            case LAYER_NORM, RMS_NORM -> 7_500;
-            case SOFTMAX, LOG_SOFTMAX, SOFTMAX_GRAD, LOG_SOFTMAX_GRAD -> 7_000;
-            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD -> 6_500;
-            case MAX_POOL2D, AVG_POOL2D, MAX_POOL2D_BACKWARD_INPUT, AVG_POOL2D_BACKWARD_INPUT -> 6_000;
-            case ADD, SUB, MUL, DIV, MIN, MAX, RELU, TANH, FAST_TANH, SIGMOID, EXP, FAST_EXP,
-                    ERF, LOG, SQRT, NEG, ABS, FLOOR, CEIL, SIGN, INV, POW, MUL_SCALAR -> 4_000;
-            case RESHAPE, PERMUTE, CONTIGUOUS, EXPAND, EXPAND_DIMS, SQUEEZE, SELECT, SLICE, CONCAT, NOOP -> 1_000;
-            case SLICE_GRAD, SLICE_SCATTER_ADD, GATHER_AXIS, GATHER_AXIS_GRAD, GATHER_ND, GATHER_ND_GRAD,
-                    SCATTER_AXIS_ADD -> 2_000;
-            default -> 2_000;
-        };
+        int priority = request.capability().partitionPriority(node, request.context());
         if (allowsMixedTrainingPhases(request)) {
             if (request.requiredMaterializedValueRefs().contains(GraphValueRef.node(node.id()))) {
                 priority += 30_000;
@@ -515,7 +491,7 @@ public final class MaxRegionPartitionPlanner implements PartitionPlanner {
         }
         return out.stream()
                 .sorted(Comparator
-                        .comparingInt((Integer nodeId) -> neighborPriority(nodeId, selectedNodeIds, request.context())).reversed()
+                        .comparingInt((Integer nodeId) -> neighborPriority(nodeId, selectedNodeIds, request)).reversed()
                         .thenComparingInt(Integer::intValue))
                 .toList();
     }
@@ -538,9 +514,10 @@ public final class MaxRegionPartitionPlanner implements PartitionPlanner {
         out.add(nodeId);
     }
 
-    private int neighborPriority(int nodeId, Set<Integer> selectedNodeIds, PartitionPlanningContext context) {
+    private int neighborPriority(int nodeId, Set<Integer> selectedNodeIds, PartitionPlanningRequest request) {
+        PartitionPlanningContext context = request.context();
         CompiledNode node = context.compiledNode(nodeId);
-        int priority = anchorPriority(node);
+        int priority = request.capability().partitionPriority(node, context);
         if (isMergeCompleting(nodeId, selectedNodeIds, context)) {
             priority += 1_000;
         }

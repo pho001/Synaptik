@@ -52,6 +52,20 @@ public interface BackendPartitionCapability {
     boolean canSeed(CompiledNode node, PartitionPlanningContext context);
 
     /**
+     * Returns this backend's static search priority for a candidate node.
+     *
+     * <p>The partition planner owns traversal, budgets, and structural bonuses. Backend capabilities own
+     * operation-family preferences so adding backend coverage does not require editing the generic planner.
+     *
+     * @param node compiled node to prioritize
+     * @param context planning context
+     * @return larger values are visited earlier
+     */
+    default int partitionPriority(CompiledNode node, PartitionPlanningContext context) {
+        return 0;
+    }
+
+    /**
      * Returns whether {@code producer} may remain outside the selected node set while feeding {@code consumer}.
      *
      * @param producer producer node outside or inside the candidate

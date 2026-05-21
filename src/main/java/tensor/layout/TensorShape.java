@@ -1,11 +1,5 @@
 package tensor.layout;
 
-import tensor.Tensor;
-import tensor.TensorInternalAccess;
-import tensor.TensorMetadata;
-import tensor.dtype.BFloat16Bits;
-import tensor.storage.TensorStorageSupport;
-
 public final class TensorShape {
     private TensorShape() {
     }

@@ -419,17 +419,17 @@ Those belong respectively in:
 - `graph/*`
 - `backend/*`
 
-## Supporting Internal Helpers
+## Internal Package Structure
 
-Several supporting classes exist to keep `Tensor` itself smaller:
+Several internal package classes exist to keep `Tensor` itself smaller:
 
 - [TensorPrimitiveBuilder.java](../tensor/internal/TensorPrimitiveBuilder.java)
 - [TensorDataFactory.java](../tensor/factory/TensorDataFactory.java)
 - [TensorBroadcastOps.java](../tensor/TensorBroadcastOps.java)
 - [TensorLayoutTransform.java](../tensor/layout/TensorLayoutTransform.java)
 - [TensorGraphTraversal.java](../tensor/internal/TensorGraphTraversal.java)
-- [TensorExecutionSupport.java](../tensor/internal/TensorExecutionSupport.java)
-- [TensorStorageSupport.java](../tensor/storage/TensorStorageSupport.java)
+- [TensorExecution.java](../tensor/internal/TensorExecution.java)
+- [TensorStorageAccess.java](../tensor/storage/TensorStorageAccess.java)
 - [factory/TensorArrayData.java](../tensor/factory/TensorArrayData.java)
 
 These are part of the package design, but they are not the first place to look when using the public API.

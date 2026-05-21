@@ -12,8 +12,8 @@ import tuning.tensor.TensorComputeProfileResolver;
 
 import java.util.Objects;
 
-public final class TensorExecutionSupport {
-    private TensorExecutionSupport() {
+public final class TensorExecution {
+    private TensorExecution() {
     }
 
     public static PreparedExecution prepare(Tensor tensor, ExecutionProfile profile) {

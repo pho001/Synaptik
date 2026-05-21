@@ -1,11 +1,11 @@
 package tensor;
 
-import tensor.storage.TensorStorageSupport;
+import tensor.storage.TensorStorageAccess;
 
 import java.util.Arrays;
 
-public final class TensorDebugSupport {
-    private TensorDebugSupport() {
+public final class TensorInspection {
+    private TensorInspection() {
     }
 
     public static String toStructString(Tensor tensor) {
@@ -48,7 +48,7 @@ public final class TensorDebugSupport {
         int n = tensor.getFlatDataSize();
         float[] out = new float[n];
         for (int i = 0; i < n; i++) {
-            out[i] = storage[TensorStorageSupport.logicalFlatIndexToStorageOffset(tensor.metadataInternal(), i)];
+            out[i] = storage[TensorStorageAccess.logicalFlatIndexToStorageOffset(tensor.metadataInternal(), i)];
         }
         return out;
     }
@@ -59,7 +59,7 @@ public final class TensorDebugSupport {
         int n = tensor.getFlatDataSize();
         double[] out = new double[n];
         for (int i = 0; i < n; i++) {
-            out[i] = storage[TensorStorageSupport.logicalFlatIndexToStorageOffset(tensor.metadataInternal(), i)];
+            out[i] = storage[TensorStorageAccess.logicalFlatIndexToStorageOffset(tensor.metadataInternal(), i)];
         }
         return out;
     }
@@ -70,7 +70,7 @@ public final class TensorDebugSupport {
         int n = tensor.getFlatDataSize();
         short[] out = new short[n];
         for (int i = 0; i < n; i++) {
-            out[i] = storage[TensorStorageSupport.logicalFlatIndexToStorageOffset(tensor.metadataInternal(), i)];
+            out[i] = storage[TensorStorageAccess.logicalFlatIndexToStorageOffset(tensor.metadataInternal(), i)];
         }
         return out;
     }
@@ -81,7 +81,7 @@ public final class TensorDebugSupport {
         int n = tensor.getFlatDataSize();
         int[] out = new int[n];
         for (int i = 0; i < n; i++) {
-            out[i] = storage[TensorStorageSupport.logicalFlatIndexToStorageOffset(tensor.metadataInternal(), i)];
+            out[i] = storage[TensorStorageAccess.logicalFlatIndexToStorageOffset(tensor.metadataInternal(), i)];
         }
         return out;
     }
@@ -92,7 +92,7 @@ public final class TensorDebugSupport {
         int n = tensor.getFlatDataSize();
         long[] out = new long[n];
         for (int i = 0; i < n; i++) {
-            out[i] = storage[TensorStorageSupport.logicalFlatIndexToStorageOffset(tensor.metadataInternal(), i)];
+            out[i] = storage[TensorStorageAccess.logicalFlatIndexToStorageOffset(tensor.metadataInternal(), i)];
         }
         return out;
     }
@@ -103,7 +103,7 @@ public final class TensorDebugSupport {
         int n = tensor.getFlatDataSize();
         byte[] out = new byte[n];
         for (int i = 0; i < n; i++) {
-            out[i] = storage[TensorStorageSupport.logicalFlatIndexToStorageOffset(tensor.metadataInternal(), i)];
+            out[i] = storage[TensorStorageAccess.logicalFlatIndexToStorageOffset(tensor.metadataInternal(), i)];
         }
         return out;
     }

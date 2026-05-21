@@ -1,6 +1,5 @@
 package graph.execution;
 
-import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.nativecpu.NativeCpuMemoryPool;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
@@ -20,6 +19,7 @@ import graph.execution.trace.RunTrace;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tensor.autograd.DifferentiableDTypePolicy;
+import tensor.dtype.BFloat16Bits;
 import training.optimizer.OptimizerStepContext;
 import training.optimizer.TrainingOptimizer;
 
@@ -209,7 +209,7 @@ final class ExecutionRun {
         switch (gradient.getDataType()) {
             case FLOAT64 -> Arrays.fill(TensorInternalAccess.float64Data(gradient), 1.0);
             case FLOAT32 -> Arrays.fill(TensorInternalAccess.float32Data(gradient), 1.0f);
-            case BFLOAT16 -> Arrays.fill(TensorInternalAccess.bfloat16Data(gradient), CpuDTypeOps.toBFloat16Bits(1.0f));
+            case BFLOAT16 -> Arrays.fill(TensorInternalAccess.bfloat16Data(gradient), BFloat16Bits.fromFloat(1.0f));
             case INT32, INT64, BOOL -> throw DifferentiableDTypePolicy.unsupportedGradientDType(
                     gradient.getDataType(),
                     "Gradient seeding"

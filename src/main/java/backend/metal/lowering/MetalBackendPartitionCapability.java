@@ -15,6 +15,7 @@ import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
 import graph.compile.planning.value.GraphValueRef;
 import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
+import operations.Operation;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -63,6 +64,14 @@ public final class MetalBackendPartitionCapability implements BackendPartitionCa
         return MetalPartitionSupport.isPlannerSupported(node, context);
     }
 
+    @Override
+    public int partitionPriority(CompiledNode node, PartitionPlanningContext context) {
+        if (node == null || node.operation() == null || node.operation().opType() == null) {
+            return 0;
+        }
+        return operationPriority(node.operation().opType());
+    }
+
     /**
      * Returns whether a producer outside the selected Metal candidate may be read as an external input.
      */
@@ -92,6 +101,28 @@ public final class MetalBackendPartitionCapability implements BackendPartitionCa
                 && producer.operation() != null
                 && producer.backend() == target().backend()
                 && MetalPartitionSupport.isPlannerSupported(producer, context);
+    }
+
+    private static int operationPriority(Operation.OpType opType) {
+        return switch (opType) {
+            case SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> 10_000;
+            case SCALED_DOT_PRODUCT_ATTENTION -> 9_500;
+            case CONV2D, CONV2D_GEMM, CONV2D_BACKWARD_INPUT, CONV2D_BACKWARD_INPUT_GEMM,
+                    CONV2D_BACKWARD_WEIGHT, CONV2D_BACKWARD_WEIGHT_GEMM -> 9_000;
+            case MATMUL, LINEAR -> 8_500;
+            case CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD,
+                    NLL_LOSS -> 8_000;
+            case LAYER_NORM, RMS_NORM -> 7_500;
+            case SOFTMAX, LOG_SOFTMAX, SOFTMAX_GRAD, LOG_SOFTMAX_GRAD -> 7_000;
+            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD -> 6_500;
+            case MAX_POOL2D, AVG_POOL2D, MAX_POOL2D_BACKWARD_INPUT, AVG_POOL2D_BACKWARD_INPUT -> 6_000;
+            case ADD, SUB, MUL, DIV, MIN, MAX, RELU, TANH, FAST_TANH, SIGMOID, EXP, FAST_EXP,
+                    ERF, LOG, SQRT, NEG, ABS, FLOOR, CEIL, SIGN, INV, POW, MUL_SCALAR -> 4_000;
+            case RESHAPE, PERMUTE, CONTIGUOUS, EXPAND, EXPAND_DIMS, SQUEEZE, SELECT, SLICE, CONCAT, NOOP -> 1_000;
+            case SLICE_GRAD, SLICE_SCATTER_ADD, GATHER_AXIS, GATHER_AXIS_GRAD, GATHER_ND, GATHER_ND_GRAD,
+                    SCATTER_AXIS_ADD -> 2_000;
+            default -> 2_000;
+        };
     }
 
     private boolean externalInputRolesAreSupported(CompiledNode producer, CompiledNode consumer) {

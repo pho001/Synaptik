@@ -11,6 +11,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -150,6 +151,21 @@ public class TransformOpsTest {
         CompiledGraph.compile(reshaped, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new int[]{3, 2}, reshaped.getShape());
         assertArrayEquals(new double[]{1, 2, 3, 4, 5, 6}, reshaped.toDoubleArrayCopy(), 1e-6);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = DataType.class, names = {"FLOAT32", "FLOAT64"})
+    void reshapeMaterializesNonContiguousSourceInLogicalOrder(DataType dataType) {
+        Tensor base = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "base", dataType);
+        Tensor permuted = base.permute(1, 0);
+        Tensor reshaped = permuted.reshape(2, 3);
+
+        CompiledGraph.compile(reshaped, CompileConfig.noGraphOptimizationBaseline())
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(new int[]{2, 3}, reshaped.getShape());
+        assertNotSame(TensorInternalAccess.storage(permuted), TensorInternalAccess.storage(reshaped));
+        assertArrayEquals(new double[]{1, 4, 2, 5, 3, 6}, reshaped.toDoubleArrayCopy(), eps(dataType));
     }
 
     @Test
