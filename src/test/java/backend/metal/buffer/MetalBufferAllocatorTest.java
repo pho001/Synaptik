@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.storage.NativeFloat32Storage;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 
 import java.lang.foreign.MemorySegment;
 import java.util.Arrays;
@@ -69,7 +70,7 @@ class MetalBufferAllocatorTest {
 
         assertEquals(DataType.BFLOAT16, binding.layout().dataType());
         assertEquals(raw.length * Short.BYTES, binding.logicalByteLength());
-        assertArrayEquals(raw, destination.getBFloat16Data());
+        assertArrayEquals(raw, destination.toBFloat16BitsArrayCopy());
     }
 
     @Test
@@ -131,7 +132,7 @@ class MetalBufferAllocatorTest {
 
         allocator.readToCpu(viewBinding, destination, CpuMaterializationReason.GRADIENT_PUBLICATION);
 
-        assertArrayEquals(new float[]{1f, 2f, 3f, 0f, 0f, 0f}, destination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{1f, 2f, 3f, 0f, 0f, 0f}, TensorInternalAccess.float32Data(destination), 0.0f);
         assertArrayEquals(new double[]{1d, 2d, 3d, 1d, 2d, 3d}, destination.toDoubleArrayCopy(), 0.0d);
     }
 

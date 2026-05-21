@@ -55,11 +55,12 @@ final class FusedAsmSupport {
 
     static void emitGetRawArrayFromTensorCall(MethodVisitor mv, DataType dataType) {
         switch (dataType) {
-            case FLOAT32 -> mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getFloat32Data", "()[F", false);
-            case FLOAT64 -> mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getFloat64Data", "()[D", false);
-            case BFLOAT16 -> mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getBFloat16Data", "()[S", false);
-            case BOOL -> mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getBoolData", "()[B", false);
-            case INT32 -> mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getInt32Data", "()[I", false);
+            case FLOAT32 -> mv.visitMethodInsn(INVOKESTATIC, "tensor/TensorInternalAccess", "float32Data", "(Ltensor/Tensor;)[F", false);
+            case FLOAT64 -> mv.visitMethodInsn(INVOKESTATIC, "tensor/TensorInternalAccess", "float64Data", "(Ltensor/Tensor;)[D", false);
+            case BFLOAT16 -> mv.visitMethodInsn(INVOKESTATIC, "tensor/TensorInternalAccess", "bfloat16Data", "(Ltensor/Tensor;)[S", false);
+            case BOOL -> mv.visitMethodInsn(INVOKESTATIC, "tensor/TensorInternalAccess", "boolData", "(Ltensor/Tensor;)[B", false);
+            case INT32 -> mv.visitMethodInsn(INVOKESTATIC, "tensor/TensorInternalAccess", "int32Data", "(Ltensor/Tensor;)[I", false);
+            case INT64 -> mv.visitMethodInsn(INVOKESTATIC, "tensor/TensorInternalAccess", "int64Data", "(Ltensor/Tensor;)[J", false);
         }
     }
 

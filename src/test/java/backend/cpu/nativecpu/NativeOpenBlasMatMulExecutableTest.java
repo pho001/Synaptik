@@ -79,7 +79,7 @@ class NativeOpenBlasMatMulExecutableTest {
         state.requireCpuReadable(matmulStep.compiledNode().id(), CpuMaterializationReason.GRAPH_OUTPUT);
 
         assertArrayEquals(new float[]{19f, 22f, 43f, 50f},
-                state.runtimeTensorForNodeId(matmulStep.compiledNode().id()).getFloat32Data(),
+                state.runtimeTensorForNodeId(matmulStep.compiledNode().id()).toFloat32ArrayCopy(),
                 1e-6f);
         assertEquals(StorageResidency.CPU_ARRAY, state.residencyForNodeId(matmulStep.compiledNode().id()).residency());
     }
@@ -193,7 +193,7 @@ class NativeOpenBlasMatMulExecutableTest {
         assertTrue(executable.lastFallbackReason().contains("rank-2 matmul"));
         assertArrayEquals(
                 new float[]{19f, 22f, 43f, 50f},
-                fixture.state().runtimeTensorForNodeId(matmulStep.compiledNode().id()).getFloat32Data(),
+                fixture.state().runtimeTensorForNodeId(matmulStep.compiledNode().id()).toFloat32ArrayCopy(),
                 1e-6f
         );
     }

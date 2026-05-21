@@ -24,7 +24,7 @@ public final class CastOp {
             return input;
         }
         Tensor out = TensorPrimitiveBuilder.unary(input, input.getShape(), new cast(targetType), "cast", targetType);
-        if (!DTypeSupport.isFloating(input.getDataType()) || !DTypeSupport.isFloating(targetType)) {
+        if (!input.getDataType().isFloating() || !targetType.isFloating()) {
             out.setRequiresGrad(false);
             return out;
         }

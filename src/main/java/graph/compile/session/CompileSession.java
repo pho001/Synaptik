@@ -11,6 +11,7 @@ import graph.compile.CompileArtifacts;
 import graph.compile.GraphStructureContract;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import graph.compile.intent.BackendIntentPlan;
 import graph.compile.intent.BackendIntentPropagator;
 import graph.compile.planning.BackendPlanningRequest;
 import graph.compile.planning.BackendPlanningResult;
@@ -61,12 +62,14 @@ public final class CompileSession {
             List<Tensor> graph,
             Tensor forwardOutput,
             Map<Tensor, Tensor> publicationTensors,
+            BackendIntentPlan backendIntentPlan,
             OptimizerState optimizerState
     ) {
         private OptimizedGraph {
             graph = List.copyOf(graph == null ? List.of() : graph);
             forwardOutput = Objects.requireNonNull(forwardOutput, "forwardOutput cannot be null");
             publicationTensors = identityTensorCopy(publicationTensors);
+            backendIntentPlan = backendIntentPlan == null ? BackendIntentPlan.empty() : backendIntentPlan;
             optimizerState = Objects.requireNonNull(optimizerState, "optimizerState cannot be null");
         }
     }
@@ -77,7 +80,8 @@ public final class CompileSession {
             CompiledTensorDescriptorIndex descriptorIndex,
             Map<Tensor, CompiledNode> compiledNodeByTensor,
             CompiledNode forwardOutput,
-            int forwardBoundaryNodeId
+            int forwardBoundaryNodeId,
+            BackendIntentPlan backendIntentPlan
     ) {
         private CompiledSnapshot {
             graph = List.copyOf(graph == null ? List.of() : graph);
@@ -88,6 +92,7 @@ public final class CompileSession {
             if (forwardBoundaryNodeId < 0) {
                 throw new IllegalArgumentException("forwardBoundaryNodeId must be >= 0");
             }
+            backendIntentPlan = backendIntentPlan == null ? BackendIntentPlan.empty() : backendIntentPlan;
         }
     }
 
@@ -119,6 +124,7 @@ public final class CompileSession {
     private final CompileMode compileMode;
     private final BackendPartitionDescriptorRegistry backendPartitionDescriptors;
     private final BackendPlanningService backendPlanningService;
+    private final BackendIntentPlan backendIntentPlan;
 
     private int forwardGraphSize;
     private OptimizerTrace optimizerTrace = OptimizerTrace.empty();
@@ -131,7 +137,8 @@ public final class CompileSession {
             CompileConfig compileConfig,
             CompileMode compileMode,
             BackendPartitionDescriptorRegistry backendPartitionDescriptors,
-            BackendPlanningService backendPlanningService
+            BackendPlanningService backendPlanningService,
+            BackendIntentPlan backendIntentPlan
     ) {
         this.rootTensor = Objects.requireNonNull(rootTensor, "rootTensor cannot be null");
         this.forwardCanonicalizer = forwardCanonicalizer;
@@ -146,6 +153,7 @@ public final class CompileSession {
                 backendPlanningService,
                 "backendPlanningService cannot be null"
         );
+        this.backendIntentPlan = backendIntentPlan == null ? BackendIntentPlan.empty() : backendIntentPlan;
     }
 
     public CompileArtifacts compile() {
@@ -171,7 +179,8 @@ public final class CompileSession {
             CompiledSnapshot snapshot = snapshotProgram(
                     optimized.graph(),
                     optimized.forwardOutput(),
-                    graphDescription
+                    graphDescription,
+                    optimized.backendIntentPlan()
             );
             Map<Tensor, CompiledGradientBinding> compiledGradients = backward.supportsBackward()
                     ? GradientBindingCollector.captureCompiledGradients(
@@ -260,8 +269,8 @@ public final class CompileSession {
             boolean supportsBackward
     ) {
         List<Tensor> graph = List.copyOf(workingGraph == null ? List.of() : workingGraph);
-        BackendIntentPropagator.propagateBackwardClosure(graph);
-        OptimizerGraphSnapshot snapshot = OptimizerGraphSnapshot.capture(graph, forwardOutput);
+        BackendIntentPlan propagatedIntent = BackendIntentPropagator.propagateBackwardClosure(graph, backendIntentPlan);
+        OptimizerGraphSnapshot snapshot = OptimizerGraphSnapshot.capture(graph, forwardOutput, propagatedIntent);
         OptimizerState optimizedState = optimizer.optimize(
                 OptimizerState.ofGraph(
                         snapshot.graph(),
@@ -276,11 +285,17 @@ public final class CompileSession {
                 optimizedState.graph(),
                 optimizedState.forwardOutput(),
                 composePublicationTensors(snapshot, publicationTensors),
+                snapshot.backendIntentPlan().remapThrough(optimizedState.rewriteMap()),
                 optimizedState
         );
     }
 
-    private CompiledSnapshot snapshotProgram(List<Tensor> graph, Tensor forwardOutput, String graphDescription) {
+    private CompiledSnapshot snapshotProgram(
+            List<Tensor> graph,
+            Tensor forwardOutput,
+            String graphDescription,
+            BackendIntentPlan backendIntentPlan
+    ) {
         List<Tensor> finalGraph = List.copyOf(graph == null ? List.of() : graph);
         int forwardBoundaryNodeId = finalGraph.indexOf(forwardOutput);
         if (forwardBoundaryNodeId == -1) {
@@ -288,8 +303,8 @@ public final class CompileSession {
             throw new IllegalStateException("Forward output node not found in " + description + ".");
         }
 
-        BackendIntentPropagator.propagateBackwardClosure(finalGraph);
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(finalGraph);
+        BackendIntentPlan propagatedIntent = BackendIntentPropagator.propagateBackwardClosure(finalGraph, backendIntentPlan);
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(finalGraph, propagatedIntent);
         CompiledTensorDescriptorIndex descriptorIndex = CompiledTensorDescriptorBuilder.build(compiledNodes);
 
         IdentityHashMap<Tensor, CompiledNode> index = new IdentityHashMap<>();
@@ -307,7 +322,8 @@ public final class CompileSession {
                 descriptorIndex,
                 index,
                 compiledForwardOutput,
-                forwardBoundaryNodeId
+                forwardBoundaryNodeId,
+                propagatedIntent
         );
     }
 

@@ -31,9 +31,9 @@ public final class ScatterAddOp {
         }
         int[] baseShape = base.getShape();
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, baseShape.length);
-        int[] expectedSrcShape = IndexSupport.reduceShape(baseShape, normalizedDimension);
-        IndexSupport.validateGatherIndicesShape(indices.getShape(), expectedSrcShape);
-        IndexSupport.validateGatherIndicesShape(src.getShape(), expectedSrcShape);
+        int[] expectedSrcShape = IndexShapeRules.reduceShape(baseShape, normalizedDimension);
+        IndexShapeRules.validateGatherIndicesShape(indices.getShape(), expectedSrcShape);
+        IndexShapeRules.validateGatherIndicesShape(src.getShape(), expectedSrcShape);
 
         Tensor out = TensorPrimitiveBuilder.ternary(
                 base,

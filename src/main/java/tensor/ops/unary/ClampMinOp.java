@@ -16,7 +16,7 @@ public final class ClampMinOp {
     }
 
     public static Tensor build(Tensor input, double minValue) {
-        UnarySupport.requireNumeric(input, "clampMin");
+        UnaryNumericRules.requireNumeric(input, "clampMin");
         if (minValue == Double.NEGATIVE_INFINITY) {
             return input;
         }

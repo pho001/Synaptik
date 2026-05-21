@@ -6,6 +6,7 @@ import operations.Operation;
 import tensor.Tensor;
 import tensor.DataType;
 import tensor.internal.TensorPrimitiveBuilder;
+import graph.compile.intent.BackendIntentPlan;
 
 import java.util.List;
 
@@ -78,7 +79,7 @@ class MetalMpsCapabilitiesTest {
         Tensor left = new Tensor(new float[]{1.0f, 2.0f}, new int[]{2}, null, "left", DataType.FLOAT32);
         Tensor right = new Tensor(new float[]{3.0f, 4.0f}, new int[]{2}, null, "right", DataType.FLOAT32);
         Tensor where = Tensor.where(mask, left, right);
-        List<CompiledNode> nodes = CompiledNode.snapshot(List.of(mask, left, right, where));
+        List<CompiledNode> nodes = CompiledNode.snapshot(List.of(mask, left, right, where), BackendIntentPlan.empty());
 
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(nodes.get(0), nodes.get(3), 0).supported());
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(nodes.get(1), nodes.get(3), 1).supported());
@@ -95,14 +96,14 @@ class MetalMpsCapabilitiesTest {
         Tensor left = new Tensor(new float[]{1.0f, 2.0f}, new int[]{2}, null, "left", DataType.FLOAT32);
         Tensor right = new Tensor(new float[]{3.0f, 4.0f}, new int[]{2}, null, "right", DataType.FLOAT32);
         Tensor compare = left.greaterOrEqual(right);
-        List<CompiledNode> nodes = CompiledNode.snapshot(List.of(left, right, compare));
+        List<CompiledNode> nodes = CompiledNode.snapshot(List.of(left, right, compare), BackendIntentPlan.empty());
 
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(nodes.get(0), nodes.get(2), 0).supported());
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(nodes.get(1), nodes.get(2), 1).supported());
         assertFalse(MetalMpsCapabilities.externalInputRoleDecision(nodes.get(0), nodes.get(2), 2).supported());
 
         Tensor mask = new Tensor(new byte[]{1, 0}, new int[]{2}, null, "mask", DataType.BOOL);
-        CompiledNode maskNode = CompiledNode.snapshot(List.of(mask)).getFirst();
+        CompiledNode maskNode = CompiledNode.snapshot(List.of(mask), BackendIntentPlan.empty()).getFirst();
         assertFalse(MetalMpsCapabilities.externalInputRoleDecision(maskNode, nodes.get(2), 0).supported());
     }
 
@@ -112,8 +113,8 @@ class MetalMpsCapabilitiesTest {
         Tensor right = new Tensor(new byte[]{1, 1}, new int[]{2}, null, "right", DataType.BOOL);
         Tensor logical = left.logicalAnd(right);
         Tensor reduced = logical.any(0, true);
-        List<CompiledNode> logicalNodes = CompiledNode.snapshot(List.of(left, right, logical));
-        List<CompiledNode> reductionNodes = CompiledNode.snapshot(reduced.topologicalSort());
+        List<CompiledNode> logicalNodes = CompiledNode.snapshot(List.of(left, right, logical), BackendIntentPlan.empty());
+        List<CompiledNode> reductionNodes = CompiledNode.snapshot(reduced.topologicalSort(), BackendIntentPlan.empty());
 
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(logicalNodes.get(0), logicalNodes.get(2), 0).supported());
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(logicalNodes.get(1), logicalNodes.get(2), 1).supported());
@@ -129,18 +130,18 @@ class MetalMpsCapabilitiesTest {
     void externalInputRoleAllowsBoolForDTypePreservingLayoutInputs() {
         Tensor mask = new Tensor(new byte[]{1, 0}, new int[]{1, 2}, null, "mask", DataType.BOOL);
         Tensor expanded = mask.expand(3, 2);
-        List<CompiledNode> nodes = CompiledNode.snapshot(List.of(mask, expanded));
+        List<CompiledNode> nodes = CompiledNode.snapshot(List.of(mask, expanded), BackendIntentPlan.empty());
 
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(nodes.get(0), nodes.get(1), 0).supported());
         assertFalse(MetalMpsCapabilities.externalInputRoleDecision(nodes.get(0), nodes.get(1), 1).supported());
 
         Tensor values = new Tensor(new float[]{1.0f, 2.0f}, new int[]{1, 2}, null, "values", DataType.FLOAT32);
         Tensor floatExpanded = values.expand(3, 2);
-        List<CompiledNode> floatNodes = CompiledNode.snapshot(List.of(values, floatExpanded));
+        List<CompiledNode> floatNodes = CompiledNode.snapshot(List.of(values, floatExpanded), BackendIntentPlan.empty());
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(floatNodes.get(0), floatNodes.get(1), 0).supported());
 
         Tensor intTensor = new Tensor(new int[]{1, 0}, new int[]{1, 2}, null, "indices", DataType.INT32);
-        CompiledNode intNode = CompiledNode.snapshot(List.of(intTensor)).getFirst();
+        CompiledNode intNode = CompiledNode.snapshot(List.of(intTensor), BackendIntentPlan.empty()).getFirst();
         assertFalse(MetalMpsCapabilities.externalInputRoleDecision(intNode, nodes.get(1), 0).supported());
     }
 
@@ -150,8 +151,8 @@ class MetalMpsCapabilitiesTest {
         Tensor indices = new Tensor(new int[]{1, 0}, new int[]{2}, null, "indices", DataType.INT32);
         Tensor gathered = values.gather(indices, 1);
         Tensor gatherNd = values.gatherNd(new Tensor(new int[]{1, 0}, new int[]{1, 2}, null, "gatherNdIndices", DataType.INT32));
-        List<CompiledNode> nodes = CompiledNode.snapshot(List.of(values, indices, gathered));
-        List<CompiledNode> gatherNdNodes = CompiledNode.snapshot(gatherNd.topologicalSort());
+        List<CompiledNode> nodes = CompiledNode.snapshot(List.of(values, indices, gathered), BackendIntentPlan.empty());
+        List<CompiledNode> gatherNdNodes = CompiledNode.snapshot(gatherNd.topologicalSort(), BackendIntentPlan.empty());
 
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(nodes.get(0), nodes.get(2), 0).supported());
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(nodes.get(1), nodes.get(2), 1).supported());
@@ -164,8 +165,8 @@ class MetalMpsCapabilitiesTest {
                 new Tensor(new float[]{1.0f, 2.0f}, new int[]{2}, null, "left", DataType.FLOAT32),
                 new Tensor(new float[]{3.0f, 4.0f}, new int[]{2}, null, "right", DataType.FLOAT32)
         );
-        CompiledNode intNode = CompiledNode.snapshot(List.of(indices)).getFirst();
-        CompiledNode whereNode = CompiledNode.snapshot(where.topologicalSort()).getLast();
+        CompiledNode intNode = CompiledNode.snapshot(List.of(indices), BackendIntentPlan.empty()).getFirst();
+        CompiledNode whereNode = CompiledNode.snapshot(where.topologicalSort(), BackendIntentPlan.empty()).getLast();
         assertFalse(MetalMpsCapabilities.externalInputRoleDecision(intNode, whereNode, 0).supported());
     }
 
@@ -173,18 +174,18 @@ class MetalMpsCapabilitiesTest {
     void externalInputRoleUsesCastPairPolicyForCastInputs() {
         Tensor f32 = new Tensor(new float[]{1.0f, 2.0f}, new int[]{2}, null, "f32CastInput", DataType.FLOAT32);
         Tensor bf16Cast = f32.cast(DataType.BFLOAT16);
-        List<CompiledNode> f32ToBf16 = CompiledNode.snapshot(List.of(f32, bf16Cast));
+        List<CompiledNode> f32ToBf16 = CompiledNode.snapshot(List.of(f32, bf16Cast), BackendIntentPlan.empty());
 
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(f32ToBf16.get(0), f32ToBf16.get(1), 0).supported());
         assertFalse(MetalMpsCapabilities.externalInputRoleDecision(f32ToBf16.get(0), f32ToBf16.get(1), 1).supported());
 
         Tensor bf16 = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "bf16CastInput", DataType.BFLOAT16);
         Tensor f32Cast = bf16.cast(DataType.FLOAT32);
-        List<CompiledNode> bf16ToF32 = CompiledNode.snapshot(List.of(bf16, f32Cast));
+        List<CompiledNode> bf16ToF32 = CompiledNode.snapshot(List.of(bf16, f32Cast), BackendIntentPlan.empty());
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(bf16ToF32.get(0), bf16ToF32.get(1), 0).supported());
 
         Tensor intCast = f32.cast(DataType.INT32);
-        List<CompiledNode> f32ToInt = CompiledNode.snapshot(List.of(f32, intCast));
+        List<CompiledNode> f32ToInt = CompiledNode.snapshot(List.of(f32, intCast), BackendIntentPlan.empty());
         assertFalse(MetalMpsCapabilities.externalInputRoleDecision(f32ToInt.get(0), f32ToInt.get(1), 0).supported());
     }
 
@@ -193,7 +194,7 @@ class MetalMpsCapabilitiesTest {
         Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "logits", DataType.FLOAT32);
         Tensor targets = new Tensor(new int[]{2, 0}, new int[]{2}, null, "targets", DataType.INT32);
         Tensor loss = logits.crossEntropyLossFromIndices(targets, 1);
-        List<CompiledNode> lossNodes = CompiledNode.snapshot(List.of(logits, targets, loss));
+        List<CompiledNode> lossNodes = CompiledNode.snapshot(List.of(logits, targets, loss), BackendIntentPlan.empty());
 
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(lossNodes.get(0), lossNodes.get(2), 0).supported());
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(lossNodes.get(1), lossNodes.get(2), 1).supported());
@@ -209,14 +210,14 @@ class MetalMpsCapabilitiesTest {
                 "ceGrad",
                 DataType.FLOAT32
         );
-        List<CompiledNode> gradNodes = CompiledNode.snapshot(List.of(logits, targets, scale, grad));
+        List<CompiledNode> gradNodes = CompiledNode.snapshot(List.of(logits, targets, scale, grad), BackendIntentPlan.empty());
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(gradNodes.get(0), gradNodes.get(3), 0).supported());
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(gradNodes.get(1), gradNodes.get(3), 1).supported());
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(gradNodes.get(2), gradNodes.get(3), 2).supported());
 
         Tensor bf16Logits = new Tensor(new double[]{1, 2, 3, 1, 0, -1}, new int[]{2, 3}, null, "bf16Logits", DataType.BFLOAT16);
         Tensor bf16Loss = bf16Logits.crossEntropyLossFromIndices(targets, 1);
-        List<CompiledNode> bf16LossNodes = CompiledNode.snapshot(List.of(bf16Logits, targets, bf16Loss));
+        List<CompiledNode> bf16LossNodes = CompiledNode.snapshot(List.of(bf16Logits, targets, bf16Loss), BackendIntentPlan.empty());
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(bf16LossNodes.get(0), bf16LossNodes.get(2), 0).supported());
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(bf16LossNodes.get(1), bf16LossNodes.get(2), 1).supported());
 
@@ -230,7 +231,7 @@ class MetalMpsCapabilitiesTest {
                 "bf16CeGrad",
                 DataType.BFLOAT16
         );
-        List<CompiledNode> bf16GradNodes = CompiledNode.snapshot(List.of(bf16Logits, targets, bf16Scale, bf16Grad));
+        List<CompiledNode> bf16GradNodes = CompiledNode.snapshot(List.of(bf16Logits, targets, bf16Scale, bf16Grad), BackendIntentPlan.empty());
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(bf16GradNodes.get(0), bf16GradNodes.get(3), 0).supported());
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(bf16GradNodes.get(1), bf16GradNodes.get(3), 1).supported());
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(bf16GradNodes.get(2), bf16GradNodes.get(3), 2).supported());

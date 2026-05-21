@@ -21,6 +21,6 @@ public final class NotEqualToOp {
      */
     public static Tensor build(Tensor first, Tensor second) {
         BroadcastPlan plan = TensorBroadcastOps.planBinary(first, second);
-        return CompareSupport.compare(first, second, plan, new notEqualTo(plan), "ne");
+        return ComparisonBroadcastRules.compare(first, second, plan, new notEqualTo(plan), "ne");
     }
 }

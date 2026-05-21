@@ -2,8 +2,8 @@ package tensor.ops.binary;
 
 import tensor.Tensor;
 
-final class BinarySupport {
-    private BinarySupport() {
+final class BinaryScalarRules {
+    private BinaryScalarRules() {
     }
 
     static boolean isScalarConstant(Tensor tensor, double expected) {

@@ -670,7 +670,6 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                     long copyStart = System.nanoTime();
                     MemorySegment.ofArray(outData).copyFrom(outputSegs.getAtIndex(ADDRESS, i).reinterpret((long) outData.length * JAVA_FLOAT.byteSize()));
                     nativeToJavaCopyNs += System.nanoTime() - copyStart;
-                    out.markDataViewStale();
                 }
                 return new MetalMpsBridgeExecutionStats(
                         false,

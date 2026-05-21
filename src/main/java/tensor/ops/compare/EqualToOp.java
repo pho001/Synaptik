@@ -21,6 +21,6 @@ public final class EqualToOp {
      */
     public static Tensor build(Tensor first, Tensor second) {
         BroadcastPlan plan = TensorBroadcastOps.planBinary(first, second);
-        return CompareSupport.compare(first, second, plan, new equalTo(plan), "eq");
+        return ComparisonBroadcastRules.compare(first, second, plan, new equalTo(plan), "eq");
     }
 }

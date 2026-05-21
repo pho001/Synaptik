@@ -24,16 +24,16 @@ public final class DivOp {
      * @return broadcasted quotient tensor with promoted floating dtype
      */
     public static Tensor build(Tensor first, Tensor second) {
-        if (BinarySupport.isScalarConstant(first, 1.0d)) {
+        if (BinaryScalarRules.isScalarConstant(first, 1.0d)) {
             return second.inv();
         }
-        if (BinarySupport.isScalarConstant(second, 1.0d)) {
+        if (BinaryScalarRules.isScalarConstant(second, 1.0d)) {
             return first;
         }
-        if (BinarySupport.isScalarConstant(second, -1.0d)) {
+        if (BinaryScalarRules.isScalarConstant(second, -1.0d)) {
             return first.neg();
         }
-        if (BinarySupport.isNonZeroScalarConstant(second)) {
+        if (BinaryScalarRules.isNonZeroScalarConstant(second)) {
             return first.mul(1.0d / second.scalarAsDouble());
         }
 

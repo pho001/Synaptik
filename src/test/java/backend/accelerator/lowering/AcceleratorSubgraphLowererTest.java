@@ -2,6 +2,7 @@ package backend.accelerator.lowering;
 
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import graph.compile.intent.BackendIntentPlan;
 
 import backend.ComputeBackend;
 import backend.accelerator.dag.AcceleratorDagNodeType;
@@ -1093,7 +1094,7 @@ class AcceleratorSubgraphLowererTest {
     }
 
     private static PartitionPlanningContext planningContext(Tensor out) {
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(out.topologicalSort());
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         return new PartitionPlanningContext(
                 false,
                 compiledNodes,

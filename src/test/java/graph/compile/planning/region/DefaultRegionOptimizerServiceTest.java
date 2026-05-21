@@ -13,6 +13,7 @@ import graph.compile.planning.value.GraphValueRef;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
+import graph.compile.intent.BackendIntentPlan;
 
 import java.util.List;
 
@@ -66,7 +67,7 @@ class DefaultRegionOptimizerServiceTest {
         List<Tensor> graph = out.topologicalSort();
         OptimizedRegion result = new DefaultRegionOptimizer().optimize(
                 partition,
-                new RegionOptimizationContext(CompiledNode.snapshot(graph), FuseConfig.inferenceDefaults())
+                new RegionOptimizationContext(CompiledNode.snapshot(graph, BackendIntentPlan.empty()), FuseConfig.inferenceDefaults())
         );
 
         assertEquals(1, result.executionUnits().size());
@@ -118,7 +119,7 @@ class DefaultRegionOptimizerServiceTest {
         List<Tensor> graph = out.topologicalSort();
         OptimizedRegion result = new DefaultRegionOptimizer().optimize(
                 partition,
-                new RegionOptimizationContext(CompiledNode.snapshot(graph), FuseConfig.inferenceDefaults())
+                new RegionOptimizationContext(CompiledNode.snapshot(graph, BackendIntentPlan.empty()), FuseConfig.inferenceDefaults())
         );
 
         assertEquals(PartitionTarget.GPU_METAL, result.target());

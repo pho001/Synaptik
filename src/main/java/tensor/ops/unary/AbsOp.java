@@ -15,7 +15,7 @@ public final class AbsOp {
     }
 
     public static Tensor build(Tensor input) {
-        UnarySupport.requireNumeric(input, "abs");
+        UnaryNumericRules.requireNumeric(input, "abs");
 
         Operation op = new abs();
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "abs", TensorDTypes.requireFloating(input.getDataType()));

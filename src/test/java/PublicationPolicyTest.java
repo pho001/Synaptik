@@ -65,8 +65,8 @@ class PublicationPolicyTest {
 
         prepared.executeOptimizerStep(new SgdOptimizer(0.1f), PublicationPolicy.OUTPUT_AND_GRADIENTS);
 
-        assertArrayEquals(new float[]{0.8f, 1.7f}, w.getFloat32Data(), 1.0e-6f);
-        assertArrayEquals(new float[]{2.0f, 3.0f}, w.getGradient().getFloat32Data(), 1.0e-6f);
-        assertArrayEquals(new float[]{1.0f, 2.0f}, x.getGradient().getFloat32Data(), 1.0e-6f);
+        assertArrayEquals(new float[]{0.8f, 1.7f}, w.toFloat32ArrayCopy(), 1.0e-6f);
+        assertArrayEquals(new float[]{2.0f, 3.0f}, w.getGradient().toFloat32ArrayCopy(), 1.0e-6f);
+        assertArrayEquals(new float[]{1.0f, 2.0f}, x.getGradient().toFloat32ArrayCopy(), 1.0e-6f);
     }
 }

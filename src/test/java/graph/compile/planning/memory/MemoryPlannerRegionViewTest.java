@@ -26,6 +26,7 @@ import graph.compile.planning.region.ValueTypeContract;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
+import graph.compile.intent.BackendIntentPlan;
 
 import java.util.List;
 import java.util.Map;
@@ -44,7 +45,7 @@ class MemoryPlannerRegionViewTest {
         Tensor out = add.relu();
 
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
         Partition partition = partition(
                 "cpu-cont",
                 PartitionTarget.CPU,
@@ -207,7 +208,7 @@ class MemoryPlannerRegionViewTest {
         Tensor out = add.relu();
 
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
         Partition partition = partition(
                 "bf16-region",
                 PartitionTarget.CPU,
@@ -311,7 +312,7 @@ class MemoryPlannerRegionViewTest {
     ) {
         return MemoryPlanner.plan(
                 new MemoryPlanningInput(
-                        CompiledNode.snapshot(graph),
+                        CompiledNode.snapshot(graph, BackendIntentPlan.empty()),
                         regions,
                         Map.of(),
                         ExecutionMode.FORWARD,

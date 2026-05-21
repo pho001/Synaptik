@@ -4,8 +4,8 @@ import tensor.DataType;
 import tensor.Tensor;
 import tensor.options.Pool2dOptions;
 
-final class PoolSupport {
-    private PoolSupport() {
+final class Pool2dShapeRules {
+    private Pool2dShapeRules() {
     }
 
     static void validateInput(Tensor input, Pool2dOptions options, String opName) {

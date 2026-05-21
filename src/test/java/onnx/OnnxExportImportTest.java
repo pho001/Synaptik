@@ -753,7 +753,7 @@ class OnnxExportImportTest {
         ImportedOnnxModel imported = Onnx.importModel(exported.proto());
 
         assertEquals(DataType.INT64, imported.output("literal_i64").getDataType());
-        assertArrayEquals(new long[]{3L, 5L, 8L}, imported.output("literal_i64").getInt64Data());
+        assertArrayEquals(new long[]{3L, 5L, 8L}, imported.output("literal_i64").toInt64ArrayCopy());
     }
 
     @Test

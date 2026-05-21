@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
+import graph.compile.intent.BackendIntentPlan;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -108,21 +109,22 @@ public class NormalizationExecutionTest {
         Tensor layerGpuGamma = new Tensor(new float[]{1.25f, 0.75f, 1.5f}, new int[]{3}, null, "layerGpuGamma", DataType.FLOAT32);
         Tensor layerGpuBeta = new Tensor(new float[]{0.5f, -0.25f, 0.125f}, new int[]{3}, null, "layerGpuBeta", DataType.FLOAT32);
         Tensor layerGpuOut = layerGpuInput.layerNorm(layerGpuGamma, layerGpuBeta, 1e-5);
-        TensorInternalAccess.setBackendIntent(layerGpuOut, ComputeBackend.GPU_METAL);
-        CompiledGraph.compile(layerGpuOut, CompileConfig.inference())
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(layerGpuOut, ComputeBackend.GPU_METAL);
+        CompiledGraph.compile(layerGpuOut, CompileConfig.inference(), backendIntentPlan)
                 .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor rmsCpuInput = new Tensor(new float[]{1f, 2f, 4f, 8f, 16f, 32f}, new int[]{2, 3}, null, "rmsCpuInput", DataType.FLOAT32);
         Tensor rmsCpuGamma = new Tensor(new float[]{1.25f, 0.75f, 1.5f}, new int[]{3}, null, "rmsCpuGamma", DataType.FLOAT32);
         Tensor rmsCpuOut = rmsCpuInput.rmsNorm(rmsCpuGamma, 1e-5);
-        CompiledGraph.compile(rmsCpuOut, CompileConfig.noGraphOptimizationBaseline())
+        CompiledGraph.compile(rmsCpuOut, CompileConfig.noGraphOptimizationBaseline(), backendIntentPlan)
                 .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor rmsGpuInput = new Tensor(new float[]{1f, 2f, 4f, 8f, 16f, 32f}, new int[]{2, 3}, null, "rmsGpuInput", DataType.FLOAT32);
         Tensor rmsGpuGamma = new Tensor(new float[]{1.25f, 0.75f, 1.5f}, new int[]{3}, null, "rmsGpuGamma", DataType.FLOAT32);
         Tensor rmsGpuOut = rmsGpuInput.rmsNorm(rmsGpuGamma, 1e-5);
-        TensorInternalAccess.setBackendIntent(rmsGpuOut, ComputeBackend.GPU_CUDA);
-        CompiledGraph.compile(rmsGpuOut, CompileConfig.inference())
+        backendIntentPlan = backendIntentPlan.withBackend(rmsGpuOut, ComputeBackend.GPU_CUDA);
+        CompiledGraph.compile(rmsGpuOut, CompileConfig.inference(), backendIntentPlan)
                 .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         float[] multiData = new float[64];
@@ -133,15 +135,15 @@ public class NormalizationExecutionTest {
         Tensor multiCpuGamma = new Tensor(new float[]{1f, 1.1f, 0.9f, 1.2f, 0.8f, 1.3f, 0.7f, 1.4f}, new int[]{8, 1}, null, "multiCpuGamma", DataType.FLOAT32);
         Tensor multiCpuBeta = new Tensor(new float[]{0f, 0.1f, -0.1f, 0.2f, -0.2f, 0.3f, -0.3f, 0.4f}, new int[]{8, 1}, null, "multiCpuBeta", DataType.FLOAT32);
         Tensor multiCpuOut = multiCpuInput.layerNorm(multiCpuGamma, multiCpuBeta, 1e-5);
-        CompiledGraph.compile(multiCpuOut, CompileConfig.noGraphOptimizationBaseline())
+        CompiledGraph.compile(multiCpuOut, CompileConfig.noGraphOptimizationBaseline(), backendIntentPlan)
                 .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         Tensor multiGpuInput = new Tensor(multiData.clone(), new int[]{2, 4, 8, 1}, null, "multiGpuInput", DataType.FLOAT32);
         Tensor multiGpuGamma = new Tensor(new float[]{1f, 1.1f, 0.9f, 1.2f, 0.8f, 1.3f, 0.7f, 1.4f}, new int[]{8, 1}, null, "multiGpuGamma", DataType.FLOAT32);
         Tensor multiGpuBeta = new Tensor(new float[]{0f, 0.1f, -0.1f, 0.2f, -0.2f, 0.3f, -0.3f, 0.4f}, new int[]{8, 1}, null, "multiGpuBeta", DataType.FLOAT32);
         Tensor multiGpuOut = multiGpuInput.layerNorm(multiGpuGamma, multiGpuBeta, 1e-5);
-        TensorInternalAccess.setBackendIntent(multiGpuOut, ComputeBackend.GPU_METAL);
-        CompiledGraph.compile(multiGpuOut, CompileConfig.inference())
+        backendIntentPlan = backendIntentPlan.withBackend(multiGpuOut, ComputeBackend.GPU_METAL);
+        CompiledGraph.compile(multiGpuOut, CompileConfig.inference(), backendIntentPlan)
                 .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(layerCpuOut.toDoubleArrayCopy(), layerGpuOut.toDoubleArrayCopy(), 1e-5);

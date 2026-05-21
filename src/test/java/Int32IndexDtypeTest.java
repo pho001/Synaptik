@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.storage.Int32Storage;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -18,8 +19,8 @@ public class Int32IndexDtypeTest {
     void int32TensorUsesDedicatedStorage() {
         Tensor indices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "indices", DataType.INT32);
         assertSame(DataType.INT32, indices.getDataType());
-        assertTrue(indices.getStorage() instanceof Int32Storage);
-        assertArrayEquals(new int[]{2, 0}, indices.getInt32Data());
+        assertTrue(TensorInternalAccess.storage(indices) instanceof Int32Storage);
+        assertArrayEquals(new int[]{2, 0}, indices.toInt32ArrayCopy());
         assertArrayEquals(new double[]{2.0, 0.0}, indices.toDoubleArrayCopy(), 1e-9);
     }
 

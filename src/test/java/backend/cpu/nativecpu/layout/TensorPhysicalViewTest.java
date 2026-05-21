@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;
+import graph.compile.intent.BackendIntentPlan;
 
 import java.util.List;
 
@@ -137,7 +138,7 @@ class TensorPhysicalViewTest {
     }
 
     private static CompiledTensorDescriptor descriptorFor(Tensor tensor, int nodeId) {
-        List<CompiledNode> nodes = CompiledNode.snapshot(tensor.topologicalSort());
+        List<CompiledNode> nodes = CompiledNode.snapshot(tensor.topologicalSort(), BackendIntentPlan.empty());
         return CompiledTensorDescriptorBuilder.build(nodes).byNodeId(nodeId);
     }
 }

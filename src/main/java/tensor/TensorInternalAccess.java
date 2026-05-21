@@ -1,7 +1,6 @@
 package tensor;
 import tensor.storage.TensorStorage;
 
-import backend.ComputeBackend;
 import operations.Operation;
 import tensor.autograd.GradientRule;
 
@@ -42,14 +41,6 @@ public final class TensorInternalAccess {
 
     public static void setPrevTensors(Tensor tensor, List<Tensor> prevTensors) {
         tensor.setPrevTensorsInternal(prevTensors);
-    }
-
-    public static void setBackendIntent(Tensor tensor, ComputeBackend backend) {
-        tensor.setBackendIntentInternal(backend);
-    }
-
-    public static ComputeBackend backendIntent(Tensor tensor) {
-        return tensor.backendIntentInternal();
     }
 
     public static Operation operation(Tensor tensor) {

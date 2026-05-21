@@ -12,7 +12,7 @@ public final class LogSoftmaxOp {
     }
 
     public static Tensor build(Tensor input, int dimension) {
-        ReductionSupport.requireFloatingInput(input, "logSoftmax");
+        ReductionShapeRules.requireFloatingInput(input, "logSoftmax");
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, input.getShape().length);
         Tensor max = input.max(normalizedDimension, true);
         Tensor shifted = input.sub(max);

@@ -34,10 +34,10 @@ public final class NllLossFromIndicesOp {
         }
         int[] logShape = logProbs.getShape();
         int normalizedClassDimension = TensorLayoutTransform.normalizeAxis(classDimension, logShape.length);
-        int[] expectedIndexShape = LossSupport.reduceShape(logShape, normalizedClassDimension);
-        LossSupport.validateShape(targetIndices.getShape(), expectedIndexShape, "nllLossFromIndices targetIndices shape must equal logProbs shape without class axis.");
+        int[] expectedIndexShape = LossShapeRules.reduceShape(logShape, normalizedClassDimension);
+        LossShapeRules.validateShape(targetIndices.getShape(), expectedIndexShape, "nllLossFromIndices targetIndices shape must equal logProbs shape without class axis.");
         Tensor perSampleLoss = logProbs.gather(targetIndices, normalizedClassDimension).neg();
-        return LossSupport.applyLossReduction(perSampleLoss, null, reduction);
+        return LossReductionPolicy.apply(perSampleLoss, null, reduction);
     }
 
     public static Tensor build(Tensor logProbs, Tensor targetIndices, int classDimension, int ignoreIndex) {
@@ -60,15 +60,15 @@ public final class NllLossFromIndicesOp {
         }
         int[] logShape = logProbs.getShape();
         int normalizedClassDimension = TensorLayoutTransform.normalizeAxis(classDimension, logShape.length);
-        int[] expectedIndexShape = LossSupport.reduceShape(logShape, normalizedClassDimension);
-        LossSupport.validateShape(targetIndices.getShape(), expectedIndexShape, "nllLossFromIndices targetIndices shape must equal logProbs shape without class axis.");
+        int[] expectedIndexShape = LossShapeRules.reduceShape(logShape, normalizedClassDimension);
+        LossShapeRules.validateShape(targetIndices.getShape(), expectedIndexShape, "nllLossFromIndices targetIndices shape must equal logProbs shape without class axis.");
 
-        Tensor validMask = LossSupport.buildIgnoreMask(targetIndices, ignoreIndex);
-        Tensor safeIndices = LossSupport.buildSafeIndices(targetIndices, ignoreIndex);
+        Tensor validMask = IndexTargetMasking.buildIgnoreMask(targetIndices, ignoreIndex);
+        Tensor safeIndices = IndexTargetMasking.buildSafeIndices(targetIndices, ignoreIndex);
         Tensor gathered = logProbs.gather(safeIndices, normalizedClassDimension);
         Tensor validMaskNumeric = Tensor.where(validMask, Tensor.onesLike(gathered), Tensor.zerosLike(gathered));
         Tensor maskedLoss = Tensor.where(validMask, gathered.neg(), Tensor.zerosLike(gathered));
-        return LossSupport.applyLossReduction(maskedLoss, validMaskNumeric, reduction);
+        return LossReductionPolicy.apply(maskedLoss, validMaskNumeric, reduction);
     }
 
     private static Tensor build(
@@ -98,15 +98,15 @@ public final class NllLossFromIndicesOp {
 
         int[] logShape = logProbs.getShape();
         int normalizedClassDimension = TensorLayoutTransform.normalizeAxis(classDimension, logShape.length);
-        int[] expectedIndexShape = LossSupport.reduceShape(logShape, normalizedClassDimension);
-        LossSupport.validateShape(targetIndices.getShape(), expectedIndexShape, "weighted nllLossFromIndices targetIndices shape must equal logProbs shape without class axis.");
-        LossSupport.validateClassWeightsShape(classWeights, logShape[normalizedClassDimension]);
+        int[] expectedIndexShape = LossShapeRules.reduceShape(logShape, normalizedClassDimension);
+        LossShapeRules.validateShape(targetIndices.getShape(), expectedIndexShape, "weighted nllLossFromIndices targetIndices shape must equal logProbs shape without class axis.");
+        LossShapeRules.validateClassWeightsShape(classWeights, logShape[normalizedClassDimension]);
 
         Tensor effectiveIndices = targetIndices;
         Tensor sampleMask = null;
         if (ignoreIndexOrNull != null) {
-            sampleMask = LossSupport.buildIgnoreMask(targetIndices, ignoreIndexOrNull);
-            effectiveIndices = LossSupport.buildSafeIndices(targetIndices, ignoreIndexOrNull);
+            sampleMask = IndexTargetMasking.buildIgnoreMask(targetIndices, ignoreIndexOrNull);
+            effectiveIndices = IndexTargetMasking.buildSafeIndices(targetIndices, ignoreIndexOrNull);
         }
 
         Tensor gatheredLogProbs = logProbs.gather(effectiveIndices, normalizedClassDimension);
@@ -127,6 +127,6 @@ public final class NllLossFromIndicesOp {
             reductionWeights = Tensor.where(sampleMask, reductionWeights, Tensor.zerosLike(reductionWeights));
         }
 
-        return LossSupport.applyLossReduction(perSampleLoss, reductionWeights, reduction);
+        return LossReductionPolicy.apply(perSampleLoss, reductionWeights, reduction);
     }
 }

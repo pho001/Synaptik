@@ -3627,16 +3627,6 @@ Maps logical coordinates to logical flat row-major index.
 #### `getSpatialIndex(int index)`
 Maps a logical flat row-major index back to logical coordinates.
 
-#### `computeStrides(int[] shape)`
-Returns dense row-major strides for an arbitrary shape.
-
-#### `computeStrides()`
-Returns a defensive copy of the current logical strides.
-
-#### `calculateSize(int[] dimensions)`
-Legacy helper returning the total element count of a shape.
-Useful mainly in internal code; new code should usually prefer `TensorMetadata.computeStrides(...)` or direct shape-specific logic.
-
 ### Low-level layout / storage view access
 
 #### `getShapeUnsafe()`
@@ -3666,45 +3656,9 @@ Contract:
 - `BOOL <-> numeric` implicit conversion is not supported
 - `INT32/INT64 <-> other dtype` implicit conversion is not supported
 
-#### `getStorage()`
-Deprecated raw/unsafe compatibility accessor that returns the mutable backing storage object.
-Runtime and backend code should use `TensorInternalAccess.storage(...)`; normal callers should prefer logical copy helpers.
-
 #### `storageVersion()`
 Returns the backing storage version counter.
 This is mainly useful for runtime caches and mutation tracking.
-
-#### `markStorageModified()`
-Marks backing storage as modified.
-This is mainly a runtime/layout helper after in-place low-level writes.
-
-#### `getFloat64Data()`
-Deprecated raw/unsafe compatibility accessor for mutable `FLOAT64` storage.
-Throws `UnsupportedOperationException` when storage is not `FLOAT64`; prefer `toFloat64ArrayCopy()` or `toDoubleArrayCopy()` for reads.
-
-#### `getFloat32Data()`
-Deprecated raw/unsafe compatibility accessor for mutable `FLOAT32` storage.
-Throws `UnsupportedOperationException` when storage is not `FLOAT32`; prefer `toFloat32ArrayCopy()` for reads.
-
-#### `getBFloat16Data()`
-Deprecated raw/unsafe compatibility accessor for mutable `BFLOAT16` raw-bit storage.
-Throws `UnsupportedOperationException` when storage is not `BFLOAT16`; prefer `toBFloat16BitsArrayCopy()` for reads.
-
-#### `getInt32Data()`
-Deprecated raw/unsafe compatibility accessor for mutable `INT32` storage.
-Throws `UnsupportedOperationException` when storage is not `INT32`; prefer `toInt32ArrayCopy()` for reads.
-
-#### `getInt64Data()`
-Deprecated raw/unsafe compatibility accessor for mutable `INT64` storage.
-Throws `UnsupportedOperationException` when storage is not `INT64`; prefer `toInt64ArrayCopy()` for reads.
-
-#### `getBoolData()`
-Deprecated raw/unsafe compatibility accessor for mutable `BOOL` byte storage.
-Throws `UnsupportedOperationException` when storage is not `BOOL`; prefer `toBooleanArrayCopy()` or `toBoolByteArrayCopy()` for reads.
-
-#### `getData()`
-Deprecated legacy `FLOAT64`-only raw accessor.
-Prefer `toFloat64ArrayCopy()` or `toDoubleArrayCopy()` in new code.
 
 #### `toFloat32ArrayCopy()`
 Returns a logical row-major `float[]` copy for `FLOAT32` tensors.
@@ -3723,6 +3677,9 @@ Returns a logical row-major `long[]` copy for `INT64` tensors.
 
 #### `toBoolByteArrayCopy()`
 Returns a logical row-major `byte[]` copy for `BOOL` tensors.
+
+Raw storage objects and mutable backing arrays are not public `Tensor` API.
+Runtime, backend, and storage-level tests use `TensorInternalAccess`; model code should use logical copy/read methods.
 
 ### Data mutation / logical reads
 
@@ -3801,10 +3758,6 @@ Returns whether this node is marked as part of backward-stage graph execution.
 
 #### `topologicalSort()`
 Returns topological order rooted at this tensor.
-
-#### `markDataViewStale()`
-Internal compatibility hook.
-It is a no-op because non-`FLOAT64` tensors no longer maintain a mirrored `double[]` view.
 
 Internal structural graph mutation, backward wiring, and runtime aliasing helpers are no longer public `Tensor` methods.
 They now live behind `tensor.TensorInternalAccess`.

@@ -55,14 +55,14 @@ public final class ScaledDotProductAttentionOp {
 
         Tensor effectiveMask = mask;
         if (options.causal()) {
-            Tensor causalMask = AttentionSupport.createCausalMask(spec.scoresShape(), spec.queryLength(), spec.keyLength());
+            Tensor causalMask = ScaledDotProductAttentionRules.createCausalMask(spec.scoresShape(), spec.queryLength(), spec.keyLength());
             effectiveMask = effectiveMask == null ? causalMask : effectiveMask.logicalAnd(causalMask);
         }
         if (effectiveMask != null) {
             effectiveMask = effectiveMask.expand(spec.scoresShape());
         }
 
-        Tensor keyTransposed = LinalgSupport.transposeLastTwoAxes(key);
+        Tensor keyTransposed = LinalgTensorRules.transposeLastTwoAxes(key);
         Tensor scores = query.matmul(keyTransposed);
         Tensor scaled = Math.abs(spec.scale() - 1.0d) > 1e-12d
                 ? scores.mul(spec.scale())
@@ -72,7 +72,7 @@ public final class ScaledDotProductAttentionOp {
                 : Tensor.where(
                         effectiveMask,
                         scaled,
-                        Tensor.scalar(AttentionSupport.maskFillValue(spec.outputType()), spec.outputType())
+                        Tensor.scalar(ScaledDotProductAttentionRules.maskFillValue(spec.outputType()), spec.outputType())
                 );
         Tensor weights = logits.softmax(logits.getShapeUnsafe().length - 1);
         Tensor out = weights.matmul(value);
@@ -80,7 +80,7 @@ public final class ScaledDotProductAttentionOp {
         Tensor backwardMask = effectiveMask;
         TensorInternalAccess.setGradientRule(
                 out,
-                context -> AttentionSupport.backwardScaledDotProductAttention(out, query, key, value, backwardMask, weights, spec, context)
+                context -> ScaledDotProductAttentionRules.backwardScaledDotProductAttention(out, query, key, value, backwardMask, weights, spec, context)
         );
         return out;
     }

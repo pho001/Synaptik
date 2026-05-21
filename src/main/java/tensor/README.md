@@ -119,7 +119,9 @@ an internal `TensorNode`:
 - `TensorNode` predecessor edges
 - `TensorNode` operation descriptor
 - `TensorNode` typed `GradientRule`
-- `TensorNode` internal backend intent for compile/optimizer use
+
+Backend intent is not tensor state. Compile carries backend intent through
+compile-local planning artifacts and remaps it after optimizer rewrites.
 
 New semantics should be pushed into `tensor.ops.*` and exposed through
 `TensorOps`; `Tensor` should stay a logical public facade.

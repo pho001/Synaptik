@@ -46,7 +46,8 @@ public final class DefaultMeasurementEngine implements MeasurementEngine {
         CompiledGraph compiled = CompiledGraph.compile(
                 workload.root(),
                 candidate.profile().compile(),
-                compileModeFor(candidate.profile().mode(), policy.executionMode())
+                compileModeFor(candidate.profile().mode(), policy.executionMode()),
+                workload.backendIntentPlan()
         );
 
         PreparedExecution prepared = compiled.prepare(candidate.profile().runtime());

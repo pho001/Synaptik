@@ -2,6 +2,7 @@ package graph.execution;
 
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import graph.compile.intent.BackendIntentPlan;
 
 import backend.ComputeBackend;
 import backend.cuda.buffer.CudaBufferAccess;
@@ -227,8 +228,8 @@ class DeviceLayoutViewPropagationTest {
             boolean includeSourceBinding,
             RuntimeConfig runtimeConfig
     ) {
-        TensorInternalAccess.setBackendIntent(target, backend);
-        List<CompiledNode> nodes = CompiledNode.snapshot(List.of(source, target));
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.of(target, backend);
+        List<CompiledNode> nodes = CompiledNode.snapshot(List.of(source, target), backendIntentPlan);
         CompiledNode sourceNode = nodes.getFirst();
         CompiledNode targetNode = nodes.get(1);
         CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.CPU, null);

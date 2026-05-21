@@ -1,11 +1,12 @@
 import backend.ComputeBackend;
 import graph.optimizer.GraphOptimizer;
+import graph.optimizer.state.OptimizerState;
 import graph.optimizer.rewrite.lowering.LinearLoweringRule;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorInternalAccess;
+import graph.compile.intent.BackendIntentPlan;
 
 import java.util.List;
 
@@ -39,17 +40,18 @@ public class LinearLoweringRuleTest {
         Tensor bias = new Tensor(new double[]{1, 2}, new int[]{2}, null, "bias", DataType.FLOAT64);
 
         Tensor root = input.matmul(weight).add(bias);
-        TensorInternalAccess.setBackendIntent(root, ComputeBackend.GPU_METAL);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.of(root, ComputeBackend.GPU_METAL);
 
-        List<Tensor> optimized = new GraphOptimizer()
+        OptimizerState optimized = new GraphOptimizer()
                 .addRule(new LinearLoweringRule())
-                .optimize(root.topologicalSort());
+                .optimize(OptimizerState.ofGraph(root.topologicalSort(), root));
 
-        Tensor optimizedRoot = optimized.stream()
+        Tensor optimizedRoot = optimized.graph().stream()
                 .filter(t -> t.getOperation() != null && t.getOperation().opType() == Operation.OpType.LINEAR)
                 .findFirst()
                 .orElse(null);
         assertNotNull(optimizedRoot);
-        assertEquals(ComputeBackend.GPU_METAL, TensorInternalAccess.backendIntent(optimizedRoot));
+        BackendIntentPlan remapped = backendIntentPlan.remapThrough(optimized.rewriteMap());
+        assertEquals(ComputeBackend.GPU_METAL, remapped.backend(optimizedRoot));
     }
 }

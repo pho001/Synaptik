@@ -10,16 +10,16 @@ public final class ReduceMinOp {
     }
 
     public static Tensor build(Tensor input, int dimension) {
-        ReductionSupport.requireFloatingInput(input, "min");
+        ReductionShapeRules.requireFloatingInput(input, "min");
         return build(input, dimension, false);
     }
 
     public static Tensor build(Tensor input, int dimension, boolean keepDims) {
-        return ReductionSupport.reduceMinMax(input, dimension, keepDims, false);
+        return MinMaxReductionBuilder.reduce(input, dimension, keepDims, false);
     }
 
     public static Tensor buildAll(Tensor input) {
-        ReductionSupport.requireFloatingInput(input, "min");
-        return ReductionSupport.reduceMinMaxAll(input, false);
+        ReductionShapeRules.requireFloatingInput(input, "min");
+        return MinMaxReductionBuilder.reduceAll(input, false);
     }
 }

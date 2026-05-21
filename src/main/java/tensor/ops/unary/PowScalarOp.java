@@ -16,7 +16,7 @@ public final class PowScalarOp {
     }
 
     public static Tensor build(Tensor input, double exponent) {
-        UnarySupport.requireNumeric(input, "pow");
+        UnaryNumericRules.requireNumeric(input, "pow");
 
         boolean isF32 = input.getDataType() == DataType.FLOAT32;
         double exponentForGrad = isF32 ? (float) exponent : exponent;

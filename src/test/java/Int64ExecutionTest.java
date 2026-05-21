@@ -29,7 +29,7 @@ class Int64ExecutionTest {
                 3L, LARGE + 2L, -5L,
                 LARGE, 2L, -5L,
                 3L, LARGE + 2L, -5L
-        }, out.getInt64Data());
+        }, out.toInt64ArrayCopy());
     }
 
     @Test
@@ -47,6 +47,6 @@ class Int64ExecutionTest {
         assertArrayEquals(new long[]{
                 LARGE, LARGE + 2L, LARGE + 5L,
                 10L, LARGE + 14L, LARGE + 20L
-        }, out.getInt64Data());
+        }, out.toInt64ArrayCopy());
     }
 }

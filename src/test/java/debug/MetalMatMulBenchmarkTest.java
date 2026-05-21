@@ -17,7 +17,10 @@ import tuning.benchmark.BenchmarkSession;
 import tuning.validate.ValidationPolicy;
 import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadEnvironment;
+import tuning.workload.WorkloadGraph;
+import tuning.workload.WorkloadGraphFactory;
 import tuning.workload.WorkloadKind;
+import graph.compile.intent.BackendIntentPlan;
 
 import java.util.List;
 
@@ -125,59 +128,55 @@ final class MetalMatMulBenchmarkTest {
     }
 
     private static TensorRootWorkloadSpec matmulWorkload(String name, int m, int k, int n) {
-        return new TensorRootWorkloadSpec(
+        return TensorRootWorkloadSpec.fromGraphFactory(
                 name,
                 WorkloadKind.GENERIC,
-                environment -> {
+                (WorkloadGraphFactory) environment -> {
                     Tensor a = new Tensor(sequence(m * k), new int[]{m, k}, null, "a", DataType.FLOAT32);
                     Tensor b = new Tensor(sequence(k * n), new int[]{k, n}, null, "b", DataType.FLOAT32);
                     Tensor out = a.matmul(b);
-                    if (isGpuProfile(environment)) {
-                        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
-                    }
-                    return out;
+                    BackendIntentPlan backendIntentPlan = isGpuProfile(environment)
+                            ? BackendIntentPlan.of(out, ComputeBackend.GPU_METAL)
+                            : BackendIntentPlan.empty();
+                    return new WorkloadGraph(out, backendIntentPlan);
                 }
         );
     }
 
     private static TensorRootWorkloadSpec matmulAddReluWorkload(String name, int m, int k, int n) {
-        return new TensorRootWorkloadSpec(
+        return TensorRootWorkloadSpec.fromGraphFactory(
                 name,
                 WorkloadKind.GENERIC,
-                environment -> {
+                (WorkloadGraphFactory) environment -> {
                     Tensor a = new Tensor(sequence(m * k), new int[]{m, k}, null, "a", DataType.FLOAT32);
                     Tensor b = new Tensor(sequence(k * n), new int[]{k, n}, null, "b", DataType.FLOAT32);
                     Tensor bias = new Tensor(sequence(n), new int[]{n}, null, "bias", DataType.FLOAT32);
                     Tensor matmul = a.matmul(b);
                     Tensor add = matmul.add(bias);
                     Tensor out = add.relu();
-                    if (isGpuProfile(environment)) {
-                        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
-                        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
-                        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
-                    }
-                    return out;
+                    BackendIntentPlan backendIntentPlan = isGpuProfile(environment)
+                            ? BackendIntentPlan.of(ComputeBackend.GPU_METAL, matmul, add, out)
+                            : BackendIntentPlan.empty();
+                    return new WorkloadGraph(out, backendIntentPlan);
                 }
         );
     }
 
     private static TensorRootWorkloadSpec matmulAddTanhWorkload(String name, int m, int k, int n) {
-        return new TensorRootWorkloadSpec(
+        return TensorRootWorkloadSpec.fromGraphFactory(
                 name,
                 WorkloadKind.GENERIC,
-                environment -> {
+                (WorkloadGraphFactory) environment -> {
                     Tensor a = new Tensor(sequence(m * k), new int[]{m, k}, null, "a", DataType.FLOAT32);
                     Tensor b = new Tensor(sequence(k * n), new int[]{k, n}, null, "b", DataType.FLOAT32);
                     Tensor bias = new Tensor(sequence(n), new int[]{n}, null, "bias", DataType.FLOAT32);
                     Tensor matmul = a.matmul(b);
                     Tensor add = matmul.add(bias);
                     Tensor out = add.tanh();
-                    if (isGpuProfile(environment)) {
-                        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
-                        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
-                        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
-                    }
-                    return out;
+                    BackendIntentPlan backendIntentPlan = isGpuProfile(environment)
+                            ? BackendIntentPlan.of(ComputeBackend.GPU_METAL, matmul, add, out)
+                            : BackendIntentPlan.empty();
+                    return new WorkloadGraph(out, backendIntentPlan);
                 }
         );
     }

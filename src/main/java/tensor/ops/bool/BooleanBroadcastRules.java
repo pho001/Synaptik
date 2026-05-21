@@ -7,8 +7,8 @@ import tensor.Tensor;
 import tensor.TensorBroadcastOps;
 import tensor.internal.TensorPrimitiveBuilder;
 
-final class BoolSupport {
-    private BoolSupport() {
+final class BooleanBroadcastRules {
+    private BooleanBroadcastRules() {
     }
 
     static BroadcastPlan validateBinary(Tensor first, Tensor second) {

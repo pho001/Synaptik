@@ -20,7 +20,7 @@ public final class LogicalOrOp {
      * @throws IllegalArgumentException if an input is null, non-boolean, or not broadcast-compatible
      */
     public static Tensor build(Tensor first, Tensor second) {
-        BroadcastPlan plan = BoolSupport.validateBinary(first, second);
-        return BoolSupport.binary(first, second, plan, new logicalOr(plan), "logical_or");
+        BroadcastPlan plan = BooleanBroadcastRules.validateBinary(first, second);
+        return BooleanBroadcastRules.binary(first, second, plan, new logicalOr(plan), "logical_or");
     }
 }

@@ -14,6 +14,7 @@ import operations.elementwise.where.where;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
+import graph.compile.intent.BackendIntentPlan;
 
 import java.util.List;
 
@@ -180,6 +181,6 @@ public class StridedLayoutPlanningTest {
     }
 
     private static CompiledTensorDescriptor desc(Tensor tensor) {
-        return CompiledTensorDescriptorBuilder.fromNode(CompiledNode.snapshot(tensor.topologicalSort()).getLast());
+        return CompiledTensorDescriptorBuilder.fromNode(CompiledNode.snapshot(tensor.topologicalSort(), BackendIntentPlan.empty()).getLast());
     }
 }

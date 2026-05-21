@@ -2,6 +2,7 @@ package backend.cpu.partition;
 
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import graph.compile.intent.BackendIntentPlan;
 
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
@@ -95,7 +96,7 @@ class CpuBackendPartitionCapabilityTest {
                 }
             }
         }
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
         return new PartitionPlanningContext(
                 false,
                 compiledNodes,

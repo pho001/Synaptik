@@ -11,6 +11,7 @@ import tensor.DataType;
 import tensor.storage.Float64Storage;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
+import graph.compile.intent.BackendIntentPlan;
 
 import java.util.List;
 
@@ -118,17 +119,18 @@ public class TensorMutationGuardsTest {
     }
 
     @Test
-    void preparedExecutionRejectsMutatedBackendIntentAfterPrepare() {
+    void preparedExecutionUsesCompileLocalBackendIntentWithoutTensorContractMutation() {
         Tensor a = new Tensor(new double[]{2.0, 3.0}, new int[]{2}, null, "a", DataType.FLOAT64);
         Tensor b = new Tensor(new double[]{5.0, 7.0}, new int[]{2}, null, "b", DataType.FLOAT64);
         Tensor out = a.add(b);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.of(out, ComputeBackend.GPU_METAL);
 
-        PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
+        PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline(), backendIntentPlan)
                 .prepare(RuntimeConfig.inferenceDefaults());
 
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
-
-        assertStaleGraphContract(() -> execution.execute(ExecutionMode.FORWARD), "backend intent changed");
+        BackendIntentPlan changedPlan = backendIntentPlan.withBackend(out, ComputeBackend.CPU);
+        execution.execute(ExecutionMode.FORWARD);
+        org.junit.jupiter.api.Assertions.assertEquals(ComputeBackend.CPU, changedPlan.backend(out));
     }
 
     @Test

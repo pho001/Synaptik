@@ -32,8 +32,8 @@ public final class ScatterNdOp {
         if (data.getDataType() == DataType.BOOL && effectiveReduction != ScatterReduction.NONE) {
             throw new IllegalArgumentException("scatterNd BOOL tensors support only NONE reduction.");
         }
-        IndexSupport.validateScatterNdShape(data.getShapeUnsafe(), indices.getShapeUnsafe(), updates.getShapeUnsafe(), batchDims);
-        boolean differentiable = IndexSupport.isFloating(data.getDataType())
+        IndexShapeRules.validateScatterNdShape(data.getShapeUnsafe(), indices.getShapeUnsafe(), updates.getShapeUnsafe(), batchDims);
+        boolean differentiable = IndexShapeRules.isFloating(data.getDataType())
                 && (data.getRequiresGrad() || updates.getRequiresGrad());
         if (differentiable && effectiveReduction != ScatterReduction.NONE && effectiveReduction != ScatterReduction.ADD) {
             throw new UnsupportedOperationException("scatterNd backward supports only NONE and ADD reductions.");
@@ -51,7 +51,7 @@ public final class ScatterNdOp {
         out.setRequiresGrad(differentiable);
         TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
-            if (outGrad == null || !IndexSupport.isFloating(data.getDataType())) {
+            if (outGrad == null || !IndexShapeRules.isFloating(data.getDataType())) {
                 return;
             }
             if (data.getRequiresGrad()) {

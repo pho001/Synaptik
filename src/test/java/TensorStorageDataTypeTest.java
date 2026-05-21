@@ -9,6 +9,7 @@ import tensor.storage.BFloat16Storage;
 import tensor.storage.Float32Storage;
 import tensor.storage.Float64Storage;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -24,7 +25,7 @@ public class TensorStorageDataTypeTest {
         Tensor out = a.add(b).mul(a);
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
-        assertTrue(out.getStorage() instanceof Float32Storage, "Output tensor should use Float32Storage");
+        assertTrue(TensorInternalAccess.storage(out) instanceof Float32Storage, "Output tensor should use Float32Storage");
 
         double[] expected = new double[out.toDoubleArrayCopy().length];
         double[] aVals = a.toDoubleArrayCopy();
@@ -46,7 +47,7 @@ public class TensorStorageDataTypeTest {
         Tensor out = a.add(b).sigmoid();
         CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
-        assertTrue(out.getStorage() instanceof BFloat16Storage, "Output tensor should use BFloat16Storage");
+        assertTrue(TensorInternalAccess.storage(out) instanceof BFloat16Storage, "Output tensor should use BFloat16Storage");
 
         double[] expected = new double[out.toDoubleArrayCopy().length];
         double[] aVals = a.toDoubleArrayCopy();
@@ -63,8 +64,8 @@ public class TensorStorageDataTypeTest {
         Tensor a = new Tensor(new double[]{1.0, 2.0, 3.0}, new int[]{3}, null, "a64");
         Tensor b = new Tensor(new double[]{4.0, 5.0, 6.0}, new int[]{3}, null, "b64", DataType.FLOAT64);
 
-        assertTrue(a.getStorage() instanceof Float32Storage, "Default dtype should map to Float32Storage");
-        assertTrue(b.getStorage() instanceof Float64Storage, "Explicit FLOAT64 should map to Float64Storage");
+        assertTrue(TensorInternalAccess.storage(a) instanceof Float32Storage, "Default dtype should map to Float32Storage");
+        assertTrue(TensorInternalAccess.storage(b) instanceof Float64Storage, "Explicit FLOAT64 should map to Float64Storage");
     }
 
     @Test
@@ -72,8 +73,8 @@ public class TensorStorageDataTypeTest {
         Tensor a = new Tensor(new double[]{1.25, 2.5, -3.75}, new int[]{3}, null, "a32", DataType.FLOAT32);
         Tensor b = new Tensor(new double[]{0.5, -1.0, 2.0}, new int[]{3}, null, "b32", DataType.FLOAT32);
 
-        float[] aStorage = ((Float32Storage) a.getStorage()).getFloatArray().clone();
-        float[] bStorage = ((Float32Storage) b.getStorage()).getFloatArray().clone();
+        float[] aStorage = ((Float32Storage) TensorInternalAccess.storage(a)).getFloatArray().clone();
+        float[] bStorage = ((Float32Storage) TensorInternalAccess.storage(b)).getFloatArray().clone();
 
         // Typed path must read typed storage directly.
 
@@ -113,7 +114,7 @@ public class TensorStorageDataTypeTest {
 
         t.setFloat32Data(replacement);
 
-        assertSame(replacement, t.getFloat32Data());
+        assertSame(replacement, TensorInternalAccess.float32Data(t));
         assertArrayEquals(new double[]{3.5, -2.25, 9.75}, t.toDoubleArrayCopy(), 1e-6);
     }
 
@@ -124,12 +125,12 @@ public class TensorStorageDataTypeTest {
     }
 
     @Test
-    void typedRawGettersRejectWrongStorageType() {
+    void typedCopyHelpersRejectWrongStorageType() {
         Tensor f64 = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "f64", DataType.FLOAT64);
         Tensor f32 = new Tensor(new float[]{1.0f, 2.0f}, new int[]{2}, null, "f32", DataType.FLOAT32);
 
-        assertThrows(UnsupportedOperationException.class, f64::getFloat32Data);
-        assertThrows(UnsupportedOperationException.class, f32::getFloat64Data);
+        assertThrows(UnsupportedOperationException.class, f64::toFloat32ArrayCopy);
+        assertThrows(UnsupportedOperationException.class, f32::toFloat64ArrayCopy);
     }
 
     @Test

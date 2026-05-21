@@ -522,7 +522,7 @@ class NativeCpuRegionExecutionTest {
 
         CompiledGraph.compile(out, noSemanticLinearFusion())
                 .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).execute(ExecutionMode.FORWARD);
-        assertArrayEquals(cpuOut.getBoolData(), out.getBoolData());
+        assertArrayEquals(cpuOut.toBoolByteArrayCopy(), out.toBoolByteArrayCopy());
     }
 
     @Test
@@ -680,7 +680,7 @@ class NativeCpuRegionExecutionTest {
 
         CompiledGraph.compile(out, noSemanticLinearFusion())
                 .prepare(openBlasRuntime(CpuStorageProfile.CPU_NATIVE)).execute(ExecutionMode.FORWARD);
-        assertArrayEquals(cpuOut.getBoolData(), out.getBoolData());
+        assertArrayEquals(cpuOut.toBoolByteArrayCopy(), out.toBoolByteArrayCopy());
     }
 
     @Test
@@ -1135,7 +1135,7 @@ class NativeCpuRegionExecutionTest {
         assertEquals(1, step.metadata().attributes().get("nativeCpuRegionLocalKernelCount"));
         assertEquals(2, step.metadata().attributes().get("nativeCpuRegionExecutedGroupCount"));
 
-        assertArrayEquals(cpuOut.getBoolData(), out.getBoolData());
+        assertArrayEquals(cpuOut.toBoolByteArrayCopy(), out.toBoolByteArrayCopy());
     }
 
     @Test
@@ -1296,7 +1296,7 @@ class NativeCpuRegionExecutionTest {
         assertEquals(2, step.metadata().attributes().get("nativeCpuRegionLocalKernelCount"));
         assertEquals(2, step.metadata().attributes().get("nativeCpuRegionExecutedGroupCount"));
 
-        assertArrayEquals(cpuOut.getBoolData(), out.getBoolData());
+        assertArrayEquals(cpuOut.toBoolByteArrayCopy(), out.toBoolByteArrayCopy());
     }
 
     @Test
@@ -1326,7 +1326,7 @@ class NativeCpuRegionExecutionTest {
 
         assertEquals("NATIVE", step.metadata().attributes().get("nativeCpuRegionRoute"));
         assertEquals("", step.metadata().attributes().get("nativeCpuRegionFallbackReason"));
-        assertArrayEquals(cpuOut.getBoolData(), out.getBoolData());
+        assertArrayEquals(cpuOut.toBoolByteArrayCopy(), out.toBoolByteArrayCopy());
     }
 
     private static RuntimeConfig openBlasRuntime(CpuStorageProfile profile) {

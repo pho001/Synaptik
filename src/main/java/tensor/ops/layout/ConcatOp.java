@@ -61,7 +61,7 @@ public final class ConcatOp {
                     int[] ends = out.getShape();
                     starts[normalizedAxis] = offset;
                     ends[normalizedAxis] = offset + axisSize;
-                    Tensor grad = outGrad.slice(starts, ends, LayoutSupport.allAxes(rank), LayoutSupport.ones(rank));
+                    Tensor grad = outGrad.slice(starts, ends, LayoutGeometryRules.allAxes(rank), LayoutGeometryRules.ones(rank));
                     context.accumulate(input, grad);
                 }
                 offset += axisSize;

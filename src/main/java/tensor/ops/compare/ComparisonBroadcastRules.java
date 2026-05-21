@@ -6,8 +6,8 @@ import tensor.DataType;
 import tensor.Tensor;
 import tensor.internal.TensorPrimitiveBuilder;
 
-final class CompareSupport {
-    private CompareSupport() {
+final class ComparisonBroadcastRules {
+    private ComparisonBroadcastRules() {
     }
 
     static Tensor compare(Tensor first, Tensor second, BroadcastPlan plan, Operation op, String label) {

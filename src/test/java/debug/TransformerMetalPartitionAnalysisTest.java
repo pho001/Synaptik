@@ -26,6 +26,7 @@ import tensor.options.AttentionOptions;
 import tuning.workload.StandardWorkloads;
 import tuning.workload.WorkloadEnvironment;
 import tuning.workload.WorkloadInstance;
+import graph.compile.intent.BackendIntentPlan;
 
 import operations.linalg.scaledDotProductAttentionBackward;
 
@@ -432,7 +433,8 @@ final class TransformerMetalPartitionAnalysisTest {
         Tensor metalMask = causalMask(scoreShape);
         Tensor metalAttention = metalQ.scaledDotProductAttention(metalK, metalV, metalMask, AttentionOptions.defaults().withScale(0.125));
         metalAttention.setRequiresGrad(true);
-        TensorInternalAccess.setBackendIntent(metalAttention, ComputeBackend.GPU_METAL);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(metalAttention, ComputeBackend.GPU_METAL);
         Tensor metalLoss = metalAttention.mul(metalOutGrad);
 
         ExecutionProfile cpuProfile = new ExecutionProfile(
@@ -452,10 +454,10 @@ final class TransformerMetalPartitionAnalysisTest {
                 requireMetalBuffers(RuntimeConfig.trainingDefaults())
         );
 
-        CompiledGraph.compile(cpuLoss, cpuProfile.compile(), CompileMode.TRAINING)
+        CompiledGraph.compile(cpuLoss, cpuProfile.compile(), CompileMode.TRAINING, backendIntentPlan)
                 .prepare(cpuProfile.runtime())
                 .execute(cpuProfile.mode());
-        var metalPrepared = CompiledGraph.compile(metalLoss, metalProfile.compile(), CompileMode.TRAINING)
+        var metalPrepared = CompiledGraph.compile(metalLoss, metalProfile.compile(), CompileMode.TRAINING, backendIntentPlan)
                 .prepare(metalProfile.runtime())
         ;
         long metalBackwardSdpa = metalPrepared.backwardSteps().stream()
@@ -528,18 +530,19 @@ final class TransformerMetalPartitionAnalysisTest {
                 .linear(metalWv, metalBv)
                 .reshape(batch, seqLen, heads, valueDim)
                 .permute(0, 2, 1, 3);
-        TensorInternalAccess.setBackendIntent(metalValue, ComputeBackend.GPU_METAL);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(metalValue, ComputeBackend.GPU_METAL);
         Tensor metalLoss = metalValue.mul(metalDV);
 
         RuntimeConfig metalRuntime = requireMetalBuffers(RuntimeConfig.trainingDefaults());
-        CompiledGraph.compile(cpuLoss, CompileConfig.noGraphOptimizationBaseline(), CompileMode.TRAINING)
+        CompiledGraph.compile(cpuLoss, CompileConfig.noGraphOptimizationBaseline(), CompileMode.TRAINING, backendIntentPlan)
                 .prepare(RuntimeConfig.trainingDefaults())
                 .execute(ExecutionMode.FORWARD_BACKWARD);
         var metalPrepared = CompiledGraph.compile(
                         metalLoss,
                         CompileConfig.training().withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator()),
                         CompileMode.TRAINING
-                )
+                , backendIntentPlan)
                 .prepare(metalRuntime);
         System.out.println("VALUE PROJECTION SELECTED DECISIONS");
         metalPrepared.prepareTrace().backendSelection().decisions().stream()
@@ -628,18 +631,19 @@ final class TransformerMetalPartitionAnalysisTest {
                 .reshape(batch, seqLen, heads, valueDim)
                 .permute(0, 2, 1, 3);
         Tensor metalAttention = metalQ.scaledDotProductAttention(metalK, metalV, metalMask, AttentionOptions.defaults().withScale(0.125));
-        TensorInternalAccess.setBackendIntent(metalAttention, ComputeBackend.GPU_METAL);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(metalAttention, ComputeBackend.GPU_METAL);
         Tensor metalLoss = metalAttention.mul(metalOutGrad);
 
         RuntimeConfig metalRuntime = requireMetalBuffers(RuntimeConfig.trainingDefaults());
-        CompiledGraph.compile(cpuLoss, CompileConfig.noGraphOptimizationBaseline(), CompileMode.TRAINING)
+        CompiledGraph.compile(cpuLoss, CompileConfig.noGraphOptimizationBaseline(), CompileMode.TRAINING, backendIntentPlan)
                 .prepare(RuntimeConfig.trainingDefaults())
                 .execute(ExecutionMode.FORWARD_BACKWARD);
         var metalPrepared = CompiledGraph.compile(
                         metalLoss,
                         CompileConfig.training().withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator()),
                         CompileMode.TRAINING
-                )
+                , backendIntentPlan)
                 .prepare(metalRuntime);
         System.out.println("SDPA VALUE PROJECTION SELECTED DECISIONS");
         metalPrepared.prepareTrace().backendSelection().decisions().stream()
@@ -737,17 +741,17 @@ final class TransformerMetalPartitionAnalysisTest {
                 metalX, metalAttention, metalWo, metalBo, metalW1, metalB1, metalW2, metalB2,
                 batch, seqLen, heads, valueDim, modelDim, valueProjectionDim, tokenCount
         );
-        TensorInternalAccess.setBackendIntent(metalTailLoss, ComputeBackend.GPU_METAL);
-
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(metalTailLoss, ComputeBackend.GPU_METAL);
         RuntimeConfig metalRuntime = requireMetalBuffers(RuntimeConfig.trainingDefaults());
-        CompiledGraph.compile(cpuTailLoss, CompileConfig.noGraphOptimizationBaseline(), CompileMode.TRAINING)
+        CompiledGraph.compile(cpuTailLoss, CompileConfig.noGraphOptimizationBaseline(), CompileMode.TRAINING, backendIntentPlan)
                 .prepare(RuntimeConfig.trainingDefaults())
                 .execute(ExecutionMode.FORWARD_BACKWARD);
         var metalPrepared = CompiledGraph.compile(
                         metalTailLoss,
                         CompileConfig.training().withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator()),
                         CompileMode.TRAINING
-                )
+                , backendIntentPlan)
                 .prepare(metalRuntime);
         System.out.println("TAIL SELECTED DECISIONS");
         metalPrepared.prepareTrace().backendSelection().decisions().stream()
@@ -866,7 +870,8 @@ final class TransformerMetalPartitionAnalysisTest {
         Tensor output = labeled(tensors, "output", residual1.add(ff2));
         Tensor loss = labeled(tensors, "loss", output.mul(output).mean());
         if (preferMetal) {
-            TensorInternalAccess.setBackendIntent(loss, ComputeBackend.GPU_METAL);
+            BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+            backendIntentPlan = backendIntentPlan.withBackend(loss, ComputeBackend.GPU_METAL);
         }
         return new LabeledTransformerGraph(prefix, loss, tensors);
     }

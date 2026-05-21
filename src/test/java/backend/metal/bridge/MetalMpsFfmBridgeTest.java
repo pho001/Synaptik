@@ -2,6 +2,7 @@ package backend.metal.bridge;
 
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import graph.compile.intent.BackendIntentPlan;
 
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;
@@ -121,7 +122,7 @@ class MetalMpsFfmBridgeTest {
         allocator.readToCpu(binding, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
         allocator.destroy(binding.handle());
 
-        assertArrayEquals(new float[]{1.5f, -2.0f}, destination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{1.5f, -2.0f}, destination.toFloat32ArrayCopy(), 0.0f);
     }
 
     @Test
@@ -166,7 +167,7 @@ class MetalMpsFfmBridgeTest {
                 assertFalse(stats.outputBufferWriteProven());
                 assertTrue(stats.nativeDeviceCopyNs() >= 0L);
             }
-            assertArrayEquals(new float[]{1.0f, 0.0f}, destination.getFloat32Data(), 0.0f);
+            assertArrayEquals(new float[]{1.0f, 0.0f}, destination.toFloat32ArrayCopy(), 0.0f);
         } finally {
             if (input != null) {
                 allocator.destroy(input.handle());
@@ -215,8 +216,8 @@ class MetalMpsFfmBridgeTest {
             assertEquals(MetalNativeCopyStrategy.UNKNOWN_OR_UNPROVEN, stats.nativeCopyStrategy());
             assertFalse(stats.outputBufferWriteProven());
             assertEquals(0L, stats.nativeDeviceCopyNs());
-            boolean wroteExpected = Arrays.equals(new float[]{1.0f, 0.0f}, destination.getFloat32Data());
-            boolean keptSentinel = Arrays.equals(sentinelValues, destination.getFloat32Data());
+            boolean wroteExpected = Arrays.equals(new float[]{1.0f, 0.0f}, destination.toFloat32ArrayCopy());
+            boolean keptSentinel = Arrays.equals(sentinelValues, destination.toFloat32ArrayCopy());
             assertTrue(
                     wroteExpected || keptSentinel,
                     "MPSGraph output-buffer probe produced neither expected direct-write values nor the original sentinel."
@@ -285,7 +286,7 @@ class MetalMpsFfmBridgeTest {
             assertEquals(MetalMpsBridgeExecutionPath.CUSTOM_KERNEL, stats.executionPath());
             assertEquals(MetalNativeCopyStrategy.TRUE_OUTPUT_BUFFER_WRITE, stats.nativeCopyStrategy());
             assertTrue(stats.outputBufferWriteProven());
-            assertArrayEquals(new float[]{0.0f, 2.5f}, destination.getFloat32Data(), 0.0f);
+            assertArrayEquals(new float[]{0.0f, 2.5f}, destination.toFloat32ArrayCopy(), 0.0f);
         } finally {
             if (input != null) {
                 allocator.destroy(input.handle());
@@ -327,9 +328,9 @@ class MetalMpsFfmBridgeTest {
                 new int[]{4}
         );
 
-        assertArrayEquals(new float[]{1f, 3f, 9f, 8f}, minDestination.getFloat32Data(), 0.0f);
-        assertArrayEquals(new float[]{2f, 4f, 10f, 16f}, maxDestination.getFloat32Data(), 0.0f);
-        assertArrayEquals(new float[]{1f, 8f, 27f, 64f}, powDestination.getFloat32Data(), 1.0e-4f);
+        assertArrayEquals(new float[]{1f, 3f, 9f, 8f}, minDestination.toFloat32ArrayCopy(), 0.0f);
+        assertArrayEquals(new float[]{2f, 4f, 10f, 16f}, maxDestination.toFloat32ArrayCopy(), 0.0f);
+        assertArrayEquals(new float[]{1f, 8f, 27f, 64f}, powDestination.toFloat32ArrayCopy(), 1.0e-4f);
     }
 
     @Test
@@ -346,10 +347,10 @@ class MetalMpsFfmBridgeTest {
                 utils.SpecialFunctions.erf(-0.0f),
                 utils.SpecialFunctions.erf(0.25f),
                 utils.SpecialFunctions.erf(2.75f)
-        }, erfDestination.getFloat32Data(), 1.0e-5f);
-        assertArrayEquals(new float[]{-2f, -0.0f, 0f, 2f}, floorDestination.getFloat32Data(), 0.0f);
-        assertArrayEquals(new float[]{-1f, -0.0f, 1f, 3f}, ceilDestination.getFloat32Data(), 0.0f);
-        assertArrayEquals(new float[]{-1f, -0.0f, 1f, 1f}, signDestination.getFloat32Data(), 0.0f);
+        }, erfDestination.toFloat32ArrayCopy(), 1.0e-5f);
+        assertArrayEquals(new float[]{-2f, -0.0f, 0f, 2f}, floorDestination.toFloat32ArrayCopy(), 0.0f);
+        assertArrayEquals(new float[]{-1f, -0.0f, 1f, 3f}, ceilDestination.toFloat32ArrayCopy(), 0.0f);
+        assertArrayEquals(new float[]{-1f, -0.0f, 1f, 1f}, signDestination.toFloat32ArrayCopy(), 0.0f);
     }
 
     @Test
@@ -459,7 +460,7 @@ class MetalMpsFfmBridgeTest {
             Tensor f32Destination = new Tensor(new float[]{0.0f, 0.0f}, new int[]{2}, null, "castF32Destination", DataType.FLOAT32);
             allocator.readToCpu(f32Output, f32Destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
             assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, secondStats.executionPath());
-            assertArrayEquals(new float[]{1.5f, -2.25f}, f32Destination.getFloat32Data(), 0.0f);
+            assertArrayEquals(new float[]{1.5f, -2.25f}, f32Destination.toFloat32ArrayCopy(), 0.0f);
         } finally {
             if (f32Input != null) allocator.destroy(f32Input.handle());
             if (bf16Output != null) allocator.destroy(bf16Output.handle());
@@ -490,7 +491,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{2, 2}
         );
 
-        assertArrayEquals(new byte[]{0, 1, 0, 0}, destination.getBoolData());
+        assertArrayEquals(new byte[]{0, 1, 0, 0}, destination.toBoolByteArrayCopy());
     }
 
     @Test
@@ -515,7 +516,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{2, 2}
         );
 
-        assertArrayEquals(new byte[]{1, 0, 0, 0}, destination.getBoolData());
+        assertArrayEquals(new byte[]{1, 0, 0, 0}, destination.toBoolByteArrayCopy());
     }
 
     @Test
@@ -536,7 +537,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{2, 1}
         );
 
-        assertArrayEquals(new byte[]{1, 0}, destination.getBoolData());
+        assertArrayEquals(new byte[]{1, 0}, destination.toBoolByteArrayCopy());
     }
 
     @Test
@@ -558,7 +559,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{2}
         );
 
-        assertArrayEquals(new float[]{3f, 4f}, destination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{3f, 4f}, destination.toFloat32ArrayCopy(), 0.0f);
     }
 
     @Test
@@ -585,7 +586,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{2, 2}
         );
 
-        assertArrayEquals(new float[]{3f, 4f, 8f, 11f}, destination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{3f, 4f, 8f, 11f}, destination.toFloat32ArrayCopy(), 0.0f);
     }
 
     @Test
@@ -607,7 +608,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{2, 2}
         );
 
-        assertArrayEquals(new float[]{3f, 2f, 4f, 4f}, destination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{3f, 2f, 4f, 4f}, destination.toFloat32ArrayCopy(), 0.0f);
     }
 
     @Test
@@ -629,7 +630,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{2, 2}
         );
 
-        assertArrayEquals(new float[]{5f, 2f, 3f, 4f}, destination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{5f, 2f, 3f, 4f}, destination.toFloat32ArrayCopy(), 0.0f);
     }
 
     @Test
@@ -665,8 +666,8 @@ class MetalMpsFfmBridgeTest {
                 new int[]{3}
         );
 
-        assertArrayEquals(new float[]{2f, 4f, 6f, 2f, 4f, 6f}, expandDestination.getFloat32Data(), 0.0f);
-        assertArrayEquals(new float[]{4f, 5f, 6f}, selectDestination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{2f, 4f, 6f, 2f, 4f, 6f}, expandDestination.toFloat32ArrayCopy(), 0.0f);
+        assertArrayEquals(new float[]{4f, 5f, 6f}, selectDestination.toFloat32ArrayCopy(), 0.0f);
     }
 
     @Test
@@ -734,15 +735,15 @@ class MetalMpsFfmBridgeTest {
                 new int[]{2, 4}
         );
 
-        assertArrayEquals(new float[]{3f, 1f, 6f, 4f}, gatherDestination.getFloat32Data(), 0.0f);
-        assertArrayEquals(new float[]{2f, 3f, 5f, 6f}, sliceDestination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{3f, 1f, 6f, 4f}, gatherDestination.toFloat32ArrayCopy(), 0.0f);
+        assertArrayEquals(new float[]{2f, 3f, 5f, 6f}, sliceDestination.toFloat32ArrayCopy(), 0.0f);
         assertArrayEquals(new float[]{
                 -1f, -1f, -1f,
                 1f, 2f, -1f,
                 3f, 4f, -1f
-        }, padDestination.getFloat32Data(), 0.0f);
-        assertArrayEquals(new float[]{1f, 2f, 3f, 1f, 2f, 3f}, tileDestination.getFloat32Data(), 0.0f);
-        assertArrayEquals(new float[]{1f, 2f, 5f, 6f, 3f, 4f, 7f, 8f}, concatDestination.getFloat32Data(), 0.0f);
+        }, padDestination.toFloat32ArrayCopy(), 0.0f);
+        assertArrayEquals(new float[]{1f, 2f, 3f, 1f, 2f, 3f}, tileDestination.toFloat32ArrayCopy(), 0.0f);
+        assertArrayEquals(new float[]{1f, 2f, 5f, 6f, 3f, 4f, 7f, 8f}, concatDestination.toFloat32ArrayCopy(), 0.0f);
     }
 
     @Test
@@ -763,7 +764,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{2, 1, 3}
         );
 
-        assertArrayEquals(new float[]{4f, 5f, 6f, 7f, 8f, 9f}, destination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{4f, 5f, 6f, 7f, 8f, 9f}, destination.toFloat32ArrayCopy(), 0.0f);
     }
 
     @Test
@@ -807,7 +808,7 @@ class MetalMpsFfmBridgeTest {
         assertArrayEquals(new float[]{
                 0f, 10f, 20f, 0f,
                 0f, 30f, 40f, 0f
-        }, destination.getFloat32Data(), 0.0f);
+        }, destination.toFloat32ArrayCopy(), 0.0f);
     }
 
     @Test
@@ -913,14 +914,14 @@ class MetalMpsFfmBridgeTest {
                 new int[]{2, 2}
         );
 
-        assertArrayEquals(new byte[]{1, 0, 1, 0}, reshapeDestination.getBoolData());
-        assertArrayEquals(new byte[]{1, 0, 0, 1, 1, 0}, permuteDestination.getBoolData());
-        assertArrayEquals(new byte[]{1, 0, 1, 1, 0, 1}, expandDestination.getBoolData());
-        assertArrayEquals(new byte[]{1, 0, 0, 1}, expandDimsDestination.getBoolData());
-        assertArrayEquals(new byte[]{1, 0, 0, 1}, squeezeDestination.getBoolData());
-        assertArrayEquals(new byte[]{0, 1, 0}, selectDestination.getBoolData());
-        assertArrayEquals(new byte[]{1, 0, 1, 1}, contiguousDestination.getBoolData());
-        assertArrayEquals(new byte[]{0, 1, 1, 0}, noopDestination.getBoolData());
+        assertArrayEquals(new byte[]{1, 0, 1, 0}, reshapeDestination.toBoolByteArrayCopy());
+        assertArrayEquals(new byte[]{1, 0, 0, 1, 1, 0}, permuteDestination.toBoolByteArrayCopy());
+        assertArrayEquals(new byte[]{1, 0, 1, 1, 0, 1}, expandDestination.toBoolByteArrayCopy());
+        assertArrayEquals(new byte[]{1, 0, 0, 1}, expandDimsDestination.toBoolByteArrayCopy());
+        assertArrayEquals(new byte[]{1, 0, 0, 1}, squeezeDestination.toBoolByteArrayCopy());
+        assertArrayEquals(new byte[]{0, 1, 0}, selectDestination.toBoolByteArrayCopy());
+        assertArrayEquals(new byte[]{1, 0, 1, 1}, contiguousDestination.toBoolByteArrayCopy());
+        assertArrayEquals(new byte[]{0, 1, 1, 0}, noopDestination.toBoolByteArrayCopy());
     }
 
     @Test
@@ -949,7 +950,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{2, 3}
         );
 
-        assertArrayEquals(expected.getFloat32Data(), destination.getFloat32Data(), 0.0f);
+        assertArrayEquals(expected.toFloat32ArrayCopy(), destination.toFloat32ArrayCopy(), 0.0f);
     }
 
     @Test
@@ -978,7 +979,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{2, 3}
         );
 
-        assertArrayEquals(expected.getFloat32Data(), destination.getFloat32Data(), 0.0f);
+        assertArrayEquals(expected.toFloat32ArrayCopy(), destination.toFloat32ArrayCopy(), 0.0f);
     }
 
     @Test
@@ -1007,7 +1008,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{2, 3}
         );
 
-        assertArrayEquals(expected.getFloat32Data(), destination.getFloat32Data(), 0.0f);
+        assertArrayEquals(expected.toFloat32ArrayCopy(), destination.toFloat32ArrayCopy(), 0.0f);
     }
 
     @Test
@@ -1079,11 +1080,11 @@ class MetalMpsFfmBridgeTest {
         assertArrayEquals(new float[]{
                 0f, 0f, 3f,
                 5f, 0f, 0f
-        }, gatherDestination.getFloat32Data(), 0.0f);
+        }, gatherDestination.toFloat32ArrayCopy(), 0.0f);
         assertArrayEquals(new float[]{
                 3f, 3f, 0f,
                 5f, 0f, 10f
-        }, takeDestination.getFloat32Data(), 0.0f);
+        }, takeDestination.toFloat32ArrayCopy(), 0.0f);
     }
 
     @Test
@@ -1142,7 +1143,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{1, 1, 2, 2}
         );
 
-        assertArrayEquals(new float[]{6f, 8f, 12f, 14f}, destination.getFloat32Data(), 1.0e-5f);
+        assertArrayEquals(new float[]{6f, 8f, 12f, 14f}, destination.toFloat32ArrayCopy(), 1.0e-5f);
     }
 
     @Test
@@ -1181,7 +1182,7 @@ class MetalMpsFfmBridgeTest {
                 1.5f, 5.5f, 4.5f,
                 14.5f, 34.5f, 20.5f,
                 13.5f, 29.5f, 16.5f
-        }, destination.getFloat32Data(), 1.0e-5f);
+        }, destination.toFloat32ArrayCopy(), 1.0e-5f);
     }
 
     @Test
@@ -1270,8 +1271,8 @@ class MetalMpsFfmBridgeTest {
                 new int[]{1, 1, 2, 2}
         );
 
-        assertArrayEquals(expectedInputGrad.getFloat32Data(), inputGradDestination.getFloat32Data(), 1.0e-5f);
-        assertArrayEquals(expectedWeightGrad.getFloat32Data(), weightGradDestination.getFloat32Data(), 1.0e-5f);
+        assertArrayEquals(expectedInputGrad.toFloat32ArrayCopy(), inputGradDestination.toFloat32ArrayCopy(), 1.0e-5f);
+        assertArrayEquals(expectedWeightGrad.toFloat32ArrayCopy(), weightGradDestination.toFloat32ArrayCopy(), 1.0e-5f);
     }
 
     @Test
@@ -1309,7 +1310,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{1, 1, 3, 3}
         );
 
-        assertArrayEquals(expected.getFloat32Data(), destination.getFloat32Data(), 1.0e-5f);
+        assertArrayEquals(expected.toFloat32ArrayCopy(), destination.toFloat32ArrayCopy(), 1.0e-5f);
     }
 
     @Test
@@ -1350,7 +1351,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{1, 1, 3, 3}
         );
 
-        assertArrayEquals(expected.getFloat32Data(), destination.getFloat32Data(), 1.0e-5f);
+        assertArrayEquals(expected.toFloat32ArrayCopy(), destination.toFloat32ArrayCopy(), 1.0e-5f);
     }
 
     @Test
@@ -1378,7 +1379,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{1}
         );
 
-        assertArrayEquals(expected.getFloat32Data(), destination.getFloat32Data(), 1.0e-5f);
+        assertArrayEquals(expected.toFloat32ArrayCopy(), destination.toFloat32ArrayCopy(), 1.0e-5f);
     }
 
     @Test
@@ -1444,7 +1445,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{2, 3}
         );
 
-        assertArrayEquals(expected.getFloat32Data(), destination.getFloat32Data(), 1.0e-5f);
+        assertArrayEquals(expected.toFloat32ArrayCopy(), destination.toFloat32ArrayCopy(), 1.0e-5f);
     }
 
     @Test
@@ -1512,7 +1513,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{1, 1, 2, 2}
         );
 
-        assertArrayEquals(new float[]{6f, 8f, 14f, 16f}, destination.getFloat32Data(), 1.0e-5f);
+        assertArrayEquals(new float[]{6f, 8f, 14f, 16f}, destination.toFloat32ArrayCopy(), 1.0e-5f);
     }
 
     @Test
@@ -1585,7 +1586,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{1, 1, 2, 2}
         );
 
-        assertArrayEquals(new float[]{3.5f, 5.5f, 11.5f, 13.5f}, destination.getFloat32Data(), 1.0e-5f);
+        assertArrayEquals(new float[]{3.5f, 5.5f, 11.5f, 13.5f}, destination.toFloat32ArrayCopy(), 1.0e-5f);
     }
 
     @Test
@@ -1766,7 +1767,7 @@ class MetalMpsFfmBridgeTest {
             allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
 
             assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
-            assertArrayEquals(new float[]{6f, 15f}, destination.getFloat32Data(), 0.0f);
+            assertArrayEquals(new float[]{6f, 15f}, destination.toFloat32ArrayCopy(), 0.0f);
         } finally {
             if (input != null) {
                 allocator.destroy(input.handle());
@@ -1884,7 +1885,7 @@ class MetalMpsFfmBridgeTest {
             assertArrayEquals(new float[]{
                     -1.2247356f, 0.0f, 1.2247356f,
                     -1.2247356f, 0.0f, 1.2247356f
-            }, destination.getFloat32Data(), 1.0e-4f);
+            }, destination.toFloat32ArrayCopy(), 1.0e-4f);
         } finally {
             if (input != null) {
                 allocator.destroy(input.handle());
@@ -2196,7 +2197,7 @@ class MetalMpsFfmBridgeTest {
             allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
 
             assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
-            assertArrayEquals(expected.getFloat32Data(), destination.getFloat32Data(), 1.0e-4f);
+            assertArrayEquals(expected.toFloat32ArrayCopy(), destination.toFloat32ArrayCopy(), 1.0e-4f);
         } finally {
             if (query != null) {
                 allocator.destroy(query.handle());
@@ -2299,7 +2300,7 @@ class MetalMpsFfmBridgeTest {
             allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
 
             assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
-            assertArrayEquals(expectedWeightValues, destination.getFloat32Data(), 1.0e-4f);
+            assertArrayEquals(expectedWeightValues, destination.toFloat32ArrayCopy(), 1.0e-4f);
         } finally {
             if (query != null) {
                 allocator.destroy(query.handle());
@@ -2448,7 +2449,7 @@ class MetalMpsFfmBridgeTest {
             assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, secondStats.executionPath());
             assertEquals(0L, firstStats.nativeToJavaCopyNs());
             assertEquals(0L, secondStats.nativeToJavaCopyNs());
-            assertArrayEquals(new float[]{-1.0f, -0.0f}, destination.getFloat32Data(), 0.0f);
+            assertArrayEquals(new float[]{-1.0f, -0.0f}, destination.toFloat32ArrayCopy(), 0.0f);
         } finally {
             if (input != null) {
                 allocator.destroy(input.handle());
@@ -2506,7 +2507,7 @@ class MetalMpsFfmBridgeTest {
 
             Tensor actual = new Tensor(new float[6], new int[]{3, 2}, null, "layoutDense", DataType.FLOAT32);
             allocator.readToCpu(destination, actual, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
-            assertArrayEquals(new float[]{1f, 4f, 2f, 5f, 3f, 6f}, actual.getFloat32Data(), 0.0f);
+            assertArrayEquals(new float[]{1f, 4f, 2f, 5f, 3f, 6f}, actual.toFloat32ArrayCopy(), 0.0f);
         } finally {
             if (input != null) {
                 allocator.destroy(input.handle());
@@ -2556,7 +2557,7 @@ class MetalMpsFfmBridgeTest {
 
             Tensor actual = new Tensor(new float[6], new int[]{2, 3}, null, "layoutBroadcastDense", DataType.FLOAT32);
             allocator.readToCpu(destination, actual, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
-            assertArrayEquals(new float[]{2f, 4f, 6f, 2f, 4f, 6f}, actual.getFloat32Data(), 0.0f);
+            assertArrayEquals(new float[]{2f, 4f, 6f, 2f, 4f, 6f}, actual.toFloat32ArrayCopy(), 0.0f);
         } finally {
             if (input != null) {
                 allocator.destroy(input.handle());
@@ -2614,7 +2615,7 @@ class MetalMpsFfmBridgeTest {
 
             Tensor actual = new Tensor(new float[4], new int[]{2, 2}, null, "layoutOffsetDense", DataType.FLOAT32);
             allocator.readToCpu(destination, actual, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
-            assertArrayEquals(new float[]{2f, 3f, 6f, 7f}, actual.getFloat32Data(), 0.0f);
+            assertArrayEquals(new float[]{2f, 3f, 6f, 7f}, actual.toFloat32ArrayCopy(), 0.0f);
         } finally {
             if (input != null) {
                 allocator.destroy(input.handle());
@@ -2700,7 +2701,7 @@ class MetalMpsFfmBridgeTest {
 
             Tensor actual = new Tensor(new byte[6], new int[]{3, 2}, null, "layoutBoolDense", DataType.BOOL);
             allocator.readToCpu(destination, actual, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
-            assertArrayEquals(new byte[]{1, 0, 0, 1, 1, 0}, actual.getBoolData());
+            assertArrayEquals(new byte[]{1, 0, 0, 1, 1, 0}, actual.toBoolByteArrayCopy());
         } finally {
             if (input != null) {
                 allocator.destroy(input.handle());
@@ -2835,7 +2836,7 @@ class MetalMpsFfmBridgeTest {
             allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
 
             assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
-            assertArrayEquals(expectedValues, destination.getFloat32Data(), 1.0e-5f);
+            assertArrayEquals(expectedValues, destination.toFloat32ArrayCopy(), 1.0e-5f);
         } finally {
             if (input != null) {
                 allocator.destroy(input.handle());
@@ -2870,7 +2871,7 @@ class MetalMpsFfmBridgeTest {
             allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
 
             assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
-            assertArrayEquals(expectedValues, destination.getInt64Data());
+            assertArrayEquals(expectedValues, destination.toInt64ArrayCopy());
         } finally {
             if (input != null) {
                 allocator.destroy(input.handle());
@@ -2882,7 +2883,7 @@ class MetalMpsFfmBridgeTest {
     }
 
     private static void assertBf16Close(float[] expected, Tensor actual, float tolerance) {
-        short[] bits = actual.getBFloat16Data();
+        short[] bits = actual.toBFloat16BitsArrayCopy();
         assertEquals(expected.length, bits.length);
         for (int i = 0; i < expected.length; i++) {
             assertEquals(expected[i], CpuDTypeOps.fromBFloat16Bits(bits[i]), tolerance, "BF16 mismatch at " + i);
@@ -2890,7 +2891,7 @@ class MetalMpsFfmBridgeTest {
     }
 
     private static void assertBf16RawBitsEqual(float[] expected, Tensor actual) {
-        short[] bits = actual.getBFloat16Data();
+        short[] bits = actual.toBFloat16BitsArrayCopy();
         assertEquals(expected.length, bits.length);
         for (int i = 0; i < expected.length; i++) {
             assertEquals(CpuDTypeOps.toBFloat16Bits(expected[i]), bits[i], "BF16 raw mismatch at " + i);
@@ -2898,7 +2899,7 @@ class MetalMpsFfmBridgeTest {
     }
 
     private static float[] bf16Floats(Tensor tensor) {
-        short[] bits = tensor.getBFloat16Data();
+        short[] bits = tensor.toBFloat16BitsArrayCopy();
         float[] values = new float[bits.length];
         for (int i = 0; i < bits.length; i++) {
             values[i] = CpuDTypeOps.fromBFloat16Bits(bits[i]);
@@ -3614,7 +3615,7 @@ class MetalMpsFfmBridgeTest {
     }
 
     private static PartitionPlanningContext planningContext(Tensor out) {
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(out.topologicalSort());
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         return new PartitionPlanningContext(
                 false,
                 compiledNodes,

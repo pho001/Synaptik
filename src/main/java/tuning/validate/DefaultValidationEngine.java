@@ -2,6 +2,7 @@ package tuning.validate;
 
 import config.profile.ExecutionProfile;
 import graph.CompiledGraph;
+import graph.compile.intent.BackendIntentPlan;
 import tensor.DataType;
 import tensor.Tensor;
 import tuning.candidate.Candidate;
@@ -47,6 +48,7 @@ public final class DefaultValidationEngine implements ValidationEngine {
             case SNAPSHOT -> validateAgainstSnapshot(
                     workload.root(),
                     workload.validationTarget(),
+                    workload.backendIntentPlan(),
                     candidate.profile(),
                     (SnapshotValidationReference) reference.payload(),
                     policy
@@ -55,6 +57,7 @@ public final class DefaultValidationEngine implements ValidationEngine {
                     workloadSpec,
                     workload.root(),
                     workload.validationTarget(),
+                    workload.backendIntentPlan(),
                     candidate.profile(),
                     (BaselineProfileValidationReference) reference.payload(),
                     policy
@@ -65,12 +68,13 @@ public final class DefaultValidationEngine implements ValidationEngine {
     private ValidationResult validateAgainstSnapshot(
             Tensor executionRoot,
             ValidationTarget candidateValidationTarget,
+            BackendIntentPlan candidateBackendIntentPlan,
             ExecutionProfile candidateProfile,
             SnapshotValidationReference reference,
             ValidationPolicy policy
     ) {
         Tensor candidateValidationRoot = candidateValidationTarget.resolve(executionRoot);
-        execute(candidateValidationRoot, candidateProfile);
+        execute(candidateValidationRoot, candidateProfile, candidateBackendIntentPlan);
 
         LinkedHashMap<String, Double> metrics = new LinkedHashMap<>();
         ValidationResult outputResult = compareTensor(
@@ -104,17 +108,18 @@ public final class DefaultValidationEngine implements ValidationEngine {
             WorkloadSpec workloadSpec,
             Tensor candidateRoot,
             ValidationTarget candidateValidationTarget,
+            BackendIntentPlan candidateBackendIntentPlan,
             ExecutionProfile candidateProfile,
             BaselineProfileValidationReference reference,
             ValidationPolicy policy
     ) {
         Tensor candidateValidationRoot = candidateValidationTarget.resolve(candidateRoot);
-        execute(candidateValidationRoot, candidateProfile);
+        execute(candidateValidationRoot, candidateProfile, candidateBackendIntentPlan);
 
         WorkloadInstance baselineWorkload = workloadSpec.instantiate(new WorkloadEnvironment(reference.baselineProfile()));
         Tensor baselineRoot = baselineWorkload.root();
         Tensor baselineValidationRoot = baselineWorkload.validationTarget().resolve(baselineRoot);
-        execute(baselineValidationRoot, reference.baselineProfile());
+        execute(baselineValidationRoot, reference.baselineProfile(), baselineWorkload.backendIntentPlan());
 
         LinkedHashMap<String, Double> metrics = new LinkedHashMap<>();
         ValidationResult outputResult = compareTensor(
@@ -144,10 +149,18 @@ public final class DefaultValidationEngine implements ValidationEngine {
         return new ValidationResult(true, "valid", "", metrics);
     }
 
-    private static void execute(Tensor root, ExecutionProfile profile) {
-        CompiledGraph.compile(root, profile.compile(), compileModeFor(profile.mode()))
+    private static void execute(
+            Tensor root,
+            ExecutionProfile profile,
+            BackendIntentPlan backendIntentPlan
+    ) {
+        CompiledGraph.compile(root, profile.compile(), compileModeFor(profile.mode()), backendIntentPlan)
                 .prepare(profile.runtime())
                 .execute(profile.mode());
+    }
+
+    private static void execute(Tensor root, ExecutionProfile profile) {
+        execute(root, profile, BackendIntentPlan.empty());
     }
 
     private static tensor.CompileMode compileModeFor(backend.runtime.ExecutionMode mode) {

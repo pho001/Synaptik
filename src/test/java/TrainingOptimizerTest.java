@@ -52,8 +52,8 @@ class TrainingOptimizerTest {
 
         prepared.executeOptimizerStep(optimizer);
 
-        assertArrayEquals(new float[]{0.8f, 1.7f}, w.getFloat32Data(), 1.0e-6f);
-        assertArrayEquals(new float[]{2.0f, 3.0f}, x.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{0.8f, 1.7f}, w.toFloat32ArrayCopy(), 1.0e-6f);
+        assertArrayEquals(new float[]{2.0f, 3.0f}, x.toFloat32ArrayCopy(), 0.0f);
         assertNull(w.getGradient());
         assertNull(x.getGradient());
     }
@@ -80,7 +80,7 @@ class TrainingOptimizerTest {
 
         var trace = prepared.executeOptimizerStepTraced(optimizer, PublicationPolicy.OUTPUT_ONLY);
 
-        assertArrayEquals(new float[]{1.0f, 2.0f}, nativeW.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{1.0f, 2.0f}, nativeW.toFloat32ArrayCopy(), 0.0f);
         assertNull(nativeW.getGradient());
         assertNull(nativeX.getGradient());
         assertEquals(1, trace.nativeOptimizers().size());
@@ -98,7 +98,7 @@ class TrainingOptimizerTest {
 
         optimizer.syncParametersToCpu();
 
-        assertArrayEquals(baselineW.getFloat32Data(), nativeW.getFloat32Data(), 1.0e-6f);
+        assertArrayEquals(baselineW.toFloat32ArrayCopy(), nativeW.toFloat32ArrayCopy(), 1.0e-6f);
     }
 
     @Test
@@ -117,11 +117,11 @@ class TrainingOptimizerTest {
 
         assertEquals("CPU_NATIVE", first.nativeOptimizers().getFirst().route());
         assertEquals("CPU_NATIVE", second.nativeOptimizers().getFirst().route());
-        assertArrayEquals(new float[]{0.8f, 1.7f}, w.getFloat32Data(), 1.0e-6f);
+        assertArrayEquals(new float[]{0.8f, 1.7f}, w.toFloat32ArrayCopy(), 1.0e-6f);
 
         optimizer.syncParametersToCpu();
 
-        assertArrayEquals(new float[]{0.6f, 1.4f}, w.getFloat32Data(), 1.0e-6f);
+        assertArrayEquals(new float[]{0.6f, 1.4f}, w.toFloat32ArrayCopy(), 1.0e-6f);
         assertNull(w.getGradient());
         assertNull(x.getGradient());
     }
@@ -141,7 +141,7 @@ class TrainingOptimizerTest {
         assertEquals(1, trace.nativeOptimizers().size());
         assertEquals("CPU_ARRAY", trace.nativeOptimizers().getFirst().route());
         assertTrue(trace.nativeOptimizers().getFirst().fallbackReason().contains("dtype-FLOAT64"));
-        assertArrayEquals(new double[]{0.8, 1.7}, w.getFloat64Data(), 1.0e-6);
+        assertArrayEquals(new double[]{0.8, 1.7}, w.toFloat64ArrayCopy(), 1.0e-6);
         assertNull(w.getGradient());
         assertNull(x.getGradient());
     }
@@ -166,7 +166,7 @@ class TrainingOptimizerTest {
 
         optimizer.syncParametersToCpu();
 
-        assertArrayEquals(new float[]{0.8f, 1.7f}, w.getFloat32Data(), 1.0e-6f);
+        assertArrayEquals(new float[]{0.8f, 1.7f}, w.toFloat32ArrayCopy(), 1.0e-6f);
     }
 
     @Test
@@ -279,8 +279,8 @@ class TrainingOptimizerTest {
 
         graph.prepare(RuntimeConfig.trainingDefaults()).executeOptimizerStep(optimizer);
 
-        assertArrayEquals(new float[]{0.9f, -1.9f}, w.getFloat32Data(), 1.0e-5f);
-        assertArrayEquals(new float[]{2.0f, -3.0f}, x.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{0.9f, -1.9f}, w.toFloat32ArrayCopy(), 1.0e-5f);
+        assertArrayEquals(new float[]{2.0f, -3.0f}, x.toFloat32ArrayCopy(), 0.0f);
         assertNull(w.getGradient());
         assertNull(x.getGradient());
     }
@@ -307,7 +307,7 @@ class TrainingOptimizerTest {
 
         var trace = prepared.executeOptimizerStepTraced(optimizer, PublicationPolicy.OUTPUT_ONLY);
 
-        assertArrayEquals(new float[]{1.0f, 2.0f}, nativeW.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{1.0f, 2.0f}, nativeW.toFloat32ArrayCopy(), 0.0f);
         assertNull(nativeW.getGradient());
         assertNull(nativeX.getGradient());
         assertEquals(1, trace.nativeOptimizers().size());
@@ -324,7 +324,7 @@ class TrainingOptimizerTest {
 
         optimizer.syncParametersToCpu();
 
-        assertArrayEquals(baselineW.getFloat32Data(), nativeW.getFloat32Data(), 1.0e-6f);
+        assertArrayEquals(baselineW.toFloat32ArrayCopy(), nativeW.toFloat32ArrayCopy(), 1.0e-6f);
     }
 
     @Test
@@ -359,7 +359,7 @@ class TrainingOptimizerTest {
 
         nativeOptimizer.syncParametersToCpu();
 
-        assertArrayEquals(baselineW.getFloat32Data(), nativeW.getFloat32Data(), 1.0e-6f);
+        assertArrayEquals(baselineW.toFloat32ArrayCopy(), nativeW.toFloat32ArrayCopy(), 1.0e-6f);
     }
 
     @Test
@@ -378,7 +378,7 @@ class TrainingOptimizerTest {
         assertEquals("AdamOptimizer", trace.nativeOptimizers().getFirst().optimizer());
         assertEquals("CPU_ARRAY", trace.nativeOptimizers().getFirst().route());
         assertTrue(trace.nativeOptimizers().getFirst().fallbackReason().contains("dtype-FLOAT64"));
-        assertArrayEquals(new double[]{0.9, 1.9}, w.getFloat64Data(), 1.0e-5);
+        assertArrayEquals(new double[]{0.9, 1.9}, w.toFloat64ArrayCopy(), 1.0e-5);
         assertNull(w.getGradient());
         assertNull(x.getGradient());
     }
@@ -404,7 +404,7 @@ class TrainingOptimizerTest {
 
         optimizer.syncParametersToCpu();
 
-        assertArrayEquals(new float[]{0.9f, 1.9f}, w.getFloat32Data(), 1.0e-5f);
+        assertArrayEquals(new float[]{0.9f, 1.9f}, w.toFloat32ArrayCopy(), 1.0e-5f);
     }
 
     @Test
@@ -500,7 +500,7 @@ class TrainingOptimizerTest {
 
         var trace = prepared.executeOptimizerStepTraced(optimizer, PublicationPolicy.NONE);
 
-        assertArrayEquals(new float[]{1.0f, 2.0f}, w.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{1.0f, 2.0f}, w.toFloat32ArrayCopy(), 0.0f);
         assertArrayEquals(new double[]{0.0}, loss.toDoubleArrayCopy(), 0.0);
         assertEquals("NONE", trace.nativeOptimizers().getFirst().publicationPolicy());
         assertEquals("NONE", trace.nativeOptimizers().getFirst().gradientPublication());
@@ -509,7 +509,7 @@ class TrainingOptimizerTest {
 
         optimizer.syncParametersToCpu();
 
-        assertArrayEquals(new float[]{0.8f, 1.7f}, w.getFloat32Data(), 1.0e-6f);
+        assertArrayEquals(new float[]{0.8f, 1.7f}, w.toFloat32ArrayCopy(), 1.0e-6f);
     }
 
     @Test
@@ -526,8 +526,8 @@ class TrainingOptimizerTest {
 
         graph.prepare(RuntimeConfig.trainingDefaults()).executeOptimizerStep(optimizer);
 
-        assertArrayEquals(new float[]{1.0f, 2.0f}, w.getFloat32Data(), 0.0f);
-        assertArrayEquals(new float[]{2.0f, 3.0f}, x.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{1.0f, 2.0f}, w.toFloat32ArrayCopy(), 0.0f);
+        assertArrayEquals(new float[]{2.0f, 3.0f}, x.toFloat32ArrayCopy(), 0.0f);
         assertNull(w.getGradient());
         assertNull(x.getGradient());
     }
@@ -543,8 +543,8 @@ class TrainingOptimizerTest {
         CompiledGraph.compile(loss, CompileConfig.training())
                 .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
-        assertArrayEquals(new float[]{2.0f, 3.0f}, w.getGradient().getFloat32Data(), 1.0e-6f);
-        assertArrayEquals(new float[]{1.0f, 2.0f}, x.getGradient().getFloat32Data(), 1.0e-6f);
+        assertArrayEquals(new float[]{2.0f, 3.0f}, w.getGradient().toFloat32ArrayCopy(), 1.0e-6f);
+        assertArrayEquals(new float[]{1.0f, 2.0f}, x.getGradient().toFloat32ArrayCopy(), 1.0e-6f);
     }
 
     private static RuntimeConfig nativeTrainingRuntime() {

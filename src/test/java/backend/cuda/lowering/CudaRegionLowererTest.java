@@ -2,6 +2,7 @@ package backend.cuda.lowering;
 
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import graph.compile.intent.BackendIntentPlan;
 
 import backend.ComputeBackend;
 import backend.accelerator.lowering.GpuCompoundLoweringArtifact;
@@ -70,11 +71,11 @@ class CudaRegionLowererTest {
         Tensor bias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "cudaLinearBias", DataType.FLOAT32);
         Tensor linear = input.linear(weight, bias);
         Tensor out = linear.relu();
-        TensorInternalAccess.setBackendIntent(linear, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(linear, ComputeBackend.GPU_CUDA);
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, backendIntentPlan);
         PartitionPlanningContext context = new PartitionPlanningContext(
                 false,
                 compiledNodes,
@@ -146,11 +147,12 @@ class CudaRegionLowererTest {
         Tensor matmul = a.matmul(b);
         Tensor relu = matmul.relu();
         Tensor out = relu.exp();
-        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(matmul, ComputeBackend.GPU_CUDA);
+        backendIntentPlan = backendIntentPlan.withBackend(relu, ComputeBackend.GPU_CUDA);
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, backendIntentPlan);
         PartitionPlanningContext planningContext = new PartitionPlanningContext(
                 false,
                 compiledNodes,
@@ -213,12 +215,12 @@ class CudaRegionLowererTest {
         Tensor relu = matmul.relu();
         Tensor out = relu.exp();
         Tensor logSoftmax = specialLogSoftmax(out, 1);
-        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackendIntent(logSoftmax, ComputeBackend.GPU_CUDA);
-
-        PartitionPlanningContext context = planningContext(logSoftmax);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(matmul, ComputeBackend.GPU_CUDA);
+        backendIntentPlan = backendIntentPlan.withBackend(relu, ComputeBackend.GPU_CUDA);
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
+        backendIntentPlan = backendIntentPlan.withBackend(logSoftmax, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext context = planningContext(logSoftmax, backendIntentPlan);
         for (operations.Operation.OpType opType : List.of(operations.Operation.OpType.MATMUL, operations.Operation.OpType.RELU, operations.Operation.OpType.EXP, operations.Operation.OpType.LOG_SOFTMAX)) {
             assertTrue(GpuLoweringCoverageMatrix.isSupported(ComputeBackend.GPU_CUDA, opType));
             assertEquals("", CudaGpuBackendPartitionCapability.plannerUnsupportedReason(context.compiledNode(nodeId(context, opType)), context));
@@ -229,9 +231,9 @@ class CudaRegionLowererTest {
     void cudaReductionIsPlannerSupported() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaReductionInput", DataType.FLOAT32);
         Tensor out = input.sum(1);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
-        PartitionPlanningContext context = planningContext(out);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext context = planningContext(out, backendIntentPlan);
         String reason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(context.compiledNode(nodeId(context, operations.Operation.OpType.SUM)), context);
 
         assertEquals("", reason);
@@ -243,9 +245,9 @@ class CudaRegionLowererTest {
         Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "cudaNormGamma", DataType.FLOAT32);
         Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "cudaNormBeta", DataType.FLOAT32);
         Tensor out = input.layerNorm(gamma, beta, 1.0e-5);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
-        PartitionPlanningContext context = planningContext(out);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext context = planningContext(out, backendIntentPlan);
         String reason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(context.compiledNode(nodeId(context, operations.Operation.OpType.LAYER_NORM)), context);
 
         assertEquals("", reason);
@@ -257,9 +259,9 @@ class CudaRegionLowererTest {
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaSdpaK", DataType.FLOAT32);
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cudaSdpaV", DataType.FLOAT32);
         Tensor out = specialSdpa(q, k, v, null, 0.5d);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
-        PartitionPlanningContext context = planningContext(out);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext context = planningContext(out, backendIntentPlan);
         String reason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                 context.compiledNode(nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION)),
                 context
@@ -279,9 +281,9 @@ class CudaRegionLowererTest {
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cudaMaskedSdpaV", DataType.FLOAT32);
         Tensor mask = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{1, 2, 2}, null, "cudaMaskedSdpaMask", DataType.BOOL);
         Tensor out = specialSdpa(q, k, v, mask, 0.5d);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
-        PartitionPlanningContext context = planningContext(out);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext context = planningContext(out, backendIntentPlan);
         String reason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                 context.compiledNode(nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION)),
                 context
@@ -302,9 +304,9 @@ class CudaRegionLowererTest {
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaCausalSdpaK", DataType.FLOAT32);
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cudaCausalSdpaV", DataType.FLOAT32);
         Tensor out = specialSdpa(q, k, v, causalMask(), 0.5d);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
-        PartitionPlanningContext context = planningContext(out);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext context = planningContext(out, backendIntentPlan);
         String reason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                 context.compiledNode(nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION)),
                 context
@@ -325,9 +327,9 @@ class CudaRegionLowererTest {
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cudaExternalCausalSdpaV", DataType.FLOAT32);
         Tensor mask = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{1, 2, 2}, null, "cudaExternalCausalSdpaMask", DataType.BOOL);
         Tensor out = specialSdpa(q, k, v, mask.logicalAnd(causalMask()), 0.5d);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
-        PartitionPlanningContext context = planningContext(out);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext context = planningContext(out, backendIntentPlan);
         String reason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                 context.compiledNode(nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION)),
                 context
@@ -347,8 +349,9 @@ class CudaRegionLowererTest {
         Tensor k64 = new Tensor(new double[]{1d, 0d, 0d, 1d}, new int[]{1, 2, 2}, null, "cudaSdpaK64", DataType.FLOAT64);
         Tensor v64 = new Tensor(new double[]{10d, 1d, 1d, 10d}, new int[]{1, 2, 2}, null, "cudaSdpaV64", DataType.FLOAT64);
         Tensor dtypeOut = specialSdpa(q64, k64, v64, null, 0.5d);
-        TensorInternalAccess.setBackendIntent(dtypeOut, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext dtypeContext = planningContext(dtypeOut);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(dtypeOut, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext dtypeContext = planningContext(dtypeOut, backendIntentPlan);
 
         String dtypeReason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                 dtypeContext.compiledNode(nodeId(dtypeContext, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION)),
@@ -361,8 +364,8 @@ class CudaRegionLowererTest {
         Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaSdpaDenseK", DataType.FLOAT32);
         Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cudaSdpaDenseV", DataType.FLOAT32);
         Tensor layoutOut = specialSdpa(qView, k, v, null, 0.5d);
-        TensorInternalAccess.setBackendIntent(layoutOut, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext layoutContext = planningContext(layoutOut);
+        backendIntentPlan = backendIntentPlan.withBackend(layoutOut, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext layoutContext = planningContext(layoutOut, backendIntentPlan);
 
         String layoutReason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                 layoutContext.compiledNode(nodeId(layoutContext, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION)),
@@ -375,9 +378,9 @@ class CudaRegionLowererTest {
     void cudaGpuFusedOpTypeRejectsWithStableCompoundReason() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "cudaFusedInput", DataType.FLOAT32);
         Tensor out = TensorPrimitiveBuilder.unary(input, new SyntheticFusedOperation(), "cudaCpuFusedOp", DataType.FLOAT32);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
-        PartitionPlanningContext context = planningContext(out);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext context = planningContext(out, backendIntentPlan);
         String reason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.FUSED)), context);
 
         assertTrue(reason.contains("CPU_FUSED_OPERATION_UNSUPPORTED"));
@@ -389,9 +392,9 @@ class CudaRegionLowererTest {
         Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "cudaLossLogits", DataType.FLOAT32);
         Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "cudaLossTargets", DataType.INT32);
         Tensor out = logits.crossEntropyLossFromIndices(targetIndices, 1);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
-        PartitionPlanningContext context = planningContext(out);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext context = planningContext(out, backendIntentPlan);
         String reason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(context.compiledNode(nodeId(context, operations.Operation.OpType.CROSS_ENTROPY_LOSS_INDICES)), context);
 
         assertTrue(reason.contains("UNSUPPORTED_INDEX_SEMANTICS"));
@@ -403,8 +406,9 @@ class CudaRegionLowererTest {
         Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "cudaDenseCeLogits", DataType.FLOAT32);
         Tensor denseTargets = new Tensor(new float[]{0f, 0f, 1f, 1f, 0f, 0f}, new int[]{2, 3}, null, "cudaDenseCeTargets", DataType.FLOAT32);
         Tensor crossEntropy = logits.crossEntropyLoss(denseTargets, 1);
-        TensorInternalAccess.setBackendIntent(crossEntropy, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext ceContext = planningContext(crossEntropy);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(crossEntropy, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext ceContext = planningContext(crossEntropy, backendIntentPlan);
 
         String ceReason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                 ceContext.compiledNode(nodeId(ceContext, Operation.OpType.CROSS_ENTROPY_LOSS)),
@@ -422,8 +426,8 @@ class CudaRegionLowererTest {
         Tensor logProbs = new Tensor(new float[]{-2f, -1f, -0.5f, -0.25f}, new int[]{2, 2}, null, "cudaDenseNllLogProbs", DataType.FLOAT32);
         Tensor nllTargets = new Tensor(new float[]{0f, 1f, 1f, 0f}, new int[]{2, 2}, null, "cudaDenseNllTargets", DataType.FLOAT32);
         Tensor nll = logProbs.nllLoss(nllTargets, 1);
-        TensorInternalAccess.setBackendIntent(nll, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext nllContext = planningContext(nll);
+        backendIntentPlan = backendIntentPlan.withBackend(nll, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext nllContext = planningContext(nll, backendIntentPlan);
 
         String nllReason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                 nllContext.compiledNode(nodeId(nllContext, Operation.OpType.NLL_LOSS)),
@@ -445,9 +449,9 @@ class CudaRegionLowererTest {
         Tensor nonDense = base.permute(1, 0);
         Tensor rhs = new Tensor(new float[]{1f, 1f, 1f, 1f, 1f, 1f}, new int[]{3, 2}, null, "cudaRhs", DataType.FLOAT32);
         Tensor out = nonDense.add(rhs);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
-        PartitionPlanningContext context = planningContext(out);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext context = planningContext(out, backendIntentPlan);
         String reason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(context.compiledNode(nodeId(context, operations.Operation.OpType.ADD)), context);
 
         assertEquals(
@@ -461,10 +465,11 @@ class CudaRegionLowererTest {
         Tensor reductionInput = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaPhase17ReductionInput", DataType.FLOAT32);
         Tensor sum = reductionInput.sum(1);
         Tensor mean = reductionInput.mean(1);
-        TensorInternalAccess.setBackendIntent(sum, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackendIntent(mean, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext sumContext = planningContext(sum);
-        PartitionPlanningContext meanContext = planningContext(mean);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(sum, ComputeBackend.GPU_CUDA);
+        backendIntentPlan = backendIntentPlan.withBackend(mean, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext sumContext = planningContext(sum, backendIntentPlan);
+        PartitionPlanningContext meanContext = planningContext(mean, backendIntentPlan);
 
         assertEquals("", CudaGpuBackendPartitionCapability.plannerUnsupportedReason(sumContext.compiledNode(nodeId(sumContext, Operation.OpType.SUM)), sumContext));
         assertEquals("", CudaGpuBackendPartitionCapability.plannerUnsupportedReason(meanContext.compiledNode(nodeId(meanContext, Operation.OpType.MEAN)), meanContext));
@@ -474,10 +479,10 @@ class CudaRegionLowererTest {
         Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "cudaPhase17NormBeta", DataType.FLOAT32);
         Tensor layerNorm = normInput.layerNorm(gamma, beta, 1.0e-5);
         Tensor rmsNorm = normInput.rmsNorm(gamma, 1.0e-5);
-        TensorInternalAccess.setBackendIntent(layerNorm, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackendIntent(rmsNorm, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext layerNormContext = planningContext(layerNorm);
-        PartitionPlanningContext rmsNormContext = planningContext(rmsNorm);
+        backendIntentPlan = backendIntentPlan.withBackend(layerNorm, ComputeBackend.GPU_CUDA);
+        backendIntentPlan = backendIntentPlan.withBackend(rmsNorm, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext layerNormContext = planningContext(layerNorm, backendIntentPlan);
+        PartitionPlanningContext rmsNormContext = planningContext(rmsNorm, backendIntentPlan);
 
         String layerNormReason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(layerNormContext.compiledNode(nodeId(layerNormContext, Operation.OpType.LAYER_NORM)), layerNormContext);
         String rmsNormReason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(rmsNormContext.compiledNode(nodeId(rmsNormContext, Operation.OpType.RMS_NORM)), rmsNormContext);
@@ -500,9 +505,9 @@ class CudaRegionLowererTest {
                 DataType.FLOAT32);
         Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 1, 2, 2}, null, "cudaPhase17ConvWeight", DataType.FLOAT32);
         Tensor conv = input.conv2d(weight, Conv2dOptions.defaults());
-        TensorInternalAccess.setBackendIntent(conv, ComputeBackend.GPU_CUDA);
-
-        PartitionPlanningContext convContext = planningContext(conv);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(conv, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext convContext = planningContext(conv, backendIntentPlan);
         String convReason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(convContext.compiledNode(nodeId(convContext, Operation.OpType.CONV2D)), convContext);
 
         assertContainsAll(convReason,
@@ -513,9 +518,8 @@ class CudaRegionLowererTest {
         Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "cudaPhase17LossLogits", DataType.FLOAT32);
         Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "cudaPhase17LossTargets", DataType.INT32);
         Tensor loss = logits.crossEntropyLossFromIndices(targetIndices, 1);
-        TensorInternalAccess.setBackendIntent(loss, ComputeBackend.GPU_CUDA);
-
-        PartitionPlanningContext lossContext = planningContext(loss);
+        backendIntentPlan = backendIntentPlan.withBackend(loss, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext lossContext = planningContext(loss, backendIntentPlan);
         String lossReason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(lossContext.compiledNode(nodeId(lossContext, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES)), lossContext);
 
         assertContainsAll(lossReason,
@@ -530,10 +534,10 @@ class CudaRegionLowererTest {
         Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f}, new int[]{3, 3}, null, "cudaLogSoftmaxWeight", DataType.FLOAT32);
         Tensor matmul = input.matmul(weight);
         Tensor out = specialLogSoftmax(matmul, 1);
-        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
-        PartitionPlanningContext context = planningContext(out);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(matmul, ComputeBackend.GPU_CUDA);
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext context = planningContext(out, backendIntentPlan);
         int matmulNodeId = nodeId(context, operations.Operation.OpType.MATMUL);
         int logSoftmaxNodeId = nodeId(context, operations.Operation.OpType.LOG_SOFTMAX);
         CudaGpuBackendPartitionCapability adapter = new CudaGpuBackendPartitionCapability();
@@ -558,9 +562,9 @@ class CudaRegionLowererTest {
     void supportsSumReductionWithStableCoverageReason() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaStableReductionInput", DataType.FLOAT32);
         Tensor out = input.sum(1);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
-        PartitionPlanningContext context = planningContext(out);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext context = planningContext(out, backendIntentPlan);
         String reason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(context.compiledNode(nodeId(context, operations.Operation.OpType.SUM)), context);
 
         assertEquals("", reason);
@@ -572,9 +576,9 @@ class CudaRegionLowererTest {
         Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "cudaStableNormGamma", DataType.FLOAT32);
         Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "cudaStableNormBeta", DataType.FLOAT32);
         Tensor out = input.layerNorm(gamma, beta, 1.0e-5);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
-        PartitionPlanningContext context = planningContext(out);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext context = planningContext(out, backendIntentPlan);
         String reason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(context.compiledNode(nodeId(context, operations.Operation.OpType.LAYER_NORM)), context);
 
         assertEquals("", reason);
@@ -585,9 +589,9 @@ class CudaRegionLowererTest {
         Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "cudaStableLossLogits", DataType.FLOAT32);
         Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "cudaStableLossTargets", DataType.INT32);
         Tensor out = logits.crossEntropyLossFromIndices(targetIndices, 1);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
-        PartitionPlanningContext context = planningContext(out);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext context = planningContext(out, backendIntentPlan);
         String reason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(context.compiledNode(nodeId(context, operations.Operation.OpType.CROSS_ENTROPY_LOSS_INDICES)), context);
 
         assertTrue(reason.contains("UNSUPPORTED_INDEX_SEMANTICS"));
@@ -598,22 +602,23 @@ class CudaRegionLowererTest {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cudaPhase26IndexInput", DataType.FLOAT32);
         Tensor gatherIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "cudaPhase26GatherIndices", DataType.INT32);
         Tensor gather = input.gather(gatherIndices, 1);
-        TensorInternalAccess.setBackendIntent(gather, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext gatherContext = planningContext(gather);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(gather, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext gatherContext = planningContext(gather, backendIntentPlan);
         String gatherReason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(gatherContext.compiledNode(nodeId(gatherContext, Operation.OpType.GATHER)), gatherContext);
 
         Tensor takeIndices = new Tensor(new int[]{2, 1, 0, 0}, new int[]{2, 2}, null, "cudaPhase26TakeIndices", DataType.INT32);
         Tensor take = input.takeAlongAxis(takeIndices, 1);
-        TensorInternalAccess.setBackendIntent(take, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext takeContext = planningContext(take);
+        backendIntentPlan = backendIntentPlan.withBackend(take, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext takeContext = planningContext(take, backendIntentPlan);
         String takeReason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(takeContext.compiledNode(nodeId(takeContext, Operation.OpType.TAKE_ALONG_AXIS)), takeContext);
 
         Tensor base = new Tensor(new float[]{10f, 20f, 30f, 40f, 50f, 60f}, new int[]{2, 3}, null, "cudaPhase26ScatterBase", DataType.FLOAT32);
         Tensor scatterIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "cudaPhase26ScatterIndices", DataType.INT32);
         Tensor src = new Tensor(new float[]{1f, 5f}, new int[]{2}, null, "cudaPhase26ScatterSrc", DataType.FLOAT32);
         Tensor scatter = base.scatterAdd(scatterIndices, src, 1);
-        TensorInternalAccess.setBackendIntent(scatter, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext scatterContext = planningContext(scatter);
+        backendIntentPlan = backendIntentPlan.withBackend(scatter, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext scatterContext = planningContext(scatter, backendIntentPlan);
         String scatterReason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(scatterContext.compiledNode(nodeId(scatterContext, Operation.OpType.SCATTER_ADD)), scatterContext);
 
         assertContainsAll(gatherReason, "CAPABILITY_MISSING", "operation GATHER", "family=INDEX_SCATTER_GATHER");
@@ -633,8 +638,9 @@ class CudaRegionLowererTest {
                 "cudaPhase36GatherGrad",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackendIntent(gatherGrad, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext gatherGradContext = planningContext(gatherGrad);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(gatherGrad, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext gatherGradContext = planningContext(gatherGrad, backendIntentPlan);
 
         Tensor takeIndices = new Tensor(new int[]{2, 2, 0, 0}, new int[]{2, 2}, null, "cudaPhase36TakeGradIndices", DataType.INT32);
         Tensor takeOutGrad = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaPhase36TakeOutGrad", DataType.FLOAT32);
@@ -646,8 +652,8 @@ class CudaRegionLowererTest {
                 "cudaPhase36TakeGrad",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackendIntent(takeGrad, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext takeGradContext = planningContext(takeGrad);
+        backendIntentPlan = backendIntentPlan.withBackend(takeGrad, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext takeGradContext = planningContext(takeGrad, backendIntentPlan);
 
         assertContainsAll(
                 CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
@@ -678,8 +684,9 @@ class CudaRegionLowererTest {
 
         Tensor floatIndices = new Tensor(new float[]{2f, 0f}, new int[]{2}, null, "cuda43ScatterFloatIndices", DataType.FLOAT32);
         Tensor dtypeScatter = base.scatterAdd(floatIndices, src, 1);
-        TensorInternalAccess.setBackendIntent(dtypeScatter, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext dtypeContext = planningContext(dtypeScatter);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(dtypeScatter, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext dtypeContext = planningContext(dtypeScatter, backendIntentPlan);
         assertContainsAll(
                 CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                         dtypeContext.compiledNode(nodeId(dtypeContext, Operation.OpType.SCATTER_ADD)),
@@ -692,8 +699,8 @@ class CudaRegionLowererTest {
 
         Tensor oobIndices = new Tensor(new int[]{3, 0}, new int[]{2}, null, "cuda43ScatterOobIndices", DataType.INT32);
         Tensor oobScatter = base.scatterAdd(oobIndices, src, 1);
-        TensorInternalAccess.setBackendIntent(oobScatter, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext oobContext = planningContext(oobScatter);
+        backendIntentPlan = backendIntentPlan.withBackend(oobScatter, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext oobContext = planningContext(oobScatter, backendIntentPlan);
         assertContainsAll(
                 CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                         oobContext.compiledNode(nodeId(oobContext, Operation.OpType.SCATTER_ADD)),
@@ -707,8 +714,8 @@ class CudaRegionLowererTest {
         Tensor nonDenseBase = layoutBase.permute(1, 0);
         Tensor intIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "cuda43ScatterIntIndices", DataType.INT32);
         Tensor layoutScatter = nonDenseBase.scatterAdd(intIndices, src, 1);
-        TensorInternalAccess.setBackendIntent(layoutScatter, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext layoutContext = planningContext(layoutScatter);
+        backendIntentPlan = backendIntentPlan.withBackend(layoutScatter, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext layoutContext = planningContext(layoutScatter, backendIntentPlan);
         assertContainsAll(
                 CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                         layoutContext.compiledNode(nodeId(layoutContext, Operation.OpType.SCATTER_ADD)),
@@ -731,8 +738,9 @@ class CudaRegionLowererTest {
                 "cuda43GatherBoundsGrad",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackendIntent(gatherGradOut, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext gatherBoundsContext = planningContext(gatherGradOut);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(gatherGradOut, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext gatherBoundsContext = planningContext(gatherGradOut, backendIntentPlan);
         assertContainsAll(
                 CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                         gatherBoundsContext.compiledNode(nodeId(gatherBoundsContext, Operation.OpType.GATHER_GRAD)),
@@ -752,8 +760,8 @@ class CudaRegionLowererTest {
                 "cuda43TakeBoundsGrad",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackendIntent(takeGradOut, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext takeBoundsContext = planningContext(takeGradOut);
+        backendIntentPlan = backendIntentPlan.withBackend(takeGradOut, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext takeBoundsContext = planningContext(takeGradOut, backendIntentPlan);
         assertContainsAll(
                 CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                         takeBoundsContext.compiledNode(nodeId(takeBoundsContext, Operation.OpType.TAKE_ALONG_AXIS_GRAD)),
@@ -773,8 +781,8 @@ class CudaRegionLowererTest {
                 "cuda43DynamicGatherGrad",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackendIntent(dynamicGatherGrad, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext dynamicGatherContext = planningContext(dynamicGatherGrad);
+        backendIntentPlan = backendIntentPlan.withBackend(dynamicGatherGrad, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext dynamicGatherContext = planningContext(dynamicGatherGrad, backendIntentPlan);
         assertContainsAll(
                 CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                         dynamicGatherContext.compiledNode(nodeId(dynamicGatherContext, Operation.OpType.GATHER_GRAD)),
@@ -790,13 +798,14 @@ class CudaRegionLowererTest {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cuda41IndexInput", DataType.FLOAT32);
         Tensor gatherIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "cuda41GatherIndices", DataType.INT32);
         Tensor gather = input.gather(gatherIndices, 1);
-        TensorInternalAccess.setBackendIntent(gather, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext gatherContext = planningContext(gather);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(gather, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext gatherContext = planningContext(gather, backendIntentPlan);
 
         Tensor takeIndices = new Tensor(new int[]{2, 1, 0, 0}, new int[]{2, 2}, null, "cuda41TakeIndices", DataType.INT32);
         Tensor take = input.takeAlongAxis(takeIndices, 1);
-        TensorInternalAccess.setBackendIntent(take, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext takeContext = planningContext(take);
+        backendIntentPlan = backendIntentPlan.withBackend(take, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext takeContext = planningContext(take, backendIntentPlan);
 
         assertContainsAll(
                 CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
@@ -825,8 +834,9 @@ class CudaRegionLowererTest {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cuda41IndexBadInput", DataType.FLOAT32);
         Tensor f32Indices = new Tensor(new float[]{1f, 0f}, new int[]{2}, null, "cuda41F32GatherIndices", DataType.FLOAT32);
         Tensor dtypeGather = input.gather(f32Indices, 1);
-        TensorInternalAccess.setBackendIntent(dtypeGather, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext dtypeContext = planningContext(dtypeGather);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(dtypeGather, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext dtypeContext = planningContext(dtypeGather, backendIntentPlan);
         assertContainsAll(
                 CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                         dtypeContext.compiledNode(nodeId(dtypeContext, Operation.OpType.GATHER)),
@@ -839,8 +849,8 @@ class CudaRegionLowererTest {
 
         Tensor oobIndices = new Tensor(new int[]{3, 0}, new int[]{2}, null, "cuda41OobGatherIndices", DataType.INT32);
         Tensor oobGather = input.gather(oobIndices, 1);
-        TensorInternalAccess.setBackendIntent(oobGather, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext oobContext = planningContext(oobGather);
+        backendIntentPlan = backendIntentPlan.withBackend(oobGather, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext oobContext = planningContext(oobGather, backendIntentPlan);
         assertContainsAll(
                 CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                         oobContext.compiledNode(nodeId(oobContext, Operation.OpType.GATHER)),
@@ -853,8 +863,8 @@ class CudaRegionLowererTest {
         Tensor nonDenseValue = input.permute(1, 0);
         Tensor layoutIndices = new Tensor(new int[]{1, 0, 1}, new int[]{3}, null, "cuda41LayoutGatherIndices", DataType.INT32);
         Tensor layoutGather = nonDenseValue.gather(layoutIndices, 1);
-        TensorInternalAccess.setBackendIntent(layoutGather, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext layoutContext = planningContext(layoutGather);
+        backendIntentPlan = backendIntentPlan.withBackend(layoutGather, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext layoutContext = planningContext(layoutGather, backendIntentPlan);
         assertContainsAll(
                 CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                         layoutContext.compiledNode(nodeId(layoutContext, Operation.OpType.GATHER)),
@@ -870,8 +880,9 @@ class CudaRegionLowererTest {
         Tensor left = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaPhase27CompareLeft", DataType.FLOAT32);
         Tensor right = new Tensor(new float[]{2f, 2f, 2f, 2f}, new int[]{2, 2}, null, "cudaPhase27CompareRight", DataType.FLOAT32);
         Tensor compare = left.notEqualTo(right);
-        TensorInternalAccess.setBackendIntent(compare, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext compareContext = planningContext(compare);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(compare, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext compareContext = planningContext(compare, backendIntentPlan);
         String compareReason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                 compareContext.compiledNode(nodeId(compareContext, Operation.OpType.NE)),
                 compareContext
@@ -885,10 +896,10 @@ class CudaRegionLowererTest {
         }, new int[]{1, 1, 4, 4}, null, "cudaPhase27PoolInput", DataType.FLOAT32);
         Tensor maxPool = poolInput.maxPool2d(Pool2dOptions.square(2));
         Tensor avgPool = poolInput.avgPool2d(Pool2dOptions.square(2));
-        TensorInternalAccess.setBackendIntent(maxPool, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackendIntent(avgPool, ComputeBackend.GPU_CUDA);
-        PartitionPlanningContext maxPoolContext = planningContext(maxPool);
-        PartitionPlanningContext avgPoolContext = planningContext(avgPool);
+        backendIntentPlan = backendIntentPlan.withBackend(maxPool, ComputeBackend.GPU_CUDA);
+        backendIntentPlan = backendIntentPlan.withBackend(avgPool, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext maxPoolContext = planningContext(maxPool, backendIntentPlan);
+        PartitionPlanningContext avgPoolContext = planningContext(avgPool, backendIntentPlan);
 
         String maxPoolReason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
                 maxPoolContext.compiledNode(nodeId(maxPoolContext, Operation.OpType.MAX_POOL2D)),
@@ -911,7 +922,7 @@ class CudaRegionLowererTest {
         Tensor out = a.add(b).relu().exp();
 
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
         Partition partition = partition(
                 "cuda-fused",
                 PartitionTarget.GPU_CUDA,
@@ -977,13 +988,13 @@ class CudaRegionLowererTest {
         Tensor add = matmul.add(bias);
         Tensor relu = add.relu();
         Tensor out = relu.exp();
-        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(matmul, ComputeBackend.GPU_CUDA);
+        backendIntentPlan = backendIntentPlan.withBackend(add, ComputeBackend.GPU_CUDA);
+        backendIntentPlan = backendIntentPlan.withBackend(relu, ComputeBackend.GPU_CUDA);
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, backendIntentPlan);
         PartitionPlanningContext planningContext = new PartitionPlanningContext(
                 false,
                 compiledNodes,
@@ -1043,11 +1054,11 @@ class CudaRegionLowererTest {
         Tensor matmul = a.matmul(b);
         Tensor add = matmul.add(bias);
         Tensor out = add.relu();
-        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
-        PartitionPlanningContext planningContext = planningContext(out);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(matmul, ComputeBackend.GPU_CUDA);
+        backendIntentPlan = backendIntentPlan.withBackend(add, ComputeBackend.GPU_CUDA);
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext planningContext = planningContext(out, backendIntentPlan);
         int matmulNodeId = nodeId(planningContext, Operation.OpType.MATMUL);
         int addNodeId = nodeId(planningContext, Operation.OpType.ADD);
         int reluNodeId = nodeId(planningContext, Operation.OpType.RELU);
@@ -1080,11 +1091,11 @@ class CudaRegionLowererTest {
         Tensor matmul = a.matmul(b);
         Tensor add = matmul.add(bias);
         Tensor out = add.relu();
-        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
-        PartitionPlanningContext context = planningContext(out);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(matmul, ComputeBackend.GPU_CUDA);
+        backendIntentPlan = backendIntentPlan.withBackend(add, ComputeBackend.GPU_CUDA);
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext context = planningContext(out, backendIntentPlan);
         String reason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.ADD)), context);
 
         assertContainsAll(reason,
@@ -1145,7 +1156,11 @@ class CudaRegionLowererTest {
     }
 
     private static PartitionPlanningContext planningContext(Tensor out) {
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(out.topologicalSort());
+        return planningContext(out, BackendIntentPlan.empty());
+    }
+
+    private static PartitionPlanningContext planningContext(Tensor out, BackendIntentPlan backendIntentPlan) {
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(out.topologicalSort(), backendIntentPlan);
         return new PartitionPlanningContext(
                 false,
                 compiledNodes,

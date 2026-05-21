@@ -27,10 +27,10 @@ public final class AddOp {
      * @return broadcasted sum tensor with promoted floating dtype
      */
     public static Tensor build(Tensor first, Tensor second) {
-        if (BinarySupport.isScalarConstant(first, 0.0d)) {
+        if (BinaryScalarRules.isScalarConstant(first, 0.0d)) {
             return second;
         }
-        if (BinarySupport.isScalarConstant(second, 0.0d)) {
+        if (BinaryScalarRules.isScalarConstant(second, 0.0d)) {
             return first;
         }
 

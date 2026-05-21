@@ -34,11 +34,11 @@ public final class MaxOp {
                 return;
             }
             if (first.getRequiresGrad()) {
-                Tensor gradRaw = BinarySupport.minMaxElementwiseGrad(first, second, outGrad, true, true);
+                Tensor gradRaw = BinaryScalarRules.minMaxElementwiseGrad(first, second, outGrad, true, true);
                 context.accumulate(first, TensorBroadcastOps.sumToShape(gradRaw, first.getShape()));
             }
             if (second.getRequiresGrad()) {
-                Tensor gradRaw = BinarySupport.minMaxElementwiseGrad(first, second, outGrad, true, false);
+                Tensor gradRaw = BinaryScalarRules.minMaxElementwiseGrad(first, second, outGrad, true, false);
                 context.accumulate(second, TensorBroadcastOps.sumToShape(gradRaw, second.getShape()));
             }
         });

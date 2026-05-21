@@ -23,12 +23,12 @@ public final class AvgPool2dOp {
      *                                  rank-4 floating tensor, or window geometry is invalid
      */
     public static Tensor build(Tensor input, Pool2dOptions options) {
-        PoolSupport.validateInput(input, options, "avgPool2d");
+        Pool2dShapeRules.validateInput(input, options, "avgPool2d");
         int[] inputShape = input.getShapeUnsafe();
-        int outH = PoolSupport.inferOutputSize(inputShape[2], options.kernelH(), options.padH(), options.strideH(), options.ceilMode(), "height");
-        int outW = PoolSupport.inferOutputSize(inputShape[3], options.kernelW(), options.padW(), options.strideW(), options.ceilMode(), "width");
-        PoolSupport.validateWindowCoverage(inputShape[2], options.kernelH(), options.padH(), options.strideH(), outH, "height");
-        PoolSupport.validateWindowCoverage(inputShape[3], options.kernelW(), options.padW(), options.strideW(), outW, "width");
+        int outH = Pool2dShapeRules.inferOutputSize(inputShape[2], options.kernelH(), options.padH(), options.strideH(), options.ceilMode(), "height");
+        int outW = Pool2dShapeRules.inferOutputSize(inputShape[3], options.kernelW(), options.padW(), options.strideW(), options.ceilMode(), "width");
+        Pool2dShapeRules.validateWindowCoverage(inputShape[2], options.kernelH(), options.padH(), options.strideH(), outH, "height");
+        Pool2dShapeRules.validateWindowCoverage(inputShape[3], options.kernelW(), options.padW(), options.strideW(), outW, "width");
 
         Tensor out = TensorPrimitiveBuilder.unary(
                 input,

@@ -5,8 +5,8 @@ import tensor.Tensor;
 import tensor.TensorMetadata;
 import tensor.autograd.GradientContext;
 
-final class AttentionSupport {
-    private AttentionSupport() {
+final class ScaledDotProductAttentionRules {
+    private ScaledDotProductAttentionRules() {
     }
 
     static void backwardScaledDotProductAttention(
@@ -27,15 +27,15 @@ final class AttentionSupport {
         int axis = spec.scoresShape().length - 1;
 
         if (value.getRequiresGrad()) {
-            Tensor gradRaw = LinalgSupport.transposeLastTwoAxes(weights).matmul(outGrad);
-            context.accumulate(value, LinalgSupport.sumToShape(gradRaw, value.getShapeUnsafe()));
+            Tensor gradRaw = LinalgTensorRules.transposeLastTwoAxes(weights).matmul(outGrad);
+            context.accumulate(value, LinalgTensorRules.sumToShape(gradRaw, value.getShapeUnsafe()));
         }
 
         if (!query.getRequiresGrad() && !key.getRequiresGrad()) {
             return;
         }
 
-        Tensor dWeights = outGrad.matmul(LinalgSupport.transposeLastTwoAxes(value));
+        Tensor dWeights = outGrad.matmul(LinalgTensorRules.transposeLastTwoAxes(value));
         Tensor dot = dWeights.mul(weights).sum(axis, true);
         Tensor dScores = weights.mul(dWeights.sub(dot));
         if (effectiveMask != null) {
@@ -47,11 +47,11 @@ final class AttentionSupport {
 
         if (query.getRequiresGrad()) {
             Tensor gradRaw = dScores.matmul(key);
-            context.accumulate(query, LinalgSupport.sumToShape(gradRaw, query.getShapeUnsafe()));
+            context.accumulate(query, LinalgTensorRules.sumToShape(gradRaw, query.getShapeUnsafe()));
         }
         if (key.getRequiresGrad()) {
-            Tensor gradRaw = LinalgSupport.transposeLastTwoAxes(dScores).matmul(query);
-            context.accumulate(key, LinalgSupport.sumToShape(gradRaw, key.getShapeUnsafe()));
+            Tensor gradRaw = LinalgTensorRules.transposeLastTwoAxes(dScores).matmul(query);
+            context.accumulate(key, LinalgTensorRules.sumToShape(gradRaw, key.getShapeUnsafe()));
         }
     }
 

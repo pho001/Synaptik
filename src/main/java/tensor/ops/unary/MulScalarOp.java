@@ -16,7 +16,7 @@ public final class MulScalarOp {
     }
 
     public static Tensor build(Tensor input, double scalar) {
-        UnarySupport.requireNumeric(input, "mulScalar");
+        UnaryNumericRules.requireNumeric(input, "mulScalar");
 
         boolean isF32 = input.getDataType() == DataType.FLOAT32;
         double scalarForGrad = isF32 ? (float) scalar : scalar;

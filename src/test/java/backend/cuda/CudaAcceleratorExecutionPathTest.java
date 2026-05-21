@@ -10,6 +10,7 @@ import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import org.junit.jupiter.api.Test;
 import tensor.Tensor;
+import graph.compile.intent.BackendIntentPlan;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -22,7 +23,7 @@ class CudaAcceleratorExecutionPathTest {
         Tensor a = Tensor.scalar(1.0);
         Tensor b = Tensor.scalar(2.0);
         Tensor out = a.add(b);
-        CompiledNode node = CompiledNode.snapshot(out.topologicalSort()).getLast();
+        CompiledNode node = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty()).getLast();
 
         AtomicBoolean executed = new AtomicBoolean(false);
         PreparedAcceleratorExecutable executable = new PreparedAcceleratorExecutable() {

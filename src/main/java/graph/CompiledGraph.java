@@ -4,6 +4,7 @@ import backend.runtime.ExecutionMode;
 import backend.prepare.PreparedExecutionBuilder;
 import config.compile.CompileConfig;
 import graph.compile.CompileArtifacts;
+import graph.compile.intent.BackendIntentPlan;
 import graph.compile.publication.PublicationPlan;
 import graph.compile.GraphCompiler;
 import graph.execution.PreparedExecution;
@@ -43,7 +44,8 @@ public final class CompiledGraph {
             SemanticForwardCanonicalizer forwardCanonicalizer,
             GraphOptimizer forwardOptimizer,
             CompileConfig compileConfig,
-            CompileMode compileMode
+            CompileMode compileMode,
+            BackendIntentPlan backendIntentPlan
     ) {
         this.rootTensor = rootTensor;
         this.compileMode = compileMode == null ? CompileMode.AUTO : compileMode;
@@ -52,7 +54,8 @@ public final class CompiledGraph {
                 forwardCanonicalizer,
                 forwardOptimizer,
                 compileConfig,
-                this.compileMode
+                this.compileMode,
+                backendIntentPlan
         );
         GraphCompiler.Result result = compiler.compile();
         this.artifacts = result.artifacts();
@@ -72,6 +75,42 @@ public final class CompiledGraph {
      * @throws IllegalArgumentException if {@code rootTensor} or {@code compileConfig} is {@code null}
      */
     public static CompiledGraph compile(Tensor rootTensor, CompileConfig compileConfig, CompileMode compileMode) {
+        return compile(rootTensor, compileConfig, compileMode, BackendIntentPlan.empty());
+    }
+
+    /**
+     * Compiles {@code rootTensor} using a compile configuration and explicit backend intent plan.
+     *
+     * @param rootTensor output tensor that anchors the graph to compile
+     * @param compileConfig compile-time semantic, graph, backend, region, and memory planning configuration
+     * @param backendIntentPlan compile-local backend intent plan, or {@code null} for CPU-default
+     * @return compiled graph facade ready for preparation or direct execution
+     * @throws IllegalArgumentException if {@code rootTensor} or {@code compileConfig} is {@code null}
+     */
+    public static CompiledGraph compile(
+            Tensor rootTensor,
+            CompileConfig compileConfig,
+            BackendIntentPlan backendIntentPlan
+    ) {
+        return compile(rootTensor, compileConfig, CompileMode.AUTO, backendIntentPlan);
+    }
+
+    /**
+     * Compiles {@code rootTensor} using a compile configuration and explicit backend intent plan.
+     *
+     * @param rootTensor output tensor that anchors the graph to compile
+     * @param compileConfig compile-time semantic, graph, backend, region, and memory planning configuration
+     * @param compileMode requested forward/backward compilation mode, or {@code null} for automatic mode
+     * @param backendIntentPlan compile-local backend intent plan, or {@code null} for CPU-default
+     * @return compiled graph facade ready for preparation or direct execution
+     * @throws IllegalArgumentException if {@code rootTensor} or {@code compileConfig} is {@code null}
+     */
+    public static CompiledGraph compile(
+            Tensor rootTensor,
+            CompileConfig compileConfig,
+            CompileMode compileMode,
+            BackendIntentPlan backendIntentPlan
+    ) {
         if (rootTensor == null) {
             throw new IllegalArgumentException("rootTensor cannot be null");
         }
@@ -83,7 +122,8 @@ public final class CompiledGraph {
                 graph.optimizer.OptimizerFactory.createSemanticForwardCanonicalizer(compileConfig.semanticCanonicalization()),
                 graph.optimizer.OptimizerFactory.create(compileConfig.graphOptimization()),
                 compileConfig,
-                compileMode
+                compileMode,
+                backendIntentPlan
         );
     }
 
@@ -124,13 +164,32 @@ public final class CompiledGraph {
      * @throws IllegalArgumentException if {@code rootTensor} or {@code optimizer} is {@code null}
      */
     public static CompiledGraph compile(Tensor rootTensor, GraphOptimizer optimizer, CompileMode compileMode) {
+        return compile(rootTensor, optimizer, compileMode, BackendIntentPlan.empty());
+    }
+
+    /**
+     * Compiles {@code rootTensor} with an explicit optimizer, compile mode, and backend intent plan.
+     *
+     * @param rootTensor output tensor that anchors the graph to compile
+     * @param optimizer ordered optimizer rule pipeline to apply to the graph
+     * @param compileMode requested forward/backward compilation mode, or {@code null} for automatic mode
+     * @param backendIntentPlan compile-local backend intent plan, or {@code null} for CPU-default
+     * @return compiled graph facade ready for preparation or direct execution
+     * @throws IllegalArgumentException if {@code rootTensor} or {@code optimizer} is {@code null}
+     */
+    public static CompiledGraph compile(
+            Tensor rootTensor,
+            GraphOptimizer optimizer,
+            CompileMode compileMode,
+            BackendIntentPlan backendIntentPlan
+    ) {
         if (rootTensor == null) {
             throw new IllegalArgumentException("rootTensor cannot be null");
         }
         if (optimizer == null) {
             throw new IllegalArgumentException("optimizer cannot be null");
         }
-        return new CompiledGraph(rootTensor, null, optimizer, CompileConfig.inference(), compileMode);
+        return new CompiledGraph(rootTensor, null, optimizer, CompileConfig.inference(), compileMode, backendIntentPlan);
     }
 
     /**

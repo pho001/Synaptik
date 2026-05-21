@@ -433,7 +433,7 @@ class NativeCpuStorageTest {
             NativeCpuMaterializer.arrayToNative(source, storage);
             NativeCpuMaterializer.nativeToArray(storage, target);
 
-            assertArrayEquals(source.getFloat32Data(), target.getFloat32Data(), 0f);
+            assertArrayEquals(source.toFloat32ArrayCopy(), target.toFloat32ArrayCopy(), 0f);
         } finally {
             storage.close();
         }
@@ -449,7 +449,7 @@ class NativeCpuStorageTest {
             NativeCpuMaterializer.arrayToNative(source, storage);
             NativeCpuMaterializer.nativeToArray(storage, target);
 
-            assertArrayEquals(source.getFloat64Data(), target.getFloat64Data(), 0d);
+            assertArrayEquals(source.toFloat64ArrayCopy(), target.toFloat64ArrayCopy(), 0d);
         } finally {
             storage.close();
         }
@@ -474,7 +474,7 @@ class NativeCpuStorageTest {
             NativeCpuMaterializer.arrayToNative(source, storage);
             NativeCpuMaterializer.nativeToArray(storage, target);
 
-            assertArrayEquals(bits, target.getBFloat16Data());
+            assertArrayEquals(bits, target.toBFloat16BitsArrayCopy());
         } finally {
             storage.close();
         }
@@ -490,7 +490,7 @@ class NativeCpuStorageTest {
             NativeCpuMaterializer.arrayToNative(source, storage);
             NativeCpuMaterializer.nativeToArray(storage, target);
 
-            assertArrayEquals(new byte[]{1, 0, 1, 1}, target.getBoolData());
+            assertArrayEquals(new byte[]{1, 0, 1, 1}, target.toBoolByteArrayCopy());
         } finally {
             storage.close();
         }

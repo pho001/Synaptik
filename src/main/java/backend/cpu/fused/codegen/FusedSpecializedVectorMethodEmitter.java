@@ -80,12 +80,12 @@ public final class FusedSpecializedVectorMethodEmitter {
         FusedExternalInputPlan valueInput = context.plan().inputs().get(2);
         float scale = FusedAsmSpecializationMatcher.requireF32MaskedScaleWhereScalar(context.plan());
 
-        emitInputArrayBinding(mv, 0, "getBoolData", "()[B", MASK_ARRAY_SLOT);
-        emitInputArrayBinding(mv, 1, "getFloat32Data", "()[F", FILL_ARRAY_SLOT);
-        emitInputArrayBinding(mv, 2, "getFloat32Data", "()[F", VALUE_ARRAY_SLOT);
+        emitInputArrayBinding(mv, 0, "boolData", "[B", MASK_ARRAY_SLOT);
+        emitInputArrayBinding(mv, 1, "float32Data", "[F", FILL_ARRAY_SLOT);
+        emitInputArrayBinding(mv, 2, "float32Data", "[F", VALUE_ARRAY_SLOT);
 
         mv.visitVarInsn(ALOAD, 2);
-        mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getFloat32Data", "()[F", false);
+        mv.visitMethodInsn(INVOKESTATIC, "tensor/TensorInternalAccess", "float32Data", "(Ltensor/Tensor;)[F", false);
         mv.visitVarInsn(ASTORE, OUT_ARRAY_SLOT);
         mv.visitVarInsn(ALOAD, 2);
         mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getStorageOffsetUnsafe", "()I", false);
@@ -269,14 +269,14 @@ public final class FusedSpecializedVectorMethodEmitter {
             MethodVisitor mv,
             int inputIndex,
             String accessorName,
-            String accessorDesc,
+            String arrayDesc,
             int targetSlot
     ) {
         mv.visitVarInsn(ALOAD, 1);
         mv.visitLdcInsn(inputIndex);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
         mv.visitTypeInsn(CHECKCAST, "tensor/Tensor");
-        mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", accessorName, accessorDesc, false);
+        mv.visitMethodInsn(INVOKESTATIC, "tensor/TensorInternalAccess", accessorName, "(Ltensor/Tensor;)" + arrayDesc, false);
         mv.visitVarInsn(ASTORE, targetSlot);
     }
 

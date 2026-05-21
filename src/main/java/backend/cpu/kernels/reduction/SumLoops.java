@@ -1066,7 +1066,7 @@ public final class SumLoops {
     private static Tensor materializeContiguous(Tensor input) {
         Tensor contiguous = new Tensor(input.getShapeUnsafe(), null, input.getLabel() + "_sum_contiguous_tmp", DataType.FLOAT64);
         double[] src = TensorInternalAccess.float64Data(input);
-        double[] dst = contiguous.getData();
+        double[] dst = TensorInternalAccess.float64Data(contiguous);
         int[] shape = input.getShapeUnsafe();
         int[] strides = input.getStridesUnsafe();
         int[] dense = denseStrides(shape);

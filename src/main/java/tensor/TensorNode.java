@@ -1,6 +1,5 @@
 package tensor;
 
-import backend.ComputeBackend;
 import operations.Operation;
 import tensor.autograd.GradientRule;
 
@@ -15,7 +14,6 @@ final class TensorNode {
     private List<Tensor> inputs;
     private GradientRule gradientRule;
     private boolean backward;
-    private ComputeBackend backendIntent;
 
     TensorNode(Operation operation, List<Tensor> inputs) {
         this.operation = operation;
@@ -54,11 +52,4 @@ final class TensorNode {
         this.backward = backward;
     }
 
-    ComputeBackend backendIntent() {
-        return backendIntent == null ? ComputeBackend.CPU : backendIntent;
-    }
-
-    void setBackendIntent(ComputeBackend backendIntent) {
-        this.backendIntent = backendIntent;
-    }
 }

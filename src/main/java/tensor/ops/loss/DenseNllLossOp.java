@@ -48,7 +48,7 @@ public final class DenseNllLossOp {
         DataType outputType = TensorDTypes.promoteFloating(logProbs.getDataType(), targets.getDataType());
         Tensor out = TensorPrimitiveBuilder.nary(
                 new int[]{1},
-                LossSupport.asInputs(logProbs, targets),
+                LossInputList.of(logProbs, targets),
                 new nllLoss(normalizedClassDimension),
                 "nllLoss",
                 outputType
@@ -59,7 +59,7 @@ public final class DenseNllLossOp {
                 return;
             }
 
-            double scale = outGrad.scalarAsDouble() / LossSupport.sampleCount(logShape, normalizedClassDimension);
+            double scale = outGrad.scalarAsDouble() / LossShapeRules.sampleCount(logShape, normalizedClassDimension);
             if (logProbs.getRequiresGrad()) {
                 context.accumulate(logProbs, targets.mul(-scale));
             }

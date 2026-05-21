@@ -33,7 +33,7 @@ class CudaDeviceToCpuMaterializerTest {
 
         materializer.materialize(binding(5, layout(new int[]{2}, new int[]{1}, DataType.FLOAT32)), target, CpuMaterializationReason.CPU_CONSUMER);
 
-        assertArrayEquals(new float[]{9.0f, 10.0f}, target.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{9.0f, 10.0f}, target.toFloat32ArrayCopy(), 0.0f);
     }
 
     private static CudaBufferAllocator allocator(float[] values) {

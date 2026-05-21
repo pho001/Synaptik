@@ -2,6 +2,7 @@ package graph.compile.planning.partition;
 
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import graph.compile.intent.BackendIntentPlan;
 
 import backend.cpu.partition.CpuBackendPartitionCapability;
 import config.optimizer.CpuRegionConfig;
@@ -35,7 +36,7 @@ class CpuNaturalExecutionRegionPlannerTest {
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "b", DataType.FLOAT32);
         Tensor sum = a.add(b).relu().sum();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(sum.topologicalSort());
+        List<CompiledNode> nodes = CompiledNode.snapshot(sum.topologicalSort(), BackendIntentPlan.empty());
         PartitionPlanningContext context = new PartitionPlanningContext(
                 false,
                 nodes,

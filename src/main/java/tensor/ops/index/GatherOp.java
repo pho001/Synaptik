@@ -24,8 +24,8 @@ public final class GatherOp {
         }
         int[] inputShape = input.getShape();
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, inputShape.length);
-        int[] outputShape = IndexSupport.reduceShape(inputShape, normalizedDimension);
-        IndexSupport.validateGatherIndicesShape(indices.getShape(), outputShape);
+        int[] outputShape = IndexShapeRules.reduceShape(inputShape, normalizedDimension);
+        IndexShapeRules.validateGatherIndicesShape(indices.getShape(), outputShape);
 
         Tensor out = TensorPrimitiveBuilder.binary(
                 input,
@@ -55,7 +55,7 @@ public final class GatherOp {
             throw new IllegalArgumentException("gatherAxis indices must be numeric integral values.");
         }
         int normalizedAxis = TensorLayoutTransform.normalizeAxis(axis, input.getShapeUnsafe().length);
-        int[] outputShape = IndexSupport.gatherAxisOutputShape(input.getShapeUnsafe(), indices.getShapeUnsafe(), normalizedAxis);
+        int[] outputShape = IndexShapeRules.gatherAxisOutputShape(input.getShapeUnsafe(), indices.getShapeUnsafe(), normalizedAxis);
         Tensor out = TensorPrimitiveBuilder.binary(
                 input,
                 indices,
@@ -64,10 +64,10 @@ public final class GatherOp {
                 "gatherAxis",
                 input.getDataType()
         );
-        out.setRequiresGrad(input.getRequiresGrad() && IndexSupport.isFloating(input.getDataType()));
+        out.setRequiresGrad(input.getRequiresGrad() && IndexShapeRules.isFloating(input.getDataType()));
         TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
-            if (outGrad == null || !input.getRequiresGrad() || !IndexSupport.isFloating(input.getDataType())) {
+            if (outGrad == null || !input.getRequiresGrad() || !IndexShapeRules.isFloating(input.getDataType())) {
                 return;
             }
             Tensor grad = ScatterAxisAddOp.build(Tensor.zerosLike(input), indices, outGrad, normalizedAxis);

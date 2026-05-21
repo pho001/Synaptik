@@ -36,12 +36,12 @@ public final class LinearOp {
             }
 
             if (input.getRequiresGrad()) {
-                Tensor gradInput = outGrad.matmul(LinalgSupport.transposeLastTwoAxes(weight));
+                Tensor gradInput = outGrad.matmul(LinalgTensorRules.transposeLastTwoAxes(weight));
                 context.accumulate(input, gradInput);
             }
             if (weight.getRequiresGrad()) {
-                Tensor gradWeight = LinalgSupport.transposeLastTwoAxes(input).matmul(outGrad);
-                context.accumulate(weight, LinalgSupport.sumToShape(gradWeight, weight.getShapeUnsafe()));
+                Tensor gradWeight = LinalgTensorRules.transposeLastTwoAxes(input).matmul(outGrad);
+                context.accumulate(weight, LinalgTensorRules.sumToShape(gradWeight, weight.getShapeUnsafe()));
             }
         });
         return out;
@@ -70,15 +70,15 @@ public final class LinearOp {
             }
 
             if (input.getRequiresGrad()) {
-                Tensor gradInput = outGrad.matmul(LinalgSupport.transposeLastTwoAxes(weight));
+                Tensor gradInput = outGrad.matmul(LinalgTensorRules.transposeLastTwoAxes(weight));
                 context.accumulate(input, gradInput);
             }
             if (weight.getRequiresGrad()) {
-                Tensor gradWeight = LinalgSupport.transposeLastTwoAxes(input).matmul(outGrad);
-                context.accumulate(weight, LinalgSupport.sumToShape(gradWeight, weight.getShapeUnsafe()));
+                Tensor gradWeight = LinalgTensorRules.transposeLastTwoAxes(input).matmul(outGrad);
+                context.accumulate(weight, LinalgTensorRules.sumToShape(gradWeight, weight.getShapeUnsafe()));
             }
             if (bias.getRequiresGrad()) {
-                context.accumulate(bias, LinalgSupport.sumToShape(outGrad, bias.getShapeUnsafe()));
+                context.accumulate(bias, LinalgTensorRules.sumToShape(outGrad, bias.getShapeUnsafe()));
             }
         });
         return out;

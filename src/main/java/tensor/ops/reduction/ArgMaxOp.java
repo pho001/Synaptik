@@ -32,7 +32,7 @@ public final class ArgMaxOp {
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, input.getShape().length);
         return TensorPrimitiveBuilder.unaryNoGrad(
                 input,
-                ReductionSupport.reduceShape(input.getShape(), normalizedDimension, keepDims),
+                ReductionShapeRules.reduceShape(input.getShape(), normalizedDimension, keepDims),
                 new argMax(normalizedDimension, keepDims, tiePolicy),
                 "argmax",
                 DataType.INT64

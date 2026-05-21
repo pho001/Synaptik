@@ -1,117 +1,18 @@
 package tensor.ops.reduction;
 
-import operations.Operation;
-import operations.reduction.reduceAll;
-import operations.reduction.reduceAny;
-import operations.reduction.reduceMax;
-import operations.reduction.reduceMin;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorInternalAccess;
-import tensor.layout.TensorLayoutTransform;
-import tensor.internal.TensorPrimitiveBuilder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
-final class ReductionSupport {
-    private ReductionSupport() {
+final class MaskBroadcastPlanner {
+    private MaskBroadcastPlanner() {
     }
 
-    static int[] reduceShape(int[] shape, int normalizedDimension, boolean keepDims) {
-        if (keepDims) {
-            int[] newShape = shape.clone();
-            newShape[normalizedDimension] = 1;
-            return newShape;
-        }
-        int[] newShape = new int[shape.length - 1];
-        for (int i = 0, j = 0; i < shape.length; i++) {
-            if (i != normalizedDimension) {
-                newShape[j++] = shape[i];
-            }
-        }
-        return newShape;
-    }
-
-    static void requireFloatingInput(Tensor input, String opName) {
-        if (input == null) {
-            throw new IllegalArgumentException(opName + " input cannot be null");
-        }
-        if (input.getDataType() == DataType.BOOL || input.getDataType() == DataType.INT32 || input.getDataType() == DataType.INT64) {
-            throw new IllegalArgumentException(opName + " requires floating numeric input.");
-        }
-    }
-
-    static Tensor reduceMinMax(Tensor input, int dimension, boolean keepDims, boolean isMax) {
-        requireFloatingInput(input, isMax ? "max" : "min");
-        int[] shape = input.getShape();
-        int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, shape.length);
-        int[] newShape = reduceShape(shape, normalizedDimension, keepDims);
-        Operation op = isMax ? new reduceMax(normalizedDimension, keepDims) : new reduceMin(normalizedDimension, keepDims);
-        Tensor out = TensorPrimitiveBuilder.unary(input, newShape, op,
-                isMax ? "max_reduce" : "min_reduce", input.getDataType());
-        TensorInternalAccess.setGradientRule(out, context -> {
-            Tensor outGrad = out.getGradient();
-            if (outGrad == null || !input.getRequiresGrad()) {
-                return;
-            }
-
-            Tensor reducedForGrad = keepDims ? out : out.expandDims(normalizedDimension);
-            Tensor outGradForGrad = keepDims ? outGrad : outGrad.expandDims(normalizedDimension);
-            Tensor grad = reduceMinMaxGrad(input, reducedForGrad, outGradForGrad, normalizedDimension, isMax);
-            context.accumulate(input, grad);
-        });
-        return out;
-    }
-
-    static Tensor reduceMinMaxAll(Tensor input, boolean isMax) {
-        requireFloatingInput(input, isMax ? "max" : "min");
-        Tensor out = TensorPrimitiveBuilder.unary(
-                input,
-                new int[]{1},
-                isMax ? new reduceMax(-1) : new reduceMin(-1),
-                isMax ? "max_reduce" : "min_reduce",
-                input.getDataType()
-        );
-        TensorInternalAccess.setGradientRule(out, context -> {
-            Tensor outGrad = out.getGradient();
-            if (outGrad == null || !input.getRequiresGrad()) {
-                return;
-            }
-
-            Tensor grad = reduceMinMaxAllGrad(input, out, outGrad);
-            context.accumulate(input, grad);
-        });
-        return out;
-    }
-
-    static Tensor reduceBool(Tensor input, int dimension, boolean keepDims, boolean isAll) {
-        if (input.getDataType() != DataType.BOOL) {
-            throw new IllegalArgumentException((isAll ? "all" : "any") + " requires BOOL input.");
-        }
-        int[] shape = input.getShape();
-        int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, shape.length);
-        int[] newShape = reduceShape(shape, normalizedDimension, keepDims);
-        Operation op = isAll ? new reduceAll(normalizedDimension, keepDims) : new reduceAny(normalizedDimension, keepDims);
-        return TensorPrimitiveBuilder.unaryNoGrad(input, newShape, op, isAll ? "all_reduce" : "any_reduce", DataType.BOOL);
-    }
-
-    static Tensor reduceBoolAll(Tensor input, boolean isAll) {
-        if (input.getDataType() != DataType.BOOL) {
-            throw new IllegalArgumentException((isAll ? "all" : "any") + " requires BOOL input.");
-        }
-        return TensorPrimitiveBuilder.unaryNoGrad(
-                input,
-                new int[]{1},
-                isAll ? new reduceAll(-1) : new reduceAny(-1),
-                isAll ? "all_reduce" : "any_reduce",
-                DataType.BOOL
-        );
-    }
-
-    static Tensor alignMaskToShape(Tensor mask, int[] targetShape, int preferredAxis, String opName) {
+    static Tensor alignToShape(Tensor mask, int[] targetShape, int preferredAxis, String opName) {
         if (mask == null) {
             throw new IllegalArgumentException(opName + " mask cannot be null");
         }
@@ -132,22 +33,6 @@ final class ReductionSupport {
         }
         throw new IllegalArgumentException(opName + " mask shape " + Arrays.toString(maskShape)
                 + " is not broadcastable to input shape " + Arrays.toString(targetShape) + ".");
-    }
-
-    private static Tensor reduceMinMaxGrad(Tensor input, Tensor reducedKeepDims, Tensor outGradKeepDims, int dimension, boolean isMax) {
-        Tensor mask = input.equalTo(reducedKeepDims);
-        Tensor maskNumeric = Tensor.where(mask, Tensor.onesLike(input), Tensor.zerosLike(input));
-        Tensor winnerCount = maskNumeric.sum(dimension, true);
-        Tensor scaledGrad = outGradKeepDims.div(winnerCount).expand(input.getShape());
-        return Tensor.where(mask, scaledGrad, Tensor.zerosLike(input));
-    }
-
-    private static Tensor reduceMinMaxAllGrad(Tensor input, Tensor reduced, Tensor outGrad) {
-        Tensor mask = input.equalTo(reduced);
-        Tensor maskNumeric = Tensor.where(mask, Tensor.onesLike(input), Tensor.zerosLike(input));
-        Tensor winnerCount = maskNumeric.sum();
-        Tensor scaledGrad = outGrad.div(winnerCount).expand(input.getShape());
-        return Tensor.where(mask, scaledGrad, Tensor.zerosLike(input));
     }
 
     private static List<int[]> maskBroadcastCandidates(int[] maskShape, int[] targetShape, int preferredAxis) {

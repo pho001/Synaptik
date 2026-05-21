@@ -12,7 +12,7 @@ public final class SoftmaxOp {
     }
 
     public static Tensor build(Tensor input, int dimension) {
-        ReductionSupport.requireFloatingInput(input, "softmax");
+        ReductionShapeRules.requireFloatingInput(input, "softmax");
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, input.getShape().length);
         Tensor max = input.max(normalizedDimension, true);
         Tensor shifted = input.sub(max);

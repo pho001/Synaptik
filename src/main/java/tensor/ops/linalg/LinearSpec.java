@@ -45,8 +45,8 @@ record LinearSpec(
         if (input == null || weight == null) {
             throw new IllegalArgumentException("linear input and weight cannot be null");
         }
-        LinalgSupport.requireFloating(input, "linear input");
-        LinalgSupport.requireFloating(weight, "linear weight");
+        LinalgTensorRules.requireFloating(input, "linear input");
+        LinalgTensorRules.requireFloating(weight, "linear weight");
         int[] inputShape = input.getShapeUnsafe();
         int[] weightShape = weight.getShapeUnsafe();
         if (inputShape.length < 2) {
@@ -63,7 +63,7 @@ record LinearSpec(
     }
 
     private static void validateBias(Tensor weight, Tensor bias) {
-        LinalgSupport.requireFloating(bias, "linear bias");
+        LinalgTensorRules.requireFloating(bias, "linear bias");
         int outFeatures = weight.getShapeUnsafe()[1];
         int[] biasShape = bias.getShapeUnsafe();
         boolean vectorBias = biasShape.length == 1 && biasShape[0] == outFeatures;

@@ -14,10 +14,10 @@ public final class AnyOp {
     }
 
     public static Tensor build(Tensor input, int dimension, boolean keepDims) {
-        return ReductionSupport.reduceBool(input, dimension, keepDims, false);
+        return BoolReductionBuilder.reduce(input, dimension, keepDims, false);
     }
 
     public static Tensor buildAll(Tensor input) {
-        return ReductionSupport.reduceBoolAll(input, false);
+        return BoolReductionBuilder.reduceAll(input, false);
     }
 }

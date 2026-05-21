@@ -35,14 +35,14 @@ public final class CrossEntropyLossFromIndicesOp {
         }
         int[] logitsShape = logits.getShape();
         int normalizedClassDimension = TensorLayoutTransform.normalizeAxis(classDimension, logitsShape.length);
-        int[] expectedIndexShape = LossSupport.reduceShape(logitsShape, normalizedClassDimension);
-        LossSupport.validateShape(targetIndices.getShape(), expectedIndexShape, "crossEntropyLossFromIndices targetIndices shape must equal logits shape without class axis.");
+        int[] expectedIndexShape = LossShapeRules.reduceShape(logitsShape, normalizedClassDimension);
+        LossShapeRules.validateShape(targetIndices.getShape(), expectedIndexShape, "crossEntropyLossFromIndices targetIndices shape must equal logits shape without class axis.");
         return primitive(logits, targetIndices, normalizedClassDimension, reduction, null);
     }
 
     public static Tensor build(Tensor logits, Tensor targetIndices, int classDimension, Tensor mask) {
         Tensor perSampleLoss = build(logits, targetIndices, classDimension, LossReduction.NONE);
-        Tensor alignedMask = LossSupport.alignSampleMask(mask, perSampleLoss.getShapeUnsafe(), "crossEntropyLossFromIndices");
+        Tensor alignedMask = SampleMaskPlanner.align(mask, perSampleLoss.getShapeUnsafe(), "crossEntropyLossFromIndices");
         Tensor maskedLoss = Tensor.where(alignedMask, perSampleLoss, Tensor.zerosLike(perSampleLoss));
         Tensor valid = Tensor.where(alignedMask, Tensor.onesLike(perSampleLoss), Tensor.zerosLike(perSampleLoss));
         return maskedLoss.sum().div(valid.sum().clampMin(1.0d));
@@ -68,8 +68,8 @@ public final class CrossEntropyLossFromIndicesOp {
         }
         int[] logitsShape = logits.getShape();
         int normalizedClassDimension = TensorLayoutTransform.normalizeAxis(classDimension, logitsShape.length);
-        int[] expectedIndexShape = LossSupport.reduceShape(logitsShape, normalizedClassDimension);
-        LossSupport.validateShape(targetIndices.getShape(), expectedIndexShape, "crossEntropyLossFromIndices targetIndices shape must equal logits shape without class axis.");
+        int[] expectedIndexShape = LossShapeRules.reduceShape(logitsShape, normalizedClassDimension);
+        LossShapeRules.validateShape(targetIndices.getShape(), expectedIndexShape, "crossEntropyLossFromIndices targetIndices shape must equal logits shape without class axis.");
         return primitive(logits, targetIndices, normalizedClassDimension, reduction, ignoreIndex);
     }
 
@@ -99,9 +99,9 @@ public final class CrossEntropyLossFromIndicesOp {
         }
         int[] logitsShape = logits.getShape();
         int normalizedClassDimension = TensorLayoutTransform.normalizeAxis(classDimension, logitsShape.length);
-        int[] expectedIndexShape = LossSupport.reduceShape(logitsShape, normalizedClassDimension);
-        LossSupport.validateShape(targetIndices.getShape(), expectedIndexShape, "weighted crossEntropyLossFromIndices targetIndices shape must equal logits shape without class axis.");
-        LossSupport.validateClassWeightsShape(classWeights, logitsShape[normalizedClassDimension]);
+        int[] expectedIndexShape = LossShapeRules.reduceShape(logitsShape, normalizedClassDimension);
+        LossShapeRules.validateShape(targetIndices.getShape(), expectedIndexShape, "weighted crossEntropyLossFromIndices targetIndices shape must equal logits shape without class axis.");
+        LossShapeRules.validateClassWeightsShape(classWeights, logitsShape[normalizedClassDimension]);
 
         if (ignoreIndexOrNull == null) {
             return logits.logSoftmax(normalizedClassDimension).nllLossFromIndices(targetIndices, normalizedClassDimension, classWeights, reduction);
@@ -118,11 +118,11 @@ public final class CrossEntropyLossFromIndicesOp {
     ) {
         DataType outputType = logits.getDataType();
         int[] logitsShape = logits.getShape();
-        int[] reducedShape = LossSupport.reduceShape(logitsShape, normalizedClassDimension);
+        int[] reducedShape = LossShapeRules.reduceShape(logitsShape, normalizedClassDimension);
         int[] outputShape = reduction == LossReduction.NONE ? reducedShape : new int[]{1};
         Tensor out = TensorPrimitiveBuilder.nary(
                 outputShape,
-                LossSupport.asInputs(logits, targetIndices),
+                LossInputList.of(logits, targetIndices),
                 new crossEntropyLossIndices(normalizedClassDimension, reduction, ignoreIndexOrNull),
                 "crossEntropyLossFromIndices",
                 outputType
@@ -134,7 +134,7 @@ public final class CrossEntropyLossFromIndicesOp {
                 return;
             }
 
-            Tensor safeIndices = ignoreIndexOrNull == null ? targetIndices : LossSupport.buildSafeIndices(targetIndices, ignoreIndexOrNull);
+            Tensor safeIndices = ignoreIndexOrNull == null ? targetIndices : IndexTargetMasking.buildSafeIndices(targetIndices, ignoreIndexOrNull);
             Tensor sampleScale = reductionScalePerSample(outGrad, logits, targetIndices, reducedShape, normalizedClassDimension, reduction, ignoreIndexOrNull);
             Tensor grad = logits.softmax(normalizedClassDimension)
                     .mul(sampleScale.expandDims(normalizedClassDimension))
@@ -158,10 +158,10 @@ public final class CrossEntropyLossFromIndicesOp {
             case SUM -> outGrad.expand(reducedShape);
             case MEAN -> {
                 if (ignoreIndexOrNull == null) {
-                    yield outGrad.mul(1.0 / LossSupport.sampleCount(logits.getShape(), normalizedClassDimension)).expand(reducedShape);
+                    yield outGrad.mul(1.0 / LossShapeRules.sampleCount(logits.getShape(), normalizedClassDimension)).expand(reducedShape);
                 }
                 Tensor maskBase = outGrad.expand(reducedShape);
-                Tensor validMask = LossSupport.buildIgnoreMask(targetIndices, ignoreIndexOrNull);
+                Tensor validMask = IndexTargetMasking.buildIgnoreMask(targetIndices, ignoreIndexOrNull);
                 Tensor validMaskNumeric = Tensor.where(validMask, Tensor.onesLike(maskBase), Tensor.zerosLike(maskBase));
                 Tensor validCount = validMaskNumeric.sum();
                 yield outGrad.div(validCount.clampMin(1.0)).expand(reducedShape);
@@ -171,7 +171,7 @@ public final class CrossEntropyLossFromIndicesOp {
         if (ignoreIndexOrNull == null) {
             return baseScale;
         }
-        Tensor validMask = LossSupport.buildIgnoreMask(targetIndices, ignoreIndexOrNull);
+        Tensor validMask = IndexTargetMasking.buildIgnoreMask(targetIndices, ignoreIndexOrNull);
         return Tensor.where(validMask, baseScale, Tensor.zerosLike(baseScale));
     }
 }

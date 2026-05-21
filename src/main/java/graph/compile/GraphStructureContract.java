@@ -1,6 +1,5 @@
 package graph.compile;
 
-import backend.ComputeBackend;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -61,7 +60,6 @@ public final class GraphStructureContract {
                     tensor.getStorageOffsetUnsafe(),
                     tensor.getDataType(),
                     TensorInternalAccess.storage(tensor),
-                    TensorInternalAccess.backendIntent(tensor),
                     tensor.isContiguous(),
                     tensor.hasStorageOffset(),
                     tensor.getRequiresGrad(),
@@ -117,9 +115,6 @@ public final class GraphStructureContract {
             if (expected.operation() != null && TensorInternalAccess.storage(actual) != expected.storage()) {
                 throw stale("storage owner changed at index " + i);
             }
-            if (TensorInternalAccess.backendIntent(actual) != expected.backend()) {
-                throw stale("backend intent changed at index " + i);
-            }
             if (actual.isContiguous() != expected.contiguous()) {
                 throw stale("contiguous flag changed at index " + i);
             }
@@ -160,7 +155,6 @@ public final class GraphStructureContract {
             int storageOffset,
             DataType dataType,
             TensorStorage storage,
-            ComputeBackend backend,
             boolean contiguous,
             boolean hasStorageOffset,
             boolean requiresGrad,
@@ -173,7 +167,6 @@ public final class GraphStructureContract {
             strides = strides == null ? new int[0] : strides.clone();
             Objects.requireNonNull(dataType, "dataType cannot be null");
             Objects.requireNonNull(storage, "storage cannot be null");
-            Objects.requireNonNull(backend, "backend cannot be null");
         }
 
         @Override

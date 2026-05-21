@@ -29,24 +29,24 @@ public final class BatchNormOp {
             int channelDimension,
             double epsilon
     ) {
-        NormalizationSupport.requireFloating(input, "batchNorm input");
-        NormalizationSupport.requireFloating(gamma, "batchNorm gamma");
-        NormalizationSupport.requireFloating(beta, "batchNorm beta");
-        NormalizationSupport.requirePositiveEpsilon(epsilon, "batchNorm");
+        NormalizationRules.requireFloating(input, "batchNorm input");
+        NormalizationRules.requireFloating(gamma, "batchNorm gamma");
+        NormalizationRules.requireFloating(beta, "batchNorm beta");
+        NormalizationRules.requirePositiveEpsilon(epsilon, "batchNorm");
 
         int[] inputShape = input.getShapeUnsafe();
         if (inputShape.length < 2) {
             throw new IllegalArgumentException("batchNorm requires at least one non-channel axis.");
         }
         int normalizedChannel = TensorLayoutTransform.normalizeAxis(channelDimension, inputShape.length);
-        NormalizationSupport.validateChannelParameter(gamma, inputShape[normalizedChannel], "batchNorm gamma");
-        NormalizationSupport.validateChannelParameter(beta, inputShape[normalizedChannel], "batchNorm beta");
+        NormalizationRules.validateChannelParameter(gamma, inputShape[normalizedChannel], "batchNorm gamma");
+        NormalizationRules.validateChannelParameter(beta, inputShape[normalizedChannel], "batchNorm beta");
 
-        Tensor mean = NormalizationSupport.reduceAllButOne(input, normalizedChannel);
-        Tensor meanView = NormalizationSupport.reshapeChannelParameter(inputShape, normalizedChannel, mean);
+        Tensor mean = NormalizationRules.reduceAllButOne(input, normalizedChannel);
+        Tensor meanView = NormalizationRules.reshapeChannelParameter(inputShape, normalizedChannel, mean);
         Tensor centered = input.sub(meanView);
-        Tensor variance = NormalizationSupport.reduceAllButOne(centered.pow(2.0), normalizedChannel);
-        Tensor out = NormalizationSupport.normalizeWithStats(input, gamma, beta, mean, variance, normalizedChannel, epsilon);
+        Tensor variance = NormalizationRules.reduceAllButOne(centered.pow(2.0), normalizedChannel);
+        Tensor out = NormalizationRules.normalizeWithStats(input, gamma, beta, mean, variance, normalizedChannel, epsilon);
         out.setLabel("batchNorm");
         return out;
     }
@@ -74,22 +74,22 @@ public final class BatchNormOp {
             int channelDimension,
             double epsilon
     ) {
-        NormalizationSupport.requireFloating(input, "batchNorm input");
-        NormalizationSupport.requireFloating(gamma, "batchNorm gamma");
-        NormalizationSupport.requireFloating(beta, "batchNorm beta");
-        NormalizationSupport.requireFloating(mean, "batchNorm mean");
-        NormalizationSupport.requireFloating(variance, "batchNorm variance");
-        NormalizationSupport.requirePositiveEpsilon(epsilon, "batchNorm");
+        NormalizationRules.requireFloating(input, "batchNorm input");
+        NormalizationRules.requireFloating(gamma, "batchNorm gamma");
+        NormalizationRules.requireFloating(beta, "batchNorm beta");
+        NormalizationRules.requireFloating(mean, "batchNorm mean");
+        NormalizationRules.requireFloating(variance, "batchNorm variance");
+        NormalizationRules.requirePositiveEpsilon(epsilon, "batchNorm");
 
         int[] inputShape = input.getShapeUnsafe();
         int normalizedChannel = TensorLayoutTransform.normalizeAxis(channelDimension, inputShape.length);
         int channels = inputShape[normalizedChannel];
-        NormalizationSupport.validateChannelParameter(gamma, channels, "batchNorm gamma");
-        NormalizationSupport.validateChannelParameter(beta, channels, "batchNorm beta");
-        NormalizationSupport.validateChannelParameter(mean, channels, "batchNorm mean");
-        NormalizationSupport.validateChannelParameter(variance, channels, "batchNorm variance");
+        NormalizationRules.validateChannelParameter(gamma, channels, "batchNorm gamma");
+        NormalizationRules.validateChannelParameter(beta, channels, "batchNorm beta");
+        NormalizationRules.validateChannelParameter(mean, channels, "batchNorm mean");
+        NormalizationRules.validateChannelParameter(variance, channels, "batchNorm variance");
 
-        Tensor out = NormalizationSupport.normalizeWithStats(input, gamma, beta, mean, variance, normalizedChannel, epsilon);
+        Tensor out = NormalizationRules.normalizeWithStats(input, gamma, beta, mean, variance, normalizedChannel, epsilon);
         out.setLabel("batchNorm");
         return out;
     }

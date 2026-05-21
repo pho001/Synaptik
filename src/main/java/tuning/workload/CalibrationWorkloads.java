@@ -7,6 +7,7 @@ import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tuning.validate.ValidationReference;
+import graph.compile.intent.BackendIntentPlan;
 
 public final class CalibrationWorkloads {
     private CalibrationWorkloads() {
@@ -52,10 +53,10 @@ public final class CalibrationWorkloads {
     }
 
     public static TensorRootWorkloadSpec appleMetalMatmulAddTanh(String name, int m, int k, int n) {
-        return new TensorRootWorkloadSpec(
+        return TensorRootWorkloadSpec.fromGraphFactory(
                 name,
                 WorkloadKind.MATMUL,
-                environment -> {
+                (WorkloadGraphFactory) environment -> {
                     boolean requiresGrad = environment.profile().mode() == ExecutionMode.FORWARD_BACKWARD;
                     DataType dataType = environment.profile().dataType();
                     Tensor a = tensor(random(m * k, 701), new int[]{m, k}, "A", dataType);
@@ -69,10 +70,14 @@ public final class CalibrationWorkloads {
                     Tensor matmul = a.matmul(b);
                     Tensor add = matmul.add(bias);
                     Tensor out = add.tanh();
-                    TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
-                    TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_METAL);
-                    TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
-                    return environment.profile().mode() == ExecutionMode.FORWARD ? out : out.sum();
+                    Tensor root = environment.profile().mode() == ExecutionMode.FORWARD ? out : out.sum();
+                    BackendIntentPlan backendIntentPlan = BackendIntentPlan.of(
+                            ComputeBackend.GPU_METAL,
+                            matmul,
+                            add,
+                            out
+                    );
+                    return new WorkloadGraph(root, backendIntentPlan);
                 },
                 environment -> ValidationReference.none(),
                 environment -> WorkloadMetadata.of(name, WorkloadKind.MATMUL)

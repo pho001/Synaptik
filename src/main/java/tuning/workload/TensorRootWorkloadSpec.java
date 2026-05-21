@@ -10,7 +10,7 @@ import java.util.function.Function;
 public final class TensorRootWorkloadSpec implements WorkloadSpec {
     private final String name;
     private final WorkloadKind kind;
-    private final Function<WorkloadEnvironment, Tensor> rootFactory;
+    private final WorkloadGraphFactory graphFactory;
     private final Function<WorkloadEnvironment, ValidationTarget> validationTargetFactory;
     private final Function<WorkloadEnvironment, ValidationReference> referenceFactory;
     private final Function<WorkloadEnvironment, WorkloadMetadata> metadataFactory;
@@ -23,10 +23,27 @@ public final class TensorRootWorkloadSpec implements WorkloadSpec {
         this(
                 name,
                 kind,
-                rootFactory,
+                (WorkloadGraphFactory) environment -> WorkloadGraph.of(rootFactory.apply(environment)),
                 environment -> ValidationTarget.root(),
                 environment -> ValidationReference.none(),
-                environment -> WorkloadMetadata.of(name, kind)
+                environment -> WorkloadMetadata.of(name, kind),
+                true
+        );
+    }
+
+    public static TensorRootWorkloadSpec fromGraphFactory(
+            String name,
+            WorkloadKind kind,
+            WorkloadGraphFactory graphFactory
+    ) {
+        return new TensorRootWorkloadSpec(
+                name,
+                kind,
+                graphFactory,
+                environment -> ValidationTarget.root(),
+                environment -> ValidationReference.none(),
+                environment -> WorkloadMetadata.of(name, kind),
+                true
         );
     }
 
@@ -38,9 +55,48 @@ public final class TensorRootWorkloadSpec implements WorkloadSpec {
             Function<WorkloadEnvironment, ValidationReference> referenceFactory,
             Function<WorkloadEnvironment, WorkloadMetadata> metadataFactory
     ) {
+        this(
+                name,
+                kind,
+                (WorkloadGraphFactory) environment -> WorkloadGraph.of(rootFactory.apply(environment)),
+                validationTargetFactory,
+                referenceFactory,
+                metadataFactory,
+                true
+        );
+    }
+
+    public static TensorRootWorkloadSpec fromGraphFactory(
+            String name,
+            WorkloadKind kind,
+            WorkloadGraphFactory graphFactory,
+            Function<WorkloadEnvironment, ValidationTarget> validationTargetFactory,
+            Function<WorkloadEnvironment, ValidationReference> referenceFactory,
+            Function<WorkloadEnvironment, WorkloadMetadata> metadataFactory
+    ) {
+        return new TensorRootWorkloadSpec(
+                name,
+                kind,
+                graphFactory,
+                validationTargetFactory,
+                referenceFactory,
+                metadataFactory,
+                true
+        );
+    }
+
+    private TensorRootWorkloadSpec(
+            String name,
+            WorkloadKind kind,
+            WorkloadGraphFactory graphFactory,
+            Function<WorkloadEnvironment, ValidationTarget> validationTargetFactory,
+            Function<WorkloadEnvironment, ValidationReference> referenceFactory,
+            Function<WorkloadEnvironment, WorkloadMetadata> metadataFactory,
+            boolean graphFactoryConstructor
+    ) {
         this.name = (name == null || name.isBlank()) ? "workload" : name;
         this.kind = kind == null ? WorkloadKind.GENERIC : kind;
-        this.rootFactory = Objects.requireNonNull(rootFactory, "rootFactory cannot be null");
+        this.graphFactory = Objects.requireNonNull(graphFactory, "graphFactory cannot be null");
         this.validationTargetFactory = validationTargetFactory == null ? environment -> ValidationTarget.root() : validationTargetFactory;
         this.referenceFactory = referenceFactory == null ? environment -> ValidationReference.none() : referenceFactory;
         this.metadataFactory = metadataFactory == null ? environment -> WorkloadMetadata.of(this.name, this.kind) : metadataFactory;
@@ -56,6 +112,16 @@ public final class TensorRootWorkloadSpec implements WorkloadSpec {
         this(name, kind, rootFactory, environment -> ValidationTarget.root(), referenceFactory, metadataFactory);
     }
 
+    public static TensorRootWorkloadSpec fromGraphFactory(
+            String name,
+            WorkloadKind kind,
+            WorkloadGraphFactory graphFactory,
+            Function<WorkloadEnvironment, ValidationReference> referenceFactory,
+            Function<WorkloadEnvironment, WorkloadMetadata> metadataFactory
+    ) {
+        return fromGraphFactory(name, kind, graphFactory, environment -> ValidationTarget.root(), referenceFactory, metadataFactory);
+    }
+
     @Override
     public String name() {
         return name;
@@ -69,10 +135,16 @@ public final class TensorRootWorkloadSpec implements WorkloadSpec {
     @Override
     public WorkloadInstance instantiate(WorkloadEnvironment environment) {
         Objects.requireNonNull(environment, "environment cannot be null");
-        Tensor root = rootFactory.apply(environment);
+        WorkloadGraph graph = graphFactory.create(environment);
         ValidationTarget validationTarget = validationTargetFactory.apply(environment);
         ValidationReference reference = referenceFactory.apply(environment);
         WorkloadMetadata metadata = metadataFactory.apply(environment);
-        return new DefaultWorkloadInstance(root, validationTarget, reference, metadata);
+        return new DefaultWorkloadInstance(
+                graph.root(),
+                validationTarget,
+                reference,
+                metadata,
+                graph.backendIntentPlan()
+        );
     }
 }

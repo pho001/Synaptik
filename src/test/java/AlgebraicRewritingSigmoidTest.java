@@ -94,7 +94,7 @@ public class AlgebraicRewritingSigmoidTest {
                 .map(graph.CompiledNode::operation)
                 .filter(op -> op != null && op.opType() == Operation.OpType.GT)
                 .count());
-        assertArrayEquals(new byte[]{0, 1, 0}, out.getBoolData());
+        assertArrayEquals(new byte[]{0, 1, 0}, out.toBoolByteArrayCopy());
     }
 
     private static boolean containsSigmoid(CompiledGraph compiledGraph) {

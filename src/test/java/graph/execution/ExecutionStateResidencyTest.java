@@ -241,7 +241,7 @@ class ExecutionStateResidencyTest {
 
         fixture.state().requireCpuReadable(outputNodeId, CpuMaterializationReason.GRAPH_OUTPUT);
 
-        assertArrayEquals(new float[]{11f, -7f}, fixture.state().runtimeTensorForNodeId(outputNodeId).getFloat32Data(), 0f);
+        assertArrayEquals(new float[]{11f, -7f}, fixture.state().runtimeTensorForNodeId(outputNodeId).toFloat32ArrayCopy(), 0f);
         var residency = fixture.state().residencyForNodeId(outputNodeId);
         assertEquals(StorageResidency.CPU_ARRAY, residency.residency());
         assertTrue(residency.cpuCurrent());

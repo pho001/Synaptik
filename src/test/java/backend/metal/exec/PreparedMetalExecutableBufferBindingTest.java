@@ -2,6 +2,7 @@ package backend.metal.exec;
 
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import graph.compile.intent.BackendIntentPlan;
 
 import backend.accelerator.buffer.AcceleratorBufferAccessMode;
 import backend.ComputeBackend;
@@ -1382,7 +1383,7 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     private static Fixture directFixture(Tensor input, Tensor output) {
-        List<CompiledNode> nodes = CompiledNode.snapshot(List.of(input, output));
+        List<CompiledNode> nodes = CompiledNode.snapshot(List.of(input, output), BackendIntentPlan.empty());
         CompiledNode inputNode = nodes.get(0);
         CompiledNode outputNode = nodes.get(1);
         Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();

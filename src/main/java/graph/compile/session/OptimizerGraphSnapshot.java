@@ -1,5 +1,6 @@
 package graph.compile.session;
 
+import graph.compile.intent.BackendIntentPlan;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 
@@ -19,15 +20,18 @@ final class OptimizerGraphSnapshot {
     private final List<Tensor> graph;
     private final Tensor forwardOutput;
     private final Map<Tensor, Tensor> originalBySnapshot;
+    private final BackendIntentPlan backendIntentPlan;
 
     private OptimizerGraphSnapshot(
             List<Tensor> graph,
             Tensor forwardOutput,
-            Map<Tensor, Tensor> originalBySnapshot
+            Map<Tensor, Tensor> originalBySnapshot,
+            BackendIntentPlan backendIntentPlan
     ) {
         this.graph = List.copyOf(graph);
         this.forwardOutput = Objects.requireNonNull(forwardOutput, "forwardOutput cannot be null");
         this.originalBySnapshot = Map.copyOf(originalBySnapshot);
+        this.backendIntentPlan = backendIntentPlan == null ? BackendIntentPlan.empty() : backendIntentPlan;
     }
 
     /**
@@ -37,7 +41,7 @@ final class OptimizerGraphSnapshot {
      * @param forwardOutput semantic forward output in {@code graph}
      * @return snapshot with cloned graph and clone-to-original mapping
      */
-    static OptimizerGraphSnapshot capture(List<Tensor> graph, Tensor forwardOutput) {
+    static OptimizerGraphSnapshot capture(List<Tensor> graph, Tensor forwardOutput, BackendIntentPlan backendIntentPlan) {
         Objects.requireNonNull(graph, "graph cannot be null");
         Objects.requireNonNull(forwardOutput, "forwardOutput cannot be null");
         IdentityHashMap<Tensor, Tensor> clones = new IdentityHashMap<>();
@@ -58,7 +62,9 @@ final class OptimizerGraphSnapshot {
         if (clonedForwardOutput == null) {
             throw new IllegalStateException("Missing cloned forward output node");
         }
-        return new OptimizerGraphSnapshot(clonedGraph, clonedForwardOutput, originals);
+        BackendIntentPlan snapshotPlan = (backendIntentPlan == null ? BackendIntentPlan.empty() : backendIntentPlan)
+                .remapFromOriginalBySnapshot(originals);
+        return new OptimizerGraphSnapshot(clonedGraph, clonedForwardOutput, originals, snapshotPlan);
     }
 
     /**
@@ -88,6 +94,15 @@ final class OptimizerGraphSnapshot {
         return originalBySnapshot;
     }
 
+    /**
+     * Returns backend intent remapped to cloned optimizer tensors.
+     *
+     * @return snapshot-local backend intent plan
+     */
+    BackendIntentPlan backendIntentPlan() {
+        return backendIntentPlan;
+    }
+
     private static Tensor cloneRecursive(
             Tensor original,
             IdentityHashMap<Tensor, Tensor> clones,
@@ -113,7 +128,6 @@ final class OptimizerGraphSnapshot {
         clone.setRequiresGrad(original.getRequiresGrad());
         clone.setTrainableParameter(original.isTrainableParameter());
         TensorInternalAccess.setBackward(clone, original.isBackward());
-        TensorInternalAccess.setBackendIntent(clone, TensorInternalAccess.backendIntent(original));
         TensorInternalAccess.setGradientRule(clone, TensorInternalAccess.gradientRule(original));
         clones.put(original, clone);
         originals.put(clone, original);

@@ -479,7 +479,7 @@ class NativeCpuElementwiseChainTest {
                 .findFirst()
                 .orElseThrow());
 
-        assertEquals(134.0f, out.getFloat32Data()[0], 1.0e-5f);
+        assertEquals(134.0f, out.toFloat32ArrayCopy()[0], 1.0e-5f);
         assertEquals("CPU_NATIVE", sum.get("actualCpuStorage"));
         assertEquals("NATIVE_CORRECT_BUT_SLOW", sum.get("nativeCpuKernelStatus"));
         assertEquals("SEGMENT_SCALAR", sum.get("nativeCpuKernelFamily"));
@@ -501,7 +501,7 @@ class NativeCpuElementwiseChainTest {
                 .findFirst()
                 .orElseThrow());
 
-        assertEquals(33.5f, out.getFloat32Data()[0], 1.0e-5f);
+        assertEquals(33.5f, out.toFloat32ArrayCopy()[0], 1.0e-5f);
         assertEquals("CPU_NATIVE", mean.get("actualCpuStorage"));
         assertEquals("NATIVE_CORRECT_BUT_SLOW", mean.get("nativeCpuKernelStatus"));
         assertEquals("SEGMENT_SCALAR", mean.get("nativeCpuKernelFamily"));
@@ -524,10 +524,10 @@ class NativeCpuElementwiseChainTest {
         var keepDimsTrace = CompiledGraph.compile(sumRowsKeepDims, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new float[]{62.0f, 72.0f}, sumColumns.getFloat32Data(), 1.0e-5f);
-        assertArrayEquals(new float[]{41.0f, 93.0f}, sumRows.getFloat32Data(), 1.0e-5f);
+        assertArrayEquals(new float[]{62.0f, 72.0f}, sumColumns.toFloat32ArrayCopy(), 1.0e-5f);
+        assertArrayEquals(new float[]{41.0f, 93.0f}, sumRows.toFloat32ArrayCopy(), 1.0e-5f);
         assertArrayEquals(new int[]{2, 1}, sumRowsKeepDims.getShape());
-        assertArrayEquals(new float[]{41.0f, 93.0f}, sumRowsKeepDims.getFloat32Data(), 1.0e-5f);
+        assertArrayEquals(new float[]{41.0f, 93.0f}, sumRowsKeepDims.toFloat32ArrayCopy(), 1.0e-5f);
         assertNativeReduction(columnsTrace.steps().stream()
                 .filter(step -> "SUM".equals(step.opType()))
                 .findFirst()
@@ -557,10 +557,10 @@ class NativeCpuElementwiseChainTest {
         var keepDimsTrace = CompiledGraph.compile(meanRowsKeepDims, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new float[]{31.0f, 36.0f}, meanColumns.getFloat32Data(), 1.0e-5f);
-        assertArrayEquals(new float[]{20.5f, 46.5f}, meanRows.getFloat32Data(), 1.0e-5f);
+        assertArrayEquals(new float[]{31.0f, 36.0f}, meanColumns.toFloat32ArrayCopy(), 1.0e-5f);
+        assertArrayEquals(new float[]{20.5f, 46.5f}, meanRows.toFloat32ArrayCopy(), 1.0e-5f);
         assertArrayEquals(new int[]{2, 1}, meanRowsKeepDims.getShape());
-        assertArrayEquals(new float[]{20.5f, 46.5f}, meanRowsKeepDims.getFloat32Data(), 1.0e-5f);
+        assertArrayEquals(new float[]{20.5f, 46.5f}, meanRowsKeepDims.toFloat32ArrayCopy(), 1.0e-5f);
         assertNativeReduction(columnsTrace.steps().stream()
                 .filter(step -> "MEAN".equals(step.opType()))
                 .findFirst()
@@ -593,7 +593,7 @@ class NativeCpuElementwiseChainTest {
                 CpuDTypeOps.toBFloat16Bits(-0.0f),
                 CpuDTypeOps.toBFloat16Bits(Float.POSITIVE_INFINITY),
                 CpuDTypeOps.toBFloat16Bits(Float.NaN)
-        }, out.getBFloat16Data());
+        }, out.toBFloat16BitsArrayCopy());
         assertNativeCast(trace.steps().stream()
                 .filter(step -> "CAST".equals(step.opType()))
                 .findFirst()
@@ -614,10 +614,10 @@ class NativeCpuElementwiseChainTest {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertEquals(Float.floatToRawIntBits(CpuDTypeOps.fromBFloat16Bits(bits[0])), Float.floatToRawIntBits(out.getFloat32Data()[0]));
-        assertEquals(Float.floatToRawIntBits(CpuDTypeOps.fromBFloat16Bits(bits[1])), Float.floatToRawIntBits(out.getFloat32Data()[1]));
-        assertEquals(Float.floatToRawIntBits(CpuDTypeOps.fromBFloat16Bits(bits[2])), Float.floatToRawIntBits(out.getFloat32Data()[2]));
-        assertEquals(Float.floatToRawIntBits(CpuDTypeOps.fromBFloat16Bits(bits[3])), Float.floatToRawIntBits(out.getFloat32Data()[3]));
+        assertEquals(Float.floatToRawIntBits(CpuDTypeOps.fromBFloat16Bits(bits[0])), Float.floatToRawIntBits(out.toFloat32ArrayCopy()[0]));
+        assertEquals(Float.floatToRawIntBits(CpuDTypeOps.fromBFloat16Bits(bits[1])), Float.floatToRawIntBits(out.toFloat32ArrayCopy()[1]));
+        assertEquals(Float.floatToRawIntBits(CpuDTypeOps.fromBFloat16Bits(bits[2])), Float.floatToRawIntBits(out.toFloat32ArrayCopy()[2]));
+        assertEquals(Float.floatToRawIntBits(CpuDTypeOps.fromBFloat16Bits(bits[3])), Float.floatToRawIntBits(out.toFloat32ArrayCopy()[3]));
         assertNativeCast(trace.steps().stream()
                 .filter(step -> "CAST".equals(step.opType()))
                 .findFirst()
@@ -680,7 +680,7 @@ class NativeCpuElementwiseChainTest {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new float[]{1f, -2f, 3.5f, -4.5f}, out.getFloat32Data(), 1.0e-3f);
+        assertArrayEquals(new float[]{1f, -2f, 3.5f, -4.5f}, out.toFloat32ArrayCopy(), 1.0e-3f);
         assertNativeView(trace.steps().stream()
                 .filter(step -> "RESHAPE".equals(step.opType()))
                 .findFirst()
@@ -726,7 +726,7 @@ class NativeCpuElementwiseChainTest {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(bits, out.getBFloat16Data());
+        assertArrayEquals(bits, out.toBFloat16BitsArrayCopy());
         assertNativeContiguous(trace.steps().stream()
                 .filter(step -> "CONTIGUOUS".equals(step.opType()))
                 .findFirst()
@@ -742,7 +742,7 @@ class NativeCpuElementwiseChainTest {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new float[]{1f, 3f, 2f, 4f}, out.getFloat32Data(), 0f);
+        assertArrayEquals(new float[]{1f, 3f, 2f, 4f}, out.toFloat32ArrayCopy(), 0f);
         Map<String, Object> contiguous = attrs(trace.steps().stream()
                 .filter(step -> "CONTIGUOUS".equals(step.opType()))
                 .findFirst()
@@ -859,8 +859,8 @@ class NativeCpuElementwiseChainTest {
         var meanTrace = CompiledGraph.compile(meanRows, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new float[]{11.0f}, sum.getFloat32Data(), 0.0f);
-        assertArrayEquals(new float[]{1.5f, 4.0f}, meanRows.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{11.0f}, sum.toFloat32ArrayCopy(), 0.0f);
+        assertArrayEquals(new float[]{1.5f, 4.0f}, meanRows.toFloat32ArrayCopy(), 0.0f);
         assertNativeBf16Promoted(firstNativeStep(sumTrace.steps(), "SUM"));
         assertNativeBf16Promoted(firstNativeStep(meanTrace.steps(), "MEAN"));
     }
@@ -882,7 +882,7 @@ class NativeCpuElementwiseChainTest {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(expected, out.getFloat32Data(), 1.0e-6f);
+        assertArrayEquals(expected, out.toFloat32ArrayCopy(), 1.0e-6f);
         assertNativeBf16Promoted(firstNativeStep(trace.steps(), "ADD"));
         assertNativeBf16Promoted(firstNativeStep(trace.steps(), "RELU"));
         assertNativeBf16Promoted(firstNativeStep(trace.steps(), "MUL_SCALAR"));
@@ -902,7 +902,7 @@ class NativeCpuElementwiseChainTest {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new double[]{-3.0d, -0.0d, -8.0d, -20.0d}, out.getFloat64Data(), 1.0e-12d);
+        assertArrayEquals(new double[]{-3.0d, -0.0d, -8.0d, -20.0d}, out.toFloat64ArrayCopy(), 1.0e-12d);
         assertNativeSegmentScalar(trace.steps().stream()
                 .filter(step -> "ADD".equals(step.opType()))
                 .findFirst()
@@ -924,7 +924,7 @@ class NativeCpuElementwiseChainTest {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new double[]{0.25d, -0.5d, 0.875d, -1.125d}, out.getFloat64Data(), 1.0e-12d);
+        assertArrayEquals(new double[]{0.25d, -0.5d, 0.875d, -1.125d}, out.toFloat64ArrayCopy(), 1.0e-12d);
         assertNativeSegmentScalar(trace.steps().stream()
                 .filter(step -> "MUL_SCALAR".equals(step.opType()))
                 .findFirst()
@@ -947,7 +947,7 @@ class NativeCpuElementwiseChainTest {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(expected, out.getFloat64Data(), 1.0e-12d);
+        assertArrayEquals(expected, out.toFloat64ArrayCopy(), 1.0e-12d);
         assertNativeSegmentScalar(trace.steps().stream()
                 .filter(step -> "RELU".equals(step.opType()))
                 .findFirst()
@@ -975,7 +975,7 @@ class NativeCpuElementwiseChainTest {
         var f32Trace = CompiledGraph.compile(f32, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new float[]{-1.0f, 0.0f, 1.0f, -1.0f}, f32.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{-1.0f, 0.0f, 1.0f, -1.0f}, f32.toFloat32ArrayCopy(), 0.0f);
         assertNativeSegmentScalar(firstNativeStep(f32Trace.steps(), "FLOOR"));
         assertNativeSegmentScalar(firstNativeStep(f32Trace.steps(), "SIGN"));
 
@@ -984,7 +984,7 @@ class NativeCpuElementwiseChainTest {
         var f64Trace = CompiledGraph.compile(f64, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new double[]{-1.0d, 0.0d, 3.0d, -0.0d}, f64.getFloat64Data(), 0.0d);
+        assertArrayEquals(new double[]{-1.0d, 0.0d, 3.0d, -0.0d}, f64.toFloat64ArrayCopy(), 0.0d);
         assertNativeSegmentScalar(firstNativeStep(f64Trace.steps(), "CEIL"));
     }
 
@@ -998,7 +998,7 @@ class NativeCpuElementwiseChainTest {
         var f32Trace = CompiledGraph.compile(f32, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new float[]{1.0f, 4.0f, -2.5f, 4.0f}, f32.getFloat32Data(), 1.0e-6f);
+        assertArrayEquals(new float[]{1.0f, 4.0f, -2.5f, 4.0f}, f32.toFloat32ArrayCopy(), 1.0e-6f);
         assertNativeSegmentScalar(firstNativeStep(f32Trace.steps(), "MIN"));
         assertNativeSegmentScalar(firstNativeStep(f32Trace.steps(), "CLAMP_MIN"));
         assertNativeSegmentScalar(firstNativeStep(f32Trace.steps(), "CLAMP_MAX"));
@@ -1011,7 +1011,7 @@ class NativeCpuElementwiseChainTest {
         var f64Trace = CompiledGraph.compile(f64, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new double[]{2.0d, 4.0d, -2.5d, 4.0d}, f64.getFloat64Data(), 1.0e-12d);
+        assertArrayEquals(new double[]{2.0d, 4.0d, -2.5d, 4.0d}, f64.toFloat64ArrayCopy(), 1.0e-12d);
         assertNativeSegmentScalar(firstNativeStep(f64Trace.steps(), "MAX"));
         assertNativeSegmentScalar(firstNativeStep(f64Trace.steps(), "CLAMP_MIN"));
         assertNativeSegmentScalar(firstNativeStep(f64Trace.steps(), "CLAMP_MAX"));
@@ -1026,7 +1026,7 @@ class NativeCpuElementwiseChainTest {
         var f32Trace = CompiledGraph.compile(f32, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new float[]{1.0f, 8.0f, (float) Math.sqrt(3.0f), 0.25f}, f32.getFloat32Data(), 1.0e-6f);
+        assertArrayEquals(new float[]{1.0f, 8.0f, (float) Math.sqrt(3.0f), 0.25f}, f32.toFloat32ArrayCopy(), 1.0e-6f);
         assertNativeSegmentScalar(firstNativeStep(f32Trace.steps(), "POW"));
         assertNativeSegmentScalar(firstNativeStep(f32Trace.steps(), "POW_TENSOR"));
 
@@ -1037,7 +1037,7 @@ class NativeCpuElementwiseChainTest {
         var f64Trace = CompiledGraph.compile(f64, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new double[]{1.0d, 8.0d, Math.sqrt(3.0d), 0.25d}, f64.getFloat64Data(), 1.0e-12d);
+        assertArrayEquals(new double[]{1.0d, 8.0d, Math.sqrt(3.0d), 0.25d}, f64.toFloat64ArrayCopy(), 1.0e-12d);
         assertNativeSegmentScalar(firstNativeStep(f64Trace.steps(), "POW"));
         assertNativeSegmentScalar(firstNativeStep(f64Trace.steps(), "POW_TENSOR"));
     }
@@ -1058,10 +1058,10 @@ class NativeCpuElementwiseChainTest {
         var meanRowsTrace = CompiledGraph.compile(meanRows, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new double[]{10.0d}, sumAll.getFloat64Data(), 1.0e-12d);
-        assertArrayEquals(new double[]{2.5d}, meanAll.getFloat64Data(), 1.0e-12d);
-        assertArrayEquals(new double[]{4.0d, 6.0d}, sumColumns.getFloat64Data(), 1.0e-12d);
-        assertArrayEquals(new double[]{1.5d, 3.5d}, meanRows.getFloat64Data(), 1.0e-12d);
+        assertArrayEquals(new double[]{10.0d}, sumAll.toFloat64ArrayCopy(), 1.0e-12d);
+        assertArrayEquals(new double[]{2.5d}, meanAll.toFloat64ArrayCopy(), 1.0e-12d);
+        assertArrayEquals(new double[]{4.0d, 6.0d}, sumColumns.toFloat64ArrayCopy(), 1.0e-12d);
+        assertArrayEquals(new double[]{1.5d, 3.5d}, meanRows.toFloat64ArrayCopy(), 1.0e-12d);
         assertNativeReduction(sumAllTrace.steps().stream()
                 .filter(step -> "SUM".equals(step.opType()))
                 .findFirst()
@@ -1093,9 +1093,9 @@ class NativeCpuElementwiseChainTest {
         var f64MinTrace = CompiledGraph.compile(f64MinColumns, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new float[]{-5.0f}, f32MinAll.getFloat32Data(), 0.0f);
-        assertArrayEquals(new float[]{4.0f, 3.0f}, f32MaxRows.getFloat32Data(), 0.0f);
-        assertArrayEquals(new double[]{3.0d, -5.0d}, f64MinColumns.getFloat64Data(), 0.0d);
+        assertArrayEquals(new float[]{-5.0f}, f32MinAll.toFloat32ArrayCopy(), 0.0f);
+        assertArrayEquals(new float[]{4.0f, 3.0f}, f32MaxRows.toFloat32ArrayCopy(), 0.0f);
+        assertArrayEquals(new double[]{3.0d, -5.0d}, f64MinColumns.toFloat64ArrayCopy(), 0.0d);
         assertNativeReduction(firstNativeStep(f32MinTrace.steps(), "REDUCE_MIN"));
         assertNativeReduction(firstNativeStep(f32MaxTrace.steps(), "REDUCE_MAX"));
         assertNativeReduction(firstNativeStep(f64MinTrace.steps(), "REDUCE_MIN"));
@@ -1122,7 +1122,7 @@ class NativeCpuElementwiseChainTest {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new byte[]{1, 1, 0, 1}, out.getBoolData());
+        assertArrayEquals(new byte[]{1, 1, 0, 1}, out.toBoolByteArrayCopy());
         assertNativeCompareTrace(trace.steps().stream()
                 .filter(step -> "LE".equals(step.opType()))
                 .findFirst()
@@ -1142,7 +1142,7 @@ class NativeCpuElementwiseChainTest {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new float[]{10.0f, -20.0f, 30.0f, -40.0f}, out.getFloat32Data(), 1.0e-6f);
+        assertArrayEquals(new float[]{10.0f, -20.0f, 30.0f, -40.0f}, out.toFloat32ArrayCopy(), 1.0e-6f);
         assertNativeCompareTrace(trace.steps().stream()
                 .filter(step -> "GT".equals(step.opType()))
                 .findFirst()
@@ -1166,7 +1166,7 @@ class NativeCpuElementwiseChainTest {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new double[]{10.0d, -20.0d, 30.0d, -40.0d}, out.getFloat64Data(), 1.0e-12d);
+        assertArrayEquals(new double[]{10.0d, -20.0d, 30.0d, -40.0d}, out.toFloat64ArrayCopy(), 1.0e-12d);
         assertNativeCompareTrace(trace.steps().stream()
                 .filter(step -> "GT".equals(step.opType()))
                 .findFirst()
@@ -1186,7 +1186,7 @@ class NativeCpuElementwiseChainTest {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new byte[]{1, 1, 0, 1}, out.getBoolData());
+        assertArrayEquals(new byte[]{1, 1, 0, 1}, out.toBoolByteArrayCopy());
         assertNativeSegmentScalar(trace.steps().stream()
                 .filter(step -> "LOGICAL_AND".equals(step.opType()))
                 .findFirst()
@@ -1211,7 +1211,7 @@ class NativeCpuElementwiseChainTest {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new byte[]{1, 1}, out.getBoolData());
+        assertArrayEquals(new byte[]{1, 1}, out.toBoolByteArrayCopy());
         assertNativeSegmentScalar(trace.steps().stream()
                 .filter(step -> "LOGICAL_NOT".equals(step.opType()))
                 .findFirst()
@@ -1428,7 +1428,7 @@ class NativeCpuElementwiseChainTest {
                 .findFirst()
                 .orElseThrow());
 
-        assertArrayEquals(new double[]{1.0d, 2.0d, -3.0d, -4.0d}, out.getFloat64Data(), 1.0e-12d);
+        assertArrayEquals(new double[]{1.0d, 2.0d, -3.0d, -4.0d}, out.toFloat64ArrayCopy(), 1.0e-12d);
         assertEquals("CPU_NATIVE", where.get("requestedCpuStorage"));
         assertEquals("CPU_ARRAY", where.get("actualCpuStorage"));
         assertEquals("native-kernel-ineligible:where-broadcast", where.get("nativeCpuFallbackReason"));
@@ -2119,7 +2119,7 @@ class NativeCpuElementwiseChainTest {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(expected, out.getBoolData());
+        assertArrayEquals(expected, out.toBoolByteArrayCopy());
         assertNativeCompareTrace(trace.steps().stream()
                 .filter(step -> opType.equals(step.opType()))
                 .findFirst()
@@ -2171,7 +2171,7 @@ class NativeCpuElementwiseChainTest {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(expected, out.getFloat32Data(), tolerance);
+        assertArrayEquals(expected, out.toFloat32ArrayCopy(), tolerance);
         assertNativeSegmentScalar(trace.steps().stream()
                 .filter(step -> opType.equals(step.opType()))
                 .findFirst()
@@ -2182,7 +2182,7 @@ class NativeCpuElementwiseChainTest {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(expected, out.getFloat32Data(), 1.0e-6f);
+        assertArrayEquals(expected, out.toFloat32ArrayCopy(), 1.0e-6f);
         assertNativeBf16Promoted(trace.steps().stream()
                 .filter(step -> opType.equals(step.opType()))
                 .findFirst()

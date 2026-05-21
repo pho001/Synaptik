@@ -328,6 +328,30 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void tensorNodeDoesNotOwnBackendIntent() throws IOException {
+        String node = Files.readString(Path.of("src/main/java/tensor/TensorNode.java"));
+        String access = Files.readString(Path.of("src/main/java/tensor/TensorInternalAccess.java"));
+        String tensor = Files.readString(Path.of("src/main/java/tensor/Tensor.java"));
+        assertTrue(!node.contains("backend.ComputeBackend"), "TensorNode must not import backend.ComputeBackend.");
+        assertTrue(!node.contains("backendIntent"), "Backend intent belongs to compile planning, not TensorNode.");
+        assertTrue(!access.contains("setBackendIntent"), "TensorInternalAccess must not expose backend intent mutation.");
+        assertTrue(!access.contains("backendIntent("), "TensorInternalAccess must not expose backend intent reads.");
+        assertTrue(!tensor.contains("setBackendIntentInternal"), "Tensor must not own backend intent mutation.");
+        assertTrue(!tensor.contains("backendIntentInternal"), "Tensor must not own backend intent reads.");
+    }
+
+    @Test
+    void tensorDocsDoNotDescribeBackendIntentAsTensorState() throws IOException {
+        List<String> offenders = sourceLinesContaining(
+                List.of(Path.of("src/main/java/tensor/README.md"), Path.of("src/main/java/tensor/API.md")),
+                List.of("TensorNode internal backend intent", "backend intent for compile/optimizer use")
+        );
+        assertTrue(offenders.isEmpty(),
+                () -> "Tensor docs must describe backend intent as compile-local planning state, not Tensor/TensorNode state: "
+                        + offenders);
+    }
+
+    @Test
     void phaseNineteenTensorArrayBridgeIsNotMarkedNativeBufferCoverage() throws IOException {
         String source = Files.readString(Path.of("src/main/java/tuning/benchmark/report/GpuCoverageSummary.java"));
         assertTrue(source.contains("case \"BUFFER_BINDING\" -> coverage.bufferBindingStepCount++;"),
@@ -587,6 +611,49 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void graphOptimizerDoesNotDependOnCompileIntent() throws IOException {
+        List<String> offenders = linesContainingAny(
+                Path.of("src/main/java/graph/optimizer"),
+                List.of("import graph.compile.", "BackendIntentPlan")
+        );
+        assertTrue(offenders.isEmpty(),
+                () -> "graph.optimizer must expose graph rewrites, not consume compile-owned backend intent: "
+                        + offenders);
+    }
+
+    @Test
+    void backendIntentPlanDoesNotUseGlobalRecordingSideChannel() throws IOException {
+        List<String> offenders = sourceLinesContaining(
+                List.of(Path.of("src/main/java"), Path.of("src/test/java")),
+                List.of("BackendIntentPlan.record", "recordedBackend", "RECORDED_INTENTS", "WeakHashMap")
+        );
+        assertTrue(offenders.isEmpty(),
+                () -> "Backend intent must be passed as a compile-local plan, not recorded through global state: "
+                        + offenders);
+    }
+
+    @Test
+    void tensorOpsDoNotContainGenericSupportHelperAdapterOrV2Classes() throws IOException {
+        List<String> offenders;
+        try (Stream<Path> paths = Files.walk(Path.of("src/main/java/tensor/ops"))) {
+            offenders = paths
+                    .filter(Files::isRegularFile)
+                    .map(Path::getFileName)
+                    .map(Path::toString)
+                    .filter(name -> name.endsWith("Support.java")
+                            || name.endsWith("Helper.java")
+                            || name.endsWith("Adapter.java")
+                            || name.endsWith("Bridge.java")
+                            || name.contains("V2"))
+                    .sorted()
+                    .toList();
+        }
+        assertTrue(offenders.isEmpty(),
+                () -> "tensor.ops should use concrete operation classes or narrow domain names, not generic cleanup classes: "
+                        + offenders);
+    }
+
+    @Test
     void publicTensorDoesNotImportConcreteOperationBuilders() throws IOException {
         List<String> offenders = Files.readString(Path.of("src/main/java/tensor/Tensor.java")).lines()
                 .map(String::trim)
@@ -626,25 +693,68 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
-    void productionRawTensorStorageAccessRemainsInventoried() throws IOException {
-        Set<String> allowed = Set.of(
-                "src/main/java/backend/cuda/kernels/CudaNoopKernel.java: double[] in = inputs.get(0).getData();",
-                "src/main/java/backend/cuda/kernels/CudaNoopKernel.java: double[] out = node.getData();",
-                "src/main/java/backend/opencl/kernels/OpenClNoopKernel.java: double[] in = inputs.get(0).getData();",
-                "src/main/java/backend/opencl/kernels/OpenClNoopKernel.java: double[] out = node.getData();",
-                "src/main/java/backend/cpu/kernels/reduction/SumLoops.java: double[] dst = contiguous.getData();"
+    void publicTensorDoesNotExposeRawStorageAccessors() throws IOException {
+        String source = Files.readString(Path.of("src/main/java/tensor/Tensor.java"));
+        List<String> removedMethods = List.of(
+                "public TensorStorage getStorage(",
+                "public void markStorageModified(",
+                "public float[] getFloat32Data(",
+                "public double[] getFloat64Data(",
+                "public short[] getBFloat16Data(",
+                "public int[] getInt32Data(",
+                "public long[] getInt64Data(",
+                "public byte[] getBoolData(",
+                "public double[] getData(",
+                "public void markDataViewStale("
         );
+        List<String> offenders = removedMethods.stream()
+                .filter(source::contains)
+                .sorted()
+                .toList();
+        assertTrue(offenders.isEmpty(), () -> "Tensor public API must not expose raw mutable storage accessors: " + offenders);
+    }
+
+    @Test
+    void publicTensorDoesNotExposeRedundantShapeUtilityWrappers() throws IOException {
+        String source = Files.readString(Path.of("src/main/java/tensor/Tensor.java"));
+        List<String> removedMethods = List.of(
+                "public int calculateSize(",
+                "public int[] computeStrides(int[]",
+                "public int[] computeStrides()"
+        );
+        List<String> offenders = removedMethods.stream()
+                .filter(source::contains)
+                .sorted()
+                .toList();
+        assertTrue(offenders.isEmpty(),
+                () -> "Tensor public API should use existing shape/metadata APIs instead of redundant utility wrappers: "
+                        + offenders);
+    }
+
+    @Test
+    void productionDoesNotCallRawPublicTensorStorageAccessors() throws IOException {
         List<String> offenders = sourceLinesContaining(
                 List.of(Path.of("src/main/java")),
                 List.of(".getStorage()", ".getFloat32Data()", ".getFloat64Data()", ".getBFloat16Data()",
-                        ".getInt32Data()", ".getInt64Data()", ".getBoolData()", ".getData()", ".markStorageModified()")
+                        ".getInt32Data()", ".getInt64Data()", ".getBoolData()", ".getData()", ".markStorageModified()",
+                        ".markDataViewStale()", "\"getFloat32Data\"", "\"getFloat64Data\"", "\"getBFloat16Data\"",
+                        "\"getInt32Data\"", "\"getInt64Data\"", "\"getBoolData\"")
         ).stream()
                 .filter(line -> !line.startsWith("src/main/java/tensor/Tensor.java:"))
-                .filter(line -> !line.startsWith("src/main/java/tensor/API.md:"))
-                .filter(line -> !allowed.contains(line))
                 .sorted()
                 .toList();
-        assertTrue(offenders.isEmpty(), () -> "Raw public Tensor storage access outside internals must stay inventoried: " + offenders);
+        assertTrue(offenders.isEmpty(), () -> "Production code must use TensorInternalAccess or logical copy APIs instead of raw public Tensor storage access: " + offenders);
+    }
+
+    @Test
+    void testsDoNotCallRawPublicTensorStorageAccessors() throws IOException {
+        List<String> offenders = sourceLinesContaining(
+                List.of(Path.of("src/test/java")),
+                List.of(".getStorage()", ".getFloat32Data()", ".getFloat64Data()", ".getBFloat16Data()",
+                        ".getInt32Data()", ".getInt64Data()", ".getBoolData()", ".getData()", ".markStorageModified()",
+                        ".markDataViewStale()")
+        );
+        assertTrue(offenders.isEmpty(), () -> "Tests should use logical copy APIs or TensorInternalAccess for explicit storage assertions: " + offenders);
     }
 
     @Test

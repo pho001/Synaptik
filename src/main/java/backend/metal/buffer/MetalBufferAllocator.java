@@ -317,7 +317,6 @@ public final class MetalBufferAllocator {
             }
             materializeInt64(binding, destination, destinationLayout, data);
         }
-        destination.markDataViewStale();
         return new CpuMaterializationResult(
                 System.nanoTime() - start,
                 "metal read_buffer materialized nodeId=" + binding.nodeId() + " reason=" + reason.label()

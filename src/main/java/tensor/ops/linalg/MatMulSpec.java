@@ -24,7 +24,7 @@ record MatMulSpec(
         int n = bs[bs.length - 1];
         int[] aBatch = java.util.Arrays.copyOf(as, as.length - 2);
         int[] bBatch = java.util.Arrays.copyOf(bs, bs.length - 2);
-        int[] outBatch = LinalgSupport.broadcastLeadingShape(aBatch, bBatch, "matmul batch dimensions are not broadcast-compatible.");
+        int[] outBatch = LinalgTensorRules.broadcastLeadingShape(aBatch, bBatch, "matmul batch dimensions are not broadcast-compatible.");
         int[] outShape = java.util.Arrays.copyOf(outBatch, outBatch.length + 2);
         outShape[outBatch.length] = m;
         outShape[outBatch.length + 1] = n;

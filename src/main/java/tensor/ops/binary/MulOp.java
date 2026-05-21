@@ -24,22 +24,22 @@ public final class MulOp {
      * @return broadcasted product tensor with promoted floating dtype
      */
     public static Tensor build(Tensor first, Tensor second) {
-        if (BinarySupport.isScalarConstant(first, 0.0d)) {
+        if (BinaryScalarRules.isScalarConstant(first, 0.0d)) {
             return second.mul(0.0d);
         }
-        if (BinarySupport.isScalarConstant(second, 0.0d)) {
+        if (BinaryScalarRules.isScalarConstant(second, 0.0d)) {
             return first.mul(0.0d);
         }
-        if (BinarySupport.isScalarConstant(first, 1.0d)) {
+        if (BinaryScalarRules.isScalarConstant(first, 1.0d)) {
             return second;
         }
-        if (BinarySupport.isScalarConstant(second, 1.0d)) {
+        if (BinaryScalarRules.isScalarConstant(second, 1.0d)) {
             return first;
         }
-        if (BinarySupport.isScalarConstant(first, -1.0d)) {
+        if (BinaryScalarRules.isScalarConstant(first, -1.0d)) {
             return second.neg();
         }
-        if (BinarySupport.isScalarConstant(second, -1.0d)) {
+        if (BinaryScalarRules.isScalarConstant(second, -1.0d)) {
             return first.neg();
         }
 

@@ -95,7 +95,8 @@ import java.util.Objects;
  *
  * <p>Safety boundaries are deliberately conservative: leaf tensors, noop/fused nodes, random/dropout-like operations,
  * and unsupported parameterized operations are not merged. In strict mode, signature keys also include gradient
- * requirement, backend, and shape so aliases only occur when execution-relevant metadata matches.
+ * requirement and shape so aliases only occur when graph-semantic execution metadata matches. Backend intent is a
+ * compile-layer plan remapped after optimizer rewrites.
  *
  * <p>This rule mutates graph edge metadata while applying replacements and is intended for single-threaded optimizer
  * execution.
@@ -174,10 +175,14 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
         List<Tensor> rebuilt = OptimizerGraph.rebuildTopologicalClosureFromRoots(
                 OptimizerGraph.resolveRoots(originalRoots, replacements)
         );
-        return state.withGraph(rebuilt, resolvedForwardOutput == null ? state.forwardOutput() : resolvedForwardOutput);
+        return state.withGraph(rebuilt, resolvedForwardOutput == null ? state.forwardOutput() : resolvedForwardOutput)
+                .withRewriteMap(state.rewriteMap().withReplacements(replacements));
     }
 
-    private StructuralSignature generateSignature(Tensor t, Map<Tensor, SignatureComponent> structuralSignatures) {
+    private StructuralSignature generateSignature(
+            Tensor t,
+            Map<Tensor, SignatureComponent> structuralSignatures
+    ) {
         Operation op = t.getOperation();
         boolean strictSafety = config.strictSafety();
         if (op == null) {
@@ -211,7 +216,6 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
                 op.opType(),
                 t.isBackward(),
                 strictSafety ? t.getRequiresGrad() : null,
-                strictSafety ? TensorInternalAccess.backendIntent(t) : null,
                 strictSafety ? IntArrayValue.copyOf(t.getShape()) : null,
                 parameterKey(op),
                 List.copyOf(inputKeys)
@@ -523,14 +527,13 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             Operation.OpType opType,
             boolean backward,
             Boolean requiresGrad,
-            Object backend,
             IntArrayValue outputShape,
             SignatureComponent parameters,
             List<SignatureComponent> inputs
     ) implements SignatureComponent {
         @Override
         public String sortKey() {
-            return "node:" + opType + ":" + backward + ":" + requiresGrad + ":" + backend + ":" + outputShape + ":" + parameters + ":" + inputs;
+            return "node:" + opType + ":" + backward + ":" + requiresGrad + ":" + outputShape + ":" + parameters + ":" + inputs;
         }
     }
 

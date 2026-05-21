@@ -56,7 +56,7 @@ public final class TileOp {
                     starts[d] = repeatCoord * inputShape[d];
                     ends[d] = starts[d] + inputShape[d];
                 }
-                grad = grad.add(outGrad.slice(starts, ends, LayoutSupport.allAxes(rank), LayoutSupport.ones(rank)));
+                grad = grad.add(outGrad.slice(starts, ends, LayoutGeometryRules.allAxes(rank), LayoutGeometryRules.ones(rank)));
             }
             context.accumulate(input, grad);
         });

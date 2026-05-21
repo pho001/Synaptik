@@ -300,7 +300,6 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                     Tensor out = resolvedOutputs.get(i);
                     float[] outData = TensorInternalAccess.float32Data(out);
                     MemorySegment.ofArray(outData).copyFrom(outputSegs.getAtIndex(ADDRESS, i).reinterpret((long) outData.length * JAVA_FLOAT.byteSize()));
-                    out.markDataViewStale();
                 }
                 return;
             }

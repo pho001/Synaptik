@@ -18,8 +18,11 @@ import tuning.validate.ValidationPolicy;
 import tuning.validate.ValidationReference;
 import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadEnvironment;
+import tuning.workload.WorkloadGraph;
+import tuning.workload.WorkloadGraphFactory;
 import tuning.workload.WorkloadKind;
 import tuning.workload.WorkloadMetadata;
+import graph.compile.intent.BackendIntentPlan;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -73,10 +76,10 @@ final class AbcF32MetalBenchmarkTest {
     }
 
     private static TensorRootWorkloadSpec abcF32MetalWorkload(String name) {
-        return new TensorRootWorkloadSpec(
+        return TensorRootWorkloadSpec.fromGraphFactory(
                 name,
                 WorkloadKind.ABC_SEQUENCE_MATMUL,
-                AbcF32MetalBenchmarkTest::buildRoot,
+                (WorkloadGraphFactory) AbcF32MetalBenchmarkTest::buildGraph,
                 environment -> ValidationReference.none(),
                 environment -> new WorkloadMetadata(
                         name,
@@ -86,7 +89,7 @@ final class AbcF32MetalBenchmarkTest {
         );
     }
 
-    private static Tensor buildRoot(WorkloadEnvironment environment) {
+    private static WorkloadGraph buildGraph(WorkloadEnvironment environment) {
         ExecutionProfile profile = environment.profile();
         boolean requiresGrad = profile.mode() == ExecutionMode.FORWARD_BACKWARD;
         DataType dataType = profile.dataType();
@@ -104,11 +107,12 @@ final class AbcF32MetalBenchmarkTest {
         Tensor T7 = T6.pow(2.0);
 
         Tensor matmul = A.matmul(B.transpose());
-        if (profile.candidateName().contains("-gpu-metal")) {
-            TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
-        }
         Tensor matmulProjected = matmul.mean(1, true).expand(T7.getShapeUnsafe());
-        return T7.add(matmulProjected).mean();
+        Tensor root = T7.add(matmulProjected).mean();
+        BackendIntentPlan backendIntentPlan = profile.candidateName().contains("-gpu-metal")
+                ? BackendIntentPlan.of(matmul, ComputeBackend.GPU_METAL)
+                : BackendIntentPlan.empty();
+        return new WorkloadGraph(root, backendIntentPlan);
     }
 
     private static Tensor tensor(

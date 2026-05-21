@@ -3,6 +3,7 @@ package graph.compile;
 import backend.partition.BackendPartitionDescriptorRegistry;
 import config.compile.CompileConfig;
 import graph.SemanticForwardCanonicalizer;
+import graph.compile.intent.BackendIntentPlan;
 import graph.compile.planning.BackendPlanningJobResolver;
 import graph.compile.planning.BackendPlanningService;
 import graph.compile.session.CompileSession;
@@ -22,7 +23,7 @@ import java.util.Objects;
  * session and fresh artifacts; the compiler object itself only stores construction-time configuration.
  *
  * <p>The compiler is not designed for concurrent calls against mutable user-visible tensors. The returned artifacts are
- * immutable views, but compilation reads and updates graph metadata such as gradient bindings and backend intent.
+ * immutable views, but compilation reads and updates graph metadata such as gradient bindings.
  */
 public final class GraphCompiler {
     private final Tensor rootTensor;
@@ -31,6 +32,7 @@ public final class GraphCompiler {
     private final CompileConfig compileConfig;
     private final BackendPartitionDescriptorRegistry backendPartitionDescriptors;
     private final BackendPlanningService backendPlanningService;
+    private final BackendIntentPlan backendIntentPlan;
     private final CompileMode compileMode;
 
     /**
@@ -55,7 +57,8 @@ public final class GraphCompiler {
                 optimizer,
                 compileConfig,
                 compileMode,
-                BackendPartitionDescriptorRegistry.defaults()
+                BackendPartitionDescriptorRegistry.defaults(),
+                BackendIntentPlan.empty()
         );
     }
 
@@ -76,13 +79,65 @@ public final class GraphCompiler {
             GraphOptimizer optimizer,
             CompileConfig compileConfig,
             CompileMode compileMode,
+            BackendIntentPlan backendIntentPlan
+    ) {
+        this(
+                rootTensor,
+                forwardCanonicalizer,
+                optimizer,
+                compileConfig,
+                compileMode,
+                BackendPartitionDescriptorRegistry.defaults(),
+                backendIntentPlan
+        );
+    }
+
+    public GraphCompiler(
+            Tensor rootTensor,
+            SemanticForwardCanonicalizer forwardCanonicalizer,
+            GraphOptimizer optimizer,
+            CompileConfig compileConfig,
+            CompileMode compileMode,
             BackendPartitionDescriptorRegistry backendPartitionDescriptors
+    ) {
+        this(
+                rootTensor,
+                forwardCanonicalizer,
+                optimizer,
+                compileConfig,
+                compileMode,
+                backendPartitionDescriptors,
+                BackendIntentPlan.empty()
+        );
+    }
+
+    /**
+     * Creates a compiler with explicit compile-local backend intent.
+     *
+     * @param rootTensor output tensor that anchors the graph
+     * @param forwardCanonicalizer optional semantic forward canonicalizer; {@code null} disables this stage
+     * @param optimizer optimizer pipeline applied after graph construction
+     * @param compileConfig compile-time graph policy configuration, or {@code null} for defaults
+     * @param compileMode requested compile mode, or {@code null} for {@link CompileMode#AUTO}
+     * @param backendPartitionDescriptors registry used to resolve backend legality and lowering plans
+     * @param backendIntentPlan explicit backend intent plan, or {@code null} for CPU-default
+     * @throws NullPointerException if {@code rootTensor} or {@code optimizer} is {@code null}
+     */
+    public GraphCompiler(
+            Tensor rootTensor,
+            SemanticForwardCanonicalizer forwardCanonicalizer,
+            GraphOptimizer optimizer,
+            CompileConfig compileConfig,
+            CompileMode compileMode,
+            BackendPartitionDescriptorRegistry backendPartitionDescriptors,
+            BackendIntentPlan backendIntentPlan
     ) {
         this.rootTensor = Objects.requireNonNull(rootTensor, "rootTensor cannot be null");
         this.forwardCanonicalizer = forwardCanonicalizer;
         this.optimizer = Objects.requireNonNull(optimizer, "optimizer cannot be null");
         this.compileConfig = compileConfig == null ? CompileConfig.inference() : compileConfig;
         this.compileMode = compileMode == null ? CompileMode.AUTO : compileMode;
+        this.backendIntentPlan = backendIntentPlan == null ? BackendIntentPlan.empty() : backendIntentPlan;
         this.backendPartitionDescriptors = backendPartitionDescriptors == null
                 ? BackendPartitionDescriptorRegistry.defaults()
                 : backendPartitionDescriptors;
@@ -109,7 +164,8 @@ public final class GraphCompiler {
                 compileConfig,
                 compileMode,
                 backendPartitionDescriptors,
-                backendPlanningService
+                backendPlanningService,
+                backendIntentPlan
         );
         CompileArtifacts artifacts = session.compile();
         CompileTrace trace = new CompileTrace(

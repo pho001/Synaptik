@@ -47,7 +47,7 @@ public class OnnxWave3CoreOpsExecutionTest {
 
         assertArrayEquals(new int[]{3, 2}, out.getShape());
         assertArrayEquals(new double[]{1, 5, 2, 7, 3, 9}, out.toDoubleArrayCopy(), 1e-9);
-        assertArrayEquals(new int[]{1, 5, 2, 7, 3, 9}, out.getInt32Data());
+        assertArrayEquals(new int[]{1, 5, 2, 7, 3, 9}, out.toInt32ArrayCopy());
     }
 
     @Test

@@ -48,7 +48,7 @@ public final class DenseCrossEntropyLossOp {
         DataType outputType = TensorDTypes.promoteFloating(logits.getDataType(), targets.getDataType());
         Tensor out = TensorPrimitiveBuilder.nary(
                 new int[]{1},
-                LossSupport.asInputs(logits, targets),
+                LossInputList.of(logits, targets),
                 new crossEntropyLoss(normalizedClassDimension),
                 "crossEntropyLoss",
                 outputType
@@ -59,7 +59,7 @@ public final class DenseCrossEntropyLossOp {
                 return;
             }
 
-            double scale = outGrad.scalarAsDouble() / LossSupport.sampleCount(logitsShape, normalizedClassDimension);
+            double scale = outGrad.scalarAsDouble() / LossShapeRules.sampleCount(logitsShape, normalizedClassDimension);
             if (logits.getRequiresGrad()) {
                 Tensor grad = logits.softmax(normalizedClassDimension).sub(targets).mul(scale);
                 context.accumulate(logits, grad);
@@ -90,7 +90,7 @@ public final class DenseCrossEntropyLossOp {
                 .mul(targets)
                 .sum(normalizedClassDimension)
                 .neg();
-        Tensor alignedMask = LossSupport.alignSampleMask(mask, perSampleLoss.getShapeUnsafe(), "crossEntropyLoss");
+        Tensor alignedMask = SampleMaskPlanner.align(mask, perSampleLoss.getShapeUnsafe(), "crossEntropyLoss");
         Tensor maskedLoss = Tensor.where(alignedMask, perSampleLoss, Tensor.zerosLike(perSampleLoss));
         Tensor valid = Tensor.where(alignedMask, Tensor.onesLike(perSampleLoss), Tensor.zerosLike(perSampleLoss));
         return maskedLoss.sum().div(valid.sum().clampMin(1.0d));
@@ -105,7 +105,7 @@ public final class DenseCrossEntropyLossOp {
                 || logits.getDataType() == DataType.INT64 || targets.getDataType() == DataType.INT64) {
             throw new IllegalArgumentException("crossEntropyLoss requires floating numeric inputs.");
         }
-        LossSupport.validateShape(
+        LossShapeRules.validateShape(
                 targets.getShape(),
                 logits.getShape(),
                 "crossEntropyLoss targets shape must match logits shape."

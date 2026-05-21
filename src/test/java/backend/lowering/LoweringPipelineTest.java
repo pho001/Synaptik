@@ -22,6 +22,7 @@ import graph.compile.planning.region.RegionOptimizationContext;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
+import graph.compile.intent.BackendIntentPlan;
 
 import java.util.List;
 import java.util.Set;
@@ -46,7 +47,7 @@ class LoweringPipelineTest {
         Tensor out = add.relu();
 
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
         Partition partition = partition(
                 "cpu-partition",
                 PartitionTarget.CPU,
@@ -97,7 +98,7 @@ class LoweringPipelineTest {
         Tensor out = a.add(b).relu();
 
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
         Partition partition = partition(
                 "metal-partition",
                 PartitionTarget.GPU_METAL,

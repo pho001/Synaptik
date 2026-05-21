@@ -15,7 +15,7 @@ public final class ReluOp {
     }
 
     public static Tensor build(Tensor input) {
-        UnarySupport.requireNumeric(input, "relu");
+        UnaryNumericRules.requireNumeric(input, "relu");
 
         Operation op = new relu();
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "relu", TensorDTypes.requireFloating(input.getDataType()));

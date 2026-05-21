@@ -8,6 +8,7 @@ import operations.elementwise.binary.powTensor;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
+import graph.compile.intent.BackendIntentPlan;
 
 import java.util.List;
 
@@ -123,7 +124,7 @@ class FusedPlanBuilderCanonicalizationTest {
 
     private static FusedExpressionPlan plan(Tensor root, List<Tensor> externalInputs) {
         List<Tensor> graph = root.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
         List<Integer> externalInputNodeIds = externalInputs.stream()
                 .map(graph::indexOf)
                 .toList();

@@ -3,17 +3,14 @@ package graph.compile.intent;
 import backend.ComputeBackend;
 import operations.Operation;
 import tensor.Tensor;
-import tensor.TensorInternalAccess;
 
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
  * Utilities for preserving accelerator backend intent across rewrites and backward closures.
- *
- * <p>The methods mutate tensor backend metadata. They are intended for compile-time optimizer use, not concurrent graph
- * mutation.
  */
 public final class BackendIntentPropagator {
     private BackendIntentPropagator() {
@@ -24,12 +21,15 @@ public final class BackendIntentPropagator {
      *
      * @param target tensor to update
      * @param source origin tensor whose backend intent should be preserved
+     * @param plan backend intent plan
+     * @return updated backend intent plan
      */
-    public static void preserve(Tensor target, Tensor source) {
+    public static BackendIntentPlan preserve(Tensor target, Tensor source, BackendIntentPlan plan) {
+        BackendIntentPlan current = plan == null ? BackendIntentPlan.empty() : plan;
         if (target == null || source == null) {
-            return;
+            return current;
         }
-        preserve(target, TensorInternalAccess.backendIntent(source));
+        return preserve(target, current.backend(source), current);
     }
 
     /**
@@ -37,40 +37,59 @@ public final class BackendIntentPropagator {
      *
      * @param target tensor to update
      * @param backend backend to preserve
+     * @param plan backend intent plan
+     * @return updated backend intent plan
      */
-    public static void preserve(Tensor target, ComputeBackend backend) {
+    public static BackendIntentPlan preserve(Tensor target, ComputeBackend backend, BackendIntentPlan plan) {
+        BackendIntentPlan current = plan == null ? BackendIntentPlan.empty() : plan;
         if (target == null || !isAcceleratorBackend(backend)) {
-            return;
+            return current;
         }
-        TensorInternalAccess.setBackendIntent(target, backend);
+        return current.withBackend(target, backend);
     }
 
     /**
      * Propagates accelerator backend intent backward through supported producer closures.
      *
      * @param graph graph in topological order
+     * @param plan backend intent plan
+     * @return updated backend intent plan
      */
-    public static void propagateBackwardClosure(List<Tensor> graph) {
+    public static BackendIntentPlan propagateBackwardClosure(List<Tensor> graph, BackendIntentPlan plan) {
+        BackendIntentPlan current = plan == null ? BackendIntentPlan.empty() : plan;
         if (graph == null || graph.isEmpty()) {
-            return;
+            return current;
+        }
+        IdentityHashMap<Tensor, ComputeBackend> intents = current.mutableCopy();
+        for (Tensor tensor : graph) {
+            ComputeBackend backend = current.backend(tensor);
+            if (isAcceleratorBackend(backend)) {
+                intents.put(tensor, backend);
+            }
         }
         for (int i = graph.size() - 1; i >= 0; i--) {
             Tensor tensor = graph.get(i);
-            ComputeBackend backend = tensor == null ? null : TensorInternalAccess.backendIntent(tensor);
+            ComputeBackend backend = tensor == null ? null : resolve(intents, tensor);
             if (isAcceleratorBackend(backend)) {
                 Set<Tensor> seen = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
-                propagateBackwardIntent(tensor, backend, seen);
-                propagateBackwardIntent(tensor.getGradient(), backend, seen);
+                propagateBackwardIntent(tensor, backend, intents, seen);
+                propagateBackwardIntent(tensor.getGradient(), backend, intents, seen);
             }
         }
+        return BackendIntentPlan.fromMutable(intents);
     }
 
-    private static void propagateBackwardIntent(Tensor tensor, ComputeBackend backend, Set<Tensor> seen) {
+    private static void propagateBackwardIntent(
+            Tensor tensor,
+            ComputeBackend backend,
+            Map<Tensor, ComputeBackend> intents,
+            Set<Tensor> seen
+    ) {
         if (tensor == null || !isAcceleratorBackend(backend) || !seen.add(tensor)) {
             return;
         }
-        if (TensorInternalAccess.backendIntent(tensor) == ComputeBackend.CPU) {
-            TensorInternalAccess.setBackendIntent(tensor, backend);
+        if (resolve(intents, tensor) == ComputeBackend.CPU) {
+            intents.put(tensor, backend);
         }
 
         Operation op = tensor.getOperation();
@@ -84,7 +103,7 @@ public final class BackendIntentPropagator {
                     CLAMP_MIN, CLAMP_MAX, SUM, MEAN, REDUCE_MIN, REDUCE_MAX,
                     RESHAPE, CONTIGUOUS, PERMUTE, EXPAND, EXPAND_DIMS, SQUEEZE, SELECT, SLICE_SCATTER_ADD, NOOP -> {
                 if (inputs.size() == 1) {
-                    propagateBackwardIntent(inputs.getFirst(), backend, seen);
+                    propagateBackwardIntent(inputs.getFirst(), backend, intents, seen);
                 }
             }
             case ADD, SUB, MUL, DIV, MIN, MAX, POW_TENSOR, GT, GE, LT, LE, EQ, NE,
@@ -93,12 +112,12 @@ public final class BackendIntentPropagator {
                     SCATTER_ADD, SCATTER_AXIS_ADD, SCATTER_ELEMENTS, SCATTER_ND,
                     MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD -> {
                 for (Tensor input : inputs) {
-                    propagateBackwardIntent(input, backend, seen);
+                    propagateBackwardIntent(input, backend, intents, seen);
                 }
             }
             case MATMUL, LINEAR -> {
                 for (Tensor input : inputs) {
-                    propagateLayoutProducerIntent(input, backend, seen);
+                    propagateLayoutProducerIntent(input, backend, intents, seen);
                 }
             }
             default -> {
@@ -106,7 +125,12 @@ public final class BackendIntentPropagator {
         }
     }
 
-    private static void propagateLayoutProducerIntent(Tensor tensor, ComputeBackend backend, Set<Tensor> seen) {
+    private static void propagateLayoutProducerIntent(
+            Tensor tensor,
+            ComputeBackend backend,
+            Map<Tensor, ComputeBackend> intents,
+            Set<Tensor> seen
+    ) {
         if (tensor == null || !isAcceleratorBackend(backend) || !seen.add(tensor)) {
             return;
         }
@@ -114,15 +138,15 @@ public final class BackendIntentPropagator {
         if (op == null || !isLayoutSupportProducer(op.opType())) {
             return;
         }
-        if (TensorInternalAccess.backendIntent(tensor) == ComputeBackend.CPU) {
-            TensorInternalAccess.setBackendIntent(tensor, backend);
+        if (resolve(intents, tensor) == ComputeBackend.CPU) {
+            intents.put(tensor, backend);
         }
         List<Tensor> inputs = tensor.getPrevTensors();
         if (inputs == null) {
             return;
         }
         for (Tensor input : inputs) {
-            propagateLayoutProducerIntent(input, backend, seen);
+            propagateLayoutProducerIntent(input, backend, intents, seen);
         }
     }
 
@@ -134,6 +158,10 @@ public final class BackendIntentPropagator {
     }
 
     private static boolean isAcceleratorBackend(ComputeBackend backend) {
-        return backend != null && backend != ComputeBackend.CPU;
+        return BackendIntentPlan.isAcceleratorBackend(backend);
+    }
+
+    private static ComputeBackend resolve(Map<Tensor, ComputeBackend> intents, Tensor tensor) {
+        return tensor == null ? ComputeBackend.CPU : intents.getOrDefault(tensor, ComputeBackend.CPU);
     }
 }

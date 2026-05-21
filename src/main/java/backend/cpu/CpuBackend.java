@@ -78,7 +78,6 @@ public final class CpuBackend {
         }
 
         if (node.dataType() != DataType.FLOAT64) {
-            runtimeTensor.markDataViewStale();
         }
     }
 

@@ -17,11 +17,11 @@ public final class ProdOp {
     }
 
     public static Tensor build(Tensor input, int dimension, boolean keepDims) {
-        ReductionSupport.requireFloatingInput(input, "prod");
+        ReductionShapeRules.requireFloatingInput(input, "prod");
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, input.getShape().length);
         return TensorPrimitiveBuilder.unaryNoGrad(
                 input,
-                ReductionSupport.reduceShape(input.getShape(), normalizedDimension, keepDims),
+                ReductionShapeRules.reduceShape(input.getShape(), normalizedDimension, keepDims),
                 new reduceProd(normalizedDimension, keepDims),
                 "prod_reduce",
                 input.getDataType()
@@ -29,7 +29,7 @@ public final class ProdOp {
     }
 
     public static Tensor buildAll(Tensor input) {
-        ReductionSupport.requireFloatingInput(input, "prod");
+        ReductionShapeRules.requireFloatingInput(input, "prod");
         return TensorPrimitiveBuilder.unaryNoGrad(
                 input,
                 new int[]{1},

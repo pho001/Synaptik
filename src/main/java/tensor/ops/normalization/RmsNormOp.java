@@ -29,10 +29,10 @@ public final class RmsNormOp {
             Tensor gamma,
             double epsilon
     ) {
-        NormalizationSupport.requireFloating(input, "rmsNorm input");
-        NormalizationSupport.requireFloating(gamma, "rmsNorm gamma");
-        NormalizationSupport.requirePositiveEpsilon(epsilon, "rmsNorm");
-        NormalizationSupport.validateMatchingTailParameter(input, gamma, "rmsNorm gamma");
+        NormalizationRules.requireFloating(input, "rmsNorm input");
+        NormalizationRules.requireFloating(gamma, "rmsNorm gamma");
+        NormalizationRules.requirePositiveEpsilon(epsilon, "rmsNorm");
+        NormalizationRules.validateMatchingTailParameter(input, gamma, "rmsNorm gamma");
 
         int normalizedRank = gamma.getShapeUnsafe().length;
         DataType outputType = TensorDTypes.promoteFloating(input.getDataType(), gamma.getDataType());
@@ -51,12 +51,12 @@ public final class RmsNormOp {
             }
 
             Tensor epsilonTensor = Tensor.scalar(epsilon, outputType);
-            Tensor meanSquares = NormalizationSupport.reduceTrailingKeepDims(input.pow(2.0), normalizedRank);
+            Tensor meanSquares = NormalizationRules.reduceTrailingKeepDims(input.pow(2.0), normalizedRank);
             Tensor invRms = meanSquares.add(epsilonTensor).sqrt().inv();
 
             if (input.getRequiresGrad()) {
                 Tensor weighted = outGrad.mul(gamma);
-                Tensor dotMean = NormalizationSupport.reduceTrailingKeepDims(weighted.mul(input), normalizedRank);
+                Tensor dotMean = NormalizationRules.reduceTrailingKeepDims(weighted.mul(input), normalizedRank);
                 Tensor invRmsCubed = invRms.mul(invRms).mul(invRms);
                 Tensor inputGrad = weighted.mul(invRms).sub(input.mul(dotMean).mul(invRmsCubed));
                 context.accumulate(input, inputGrad);
@@ -64,7 +64,7 @@ public final class RmsNormOp {
 
             if (gamma.getRequiresGrad()) {
                 Tensor gammaGrad = outGrad.mul(input).mul(invRms);
-                gammaGrad = NormalizationSupport.reduceLeadingKeepDims(gammaGrad, normalizedRank).reshape(gamma.getShape());
+                gammaGrad = NormalizationRules.reduceLeadingKeepDims(gammaGrad, normalizedRank).reshape(gamma.getShape());
                 context.accumulate(gamma, gammaGrad);
             }
         });

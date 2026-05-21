@@ -24,7 +24,7 @@ public final class ExpandDimsOp {
         for (int i = 0, j = 0; i < outShape.length; i++) {
             if (i == normalizedAxis) {
                 outShape[i] = 1;
-                outStrides[i] = LayoutSupport.insertedAxisStride(inShape, inStrides, normalizedAxis);
+                outStrides[i] = LayoutGeometryRules.insertedAxisStride(inShape, inStrides, normalizedAxis);
             } else {
                 outShape[i] = inShape[j];
                 outStrides[i] = inStrides[j];

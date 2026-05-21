@@ -4,6 +4,7 @@ import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -30,14 +31,14 @@ public class TransformOpsTest {
         CompiledGraph.compile(expanded, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new int[]{3, 1, 2}, expanded.getShape());
         assertArrayEquals(new int[]{2, 2, 1}, expanded.getStrides());
-        assertSame(reshaped.getStorage(), expanded.getStorage());
+        assertSame(TensorInternalAccess.storage(reshaped), TensorInternalAccess.storage(expanded));
         assertArrayEquals(new double[]{1, 2, 3, 4, 5, 6}, expanded.toDoubleArrayCopy(), eps(dataType));
 
         Tensor squeezed = expanded.squeeze(1);
         CompiledGraph.compile(squeezed, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new int[]{3, 2}, squeezed.getShape());
         assertArrayEquals(new int[]{2, 1}, squeezed.getStrides());
-        assertSame(expanded.getStorage(), squeezed.getStorage());
+        assertSame(TensorInternalAccess.storage(expanded), TensorInternalAccess.storage(squeezed));
         assertArrayEquals(new double[]{1, 2, 3, 4, 5, 6}, squeezed.toDoubleArrayCopy(), eps(dataType));
     }
 
@@ -49,7 +50,7 @@ public class TransformOpsTest {
         CompiledGraph.compile(expanded, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new int[]{2, 3}, expanded.getShape());
         assertArrayEquals(new int[]{0, 1}, expanded.getStrides());
-        assertSame(base.getStorage(), expanded.getStorage());
+        assertSame(TensorInternalAccess.storage(base), TensorInternalAccess.storage(expanded));
         assertArrayEquals(new double[]{1, 2, 3, 1, 2, 3}, expanded.toDoubleArrayCopy(), eps(dataType));
     }
 
@@ -60,7 +61,7 @@ public class TransformOpsTest {
         CompiledGraph.compile(expanded, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new int[]{2, 3}, expanded.getShape());
         assertArrayEquals(new int[]{0, 1}, expanded.getStrides());
-        assertSame(base.getStorage(), expanded.getStorage());
+        assertSame(TensorInternalAccess.storage(base), TensorInternalAccess.storage(expanded));
         assertArrayEquals(new double[]{1, 2, 3, 1, 2, 3}, expanded.toDoubleArrayCopy(), 1e-9);
     }
 
@@ -95,7 +96,7 @@ public class TransformOpsTest {
         Tensor permuted = base.permute(1, 0);
         CompiledGraph.compile(permuted, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new int[]{3, 2}, permuted.getShape());
-        assertSame(base.getStorage(), permuted.getStorage());
+        assertSame(TensorInternalAccess.storage(base), TensorInternalAccess.storage(permuted));
         Tensor permutedContiguous = permuted.contiguous();
         CompiledGraph.compile(permutedContiguous, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{1, 4, 2, 5, 3, 6}, permutedContiguous.toDoubleArrayCopy(), eps(dataType));
@@ -122,10 +123,10 @@ public class TransformOpsTest {
         assertArrayEquals(new int[]{1, 3}, permuted.getStrides());
         assertArrayEquals(new int[]{3, 1, 2}, expanded.getShape());
         assertArrayEquals(new int[]{1, 6, 3}, expanded.getStrides());
-        assertSame(permuted.getStorage(), expanded.getStorage());
+        assertSame(TensorInternalAccess.storage(permuted), TensorInternalAccess.storage(expanded));
         assertArrayEquals(new int[]{3, 2}, squeezed.getShape());
         assertArrayEquals(new int[]{1, 3}, squeezed.getStrides());
-        assertSame(expanded.getStorage(), squeezed.getStorage());
+        assertSame(TensorInternalAccess.storage(expanded), TensorInternalAccess.storage(squeezed));
         assertArrayEquals(new double[]{1, 4, 2, 5, 3, 6}, squeezed.toDoubleArrayCopy(), 1e-9);
     }
 

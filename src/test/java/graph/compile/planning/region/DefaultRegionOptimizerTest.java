@@ -17,6 +17,7 @@ import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
+import graph.compile.intent.BackendIntentPlan;
 
 import java.util.List;
 
@@ -33,7 +34,7 @@ class DefaultRegionOptimizerTest {
         Tensor relu = add.relu();
         Tensor out = relu.tanh();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort());
+        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         Partition partition = partition(
                 "cpu-eltwise",
                 PartitionTarget.CPU,
@@ -61,7 +62,7 @@ class DefaultRegionOptimizerTest {
         Tensor matmul = a.matmul(b);
         Tensor out = matmul.relu();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort());
+        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         Partition partition = partition(
                 "cpu-mixed",
                 PartitionTarget.CPU,
@@ -88,7 +89,7 @@ class DefaultRegionOptimizerTest {
         Tensor relu = add.relu();
         Tensor out = relu.exp();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort());
+        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         int matmulNodeId = nodeId(nodes, Operation.OpType.MATMUL);
         int addNodeId = nodeId(nodes, Operation.OpType.ADD);
         int reluNodeId = nodeId(nodes, Operation.OpType.RELU);
@@ -131,7 +132,7 @@ class DefaultRegionOptimizerTest {
         Tensor relu = add.relu();
         Tensor out = relu.exp();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort());
+        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         int matmulNodeId = nodeId(nodes, Operation.OpType.MATMUL);
         int addNodeId = nodeId(nodes, Operation.OpType.ADD);
         int reluNodeId = nodeId(nodes, Operation.OpType.RELU);
@@ -169,7 +170,7 @@ class DefaultRegionOptimizerTest {
         Tensor add = matmul.add(bias);
         Tensor out = add.relu();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort());
+        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         int matmulNodeId = nodeId(nodes, Operation.OpType.MATMUL);
         int addNodeId = nodeId(nodes, Operation.OpType.ADD);
         int reluNodeId = nodeId(nodes, Operation.OpType.RELU);
@@ -212,7 +213,7 @@ class DefaultRegionOptimizerTest {
         Tensor tanh = mul.tanh();
         Tensor out = tanh.sigmoid();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort());
+        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         int mulNodeId = nodeId(nodes, Operation.OpType.MUL);
         int tanhNodeId = nodeId(nodes, Operation.OpType.TANH);
         int sigmoidNodeId = nodeId(nodes, Operation.OpType.SIGMOID);
@@ -262,7 +263,7 @@ class DefaultRegionOptimizerTest {
         Tensor add = a.add(b);
         Tensor out = add.relu();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort());
+        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         Partition partition = partition(
                 "cpu-cont",
                 PartitionTarget.CPU,

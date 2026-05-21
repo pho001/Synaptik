@@ -5,6 +5,7 @@ import tensor.storage.Float32Storage;
 import tensor.storage.Float64Storage;
 import tensor.storage.Int64Storage;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;
@@ -33,12 +34,12 @@ public class TensorConstructorDataTypeTest {
         assertEquals(DataType.FLOAT32, t5.getDataType());
         assertEquals(DataType.FLOAT32, scalar.getDataType());
 
-        assertTrue(t1.getStorage() instanceof Float32Storage);
-        assertTrue(t2.getStorage() instanceof Float32Storage);
-        assertTrue(t3.getStorage() instanceof Float32Storage);
-        assertTrue(t4.getStorage() instanceof Float32Storage);
-        assertTrue(t5.getStorage() instanceof Float32Storage);
-        assertTrue(scalar.getStorage() instanceof Float32Storage);
+        assertTrue(TensorInternalAccess.storage(t1) instanceof Float32Storage);
+        assertTrue(TensorInternalAccess.storage(t2) instanceof Float32Storage);
+        assertTrue(TensorInternalAccess.storage(t3) instanceof Float32Storage);
+        assertTrue(TensorInternalAccess.storage(t4) instanceof Float32Storage);
+        assertTrue(TensorInternalAccess.storage(t5) instanceof Float32Storage);
+        assertTrue(TensorInternalAccess.storage(scalar) instanceof Float32Storage);
     }
 
     @Test
@@ -67,11 +68,11 @@ public class TensorConstructorDataTypeTest {
         assertEquals(DataType.FLOAT64, e4.getDataType());
         assertEquals(DataType.BFLOAT16, e5.getDataType());
 
-        assertTrue(e1.getStorage() instanceof Float64Storage);
-        assertTrue(e2.getStorage() instanceof BFloat16Storage);
-        assertTrue(e3.getStorage() instanceof Float32Storage);
-        assertTrue(e4.getStorage() instanceof Float64Storage);
-        assertTrue(e5.getStorage() instanceof BFloat16Storage);
+        assertTrue(TensorInternalAccess.storage(e1) instanceof Float64Storage);
+        assertTrue(TensorInternalAccess.storage(e2) instanceof BFloat16Storage);
+        assertTrue(TensorInternalAccess.storage(e3) instanceof Float32Storage);
+        assertTrue(TensorInternalAccess.storage(e4) instanceof Float64Storage);
+        assertTrue(TensorInternalAccess.storage(e5) instanceof BFloat16Storage);
     }
 
     @Test
@@ -82,14 +83,14 @@ public class TensorConstructorDataTypeTest {
         Tensor ones = Tensor.onesLike(values);
 
         assertEquals(DataType.INT64, values.getDataType());
-        assertTrue(values.getStorage() instanceof Int64Storage);
-        assertArrayEquals(new long[]{7L, 11L, 13L, 17L}, values.getInt64Data());
+        assertTrue(TensorInternalAccess.storage(values) instanceof Int64Storage);
+        assertArrayEquals(new long[]{7L, 11L, 13L, 17L}, values.toInt64ArrayCopy());
         assertEquals(13L, values.getInt64ByFlatIndex(2));
         assertEquals(17L, values.getIntegralByFlatIndex(3));
 
         assertEquals(DataType.INT64, scalar.getDataType());
-        assertArrayEquals(new long[]{42L}, scalar.getInt64Data());
-        assertArrayEquals(new long[]{0L, 0L, 0L, 0L}, zeros.getInt64Data());
-        assertArrayEquals(new long[]{1L, 1L, 1L, 1L}, ones.getInt64Data());
+        assertArrayEquals(new long[]{42L}, scalar.toInt64ArrayCopy());
+        assertArrayEquals(new long[]{0L, 0L, 0L, 0L}, zeros.toInt64ArrayCopy());
+        assertArrayEquals(new long[]{1L, 1L, 1L, 1L}, ones.toInt64ArrayCopy());
     }
 }

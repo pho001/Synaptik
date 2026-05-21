@@ -21,6 +21,6 @@ public final class GreaterOrEqualOp {
      */
     public static Tensor build(Tensor first, Tensor second) {
         BroadcastPlan plan = TensorBroadcastOps.planBinary(first, second);
-        return CompareSupport.compare(first, second, plan, new greaterOrEqual(plan), "ge");
+        return ComparisonBroadcastRules.compare(first, second, plan, new greaterOrEqual(plan), "ge");
     }
 }

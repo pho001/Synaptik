@@ -30,11 +30,11 @@ public final class LayerNormOp {
             Tensor beta,
             double epsilon
     ) {
-        NormalizationSupport.requireFloating(input, "layerNorm input");
-        NormalizationSupport.requireFloating(gamma, "layerNorm gamma");
-        NormalizationSupport.requireFloating(beta, "layerNorm beta");
-        NormalizationSupport.requirePositiveEpsilon(epsilon, "layerNorm");
-        NormalizationSupport.validateMatchingTailParameters(input, gamma, beta, "layerNorm");
+        NormalizationRules.requireFloating(input, "layerNorm input");
+        NormalizationRules.requireFloating(gamma, "layerNorm gamma");
+        NormalizationRules.requireFloating(beta, "layerNorm beta");
+        NormalizationRules.requirePositiveEpsilon(epsilon, "layerNorm");
+        NormalizationRules.validateMatchingTailParameters(input, gamma, beta, "layerNorm");
 
         int normalizedRank = gamma.getShapeUnsafe().length;
         DataType outputType = TensorDTypes.promoteFloating(TensorDTypes.promoteFloating(input.getDataType(), gamma.getDataType()), beta.getDataType());
@@ -54,17 +54,17 @@ public final class LayerNormOp {
             }
 
             Tensor epsilonTensor = Tensor.scalar(epsilon, outputType);
-            Tensor mean = NormalizationSupport.reduceTrailingKeepDims(input, normalizedRank);
+            Tensor mean = NormalizationRules.reduceTrailingKeepDims(input, normalizedRank);
             Tensor centered = input.sub(mean);
-            Tensor variance = NormalizationSupport.reduceTrailingKeepDims(centered.pow(2.0), normalizedRank);
+            Tensor variance = NormalizationRules.reduceTrailingKeepDims(centered.pow(2.0), normalizedRank);
             Tensor invStd = variance.add(epsilonTensor).sqrt().inv();
             Tensor xHat = centered.mul(invStd);
 
             if (input.getRequiresGrad()) {
                 double normalizedSize = gamma.getFlatDataSize();
                 Tensor dxHat = outGrad.mul(gamma);
-                Tensor sumDxHat = NormalizationSupport.reduceTrailingKeepDims(dxHat, normalizedRank);
-                Tensor sumDxHatXHat = NormalizationSupport.reduceTrailingKeepDims(dxHat.mul(xHat), normalizedRank);
+                Tensor sumDxHat = NormalizationRules.reduceTrailingKeepDims(dxHat, normalizedRank);
+                Tensor sumDxHatXHat = NormalizationRules.reduceTrailingKeepDims(dxHat.mul(xHat), normalizedRank);
                 Tensor inputGrad = dxHat.mul(normalizedSize)
                         .sub(sumDxHat)
                         .sub(xHat.mul(sumDxHatXHat))
@@ -75,12 +75,12 @@ public final class LayerNormOp {
 
             if (gamma.getRequiresGrad()) {
                 Tensor gammaGrad = outGrad.mul(xHat);
-                gammaGrad = NormalizationSupport.reduceLeadingKeepDims(gammaGrad, normalizedRank).reshape(gamma.getShape());
+                gammaGrad = NormalizationRules.reduceLeadingKeepDims(gammaGrad, normalizedRank).reshape(gamma.getShape());
                 context.accumulate(gamma, gammaGrad);
             }
 
             if (beta.getRequiresGrad()) {
-                Tensor betaGrad = NormalizationSupport.reduceLeadingKeepDims(outGrad, normalizedRank).reshape(beta.getShape());
+                Tensor betaGrad = NormalizationRules.reduceLeadingKeepDims(outGrad, normalizedRank).reshape(beta.getShape());
                 context.accumulate(beta, betaGrad);
             }
         });

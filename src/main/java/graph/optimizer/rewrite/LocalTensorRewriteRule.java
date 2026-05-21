@@ -2,7 +2,6 @@ package graph.optimizer.rewrite;
 
 import graph.optimizer.OptimizationRule;
 import graph.optimizer.OptimizerGraph;
-import graph.compile.intent.BackendIntentPropagator;
 import graph.optimizer.state.OptimizerState;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
@@ -37,7 +36,6 @@ public abstract class LocalTensorRewriteRule implements OptimizationRule {
             OptimizerGraph.rewriteInputs(tensor, replacements);
             Tensor rewritten = rewriteTensor(tensor);
             if (rewritten != tensor) {
-                BackendIntentPropagator.preserve(rewritten, tensor);
                 if (tensor.isBackward()) {
                     TensorInternalAccess.setBackward(rewritten, true);
                 }
@@ -59,13 +57,15 @@ public abstract class LocalTensorRewriteRule implements OptimizationRule {
 
         if (!rebuildClosure()) {
             Tensor resolvedForwardOutput = OptimizerGraph.resolveReplacement(state.forwardOutput(), replacements);
-            return state.withGraph(optimized, resolvedForwardOutput == null ? state.forwardOutput() : resolvedForwardOutput);
+            return state.withGraph(optimized, resolvedForwardOutput == null ? state.forwardOutput() : resolvedForwardOutput)
+                    .withRewriteMap(state.rewriteMap().withReplacements(replacements));
         }
         Tensor resolvedForwardOutput = OptimizerGraph.resolveReplacement(state.forwardOutput(), replacements);
         List<Tensor> rebuilt = OptimizerGraph.rebuildTopologicalClosureFromRoots(
                 OptimizerGraph.resolveRoots(originalRoots, replacements)
         );
-        return state.withGraph(rebuilt, resolvedForwardOutput == null ? state.forwardOutput() : resolvedForwardOutput);
+        return state.withGraph(rebuilt, resolvedForwardOutput == null ? state.forwardOutput() : resolvedForwardOutput)
+                .withRewriteMap(state.rewriteMap().withReplacements(replacements));
     }
 
     /**

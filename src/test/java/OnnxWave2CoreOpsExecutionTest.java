@@ -45,7 +45,7 @@ public class OnnxWave2CoreOpsExecutionTest {
 
         assertArrayEquals(new int[]{2}, out.getShape());
         assertArrayEquals(new double[]{1.0, 0.0}, out.toDoubleArrayCopy(), 1e-9);
-        assertArrayEquals(new long[]{1L, 0L}, out.getInt64Data());
+        assertArrayEquals(new long[]{1L, 0L}, out.toInt64ArrayCopy());
         assertTrue(containsOp(compiledGraph, Operation.OpType.ARGMAX));
     }
 

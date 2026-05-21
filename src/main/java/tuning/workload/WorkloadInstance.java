@@ -1,5 +1,6 @@
 package tuning.workload;
 
+import graph.compile.intent.BackendIntentPlan;
 import tensor.Tensor;
 import tuning.validate.ValidationReference;
 import tuning.validate.ValidationTarget;
@@ -27,4 +28,11 @@ public interface WorkloadInstance {
      * @return metadata used by reports and persistence fingerprints
      */
     WorkloadMetadata metadata();
+
+    /**
+     * @return compile-local backend intent plan for this instantiated graph
+     */
+    default BackendIntentPlan backendIntentPlan() {
+        return BackendIntentPlan.empty();
+    }
 }

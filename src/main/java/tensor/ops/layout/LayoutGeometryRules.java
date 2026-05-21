@@ -2,8 +2,8 @@ package tensor.ops.layout;
 
 import tensor.Tensor;
 
-final class LayoutSupport {
-    private LayoutSupport() {
+final class LayoutGeometryRules {
+    private LayoutGeometryRules() {
     }
 
     static int[] buildExpandedStrides(int[] sourceShape, int[] sourceStrides, int[] targetShape) {

@@ -10,7 +10,7 @@ public final class ClampOp {
     }
 
     public static Tensor build(Tensor input, double minValue, double maxValue) {
-        UnarySupport.requireNumeric(input, "clamp");
+        UnaryNumericRules.requireNumeric(input, "clamp");
         if (minValue > maxValue) {
             throw new IllegalArgumentException("clamp requires minValue <= maxValue.");
         }

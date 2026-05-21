@@ -16,7 +16,7 @@ public final class ClampMaxOp {
     }
 
     public static Tensor build(Tensor input, double maxValue) {
-        UnarySupport.requireNumeric(input, "clampMax");
+        UnaryNumericRules.requireNumeric(input, "clampMax");
         if (maxValue == Double.POSITIVE_INFINITY) {
             return input;
         }

@@ -51,10 +51,10 @@ public final class Conv2dOp {
         if (options == null) {
             throw new IllegalArgumentException("conv2d options cannot be null");
         }
-        ConvSupport.validateFloatingTensor(input, "conv2d input");
-        ConvSupport.validateFloatingTensor(weight, "conv2d weight");
+        Conv2dShapeRules.validateFloatingTensor(input, "conv2d input");
+        Conv2dShapeRules.validateFloatingTensor(weight, "conv2d weight");
         if (bias != null) {
-            ConvSupport.validateFloatingTensor(bias, "conv2d bias");
+            Conv2dShapeRules.validateFloatingTensor(bias, "conv2d bias");
         }
 
         int[] inputShape = input.getShapeUnsafe();
@@ -90,8 +90,8 @@ public final class Conv2dOp {
             }
         }
 
-        int outH = ConvSupport.inferOutputSize(inH, kernelH, options.padH(), options.strideH(), options.dilationH(), "height");
-        int outW = ConvSupport.inferOutputSize(inW, kernelW, options.padW(), options.strideW(), options.dilationW(), "width");
+        int outH = Conv2dShapeRules.inferOutputSize(inH, kernelH, options.padH(), options.strideH(), options.dilationH(), "height");
+        int outW = Conv2dShapeRules.inferOutputSize(inW, kernelW, options.padW(), options.strideW(), options.dilationW(), "width");
 
         DataType outputType = TensorDTypes.promoteFloating(input.getDataType(), weight.getDataType());
         if (bias != null) {

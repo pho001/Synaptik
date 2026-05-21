@@ -3,8 +3,8 @@ package tensor.ops.conv;
 import tensor.DataType;
 import tensor.Tensor;
 
-final class ConvSupport {
-    private ConvSupport() {
+final class Conv2dShapeRules {
+    private Conv2dShapeRules() {
     }
 
     static int inferOutputSize(int inputSize, int kernelSize, int pad, int stride, int dilation, String axisName) {

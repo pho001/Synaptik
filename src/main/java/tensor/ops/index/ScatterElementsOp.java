@@ -31,8 +31,8 @@ public final class ScatterElementsOp {
         }
         int[] dataShape = data.getShape();
         int normalizedAxis = TensorLayoutTransform.normalizeAxis(axis, dataShape.length);
-        IndexSupport.validateScatterElementsShape(dataShape, indices.getShapeUnsafe(), updates.getShapeUnsafe(), normalizedAxis);
-        boolean differentiable = IndexSupport.isFloating(data.getDataType())
+        IndexShapeRules.validateScatterElementsShape(dataShape, indices.getShapeUnsafe(), updates.getShapeUnsafe(), normalizedAxis);
+        boolean differentiable = IndexShapeRules.isFloating(data.getDataType())
                 && (data.getRequiresGrad() || updates.getRequiresGrad());
         if (differentiable && effectiveReduction != ScatterReduction.NONE && effectiveReduction != ScatterReduction.ADD) {
             throw new UnsupportedOperationException("scatterElements backward supports only NONE and ADD reductions.");
@@ -50,7 +50,7 @@ public final class ScatterElementsOp {
         out.setRequiresGrad(differentiable);
         TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
-            if (outGrad == null || !IndexSupport.isFloating(data.getDataType())) {
+            if (outGrad == null || !IndexShapeRules.isFloating(data.getDataType())) {
                 return;
             }
             if (data.getRequiresGrad()) {

@@ -17,8 +17,8 @@ public final class PadOp {
             throw new IllegalArgumentException("pad input cannot be null");
         }
         int rank = input.getShapeUnsafe().length;
-        int[] normalizedBefore = LayoutSupport.normalizePads(before, rank, "before");
-        int[] normalizedAfter = LayoutSupport.normalizePads(after, rank, "after");
+        int[] normalizedBefore = LayoutGeometryRules.normalizePads(before, rank, "before");
+        int[] normalizedAfter = LayoutGeometryRules.normalizePads(after, rank, "after");
         int[] outShape = input.getShape();
         for (int d = 0; d < rank; d++) {
             outShape[d] = Math.addExact(Math.addExact(outShape[d], normalizedBefore[d]), normalizedAfter[d]);
@@ -37,8 +37,8 @@ public final class PadOp {
             }
             int[] starts = normalizedBefore.clone();
             int[] ends = new int[rank];
-            int[] axes = LayoutSupport.allAxes(rank);
-            int[] steps = LayoutSupport.ones(rank);
+            int[] axes = LayoutGeometryRules.allAxes(rank);
+            int[] steps = LayoutGeometryRules.ones(rank);
             int[] inputShape = input.getShapeUnsafe();
             for (int d = 0; d < rank; d++) {
                 ends[d] = starts[d] + inputShape[d];

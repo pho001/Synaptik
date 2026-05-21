@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
+import graph.compile.intent.BackendIntentPlan;
 
 import java.util.List;
 import java.util.EnumSet;
@@ -35,9 +36,9 @@ class MetalBufferTraceSmokeTest {
 
         Tensor input = new Tensor(new float[]{1.0f, -2.0f}, new int[]{2}, null, "input", DataType.FLOAT32);
         Tensor output = input.relu();
-        TensorInternalAccess.setBackendIntent(output, ComputeBackend.GPU_METAL);
-
-        PreparedExecution execution = CompiledGraph.compile(output, CompileConfig.noGraphOptimizationBaseline())
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(output, ComputeBackend.GPU_METAL);
+        PreparedExecution execution = CompiledGraph.compile(output, CompileConfig.noGraphOptimizationBaseline(), backendIntentPlan)
                 .prepare(RuntimeConfig.inferenceDefaults());
         RunTrace trace = execution.executeTraced(ExecutionMode.FORWARD);
         ExecutionStepTrace metalStep = trace.steps().stream()
@@ -124,11 +125,12 @@ class MetalBufferTraceSmokeTest {
         Tensor permute = reshape.permute(1, 0, 2);
         Tensor out = permute.add(cpuConsumerBias);
 
-        TensorInternalAccess.setBackendIntent(linear, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackendIntent(reshape, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackendIntent(permute, ComputeBackend.GPU_METAL);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
 
-        PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.inference())
+        backendIntentPlan = backendIntentPlan.withBackend(linear, ComputeBackend.GPU_METAL);
+        backendIntentPlan = backendIntentPlan.withBackend(reshape, ComputeBackend.GPU_METAL);
+        backendIntentPlan = backendIntentPlan.withBackend(permute, ComputeBackend.GPU_METAL);
+        PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.inference(), backendIntentPlan)
                 .prepare(RuntimeConfig.inferenceDefaults());
         assumeNativeBufferBridge(execution);
 
@@ -152,9 +154,9 @@ class MetalBufferTraceSmokeTest {
                 "broadcastZeroStrideRelu",
                 DataType.FLOAT32
         );
-        TensorInternalAccess.setBackendIntent(broadcastZeroStrideOutput, ComputeBackend.GPU_METAL);
-
-        PreparedExecution execution = CompiledGraph.compile(broadcastZeroStrideOutput, CompileConfig.inference())
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(broadcastZeroStrideOutput, ComputeBackend.GPU_METAL);
+        PreparedExecution execution = CompiledGraph.compile(broadcastZeroStrideOutput, CompileConfig.inference(), backendIntentPlan)
                 .prepare(RuntimeConfig.inferenceDefaults());
         assumeNativeBufferBridge(execution);
 
@@ -185,9 +187,10 @@ class MetalBufferTraceSmokeTest {
         Tensor permute = reshape.permute(1, 0);
 
         if ("metal".equals(labelPrefix)) {
-            TensorInternalAccess.setBackendIntent(linear, ComputeBackend.GPU_METAL);
-            TensorInternalAccess.setBackendIntent(reshape, ComputeBackend.GPU_METAL);
-            TensorInternalAccess.setBackendIntent(permute, ComputeBackend.GPU_METAL);
+            BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+            backendIntentPlan = backendIntentPlan.withBackend(linear, ComputeBackend.GPU_METAL);
+            backendIntentPlan = backendIntentPlan.withBackend(reshape, ComputeBackend.GPU_METAL);
+            backendIntentPlan = backendIntentPlan.withBackend(permute, ComputeBackend.GPU_METAL);
         }
         return permute;
     }

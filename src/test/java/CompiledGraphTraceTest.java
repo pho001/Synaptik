@@ -42,6 +42,7 @@ import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
+import graph.compile.intent.BackendIntentPlan;
 
 import java.util.List;
 import java.util.Map;
@@ -56,10 +57,10 @@ public class CompiledGraphTraceTest {
         Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f}, new int[]{3, 3}, null, "traceLogSoftmaxWeight", DataType.FLOAT32);
         Tensor matmul = input.matmul(weight);
         Tensor out = specialLogSoftmax(matmul, 1);
-        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
-
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference());
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(matmul, ComputeBackend.GPU_METAL);
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_METAL);
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference(), backendIntentPlan);
         PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
         int matmulNodeId = nodeId(compiled, operations.Operation.OpType.MATMUL);
         int logSoftmaxNodeId = nodeId(compiled, operations.Operation.OpType.LOG_SOFTMAX);
@@ -82,9 +83,9 @@ public class CompiledGraphTraceTest {
     void gpuLoweredRegionManifestTraceContainsOriginalOpsAndPrimitives() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "manifestInput", DataType.FLOAT32);
         Tensor out = specialLogSoftmax(input, 1);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
-
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference());
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_METAL);
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference(), backendIntentPlan);
         PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
         int logSoftmaxNodeId = nodeId(compiled, operations.Operation.OpType.LOG_SOFTMAX);
 
@@ -110,9 +111,9 @@ public class CompiledGraphTraceTest {
     void gpuLoweringCoverageTraceSelectsSupportedReduction() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "traceReductionInput", DataType.FLOAT32);
         Tensor out = input.sum(1);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference());
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference(), backendIntentPlan);
         PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
         int sumNodeId = nodeId(compiled, operations.Operation.OpType.SUM);
         String reason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(compiledNode(compiled, sumNodeId), null);
@@ -130,9 +131,9 @@ public class CompiledGraphTraceTest {
         Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "traceReductionAdjacentGamma", DataType.FLOAT32);
         Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "traceReductionAdjacentBeta", DataType.FLOAT32);
         Tensor out = input.layerNorm(gamma, beta, 1.0e-5);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference());
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference(), backendIntentPlan);
         PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
         int layerNormNodeId = nodeId(compiled, operations.Operation.OpType.LAYER_NORM);
         String reason = CudaGpuBackendPartitionCapability.plannerUnsupportedReason(
@@ -244,12 +245,13 @@ public class CompiledGraphTraceTest {
         Tensor abs = matmul.abs();
         Tensor out = relu.add(abs);
 
-        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackendIntent(abs, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
 
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
+        backendIntentPlan = backendIntentPlan.withBackend(matmul, ComputeBackend.GPU_METAL);
+        backendIntentPlan = backendIntentPlan.withBackend(relu, ComputeBackend.GPU_METAL);
+        backendIntentPlan = backendIntentPlan.withBackend(abs, ComputeBackend.GPU_METAL);
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_METAL);
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline(), backendIntentPlan);
         var decisions = compiled.compileTrace().partitionPlanning().decisions();
 
         assertTrue(decisions.stream().anyMatch(decision ->
@@ -287,10 +289,11 @@ public class CompiledGraphTraceTest {
         Tensor matmul = a.matmul(b);
         Tensor out = matmul.relu();
 
-        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
 
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference());
+        backendIntentPlan = backendIntentPlan.withBackend(matmul, ComputeBackend.GPU_METAL);
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_METAL);
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference(), backendIntentPlan);
 
         assertEquals(
                 List.of(PartitionTarget.GPU_METAL, PartitionTarget.CPU),
@@ -459,11 +462,11 @@ public class CompiledGraphTraceTest {
         Tensor add = a.add(b);
         Tensor relu = add.relu();
         Tensor out = relu.exp();
-        TensorInternalAccess.setBackendIntent(add, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackendIntent(relu, ComputeBackend.GPU_CUDA);
-        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_CUDA);
-
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference());
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(add, ComputeBackend.GPU_CUDA);
+        backendIntentPlan = backendIntentPlan.withBackend(relu, ComputeBackend.GPU_CUDA);
+        backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference(), backendIntentPlan);
         PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
         int addNodeId = nodeId(compiled, operations.Operation.OpType.ADD);
         int reluNodeId = nodeId(compiled, operations.Operation.OpType.RELU);
@@ -498,9 +501,9 @@ public class CompiledGraphTraceTest {
                 1f, 0f, 0f
         }, new int[]{2, 3}, null, "traceDenseLossTargets", DataType.FLOAT32);
         Tensor loss = logits.crossEntropyLoss(targets, 1);
-        TensorInternalAccess.setBackendIntent(loss, ComputeBackend.GPU_METAL);
-
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(loss, CompileConfig.training());
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(loss, ComputeBackend.GPU_METAL);
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(loss, CompileConfig.training(), backendIntentPlan);
         PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.trainingDefaults());
         int lossNodeId = nodeId(compiled, operations.Operation.OpType.CROSS_ENTROPY_LOSS);
         var trace = prepared.executeTraced(ExecutionMode.FORWARD_BACKWARD);

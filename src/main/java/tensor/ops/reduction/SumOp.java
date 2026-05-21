@@ -19,11 +19,11 @@ public final class SumOp {
     }
 
     public static Tensor build(Tensor input, int dimension, boolean keepDims) {
-        ReductionSupport.requireFloatingInput(input, "sum");
+        ReductionShapeRules.requireFloatingInput(input, "sum");
         int[] shape = input.getShape();
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, shape.length);
         Operation op = new sum(normalizedDimension, keepDims);
-        int[] newShape = ReductionSupport.reduceShape(shape, normalizedDimension, keepDims);
+        int[] newShape = ReductionShapeRules.reduceShape(shape, normalizedDimension, keepDims);
         Tensor out = TensorPrimitiveBuilder.unary(input, newShape, op, "sum", input.getDataType());
         TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
@@ -37,15 +37,15 @@ public final class SumOp {
     }
 
     public static Tensor buildMasked(Tensor input, int dimension, Tensor mask) {
-        ReductionSupport.requireFloatingInput(input, "masked sum");
+        ReductionShapeRules.requireFloatingInput(input, "masked sum");
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, input.getShapeUnsafe().length);
-        Tensor alignedMask = ReductionSupport.alignMaskToShape(mask, input.getShapeUnsafe(), normalizedDimension, "masked sum");
+        Tensor alignedMask = MaskBroadcastPlanner.alignToShape(mask, input.getShapeUnsafe(), normalizedDimension, "masked sum");
         Tensor maskedInput = Tensor.where(alignedMask, input, Tensor.zerosLike(input));
         return maskedInput.sum(normalizedDimension);
     }
 
     public static Tensor buildAll(Tensor input) {
-        ReductionSupport.requireFloatingInput(input, "sum");
+        ReductionShapeRules.requireFloatingInput(input, "sum");
         Tensor out = TensorPrimitiveBuilder.unary(input, new int[]{1}, new sum(-1), "sum", input.getDataType());
         TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();

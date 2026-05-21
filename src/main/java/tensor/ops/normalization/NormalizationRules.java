@@ -4,8 +4,8 @@ import tensor.DataType;
 import tensor.Tensor;
 import tensor.dtype.TensorDTypes;
 
-final class NormalizationSupport {
-    private NormalizationSupport() {
+final class NormalizationRules {
+    private NormalizationRules() {
     }
 
     static void validateMatchingTailParameters(Tensor input, Tensor gamma, Tensor beta, String opName) {

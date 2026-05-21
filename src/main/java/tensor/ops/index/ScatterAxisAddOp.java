@@ -24,11 +24,11 @@ public final class ScatterAxisAddOp {
         if (data.getDataType() != updates.getDataType()) {
             throw new IllegalArgumentException("scatterAxisAdd requires data and updates to have matching dtypes.");
         }
-        if (!IndexSupport.isFloating(data.getDataType())) {
+        if (!IndexShapeRules.isFloating(data.getDataType())) {
             throw new IllegalArgumentException("scatterAxisAdd requires floating numeric data and updates.");
         }
         int normalizedAxis = TensorLayoutTransform.normalizeAxis(axis, data.getShapeUnsafe().length);
-        IndexSupport.validateScatterAxisAddShape(data.getShapeUnsafe(), indices.getShapeUnsafe(), updates.getShapeUnsafe(), normalizedAxis);
+        IndexShapeRules.validateScatterAxisAddShape(data.getShapeUnsafe(), indices.getShapeUnsafe(), updates.getShapeUnsafe(), normalizedAxis);
         Tensor out = TensorPrimitiveBuilder.ternary(
                 data,
                 indices,
@@ -41,7 +41,7 @@ public final class ScatterAxisAddOp {
         out.setRequiresGrad(data.getRequiresGrad() || updates.getRequiresGrad());
         TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
-            if (outGrad == null || !IndexSupport.isFloating(data.getDataType())) {
+            if (outGrad == null || !IndexShapeRules.isFloating(data.getDataType())) {
                 return;
             }
             if (data.getRequiresGrad()) {

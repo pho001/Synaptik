@@ -17,7 +17,7 @@ public final class ExpandOp {
 
     public static Tensor build(Tensor input, int[] requestedShape) {
         int[] targetShape = TensorLayoutTransform.inferExpandShape(input.getShape(), requestedShape);
-        int[] targetStrides = LayoutSupport.buildExpandedStrides(input.getShapeUnsafe(), input.getStridesUnsafe(), targetShape);
+        int[] targetStrides = LayoutGeometryRules.buildExpandedStrides(input.getShapeUnsafe(), input.getStridesUnsafe(), targetShape);
         Operation op = new expand(targetShape);
         Tensor out = TensorPrimitiveBuilder.unaryView(
                 input,

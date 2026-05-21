@@ -119,7 +119,6 @@ public final class CudaBufferAllocator {
             nativeAccess.readBuffer(binding.handle(), nativeDestination, binding.logicalByteLength());
             MemorySegment.ofArray(data).copyFrom(nativeDestination.reinterpret(binding.logicalByteLength()));
         }
-        destination.markDataViewStale();
         return new CpuMaterializationResult(
                 System.nanoTime() - start,
                 "cuda read_buffer materialized nodeId=" + binding.nodeId()

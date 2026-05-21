@@ -3,8 +3,8 @@ package tensor.ops.unary;
 import tensor.DataType;
 import tensor.Tensor;
 
-final class UnarySupport {
-    private UnarySupport() {
+final class UnaryNumericRules {
+    private UnaryNumericRules() {
     }
 
     static void requireNumeric(Tensor input, String opName) {

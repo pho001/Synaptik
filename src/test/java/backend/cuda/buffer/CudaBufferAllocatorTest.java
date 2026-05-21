@@ -56,7 +56,7 @@ class CudaBufferAllocatorTest {
 
         var result = allocator.readToCpu(binding, destination, CpuMaterializationReason.GRAPH_OUTPUT);
 
-        assertArrayEquals(new float[]{5.0f, 6.0f, 7.0f, 8.0f}, destination.getFloat32Data(), 0.0f);
+        assertArrayEquals(new float[]{5.0f, 6.0f, 7.0f, 8.0f}, destination.toFloat32ArrayCopy(), 0.0f);
         assertTrue(result.detail().contains("cuda read_buffer materialized nodeId=11"));
     }
 

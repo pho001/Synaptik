@@ -19,9 +19,9 @@ public final class SelectOp {
         }
         int[] inputShape = input.getShape();
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, inputShape.length);
-        int normalizedIndex = IndexSupport.normalizeIndex(index, inputShape[normalizedDimension]);
-        int[] outShape = IndexSupport.reduceShape(inputShape, normalizedDimension);
-        int[] outStrides = IndexSupport.reduceStrides(input.getStridesUnsafe(), normalizedDimension);
+        int normalizedIndex = IndexShapeRules.normalizeIndex(index, inputShape[normalizedDimension]);
+        int[] outShape = IndexShapeRules.reduceShape(inputShape, normalizedDimension);
+        int[] outStrides = IndexShapeRules.reduceStrides(input.getStridesUnsafe(), normalizedDimension);
         int outStorageOffset = input.getStorageOffsetUnsafe() + normalizedIndex * input.getStridesUnsafe()[normalizedDimension];
 
         Tensor out = TensorPrimitiveBuilder.unaryView(
@@ -39,7 +39,7 @@ public final class SelectOp {
                 return;
             }
             Tensor zeroBase = Tensor.zerosLike(input);
-            Tensor indices = IndexSupport.constantIndexTensor(IndexSupport.reduceShape(input.getShapeUnsafe(), normalizedDimension), normalizedIndex);
+            Tensor indices = IndexShapeRules.constantIndexTensor(IndexShapeRules.reduceShape(input.getShapeUnsafe(), normalizedDimension), normalizedIndex);
             Tensor grad = zeroBase.scatterAdd(indices, outGrad, normalizedDimension);
             context.accumulate(input, grad);
         });

@@ -34,13 +34,13 @@ public final class MatMulOp {
             }
 
             if (first.getRequiresGrad()) {
-                Tensor gradRaw = outGrad.matmul(LinalgSupport.transposeLastTwoAxes(second));
-                Tensor gradForFirst = LinalgSupport.sumToShape(gradRaw, first.getShapeUnsafe());
+                Tensor gradRaw = outGrad.matmul(LinalgTensorRules.transposeLastTwoAxes(second));
+                Tensor gradForFirst = LinalgTensorRules.sumToShape(gradRaw, first.getShapeUnsafe());
                 context.accumulate(first, gradForFirst);
             }
             if (second.getRequiresGrad()) {
-                Tensor gradRaw = LinalgSupport.transposeLastTwoAxes(first).matmul(outGrad);
-                Tensor gradForSecond = LinalgSupport.sumToShape(gradRaw, second.getShapeUnsafe());
+                Tensor gradRaw = LinalgTensorRules.transposeLastTwoAxes(first).matmul(outGrad);
+                Tensor gradForSecond = LinalgTensorRules.sumToShape(gradRaw, second.getShapeUnsafe());
                 context.accumulate(second, gradForSecond);
             }
         });

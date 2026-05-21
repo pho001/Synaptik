@@ -24,7 +24,7 @@ public final class TakeAlongAxisOp {
         }
         int[] inputShape = input.getShape();
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, inputShape.length);
-        IndexSupport.validateTakeAlongAxisShape(inputShape, indices.getShape(), normalizedDimension);
+        IndexShapeRules.validateTakeAlongAxisShape(inputShape, indices.getShape(), normalizedDimension);
 
         Tensor out = TensorPrimitiveBuilder.binary(
                 input,

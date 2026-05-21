@@ -18,6 +18,7 @@ import java.util.Objects;
  * @param executionMode compile-time execution mode metadata
  * @param supportsBackward whether backward work is present in the graph
  * @param forwardBoundaryNodeId index of the forward output node in {@code graph}
+ * @param rewriteMap cumulative identity mapping from pre-optimization tensors to rewritten tensors
  * @param trace optimizer diagnostics
  */
 public record OptimizerState(
@@ -26,12 +27,14 @@ public record OptimizerState(
         ExecutionMode executionMode,
         boolean supportsBackward,
         int forwardBoundaryNodeId,
+        GraphRewriteMap rewriteMap,
         OptimizerTrace trace
 ) {
     public OptimizerState {
         graph = List.copyOf(Objects.requireNonNull(graph, "graph cannot be null"));
         forwardOutput = Objects.requireNonNull(forwardOutput, "forwardOutput cannot be null");
         executionMode = executionMode == null ? ExecutionMode.FORWARD : executionMode;
+        rewriteMap = rewriteMap == null ? GraphRewriteMap.empty() : rewriteMap;
         trace = trace == null ? OptimizerTrace.empty() : trace;
     }
 
@@ -56,6 +59,7 @@ public record OptimizerState(
                 ExecutionMode.FORWARD,
                 false,
                 forwardBoundaryNodeId,
+                GraphRewriteMap.empty(),
                 OptimizerTrace.empty()
         );
     }
@@ -67,6 +71,19 @@ public record OptimizerState(
                 executionMode,
                 supportsBackward,
                 resolveBoundaryIndex(graph, forwardOutput),
+                rewriteMap,
+                trace
+        );
+    }
+
+    public OptimizerState withRewriteMap(GraphRewriteMap rewriteMap) {
+        return new OptimizerState(
+                graph,
+                forwardOutput,
+                executionMode,
+                supportsBackward,
+                forwardBoundaryNodeId,
+                rewriteMap,
                 trace
         );
     }
@@ -78,6 +95,7 @@ public record OptimizerState(
                 executionMode,
                 supportsBackward,
                 forwardBoundaryNodeId,
+                rewriteMap,
                 trace
         );
     }
@@ -93,6 +111,7 @@ public record OptimizerState(
                 executionMode,
                 supportsBackward,
                 forwardBoundaryNodeId,
+                rewriteMap,
                 trace
         );
     }

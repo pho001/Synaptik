@@ -186,7 +186,7 @@ class PreparedCudaExecutableBufferPolicyTest {
 
         assertArrayEquals(new float[]{0f, 3f}, fixture.context()
                 .runtimeTensorForNodeId(fixture.outputNode().id())
-                .getFloat32Data(), 0f);
+                .toFloat32ArrayCopy(), 0f);
         assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
         List<CpuMaterializationTrace> traces = fixture.state().cpuMaterializationTraces();
         assertEquals(1, traces.size());
@@ -216,7 +216,7 @@ class PreparedCudaExecutableBufferPolicyTest {
                 .startsWith("CUDA buffer binding execution failed:"));
         assertArrayEquals(new float[]{0f, 3f}, fixture.context()
                 .runtimeTensorForNodeId(fixture.outputNode().id())
-                .getFloat32Data(), 0f);
+                .toFloat32ArrayCopy(), 0f);
         assertFalse(fixture.state().requiresCpuMaterialization(fixture.outputNode().id()));
     }
 

@@ -5,7 +5,7 @@ import operations.layout.sliceScatterAdd;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
-import tensor.ops.layout.LayoutSupport.SliceSpec;
+import tensor.ops.layout.LayoutGeometryRules.SliceSpec;
 
 /**
  * Graph-building definition for strided {@code slice} views.
@@ -18,7 +18,7 @@ public final class SliceOp {
         if (input == null) {
             throw new IllegalArgumentException("slice input cannot be null");
         }
-        SliceSpec spec = LayoutSupport.normalizeSlice(input.getShapeUnsafe(), starts, ends, axes, steps);
+        SliceSpec spec = LayoutGeometryRules.normalizeSlice(input.getShapeUnsafe(), starts, ends, axes, steps);
         int[] inputStrides = input.getStridesUnsafe();
         int[] outStrides = inputStrides.clone();
         int storageOffset = input.getStorageOffsetUnsafe();
@@ -42,7 +42,7 @@ public final class SliceOp {
                 return;
             }
             Tensor grad;
-            if (LayoutSupport.allOnes(spec.steps())) {
+            if (LayoutGeometryRules.allOnes(spec.steps())) {
                 int rank = input.getShapeUnsafe().length;
                 int[] before = new int[rank];
                 int[] after = new int[rank];

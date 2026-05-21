@@ -137,7 +137,7 @@ public class Tensor {
     public Tensor(int[] shape, List<Tensor> previous, Operation operation, String label, DataType dataType) {
         resetNode(operation, previous);
         this.metadata = new TensorMetadata(shape, label, previous != null && previous.stream().anyMatch(Tensor::getRequiresGrad), dataType);
-        storage = TensorStorageSupport.emptyStorage(metadata, calculateSize(shape));
+        storage = TensorStorageSupport.emptyStorage(metadata, TensorShape.checkedFlatSize(shape));
     }
 
     /**
@@ -639,16 +639,6 @@ public class Tensor {
     }
 
     /**
-     * Returns the product of dimensions in a shape array.
-     *
-     * @param dimensions dimensions to multiply; must be non-null
-     * @return flat element count
-     */
-    public int calculateSize(int[] dimensions) {
-        return TensorShape.checkedFlatSize(dimensions);
-    }
-
-    /**
      * Returns this tensor's rank.
      *
      * <p>Rank is the number of logical axes in the tensor shape. For example,
@@ -860,7 +850,7 @@ public class Tensor {
             throw new UnsupportedOperationException("Cannot write through broadcast view tensor.");
         }
         setByStorageOffset(TensorStorageSupport.logicalFlatIndexToStorageOffset(metadata, flatindex), value);
-        markStorageModified();
+        markStorageModifiedInternal();
     }
 
     /**
@@ -1099,16 +1089,6 @@ public class Tensor {
     }
 
     /**
-     * Computes row-major contiguous strides for a shape.
-     *
-     * @param shape shape to analyze; must be non-null
-     * @return newly allocated strides array
-     */
-    public int[] computeStrides(int[] shape) {
-        return TensorMetadata.computeStrides(shape);
-    }
-
-    /**
      * Reports whether this tensor represents a backward graph tensor.
      *
      * @return true for tensors marked by internal autograd construction
@@ -1118,15 +1098,6 @@ public class Tensor {
     }
     void setBackwardInternal(boolean backward) {
         node.setBackward(backward);
-    }
-
-    /**
-     * Returns a defensive copy of this tensor's current strides.
-     *
-     * @return stride array copy
-     */
-    public int[] computeStrides() {
-        return metadata.getStrides();
     }
 
     /**
@@ -1167,122 +1138,12 @@ public class Tensor {
     }
 
     /**
-     * Returns the mutable backing storage object.
-     *
-     * <p>This is a raw/unsafe compatibility API. Prefer logical copy helpers such as
-     * {@link #toDoubleArrayCopy()}, {@link #toFloat32ArrayCopy()}, {@link #toInt32ArrayCopy()},
-     * or internal runtime access through {@link TensorInternalAccess}.</p>
-     *
-     * @return mutable storage backing this tensor
-     */
-    @Deprecated(since = "0.1", forRemoval = false)
-    public TensorStorage getStorage() {
-        return storageInternal();
-    }
-
-    /**
      * Returns the current backing storage version.
      *
      * @return storage mutation counter
      */
     public long storageVersion() {
         return TensorStorageSupport.version(storage);
-    }
-
-    /**
-     * Marks this tensor's storage as modified.
-     *
-     * <p>Call this after direct mutation through a typed array returned by a
-     * storage getter if downstream caches rely on storage versions.</p>
-     */
-    public void markStorageModified() {
-        markStorageModifiedInternal();
-    }
-
-    /**
-     * Returns the mutable FLOAT32 backing array.
-     *
-     * <p>This is a raw/unsafe compatibility API. Direct writes require
-     * {@link #markStorageModified()} afterward. Prefer {@link #toFloat32ArrayCopy()} for reads.</p>
-     *
-     * @return storage-order float array
-     * @throws UnsupportedOperationException if the tensor storage is not FLOAT32
-     */
-    @Deprecated(since = "0.1", forRemoval = false)
-    public float[] getFloat32Data() {
-        return float32DataInternal();
-    }
-
-    /**
-     * Returns the mutable FLOAT64 backing array.
-     *
-     * <p>This is a raw/unsafe compatibility API. Direct writes require
-     * {@link #markStorageModified()} afterward. Prefer {@link #toFloat64ArrayCopy()} or
-     * {@link #toDoubleArrayCopy()} for reads.</p>
-     *
-     * @return storage-order double array
-     * @throws UnsupportedOperationException if the tensor storage is not FLOAT64
-     */
-    @Deprecated(since = "0.1", forRemoval = false)
-    public double[] getFloat64Data() {
-        return float64DataInternal();
-    }
-
-    /**
-     * Returns the mutable BFLOAT16 backing array.
-     *
-     * <p>This is a raw/unsafe compatibility API. Direct writes require
-     * {@link #markStorageModified()} afterward. Prefer {@link #toBFloat16BitsArrayCopy()} for reads.</p>
-     *
-     * @return storage-order raw bfloat16 bit array
-     * @throws UnsupportedOperationException if the tensor storage is not BFLOAT16
-     */
-    @Deprecated(since = "0.1", forRemoval = false)
-    public short[] getBFloat16Data() {
-        return bfloat16DataInternal();
-    }
-
-    /**
-     * Returns the mutable INT32 backing array.
-     *
-     * <p>This is a raw/unsafe compatibility API. Direct writes require
-     * {@link #markStorageModified()} afterward. Prefer {@link #toInt32ArrayCopy()} for reads.</p>
-     *
-     * @return storage-order int array
-     * @throws UnsupportedOperationException if the tensor storage is not INT32
-     */
-    @Deprecated(since = "0.1", forRemoval = false)
-    public int[] getInt32Data() {
-        return int32DataInternal();
-    }
-
-    /**
-     * Returns the mutable INT64 backing array.
-     *
-     * <p>This is a raw/unsafe compatibility API. Direct writes require
-     * {@link #markStorageModified()} afterward. Prefer {@link #toInt64ArrayCopy()} for reads.</p>
-     *
-     * @return storage-order long array
-     * @throws UnsupportedOperationException if the tensor storage is not INT64
-     */
-    @Deprecated(since = "0.1", forRemoval = false)
-    public long[] getInt64Data() {
-        return int64DataInternal();
-    }
-
-    /**
-     * Returns the mutable BOOL backing array.
-     *
-     * <p>This is a raw/unsafe compatibility API. Direct writes require
-     * {@link #markStorageModified()} afterward. Prefer {@link #toBooleanArrayCopy()} or
-     * {@link #toBoolByteArrayCopy()} for reads.</p>
-     *
-     * @return storage-order byte array where non-zero values are true
-     * @throws UnsupportedOperationException if the tensor storage is not BOOL
-     */
-    @Deprecated(since = "0.1", forRemoval = false)
-    public byte[] getBoolData() {
-        return boolDataInternal();
     }
 
     /**
@@ -1296,33 +1157,6 @@ public class Tensor {
 
     int getStorageSize() {
         return storage != null ? storage.getSize() : metadata.getFlatSize();
-    }
-
-    /**
-     * Returns mutable double storage for FLOAT64 tensors.
-     *
-     * <p>This is a raw/unsafe compatibility API. Prefer {@link #toFloat64ArrayCopy()}
-     * or {@link #toDoubleArrayCopy()} for reads.</p>
-     *
-     * @return storage-order double array
-     * @throws UnsupportedOperationException if this tensor is not FLOAT64
-     */
-    @Deprecated(since = "0.1", forRemoval = false)
-    public double[] getData() {
-        if (metadata.getDataType() != DataType.FLOAT64) {
-            throw new UnsupportedOperationException("getData() is only supported for FLOAT64 tensors. Use typed storage getters or toDoubleArrayCopy().");
-        }
-        return float64DataInternal();
-    }
-
-    /**
-     * Compatibility hook for older mirrored-data callers.
-     *
-     * <p>This implementation intentionally does nothing because non-FLOAT64
-     * tensors do not maintain a mirrored {@code double[]} view.</p>
-     */
-    public void markDataViewStale() {
-        // no-op: non-F64 tensors no longer maintain a mirrored double[] view
     }
 
     /**
@@ -1451,14 +1285,6 @@ public class Tensor {
      */
     public double scalarAsDouble() {
         return TensorDebugSupport.scalarAsDouble(this);
-    }
-
-    void setBackendIntentInternal(backend.ComputeBackend backend) {
-        node.setBackendIntent(backend);
-    }
-
-    backend.ComputeBackend backendIntentInternal() {
-        return node.backendIntent();
     }
 
     void setOperationInternal(Operation operation){

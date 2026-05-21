@@ -7,8 +7,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-final class LinalgSupport {
-    private LinalgSupport() {
+final class LinalgTensorRules {
+    private LinalgTensorRules() {
     }
 
     static void requireFloating(Tensor tensor, String name) {

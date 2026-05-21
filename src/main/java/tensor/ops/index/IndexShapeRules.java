@@ -3,8 +3,8 @@ package tensor.ops.index;
 import tensor.DataType;
 import tensor.Tensor;
 
-final class IndexSupport {
-    private IndexSupport() {
+final class IndexShapeRules {
+    private IndexShapeRules() {
     }
 
     static void validateGatherIndicesShape(int[] indicesShape, int[] expectedShape) {

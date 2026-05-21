@@ -17,7 +17,10 @@ import tuning.benchmark.BenchmarkSession;
 import tuning.validate.ValidationPolicy;
 import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadEnvironment;
+import tuning.workload.WorkloadGraph;
+import tuning.workload.WorkloadGraphFactory;
 import tuning.workload.WorkloadKind;
+import graph.compile.intent.BackendIntentPlan;
 
 import java.util.List;
 
@@ -81,28 +84,29 @@ final class MetalBackwardBenchmarkTest {
     }
 
     private static TensorRootWorkloadSpec matmulSumWorkload(String name, int m, int k, int n) {
-        return new TensorRootWorkloadSpec(
+        return TensorRootWorkloadSpec.fromGraphFactory(
                 name,
                 WorkloadKind.GENERIC,
-                environment -> {
+                (WorkloadGraphFactory) environment -> {
                     Tensor a = new Tensor(sequence(m * k), new int[]{m, k}, null, "a", DataType.FLOAT32);
                     Tensor b = new Tensor(sequence(k * n), new int[]{k, n}, null, "b", DataType.FLOAT32);
                     a.setRequiresGrad(true);
                     b.setRequiresGrad(true);
                     Tensor matmul = a.matmul(b);
-                    if (isGpuProfile(environment)) {
-                        TensorInternalAccess.setBackendIntent(matmul, ComputeBackend.GPU_METAL);
-                    }
-                    return matmul.sum();
+                    Tensor root = matmul.sum();
+                    BackendIntentPlan backendIntentPlan = isGpuProfile(environment)
+                            ? BackendIntentPlan.of(matmul, ComputeBackend.GPU_METAL)
+                            : BackendIntentPlan.empty();
+                    return new WorkloadGraph(root, backendIntentPlan);
                 }
         );
     }
 
     private static TensorRootWorkloadSpec linearBiasTanhSumWorkload(String name, int batch, int in, int outDim) {
-        return new TensorRootWorkloadSpec(
+        return TensorRootWorkloadSpec.fromGraphFactory(
                 name,
                 WorkloadKind.GENERIC,
-                environment -> {
+                (WorkloadGraphFactory) environment -> {
                     Tensor input = new Tensor(sequence(batch * in), new int[]{batch, in}, null, "input", DataType.FLOAT32);
                     Tensor weight = new Tensor(sequence(in * outDim), new int[]{in, outDim}, null, "weight", DataType.FLOAT32);
                     Tensor bias = new Tensor(sequence(outDim), new int[]{outDim}, null, "bias", DataType.FLOAT32);
@@ -111,11 +115,11 @@ final class MetalBackwardBenchmarkTest {
                     bias.setRequiresGrad(true);
                     Tensor linear = input.linear(weight, bias);
                     Tensor out = linear.tanh();
-                    if (isGpuProfile(environment)) {
-                        TensorInternalAccess.setBackendIntent(linear, ComputeBackend.GPU_METAL);
-                        TensorInternalAccess.setBackendIntent(out, ComputeBackend.GPU_METAL);
-                    }
-                    return out.sum();
+                    Tensor root = out.sum();
+                    BackendIntentPlan backendIntentPlan = isGpuProfile(environment)
+                            ? BackendIntentPlan.of(ComputeBackend.GPU_METAL, linear, out)
+                            : BackendIntentPlan.empty();
+                    return new WorkloadGraph(root, backendIntentPlan);
                 }
         );
     }

@@ -1,10 +1,10 @@
 package graph;
 
 import backend.ComputeBackend;
+import graph.compile.intent.BackendIntentPlan;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorInternalAccess;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -89,10 +89,11 @@ public final class CompiledNode {
      * @param orderedGraph tensors in topological order
      * @return immutable compiled node snapshots
      */
-    public static List<CompiledNode> snapshot(List<Tensor> orderedGraph) {
+    public static List<CompiledNode> snapshot(List<Tensor> orderedGraph, BackendIntentPlan backendIntentPlan) {
         if (orderedGraph == null || orderedGraph.isEmpty()) {
             return List.of();
         }
+        BackendIntentPlan intents = backendIntentPlan == null ? BackendIntentPlan.empty() : backendIntentPlan;
         IdentityHashMap<Tensor, Integer> ids = new IdentityHashMap<>();
         for (int i = 0; i < orderedGraph.size(); i++) {
             ids.put(orderedGraph.get(i), i);
@@ -124,7 +125,7 @@ public final class CompiledNode {
             out.add(new CompiledNode(
                     i,
                     tensor.getOperation(),
-                    TensorInternalAccess.backendIntent(tensor),
+                    intents.backend(tensor),
                     inputIds,
                     storageOwnerId,
                     tensor.getShapeUnsafe(),

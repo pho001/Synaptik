@@ -25,7 +25,7 @@ public final class GatherNdOp {
         if (indices.getDataType() == DataType.BOOL) {
             throw new IllegalArgumentException("gatherNd indices must be numeric integral values.");
         }
-        int[] outputShape = IndexSupport.gatherNdOutputShape(input.getShapeUnsafe(), indices.getShapeUnsafe(), batchDims);
+        int[] outputShape = IndexShapeRules.gatherNdOutputShape(input.getShapeUnsafe(), indices.getShapeUnsafe(), batchDims);
         Tensor out = TensorPrimitiveBuilder.binary(
                 input,
                 indices,
@@ -34,10 +34,10 @@ public final class GatherNdOp {
                 "gatherNd",
                 input.getDataType()
         );
-        out.setRequiresGrad(input.getRequiresGrad() && IndexSupport.isFloating(input.getDataType()));
+        out.setRequiresGrad(input.getRequiresGrad() && IndexShapeRules.isFloating(input.getDataType()));
         TensorInternalAccess.setGradientRule(out, context -> {
             Tensor outGrad = out.getGradient();
-            if (outGrad == null || !input.getRequiresGrad() || !IndexSupport.isFloating(input.getDataType())) {
+            if (outGrad == null || !input.getRequiresGrad() || !IndexShapeRules.isFloating(input.getDataType())) {
                 return;
             }
             Tensor grad = ScatterNdOp.build(Tensor.zerosLike(input), indices, outGrad, ScatterReduction.ADD, batchDims);
