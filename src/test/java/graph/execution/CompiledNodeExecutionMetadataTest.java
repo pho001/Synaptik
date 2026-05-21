@@ -1,7 +1,6 @@
 package graph.execution;
 
 import backend.ComputeBackend;
-import backend.accelerator.exec.PartitionExecutionRole;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.runtime.ExecutionContext;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
@@ -12,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 class CompiledNodeExecutionMetadataTest {
     @Test
-    void nullPartitionRoleDefaultsToNone() {
+    void acceleratorMetadataPreservesExecutableAndDefaultsResidency() {
         PreparedAcceleratorExecutable executable = new PreparedAcceleratorExecutable() {
             @Override
             public ComputeBackend backend() {
@@ -25,9 +24,11 @@ class CompiledNodeExecutionMetadataTest {
         };
 
         CompiledNodeExecutionMetadata metadata =
-                testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_METAL, executable, null);
+                testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_METAL, executable);
 
-        assertEquals(PartitionExecutionRole.NONE, metadata.partitionRole());
+        assertEquals(ComputeBackend.GPU_METAL, metadata.backend());
+        assertEquals("NONE", metadata.inputResidencyRequirement().mode().name());
+        assertEquals("CPU_CURRENT_IF_UNSET", metadata.outputResidencyEffect().mode().name());
         assertSame(executable, testsupport.MetadataArtifacts.acceleratorExecutable(metadata));
     }
 }

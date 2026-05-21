@@ -8,7 +8,6 @@ import backend.accelerator.buffer.AcceleratorBufferDecision;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
-import backend.accelerator.exec.PartitionExecutionRole;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.cuda.buffer.CudaBufferAccess;
 import backend.cuda.buffer.CudaBufferBinding;
@@ -178,7 +177,7 @@ class CudaLayoutTransformDeviceFlowTest {
     private static PreparedExecutionStep cudaSourceStep(CompiledNode node) {
         return new PreparedExecutionStep(
                 node,
-                testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_CUDA, new SyntheticCudaSourceExecutable(node.id()), PartitionExecutionRole.NONE)
+                testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_CUDA, new SyntheticCudaSourceExecutable(node.id()))
         );
     }
 
@@ -191,7 +190,7 @@ class CudaLayoutTransformDeviceFlowTest {
     }
 
     private static CompiledNodeExecutionMetadata metadata(ComputeBackend backend) {
-        return testsupport.MetadataArtifacts.acceleratorMetadata(backend, null, PartitionExecutionRole.NONE);
+        return testsupport.MetadataArtifacts.acceleratorMetadata(backend, null);
     }
 
     private static CompiledNode nodeFor(List<CompiledNode> nodes, Tensor tensor) {

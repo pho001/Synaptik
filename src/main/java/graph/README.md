@@ -83,6 +83,8 @@ Contains:
   - [execution/state/ExecutionState.java](../graph/execution/state/ExecutionState.java)
   - [execution/state/RuntimeTensorStore.java](../graph/execution/state/RuntimeTensorStore.java)
   - [execution/state/RuntimeWorkspaceStore.java](../graph/execution/state/RuntimeWorkspaceStore.java)
+  - [execution/state/RuntimeNativeCpuMemoryState.java](../graph/execution/state/RuntimeNativeCpuMemoryState.java)
+  - [execution/state/RuntimeDeviceMemoryState.java](../graph/execution/state/RuntimeDeviceMemoryState.java)
   - [execution/state/RuntimeMaterializationService.java](../graph/execution/state/RuntimeMaterializationService.java)
   - [execution/state/RuntimeResourceRegistry.java](../graph/execution/state/RuntimeResourceRegistry.java)
   - [execution/residency/RuntimeResidencyStore.java](../graph/execution/residency/RuntimeResidencyStore.java)

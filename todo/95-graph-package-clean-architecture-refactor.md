@@ -2,21 +2,36 @@
 
 ## Stav Rozpracovani
 
-Status: `IN_PROGRESS`
+Status: `IMPLEMENTED`
 
-Implementovany prvni slice:
+Implementovane slices:
 
 - `PreparedNodeExecution` byl prejmenovan na `PreparedExecutionStep` ve zdrojich, testech a aktivni dokumentaci.
 - `PreparedExecutionRunner` uz nerozhoduje CPU input materialization/output residency podle konkretnich CPU/native CPU artefaktu; pouziva neutralni `InputResidencyRequirement` a `OutputResidencyEffect` v prepared metadatech.
 - CUDA graph lowering family byla sjednocena na `CUDA_GRAPH_REGION`; fused elementwise zustava pattern/metadata, ne samostatna CUDA lowering family.
 - Backend-neutral `MATMUL_EPILOGUE` execution unit byla odstranena ze structural region planningu; matmul + bias/activation se nerozhoduje jako obecna graph-level unit pred backend/provider volbou.
 - CPU fused execution zachovava offset/strided external input metadata a nenecha obecnou prepared-input materializaci rozbit fused plan storage offsets.
+- `StepExecutionTracer` uz nesklada CPU/OpenBLAS/native CPU/accelerator detaily sam; bere backend-owned `StepTraceContribution` z prepared artifactu a pridava jen obecne storage/fallback summary atributy.
+- Stara `graph.execution.trace.contrib` contributor/support vrstva byla odstranena; CPU trace evidence je v `backend.cpu.CpuStepTraceContributor`, accelerator trace evidence v `AcceleratorExecutionArtifact`.
+- `RuntimeWorkspaceStore` uz neimportuje CPU/accelerator artifacty; run-scoped workspace a prepared inputs alokuje pres backend-neutral `PreparedRuntimeStateAllocator` volany z prepared artifactu.
+- `PreparedExecution.backward()` uz nepise na stdout; unsupported backward convenience call explicitne vyhodi `IllegalStateException`.
+- `SourceTreeHygieneTest` hlida trace import hranici, opaque runtime workspace store a zakaz stdout/stderr v `src/main/java/graph`.
+- CPU fused execution uz nevznika pres `ANCHOR`/`INTERIOR` role nad puvodnimi nody. Prepare emituje jeden multi-node `PreparedExecutionStep` pro fused unit, s explicitnim `orderedNodeIds` a `boundaryOutputNodeIds`, a covered nody uz nedostanou samostatne runtime stepy.
+- CPU native region a Metal/CUDA graph regiony uz take vznikaji jako explicitni multi-node `PreparedExecutionStep` podle startu regionu, ne jako runtime anchor plus skip interior nodu.
+- `CompiledNodeExecutionMetadata`, `ComputeEngine`, `PreparedExecutionBuilder` a test metadata factory uz neobsahuji `PartitionExecutionRole`; role zustava pouze backend-prepare-local index pro legacy lookup.
+- Region prepared stepy podporuji vice boundary outputs. Reprezentativni boundary node nese backend artifact, ale `PreparedExecutionRunner` po provedeni oznaci residency pro vsechny `boundaryOutputNodeIds`.
+- `OptimizerGraphSupport` byl nahrazen domenovym pracovnim modelem `OptimizerGraph`.
+- `RegionOptimizationUnitSupport` byl rozdelen na `ExecutionUnitFactory` a `ElementwiseFusionPlanner`.
+- `MemoryPlan` byl rozdelen na `TensorMemoryPlan`, `RegionMemoryPlan` a `RuntimeBindingPlan`; hlavni plan je agregat explicitnich casti.
+- `GreedyMaxRegionPartitionPlanner` a `AnchorBasedPartitionPlanner` byly slouceny do `MaxRegionPartitionPlanner` s uzkym `SeedOrdering`.
+- `CompileSession` uz neni script nad statickymi stage tridami; compile use-case vlastni primo pres pojmenovane workflow metody.
+- `ExecutionState` zustava public per-run entrypoint, ale native CPU memory a device memory invarianty jsou oddelene do `RuntimeNativeCpuMemoryState` a `RuntimeDeviceMemoryState`.
+- Graph source hygiene hlida odstraneni `*Support`/`*Helper`/`*Adapter` junk-drawer trid v `graph`, sjednoceny max-region planner a odstranene staticke compile stage tridy.
+- `.planning/codebase`, graph README, optimizer README a aktivni docs byly aktualizovane na aktualni package ownership.
 
 Zustava rozpracovane:
 
-- `PreparedExecutionStep` jeste neni plne spustitelna multi-node jednotka; CPU fused cesta porad pouziva anchor node jako reprezentanta fused unit, i kdyz runner uz nespoleha na backend-specific residency casty.
-- `graph.execution.trace.contrib` a cast `graph.execution.state` porad obsahuji konkretni CPU/native CPU/OpenBLAS znalosti. Runner cleanup je hotovy, trace/state cleanup zustava dalsi slice.
-- `ExecutionState`, `CompileSession`, `MemoryPlan` split a max-region planner unifikace zustavaji podle planu nezmenene.
+- Nic z rozsahu tohoto todo. Dalsi prace by uz mela byt nova oblast nebo follow-up vykonove ladeni mimo tento architektonicky refaktor.
 
 Navazuje na:
 
@@ -411,9 +426,9 @@ Fused, region a provider-call execution nesmi byt modelovane jako "node metadata
 
 Upresneni rozsahu:
 
-- CPU fused path ma prejit na prepared steps jako prvni, protoze dnes nejvice zneuziva `ANCHOR`/`INTERIOR` jako execution mechanismus.
-- Metal/CUDA mohou docasne zachovat anchor pro nalezeni prepared region artifactu, ale tento anchor musi zustat backend-local prepare detail.
-- Cilem neni v tomto planu rozbit accelerator region prepare; cilem je odstranit obecny graph runner model, kde se spusteni regionu maskuje jako jeden compiled node a ostatni nody se skipuji.
+- CPU fused path presel na prepared steps jako prvni, protoze nejvice zneuzival `ANCHOR`/`INTERIOR` jako execution mechanismus.
+- CPU native region a Metal/CUDA regiony maji nasledovat stejny runtime model: prepared plan emituje jeden explicitni multi-node step pro region start; backend-local anchor muze zustat jen pro plan/executable lookup.
+- Cilem neni rozbit accelerator region prepare; cilem je odstranit obecny graph runner model, kde se spusteni regionu maskuje jako jeden compiled node a ostatni nody se skipuji.
 
 Graph runtime API nesmi tisknout na stdout. Stav typu "backward neni podporovany" ma byt:
 
@@ -544,6 +559,7 @@ Acceptance:
 - `PreparedExecutionRunner` neimportuje CPU/native CPU artefakty.
 - `StepExecutionTracer` neimportuje OpenBLAS, CPU fused, CPU matmul executable ani backend-specific route enumy.
 - CPU fused execution se nespousti pres anchor node metadata a skipovani interior nodu.
+- CPU native a Metal/CUDA region execution se nespousti pres graph-runtime `PartitionExecutionRole`, ale pres explicitni multi-node `PreparedExecutionStep`.
 - Prepared execution order je odvozeny z prepared steps a zachovava vsechny publication outputs.
 - Existing execution trace tests zustanou zelene nebo jsou aktualizovane na stejny evidence contract pres contributory.
 
@@ -638,7 +654,7 @@ Kroky:
 11. Sjednotit CUDA graph family nazvoslovi s Metalem: odstranit `LoweringFamily.CUDA_FUSED_ELEMENTWISE_GRAPH`, `CudaRegionLowerer` ma pro graph/DAG regiony vracet `CUDA_GRAPH_REGION` i kdyz je region ciste `FUSED_ELEMENTWISE`.
 12. Presunout elementwise CUDA pattern informaci do metadata/trace: `GpuCompoundRegionSummary`, `GpuRegionLoweredUnitSummary`, `RegionExecutionPlan` payload nebo explicitni trace atribut, ne do `LoweringFamily`.
 13. Aktualizovat CUDA tests, trace assertions a docs, ktere ocekavaji `CUDA_FUSED_ELEMENTWISE_GRAPH`, na `CUDA_GRAPH_REGION` plus pattern metadata.
-14. Odstranit CPU fused runtime cestu pres `PartitionRoleIndex`/`ANCHOR`/`INTERIOR`; prepare ma vytvorit `PreparedExecutionStep` pro fused unit.
+14. Odstranit runtime cestu pres `PartitionRoleIndex`/`ANCHOR`/`INTERIOR`; prepare ma vytvorit `PreparedExecutionStep` pro fused unit, CPU native region i Metal/CUDA region.
 15. Overit, ze `graph.optimizer` neimportuje CPU fused/backend fused tridy.
 16. Pridat hygiene nebo focused test, ktery brani navratu CPU fused implementation imports do `graph.optimizer`.
 
@@ -654,7 +670,7 @@ Acceptance:
 - Fused/elementwise CUDA pattern je stale dohledatelny v metadata/trace, aby se neztratila observabilita a testovatelnost.
 - `MATMUL_EPILOGUE` nevznika v backend-neutral/structural planneru; pokud existuje, je to backend-selected lowering/prepared-step family.
 - Matmul epilogue fusion neni vybrana pred backend/provider rozhodnutim; OpenBLAS/provider path muze zustat samostatny matmul step.
-- Runtime nespousti fused loop pres anchor node a skip interior nody.
+- Runtime nespousti fused loop ani CPU/GPU regiony pres anchor node a skip interior nody.
 
 ### 9. Odstranit Graph Runtime Stdout Side Effects
 
@@ -775,7 +791,7 @@ Pro accelerator/runtime boundary zmeny podle potreby:
 - Loop fusion je jasne vlastnena backend-specific execution planningem a CPU backendem, ne optimizerem.
 - `ExecutionUnit` je zachovany jako region-level planning artefakt a hint; CPU ho aktivne loweruje na provider/kernel/fused steps, GPU ho muze ignorovat pri whole-region graph loweringu.
 - CUDA a Metal graph regiony maji sjednocene lowering-family nazvoslovi: `METAL_GRAPH_REGION` a `CUDA_GRAPH_REGION`; fused/elementwise zustava pattern metadata, ne lowering family.
-- Prepared execution spousti explicitni stepy; CPU fused cesta uz nestoji na anchor/interior skipovani puvodnich nodu.
+- Prepared execution spousti explicitni stepy; CPU fused, CPU native a Metal/CUDA region cesty uz nestoji na anchor/interior skipovani puvodnich nodu.
 - `*Support`, `*Helper`, `*Adapter` tridy v `graph` jsou odstranene nebo prejmenovane na skutecne domenove modely.
 - `graph` runtime nema stdout/stderr side effects.
 - Dokumentace a source hygiene testy chrani novy stav.

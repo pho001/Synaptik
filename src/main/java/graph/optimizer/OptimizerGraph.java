@@ -12,21 +12,15 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Shared graph mutation and closure helpers for optimizer rules.
+ * Mutable optimizer working graph operations.
  *
- * <p>These utilities operate on mutable tensor graph edges. They are intended for single-threaded optimizer passes over
- * detached compile snapshots or working compile graphs.
+ * <p>This model owns graph edge rewrites, replacement-chain resolution, observable root discovery, and topological
+ * closure rebuilds for optimizer passes over compile-local tensor graphs.</p>
  */
-public final class OptimizerGraphSupport {
-    private OptimizerGraphSupport() {
+public final class OptimizerGraph {
+    private OptimizerGraph() {
     }
 
-    /**
-     * Rewrites a tensor's input list through a replacement map.
-     *
-     * @param tensor tensor whose inputs should be rewritten
-     * @param replacements replacement map from old tensors to new tensors
-     */
     public static void rewriteInputs(Tensor tensor, Map<Tensor, Tensor> replacements) {
         if (tensor.getPrevTensors() == null || replacements.isEmpty()) {
             return;
@@ -40,13 +34,6 @@ public final class OptimizerGraphSupport {
         }
     }
 
-    /**
-     * Resolves a transitive replacement for a tensor.
-     *
-     * @param tensor original tensor
-     * @param replacements replacement map
-     * @return final replacement, or {@code null} when no replacement exists
-     */
     public static Tensor resolveReplacement(Tensor tensor, Map<Tensor, Tensor> replacements) {
         Tensor current = replacements.get(tensor);
         if (current == null) {
@@ -58,12 +45,6 @@ public final class OptimizerGraphSupport {
         return current;
     }
 
-    /**
-     * Rebuilds a topological closure from observable roots of a graph.
-     *
-     * @param graph source graph
-     * @return rebuilt graph in post-order topological order
-     */
     public static List<Tensor> rebuildTopologicalClosure(List<Tensor> graph) {
         if (graph.isEmpty()) {
             return graph;
@@ -71,12 +52,6 @@ public final class OptimizerGraphSupport {
         return rebuildTopologicalClosureFromRoots(observableRoots(graph));
     }
 
-    /**
-     * Rebuilds a topological closure from explicit roots.
-     *
-     * @param roots observable roots
-     * @return rebuilt graph in post-order topological order
-     */
     public static List<Tensor> rebuildTopologicalClosureFromRoots(List<Tensor> roots) {
         if (roots == null || roots.isEmpty()) {
             return List.of();
@@ -90,12 +65,6 @@ public final class OptimizerGraphSupport {
         return rebuilt;
     }
 
-    /**
-     * Finds graph nodes with no consumers.
-     *
-     * @param graph graph to inspect
-     * @return consumer-free sink tensors
-     */
     public static List<Tensor> consumerFreeSinks(List<Tensor> graph) {
         Map<Tensor, Integer> consumerCounts = new HashMap<>();
         for (Tensor tensor : graph) {
@@ -116,14 +85,6 @@ public final class OptimizerGraphSupport {
         return sinks;
     }
 
-    /**
-     * Returns graph roots that must remain observable after rewrites.
-     *
-     * <p>This includes consumer-free sinks and operation-backed gradient tensors.
-     *
-     * @param graph graph to inspect
-     * @return observable roots in stable order
-     */
     public static List<Tensor> observableRoots(List<Tensor> graph) {
         if (graph == null || graph.isEmpty()) {
             return List.of();
@@ -138,13 +99,6 @@ public final class OptimizerGraphSupport {
         return List.copyOf(roots);
     }
 
-    /**
-     * Resolves root tensors through a replacement map.
-     *
-     * @param roots roots to resolve
-     * @param replacements replacement map
-     * @return resolved roots in stable order
-     */
     public static List<Tensor> resolveRoots(List<Tensor> roots, Map<Tensor, Tensor> replacements) {
         if (roots == null || roots.isEmpty()) {
             return List.of();

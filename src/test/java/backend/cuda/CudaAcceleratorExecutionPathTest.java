@@ -2,7 +2,6 @@ package backend.cuda;
 
 import backend.ComputeBackend;
 import backend.ComputeEngine;
-import backend.accelerator.exec.PartitionExecutionRole;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
@@ -38,7 +37,7 @@ class CudaAcceleratorExecutionPathTest {
             }
         };
 
-        CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_CUDA, executable, PartitionExecutionRole.ANCHOR);
+        CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_CUDA, executable);
 
         ComputeEngine.compute(
                 node,

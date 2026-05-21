@@ -4,7 +4,14 @@ import backend.cpu.fused.exec.PreparedFusedExecutable;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.CpuNodeWorkspace;
+import backend.cpu.plan.CpuPreparedInput;
+import backend.runtime.ExecutionContext;
+import graph.CompiledNode;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.plan.PreparedExecutionArtifact;
+import graph.execution.plan.PreparedRuntimeStateAllocator;
+import graph.execution.trace.StepTraceContribution;
+import tensor.Tensor;
 
 public record CpuFusedExecutionArtifact(
         CpuKernel cpuKernel,
@@ -12,4 +19,46 @@ public record CpuFusedExecutionArtifact(
         PreparedFusedExecutable fusedExecutable,
         CpuNodeWorkspace cpuWorkspace
 ) implements PreparedExecutionArtifact {
+    @Override
+    public void allocateRuntimeState(int nodeId, PreparedRuntimeStateAllocator allocator) {
+        if (allocator == null) {
+            return;
+        }
+        if (cpuWorkspace != null) {
+            allocator.putWorkspace(nodeId, allocator.forkWorkspace(cpuWorkspace, cpuWorkspace::fork));
+        }
+        if (cpuPlan == null || cpuPlan.layoutPlan().preparedInputs().isEmpty()) {
+            return;
+        }
+        for (CpuPreparedInput preparedInput : cpuPlan.layoutPlan().preparedInputs()) {
+            allocator.putPreparedInputTensor(
+                    nodeId,
+                    preparedInput.inputIndex(),
+                    runtimePreparedInput(preparedInput.runtimeTensor())
+            );
+        }
+    }
+
+    @Override
+    public StepTraceContribution traceContribution(
+            CompiledNode node,
+            CompiledNodeExecutionMetadata metadata,
+            ExecutionContext context
+    ) {
+        return CpuStepTraceContributor.contribute(node, metadata, context);
+    }
+
+    private static Tensor runtimePreparedInput(Tensor template) {
+        Tensor runtimePrepared = new Tensor(
+                template.getShapeUnsafe().clone(),
+                template.getStridesUnsafe().clone(),
+                template.getStorageOffsetUnsafe(),
+                null,
+                null,
+                template.getLabel(),
+                template.getDataType()
+        );
+        runtimePrepared.setRequiresGrad(template.getRequiresGrad());
+        return runtimePrepared;
+    }
 }

@@ -1,7 +1,6 @@
 package testsupport;
 
 import backend.accelerator.exec.AcceleratorExecutionArtifact;
-import backend.accelerator.exec.PartitionExecutionRole;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.ComputeBackend;
 import backend.cpu.CpuFusedExecutionArtifact;
@@ -71,7 +70,6 @@ public final class MetadataArtifacts {
     public static CompiledNodeExecutionMetadata cpuMetadata(CpuNodeExecutionPlan cpuPlan) {
         return new CompiledNodeExecutionMetadata(
                 ComputeBackend.CPU,
-                PartitionExecutionRole.NONE,
                 null,
                 List.of(),
                 new CpuNodeExecutionArtifact(null, cpuPlan, null)
@@ -80,19 +78,17 @@ public final class MetadataArtifacts {
 
     public static CompiledNodeExecutionMetadata acceleratorMetadata(
             ComputeBackend backend,
-            PreparedAcceleratorExecutable executable,
-            PartitionExecutionRole role
+            PreparedAcceleratorExecutable executable
     ) {
         return new CompiledNodeExecutionMetadata(
                 backend,
-                role,
                 null,
                 List.of(),
                 new AcceleratorExecutionArtifact(executable)
         );
     }
 
-    public static CompiledNodeExecutionMetadata metadata(ComputeBackend backend, PartitionExecutionRole role) {
-        return new CompiledNodeExecutionMetadata(backend, role, null, List.of(), null);
+    public static CompiledNodeExecutionMetadata metadata(ComputeBackend backend) {
+        return new CompiledNodeExecutionMetadata(backend, null, List.of(), null);
     }
 }

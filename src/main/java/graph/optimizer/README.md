@@ -88,9 +88,9 @@ This is one of the most important architectural boundaries in the current compil
 
 ## Shared Rewrite Mechanics
 
-Several optimizer rules rely on the same support utilities in [OptimizerGraphSupport.java](./OptimizerGraphSupport.java).
+Several optimizer rules operate through the mutable optimizer working graph model in [OptimizerGraph.java](./OptimizerGraph.java).
 
-Important helpers:
+Important operations:
 
 - `rewriteInputs(...)`
   - rewires already replaced inputs before processing the current node
@@ -101,7 +101,7 @@ Important helpers:
 - `rebuildTopologicalClosureFromRoots(...)`
   - rebuilds a clean, reachable topological list after a pass changed the graph
 
-Those helpers are what make local rewrites safe in a larger mutable graph snapshot.
+Those operations make local rewrites safe in a larger mutable graph snapshot.
 
 ## Stage Responsibilities At A Glance
 

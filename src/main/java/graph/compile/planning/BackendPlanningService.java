@@ -8,10 +8,9 @@ import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.execution.trace.PartitionCompileTrace;
 import graph.execution.trace.PartitionDecisionTrace;
 import graph.compile.planning.value.GraphValueRef;
-import graph.compile.planning.partition.AnchorBasedPartitionPlanner;
 import graph.compile.planning.partition.BackendPartitionCapability;
 import graph.compile.planning.partition.CpuNaturalExecutionRegionPlanner;
-import graph.compile.planning.partition.GreedyMaxRegionPartitionPlanner;
+import graph.compile.planning.partition.MaxRegionPartitionPlanner;
 import graph.compile.planning.partition.Partition;
 import graph.compile.planning.partition.PartitionPlan;
 import graph.compile.planning.partition.PartitionPlanner;
@@ -178,8 +177,8 @@ public final class BackendPlanningService {
     private static PartitionPlanner selectPlanner(PartitionPlannerStrategy strategy) {
         PartitionPlannerStrategy resolved = strategy == null ? PartitionPlannerStrategy.GREEDY_MAX_REGION : strategy;
         return switch (resolved) {
-            case ANCHOR_MAX_REGION -> new AnchorBasedPartitionPlanner();
-            case GREEDY_MAX_REGION -> new GreedyMaxRegionPartitionPlanner();
+            case ANCHOR_MAX_REGION -> new MaxRegionPartitionPlanner(MaxRegionPartitionPlanner.SeedOrdering.ANCHOR_FIRST);
+            case GREEDY_MAX_REGION -> new MaxRegionPartitionPlanner(MaxRegionPartitionPlanner.SeedOrdering.NODE_ORDER);
             case SCORED_CANDIDATE_SEARCH -> new ScoredCandidatePartitionPlanner();
             case CPU_NATURAL_EXECUTION_REGION -> new CpuNaturalExecutionRegionPlanner();
         };

@@ -64,23 +64,19 @@ public final class MemoryPlanner {
         );
 
         return new MemoryPlan(
-                lifetimePlan.lifetimes(),
-                reusableIntervals,
-                slotAssignment.slotByOwner(),
-                slotAssignment.slotSizes(),
+                new TensorMemoryPlan(
+                        lifetimePlan.lifetimes(),
+                        reusableIntervals,
+                        slotAssignment.slotByOwner(),
+                        slotAssignment.slotSizes()
+                ),
+                RegionMemoryPlan.empty(),
+                new RuntimeBindingPlan(
+                        RuntimeMemoryBindingPolicyPlanner.forTensors(sortedGraph),
+                        Map.of()
+                ),
                 policy,
-                summary,
-                StructuralMemoryView.empty(),
-                Map.of(),
-                Map.of(),
-                Map.of(),
-                Map.of(),
-                Map.of(),
-                Map.of(),
-                Map.of(),
-                List.of(),
-                RuntimeMemoryBindingPolicyPlanner.forTensors(sortedGraph),
-                Map.of()
+                summary
         );
     }
 
@@ -108,45 +104,34 @@ public final class MemoryPlanner {
         );
 
         return new MemoryPlan(
-                Map.of(),
-                Map.of(),
-                Map.of(),
-                Map.of(),
+                TensorMemoryPlan.empty(),
+                new RegionMemoryPlan(
+                        flowPlan.structuralView(),
+                        flowPlan.regionValueLifetimes(),
+                        flowPlan.materializationPlan(),
+                        bindingAssignment.bindingsByValueRef(),
+                        bindingAssignment.slotByValueRef(),
+                        bindingAssignment.slotSizes(),
+                        flowPlan.tensorToGraphValueRef(),
+                        flowPlan.nodeIdToGraphValueRef(),
+                        handoffRequirements
+                ),
+                new RuntimeBindingPlan(
+                        Map.of(),
+                        RuntimeMemoryBindingPolicyPlanner.forNodeIds(input.compiledNodes())
+                ),
                 policy,
-                emptySummary(),
-                flowPlan.structuralView(),
-                flowPlan.regionValueLifetimes(),
-                flowPlan.materializationPlan(),
-                bindingAssignment.bindingsByValueRef(),
-                bindingAssignment.slotByValueRef(),
-                bindingAssignment.slotSizes(),
-                flowPlan.tensorToGraphValueRef(),
-                flowPlan.nodeIdToGraphValueRef(),
-                handoffRequirements,
-                Map.of(),
-                RuntimeMemoryBindingPolicyPlanner.forNodeIds(input.compiledNodes())
+                emptySummary()
         );
     }
 
     private static MemoryPlan emptyPlan(MemoryPlannerPolicy policy) {
         return new MemoryPlan(
-                Map.of(),
-                Map.of(),
-                Map.of(),
-                Map.of(),
+                TensorMemoryPlan.empty(),
+                RegionMemoryPlan.empty(),
+                RuntimeBindingPlan.empty(),
                 policy,
-                emptySummary(),
-                StructuralMemoryView.empty(),
-                Map.of(),
-                Map.of(),
-                Map.of(),
-                Map.of(),
-                Map.of(),
-                Map.of(),
-                Map.of(),
-                List.of(),
-                Map.of(),
-                Map.of()
+                emptySummary()
         );
     }
 

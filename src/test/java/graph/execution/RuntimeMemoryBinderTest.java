@@ -17,7 +17,10 @@ import graph.compile.planning.memory.MemoryPlanSummary;
 import graph.compile.planning.memory.MemoryPlannerPolicy;
 import graph.compile.planning.memory.RegionMemoryBinding;
 import graph.compile.planning.memory.RegionMemoryBindingKind;
+import graph.compile.planning.memory.RegionMemoryPlan;
+import graph.compile.planning.memory.RuntimeBindingPlan;
 import graph.compile.planning.memory.StructuralMemoryView;
+import graph.compile.planning.memory.TensorMemoryPlan;
 import graph.compile.planning.value.GraphValueRef;
 import operations.Operation;
 import operations.layout.noop;
@@ -267,23 +270,21 @@ class RuntimeMemoryBinderTest {
             nodeIdToGraphValueRef.put(node.id(), valueRef);
         }
         return new MemoryPlan(
-                Map.of(),
-                Map.of(),
-                Map.of(),
-                Map.of(),
+                TensorMemoryPlan.empty(),
+                new RegionMemoryPlan(
+                        StructuralMemoryView.empty(),
+                        Map.of(),
+                        Map.of(),
+                        regionMemoryBindings,
+                        regionSlotByValueRef,
+                        Map.of(slotId, slotSize),
+                        Map.of(),
+                        nodeIdToGraphValueRef,
+                        List.of()
+                ),
+                RuntimeBindingPlan.empty(),
                 MemoryPlannerPolicy.defaults(),
-                emptySummary(),
-                StructuralMemoryView.empty(),
-                Map.of(),
-                Map.of(),
-                regionMemoryBindings,
-                regionSlotByValueRef,
-                Map.of(slotId, slotSize),
-                Map.of(),
-                nodeIdToGraphValueRef,
-                List.of(),
-                Map.of(),
-                Map.of()
+                emptySummary()
         );
     }
 

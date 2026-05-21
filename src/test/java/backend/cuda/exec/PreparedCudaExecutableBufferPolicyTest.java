@@ -13,7 +13,6 @@ import backend.accelerator.dag.AcceleratorDagNodeType;
 import backend.accelerator.dag.AcceleratorDagSpec;
 import backend.accelerator.dag.AcceleratorDagValueRef;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
-import backend.accelerator.exec.PartitionExecutionRole;
 import backend.accelerator.lowering.GpuCompoundPatternType;
 import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.cuda.bridge.CudaBridgeContext;
@@ -345,7 +344,7 @@ class PreparedCudaExecutableBufferPolicyTest {
         Fixture fixture = fixture();
         FakeCudaBridge bridge = new FakeCudaBridge(true);
         PreparedCudaExecutable executable = executable(fixture, bridge, AcceleratorBackendConfig.defaults());
-        var acceleratorMetadata = testsupport.MetadataArtifacts.acceleratorMetadata(backend.ComputeBackend.GPU_CUDA, executable, PartitionExecutionRole.NONE);
+        var acceleratorMetadata = testsupport.MetadataArtifacts.acceleratorMetadata(backend.ComputeBackend.GPU_CUDA, executable);
         PreparedExecution prepared = new PreparedExecution(
                 RuntimeConfig.inferenceDefaults(),
                 false,
@@ -507,7 +506,7 @@ class PreparedCudaExecutableBufferPolicyTest {
     ) {
         CompiledNodeExecutionMetadata fallbackMetadata = metadata.getOrDefault(
                 outputNode.id(),
-                testsupport.MetadataArtifacts.metadata(backend.ComputeBackend.CPU, PartitionExecutionRole.NONE)
+                testsupport.MetadataArtifacts.metadata(backend.ComputeBackend.CPU)
         );
         return new PreparedCudaExecutable(
                 dag(inputNode, outputNode),

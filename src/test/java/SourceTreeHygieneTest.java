@@ -710,6 +710,22 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void partitionExecutionRoleDoesNotLeakIntoGraphRuntimeContract() throws IOException {
+        List<String> offenders = sourceLinesContaining(
+                List.of(
+                        Path.of("src/main/java/graph/execution/plan/CompiledNodeExecutionMetadata.java"),
+                        Path.of("src/main/java/backend/ComputeEngine.java"),
+                        Path.of("src/main/java/backend/prepare/PreparedExecutionBuilder.java"),
+                        Path.of("src/test/java/testsupport/MetadataArtifacts.java")
+                ),
+                List.of("PartitionExecutionRole", "partitionRole()")
+        );
+        assertTrue(offenders.isEmpty(),
+                () -> "Partition roles may stay backend-prepare-local, but must not be graph runtime metadata/dispatch contract: "
+                        + offenders);
+    }
+
+    @Test
     void compiledNodesDoNotExposePublicationTensorBindings() throws IOException {
         List<String> offenders = sourceLinesContaining(
                 List.of(Path.of("src/main/java")),
@@ -726,20 +742,57 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
-    void compileSessionDelegatesConcreteCompileStages() throws IOException {
+    void compileSessionOwnsWorkflowWithoutStaticStages() throws IOException {
         String source = Files.readString(Path.of("src/main/java/graph/compile/session/CompileSession.java"));
-        List<String> offenders = List.of(
-                        "MemoryPlanner",
-                        "DefaultRegionOptimizer",
-                        "CompiledTensorDescriptorBuilder",
-                        "BackendIntentPropagator",
-                        "new PublicationPlan",
-                        "PublicationPlan."
-                )
-                .stream()
-                .filter(source::contains)
+        assertTrue(source.contains("captureForwardGraph()"), "CompileSession should expose the compile flow as named methods.");
+        assertTrue(source.contains("optimizeGraph("), "CompileSession should keep optimizer flow explicit.");
+        assertTrue(source.contains("snapshotProgram("), "CompileSession should keep immutable snapshot creation explicit.");
+        assertTrue(source.contains("planBackendOwnership("), "CompileSession should own backend ownership planning.");
+        assertTrue(source.contains("planRegionsAndMemory("), "CompileSession should own region and memory planning.");
+        assertTrue(source.contains("buildPublicationPlan("), "CompileSession should own publication plan assembly.");
+        List<String> removedStages = List.of(
+                "ForwardGraphCapture.java",
+                "OptimizerSnapshotStage.java",
+                "CompiledProgramSnapshotStage.java",
+                "BackendOwnershipPlanningStage.java",
+                "RegionAndMemoryPlanningStage.java",
+                "PublicationPlanBuilder.java"
+        );
+        List<String> existingStages = removedStages.stream()
+                .map(name -> Path.of("src/main/java/graph/compile/session", name))
+                .filter(Files::exists)
+                .map(Path::toString)
                 .toList();
-        assertTrue(offenders.isEmpty(), () -> "CompileSession must orchestrate named stages, not own concrete planning/publication details: " + offenders);
+        assertTrue(existingStages.isEmpty(), () -> "CompileSession should not be split through static stage/pass-through classes: " + existingStages);
+    }
+
+    @Test
+    void graphPackageDoesNotContainSupportHelperOrAdapterJunkDrawers() throws IOException {
+        List<String> offenders;
+        try (var paths = Files.walk(Path.of("src/main/java/graph"))) {
+            offenders = paths
+                    .filter(Files::isRegularFile)
+                    .map(Path::getFileName)
+                    .map(Path::toString)
+                    .filter(name -> name.endsWith("Support.java")
+                            || name.endsWith("Helper.java")
+                            || name.endsWith("Adapter.java"))
+                    .sorted()
+                    .toList();
+        }
+        assertTrue(offenders.isEmpty(), () -> "graph package should use domain names, not support/helper/adapter junk drawers: " + offenders);
+    }
+
+    @Test
+    void maxRegionPartitionPlannerIsSingleAlgorithmWithSeedOrdering() throws IOException {
+        assertTrue(Files.exists(Path.of("src/main/java/graph/compile/planning/partition/MaxRegionPartitionPlanner.java")),
+                "Max-region planning should use one concrete planner.");
+        assertTrue(!Files.exists(Path.of("src/main/java/graph/compile/planning/partition/GreedyMaxRegionPartitionPlanner.java")),
+                "Node-order max-region planning must not keep a duplicate planner class.");
+        assertTrue(!Files.exists(Path.of("src/main/java/graph/compile/planning/partition/AnchorBasedPartitionPlanner.java")),
+                "Anchor-first max-region planning must not keep a duplicate planner class.");
+        String source = Files.readString(Path.of("src/main/java/graph/compile/planning/partition/MaxRegionPartitionPlanner.java"));
+        assertTrue(source.contains("enum SeedOrdering"), "The max-region planner should express mode differences through seed ordering.");
     }
 
     @Test
@@ -835,14 +888,43 @@ public class SourceTreeHygieneTest {
     void preparedExecutionDoesNotOwnBackendTraceAttributeDetails() throws IOException {
         String preparedExecution = Files.readString(Path.of("src/main/java/graph/execution/PreparedExecution.java"));
         String stepTracer = Files.readString(Path.of("src/main/java/graph/execution/trace/contrib/StepExecutionTracer.java"));
-        assertTrue(stepTracer.contains("BackendRunTraceContributors"),
-                "StepExecutionTracer should delegate backend-specific trace attributes to contributors.");
+        assertTrue(stepTracer.contains("traceContribution("),
+                "StepExecutionTracer should consume backend-owned trace contribution from prepared artifacts.");
+        assertTrue(!stepTracer.contains("BackendRunTraceContributors"),
+                "StepExecutionTracer must not route through a broad backend contributor registry.");
         assertTrue(!preparedExecution.contains("BackendRunTraceContributors"),
                 "PreparedExecution should delegate step trace assembly to StepExecutionTracer.");
         assertTrue(!preparedExecution.contains("\"metalBridgeAvailable\""), "Metal trace attributes belong in backend-owned trace contribution.");
         assertTrue(!preparedExecution.contains("\"cudaBridgeAvailable\""), "CUDA trace attributes belong in backend-owned trace contribution.");
         assertTrue(!preparedExecution.contains("\"nativeCpuRegionId\""), "Native CPU trace attributes belong in the CPU trace contributor.");
         assertTrue(!preparedExecution.contains("\"acceleratorBufferMode\""), "Accelerator buffer trace attributes belong in the accelerator trace contributor.");
+    }
+
+    @Test
+    void graphExecutionTraceDoesNotImportConcreteBackendDetails() throws IOException {
+        List<String> offenders = linesContainingAny(
+                Path.of("src/main/java/graph/execution/trace"),
+                List.of("import backend.cpu.", "import backend.blas.", "import backend.metal.", "import backend.cuda.")
+        );
+        assertTrue(offenders.isEmpty(), () -> "graph.execution.trace must consume backend-owned trace contributions: " + offenders);
+    }
+
+    @Test
+    void runtimeWorkspaceStoreDoesNotImportConcreteBackendDetails() throws IOException {
+        String source = Files.readString(Path.of("src/main/java/graph/execution/state/RuntimeWorkspaceStore.java"));
+        assertTrue(!source.contains("import backend.cpu."), "RuntimeWorkspaceStore must store backend workspaces opaquely.");
+        assertTrue(!source.contains("import backend.blas."), "RuntimeWorkspaceStore must not know BLAS runtime state.");
+        assertTrue(!source.contains("import backend.metal."), "RuntimeWorkspaceStore must not know Metal runtime state.");
+        assertTrue(!source.contains("import backend.cuda."), "RuntimeWorkspaceStore must not know CUDA runtime state.");
+    }
+
+    @Test
+    void graphPackageDoesNotWriteToStdoutOrStderr() throws IOException {
+        List<String> offenders = linesContainingAny(
+                Path.of("src/main/java/graph"),
+                List.of("System.out", "System.err")
+        );
+        assertTrue(offenders.isEmpty(), () -> "graph package must not write directly to stdout/stderr: " + offenders);
     }
 
     @Test

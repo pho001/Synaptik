@@ -1,6 +1,5 @@
 package graph.execution.state;
 
-import backend.cpu.kernels.CpuNodeWorkspace;
 import backend.cpu.nativecpu.NativeCpuMemoryPool;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.DeviceBufferBinding;
@@ -44,6 +43,8 @@ public final class ExecutionState {
     private final NativeCpuStorageRegistry nativeStorageRegistry;
     private final RuntimeResourceRegistry resourceRegistry;
     private final RuntimeMaterializationService materializationService;
+    private final RuntimeNativeCpuMemoryState nativeCpuMemoryState;
+    private final RuntimeDeviceMemoryState deviceMemoryState;
 
     private ExecutionState(
             RuntimeTensorStore tensorStore,
@@ -66,6 +67,19 @@ public final class ExecutionState {
                 this.nativeStorageRegistry,
                 this.resourceRegistry
         );
+        this.nativeCpuMemoryState = new RuntimeNativeCpuMemoryState(
+                this.tensorStore,
+                this.residencyStore,
+                this.nativeStorageRegistry,
+                this.deviceBindingRegistry,
+                this.resourceRegistry,
+                this.materializationService
+        );
+        this.deviceMemoryState = new RuntimeDeviceMemoryState(
+                this.residencyStore,
+                this.deviceBindingRegistry,
+                this.nativeStorageRegistry
+        );
     }
 
     /**
@@ -84,7 +98,7 @@ public final class ExecutionState {
      * @param preparedPool shared prepared-execution pool for {@code PER_PREPARED_EXECUTION}
      */
     public void configureNativeCpuMemory(NativeCpuMemoryConfig config, NativeCpuMemoryPool preparedPool) {
-        resourceRegistry.configureNativeCpuMemory(config, preparedPool);
+        nativeCpuMemoryState.configure(config, preparedPool);
     }
 
     /**
@@ -138,13 +152,13 @@ public final class ExecutionState {
     }
 
     /**
-     * Returns the CPU workspace fork for a compiled node.
+     * Returns the backend-owned runtime workspace for a compiled node.
      *
      * @param nodeId compiled node id
-     * @return CPU workspace, or {@code null} when the node does not use one
+     * @return runtime workspace, or {@code null} when the node does not use one
      */
-    public CpuNodeWorkspace cpuWorkspaceForNodeId(int nodeId) {
-        return workspaceStore.cpuWorkspaceForNodeId(nodeId);
+    public Object workspaceForNodeId(int nodeId) {
+        return workspaceStore.workspaceForNodeId(nodeId);
     }
 
     /**
@@ -198,22 +212,7 @@ public final class ExecutionState {
      * @param reason diagnostic transition reason
      */
     public void attachNativeStorage(int nodeId, NativeTensorStorage storage, String reason) {
-        Objects.requireNonNull(storage, "storage cannot be null");
-        Tensor tensor = runtimeTensorForNodeId(nodeId);
-        if (tensor.getDataType() != storage.getType()) {
-            throw new IllegalArgumentException("Native storage dtype mismatch for nodeId=" + nodeId
-                    + ". tensorType=" + tensor.getDataType() + ", storageType=" + storage.getType());
-        }
-        if (tensor.getFlatDataSize() != storage.getSize()) {
-            throw new IllegalArgumentException("Native storage size mismatch for nodeId=" + nodeId
-                    + ". tensorElements=" + tensor.getFlatDataSize() + ", storageElements=" + storage.getSize());
-        }
-        nativeStorageRegistry.put(nodeId, storage);
-        if (storage.ownsSegment()) {
-            registerResource(storage.allocation());
-        }
-        deviceBindingRegistry.remove(nodeId);
-        residencyForNodeId(nodeId).markNativeCurrent(reason);
+        nativeCpuMemoryState.attachNativeStorage(nodeId, storage, reason);
     }
 
     /**
@@ -225,7 +224,7 @@ public final class ExecutionState {
      * @return native tensor storage
      */
     public NativeTensorStorage allocateNativeStorage(DataType dataType, int elements, String label) {
-        return resourceRegistry.allocateNativeStorage(dataType, elements, label);
+        return nativeCpuMemoryState.allocateNativeStorage(dataType, elements, label);
     }
 
     /**
@@ -240,42 +239,7 @@ public final class ExecutionState {
      * @param reason diagnostic transition reason
      */
     public void aliasNativeStorage(int targetNodeId, int sourceNodeId, String reason) {
-        Tensor target = runtimeTensorForNodeId(targetNodeId);
-        Tensor source = runtimeTensorForNodeId(sourceNodeId);
-        if (target.getDataType() != source.getDataType()) {
-            throw new IllegalArgumentException("Native view alias dtype mismatch. targetNodeId=" + targetNodeId
-                    + ", sourceNodeId=" + sourceNodeId + ", targetType=" + target.getDataType()
-                    + ", sourceType=" + source.getDataType());
-        }
-        NativeTensorStorage storage = requireNativeReadable(sourceNodeId, CpuMaterializationReason.CPU_CONSUMER);
-        long requiredElements = viewPhysicalElementSpan(target);
-        if (requiredElements > storage.getSize()) {
-            throw new IllegalArgumentException("Native view alias exceeds source storage. targetNodeId=" + targetNodeId
-                    + ", sourceNodeId=" + sourceNodeId + ", requiredElements=" + requiredElements
-                    + ", storageElements=" + storage.getSize());
-        }
-        nativeStorageRegistry.put(targetNodeId, storage);
-        deviceBindingRegistry.remove(targetNodeId);
-        residencyForNodeId(targetNodeId).markNativeCurrent(reason);
-    }
-
-    private static long viewPhysicalElementSpan(Tensor tensor) {
-        int[] shape = tensor.getShapeUnsafe();
-        int[] strides = tensor.getStridesUnsafe();
-        long maxElementOffset = tensor.getStorageOffsetUnsafe();
-        for (int i = 0; i < shape.length; i++) {
-            if (shape[i] < 0 || strides[i] < 0) {
-                throw new IllegalArgumentException("Native view alias supports only non-negative shape/strides.");
-            }
-            if (shape[i] == 0) {
-                return 0L;
-            }
-            maxElementOffset = Math.addExact(
-                    maxElementOffset,
-                    Math.multiplyExact((long) shape[i] - 1L, strides[i])
-            );
-        }
-        return Math.addExact(maxElementOffset, 1L);
+        nativeCpuMemoryState.aliasNativeStorage(targetNodeId, sourceNodeId, reason);
     }
 
     /**
@@ -285,8 +249,7 @@ public final class ExecutionState {
      * @return native storage, or {@code null} when none is attached
      */
     public NativeTensorStorage nativeStorageForNodeId(int nodeId) {
-        residencyForNodeId(nodeId);
-        return nativeStorageRegistry.get(nodeId);
+        return nativeCpuMemoryState.nativeStorageForNodeId(nodeId);
     }
 
     /**
@@ -301,9 +264,7 @@ public final class ExecutionState {
      * @param reason diagnostic transition reason
      */
     public void markDeviceCurrent(int nodeId, StorageResidency residency, String deviceBackend, String reason) {
-        nativeStorageRegistry.remove(nodeId);
-        deviceBindingRegistry.remove(nodeId);
-        residencyForNodeId(nodeId).markDeviceCurrent(residency, deviceBackend, reason);
+        deviceMemoryState.markDeviceCurrent(nodeId, residency, deviceBackend, reason);
     }
 
     /**
@@ -318,8 +279,7 @@ public final class ExecutionState {
      * @param binding backend-specific buffer binding
      */
     public void reserveDeviceBufferBinding(int nodeId, DeviceBufferBinding binding) {
-        validateDeviceBufferBinding(nodeId, binding);
-        deviceBindingRegistry.putReserved(nodeId, binding);
+        deviceMemoryState.reserveDeviceBufferBinding(nodeId, binding);
     }
 
     /**
@@ -341,19 +301,7 @@ public final class ExecutionState {
             StorageResidency residency,
             String reason
     ) {
-        Objects.requireNonNull(binding, "binding cannot be null");
-        Objects.requireNonNull(residency, "residency cannot be null");
-        validateDeviceBufferBinding(nodeId, binding);
-        if (residency == StorageResidency.CPU_ARRAY || residency == StorageResidency.CPU_NATIVE) {
-            throw new IllegalArgumentException("Device buffer binding requires a device residency.");
-        }
-        nativeStorageRegistry.remove(nodeId);
-        deviceBindingRegistry.putActive(nodeId, binding);
-        if (residency == StorageResidency.HOST_SHARED_DEVICE_BUFFER) {
-            residencyForNodeId(nodeId).markSharedBufferCurrent(binding.backendId(), reason);
-            return;
-        }
-        residencyForNodeId(nodeId).markDeviceCurrent(residency, binding.backendId(), reason);
+        deviceMemoryState.attachDeviceBufferBinding(nodeId, binding, residency, reason);
     }
 
     /**
@@ -363,8 +311,7 @@ public final class ExecutionState {
      * @return device buffer binding, or {@code null} when none is registered
      */
     public DeviceBufferBinding deviceBufferBindingForNodeId(int nodeId) {
-        residencyForNodeId(nodeId);
-        return deviceBindingRegistry.active(nodeId);
+        return deviceMemoryState.deviceBufferBindingForNodeId(nodeId);
     }
 
     /**
@@ -378,8 +325,7 @@ public final class ExecutionState {
      * @return writable binding, or {@code null} when none is available
      */
     public DeviceBufferBinding writableDeviceBufferBindingForNodeId(int nodeId) {
-        residencyForNodeId(nodeId);
-        return deviceBindingRegistry.writable(nodeId);
+        return deviceMemoryState.writableDeviceBufferBindingForNodeId(nodeId);
     }
 
     /**
@@ -552,18 +498,6 @@ public final class ExecutionState {
      */
     public NativeTensorStorage materializeArrayToNative(int nodeId, CpuMaterializationReason reason, String detail) {
         return materializationService.materializeArrayToNative(nodeId, reason, detail);
-    }
-
-    private void validateDeviceBufferBinding(int nodeId, DeviceBufferBinding binding) {
-        Objects.requireNonNull(binding, "binding cannot be null");
-        if (binding.nodeId() != nodeId) {
-            throw new IllegalArgumentException("Device buffer binding nodeId=" + binding.nodeId()
-                    + " does not match requested nodeId=" + nodeId);
-        }
-        if (!binding.available()) {
-            throw new IllegalArgumentException("Device buffer binding is not available: " + binding.describe());
-        }
-        residencyForNodeId(nodeId);
     }
 
     /**

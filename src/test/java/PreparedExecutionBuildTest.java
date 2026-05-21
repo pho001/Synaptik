@@ -3,7 +3,6 @@ import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import backend.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.exec.AcceleratorPreparedInputResolver;
-import backend.accelerator.exec.PartitionExecutionRole;
 import backend.accelerator.exec.ResolvedAcceleratorInputs;
 import backend.accelerator.lowering.GpuCompoundPatternType;
 import backend.accelerator.select.AcceleratorPlanCostModel;
@@ -1314,6 +1313,33 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
+    void cpuFusedPrepareBuildsMultiNodeStepWithoutPartitionRoles() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{0.5f, 1.5f, -2f, 3f}, new int[]{4}, null, "b", DataType.FLOAT32);
+        Tensor out = a.add(b).mul(a).sigmoid();
+
+        PreparedExecution execution = CompiledGraph.compile(out, fuseOnlyInferenceConfig())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        List<PreparedExecutionStep> fusedSteps = execution.forwardSteps().stream()
+                .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
+                .toList();
+        assertEquals(1, fusedSteps.size());
+        PreparedExecutionStep fusedStep = fusedSteps.getFirst();
+        assertEquals(Operation.OpType.FUSED, fusedStep.executionOperation().opType());
+        assertTrue(fusedStep.orderedNodeIds().size() > 1);
+        assertEquals(fusedStep.compiledNode().id(), fusedStep.orderedNodeIds().getLast());
+        assertEquals(List.of(fusedStep.compiledNode().id()), fusedStep.boundaryOutputNodeIds());
+
+        Set<Integer> fusedInteriorNodeIds = new java.util.HashSet<>(fusedStep.orderedNodeIds());
+        fusedInteriorNodeIds.remove(fusedStep.compiledNode().id());
+        assertTrue(execution.forwardSteps().stream()
+                        .filter(step -> step != fusedStep)
+                        .noneMatch(step -> fusedInteriorNodeIds.contains(step.compiledNode().id())),
+                "CPU fused interior nodes must not be emitted as standalone prepared steps.");
+    }
+
+    @Test
     void float32FusedPrepareUsesAsmExecutable() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{0.5f, 1.5f, -2f, 3f}, new int[]{4}, null, "b", DataType.FLOAT32);
@@ -1643,7 +1669,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForMatmulAddReluChain() {
+    void gpuMetalPartitionPrepareBuildsSingleRegionStepForMatmulAddReluChain() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
         Tensor bias = new Tensor(new float[]{1f, -1f}, new int[]{2}, null, "bias", DataType.FLOAT32);
@@ -1665,7 +1691,9 @@ public class PreparedExecutionBuildTest {
         assertEquals(1, execution.prepareTrace().backendSelection().selectedCount());
         var anchor = gpuSteps.getFirst();
         assertEquals(ComputeBackend.GPU_METAL, anchor.metadata().backend());
-        assertEquals(PartitionExecutionRole.ANCHOR, anchor.metadata().partitionRole());
+        assertTrue(anchor.orderedNodeIds().size() > 1);
+        assertEquals(anchor.compiledNode().id(), anchor.orderedNodeIds().getLast());
+        assertEquals(List.of(anchor.compiledNode().id()), anchor.boundaryOutputNodeIds());
         assertNotNull(testsupport.MetadataArtifacts.acceleratorExecutable(anchor.metadata()));
         assertTrue(testsupport.MetadataArtifacts.acceleratorExecutable(anchor.metadata()) instanceof PreparedMetalExecutable);
         PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(anchor.metadata());
@@ -2716,7 +2744,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForMatmulNegChain() {
+    void gpuMetalPartitionPrepareBuildsSingleRegionStepForMatmulNegChain() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
         Tensor matmul = a.matmul(b);
@@ -2732,7 +2760,9 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        assertEquals(PartitionExecutionRole.ANCHOR, gpuSteps.getFirst().metadata().partitionRole());
+        assertTrue(gpuSteps.getFirst().orderedNodeIds().size() > 1);
+        assertEquals(gpuSteps.getFirst().compiledNode().id(), gpuSteps.getFirst().orderedNodeIds().getLast());
+        assertEquals(List.of(gpuSteps.getFirst().compiledNode().id()), gpuSteps.getFirst().boundaryOutputNodeIds());
     }
 
     @Test

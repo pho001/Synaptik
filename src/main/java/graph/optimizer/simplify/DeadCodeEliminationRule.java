@@ -1,7 +1,7 @@
 package graph.optimizer.simplify;
 
 import graph.optimizer.OptimizationRule;
-import graph.optimizer.OptimizerGraphSupport;
+import graph.optimizer.OptimizerGraph;
 import graph.optimizer.state.OptimizerState;
 import tensor.Tensor;
 
@@ -15,7 +15,7 @@ public final class DeadCodeEliminationRule implements OptimizationRule {
     @Override
     public OptimizerState apply(OptimizerState state) {
         List<Tensor> roots = roots(state);
-        List<Tensor> rebuilt = OptimizerGraphSupport.rebuildTopologicalClosureFromRoots(roots);
+        List<Tensor> rebuilt = OptimizerGraph.rebuildTopologicalClosureFromRoots(roots);
         return state.withGraph(rebuilt, state.forwardOutput());
     }
 

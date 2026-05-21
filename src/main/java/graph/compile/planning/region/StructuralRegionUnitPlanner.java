@@ -19,8 +19,8 @@ final class StructuralRegionUnitPlanner {
     }
 
     static List<ExecutionUnit> buildUnits(Partition partition, RegionOptimizationContext context) {
-        if (RegionOptimizationUnitSupport.shouldFuseWholePartition(partition, context)) {
-            return List.of(RegionOptimizationUnitSupport.buildFusedUnit(partition, context));
+        if (ElementwiseFusionPlanner.shouldFuseWholePartition(partition, context)) {
+            return List.of(ExecutionUnitFactory.buildFusedUnit(partition, context));
         }
         List<ExecutionUnit> out = new ArrayList<>(partition.orderedNodeIds().size());
         Set<Integer> selected = Set.copyOf(partition.orderedNodeIds());
@@ -33,8 +33,8 @@ final class StructuralRegionUnitPlanner {
                 index++;
                 continue;
             }
-            if (!RegionOptimizationUnitSupport.isSubchainFusable(node)) {
-                out.add(RegionOptimizationUnitSupport.buildSingleOpUnit(
+            if (!ElementwiseFusionPlanner.isSubchainFusable(node)) {
+                out.add(ExecutionUnitFactory.buildSingleOpUnit(
                         partition,
                         nodeId,
                         node,
@@ -51,8 +51,8 @@ final class StructuralRegionUnitPlanner {
             int cursor = index + 1;
             while (cursor < partition.orderedNodeIds().size()) {
                 int candidateId = partition.orderedNodeIds().get(cursor);
-                if (!RegionOptimizationUnitSupport.isSubchainFusable(context.compiledNode(candidateId))
-                        || !RegionOptimizationUnitSupport.consumesUnitOutput(context.compiledNode(candidateId), chain)) {
+                if (!ElementwiseFusionPlanner.isSubchainFusable(context.compiledNode(candidateId))
+                        || !ElementwiseFusionPlanner.consumesUnitOutput(context.compiledNode(candidateId), chain)) {
                     break;
                 }
                 chain.add(candidateId);
@@ -60,16 +60,16 @@ final class StructuralRegionUnitPlanner {
             }
 
             if (chain.size() >= 2) {
-                out.add(RegionOptimizationUnitSupport.buildFusedSubchainUnit(
+                out.add(ExecutionUnitFactory.buildFusedSubchainUnit(
                         partition,
                         chain,
                         context,
                         materialized,
-                        RegionOptimizationUnitSupport.unitOutputsForChain(partition, chain, context)
+                        ElementwiseFusionPlanner.unitOutputsForChain(partition, chain, context)
                 ));
                 index = cursor;
             } else {
-                out.add(RegionOptimizationUnitSupport.buildSingleOpUnit(
+                out.add(ExecutionUnitFactory.buildSingleOpUnit(
                         partition,
                         nodeId,
                         node,

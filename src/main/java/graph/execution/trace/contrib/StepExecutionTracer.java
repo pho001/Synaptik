@@ -1,29 +1,12 @@
 package graph.execution.trace.contrib;
 
-import backend.blas.OpenBlasFfmBridge;
-import backend.cpu.CpuFusedExecutionArtifact;
-import backend.cpu.CpuNodeExecutionArtifact;
-import backend.cpu.fused.plan.FusedOperation;
-import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuNodeExecutionPlan;
-import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
-import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
 import backend.runtime.ExecutionContext;
-import config.runtime.BlasStorageMode;
-import config.runtime.CpuStorageProfile;
 import graph.CompiledNode;
 import graph.execution.PreparedExecutionStep;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.trace.ComputeTraceMetadata;
-import graph.execution.trace.ConvTraceMetadata;
-import graph.execution.trace.DispatchTraceMetadata;
+import graph.execution.plan.PreparedExecutionArtifact;
 import graph.execution.trace.ExecutionStepTrace;
-import graph.execution.trace.FusedTraceMetadata;
-import graph.execution.trace.LayoutTraceMetadata;
-import graph.execution.trace.MatMulTraceMetadata;
-import graph.execution.trace.ReductionTraceMetadata;
 import graph.execution.trace.StepExecutionMetadata;
-import tensor.Tensor;
+import graph.execution.trace.StepTraceContribution;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -44,8 +27,7 @@ public final class StepExecutionTracer {
                 ? node.operation()
                 : metadata.executionOperation();
         String opType = executionOperation == null ? "LEAF" : executionOperation.opType().name();
-        CpuKernel cpuKernel = cpuKernel(metadata);
-        String kernel = cpuKernel == null ? "" : cpuKernel.getClass().getSimpleName();
+        StepTraceContribution contribution = contribution(node, step, context);
         return new ExecutionStepTrace(
                 index,
                 node.label(),
@@ -53,331 +35,65 @@ public final class StepExecutionTracer {
                 java.util.Arrays.stream(node.shape()).boxed().toList(),
                 node.dataType(),
                 metadata.backend().name(),
-                kernel,
+                contribution.kernel(),
                 durationNs,
-                buildStepMetadata(node, step, context)
+                buildStepMetadata(node, contribution, context)
         );
     }
 
-    private static StepExecutionMetadata buildStepMetadata(CompiledNode node, PreparedExecutionStep step, ExecutionContext context) {
-        var metadata = step.metadata();
-        CpuNodeExecutionPlan cpuPlan = cpuPlan(metadata);
-        LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
-        ComputeTraceMetadata compute = null;
-        LayoutTraceMetadata layout = new LayoutTraceMetadata(
-                node.storageOffset(),
-                node.contiguous(),
-                cpuPlan != null && cpuPlan.stridedPath(),
-                cpuPlan == null ? "" : cpuPlan.targetType().name()
-        );
-        DispatchTraceMetadata dispatch = null;
-        ReductionTraceMetadata reduction = null;
-        MatMulTraceMetadata matMul = null;
-        ConvTraceMetadata conv = null;
-        FusedTraceMetadata fusedMeta = null;
-
-        if (cpuPlan != null) {
-            var plan = cpuPlan;
-            compute = new ComputeTraceMetadata(
-                    plan.computeContract().computeType().name(),
-                    plan.computeContract().storageType().name(),
-                    plan.computeContract().computeType().name(),
-                    plan.computeContract().backend().name(),
-                    plan.computeContract().accumulateType().name()
-            );
-            if (plan.dispatchHints() != null) {
-                dispatch = new DispatchTraceMetadata(
-                        plan.dispatchHints().mode().name(),
-                        plan.dispatchHints().vectorWidth(),
-                        plan.dispatchHints().plannedWorkers(),
-                        plan.dispatchHints().scalarChunkSize(),
-                        plan.dispatchHints().vectorChunkSize()
-                );
-            }
-            if (plan.reductionHints() != null) {
-                reduction = new ReductionTraceMetadata(
-                        plan.reductionHints().mode().name(),
-                        plan.reductionHints().plannedWorkers(),
-                        plan.reductionHints().chunkSize(),
-                        plan.reductionHints().vectorWidth(),
-                        plan.reductionHints().accuracyMode().name()
-                );
-            }
-            if (plan.matMulHints() != null) {
-                PreparedMatMulExecutable executable = plan.matMulExecutable();
-                MatMulExecutionRoute route = executable == null || executable.lastExecutionRoute() == null
-                        ? plan.matMulHints().route()
-                        : executable.lastExecutionRoute();
-                String blasProvider = matMulBlasProvider(context);
-                String blasSymbol = matMulBlasSymbol(node, route, executable, plan);
-                String nativeCpuFallbackReason = executable == null ? "" : executable.lastFallbackReason();
-                boolean openblasProvider = "OPENBLAS_FFM".equals(blasProvider);
-                matMul = new MatMulTraceMetadata(
-                        plan.matMulHints().useBlas(),
-                        plan.matMulHints().useBatchedBlas(),
-                        blasProvider,
-                        blasSymbol,
-                        route.name(),
-                        route.name(),
-                        matMulCpuStorageProfile(context),
-                        matMulNativeCpuFailurePolicy(context),
-                        matMulRequestedCpuStorage(context),
-                        matMulActualCpuStorage(route),
-                        nativeCpuFallbackReason,
-                        openblasProvider && OpenBlasFfmBridge.isFloat32GemmAvailable(),
-                        openblasProvider && OpenBlasFfmBridge.isFloat64GemmAvailable(),
-                        openblasProvider && OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable(),
-                        openblasProvider && OpenBlasFfmBridge.isBFloat16OutputGemmAvailable(),
-                        matMulBf16ContinuationRoute(node, route, blasSymbol),
-                        matMulBf16OutputRoute(node, route, blasSymbol),
-                        matMulBf16ComputePrecision(node, route, blasSymbol),
-                        matMulBf16OutputPrecision(node, route, blasSymbol),
-                        matMulCopyInBytes(node, step, context, executable, route),
-                        matMulCopyOutBytes(node, executable, route),
-                        matMulNativeTempBytes(route),
-                        matMulThreadPolicy(context),
-                        nativeCpuFallbackReason,
-                        plan.matMulHints().parallel(),
-                        plan.matMulHints().tileM(),
-                        plan.matMulHints().tileN(),
-                        plan.matMulHints().tileK(),
-                        plan.matMulHints().plannedWorkers(),
-                        plan.matMulHints().work(),
-                        plan.matMulHints().microKernel().name()
-                );
-            }
-        }
-
-        ConvTraceMetadata trace = context.convTraceForNodeId(node.id());
-        if (trace != null) {
-            conv = trace;
-        }
-
-        operations.Operation executionOperation = metadata.executionOperation() == null
-                ? node.operation()
-                : metadata.executionOperation();
-        if (executionOperation instanceof FusedOperation fused) {
-            var fusedExecutable = fusedExecutable(step.metadata());
-            String executionBackend = fusedExecutable == null
-                    ? ""
-                    : fusedExecutable.getClass().getSimpleName();
-            fusedMeta = new FusedTraceMetadata(
-                    fused.getPrecisionMode(),
-                    fused.isLowCostHint(),
-                    fused.getDispatchFamily().id(),
-                    fused.getSchedulerSignature(),
-                    executionBackend,
-                    fused.getDispatchScale(),
-                    fused.getPlan().nodeCount(),
-                    fused.getPlan().inputCount()
-            );
-        }
-
-        BackendRunTraceContributors.contribute(
-                new BackendRunTraceContext(node, step, context, matMul),
-                attrs
-        );
-
-        addFallbackSummary(attrs);
-        return new StepExecutionMetadata("node", attrs, compute, layout, dispatch, reduction, matMul, conv, fusedMeta);
-    }
-
-    private static long matMulCopyInBytes(
+    private static StepTraceContribution contribution(
             CompiledNode node,
             PreparedExecutionStep step,
-            ExecutionContext context,
-            PreparedMatMulExecutable executable,
-            MatMulExecutionRoute route
+            ExecutionContext context
     ) {
-        if (executable != null && executable.lastCopyInBytes() >= 0L) {
-            return executable.lastCopyInBytes();
+        PreparedExecutionArtifact artifact = step.metadata().artifact();
+        if (artifact == null) {
+            return StepTraceContribution.empty();
         }
-        if (route != MatMulExecutionRoute.OPENBLAS_ARRAY_COPYING) {
-            return route == MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT ? 0L : -1L;
-        }
-        List<Integer> inputIds = step.metadata().executionInputNodeIds().isEmpty()
-                ? node.inputIds()
-                : step.metadata().executionInputNodeIds();
-        long bytes = 0L;
-        for (int inputId : inputIds) {
-            bytes += logicalByteLength(context.runtimeTensorForNodeId(inputId));
-        }
-        return bytes;
+        return artifact.traceContribution(node, step.metadata(), context);
     }
 
-    private static long matMulCopyOutBytes(
+    private static StepExecutionMetadata buildStepMetadata(
             CompiledNode node,
-            PreparedMatMulExecutable executable,
-            MatMulExecutionRoute route
+            StepTraceContribution contribution,
+            ExecutionContext context
     ) {
-        if (executable != null && executable.lastCopyOutBytes() >= 0L) {
-            return executable.lastCopyOutBytes();
-        }
-        if (route != MatMulExecutionRoute.OPENBLAS_ARRAY_COPYING) {
-            return route == MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT ? 0L : -1L;
-        }
-        return logicalByteLength(node.dataType(), node.shape());
+        LinkedHashMap<String, Object> attrs = new LinkedHashMap<>(contribution.attributes());
+        addStorageAttrs(node, context, attrs);
+        addFallbackSummary(attrs);
+        return new StepExecutionMetadata(
+                "node",
+                attrs,
+                contribution.compute(),
+                contribution.layout(),
+                contribution.dispatch(),
+                contribution.reduction(),
+                contribution.matMul(),
+                contribution.conv(),
+                contribution.fused()
+        );
     }
 
-    private static long matMulNativeTempBytes(MatMulExecutionRoute route) {
-        return route == MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT ? 0L : -1L;
-    }
-
-    private static String matMulBlasProvider(ExecutionContext context) {
-        if (context.runtimeConfig() == null || context.runtimeConfig().blas() == null) {
-            return "";
+    private static void addStorageAttrs(
+            CompiledNode node,
+            ExecutionContext context,
+            LinkedHashMap<String, Object> attrs
+    ) {
+        var residency = context.residencyForNodeId(node.id());
+        if (residency != null) {
+            attrs.put("storageResidency", residency.residency().name());
+            attrs.put("storageCpuCurrent", residency.cpuCurrent());
+            attrs.put("storageDeviceCurrent", residency.deviceCurrent());
+            attrs.put("storageDeviceBackend", residency.deviceBackend());
+            attrs.put("storageTransitionReason", residency.lastTransitionReason());
         }
-        return context.runtimeConfig().blas().provider().name();
-    }
-
-    private static String matMulThreadPolicy(ExecutionContext context) {
-        if (context.runtimeConfig() == null
-                || context.runtimeConfig().blas() == null
-                || context.runtimeConfig().blas().provider() != backend.blas.BlasProvider.OPENBLAS_FFM) {
-            return "";
+        var deviceBinding = context.deviceBufferBindingForNodeId(node.id());
+        if (deviceBinding != null) {
+            attrs.put("deviceBufferBackend", deviceBinding.backendId());
+            attrs.put("deviceBufferBytes", deviceBinding.logicalByteLength());
+            attrs.put("deviceBufferAvailable", deviceBinding.available());
+            attrs.put("deviceBuffer", deviceBinding.describe());
         }
-        return OpenBlasFfmBridge.threadPolicy();
-    }
-
-    private static String matMulCpuStorageProfile(ExecutionContext context) {
-        return context.runtimeConfig() == null || context.runtimeConfig().cpuStorageProfile() == null
-                ? ""
-                : context.runtimeConfig().cpuStorageProfile().name();
-    }
-
-    private static String matMulNativeCpuFailurePolicy(ExecutionContext context) {
-        return context.runtimeConfig() == null || context.runtimeConfig().nativeCpuFailurePolicy() == null
-                ? ""
-                : context.runtimeConfig().nativeCpuFailurePolicy().name();
-    }
-
-    private static String matMulRequestedCpuStorage(ExecutionContext context) {
-        if (context.runtimeConfig() == null || context.runtimeConfig().blas() == null) {
-            return "";
-        }
-        CpuStorageProfile profile = context.runtimeConfig().cpuStorageProfile();
-        BlasStorageMode mode = switch (profile) {
-            case CPU_ARRAY -> BlasStorageMode.CPU_ARRAY;
-            case CPU_NATIVE -> BlasStorageMode.CPU_NATIVE;
-            case AUTO -> context.runtimeConfig().blas().storageMode();
-        };
-        return mode.name();
-    }
-
-    private static String matMulActualCpuStorage(MatMulExecutionRoute route) {
-        return route == MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT ? "CPU_NATIVE" : "CPU_ARRAY";
-    }
-
-    private static String matMulBlasSymbol(CompiledNode node, MatMulExecutionRoute route, PreparedMatMulExecutable executable, CpuNodeExecutionPlan plan) {
-        if (executable != null && !executable.lastBlasSymbol().isBlank()) {
-            return executable.lastBlasSymbol();
-        }
-        if (route == MatMulExecutionRoute.JAVA_DIRECT) {
-            return "";
-        }
-        if (isBFloat16LinearSbgemmRoute(node, plan)) {
-            return "cblas_sbgemm";
-        }
-        return switch (node.dataType()) {
-            case FLOAT32 -> "cblas_sgemm";
-            case FLOAT64 -> "cblas_dgemm";
-            case BFLOAT16 -> "cblas_bgemm";
-            default -> "";
-        };
-    }
-
-    private static boolean isBFloat16LinearSbgemmRoute(CompiledNode node, CpuNodeExecutionPlan plan) {
-        if (node.dataType() != tensor.DataType.BFLOAT16
-                || !(node.operation() instanceof operations.linalg.linear linearOp)
-                || plan == null
-                || plan.matMulHints() == null
-                || (!plan.matMulHints().useBlas() && !plan.matMulHints().useBatchedBlas())) {
-            return false;
-        }
-        return OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable()
-                && (plan.publishFloatContinuation() || linearOp.hasBias());
-    }
-
-    private static String matMulBf16ContinuationRoute(CompiledNode node, MatMulExecutionRoute route, String blasSymbol) {
-        if (node.dataType() != tensor.DataType.BFLOAT16) {
-            return "";
-        }
-        if ("cblas_sbgemm".equals(blasSymbol)) {
-            return "SBGEMM";
-        }
-        if (route == MatMulExecutionRoute.JAVA_DIRECT) {
-            return "JAVA";
-        }
-        if ("cblas_bgemm".equals(blasSymbol)) {
-            return "";
-        }
-        return "UNAVAILABLE";
-    }
-
-    private static String matMulBf16OutputRoute(CompiledNode node, MatMulExecutionRoute route, String blasSymbol) {
-        if (node.dataType() != tensor.DataType.BFLOAT16) {
-            return "";
-        }
-        if ("cblas_bgemm".equals(blasSymbol)) {
-            return "BGEMM";
-        }
-        if ("cblas_sbgemm".equals(blasSymbol)) {
-            return "PROMOTED_F32";
-        }
-        if (route == MatMulExecutionRoute.JAVA_DIRECT) {
-            return "JAVA";
-        }
-        return "UNAVAILABLE";
-    }
-
-    private static String matMulBf16ComputePrecision(CompiledNode node, MatMulExecutionRoute route, String blasSymbol) {
-        if (node.dataType() != tensor.DataType.BFLOAT16) {
-            return "";
-        }
-        if ("cblas_bgemm".equals(blasSymbol)) {
-            return "BF16_OUTPUT";
-        }
-        if ("cblas_sbgemm".equals(blasSymbol) || route == MatMulExecutionRoute.JAVA_DIRECT) {
-            return "F32_PROMOTED";
-        }
-        return "UNAVAILABLE";
-    }
-
-    private static String matMulBf16OutputPrecision(CompiledNode node, MatMulExecutionRoute route, String blasSymbol) {
-        if (node.dataType() != tensor.DataType.BFLOAT16) {
-            return "";
-        }
-        if ("cblas_sbgemm".equals(blasSymbol)) {
-            return "F32";
-        }
-        if ("cblas_bgemm".equals(blasSymbol) || route == MatMulExecutionRoute.JAVA_DIRECT) {
-            return "BF16";
-        }
-        return "UNAVAILABLE";
-    }
-
-    private static long logicalByteLength(Tensor tensor) {
-        if (tensor == null) {
-            return 0L;
-        }
-        return Math.multiplyExact((long) tensor.getFlatDataSize(), elementBytes(tensor.getDataType()));
-    }
-
-    private static long logicalByteLength(tensor.DataType dataType, int[] shape) {
-        long elements = 1L;
-        for (int dim : shape == null ? new int[0] : shape) {
-            elements = Math.multiplyExact(elements, Math.max(0, dim));
-        }
-        return Math.multiplyExact(elements, elementBytes(dataType));
-    }
-
-    private static int elementBytes(tensor.DataType dataType) {
-        return switch (dataType) {
-            case FLOAT64, INT64 -> Long.BYTES;
-            case FLOAT32, INT32 -> Integer.BYTES;
-            case BFLOAT16 -> Short.BYTES;
-            case BOOL -> Byte.BYTES;
-        };
     }
 
     private static void addFallbackSummary(LinkedHashMap<String, Object> attrs) {
@@ -447,31 +163,5 @@ public final class StepExecutionTracer {
 
     private static String firstNonBlank(String first, String second) {
         return first == null || first.isBlank() ? (second == null ? "" : second) : first;
-    }
-
-    private static CpuKernel cpuKernel(CompiledNodeExecutionMetadata metadata) {
-        if (metadata.artifact() instanceof CpuNodeExecutionArtifact artifact) {
-            return artifact.cpuKernel();
-        }
-        if (metadata.artifact() instanceof CpuFusedExecutionArtifact artifact) {
-            return artifact.cpuKernel();
-        }
-        return null;
-    }
-
-    private static CpuNodeExecutionPlan cpuPlan(CompiledNodeExecutionMetadata metadata) {
-        if (metadata.artifact() instanceof CpuNodeExecutionArtifact artifact) {
-            return artifact.cpuPlan();
-        }
-        if (metadata.artifact() instanceof CpuFusedExecutionArtifact artifact) {
-            return artifact.cpuPlan();
-        }
-        return null;
-    }
-
-    private static backend.cpu.fused.exec.PreparedFusedExecutable fusedExecutable(CompiledNodeExecutionMetadata metadata) {
-        return metadata.artifact() instanceof CpuFusedExecutionArtifact artifact
-                ? artifact.fusedExecutable()
-                : null;
     }
 }

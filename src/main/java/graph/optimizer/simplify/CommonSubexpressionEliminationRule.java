@@ -1,7 +1,7 @@
 package graph.optimizer.simplify;
 
 import config.optimizer.CseConfig;
-import graph.optimizer.OptimizerGraphSupport;
+import graph.optimizer.OptimizerGraph;
 import graph.optimizer.OptimizationRule;
 import graph.optimizer.state.OptimizerState;
 import backend.cpu.fused.plan.FusedOperation;
@@ -130,14 +130,14 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
     @Override
     public OptimizerState apply(OptimizerState state) {
         List<Tensor> sortedGraph = state.graph();
-        List<Tensor> originalRoots = OptimizerGraphSupport.observableRoots(sortedGraph);
+        List<Tensor> originalRoots = OptimizerGraph.observableRoots(sortedGraph);
         List<Tensor> optimized = new ArrayList<>();
         Map<StructuralSignature, Tensor> seenNodes = new HashMap<>();
         Map<Tensor, Tensor> replacements = new HashMap<>();
         Map<Tensor, SignatureComponent> structuralSignatures = new HashMap<>();
 
         for (Tensor t : sortedGraph) {
-            OptimizerGraphSupport.rewriteInputs(t, replacements);
+            OptimizerGraph.rewriteInputs(t, replacements);
 
             StructuralSignature signature = generateSignature(t, structuralSignatures);
             if (signature != null) {
@@ -163,16 +163,16 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
 
         if (!replacements.isEmpty()) {
             for (Tensor tensor : sortedGraph) {
-                Tensor resolvedGradient = OptimizerGraphSupport.resolveReplacement(tensor.getGradient(), replacements);
+                Tensor resolvedGradient = OptimizerGraph.resolveReplacement(tensor.getGradient(), replacements);
                 if (resolvedGradient != null) {
                     TensorInternalAccess.setGradient(tensor, resolvedGradient);
                 }
             }
         }
 
-        Tensor resolvedForwardOutput = OptimizerGraphSupport.resolveReplacement(state.forwardOutput(), replacements);
-        List<Tensor> rebuilt = OptimizerGraphSupport.rebuildTopologicalClosureFromRoots(
-                OptimizerGraphSupport.resolveRoots(originalRoots, replacements)
+        Tensor resolvedForwardOutput = OptimizerGraph.resolveReplacement(state.forwardOutput(), replacements);
+        List<Tensor> rebuilt = OptimizerGraph.rebuildTopologicalClosureFromRoots(
+                OptimizerGraph.resolveRoots(originalRoots, replacements)
         );
         return state.withGraph(rebuilt, resolvedForwardOutput == null ? state.forwardOutput() : resolvedForwardOutput);
     }

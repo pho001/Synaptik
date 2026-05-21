@@ -1,8 +1,7 @@
 package graph.compile.planning.partition;
 
-import graph.compile.planning.value.GraphValueRef;
-
 import graph.CompiledNode;
+import graph.compile.planning.value.GraphValueRef;
 import graph.execution.trace.PartitionCompileTrace;
 import graph.execution.trace.PartitionDecisionTrace;
 import operations.Operation;
@@ -16,13 +15,18 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Anchor-first accelerator planner.
+ * Planner that expands each seed into the largest legal backend region it can find.
  *
- * <p>Unlike node-order greedy planning, this planner starts from high-value compute anchors before cheap layout/view
- * nodes can become covered singleton regions. It then uses the same backend partition capability as the other
- * planners, so accepted regions are executable by the backend-specific lowering pipeline.</p>
+ * <p>The algorithm is shared by node-order greedy planning and anchor-first planning. The only intentional difference
+ * between those modes is seed/frontier ordering and the anchor-first preference for pulling supported producer nodes
+ * into accelerator regions during automatic discovery.</p>
  */
-public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
+public final class MaxRegionPartitionPlanner implements PartitionPlanner {
+    public enum SeedOrdering {
+        NODE_ORDER,
+        ANCHOR_FIRST
+    }
+
     private record AttemptResult(
             Partition partition,
             PartitionPlan attachedPlan,
@@ -40,6 +44,12 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
     private record Rejection(String reason, int nodeId) {
     }
 
+    private final SeedOrdering seedOrdering;
+
+    public MaxRegionPartitionPlanner(SeedOrdering seedOrdering) {
+        this.seedOrdering = seedOrdering == null ? SeedOrdering.NODE_ORDER : seedOrdering;
+    }
+
     @Override
     public PartitionPlanningResult plan(PartitionPlanningRequest request) {
         if (request == null || request.target().isNone()) {
@@ -54,21 +64,21 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
         List<Partition> partitions = new ArrayList<>();
         java.util.LinkedHashMap<String, PartitionPlan> plansByPartitionId = new java.util.LinkedHashMap<>();
         List<PartitionDecisionTrace> decisions = new ArrayList<>();
-        for (int nodeId : anchorOrder(request)) {
-            CompiledNode current = context.compiledNode(nodeId);
+        for (int seedNodeId : seedOrder(request)) {
+            CompiledNode current = context.compiledNode(seedNodeId);
             if (current == null || !request.canConsiderNode(current)) {
                 continue;
             }
-            if (covered[nodeId]) {
+            if (covered[seedNodeId]) {
                 decisions.add(PartitionDecisionTrace.coveredByEarlierPartition(
                         request.strategy(),
                         request.target(),
-                        nodeId,
-                        PartitionAssembly.opNames(List.of(nodeId), context)
+                        seedNodeId,
+                        PartitionAssembly.opNames(List.of(seedNodeId), context)
                 ));
                 continue;
             }
-            AttemptResult attempt = tryBuildPlan(nodeId, request, covered);
+            AttemptResult attempt = tryBuildPlan(seedNodeId, request, covered);
             decisions.add(attempt.decision());
             if (attempt.partition() == null) {
                 continue;
@@ -81,7 +91,9 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
             }
             partitions.add(attempt.partition());
         }
-        partitions.sort(Comparator.comparingInt(Partition::anchorSeedNodeId));
+        if (seedOrdering == SeedOrdering.ANCHOR_FIRST) {
+            partitions.sort(Comparator.comparingInt(Partition::anchorSeedNodeId));
+        }
         return new PartitionPlanningResult(
                 partitions,
                 plansByPartitionId,
@@ -89,7 +101,12 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
         );
     }
 
-    private List<Integer> anchorOrder(PartitionPlanningRequest request) {
+    private List<Integer> seedOrder(PartitionPlanningRequest request) {
+        if (seedOrdering == SeedOrdering.NODE_ORDER) {
+            return request.context().compiledNodes().stream()
+                    .map(CompiledNode::id)
+                    .toList();
+        }
         return request.context().compiledNodes().stream()
                 .filter(node -> request.canConsiderNode(node))
                 .filter(node -> request.capability().canSeed(node, request.context()))
@@ -133,7 +150,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
                     ERF, LOG, SQRT, NEG, ABS, FLOOR, CEIL, SIGN, INV, POW, MUL_SCALAR -> 4_000;
             case RESHAPE, PERMUTE, CONTIGUOUS, EXPAND, EXPAND_DIMS, SQUEEZE, SELECT, SLICE, CONCAT, NOOP -> 1_000;
             case SLICE_GRAD, SLICE_SCATTER_ADD, GATHER_AXIS, GATHER_AXIS_GRAD, GATHER_ND, GATHER_ND_GRAD,
-                 SCATTER_AXIS_ADD -> 2_000;
+                    SCATTER_AXIS_ADD -> 2_000;
             default -> 2_000;
         };
         if (allowsMixedTrainingPhases(request)) {
@@ -163,7 +180,10 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
             return rejected(request, startNodeId, seedRejection.reason(), 0, false, seedRejection.nodeId());
         }
         seedRejection = absorbSupportedConsumerClosure(selected, request, covered);
-        if (seedRejection != null) {
+        boolean initialBudgetStop = seedOrdering == SeedOrdering.NODE_ORDER
+                && seedRejection != null
+                && "max-search-nodes".equals(seedRejection.reason());
+        if (seedRejection != null && !initialBudgetStop) {
             return rejected(
                     request,
                     startNodeId,
@@ -174,6 +194,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
                     List.copyOf(selected)
             );
         }
+
         PartitionCandidate bestCandidate = request.capability().createCandidate(
                 selected,
                 context,
@@ -194,10 +215,10 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
         }
 
         int explored = 0;
-        boolean budgetHit = false;
-        Rejection lastRejection = new Rejection("frontier-exhausted", -1);
-        while (true) {
-            List<Integer> frontier = expandableNeighbors(selected, request, covered);
+        boolean budgetHit = initialBudgetStop;
+        Rejection lastRejection = initialBudgetStop ? seedRejection : new Rejection("frontier-exhausted", -1);
+        while (!budgetHit) {
+            List<Integer> frontier = expandableFrontier(selected, request, covered);
             if (frontier.isEmpty()) {
                 break;
             }
@@ -225,12 +246,13 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
             }
         }
 
+        String reason = acceptedReason(budgetHit, lastRejection.reason());
         return new AttemptResult(
                 PartitionAssembly.acceptedPartition(
                         request,
                         bestCandidate,
                         bestPlan,
-                        budgetHit ? "anchor-budget-stop" : "anchor-" + lastRejection.reason(),
+                        reason,
                         lastRejection.nodeId(),
                         explored,
                         budgetHit,
@@ -243,7 +265,7 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
                         request.target(),
                         startNodeId,
                         true,
-                        budgetHit ? "anchor-budget-stop" : "anchor-" + lastRejection.reason(),
+                        reason,
                         bestPlan.nodeIds(),
                         bestCandidate == null ? bestPlan.nodeIds() : bestCandidate.orderedNodeIds(),
                         PartitionAssembly.opNames(bestPlan.nodeIds(), context),
@@ -255,6 +277,13 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
                         lastRejection.nodeId()
                 )
         );
+    }
+
+    private String acceptedReason(boolean budgetHit, String rejectionReason) {
+        if (seedOrdering == SeedOrdering.ANCHOR_FIRST) {
+            return budgetHit ? "anchor-budget-stop" : "anchor-" + rejectionReason;
+        }
+        return budgetHit ? "budget-stop" : rejectionReason;
     }
 
     private AttemptResult rejected(
@@ -378,7 +407,8 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
                 boolean sameTargetSupported = request.canConsiderNode(producer)
                         && !covered[inputId]
                         && request.capability().canExecute(producer, request.context());
-                boolean autoDiscoveryCpuProducer = request.sourcePolicy() == PartitionSourcePolicy.CPU_OR_TARGET_BACKEND
+                boolean autoDiscoveryCpuProducer = seedOrdering == SeedOrdering.ANCHOR_FIRST
+                        && request.sourcePolicy() == PartitionSourcePolicy.CPU_OR_TARGET_BACKEND
                         && producer.backend() != request.target().backend();
                 if (sameTargetSupported && (!externalInputAllowed || autoDiscoveryCpuProducer)) {
                     if (crossesSelectedPhase(expanded, inputId, request)) {
@@ -428,6 +458,40 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
             }
         } while (changed);
         return null;
+    }
+
+    private List<Integer> expandableFrontier(
+            Set<Integer> selectedNodeIds,
+            PartitionPlanningRequest request,
+            boolean[] covered
+    ) {
+        return seedOrdering == SeedOrdering.ANCHOR_FIRST
+                ? expandableNeighbors(selectedNodeIds, request, covered)
+                : expandableConsumers(selectedNodeIds, request, covered);
+    }
+
+    private List<Integer> expandableConsumers(
+            Set<Integer> selectedNodeIds,
+            PartitionPlanningRequest request,
+            boolean[] covered
+    ) {
+        LinkedHashSet<Integer> out = new LinkedHashSet<>();
+        for (int nodeId : selectedNodeIds) {
+            for (CompiledNode consumer : request.context().consumersFor(nodeId)) {
+                if (consumer == null
+                        || selectedNodeIds.contains(consumer.id())
+                        || covered[consumer.id()]
+                        || !request.canConsiderNode(consumer)) {
+                    continue;
+                }
+                out.add(consumer.id());
+            }
+        }
+        return out.stream()
+                .sorted(Comparator
+                        .comparingInt((Integer nodeId) -> isMergeCompleting(nodeId, selectedNodeIds, request.context()) ? 0 : 1)
+                        .thenComparingInt(Integer::intValue))
+                .toList();
     }
 
     private List<Integer> expandableNeighbors(
@@ -509,10 +573,18 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
             return "covered-by-earlier-partition";
         }
         if (crossesSelectedPhase(selected, frontierNodeId, request)) {
-            return phaseBoundaryReason(selected, frontierNodeId, request.context());
+            return seedOrdering == SeedOrdering.ANCHOR_FIRST
+                    ? phaseBoundaryReason(selected, frontierNodeId, request.context())
+                    : "consumer-closure-phase-boundary";
         }
         if (!request.canConsiderNode(node) || !request.capability().canExecute(node, request.context())) {
             return "unsupported-node";
+        }
+        if (seedOrdering == SeedOrdering.NODE_ORDER) {
+            String inputRejection = classifyInputRejection(selected, node, request, covered);
+            if (inputRejection != null) {
+                return inputRejection;
+            }
         }
         LinkedHashSet<Integer> expanded = new LinkedHashSet<>(selected);
         Rejection rejection = absorbWithProducerClosure(frontierNodeId, expanded, request, covered);
@@ -538,6 +610,39 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
         return "unknown-expansion-rejected";
     }
 
+    private String classifyInputRejection(
+            Set<Integer> selected,
+            CompiledNode node,
+            PartitionPlanningRequest request,
+            boolean[] covered
+    ) {
+        for (int inputId : node.inputIds()) {
+            if (selected.contains(inputId)) {
+                continue;
+            }
+            CompiledNode producer = request.context().compiledNode(inputId);
+            if (producer == null) {
+                return "missing-input-node";
+            }
+            boolean externalInputAllowed = request.capability().canUseExternalInput(
+                    producer,
+                    node,
+                    selected,
+                    request.context()
+            );
+            boolean sameTargetSupported = request.canConsiderNode(producer)
+                    && !covered[inputId]
+                    && request.capability().canExecute(producer, request.context());
+            if (sameTargetSupported && !externalInputAllowed && crossesSelectedPhase(selected, inputId, request)) {
+                return "producer-closure-phase-boundary";
+            }
+            if (!externalInputAllowed) {
+                return "external-input-not-allowed";
+            }
+        }
+        return null;
+    }
+
     private String phaseBoundaryReason(Set<Integer> selectedNodeIds, int candidateNodeId, PartitionPlanningContext context) {
         CompiledNode candidate = context.compiledNode(candidateNodeId);
         if (candidate == null) {
@@ -558,7 +663,11 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
         return "phase-boundary";
     }
 
-    private boolean crossesSelectedPhase(Set<Integer> selectedNodeIds, int candidateNodeId, PartitionPlanningRequest request) {
+    private boolean crossesSelectedPhase(
+            Set<Integer> selectedNodeIds,
+            int candidateNodeId,
+            PartitionPlanningRequest request
+    ) {
         PartitionPlanningContext context = request == null ? null : request.context();
         if (selectedNodeIds == null || selectedNodeIds.isEmpty() || context == null || candidateNodeId < 0) {
             return false;
@@ -602,5 +711,4 @@ public final class AnchorBasedPartitionPlanner implements PartitionPlanner {
         }
         return selectedInputs > 1;
     }
-
 }

@@ -468,7 +468,7 @@ final class TransformerMetalPartitionAnalysisTest {
                 "node=" + step.compiledNode().label()
                         + " op=" + (step.compiledNode().operation() == null ? "LEAF" : step.compiledNode().operation().opType())
                         + " backend=" + step.metadata().backend()
-                        + " role=" + step.metadata().partitionRole()
+                        + " nodes=" + step.orderedNodeIds()
         ));
         System.out.println("METAL SELECTED DECISIONS");
         metalPrepared.prepareTrace().backendSelection().decisions().stream()

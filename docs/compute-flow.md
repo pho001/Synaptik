@@ -677,10 +677,9 @@ Prepare performs runtime-dependent work:
 4. Publish selected backend plans into the prepare context.
 5. Run `LoweringPipeline` when optimized regions and a memory plan exist.
 6. Create a `BackendPrepareDispatcher` from the runtime config.
-7. Prepare each non-leaf operation node.
-8. Skip nodes marked `PartitionExecutionRole.INTERIOR`.
-9. Split prepared steps into forward and backward step lists by `forwardBoundaryNodeId`.
-10. Return `PreparedExecution` with a `PrepareTrace`.
+7. Prepare executable `PreparedExecutionStep` entries for single nodes, CPU fused units, native CPU regions, and accelerator graph regions.
+8. Split prepared steps into forward and backward step lists by `forwardBoundaryNodeId`.
+9. Return `PreparedExecution` with a `PrepareTrace`.
 
 ```mermaid
 flowchart TD
@@ -1775,15 +1774,15 @@ Using `CompiledGraph.compile(out, CompileConfig.inference())` kept the same six 
 | partitions | `1` |
 | non-CPU backend selection candidates | `0` |
 
-Prepare then collapsed the elementwise `ADD -> RELU` hot path into a fused CPU anchor. The prepared forward steps were:
+Prepare then collapsed the elementwise `ADD -> RELU` hot path into an explicit fused CPU prepared step. The prepared forward steps were:
 
-| Step node | Label | Execution op | Partition role | Fused executable | Execution inputs | Plan backend |
-|---:|---|---|---|---:|---|---|
-| 3 | `relu` | `FUSED` | `ANCHOR` | `true` | `[0, 1]` | `CPU_FUSED` |
-| 4 | `sum` | `SUM` | `NONE` | `false` | `[]` | `CPU_REDUCTION` |
-| 5 | `System_Forward_Output` | `NOOP` | `NONE` | `false` | `[]` | `CPU_GENERIC` |
+| Step | Boundary node | Covered nodes | Execution op | Fused executable | Execution inputs | Plan backend |
+|---:|---:|---|---|---:|---|---|
+| 0 | 3 | `[2, 3]` | `FUSED` | `true` | `[0, 1]` | `CPU_FUSED` |
+| 1 | 4 | `[4]` | `SUM` | `false` | `[]` | `CPU_REDUCTION` |
+| 2 | 5 | `[5]` | `NOOP` | `false` | `[]` | `CPU_GENERIC` |
 
-The key point is that compile preserved compiled node identity while prepare changed the executable schedule. Node `2` still exists in the compiled graph, but it is not a standalone prepared step in the optimized schedule because the fused anchor at node `3` executes the elementwise region.
+The key point is that compile preserved compiled node identity while prepare changed the executable schedule. Node `2` still exists in the compiled graph, but it is not a standalone prepared step in the optimized schedule because the fused step with boundary output node `3` executes the elementwise region.
 
 ## Reuse Rules
 

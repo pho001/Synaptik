@@ -5,6 +5,7 @@ import backend.accelerator.exec.PartitionExecutionRole;
 import backend.cpu.prepare.CpuNodePreparer;
 import backend.cuda.prepare.CudaGpuNodePreparer;
 import backend.metal.prepare.MetalNodePreparer;
+import backend.lowering.LoweredExecutionUnit;
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
@@ -33,8 +34,46 @@ public final class BackendPrepareDispatcher {
             case GPU_METAL -> metalPreparer().prepare(node, context);
             case GPU_CUDA -> cudaGpuPreparer().prepare(node, context);
             case GPU_OPENCL ->
-                    new CompiledNodeExecutionMetadata(node.backend(), PartitionExecutionRole.NONE, null, java.util.List.of(), null);
+                    new CompiledNodeExecutionMetadata(node.backend(), null, java.util.List.of(), null);
         };
+    }
+
+    public CompiledNodeExecutionMetadata prepareCpuFusedStep(
+            CompiledNode outputNode,
+            LoweredExecutionUnit loweredUnit,
+            BackendPrepareContext context
+    ) {
+        Objects.requireNonNull(outputNode, "outputNode cannot be null");
+        Objects.requireNonNull(loweredUnit, "loweredUnit cannot be null");
+        Objects.requireNonNull(context, "context cannot be null");
+        return cpuPreparer.prepareLoweredFusedStep(outputNode, loweredUnit, context);
+    }
+
+    public CompiledNodeExecutionMetadata prepareCpuNativeRegionStep(
+            LoweredExecutionUnit loweredUnit,
+            BackendPrepareContext context
+    ) {
+        Objects.requireNonNull(loweredUnit, "loweredUnit cannot be null");
+        Objects.requireNonNull(context, "context cannot be null");
+        return cpuPreparer.prepareNativeCpuRegionStep(loweredUnit, context);
+    }
+
+    public CompiledNodeExecutionMetadata prepareMetalRegionStep(
+            backend.lowering.LoweredRegion loweredRegion,
+            BackendPrepareContext context
+    ) {
+        Objects.requireNonNull(loweredRegion, "loweredRegion cannot be null");
+        Objects.requireNonNull(context, "context cannot be null");
+        return metalPreparer().prepareRegionStep(loweredRegion, context);
+    }
+
+    public CompiledNodeExecutionMetadata prepareCudaRegionStep(
+            backend.lowering.LoweredRegion loweredRegion,
+            BackendPrepareContext context
+    ) {
+        Objects.requireNonNull(loweredRegion, "loweredRegion cannot be null");
+        Objects.requireNonNull(context, "context cannot be null");
+        return cudaGpuPreparer().prepareRegionStep(loweredRegion, context);
     }
 
     private MetalNodePreparer metalPreparer() {

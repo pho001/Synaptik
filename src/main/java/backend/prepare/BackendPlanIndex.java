@@ -1,5 +1,6 @@
 package backend.prepare;
 
+import backend.ComputeBackend;
 import graph.compile.planning.partition.PartitionPlan;
 
 import java.util.HashMap;
@@ -27,7 +28,9 @@ final class BackendPlanIndex {
                 continue;
             }
             plansByAnchor.put(plan.anchorNodeId(), plan);
-            roleIndex.publishRoles(plan.anchorNodeId(), plan.nodeIds());
+            if (plan.backend() != ComputeBackend.CPU) {
+                roleIndex.publishRoles(plan.anchorNodeId(), plan.nodeIds());
+            }
         }
     }
 

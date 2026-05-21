@@ -1,7 +1,6 @@
 package backend.accelerator.prepare;
 
 import backend.ComputeBackend;
-import backend.accelerator.exec.PartitionExecutionRole;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
 import backend.cpu.CpuFusedExecutionArtifact;
 import backend.cpu.CpuNodeExecutionArtifact;
@@ -42,13 +41,6 @@ public final class GpuAcceleratorPrepareSupport {
             CompiledNodeExecutionMetadata computeCpuMetadata,
             CompiledNodeExecutionMetadata anchorCpuMetadata
     ) {
-    }
-
-    /**
-     * Creates metadata for a node covered by an accelerator partition.
-     */
-    public static CompiledNodeExecutionMetadata interiorMetadata(ComputeBackend backend, PartitionExecutionRole role) {
-        return new CompiledNodeExecutionMetadata(backend, role, null, List.of(), null);
     }
 
     /**

@@ -45,11 +45,20 @@ public final class PreparedExecutionRunner {
     }
 
     private static void markResidencyAfterStep(PreparedExecutionStep step, ExecutionContext context) {
-        int nodeId = step.compiledNode().id();
         OutputResidencyEffect effect = step.metadata().outputResidencyEffect();
         if (effect.mode() == OutputResidencyEffect.Mode.NONE) {
             return;
         }
+        for (int nodeId : step.boundaryOutputNodeIds()) {
+            markResidencyForNode(nodeId, effect, context);
+        }
+    }
+
+    private static void markResidencyForNode(
+            int nodeId,
+            OutputResidencyEffect effect,
+            ExecutionContext context
+    ) {
         if (effect.mode() == OutputResidencyEffect.Mode.CPU_CURRENT_PRESERVE_NATIVE) {
             var residency = context.residencyForNodeId(nodeId);
             if (residency != null && residency.nativeCurrent()) {

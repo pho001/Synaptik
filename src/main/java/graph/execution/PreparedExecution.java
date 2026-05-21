@@ -284,12 +284,11 @@ public final class PreparedExecution implements AutoCloseable {
     /**
      * Convenience wrapper for {@link #execute(ExecutionMode)} in forward-backward mode.
      *
-     * <p>If the plan has no backward steps, this method prints an informational message and returns without mutation.
+     * <p>If the plan has no backward steps, this method throws an exception instead of silently returning.
      */
     public void backward() {
         if (!supportsBackward) {
-            System.out.println("Info: No gradients to compute.");
-            return;
+            throw new IllegalStateException("Prepared execution does not support backward execution.");
         }
         execute(ExecutionMode.FORWARD_BACKWARD);
     }

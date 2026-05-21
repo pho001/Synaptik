@@ -1,7 +1,7 @@
 package graph.optimizer.rewrite;
 
 import graph.optimizer.OptimizationRule;
-import graph.optimizer.OptimizerGraphSupport;
+import graph.optimizer.OptimizerGraph;
 import graph.compile.intent.BackendIntentPropagator;
 import graph.optimizer.state.OptimizerState;
 import tensor.Tensor;
@@ -29,12 +29,12 @@ public abstract class LocalTensorRewriteRule implements OptimizationRule {
     @Override
     public final OptimizerState apply(OptimizerState state) {
         List<Tensor> sortedGraph = state.graph();
-        List<Tensor> originalRoots = OptimizerGraphSupport.observableRoots(sortedGraph);
+        List<Tensor> originalRoots = OptimizerGraph.observableRoots(sortedGraph);
         List<Tensor> optimized = new ArrayList<>();
         Map<Tensor, Tensor> replacements = new HashMap<>();
 
         for (Tensor tensor : sortedGraph) {
-            OptimizerGraphSupport.rewriteInputs(tensor, replacements);
+            OptimizerGraph.rewriteInputs(tensor, replacements);
             Tensor rewritten = rewriteTensor(tensor);
             if (rewritten != tensor) {
                 BackendIntentPropagator.preserve(rewritten, tensor);
@@ -50,7 +50,7 @@ public abstract class LocalTensorRewriteRule implements OptimizationRule {
 
         if (!replacements.isEmpty()) {
             for (Tensor tensor : sortedGraph) {
-                Tensor resolvedGradient = OptimizerGraphSupport.resolveReplacement(tensor.getGradient(), replacements);
+                Tensor resolvedGradient = OptimizerGraph.resolveReplacement(tensor.getGradient(), replacements);
                 if (resolvedGradient != null) {
                     TensorInternalAccess.setGradient(tensor, resolvedGradient);
                 }
@@ -58,12 +58,12 @@ public abstract class LocalTensorRewriteRule implements OptimizationRule {
         }
 
         if (!rebuildClosure()) {
-            Tensor resolvedForwardOutput = OptimizerGraphSupport.resolveReplacement(state.forwardOutput(), replacements);
+            Tensor resolvedForwardOutput = OptimizerGraph.resolveReplacement(state.forwardOutput(), replacements);
             return state.withGraph(optimized, resolvedForwardOutput == null ? state.forwardOutput() : resolvedForwardOutput);
         }
-        Tensor resolvedForwardOutput = OptimizerGraphSupport.resolveReplacement(state.forwardOutput(), replacements);
-        List<Tensor> rebuilt = OptimizerGraphSupport.rebuildTopologicalClosureFromRoots(
-                OptimizerGraphSupport.resolveRoots(originalRoots, replacements)
+        Tensor resolvedForwardOutput = OptimizerGraph.resolveReplacement(state.forwardOutput(), replacements);
+        List<Tensor> rebuilt = OptimizerGraph.rebuildTopologicalClosureFromRoots(
+                OptimizerGraph.resolveRoots(originalRoots, replacements)
         );
         return state.withGraph(rebuilt, resolvedForwardOutput == null ? state.forwardOutput() : resolvedForwardOutput);
     }

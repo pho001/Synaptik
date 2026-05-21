@@ -18,8 +18,6 @@ import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.plan.OutputResidencyEffect;
 import graph.compile.planning.partition.PartitionPlan;
 
-import java.util.List;
-
 /**
  * Prepares compiled nodes for CUDA partition execution.
  *
@@ -52,7 +50,7 @@ public final class CudaGpuNodePreparer {
     public CompiledNodeExecutionMetadata prepare(CompiledNode node, BackendPrepareContext context) {
         PartitionExecutionRole role = context.partitionRoleFor(node.id());
         if (role == PartitionExecutionRole.INTERIOR) {
-            return GpuAcceleratorPrepareSupport.interiorMetadata(ComputeBackend.GPU_CUDA, role);
+            return cpuPreparer.prepareAsCpu(node, context);
         }
         if (role != PartitionExecutionRole.ANCHOR) {
             return cpuPreparer.prepareAsCpu(node, context);
@@ -62,18 +60,25 @@ public final class CudaGpuNodePreparer {
                 "CUDA GPU",
                 node.id()
         );
+        return prepareRegionStep(loweredRegion, context);
+    }
+
+    public CompiledNodeExecutionMetadata prepareRegionStep(
+            LoweredRegion loweredRegion,
+            BackendPrepareContext context
+    ) {
         LoweringFamily loweringFamily = GpuAcceleratorPrepareSupport.resolveLoweringFamily(
                 loweredRegion,
                 LoweringFamily.CUDA_GRAPH_REGION
         );
         var regionPlan = loweredRegion.units().getFirst().requireRegionPlan();
         RegionPlanValidator.requireBoundaryCoverage(regionPlan, context);
-        PartitionPlan genericPlan = context.backendPlanForAnchor(node.id());
+        PartitionPlan genericPlan = context.backendPlanForAnchor(regionPlan.anchorNodeId());
         CudaGpuPartitionPlan plan = GpuAcceleratorPrepareSupport.requirePlan(
                 genericPlan,
                 CudaGpuPartitionPlan.class,
                 "CUDA GPU",
-                node.id()
+                regionPlan.anchorNodeId()
         );
         var fallback = GpuAcceleratorPrepareSupport.prepareCpuFallback(
                 plan,
@@ -95,9 +100,8 @@ public final class CudaGpuNodePreparer {
         );
         return new CompiledNodeExecutionMetadata(
                 ComputeBackend.GPU_CUDA,
-                PartitionExecutionRole.ANCHOR,
                 null,
-                List.of(),
+                java.util.List.of(),
                 new AcceleratorExecutionArtifact(executable),
                 null,
                 OutputResidencyEffect.cpuCurrentIfUnset(executable.outputResidencyReason())

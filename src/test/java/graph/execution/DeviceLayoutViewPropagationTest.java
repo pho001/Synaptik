@@ -8,7 +8,6 @@ import backend.cuda.buffer.CudaBufferAccess;
 import backend.cuda.buffer.CudaBufferBinding;
 import backend.cuda.buffer.CudaBufferHandle;
 import backend.accelerator.buffer.AcceleratorLayoutTransformDecision;
-import backend.accelerator.exec.PartitionExecutionRole;
 import backend.memory.DeviceBufferBinding;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.StorageResidency;
@@ -232,7 +231,7 @@ class DeviceLayoutViewPropagationTest {
         List<CompiledNode> nodes = CompiledNode.snapshot(List.of(source, target));
         CompiledNode sourceNode = nodes.getFirst();
         CompiledNode targetNode = nodes.get(1);
-        CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.CPU, null, PartitionExecutionRole.NONE);
+        CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.CPU, null);
         ExecutionState state = ExecutionState.create(
                 nodes,
                 CompiledTensorDescriptorBuilder.build(nodes),

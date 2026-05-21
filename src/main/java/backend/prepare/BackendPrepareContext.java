@@ -102,12 +102,28 @@ public final class BackendPrepareContext {
         return loweredRegionIndex.cpuUnitForAnchor(nodeId);
     }
 
+    public LoweredExecutionUnit cpuFusedUnitForStart(int nodeId) {
+        return loweredRegionIndex.cpuFusedUnitForStart(nodeId);
+    }
+
+    public LoweredExecutionUnit cpuNativeUnitForStart(int nodeId) {
+        return loweredRegionIndex.cpuNativeUnitForStart(nodeId);
+    }
+
     public LoweredRegion metalLoweredRegionForAnchor(int nodeId) {
         return loweredRegionIndex.metalRegionForAnchor(nodeId);
     }
 
+    public LoweredRegion metalLoweredRegionForStart(int nodeId) {
+        return loweredRegionIndex.metalRegionForStart(nodeId);
+    }
+
     public LoweredRegion cudaLoweredRegionForAnchor(int nodeId) {
         return loweredRegionIndex.cudaRegionForAnchor(nodeId);
+    }
+
+    public LoweredRegion cudaLoweredRegionForStart(int nodeId) {
+        return loweredRegionIndex.cudaRegionForStart(nodeId);
     }
 
     public PartitionExecutionRole partitionRoleFor(int nodeId) {

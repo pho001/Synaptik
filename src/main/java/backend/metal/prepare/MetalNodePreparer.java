@@ -20,8 +20,6 @@ import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.plan.OutputResidencyEffect;
 import graph.compile.planning.partition.PartitionPlan;
 
-import java.util.List;
-
 /**
  * Prepares compiled nodes for Metal partition execution.
  *
@@ -67,7 +65,7 @@ public final class MetalNodePreparer {
     public CompiledNodeExecutionMetadata prepare(CompiledNode node, BackendPrepareContext context) {
         PartitionExecutionRole role = context.partitionRoleFor(node.id());
         if (role == PartitionExecutionRole.INTERIOR) {
-            return GpuAcceleratorPrepareSupport.interiorMetadata(ComputeBackend.GPU_METAL, role);
+            return cpuPreparer.prepareAsCpu(node, context);
         }
         if (role != PartitionExecutionRole.ANCHOR) {
             return cpuPreparer.prepareAsCpu(node, context);
@@ -77,6 +75,13 @@ public final class MetalNodePreparer {
                 "Metal GPU",
                 node.id()
         );
+        return prepareRegionStep(loweredRegion, context);
+    }
+
+    public CompiledNodeExecutionMetadata prepareRegionStep(
+            LoweredRegion loweredRegion,
+            BackendPrepareContext context
+    ) {
         LoweringFamily loweringFamily = GpuAcceleratorPrepareSupport.resolveLoweringFamily(
                 loweredRegion,
                 LoweringFamily.METAL_GRAPH_REGION
@@ -84,12 +89,12 @@ public final class MetalNodePreparer {
         var regionPlan = loweredRegion.units().getFirst().requireRegionPlan();
         RegionPlanValidator.requireBoundaryCoverage(regionPlan, context);
 
-        PartitionPlan genericPlan = context.backendPlanForAnchor(node.id());
+        PartitionPlan genericPlan = context.backendPlanForAnchor(regionPlan.anchorNodeId());
         MetalPartitionPlan plan = GpuAcceleratorPrepareSupport.requirePlan(
                 genericPlan,
                 MetalPartitionPlan.class,
                 "Metal GPU",
-                node.id()
+                regionPlan.anchorNodeId()
         );
         var fallback = GpuAcceleratorPrepareSupport.prepareCpuFallback(
                 plan,
@@ -110,9 +115,8 @@ public final class MetalNodePreparer {
         );
         return new CompiledNodeExecutionMetadata(
                 ComputeBackend.GPU_METAL,
-                PartitionExecutionRole.ANCHOR,
                 null,
-                List.of(),
+                java.util.List.of(),
                 new AcceleratorExecutionArtifact(executable),
                 null,
                 OutputResidencyEffect.cpuCurrentIfUnset(executable.outputResidencyReason())

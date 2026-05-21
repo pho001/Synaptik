@@ -2,7 +2,6 @@ package graph.compile.planning.region;
 
 import graph.CompiledNode;
 import graph.compile.planning.partition.Partition;
-import graph.compile.planning.partition.PartitionTarget;
 import graph.compile.planning.partition.PartitionValue;
 import graph.compile.planning.value.GraphValueRef;
 import operations.Operation;
@@ -12,31 +11,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-final class RegionOptimizationUnitSupport {
-    private RegionOptimizationUnitSupport() {
-    }
-
-    static boolean shouldFuseWholePartition(Partition partition, RegionOptimizationContext context) {
-        if (partition == null || partition.orderedNodeIds().size() < 2) {
-            return false;
-        }
-        if (partition.outputValueRefs().size() != 1) {
-            return false;
-        }
-        if (partition.target() == PartitionTarget.NONE) {
-            return false;
-        }
-        for (int nodeId : partition.orderedNodeIds()) {
-            CompiledNode node = context.compiledNode(nodeId);
-            if (node == null || node.operation() == null) {
-                return false;
-            }
-            Operation.OpType opType = node.operation().opType();
-            if (opType == null || !opType.isFusable()) {
-                return false;
-            }
-        }
-        return true;
+final class ExecutionUnitFactory {
+    private ExecutionUnitFactory() {
     }
 
     static ExecutionUnit buildFusedUnit(Partition partition, RegionOptimizationContext context) {
@@ -127,28 +103,6 @@ final class RegionOptimizationUnitSupport {
             Set<GraphValueRef> materialized,
             List<GraphValueRef> outputRefs
     ) {
-        return buildSubchainUnit(
-                partition,
-                chain,
-                context,
-                materialized,
-                outputRefs,
-                ExecutionUnitKind.FUSED_ELEMENTWISE,
-                "-fused",
-                "fused-subchain:"
-        );
-    }
-
-    private static ExecutionUnit buildSubchainUnit(
-            Partition partition,
-            List<Integer> chain,
-            RegionOptimizationContext context,
-            Set<GraphValueRef> materialized,
-            List<GraphValueRef> outputRefs,
-            ExecutionUnitKind kind,
-            String unitSuffix,
-            String tracePrefix
-    ) {
         Set<Integer> chainSet = Set.copyOf(chain);
         LinkedHashSet<GraphValueRef> inputRefs = new LinkedHashSet<>();
         LinkedHashSet<Integer> externalInputIds = new LinkedHashSet<>();
@@ -176,8 +130,8 @@ final class RegionOptimizationUnitSupport {
                 .mapToLong(CompiledNode::flatDataSize)
                 .sum();
         return new ExecutionUnit(
-                partition.partitionId() + "-unit-" + chain.getFirst() + unitSuffix,
-                kind,
+                partition.partitionId() + "-unit-" + chain.getFirst() + "-fused",
+                ExecutionUnitKind.FUSED_ELEMENTWISE,
                 partition.target(),
                 List.copyOf(inputRefs),
                 List.copyOf(outputRefs),
@@ -187,7 +141,7 @@ final class RegionOptimizationUnitSupport {
                 Math.max(1L, estimatedWork),
                 List.copyOf(externalInputIds),
                 new RegionOptimizationTrace(unitTraceEvents(
-                        tracePrefix + chain,
+                        "fused-subchain:" + chain,
                         partition,
                         chain,
                         context
@@ -215,51 +169,4 @@ final class RegionOptimizationUnitSupport {
         }
         return List.copyOf(events);
     }
-
-    static List<GraphValueRef> unitOutputsForChain(
-            Partition partition,
-            List<Integer> chain,
-            RegionOptimizationContext context
-    ) {
-        Set<Integer> chainSet = Set.copyOf(chain);
-        LinkedHashSet<GraphValueRef> outputRefs = new LinkedHashSet<>();
-        for (int nodeId : chain) {
-            boolean escapesUnit = partition.outputValueRefs().contains(GraphValueRef.node(nodeId));
-            if (!escapesUnit) {
-                for (int candidateId : partition.orderedNodeIds()) {
-                    if (chainSet.contains(candidateId)) {
-                        continue;
-                    }
-                    CompiledNode candidate = context.compiledNode(candidateId);
-                    if (candidate != null && candidate.inputIds().contains(nodeId)) {
-                        escapesUnit = true;
-                        break;
-                    }
-                }
-            }
-            if (escapesUnit) {
-                outputRefs.add(GraphValueRef.node(nodeId));
-            }
-        }
-        if (outputRefs.isEmpty()) {
-            outputRefs.add(GraphValueRef.node(chain.getLast()));
-        }
-        return List.copyOf(outputRefs);
-    }
-
-    static boolean isSubchainFusable(CompiledNode node) {
-        return node != null
-                && node.operation() != null
-                && node.operation().opType() != null
-                && node.operation().opType().isFusable();
-    }
-
-    static boolean consumesUnitOutput(CompiledNode candidate, List<Integer> chain) {
-        if (candidate == null || candidate.inputIds().isEmpty()) {
-            return false;
-        }
-        int lastNodeId = chain.getLast();
-        return candidate.inputIds().contains(lastNodeId);
-    }
-
 }

@@ -1,6 +1,5 @@
 package backend;
 
-import backend.accelerator.exec.PartitionExecutionRole;
 import backend.accelerator.exec.AcceleratorExecutionArtifact;
 import backend.cpu.CpuBackend;
 import backend.cuda.CudaBackend;
@@ -16,8 +15,7 @@ import graph.execution.plan.CompiledNodeExecutionMetadata;
  *
  * <p>Prepared execution calls this class for each executable step. The method inspects
  * {@link CompiledNodeExecutionMetadata#backend()} and delegates to CPU, CUDA, OpenCL, or Metal backend
- * implementations. Nodes marked as partition interiors are skipped because their work is owned by the
- * partition anchor step.</p>
+ * implementations.</p>
  *
  * <p>The engine stores backend singletons and has no per-run mutable state. Per-run state is carried by
  * {@link ExecutionContext}.</p>
@@ -53,9 +51,6 @@ public final class ComputeEngine {
         }
         if (context == null) {
             throw new IllegalArgumentException("context cannot be null");
-        }
-        if (metadata.partitionRole() == PartitionExecutionRole.INTERIOR) {
-            return;
         }
         switch (metadata.backend()) {
             case CPU -> CPU_BACKEND.execute(node, metadata, context);

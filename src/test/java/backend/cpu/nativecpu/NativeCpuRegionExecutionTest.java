@@ -1,7 +1,6 @@
 package backend.cpu.nativecpu;
 
 import backend.ComputeBackend;
-import backend.accelerator.exec.PartitionExecutionRole;
 import backend.blas.BlasProvider;
 import backend.blas.OpenBlasFfmBridge;
 import backend.lowering.LoweringFamily;
@@ -34,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class NativeCpuRegionExecutionTest {
     @Test
-    void cpuNativeMatmulPreparesSingleNativeRegionAnchor() {
+    void cpuNativeMatmulPreparesSingleNativeRegionStep() {
         Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
 
         Tensor a = tensor("a");
@@ -48,7 +47,9 @@ class NativeCpuRegionExecutionTest {
                 .orElseThrow();
 
         assertEquals(ComputeBackend.CPU, regionStep.metadata().backend());
-        assertEquals(PartitionExecutionRole.ANCHOR, regionStep.metadata().partitionRole());
+        assertTrue(regionStep.orderedNodeIds().size() > 1);
+        assertEquals(regionStep.compiledNode().id(), regionStep.orderedNodeIds().getLast());
+        assertEquals(List.of(regionStep.compiledNode().id()), regionStep.boundaryOutputNodeIds());
         assertEquals(LoweringFamily.CPU_NATIVE_REGION, testsupport.MetadataArtifacts.cpuRegionExecutable(regionStep.metadata()).regionExecutionPlan().loweringFamily());
         assertEquals(List.of(regionStep.compiledNode().id()), testsupport.MetadataArtifacts.cpuRegionExecutable(regionStep.metadata()).regionExecutionPlan().boundaryOutputNodeIds());
     }

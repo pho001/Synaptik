@@ -238,7 +238,15 @@ public final class ExecutionContext {
         if (executionState == null) {
             return null;
         }
-        return executionState.cpuWorkspaceForNodeId(nodeId);
+        Object workspace = executionState.workspaceForNodeId(nodeId);
+        if (workspace == null) {
+            return null;
+        }
+        if (workspace instanceof backend.cpu.kernels.CpuNodeWorkspace cpuWorkspace) {
+            return cpuWorkspace;
+        }
+        throw new IllegalStateException("Runtime workspace for nodeId=" + nodeId
+                + " is not a CpuNodeWorkspace: " + workspace.getClass().getName());
     }
 
     public Tensor preparedInputTensorFor(int nodeId, int inputIndex) {
