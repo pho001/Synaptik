@@ -14,7 +14,7 @@ import graph.compile.CompileArtifacts;
 import graph.compile.publication.PublicationPlan;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedExecution;
-import graph.execution.PreparedNodeExecution;
+import graph.execution.PreparedExecutionStep;
 import graph.execution.trace.PrepareTrace;
 import graph.compile.planning.partition.PartitionPlan;
 import graph.compile.planning.partition.PlannedPartition;
@@ -55,9 +55,9 @@ public final class PreparedExecutionBuilder {
         publishLoweredRegions(artifacts, compiledNodes, context, runtimeConfig, selection, loweringInput);
         BackendPrepareDispatcher dispatcher = BackendPrepareDispatcher.from(runtimeConfig);
 
-        List<PreparedNodeExecution> executionSteps = new ArrayList<>();
-        List<PreparedNodeExecution> forwardSteps = new ArrayList<>();
-        List<PreparedNodeExecution> backwardSteps = new ArrayList<>();
+        List<PreparedExecutionStep> executionSteps = new ArrayList<>();
+        List<PreparedExecutionStep> forwardSteps = new ArrayList<>();
+        List<PreparedExecutionStep> backwardSteps = new ArrayList<>();
         for (CompiledNode node : compiledNodes) {
             if (node.operation() == null || node.inputIds().isEmpty()) {
                 continue;
@@ -67,7 +67,7 @@ public final class PreparedExecutionBuilder {
             if (metadata.partitionRole() == PartitionExecutionRole.INTERIOR) {
                 continue;
             }
-            PreparedNodeExecution step = new PreparedNodeExecution(node, metadata);
+            PreparedExecutionStep step = new PreparedExecutionStep(node, metadata);
             executionSteps.add(step);
             if (node.id() <= program.forwardBoundaryNodeId()) {
                 forwardSteps.add(step);

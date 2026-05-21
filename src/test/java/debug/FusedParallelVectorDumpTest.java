@@ -15,7 +15,7 @@ import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import backend.cpu.fused.codegen.FusedKernelGeneratorRouter;
 import graph.execution.PreparedExecution;
-import graph.execution.PreparedNodeExecution;
+import graph.execution.PreparedExecutionStep;
 import backend.cpu.fused.plan.FusedOperation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -71,7 +71,7 @@ final class FusedParallelVectorDumpTest {
                 })
                 .collect(Collectors.joining("\n"));
 
-        PreparedNodeExecution selected = prepared.forwardSteps().stream()
+        PreparedExecutionStep selected = prepared.forwardSteps().stream()
                 .filter(step -> step.executionOperation() instanceof FusedOperation)
                 .filter(step -> testsupport.MetadataArtifacts.cpuPlan(step.metadata()) != null)
                 .filter(step -> testsupport.MetadataArtifacts.cpuPlan(step.metadata()).dispatchHints() != null)

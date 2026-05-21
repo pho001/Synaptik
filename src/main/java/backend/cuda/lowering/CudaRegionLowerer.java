@@ -23,7 +23,6 @@ import backend.lowering.region.RegionRole;
 import backend.lowering.region.RegionStorageContract;
 import graph.compile.planning.partition.PartitionTarget;
 import graph.compile.planning.region.ExecutionUnit;
-import graph.compile.planning.region.ExecutionUnitKind;
 import operations.Operation;
 
 import java.util.List;
@@ -47,7 +46,7 @@ public final class CudaRegionLowerer implements RegionLowerer {
         if (!(selectedPlan instanceof CudaGpuPartitionPlan cudaPlan) || cudaPlan.backend() != ComputeBackend.GPU_CUDA) {
             return null;
         }
-        LoweringFamily loweringFamily = resolveLoweringFamily(request.region().executionUnits());
+        LoweringFamily loweringFamily = LoweringFamily.CUDA_GRAPH_REGION;
         GpuCompoundRegionSummary summary = cudaPlan.compoundSummary();
         GpuCompoundLoweringArtifact compoundArtifact = regionArtifact(summary, request.region().executionUnits());
         RegionExecutionPlan regionPlan = regionPlan(request, cudaPlan, loweringFamily, compoundArtifact);
@@ -82,7 +81,7 @@ public final class CudaRegionLowerer implements RegionLowerer {
                 request.region().regionId() + "-cuda-graph-group-0",
                 orderedNodeIds,
                 RegionExecutionKind.GRAPH_EXECUTABLE,
-                loweringFamily == LoweringFamily.CUDA_FUSED_ELEMENTWISE_GRAPH ? "CUDA_FUSED_ELEMENTWISE_GRAPH" : "CUDA_GRAPH",
+                "CUDA_GRAPH",
                 plan.externalInputNodeIds(),
                 outputs,
                 List.of(),
@@ -119,23 +118,13 @@ public final class CudaRegionLowerer implements RegionLowerer {
                 node == null ? tensor.DataType.FLOAT64 : node.dataType(),
                 outputs.contains(nodeId) ? RegionRole.BOUNDARY_OUTPUT : RegionRole.LOCAL_KERNEL,
                 RegionExecutionKind.GRAPH_EXECUTABLE,
-                loweringFamily == LoweringFamily.CUDA_FUSED_ELEMENTWISE_GRAPH ? "CUDA_FUSED_ELEMENTWISE_GRAPH" : "CUDA_GRAPH",
+                "CUDA_GRAPH",
                 RegionStorageContract.DEVICE_BUFFER,
                 node == null ? List.of() : node.inputIds(),
                 List.of(nodeId),
                 RegionLegalityStatus.SELECTED,
                 "cuda-graph-region"
         );
-    }
-
-    private LoweringFamily resolveLoweringFamily(List<ExecutionUnit> units) {
-        if (units == null || units.isEmpty()) {
-            return LoweringFamily.CUDA_GRAPH_REGION;
-        }
-        if (units.size() == 1 && units.getFirst().kind() == ExecutionUnitKind.FUSED_ELEMENTWISE) {
-            return LoweringFamily.CUDA_FUSED_ELEMENTWISE_GRAPH;
-        }
-        return LoweringFamily.CUDA_GRAPH_REGION;
     }
 
     private static GpuCompoundLoweringArtifact regionArtifact(

@@ -590,9 +590,9 @@ Signatures:
 ```java
 RuntimeConfig runtimeConfig()
 boolean supportsBackward()
-List<PreparedNodeExecution> forwardSteps()
-List<PreparedNodeExecution> backwardSteps()
-List<PreparedNodeExecution> executionSteps()
+List<PreparedExecutionStep> forwardSteps()
+List<PreparedExecutionStep> backwardSteps()
+List<PreparedExecutionStep> executionSteps()
 PrepareTrace prepareTrace()
 void execute(ExecutionMode mode)
 void execute(ExecutionMode mode, PublicationPolicy publicationPolicy)

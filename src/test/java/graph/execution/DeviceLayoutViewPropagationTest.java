@@ -241,7 +241,7 @@ class DeviceLayoutViewPropagationTest {
                 testsupport.PublicationPlans.forRoot(target, nodes, targetNode.id())
         );
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(runtimeConfig, ExecutionMode.FORWARD, Map.of(targetNode.id(), metadata), state);
-        Fixture fixture = new Fixture(sourceNode, targetNode, state, context, new PreparedNodeExecution(targetNode, metadata));
+        Fixture fixture = new Fixture(sourceNode, targetNode, state, context, new PreparedExecutionStep(targetNode, metadata));
         if (includeSourceBinding && backend == ComputeBackend.GPU_CUDA) {
             fixture.attachCudaSource();
         }
@@ -262,7 +262,7 @@ class DeviceLayoutViewPropagationTest {
             CompiledNode targetNode,
             ExecutionState state,
             ExecutionContext context,
-            PreparedNodeExecution step
+            PreparedExecutionStep step
     ) {
         void attachMetalSource() {
             MetalBufferBinding binding = new MetalBufferBinding(

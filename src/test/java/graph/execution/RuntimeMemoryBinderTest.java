@@ -162,7 +162,7 @@ class RuntimeMemoryBinderTest {
 
         List<CompiledNode> nodes = compiled.program().compiledNodes();
         Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
-        for (PreparedNodeExecution step : prepared.executionSteps()) {
+        for (PreparedExecutionStep step : prepared.executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
         ExecutionState state = ExecutionState.create(

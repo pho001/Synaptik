@@ -12,7 +12,7 @@ import backend.runtime.ExecutionContext;
 import config.runtime.BlasStorageMode;
 import config.runtime.CpuStorageProfile;
 import graph.CompiledNode;
-import graph.execution.PreparedNodeExecution;
+import graph.execution.PreparedExecutionStep;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.trace.ComputeTraceMetadata;
 import graph.execution.trace.ConvTraceMetadata;
@@ -37,7 +37,7 @@ public final class StepExecutionTracer {
     private StepExecutionTracer() {
     }
 
-    public static ExecutionStepTrace toStepTrace(int index, PreparedNodeExecution step, long durationNs, ExecutionContext context) {
+    public static ExecutionStepTrace toStepTrace(int index, PreparedExecutionStep step, long durationNs, ExecutionContext context) {
         CompiledNode node = step.compiledNode();
         var metadata = step.metadata();
         operations.Operation executionOperation = metadata.executionOperation() == null
@@ -59,7 +59,7 @@ public final class StepExecutionTracer {
         );
     }
 
-    private static StepExecutionMetadata buildStepMetadata(CompiledNode node, PreparedNodeExecution step, ExecutionContext context) {
+    private static StepExecutionMetadata buildStepMetadata(CompiledNode node, PreparedExecutionStep step, ExecutionContext context) {
         var metadata = step.metadata();
         CpuNodeExecutionPlan cpuPlan = cpuPlan(metadata);
         LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
@@ -184,7 +184,7 @@ public final class StepExecutionTracer {
 
     private static long matMulCopyInBytes(
             CompiledNode node,
-            PreparedNodeExecution step,
+            PreparedExecutionStep step,
             ExecutionContext context,
             PreparedMatMulExecutable executable,
             MatMulExecutionRoute route

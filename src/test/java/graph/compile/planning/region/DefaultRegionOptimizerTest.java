@@ -189,13 +189,16 @@ class DefaultRegionOptimizerTest {
         );
 
         assertEquals(selectedNodeIds, region.sourcePartition().orderedNodeIds());
-        assertEquals(1, region.executionUnits().size());
-        ExecutionUnit epilogue = region.executionUnits().getFirst();
-        assertEquals(ExecutionUnitKind.MATMUL_EPILOGUE, epilogue.kind());
-        assertEquals(selectedNodeIds, epilogue.orderedNodeIds());
-        assertTrue(epilogue.trace().events().stream().anyMatch(message -> message.contains("matmul-epilogue:")));
-        assertTrue(epilogue.trace().events().stream().anyMatch(message -> message.contains("region-unit-node:")));
-        assertFalse(epilogue.requiredPreparedInputNodeIds().contains(addNodeId));
+        assertEquals(2, region.executionUnits().size());
+        ExecutionUnit matmulUnit = region.executionUnits().getFirst();
+        ExecutionUnit fusedEpilogueTail = region.executionUnits().get(1);
+        assertEquals(ExecutionUnitKind.UNIT_KERNEL, matmulUnit.kind());
+        assertEquals(List.of(matmulNodeId), matmulUnit.orderedNodeIds());
+        assertEquals(ExecutionUnitKind.FUSED_ELEMENTWISE, fusedEpilogueTail.kind());
+        assertEquals(List.of(addNodeId, reluNodeId), fusedEpilogueTail.orderedNodeIds());
+        assertTrue(fusedEpilogueTail.trace().events().stream().anyMatch(message -> message.contains("fused-subchain:")));
+        assertTrue(fusedEpilogueTail.trace().events().stream().anyMatch(message -> message.contains("region-unit-node:")));
+        assertFalse(fusedEpilogueTail.requiredPreparedInputNodeIds().contains(addNodeId));
         assertFalse(region.regionValues().stream()
                 .filter(value -> value.producerNodeId() == addNodeId)
                 .anyMatch(value -> value.transportKind() == ValueTransportKind.MATERIALIZED));

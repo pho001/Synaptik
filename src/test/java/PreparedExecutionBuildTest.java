@@ -31,7 +31,7 @@ import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.state.ExecutionState;
 import graph.execution.PreparedExecution;
-import graph.execution.PreparedNodeExecution;
+import graph.execution.PreparedExecutionStep;
 import graph.compile.planning.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.index.gatherGrad;
@@ -2176,7 +2176,7 @@ public class PreparedExecutionBuildTest {
                 .toList();
         assertEquals(1, gpuSteps.size());
         PreparedCudaExecutable executable = (PreparedCudaExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
-        assertEquals(backend.lowering.LoweringFamily.CUDA_FUSED_ELEMENTWISE_GRAPH, executable.loweringFamily());
+        assertEquals(backend.lowering.LoweringFamily.CUDA_GRAPH_REGION, executable.loweringFamily());
 
         execution.execute(ExecutionMode.FORWARD);
 
@@ -4486,7 +4486,7 @@ public class PreparedExecutionBuildTest {
                 .orElseThrow();
     }
 
-    private static boolean hasLabel(PreparedNodeExecution step, String label) {
+    private static boolean hasLabel(PreparedExecutionStep step, String label) {
         return label.equals(step.compiledNode().label());
     }
 

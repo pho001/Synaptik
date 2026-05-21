@@ -24,7 +24,9 @@ import backend.cpu.registry.CpuKernelResolver;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.PreparedNodeExecution;
+import graph.execution.plan.InputResidencyRequirement;
+import graph.execution.plan.OutputResidencyEffect;
+import graph.execution.PreparedExecutionStep;
 import backend.cpu.fused.exec.FusedExecutionBackendResolver;
 import backend.cpu.fused.plan.FusedExecutionPlan;
 import backend.cpu.fused.plan.FusedOperationPreparation;
@@ -76,26 +78,26 @@ public final class CpuNodePreparer {
     ) {
         RegionExecutionPlan regionPlan = loweredUnit.requireRegionPlan();
         RegionPlanValidator.requireBoundaryCoverage(regionPlan, context);
-        List<PreparedNodeExecution> nativeSteps = regionPlan.orderedNodeIds().stream()
+        List<PreparedExecutionStep> nativeSteps = regionPlan.orderedNodeIds().stream()
                 .map(context::compiledNode)
                 .map(node -> {
                     if (node == null) {
                         throw new IllegalStateException("Missing compiled node for CPU native region " + regionPlan.regionId());
                     }
-                    return new PreparedNodeExecution(node, prepareAsCpu(node, context));
+                    return new PreparedExecutionStep(node, prepareAsCpu(node, context));
                 })
                 .toList();
 
         CpuNodePreparer fallbackPreparer = new CpuNodePreparer(
                 runtimeConfig.withCpuStorageProfile(CpuStorageProfile.CPU_ARRAY)
         );
-        List<PreparedNodeExecution> fallbackSteps = regionPlan.orderedNodeIds().stream()
+        List<PreparedExecutionStep> fallbackSteps = regionPlan.orderedNodeIds().stream()
                 .map(context::compiledNode)
                 .map(node -> {
                     if (node == null) {
                         throw new IllegalStateException("Missing compiled node for CPU native region fallback " + regionPlan.regionId());
                     }
-                    return new PreparedNodeExecution(node, fallbackPreparer.prepareAsCpu(node, context));
+                    return new PreparedExecutionStep(node, fallbackPreparer.prepareAsCpu(node, context));
                 })
                 .toList();
 
@@ -109,7 +111,9 @@ public final class CpuNodePreparer {
                 PartitionExecutionRole.ANCHOR,
                 null,
                 List.of(),
-                new CpuRegionExecutionArtifact(executable)
+                new CpuRegionExecutionArtifact(executable),
+                InputResidencyRequirement.none(),
+                OutputResidencyEffect.cpuCurrentPreserveNative()
         );
     }
 
@@ -161,10 +165,12 @@ public final class CpuNodePreparer {
         CpuNodeWorkspace cpuWorkspace = resolveCpuWorkspace(anchorNode, operation, cpuPlan, publishFloatContinuation, context);
         return new CompiledNodeExecutionMetadata(
                 ComputeBackend.CPU,
-                PartitionExecutionRole.ANCHOR,
+                PartitionExecutionRole.NONE,
                 operation,
                 fusedPreparation.runtimeInputNodeIds(),
-                new CpuFusedExecutionArtifact(kernel, cpuPlan, fusedExecutable, cpuWorkspace)
+                new CpuFusedExecutionArtifact(kernel, cpuPlan, fusedExecutable, cpuWorkspace),
+                inputResidencyRequirement(cpuPlan),
+                OutputResidencyEffect.cpuCurrentPreserveNative()
         );
     }
 
@@ -245,8 +251,21 @@ public final class CpuNodePreparer {
                 PartitionExecutionRole.NONE,
                 null,
                 List.of(),
-                artifact
+                artifact,
+                inputResidencyRequirement(cpuPlan),
+                OutputResidencyEffect.cpuCurrentPreserveNative()
         );
+    }
+
+    private static InputResidencyRequirement inputResidencyRequirement(CpuNodeExecutionPlan cpuPlan) {
+        if (cpuPlan == null || cpuPlan.nativeCpuPlan() == null) {
+            return InputResidencyRequirement.cpuReadableAll();
+        }
+        return switch (cpuPlan.nativeCpuPlan().inputPolicy()) {
+            case ALL_NATIVE -> InputResidencyRequirement.none();
+            case CONDITION_CPU_VALUES_NATIVE -> InputResidencyRequirement.cpuReadableFirst();
+            default -> InputResidencyRequirement.cpuReadableAll();
+        };
     }
 
     private CpuNodeWorkspace resolveCpuWorkspace(

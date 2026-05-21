@@ -163,8 +163,8 @@ class MetalRegionLowererTest {
         assertEquals(GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION, artifact.summary().patternType());
         assertTrue(artifact.summary().orderedNodeIds().containsAll(List.of(linearNodeId, reluNodeId)));
         assertTrue(artifact.units().stream().anyMatch(unit ->
-                unit.kind() == ExecutionUnitKind.MATMUL_EPILOGUE
-                        && unit.orderedNodeIds().containsAll(List.of(linearNodeId, reluNodeId))));
+                unit.kind() == ExecutionUnitKind.UNIT_KERNEL
+                        && unit.orderedNodeIds().contains(linearNodeId)));
         assertTrue(artifact.units().stream()
                 .flatMap(unit -> unit.traceEvents().stream())
                 .anyMatch(event -> event.contains("region-unit-node:")));

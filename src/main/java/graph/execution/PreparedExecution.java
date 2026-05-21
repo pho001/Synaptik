@@ -37,9 +37,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class PreparedExecution implements AutoCloseable {
     private final RuntimeConfig runtimeConfig;
     private final boolean supportsBackward;
-    private final List<PreparedNodeExecution> executionSteps;
-    private final List<PreparedNodeExecution> forwardSteps;
-    private final List<PreparedNodeExecution> backwardSteps;
+    private final List<PreparedExecutionStep> executionSteps;
+    private final List<PreparedExecutionStep> forwardSteps;
+    private final List<PreparedExecutionStep> backwardSteps;
     private final List<CompiledNode> allNodes;
     private final CompiledTensorDescriptorIndex descriptorIndex;
     private final PublicationPlan publicationPlan;
@@ -53,9 +53,9 @@ public final class PreparedExecution implements AutoCloseable {
     public PreparedExecution(
             RuntimeConfig runtimeConfig,
             boolean supportsBackward,
-            List<PreparedNodeExecution> executionSteps,
-            List<PreparedNodeExecution> forwardSteps,
-            List<PreparedNodeExecution> backwardSteps,
+            List<PreparedExecutionStep> executionSteps,
+            List<PreparedExecutionStep> forwardSteps,
+            List<PreparedExecutionStep> backwardSteps,
             List<CompiledNode> allNodes,
             CompiledTensorDescriptorIndex descriptorIndex,
             PublicationPlan publicationPlan,
@@ -102,7 +102,7 @@ public final class PreparedExecution implements AutoCloseable {
      *
      * @return forward step list
      */
-    public List<PreparedNodeExecution> forwardSteps() {
+    public List<PreparedExecutionStep> forwardSteps() {
         return forwardSteps;
     }
 
@@ -111,7 +111,7 @@ public final class PreparedExecution implements AutoCloseable {
      *
      * @return backward step list, empty for inference-only plans
      */
-    public List<PreparedNodeExecution> backwardSteps() {
+    public List<PreparedExecutionStep> backwardSteps() {
         return backwardSteps;
     }
 
@@ -120,7 +120,7 @@ public final class PreparedExecution implements AutoCloseable {
      *
      * @return immutable full step list
      */
-    public List<PreparedNodeExecution> executionSteps() {
+    public List<PreparedExecutionStep> executionSteps() {
         return executionSteps;
     }
 
@@ -307,9 +307,9 @@ public final class PreparedExecution implements AutoCloseable {
         return null;
     }
 
-    private static Map<Integer, CompiledNodeExecutionMetadata> buildMetadataIndex(List<PreparedNodeExecution> executionSteps) {
+    private static Map<Integer, CompiledNodeExecutionMetadata> buildMetadataIndex(List<PreparedExecutionStep> executionSteps) {
         Map<Integer, CompiledNodeExecutionMetadata> out = new HashMap<>();
-        for (PreparedNodeExecution step : executionSteps) {
+        for (PreparedExecutionStep step : executionSteps) {
             out.put(step.compiledNode().id(), step.metadata());
         }
         return Map.copyOf(out);

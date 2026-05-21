@@ -462,7 +462,7 @@ Prepare binds policy; execute consumes the prepared recipe.
 **Key Concepts**
 
 - `PreparedExecution`
-- `PreparedNodeExecution`
+- `PreparedExecutionStep`
 - `CompiledNodeExecutionMetadata`
 - backend prepare dispatcher
 - forward steps
@@ -473,7 +473,7 @@ Prepare binds policy; execute consumes the prepared recipe.
 
 - [`PreparedExecutionBuilder.java`](../src/main/java/backend/prepare/PreparedExecutionBuilder.java)
 - [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java)
-- [`PreparedNodeExecution.java`](../src/main/java/graph/execution/PreparedNodeExecution.java)
+- [`PreparedExecutionStep.java`](../src/main/java/graph/execution/PreparedExecutionStep.java)
 - [`PreparedExecutionBuildTest.java`](../src/test/java/PreparedExecutionBuildTest.java)
 
 **Step-By-Step**

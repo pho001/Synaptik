@@ -200,7 +200,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Prepared execution**: Reusable runtime-bound artifact containing forward/backward steps and metadata. Source: [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java).
 
-**Prepared node execution**: One executable prepared node step: compiled node plus metadata. Source: [`PreparedNodeExecution.java`](../src/main/java/graph/execution/PreparedNodeExecution.java).
+**Prepared node execution**: One executable prepared node step: compiled node plus metadata. Source: [`PreparedExecutionStep.java`](../src/main/java/graph/execution/PreparedExecutionStep.java).
 
 ## R
 

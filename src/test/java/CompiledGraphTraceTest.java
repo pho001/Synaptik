@@ -34,7 +34,7 @@ import config.profile.WorkloadProfile;
 import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedExecution;
-import graph.execution.PreparedNodeExecution;
+import graph.execution.PreparedExecutionStep;
 import graph.compile.planning.partition.PartitionPlanningContext;
 import graph.compile.planning.partition.PartitionTarget;
 import org.junit.jupiter.api.Test;
@@ -309,7 +309,7 @@ public class CompiledGraphTraceTest {
         CompiledNode outputNode = publicationNode(compiled, out);
         SyntheticAcceleratorExecutable executable = new SyntheticAcceleratorExecutable(outputNode.id());
         CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_CUDA, executable, backend.accelerator.exec.PartitionExecutionRole.NONE);
-        PreparedNodeExecution step = new PreparedNodeExecution(outputNode, metadata);
+        PreparedExecutionStep step = new PreparedExecutionStep(outputNode, metadata);
         PreparedExecution prepared = new PreparedExecution(
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 false,
@@ -341,7 +341,7 @@ public class CompiledGraphTraceTest {
         GpuLoweredRegionManifest manifest = sampleManifest(outputNode.id());
         SyntheticAcceleratorExecutable executable = new SyntheticAcceleratorExecutable(outputNode.id(), manifest);
         CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_CUDA, executable, backend.accelerator.exec.PartitionExecutionRole.NONE);
-        PreparedNodeExecution step = new PreparedNodeExecution(outputNode, metadata);
+        PreparedExecutionStep step = new PreparedExecutionStep(outputNode, metadata);
         PreparedExecution prepared = new PreparedExecution(
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 false,
@@ -522,7 +522,7 @@ public class CompiledGraphTraceTest {
         GpuLoweredRegionManifest manifest = sampleFusedManifest(outputNode.id());
         SyntheticAcceleratorExecutable executable = new SyntheticAcceleratorExecutable(outputNode.id(), manifest);
         CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_CUDA, executable, backend.accelerator.exec.PartitionExecutionRole.NONE);
-        PreparedNodeExecution step = new PreparedNodeExecution(outputNode, metadata);
+        PreparedExecutionStep step = new PreparedExecutionStep(outputNode, metadata);
         PreparedExecution prepared = new PreparedExecution(
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 false,
@@ -740,7 +740,7 @@ public class CompiledGraphTraceTest {
             SyntheticAcceleratorExecutable executable
     ) {
         CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(executable.backend(), executable, backend.accelerator.exec.PartitionExecutionRole.NONE);
-        PreparedNodeExecution step = new PreparedNodeExecution(outputNode, metadata);
+        PreparedExecutionStep step = new PreparedExecutionStep(outputNode, metadata);
         PreparedExecution prepared = new PreparedExecution(
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 false,

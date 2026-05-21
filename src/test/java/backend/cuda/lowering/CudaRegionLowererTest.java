@@ -132,8 +132,8 @@ class CudaRegionLowererTest {
         assertEquals(GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION, artifact.summary().patternType());
         assertTrue(artifact.summary().orderedNodeIds().containsAll(List.of(linearNodeId, reluNodeId)));
         assertTrue(artifact.units().stream().anyMatch(unit ->
-                unit.kind() == ExecutionUnitKind.MATMUL_EPILOGUE
-                        && unit.orderedNodeIds().containsAll(List.of(linearNodeId, reluNodeId))));
+                unit.kind() == ExecutionUnitKind.UNIT_KERNEL
+                        && unit.orderedNodeIds().contains(linearNodeId)));
         assertTrue(artifact.units().stream()
                 .flatMap(unit -> unit.traceEvents().stream())
                 .anyMatch(event -> event.contains("region-unit-node:")));
@@ -963,7 +963,9 @@ class CudaRegionLowererTest {
 
         assertNotNull(result);
         assertNotNull(result.loweredRegion());
-        assertEquals(backend.lowering.LoweringFamily.CUDA_FUSED_ELEMENTWISE_GRAPH, result.loweredRegion().units().getFirst().loweringFamily());
+        assertEquals(backend.lowering.LoweringFamily.CUDA_GRAPH_REGION, result.loweredRegion().units().getFirst().loweringFamily());
+        GpuCompoundLoweringArtifact artifact = result.loweredRegion().units().getFirst().requireArtifact(GpuCompoundLoweringArtifact.class);
+        assertTrue(artifact.units().stream().anyMatch(unit -> unit.kind() == ExecutionUnitKind.FUSED_ELEMENTWISE));
     }
 
     @Test

@@ -35,8 +35,8 @@ import java.util.Objects;
 final class ExecutionRun {
     private final RuntimeConfig runtimeConfig;
     private final boolean supportsBackward;
-    private final List<PreparedNodeExecution> executionSteps;
-    private final List<PreparedNodeExecution> forwardSteps;
+    private final List<PreparedExecutionStep> executionSteps;
+    private final List<PreparedExecutionStep> forwardSteps;
     private final List<CompiledNode> allNodes;
     private final CompiledTensorDescriptorIndex descriptorIndex;
     private final Map<Integer, CompiledNodeExecutionMetadata> metadataIndex;
@@ -52,8 +52,8 @@ final class ExecutionRun {
     ExecutionRun(
             RuntimeConfig runtimeConfig,
             boolean supportsBackward,
-            List<PreparedNodeExecution> executionSteps,
-            List<PreparedNodeExecution> forwardSteps,
+            List<PreparedExecutionStep> executionSteps,
+            List<PreparedExecutionStep> forwardSteps,
             List<CompiledNode> allNodes,
             CompiledTensorDescriptorIndex descriptorIndex,
             Map<Integer, CompiledNodeExecutionMetadata> metadataIndex,

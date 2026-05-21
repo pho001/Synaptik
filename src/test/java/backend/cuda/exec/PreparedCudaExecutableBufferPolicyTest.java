@@ -39,7 +39,7 @@ import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.state.ExecutionState;
 import graph.execution.PreparedExecution;
-import graph.execution.PreparedNodeExecution;
+import graph.execution.PreparedExecutionStep;
 import graph.execution.trace.RunTrace;
 import graph.execution.trace.CpuMaterializationTrace;
 import operations.Operation;
@@ -349,8 +349,8 @@ class PreparedCudaExecutableBufferPolicyTest {
         PreparedExecution prepared = new PreparedExecution(
                 RuntimeConfig.inferenceDefaults(),
                 false,
-                List.of(new PreparedNodeExecution(fixture.outputNode(), acceleratorMetadata)),
-                List.of(new PreparedNodeExecution(fixture.outputNode(), acceleratorMetadata)),
+                List.of(new PreparedExecutionStep(fixture.outputNode(), acceleratorMetadata)),
+                List.of(new PreparedExecutionStep(fixture.outputNode(), acceleratorMetadata)),
                 List.of(),
                 fixture.nodes(),
                 CompiledTensorDescriptorBuilder.build(fixture.nodes()),
@@ -535,7 +535,7 @@ class PreparedCudaExecutableBufferPolicyTest {
                 .findFirst()
                 .orElseThrow();
         Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
-        for (PreparedNodeExecution step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
+        for (PreparedExecutionStep step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
         ExecutionState state = ExecutionState.create(
@@ -571,7 +571,7 @@ class PreparedCudaExecutableBufferPolicyTest {
                 .findFirst()
                 .orElseThrow();
         Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
-        for (PreparedNodeExecution step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
+        for (PreparedExecutionStep step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
         ExecutionState state = ExecutionState.create(
@@ -604,7 +604,7 @@ class PreparedCudaExecutableBufferPolicyTest {
         CompiledNode inputA = nodes.stream().filter(node -> node.id() == addNode.inputIds().get(0)).findFirst().orElseThrow();
         CompiledNode inputB = nodes.stream().filter(node -> node.id() == addNode.inputIds().get(1)).findFirst().orElseThrow();
         Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
-        for (PreparedNodeExecution step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
+        for (PreparedExecutionStep step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
         ExecutionState state = ExecutionState.create(

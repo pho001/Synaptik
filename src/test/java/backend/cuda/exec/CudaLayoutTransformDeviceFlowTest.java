@@ -24,7 +24,7 @@ import graph.CompiledGraph;
 import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedExecution;
-import graph.execution.PreparedNodeExecution;
+import graph.execution.PreparedExecutionStep;
 import graph.execution.trace.ExecutionStepTrace;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
@@ -100,7 +100,7 @@ class CudaLayoutTransformDeviceFlowTest {
                 .executionSteps()
                 .stream()
                 .filter(step -> step.compiledNode().id() == contiguousNode.id())
-                .map(PreparedNodeExecution::metadata)
+                .map(PreparedExecutionStep::metadata)
                 .findFirst()
                 .orElseThrow();
 
@@ -158,7 +158,7 @@ class CudaLayoutTransformDeviceFlowTest {
             List<CompiledNode> nodes,
             Tensor rootTensor,
             CompiledNode forwardOutputNode,
-            List<PreparedNodeExecution> steps
+            List<PreparedExecutionStep> steps
     ) {
         return new PreparedExecution(
                 RuntimeConfig.inferenceDefaults(),
@@ -175,19 +175,19 @@ class CudaLayoutTransformDeviceFlowTest {
         );
     }
 
-    private static PreparedNodeExecution cudaSourceStep(CompiledNode node) {
-        return new PreparedNodeExecution(
+    private static PreparedExecutionStep cudaSourceStep(CompiledNode node) {
+        return new PreparedExecutionStep(
                 node,
                 testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_CUDA, new SyntheticCudaSourceExecutable(node.id()), PartitionExecutionRole.NONE)
         );
     }
 
-    private static PreparedNodeExecution cudaLayoutStep(CompiledNode node) {
-        return new PreparedNodeExecution(node, metadata(ComputeBackend.GPU_CUDA));
+    private static PreparedExecutionStep cudaLayoutStep(CompiledNode node) {
+        return new PreparedExecutionStep(node, metadata(ComputeBackend.GPU_CUDA));
     }
 
-    private static PreparedNodeExecution cpuLayoutStep(CompiledNode node, CompiledNodeExecutionMetadata metadata) {
-        return new PreparedNodeExecution(node, metadata);
+    private static PreparedExecutionStep cpuLayoutStep(CompiledNode node, CompiledNodeExecutionMetadata metadata) {
+        return new PreparedExecutionStep(node, metadata);
     }
 
     private static CompiledNodeExecutionMetadata metadata(ComputeBackend backend) {

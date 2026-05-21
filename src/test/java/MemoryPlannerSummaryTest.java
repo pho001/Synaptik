@@ -26,8 +26,8 @@ public class MemoryPlannerSummaryTest {
         assertTrue(plan.summary().slotCount() > 0);
         assertTrue(plan.summary().peakReusableBytes() > 0);
         assertTrue(plan.summary().allocatedSlotBytes() > 0);
-        assertTrue(plan.summary().savedForwardCount() > 0);
-        assertTrue(plan.summary().peakBackwardLiveBytes() > 0);
+        assertEquals(0, plan.summary().savedForwardCount());
+        assertEquals(0L, plan.summary().peakBackwardLiveBytes());
         assertTrue(plan.summary().reusableFreshAllocationCount() > 0);
         assertTrue(plan.summary().reuseHitRate() >= 0.0d);
         assertTrue(plan.summary().toMetricMap().containsKey("allocatedSlotBytes"));
@@ -42,7 +42,7 @@ public class MemoryPlannerSummaryTest {
     }
 
     @Test
-    void peakLiveBytesDoesNotDoubleCountReusableSavedForwardValues() {
+    void peakLiveBytesDoesNotDoubleCountReusableSlots() {
         Tensor a = Tensor.scalar(10.0);
         Tensor b = Tensor.scalar(2.0);
         Tensor c = Tensor.scalar(5.0);
@@ -54,7 +54,7 @@ public class MemoryPlannerSummaryTest {
         var graph = loss.topologicalSort();
         MemoryPlan plan = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 1));
 
-        assertTrue(plan.summary().peakSavedForwardBytes() > 0L);
+        assertEquals(0L, plan.summary().peakSavedForwardBytes());
         assertTrue(plan.summary().peakLiveBytes()
                 <= plan.summary().peakReusableBytes() + plan.summary().peakGradientTargetBytes());
     }

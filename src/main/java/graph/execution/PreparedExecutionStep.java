@@ -12,11 +12,11 @@ import java.util.Objects;
  * @param compiledNode compile-time node snapshot
  * @param metadata runtime execution metadata selected during preparation
  */
-public record PreparedNodeExecution(
+public record PreparedExecutionStep(
         CompiledNode compiledNode,
         CompiledNodeExecutionMetadata metadata
 ) {
-    public PreparedNodeExecution {
+    public PreparedExecutionStep {
         Objects.requireNonNull(compiledNode, "compiledNode cannot be null");
         Objects.requireNonNull(metadata, "metadata cannot be null");
     }

@@ -66,6 +66,7 @@ final class PreparedInputPolicy {
                 return true;
             }
             return switch (op.opType()) {
+                case FUSED -> false;
                 case RESHAPE, EXPAND, SELECT, SLICE, SLICE_GRAD, SLICE_SCATTER_ADD, CONCAT, PAD, TILE, PERMUTE, EXPAND_DIMS, SQUEEZE, CAST,
                         GATHER, GATHER_GRAD, GATHER_AXIS, GATHER_AXIS_GRAD,
                         GATHER_ND, GATHER_ND_GRAD, TAKE_ALONG_AXIS, TAKE_ALONG_AXIS_GRAD, SCATTER_ADD, SCATTER_AXIS_ADD, SCATTER_ELEMENTS, SCATTER_ND,
@@ -87,6 +88,7 @@ final class PreparedInputPolicy {
         }
 
         return switch (op.opType()) {
+            case FUSED -> false;
             case CONTIGUOUS, RESHAPE, EXPAND, SELECT, SLICE, SLICE_GRAD, SLICE_SCATTER_ADD, CONCAT, PAD, TILE, PERMUTE, EXPAND_DIMS, SQUEEZE, CAST,
                     GATHER_AXIS, GATHER_AXIS_GRAD, GATHER_ND, GATHER_ND_GRAD,
                     SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_PROD, CUMSUM, ARGMAX, REDUCE_ALL, REDUCE_ANY,

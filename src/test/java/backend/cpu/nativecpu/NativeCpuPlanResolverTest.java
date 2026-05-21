@@ -8,7 +8,7 @@ import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.execution.PreparedNodeExecution;
+import graph.execution.PreparedExecutionStep;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -159,7 +159,7 @@ class NativeCpuPlanResolverTest {
         return plan;
     }
 
-    private static PreparedNodeExecution step(Tensor out, Operation.OpType opType, RuntimeConfig runtimeConfig) {
+    private static PreparedExecutionStep step(Tensor out, Operation.OpType opType, RuntimeConfig runtimeConfig) {
         return CompiledGraph.compile(out, compileConfig())
                 .prepare(runtimeConfig)
                 .forwardSteps().stream()

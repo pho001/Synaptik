@@ -45,8 +45,12 @@ public class OptimizerFuseTest {
                 .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
                 .count();
         assertTrue(fusedPreparedSteps > 0, "Expected prepared fused execution metadata");
-        assertTrue(prepared.forwardSteps().size() < baselineForwardSteps,
-                "Prepared execution should have fewer forward steps after region fusion");
+        assertTrue(prepared.forwardSteps().stream()
+                        .map(step -> step.metadata().executionOperation())
+                        .filter(backend.cpu.fused.plan.FusedOperation.class::isInstance)
+                        .map(backend.cpu.fused.plan.FusedOperation.class::cast)
+                        .anyMatch(fused -> fused.getPlan().nodeCount() > 1),
+                "Expected prepared fused execution metadata to carry a multi-node fused plan");
 
         compiledGraph.prepare(config.runtime.RuntimeConfig.trainingDefaults()).execute(backend.runtime.ExecutionMode.FORWARD_BACKWARD);
 

@@ -694,7 +694,7 @@ flowchart TD
     CPU["CpuNodePreparer"]
     Metal["MetalNodePreparer"]
     CUDA["CudaGpuNodePreparer"]
-    Steps["PreparedNodeExecution steps"]
+    Steps["PreparedExecutionStep steps"]
     Prepared["PreparedExecution"]
 
     Artifacts --> Context
@@ -730,7 +730,7 @@ Current lowerer roles:
 
 - `CpuRegionLowerer` lowers CPU regions to `DIRECT_KERNEL`, `BLAS`, or `FUSED_NATIVE` units.
 - `MetalRegionLowerer` lowers selected Metal regions to `METAL_GRAPH_REGION`; fused elementwise subpatterns stay as region-internal metadata.
-- `CudaRegionLowerer` lowers selected CUDA regions to `CUDA_GRAPH_REGION` or `CUDA_FUSED_ELEMENTWISE_GRAPH`.
+- `CudaRegionLowerer` lowers selected CUDA regions to `CUDA_GRAPH_REGION`; fused elementwise subpatterns stay as region-internal metadata.
 
 GPU compound region lowering is the Metal/CUDA path for named multi-node accelerator regions. It currently reports supported `LINEAR_BIAS_ACTIVATION` and `ELEMENTWISE_CHAIN` summaries, while `REDUCTION_ADJACENT` candidates reject explicitly until a verified reduction-adjacent GPU subset exists. `Operation.OpType.FUSED remains CPU-only`; GPU compound lowering does not consume CPU fused ASM/vector operation nodes.
 

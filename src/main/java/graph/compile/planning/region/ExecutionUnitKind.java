@@ -5,7 +5,6 @@ package graph.compile.planning.region;
  */
 public enum ExecutionUnitKind {
     FUSED_ELEMENTWISE,
-    MATMUL_EPILOGUE,
     SINGLE_OP,
     UNIT_KERNEL,
     BACKEND_GRAPH,

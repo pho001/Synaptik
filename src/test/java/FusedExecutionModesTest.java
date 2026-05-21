@@ -7,7 +7,7 @@ import config.backend.CpuKernelConfig;
 import graph.CompiledGraph;
 import backend.cpu.fused.codegen.FusedDTypeOps;
 import backend.cpu.fused.codegen.FusedKernelGeneratorRouter;
-import graph.execution.PreparedNodeExecution;
+import graph.execution.PreparedExecutionStep;
 import graph.execution.PreparedExecution;
 import tensor.DataType;
 import tensor.Tensor;
@@ -709,7 +709,7 @@ public class FusedExecutionModesTest {
                 "Expected prepared fused execution metadata");
     }
 
-    private static PreparedNodeExecution findPreparedFusedStep(PreparedExecution prepared) {
+    private static PreparedExecutionStep findPreparedFusedStep(PreparedExecution prepared) {
         return prepared.forwardSteps().stream()
                 .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
                 .findFirst()

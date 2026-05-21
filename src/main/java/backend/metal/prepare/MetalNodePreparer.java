@@ -17,6 +17,7 @@ import backend.prepare.BackendPrepareContext;
 import backend.prepare.RegionPlanValidator;
 import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
+import graph.execution.plan.OutputResidencyEffect;
 import graph.compile.planning.partition.PartitionPlan;
 
 import java.util.List;
@@ -98,20 +99,23 @@ public final class MetalNodePreparer {
                 true
         );
 
+        PreparedMetalExecutable executable = new PreparedMetalExecutable(
+                plan,
+                loweringFamily,
+                regionPlan,
+                bridge,
+                fallback.preparedSteps(),
+                context.runtimeConfig().accelerator().metal(),
+                customKernelBridge
+        );
         return new CompiledNodeExecutionMetadata(
                 ComputeBackend.GPU_METAL,
                 PartitionExecutionRole.ANCHOR,
                 null,
                 List.of(),
-                new AcceleratorExecutionArtifact(new PreparedMetalExecutable(
-                        plan,
-                        loweringFamily,
-                        regionPlan,
-                        bridge,
-                        fallback.preparedSteps(),
-                        context.runtimeConfig().accelerator().metal(),
-                        customKernelBridge
-                ))
+                new AcceleratorExecutionArtifact(executable),
+                null,
+                OutputResidencyEffect.cpuCurrentIfUnset(executable.outputResidencyReason())
         );
     }
 }

@@ -2,7 +2,7 @@ package backend.cpu.region;
 
 import backend.lowering.region.RegionExecutionPlan;
 import backend.runtime.ExecutionContext;
-import graph.execution.PreparedNodeExecution;
+import graph.execution.PreparedExecutionStep;
 
 import java.util.List;
 
@@ -14,11 +14,11 @@ public interface PreparedCpuRegionExecutable {
 
     RegionExecutionPlan regionExecutionPlan();
 
-    default List<PreparedNodeExecution> nativeSteps() {
+    default List<PreparedExecutionStep> nativeSteps() {
         return List.of();
     }
 
-    default List<PreparedNodeExecution> fallbackSteps() {
+    default List<PreparedExecutionStep> fallbackSteps() {
         return List.of();
     }
 

@@ -7,7 +7,7 @@ import backend.cpu.CpuRegionExecutionArtifact;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.CpuNodeWorkspace;
 import backend.cpu.plan.CpuPreparedInput;
-import graph.execution.PreparedNodeExecution;
+import graph.execution.PreparedExecutionStep;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import tensor.Tensor;
 
@@ -39,10 +39,10 @@ final class RuntimeWorkspaceStore {
                 }
             }
             if (entry.getValue().artifact() instanceof CpuRegionExecutionArtifact artifact && artifact.executable() != null) {
-                for (PreparedNodeExecution regionStep : artifact.executable().nativeSteps()) {
+                for (PreparedExecutionStep regionStep : artifact.executable().nativeSteps()) {
                     allocateCpuRegionStepRuntimeState(regionStep, runtimeWorkspaceByTemplate, workspaces, preparedInputs);
                 }
-                for (PreparedNodeExecution regionStep : artifact.executable().fallbackSteps()) {
+                for (PreparedExecutionStep regionStep : artifact.executable().fallbackSteps()) {
                     allocateCpuRegionStepRuntimeState(regionStep, runtimeWorkspaceByTemplate, workspaces, preparedInputs);
                 }
             }
@@ -59,7 +59,7 @@ final class RuntimeWorkspaceStore {
     }
 
     private static void allocateCpuRegionStepRuntimeState(
-            PreparedNodeExecution step,
+            PreparedExecutionStep step,
             Map<CpuNodeWorkspace, CpuNodeWorkspace> runtimeWorkspaceByTemplate,
             Map<Integer, CpuNodeWorkspace> workspaces,
             Map<Long, Tensor> preparedInputs

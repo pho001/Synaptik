@@ -14,7 +14,7 @@ import backend.runtime.ExecutionContext;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
-import graph.execution.PreparedNodeExecution;
+import graph.execution.PreparedExecutionStep;
 import operations.Operation;
 import tensor.Tensor;
 
@@ -27,7 +27,7 @@ public final class DeviceLayoutViewPropagator {
     private DeviceLayoutViewPropagator() {
     }
 
-    public static boolean tryPropagate(PreparedNodeExecution step, ExecutionContext context) {
+    public static boolean tryPropagate(PreparedExecutionStep step, ExecutionContext context) {
         if (step == null || context == null || step.compiledNode() == null) {
             return false;
         }
@@ -154,7 +154,7 @@ public final class DeviceLayoutViewPropagator {
         return StorageResidency.DEVICE_OWNED;
     }
 
-    private static Integer firstInputNodeId(PreparedNodeExecution step) {
+    private static Integer firstInputNodeId(PreparedExecutionStep step) {
         List<Integer> inputIds = step.metadata().executionInputNodeIds().isEmpty()
                 ? step.compiledNode().inputIds()
                 : step.metadata().executionInputNodeIds();

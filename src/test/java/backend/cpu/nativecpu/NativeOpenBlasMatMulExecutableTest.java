@@ -23,7 +23,7 @@ import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.state.ExecutionState;
 import graph.execution.PreparedExecution;
-import graph.execution.PreparedNodeExecution;
+import graph.execution.PreparedExecutionStep;
 import operations.Operation;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -52,7 +52,7 @@ class NativeOpenBlasMatMulExecutableTest {
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
         Tensor out = a.matmul(b);
         Fixture fixture = fixture(out);
-        PreparedNodeExecution matmulStep = fixture.matmulStep();
+        PreparedExecutionStep matmulStep = fixture.matmulStep();
         ExecutionState state = fixture.state();
         attachNative(state, matmulStep.compiledNode().inputIds().get(0));
         attachNative(state, matmulStep.compiledNode().inputIds().get(1));
@@ -92,7 +92,7 @@ class NativeOpenBlasMatMulExecutableTest {
         Tensor b = new Tensor(new double[]{5d, 6d, 7d, 8d}, new int[]{2, 2}, null, "b", DataType.FLOAT64);
         Tensor out = a.matmul(b);
         Fixture fixture = fixture(out);
-        PreparedNodeExecution matmulStep = fixture.matmulStep();
+        PreparedExecutionStep matmulStep = fixture.matmulStep();
         ExecutionState state = fixture.state();
         attachNative(state, matmulStep.compiledNode().inputIds().get(0));
         attachNative(state, matmulStep.compiledNode().inputIds().get(1));
@@ -123,7 +123,7 @@ class NativeOpenBlasMatMulExecutableTest {
         Tensor b = new Tensor(new double[]{5d, 6d, 7d, 8d}, new int[]{2, 2}, null, "b", DataType.BFLOAT16);
         Tensor out = a.matmul(b);
         Fixture fixture = fixture(out);
-        PreparedNodeExecution matmulStep = fixture.matmulStep();
+        PreparedExecutionStep matmulStep = fixture.matmulStep();
         ExecutionState state = fixture.state();
         attachNative(state, matmulStep.compiledNode().inputIds().get(0));
         attachNative(state, matmulStep.compiledNode().inputIds().get(1));
@@ -155,7 +155,7 @@ class NativeOpenBlasMatMulExecutableTest {
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
         Tensor out = a.matmul(b);
         Fixture fixture = fixture(out);
-        PreparedNodeExecution matmulStep = fixture.matmulStep();
+        PreparedExecutionStep matmulStep = fixture.matmulStep();
         PreparedMatMulExecutable executable = new F32NativeBlasMatMulExecutable(nativeHints(matmulStep));
 
         executable.execute(
@@ -179,7 +179,7 @@ class NativeOpenBlasMatMulExecutableTest {
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{1, 2, 2}, null, "b", DataType.FLOAT32);
         Tensor out = a.matmul(b);
         Fixture fixture = fixture(out);
-        PreparedNodeExecution matmulStep = fixture.matmulStep();
+        PreparedExecutionStep matmulStep = fixture.matmulStep();
         PreparedMatMulExecutable executable = new F32NativeBlasMatMulExecutable(nativeHints(matmulStep));
 
         executable.execute(
@@ -209,7 +209,7 @@ class NativeOpenBlasMatMulExecutableTest {
                 out,
                 RuntimeConfig.inferenceDefaults().withNativeCpuFailurePolicy(NativeCpuFailurePolicy.REQUIRE_NATIVE)
         );
-        PreparedNodeExecution matmulStep = fixture.matmulStep();
+        PreparedExecutionStep matmulStep = fixture.matmulStep();
         PreparedMatMulExecutable executable = new F32NativeBlasMatMulExecutable(nativeHints(matmulStep));
 
         IllegalStateException failure = assertThrows(
@@ -235,7 +235,7 @@ class NativeOpenBlasMatMulExecutableTest {
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         PreparedExecution prepared = compiled.prepare(runtime);
         Map<Integer, CompiledNodeExecutionMetadata> metadataIndex = prepared.executionSteps().stream()
-                .collect(Collectors.toMap(step -> step.compiledNode().id(), PreparedNodeExecution::metadata));
+                .collect(Collectors.toMap(step -> step.compiledNode().id(), PreparedExecutionStep::metadata));
         ExecutionState state = ExecutionState.create(
                 compiled.program().compiledNodes(),
                 compiled.program().descriptorIndex(),
@@ -243,7 +243,7 @@ class NativeOpenBlasMatMulExecutableTest {
                 compiled.program().forwardBoundaryNodeId(),
                 compiled.publication()
         );
-        PreparedNodeExecution matmul = prepared.forwardSteps().stream()
+        PreparedExecutionStep matmul = prepared.forwardSteps().stream()
                 .filter(step -> step.compiledNode().operation() != null
                         && step.compiledNode().operation().opType() == Operation.OpType.MATMUL)
                 .findFirst()
@@ -251,7 +251,7 @@ class NativeOpenBlasMatMulExecutableTest {
         return new Fixture(prepared, matmul, state, metadataIndex);
     }
 
-    private static CpuKernelContext context(Fixture fixture, PreparedNodeExecution step, PreparedMatMulExecutable executable) {
+    private static CpuKernelContext context(Fixture fixture, PreparedExecutionStep step, PreparedMatMulExecutable executable) {
         CpuNodeExecutionPlan base = testsupport.MetadataArtifacts.cpuPlan(step.metadata());
         CpuNodeExecutionPlan nativePlan = new CpuNodeExecutionPlan(
                 base.layoutPlan(),
@@ -285,7 +285,7 @@ class NativeOpenBlasMatMulExecutableTest {
         );
     }
 
-    private static ResolvedMatMulHints nativeHints(PreparedNodeExecution step) {
+    private static ResolvedMatMulHints nativeHints(PreparedExecutionStep step) {
         ResolvedMatMulHints base = testsupport.MetadataArtifacts.cpuPlan(step.metadata()).matMulHints();
         return new ResolvedMatMulHints(
                 true,
@@ -338,7 +338,7 @@ class NativeOpenBlasMatMulExecutableTest {
 
     private record Fixture(
             PreparedExecution prepared,
-            PreparedNodeExecution matmulStep,
+            PreparedExecutionStep matmulStep,
             ExecutionState state,
             Map<Integer, CompiledNodeExecutionMetadata> metadataIndex
     ) {

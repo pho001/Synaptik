@@ -33,7 +33,7 @@ public class OnnxWave2CoreOpsExecutionTest {
     }
 
     @Test
-    void argMaxReturnsFirstMaxIndexAsInt32() {
+    void argMaxReturnsFirstMaxIndexAsInt64() {
         Tensor x = new Tensor(new double[]{
                 1, 4, 4,
                 7, 6, 7
@@ -45,7 +45,7 @@ public class OnnxWave2CoreOpsExecutionTest {
 
         assertArrayEquals(new int[]{2}, out.getShape());
         assertArrayEquals(new double[]{1.0, 0.0}, out.toDoubleArrayCopy(), 1e-9);
-        assertArrayEquals(new int[]{1, 0}, out.getInt32Data());
+        assertArrayEquals(new long[]{1L, 0L}, out.getInt64Data());
         assertTrue(containsOp(compiledGraph, Operation.OpType.ARGMAX));
     }
 

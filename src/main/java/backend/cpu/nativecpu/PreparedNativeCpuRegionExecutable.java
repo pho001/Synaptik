@@ -25,7 +25,7 @@ import backend.runtime.ExecutionContext;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.PreparedNodeExecution;
+import graph.execution.PreparedExecutionStep;
 import operations.Operation;
 import operations.elementwise.unary.clampMax;
 import operations.elementwise.unary.clampMin;
@@ -85,9 +85,9 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
     };
 
     private final RegionExecutionPlan regionExecutionPlan;
-    private final List<PreparedNodeExecution> nativeSteps;
-    private final List<PreparedNodeExecution> fallbackSteps;
-    private final Map<Integer, PreparedNodeExecution> nativeStepsByNodeId;
+    private final List<PreparedExecutionStep> nativeSteps;
+    private final List<PreparedExecutionStep> fallbackSteps;
+    private final Map<Integer, PreparedExecutionStep> nativeStepsByNodeId;
     private String lastRoute = "NOT_EXECUTED";
     private String lastFallbackReason = "";
     private int lastRegionLocalKernelCount;
@@ -96,8 +96,8 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
 
     public PreparedNativeCpuRegionExecutable(
             RegionExecutionPlan regionExecutionPlan,
-            List<PreparedNodeExecution> nativeSteps,
-            List<PreparedNodeExecution> fallbackSteps
+            List<PreparedExecutionStep> nativeSteps,
+            List<PreparedExecutionStep> fallbackSteps
     ) {
         this.regionExecutionPlan = Objects.requireNonNull(regionExecutionPlan, "regionExecutionPlan cannot be null");
         this.nativeSteps = List.copyOf(nativeSteps == null ? List.of() : nativeSteps);
@@ -122,7 +122,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         lastExecutedGroupCount = 0;
         try {
             if (regionExecutionPlan.executionGroups().isEmpty()) {
-                for (PreparedNodeExecution step : nativeSteps) {
+                for (PreparedExecutionStep step : nativeSteps) {
                     executeNativeStep(step, context);
                 }
             } else {
@@ -142,7 +142,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
     private void executeGroup(RegionExecutionGroup group, ExecutionContext context) {
         RegionExecutionKind kind = group.executionKind();
         for (int nodeId : group.orderedNodeIds()) {
-            PreparedNodeExecution step = nativeStepsByNodeId.get(nodeId);
+            PreparedExecutionStep step = nativeStepsByNodeId.get(nodeId);
             if (step == null) {
                 throw new NativeRegionFallbackSignal("native-cpu-region-missing-step:node-" + nodeId);
             }
@@ -157,7 +157,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         }
     }
 
-    private void executeProviderStep(PreparedNodeExecution step, ExecutionContext context) {
+    private void executeProviderStep(PreparedExecutionStep step, ExecutionContext context) {
         if (tryExecuteRegionLocalKernel(step, context)) {
             lastRegionLocalKernelCount++;
             return;
@@ -165,21 +165,21 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         executeNativeStep(step, context);
     }
 
-    private void executeRegionLocalStep(PreparedNodeExecution step, ExecutionContext context) {
+    private void executeRegionLocalStep(PreparedExecutionStep step, ExecutionContext context) {
         if (!tryExecuteRegionLocalKernel(step, context)) {
             throw new NativeRegionFallbackSignal("native-cpu-region-local-kernel-missing:node-" + step.compiledNode().id());
         }
         lastRegionLocalKernelCount++;
     }
 
-    private void executeRegionLocalViewStep(PreparedNodeExecution step, ExecutionContext context) {
+    private void executeRegionLocalViewStep(PreparedExecutionStep step, ExecutionContext context) {
         if (!tryExecuteRegionLocalView(step, context)) {
             throw new NativeRegionFallbackSignal("native-cpu-region-local-view-missing:node-" + step.compiledNode().id());
         }
         lastRegionLocalViewCount++;
     }
 
-    private void executeNativeStep(PreparedNodeExecution step, ExecutionContext context) {
+    private void executeNativeStep(PreparedExecutionStep step, ExecutionContext context) {
         if (tryExecuteRegionLocalKernel(step, context)) {
             lastRegionLocalKernelCount++;
             return;
@@ -194,7 +194,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         }
     }
 
-    private boolean tryExecuteRegionLocalKernel(PreparedNodeExecution step, ExecutionContext context) {
+    private boolean tryExecuteRegionLocalKernel(PreparedExecutionStep step, ExecutionContext context) {
         Operation op = step.executionOperation();
         if (op == null) {
             return false;
@@ -248,7 +248,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         };
     }
 
-    private boolean tryExecuteUnaryF64(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+    private boolean tryExecuteUnaryF64(PreparedExecutionStep step, ExecutionContext context, Operation op) {
         if (tryExecuteSegmentUnary(step, context, op)) {
             return true;
         }
@@ -271,7 +271,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         return true;
     }
 
-    private boolean tryExecuteUnaryBF16(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+    private boolean tryExecuteUnaryBF16(PreparedExecutionStep step, ExecutionContext context, Operation op) {
         if (tryExecuteSegmentUnary(step, context, op)) {
             return true;
         }
@@ -295,7 +295,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         return true;
     }
 
-    private boolean tryExecuteRegionLocalView(PreparedNodeExecution step, ExecutionContext context) {
+    private boolean tryExecuteRegionLocalView(PreparedExecutionStep step, ExecutionContext context) {
         Operation op = step.executionOperation();
         if (op == null || !supportsRegionLocalViewOp(op.opType())) {
             return false;
@@ -327,7 +327,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         }
     }
 
-    private boolean tryExecuteCast(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+    private boolean tryExecuteCast(PreparedExecutionStep step, ExecutionContext context, Operation op) {
         List<Integer> inputIds = inputIds(step);
         if (inputIds.size() != 1) {
             return false;
@@ -368,7 +368,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         return true;
     }
 
-    private boolean tryExecuteContiguousCopy(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+    private boolean tryExecuteContiguousCopy(PreparedExecutionStep step, ExecutionContext context, Operation op) {
         List<Integer> inputIds = inputIds(step);
         if (inputIds.size() != 1) {
             return false;
@@ -396,7 +396,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
     }
 
     private boolean tryExecuteLinearF32(
-            PreparedNodeExecution step,
+            PreparedExecutionStep step,
             ExecutionContext context,
             Operation op
     ) {
@@ -449,7 +449,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
     }
 
     private boolean tryExecuteLinearF64(
-            PreparedNodeExecution step,
+            PreparedExecutionStep step,
             ExecutionContext context,
             Operation op
     ) {
@@ -501,7 +501,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         return true;
     }
 
-    private boolean tryExecuteUnaryF32(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+    private boolean tryExecuteUnaryF32(PreparedExecutionStep step, ExecutionContext context, Operation op) {
         if (tryExecuteSegmentUnary(step, context, op)) {
             return true;
         }
@@ -527,7 +527,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         return true;
     }
 
-    private boolean tryExecuteWhereF32(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+    private boolean tryExecuteWhereF32(PreparedExecutionStep step, ExecutionContext context, Operation op) {
         if (tryExecuteSegmentWhere(step, context, op)) {
             return true;
         }
@@ -594,7 +594,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         return true;
     }
 
-    private boolean tryExecuteWhereF64(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+    private boolean tryExecuteWhereF64(PreparedExecutionStep step, ExecutionContext context, Operation op) {
         if (tryExecuteSegmentWhere(step, context, op)) {
             return true;
         }
@@ -658,11 +658,11 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         return true;
     }
 
-    private boolean tryExecuteWhereBF16(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+    private boolean tryExecuteWhereBF16(PreparedExecutionStep step, ExecutionContext context, Operation op) {
         return tryExecuteSegmentWhere(step, context, op);
     }
 
-    private boolean tryExecuteCompare(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+    private boolean tryExecuteCompare(PreparedExecutionStep step, ExecutionContext context, Operation op) {
         List<Integer> inputIds = inputIds(step);
         if (inputIds.size() != 2) {
             return false;
@@ -734,7 +734,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         return true;
     }
 
-    private boolean tryExecuteReductionF32(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+    private boolean tryExecuteReductionF32(PreparedExecutionStep step, ExecutionContext context, Operation op) {
         if (tryExecuteSegmentReduction(step, context, op)) {
             return true;
         }
@@ -776,7 +776,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         return true;
     }
 
-    private boolean tryExecuteReductionF64(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+    private boolean tryExecuteReductionF64(PreparedExecutionStep step, ExecutionContext context, Operation op) {
         if (tryExecuteSegmentReduction(step, context, op)) {
             return true;
         }
@@ -817,7 +817,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         return true;
     }
 
-    private boolean tryExecuteBroadcastBinaryF32(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+    private boolean tryExecuteBroadcastBinaryF32(PreparedExecutionStep step, ExecutionContext context, Operation op) {
         if (tryExecuteSegmentBinary(step, context, op)) {
             return true;
         }
@@ -871,7 +871,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         return true;
     }
 
-    private boolean tryExecuteBroadcastBinaryF64(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+    private boolean tryExecuteBroadcastBinaryF64(PreparedExecutionStep step, ExecutionContext context, Operation op) {
         if (tryExecuteSegmentBinary(step, context, op)) {
             return true;
         }
@@ -919,7 +919,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         return true;
     }
 
-    private boolean tryExecuteBroadcastBinaryBF16(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+    private boolean tryExecuteBroadcastBinaryBF16(PreparedExecutionStep step, ExecutionContext context, Operation op) {
         if (tryExecuteSegmentBinary(step, context, op)) {
             return true;
         }
@@ -969,7 +969,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         return true;
     }
 
-    private boolean tryExecuteSegmentUnary(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+    private boolean tryExecuteSegmentUnary(PreparedExecutionStep step, ExecutionContext context, Operation op) {
         List<Integer> inputIds = inputIds(step);
         DataType dataType = step.compiledNode().dataType();
         if (op == null || inputIds.size() != 1 || !NativeSegmentStridedKernels.supportsUnary(op, dataType)) {
@@ -1002,7 +1002,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         }
     }
 
-    private boolean tryExecuteSegmentBinary(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+    private boolean tryExecuteSegmentBinary(PreparedExecutionStep step, ExecutionContext context, Operation op) {
         List<Integer> inputIds = inputIds(step);
         DataType dataType = step.compiledNode().dataType();
         if (op == null || inputIds.size() != 2 || !NativeSegmentStridedKernels.supportsBinary(op, dataType)) {
@@ -1039,7 +1039,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         }
     }
 
-    private boolean tryExecuteSegmentWhere(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+    private boolean tryExecuteSegmentWhere(PreparedExecutionStep step, ExecutionContext context, Operation op) {
         List<Integer> inputIds = inputIds(step);
         DataType dataType = step.compiledNode().dataType();
         if (op == null || op.opType() != Operation.OpType.WHERE || inputIds.size() != 3
@@ -1117,7 +1117,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         }
     }
 
-    private boolean tryExecuteSegmentCompare(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+    private boolean tryExecuteSegmentCompare(PreparedExecutionStep step, ExecutionContext context, Operation op) {
         List<Integer> inputIds = inputIds(step);
         if (op == null || inputIds.size() != 2) {
             return false;
@@ -1175,7 +1175,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         }
     }
 
-    private boolean tryExecuteSegmentReduction(PreparedNodeExecution step, ExecutionContext context, Operation op) {
+    private boolean tryExecuteSegmentReduction(PreparedExecutionStep step, ExecutionContext context, Operation op) {
         if (op == null) {
             return false;
         }
@@ -1240,7 +1240,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
 
     private NativeSegmentOutput allocateSegmentOutput(
             ExecutionContext context,
-            PreparedNodeExecution step,
+            PreparedExecutionStep step,
             String label
     ) {
         Tensor tensor = context.runtimeTensorForNodeId(step.compiledNode().id());
@@ -1677,7 +1677,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
 
     private static NativeFloat32Storage allocateF32(
             ExecutionContext context,
-            PreparedNodeExecution step,
+            PreparedExecutionStep step,
             String label
     ) {
         Tensor outTensor = context.runtimeTensorForNodeId(step.compiledNode().id());
@@ -1690,7 +1690,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
 
     private static NativeFloat64Storage allocateF64(
             ExecutionContext context,
-            PreparedNodeExecution step,
+            PreparedExecutionStep step,
             String label
     ) {
         Tensor outTensor = context.runtimeTensorForNodeId(step.compiledNode().id());
@@ -1703,7 +1703,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
 
     private static NativeBFloat16Storage allocateBF16(
             ExecutionContext context,
-            PreparedNodeExecution step,
+            PreparedExecutionStep step,
             String label
     ) {
         Tensor outTensor = context.runtimeTensorForNodeId(step.compiledNode().id());
@@ -1714,7 +1714,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         );
     }
 
-    private boolean expectsNativeOutput(PreparedNodeExecution step) {
+    private boolean expectsNativeOutput(PreparedExecutionStep step) {
         CpuNodeExecutionPlan cpuPlan = step == null ? null : cpuPlan(step.metadata());
         if (step == null || step.metadata().backend() != ComputeBackend.CPU || cpuPlan == null) {
             return false;
@@ -1751,7 +1751,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         }
         lastRoute = "FALLBACK_TO_ARRAY";
         ExecutionContext fallbackContext = fallbackContext(context);
-        for (PreparedNodeExecution step : fallbackSteps) {
+        for (PreparedExecutionStep step : fallbackSteps) {
             requireCpuReadableInputs(step, fallbackContext);
             CPU_BACKEND.execute(step.compiledNode(), step.metadata(), fallbackContext);
             fallbackContext.markCpuCurrent(step.compiledNode().id(), "native CPU region fallback wrote CPU array");
@@ -1811,7 +1811,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
                 .orElse(true);
     }
 
-    private static void requireCpuReadableInputs(PreparedNodeExecution step, ExecutionContext context) {
+    private static void requireCpuReadableInputs(PreparedExecutionStep step, ExecutionContext context) {
         for (int inputId : inputIds(step)) {
             Tensor ignored = context.runtimeTensorForNodeId(inputId);
             if (ignored != null) {
@@ -1820,7 +1820,7 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         }
     }
 
-    private static List<Integer> inputIds(PreparedNodeExecution step) {
+    private static List<Integer> inputIds(PreparedExecutionStep step) {
         return step.metadata().executionInputNodeIds().isEmpty()
                 ? step.compiledNode().inputIds()
                 : step.metadata().executionInputNodeIds();
@@ -1874,12 +1874,12 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
     }
 
     @Override
-    public List<PreparedNodeExecution> nativeSteps() {
+    public List<PreparedExecutionStep> nativeSteps() {
         return nativeSteps;
     }
 
     @Override
-    public List<PreparedNodeExecution> fallbackSteps() {
+    public List<PreparedExecutionStep> fallbackSteps() {
         return fallbackSteps;
     }
 

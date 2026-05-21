@@ -15,6 +15,7 @@ import backend.prepare.BackendPrepareContext;
 import backend.prepare.RegionPlanValidator;
 import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
+import graph.execution.plan.OutputResidencyEffect;
 import graph.compile.planning.partition.PartitionPlan;
 
 import java.util.List;
@@ -82,21 +83,24 @@ public final class CudaGpuNodePreparer {
                 false
         );
 
+        PreparedCudaExecutable executable = new PreparedCudaExecutable(
+                plan.dagSpec(),
+                loweringFamily,
+                regionPlan,
+                bridge,
+                fallback.preparedSteps(),
+                context.runtimeConfig().accelerator().cuda(),
+                plan.compoundSummary(),
+                plan.manifest()
+        );
         return new CompiledNodeExecutionMetadata(
                 ComputeBackend.GPU_CUDA,
                 PartitionExecutionRole.ANCHOR,
                 null,
                 List.of(),
-                new AcceleratorExecutionArtifact(new PreparedCudaExecutable(
-                        plan.dagSpec(),
-                        loweringFamily,
-                        regionPlan,
-                        bridge,
-                        fallback.preparedSteps(),
-                        context.runtimeConfig().accelerator().cuda(),
-                        plan.compoundSummary(),
-                        plan.manifest()
-                ))
+                new AcceleratorExecutionArtifact(executable),
+                null,
+                OutputResidencyEffect.cpuCurrentIfUnset(executable.outputResidencyReason())
         );
     }
 }
