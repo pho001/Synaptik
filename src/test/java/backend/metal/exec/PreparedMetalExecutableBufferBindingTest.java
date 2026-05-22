@@ -35,6 +35,7 @@ import backend.metal.bridge.MetalMpsBridgeExecutable;
 import backend.metal.bridge.MetalMpsBridgeExecutionPath;
 import backend.metal.bridge.MetalMpsBridgeExecutionStats;
 import backend.metal.bridge.MetalMpsGraphBridge;
+import backend.metal.bridge.MetalNativeCopyStrategy;
 import backend.metal.buffer.MetalAcceleratorBufferBinder;
 import backend.metal.buffer.MetalBufferAccess;
 import backend.metal.buffer.MetalBufferAllocator;
@@ -246,19 +247,19 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     @Test
-    void mpsGraphFirstRouteExecutesThroughBufferBridgeWhenCustomKernelIsEligible() {
+    void customKernelRouteExecutesThroughCustomBufferBridgeWhenEligible() {
         Fixture fixture = fixture();
         FakeBridge bridge = new FakeBridge(true);
         FakeCustomKernelBridge customBridge = new FakeCustomKernelBridge(true);
         PreparedMetalExecutable executable = executable(fixture, bridge, customBridge);
         assertTrue(executable.preparedTransportPlan().contains("preferredPath=BUFFER_BINDING"));
-        assertEquals(MetalExecutionRoute.MPS_GRAPH, executable.routeDecision().selectedRoute());
-        assertEquals(MetalRouteReasonCode.MPS_GRAPH_SELECTED, executable.routeDecision().reasonCode());
+        assertEquals(MetalExecutionRoute.CUSTOM_KERNEL, executable.routeDecision().selectedRoute());
+        assertEquals(MetalRouteReasonCode.CUSTOM_KERNEL_SELECTED, executable.routeDecision().reasonCode());
         assertTrue(executable.routeDecision().customKernelAvailable());
-        assertTrue(executable.routeDecision().detail().contains("metalRegionLowering=MPSGRAPH_DAG"));
-        assertTrue(executable.routeDecision().detail().contains("metalExecutionRoute=MPS_GRAPH"));
-        assertTrue(executable.routeDecision().rejectedRoutes().contains(MetalExecutionRoute.CUSTOM_KERNEL));
-        assertTrue(executable.routeDecision().rejectedReasonCodes().contains(MetalRouteReasonCode.CUSTOM_KERNEL_NOT_PROFITABLE));
+        assertTrue(executable.routeDecision().detail().contains("metalRegionLowering=CUSTOM_KERNEL_DAG"));
+        assertTrue(executable.routeDecision().detail().contains("metalExecutionRoute=CUSTOM_KERNEL"));
+        assertFalse(executable.routeDecision().rejectedRoutes().contains(MetalExecutionRoute.CUSTOM_KERNEL));
+        assertFalse(executable.routeDecision().rejectedReasonCodes().contains(MetalRouteReasonCode.CUSTOM_KERNEL_NOT_PROFITABLE));
         fixture.state().attachDeviceBufferBinding(
                 fixture.inputNode().id(),
                 binding(fixture.inputNode().id(), MetalBufferAccess.READ, 8),
@@ -270,10 +271,12 @@ class PreparedMetalExecutableBufferBindingTest {
 
         executable.execute(fixture.context());
 
-        assertEquals(1, bridge.bufferExecutions);
+        assertEquals(0, bridge.bufferExecutions);
         assertEquals(0, bridge.tensorExecutions);
-        assertEquals(0, customBridge.bufferExecutions);
-        assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, executable.lastExecutionStats().executionPath());
+        assertEquals(1, customBridge.bufferExecutions);
+        assertEquals(MetalMpsBridgeExecutionPath.CUSTOM_KERNEL, executable.lastExecutionStats().executionPath());
+        assertEquals(MetalNativeCopyStrategy.TRUE_OUTPUT_BUFFER_WRITE, executable.lastExecutionStats().nativeCopyStrategy());
+        assertEquals("PROVEN_TRUE_WRITE", executable.lastExecutionStats().outputBufferWriteStatus());
         assertEquals(MetalCustomKernelCandidate.RELU_F32_KERNEL_ID, executable.customKernelExecutable().kernelId());
         assertEquals(outputBinding, fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
         assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.outputNode().id()).residency());
@@ -303,8 +306,8 @@ class PreparedMetalExecutableBufferBindingTest {
         FakeBridge bridge = new FakeBridge(true);
         FakeCustomKernelBridge customBridge = new FakeCustomKernelBridge(true);
         PreparedMetalExecutable executable = executable(fixture, bridge, customBridge);
-        assertEquals(MetalExecutionRoute.MPS_GRAPH, executable.routeDecision().selectedRoute());
-        assertTrue(executable.routeDecision().rejectedReasonCodes().contains(MetalRouteReasonCode.CUSTOM_KERNEL_NOT_PROFITABLE));
+        assertEquals(MetalExecutionRoute.CUSTOM_KERNEL, executable.routeDecision().selectedRoute());
+        assertEquals(MetalRouteReasonCode.CUSTOM_KERNEL_SELECTED, executable.routeDecision().reasonCode());
 
         executable.execute(fixture.context());
 
@@ -312,7 +315,7 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(0, customBridge.bufferExecutions);
         assertEquals(MetalExecutionRoute.MPS_GRAPH, executable.routeDecision().selectedRoute());
         assertEquals(MetalRouteReasonCode.MPS_GRAPH_SELECTED, executable.routeDecision().reasonCode());
-        assertTrue(executable.routeDecision().rejectedReasonCodes().contains(MetalRouteReasonCode.CUSTOM_KERNEL_NOT_PROFITABLE));
+        assertTrue(executable.routeDecision().rejectedReasonCodes().contains(MetalRouteReasonCode.UNSUPPORTED_LAYOUT));
         assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, executable.lastExecutionStats().executionPath());
     }
 
@@ -393,16 +396,19 @@ class PreparedMetalExecutableBufferBindingTest {
         Map<String, Object> attrs = trace.steps().getFirst().metadata().attributes();
 
         assertEquals("BUFFER_BINDING", attrs.get("acceleratorBufferExecutionPath"));
-        assertEquals("MPS_GRAPH", attrs.get("metalExecutionRoute"));
-        assertEquals("MPS_GRAPH_SELECTED", attrs.get("metalRouteReasonCode"));
-        assertEquals(List.of("CUSTOM_KERNEL"), attrs.get("metalRouteRejectedRoutes"));
-        assertEquals(List.of("CUSTOM_KERNEL_NOT_PROFITABLE"), attrs.get("metalRouteRejectedReasonCodes"));
+        assertEquals("CUSTOM_KERNEL", attrs.get("metalExecutionRoute"));
+        assertEquals("CUSTOM_KERNEL_SELECTED", attrs.get("metalRouteReasonCode"));
+        assertEquals(List.of(), attrs.get("metalRouteRejectedRoutes"));
+        assertEquals(List.of(), attrs.get("metalRouteRejectedReasonCodes"));
         assertEquals(true, attrs.get("metalRouteCustomKernelAvailable"));
         assertEquals("MetalBackendRouteCostModel", attrs.get("metalRouteCostModel"));
-        assertEquals("MPS_GRAPH_SELECTED", attrs.get("metalRouteCostReason"));
+        assertEquals("CUSTOM_KERNEL_SELECTED", attrs.get("metalRouteCostReason"));
         assertTrue(((List<?>) attrs.get("metalRouteCostComponents")).stream()
                 .anyMatch(value -> String.valueOf(value).contains("customKernelAvailable")));
-        assertEquals("BUFFER_BINDING", attrs.get("metalExecutionPath"));
+        assertEquals("CUSTOM_KERNEL", attrs.get("metalExecutionPath"));
+        assertEquals("TRUE_OUTPUT_BUFFER_WRITE", attrs.get("metalNativeCopyStrategy"));
+        assertEquals(true, attrs.get("metalOutputBufferWriteProven"));
+        assertEquals("PROVEN_TRUE_WRITE", attrs.get("metalOutputBufferWriteStatus"));
     }
 
 
@@ -1891,6 +1897,7 @@ class PreparedMetalExecutableBufferBindingTest {
                     false,
                     "",
                     MetalMpsBridgeExecutionPath.CUSTOM_KERNEL,
+                    MetalNativeCopyStrategy.TRUE_OUTPUT_BUFFER_WRITE,
                     externalInputs.size(),
                     outputs.size(),
                     8,

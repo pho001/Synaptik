@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MetalExecutionRouterTest {
     @Test
-    void keepsMpsGraphFirstWhenScopedReluCustomKernelIsEligible() {
+    void selectsScopedReluCustomKernelWhenEligible() {
         MetalRouteDecision decision = MetalExecutionRouter.decide(
                 reluPlan(DataType.FLOAT32),
                 capabilities(),
@@ -42,14 +42,14 @@ class MetalExecutionRouterTest {
                 customExecutable()
         );
 
-        assertEquals(MetalExecutionRoute.MPS_GRAPH, decision.selectedRoute());
-        assertEquals(MetalRouteReasonCode.MPS_GRAPH_SELECTED, decision.reasonCode());
+        assertEquals(MetalExecutionRoute.CUSTOM_KERNEL, decision.selectedRoute());
+        assertEquals(MetalRouteReasonCode.CUSTOM_KERNEL_SELECTED, decision.reasonCode());
         assertTrue(decision.customKernelAvailable());
         assertTrue(decision.detail().contains("kernelId=" + MetalCustomKernelCandidate.RELU_F32_KERNEL_ID));
-        assertTrue(decision.detail().contains("metalRegionLowering=MPSGRAPH_DAG"));
-        assertTrue(decision.detail().contains("metalExecutionRoute=MPS_GRAPH"));
-        assertTrue(decision.rejectedRoutes().contains(MetalExecutionRoute.CUSTOM_KERNEL));
-        assertTrue(decision.rejectedReasonCodes().contains(MetalRouteReasonCode.CUSTOM_KERNEL_NOT_PROFITABLE));
+        assertTrue(decision.detail().contains("metalRegionLowering=CUSTOM_KERNEL_DAG"));
+        assertTrue(decision.detail().contains("metalExecutionRoute=CUSTOM_KERNEL"));
+        assertFalse(decision.rejectedRoutes().contains(MetalExecutionRoute.CUSTOM_KERNEL));
+        assertFalse(decision.rejectedReasonCodes().contains(MetalRouteReasonCode.CUSTOM_KERNEL_NOT_PROFITABLE));
     }
 
     @Test
