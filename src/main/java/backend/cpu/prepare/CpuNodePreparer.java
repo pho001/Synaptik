@@ -27,7 +27,7 @@ import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.plan.InputResidencyRequirement;
 import graph.execution.plan.OutputResidencyEffect;
 import graph.execution.PreparedExecutionStep;
-import backend.cpu.fused.exec.FusedExecutionBackendResolver;
+import backend.cpu.fused.exec.FusedExecutablePreparer;
 import backend.cpu.fused.plan.FusedExecutionPlan;
 import backend.cpu.fused.plan.FusedOperationPreparation;
 import backend.cpu.fused.exec.PreparedFusedExecutable;
@@ -41,7 +41,7 @@ import config.runtime.CpuStorageProfile;
 import java.util.List;
 
 public final class CpuNodePreparer {
-    private static final FusedExecutionBackendResolver FUSED_BACKEND_RESOLVER = new FusedExecutionBackendResolver();
+    private static final FusedExecutablePreparer FUSED_EXECUTABLE_PREPARER = new FusedExecutablePreparer();
     private record ContinuationConsumerTarget(CompiledNode consumer, int producerInputIndex) {}
 
     private final config.runtime.RuntimeConfig runtimeConfig;
@@ -157,7 +157,7 @@ public final class CpuNodePreparer {
                 publishFloatContinuation,
                 dispatchHintsOverride
         );
-        PreparedFusedExecutable fusedExecutable = FUSED_BACKEND_RESOLVER.resolve(
+        PreparedFusedExecutable fusedExecutable = FUSED_EXECUTABLE_PREPARER.prepare(
                 new FusedExecutionPlan(
                         (FusedOperation) operation,
                         cpuPlan.computeContract(),
@@ -234,7 +234,7 @@ public final class CpuNodePreparer {
 
         PreparedFusedExecutable fusedExecutable = null;
         if (operation.opType() == Operation.OpType.FUSED && cpuPlan != null) {
-            fusedExecutable = FUSED_BACKEND_RESOLVER.resolve(
+            fusedExecutable = FUSED_EXECUTABLE_PREPARER.prepare(
                     new FusedExecutionPlan(
                             (FusedOperation) operation,
                             cpuPlan.computeContract(),

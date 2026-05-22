@@ -3,12 +3,11 @@ package backend.cpu.kernels.plan;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuMatMulMicroKernel;
 import config.backend.SumAccuracyMode;
-import backend.cpu.fused.codegen.FusedAsmSpecializationKind;
-import backend.cpu.fused.codegen.FusedAsmSpecializationMatcher;
-import backend.cpu.fused.codegen.FusedAccessKind;
-import backend.cpu.fused.codegen.FusedExternalInputPlan;
-import backend.cpu.fused.codegen.FusedNodePlan;
-import backend.cpu.fused.optimize.FusedDispatchFamily;
+import backend.cpu.fused.ir.FusedAccessKind;
+import backend.cpu.fused.ir.FusedExternalInputPlan;
+import backend.cpu.fused.ir.FusedNodePlan;
+import backend.cpu.fused.ir.ScalarDoubleAttribute;
+import backend.cpu.fused.plan.FusedDispatchFamily;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import backend.cpu.fused.plan.FusedOperation;
@@ -18,7 +17,7 @@ import backend.cpu.kernels.CpuKernelCostClass;
 import backend.cpu.kernels.CpuComputeDType;
 import backend.cpu.kernels.ResolvedCpuComputeContract;
 import tensor.DataType;
-import backend.cpu.fused.codegen.FusedDTypeOps;
+import backend.cpu.fused.runtime.FusedDTypeOps;
 
 import java.util.Objects;
 
@@ -385,10 +384,57 @@ public final class CpuPlanningPolicy {
         if (fused == null || fused.getPlan() == null) {
             return false;
         }
-        FusedAsmSpecializationKind specializationKind =
-                FusedAsmSpecializationMatcher.match(fused.getPlan(), fused.getPrecisionMode());
-        return specializationKind == FusedAsmSpecializationKind.F32_MASKED_SCALE_WHERE
-                || specializationKind == FusedAsmSpecializationKind.F32_MASKED_SCALE_WHERE_INVERTED;
+        return isMaskedScaleWherePlan(fused);
+    }
+
+    private boolean isMaskedScaleWherePlan(FusedOperation fused) {
+        var plan = fused.getPlan();
+        if (fused.getPrecisionMode() != FusedDTypeOps.MODE_F32 || plan.inputCount() != 3 || plan.nodeCount() != 2) {
+            return false;
+        }
+        FusedExternalInputPlan maskInput = plan.inputs().get(0);
+        FusedExternalInputPlan fillInput = plan.inputs().get(1);
+        FusedExternalInputPlan valueInput = plan.inputs().get(2);
+        if (maskInput.dataType() != DataType.BOOL
+                || fillInput.dataType() != DataType.FLOAT32
+                || valueInput.dataType() != DataType.FLOAT32
+                || !isContiguousLinear(maskInput)
+                || !isContiguousLinear(valueInput)
+                || fillInput.accessKind() != FusedAccessKind.BROADCAST_STRIDED
+                || !isZeroStrideBroadcast(fillInput)) {
+            return false;
+        }
+        FusedNodePlan scaleNode = plan.nodes().get(0);
+        FusedNodePlan whereNode = plan.nodes().get(1);
+        if (scaleNode.opType() != Operation.OpType.MUL_SCALAR
+                || whereNode.opType() != Operation.OpType.WHERE
+                || scaleNode.outputType() != DataType.FLOAT32
+                || whereNode.outputType() != DataType.FLOAT32
+                || !(scaleNode.attributes() instanceof ScalarDoubleAttribute)
+                || scaleNode.inputRefs().size() != 1
+                || scaleNode.inputRefs().get(0) != 2
+                || whereNode.inputRefs().size() != 3
+                || whereNode.inputRefs().get(0) != 0
+                || plan.outputNode().index() != whereNode.index()) {
+            return false;
+        }
+        int scaledValueRef = plan.inputCount() + scaleNode.index();
+        return (whereNode.inputRefs().get(1) == 1 && whereNode.inputRefs().get(2) == scaledValueRef)
+                || (whereNode.inputRefs().get(1) == scaledValueRef && whereNode.inputRefs().get(2) == 1);
+    }
+
+    private static boolean isContiguousLinear(FusedExternalInputPlan input) {
+        return input.accessKind() == FusedAccessKind.DIRECT_CONTIGUOUS
+                || input.accessKind() == FusedAccessKind.OFFSET_CONTIGUOUS;
+    }
+
+    private static boolean isZeroStrideBroadcast(FusedExternalInputPlan input) {
+        for (int stride : input.effectiveStrides()) {
+            if (stride != 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean shouldClampBf16NonCheapStridedAsmWidthToScalar(

@@ -96,7 +96,7 @@ Contains:
   - [execution/trace/RunTrace.java](../graph/execution/trace/RunTrace.java)
 - fused preparation now lives under backend CPU ownership:
   - [../backend/cpu/fused/plan/FusedExecutionPlan.java](../backend/cpu/fused/plan/FusedExecutionPlan.java)
-  - [../backend/cpu/fused/exec/FusedExecutionBackendResolver.java](../backend/cpu/fused/exec/FusedExecutionBackendResolver.java)
+  - [../backend/cpu/fused/exec/FusedExecutablePreparer.java](../backend/cpu/fused/exec/FusedExecutablePreparer.java)
   - [../backend/cpu/fused/exec/PreparedFusedExecutable.java](../backend/cpu/fused/exec/PreparedFusedExecutable.java)
 
 ## Compile Pipeline
@@ -291,8 +291,7 @@ That preparation currently involves:
 
 - build a `FusedExecutionPlan`
 - classify dispatch family
-- select fused execution backend
-- prepare the corresponding executable object
+- prepare the ASM executable, with interpreted fallback only when policy allows it
 
 The important boundary is:
 

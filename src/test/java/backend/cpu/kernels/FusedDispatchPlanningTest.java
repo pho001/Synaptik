@@ -5,13 +5,16 @@ import backend.cpu.kernels.plan.CpuExecutionPlanner;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuKernelConfig;
 import config.backend.SumAccuracyMode;
-import backend.cpu.fused.codegen.FusedAccessKind;
-import backend.cpu.fused.codegen.FusedDTypeOps;
-import backend.cpu.fused.codegen.FusedExpressionPlan;
-import backend.cpu.fused.codegen.FusedExternalInputPlan;
-import backend.cpu.fused.codegen.FusedNodePlan;
-import backend.cpu.fused.codegen.NoAttributes;
-import backend.cpu.fused.optimize.FusedDispatchFamily;
+import backend.cpu.fused.ir.FusedAccessKind;
+import backend.cpu.fused.ir.FusedExpressionPlan;
+import backend.cpu.fused.ir.FusedExternalInputPlan;
+import backend.cpu.fused.ir.FusedNodePlan;
+import backend.cpu.fused.ir.NoAttributes;
+import backend.cpu.fused.numeric.FusedComputeKind;
+import backend.cpu.fused.numeric.FusedNumericContract;
+import backend.cpu.fused.numeric.FusedStorageKind;
+import backend.cpu.fused.numeric.FusedValueLane;
+import backend.cpu.fused.plan.FusedDispatchFamily;
 import jdk.incubator.vector.FloatVector;
 import backend.cpu.fused.plan.FusedOperation;
 import operations.Operation;
@@ -110,7 +113,7 @@ class FusedDispatchPlanningTest {
         );
         FusedOperation fused = new FusedOperation(
                 "bf16-affine-rational-strided",
-                FusedDTypeOps.MODE_BF16,
+                numeric(FusedValueLane.BF16),
                 false,
                 FusedDispatchFamily.NON_CHEAP_STRIDED,
                 "bf16-affine-rational-strided",
@@ -179,12 +182,22 @@ class FusedDispatchPlanningTest {
         );
         return new FusedOperation(
                 "fused-test",
-                0,
+                numeric(FusedValueLane.fromDataType(dataType)),
                 lowCostHint,
                 family,
                 "fused-test-sig",
                 1,
                 plan
+        );
+    }
+
+    private static FusedNumericContract numeric(FusedValueLane lane) {
+        return new FusedNumericContract(
+                FusedStorageKind.CPU_JAVA_ARRAY,
+                FusedStorageKind.CPU_JAVA_ARRAY,
+                lane,
+                lane == FusedValueLane.F64 ? FusedComputeKind.F64 : FusedComputeKind.F32,
+                lane
         );
     }
 }

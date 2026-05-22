@@ -420,7 +420,7 @@ public class SourceTreeHygieneTest {
     @Test
     void graphPackageDoesNotOwnCpuFusedCodegen() throws IOException {
         List<String> offenders = javaFilesUnder(Path.of("src/main/java/graph/codegen"));
-        assertTrue(offenders.isEmpty(), () -> "CPU fused codegen belongs under backend.cpu.fused.codegen: " + offenders);
+        assertTrue(offenders.isEmpty(), () -> "CPU fused ASM emission belongs under backend.cpu.fused.asm.emit: " + offenders);
     }
 
     @Test
@@ -508,7 +508,52 @@ public class SourceTreeHygieneTest {
     @Test
     void graphPackageDoesNotOwnCpuFusedOptimizationPolicy() throws IOException {
         List<String> offenders = javaFilesUnder(Path.of("src/main/java/graph/optimizer/fusion"));
-        assertTrue(offenders.isEmpty(), () -> "CPU fused optimization policy belongs under backend.cpu.fused.optimize: " + offenders);
+        assertTrue(offenders.isEmpty(), () -> "CPU fused planning policy belongs under backend.cpu.fused.plan: " + offenders);
+    }
+
+    @Test
+    void cpuFusedPackageUsesTargetArchitecturePackages() throws IOException {
+        assertTrue(javaFilesUnder(Path.of("src/main/java/backend/cpu/fused/codegen")).isEmpty(),
+                "backend.cpu.fused.codegen must not contain production sources");
+        assertTrue(javaFilesUnder(Path.of("src/main/java/backend/cpu/fused/optimize")).isEmpty(),
+                "backend.cpu.fused.optimize must not contain production sources");
+
+        List<String> forbiddenSources = javaFilesUnder(Path.of("src/main/java/backend/cpu/fused")).stream()
+                .filter(path -> path.endsWith("FusedExecutionBackend.java")
+                        || path.endsWith("FusedExecutionBackendResolver.java")
+                        || path.endsWith("AsmFusedExecutionBackend.java")
+                        || path.endsWith("FusedKernelGeneratorRouter.java")
+                        || path.endsWith("FusedOperationFactory.java")
+                        || path.endsWith("LoweredFusedOperationBuilder.java")
+                        || path.endsWith("FusedAsmSupport.java")
+                        || path.endsWith("Helper.java")
+                        || path.endsWith("Adapter.java"))
+                .sorted()
+                .toList();
+        assertTrue(forbiddenSources.isEmpty(), () -> "CPU fused package still has removed transition or junk-drawer classes: " + forbiddenSources);
+
+        List<String> forbiddenReferences = sourceLinesContaining(
+                List.of(Path.of("src/main/java"), Path.of("src/test/java")),
+                List.of(
+                        "backend.cpu.fused.codegen",
+                        "backend/cpu/fused/codegen",
+                        "backend.cpu.fused.optimize",
+                        "FusedExecutionBackendResolver",
+                        "FusedExecutionBackend",
+                        "AsmFusedExecutionBackend",
+                        "FusedKernelGeneratorRouter",
+                        "FusedOperationFactory",
+                        "LoweredFusedOperationBuilder",
+                        "FusedAsmSupport"
+                )
+        );
+        assertTrue(forbiddenReferences.isEmpty(), () -> "Legacy CPU fused references remain: " + forbiddenReferences);
+
+        List<String> plannerAsmImports = sourceLinesContaining(
+                List.of(Path.of("src/main/java/backend/cpu/kernels/plan")),
+                List.of("backend.cpu.fused.asm")
+        );
+        assertTrue(plannerAsmImports.isEmpty(), () -> "CPU planning policy must not import ASM specialization internals: " + plannerAsmImports);
     }
 
     @Test
@@ -842,7 +887,7 @@ public class SourceTreeHygieneTest {
         Path preparer = Path.of("src/main/java/backend/cpu/prepare/CpuNodePreparer.java");
         String source = Files.readString(preparer);
         assertTrue(!source.contains("synthesizeFusedPreparation"), "Lowered fused descriptor construction belongs under backend.cpu.fused.plan.");
-        assertTrue(!source.contains("FusedOperationFactory"), "CpuNodePreparer should consume backend CPU fused plan preparation, not build descriptors inline.");
+        assertTrue(!source.contains("FusedOperationBuilder"), "CpuNodePreparer should consume backend CPU fused plan preparation, not build descriptors inline.");
     }
 
     @Test

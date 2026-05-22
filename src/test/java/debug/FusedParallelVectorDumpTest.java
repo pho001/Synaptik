@@ -13,7 +13,8 @@ import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import backend.cpu.fused.codegen.FusedKernelGeneratorRouter;
+import backend.cpu.fused.asm.FusedAsmSpecializationMatcher;
+import backend.cpu.fused.asm.emit.FusedOperationGenerator;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
 import backend.cpu.fused.plan.FusedOperation;
@@ -88,11 +89,12 @@ final class FusedParallelVectorDumpTest {
                 "Expected vector-capable fused dispatch mode");
 
         String internalName = binaryName.replace('.', '/');
-        byte[] bytecode = FusedKernelGeneratorRouter.generate(
+        byte[] bytecode = FusedOperationGenerator.generate(
                 internalName,
                 fused.getPlan(),
-                fused.getPrecisionMode(),
-                hints.vectorWidth()
+                fused.getNumericContract(),
+                hints.vectorWidth(),
+                FusedAsmSpecializationMatcher.match(fused.getPlan(), fused.getPrecisionMode())
         );
 
         Path classPath = OUTPUT_DIR.resolve(binaryName.replace('.', '/') + ".class");

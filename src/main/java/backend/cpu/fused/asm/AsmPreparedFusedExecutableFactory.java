@@ -1,10 +1,10 @@
 package backend.cpu.fused.asm;
 
 import backend.cpu.kernels.fused.FusedExecutionProfiler;
-import backend.cpu.fused.codegen.FusedAsmSpecializationKind;
-import backend.cpu.fused.codegen.FusedAsmSpecializationMatcher;
-import backend.cpu.fused.codegen.FusedKernelGeneratorRouter;
-import backend.cpu.fused.codegen.FusedKernelCacheKey;
+import backend.cpu.fused.asm.FusedAsmSpecializationKind;
+import backend.cpu.fused.asm.FusedAsmSpecializationMatcher;
+import backend.cpu.fused.asm.FusedKernelCacheKey;
+import backend.cpu.fused.asm.emit.FusedOperationGenerator;
 import backend.cpu.fused.plan.FusedExecutionPlan;
 import backend.cpu.fused.exec.PreparedFusedExecutable;
 import backend.cpu.fused.plan.FusedOperation;
@@ -40,7 +40,7 @@ public final class AsmPreparedFusedExecutableFactory {
 
         FusedKernelCacheKey key = new FusedKernelCacheKey(
                 descriptor.getSchedulerSignature(),
-                descriptor.getPrecisionMode(),
+                descriptor.getNumericContract().signatureToken(),
                 plan.asmVectorWidth(),
                 specializationKind
         );
@@ -73,10 +73,10 @@ public final class AsmPreparedFusedExecutableFactory {
                     + Math.max(1, vectorWidth);
             String internalName = binaryName.replace('.', '/');
 
-            byte[] bytecode = FusedKernelGeneratorRouter.generate(
+            byte[] bytecode = FusedOperationGenerator.generate(
                     internalName,
                     descriptor.getPlan(),
-                    descriptor.getPrecisionMode(),
+                    descriptor.getNumericContract(),
                     vectorWidth,
                     specializationKind
             );

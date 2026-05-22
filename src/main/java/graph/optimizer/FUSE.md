@@ -16,8 +16,8 @@ It is not a code generator by itself.
   - [../compile/planning/region/DefaultRegionOptimizer.java](../compile/planning/region/DefaultRegionOptimizer.java)
 - config:
   - [../../config/optimizer/FuseConfig.java](../../config/optimizer/FuseConfig.java)
-- cost model:
-  - [../../backend/cpu/fused/optimize/FusedCostModel.java](../../backend/cpu/fused/optimize/FusedCostModel.java)
+- fused dispatch planning:
+  - [../../backend/cpu/fused/plan/FusedDispatchPlanner.java](../../backend/cpu/fused/plan/FusedDispatchPlanner.java)
 
 ## What Counts As Fusable
 

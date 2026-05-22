@@ -14,7 +14,7 @@ import config.profile.MatmulPlatformProfile;
 import config.profile.PlatformRuntimeProfile;
 import config.profile.ReductionPlatformProfile;
 import config.profile.SchedulerPlatformProfile;
-import backend.cpu.fused.optimize.FusedDispatchFamily;
+import backend.cpu.fused.plan.FusedDispatchFamily;
 import tuning.workload.WorkloadKind;
 
 import java.util.ArrayList;

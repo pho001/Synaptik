@@ -2,11 +2,14 @@ package backend.cpu.fused.exec;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.fused.codegen.FusedDTypeOps;
-import backend.cpu.fused.codegen.FusedExpressionPlan;
-import backend.cpu.fused.codegen.FusedExternalInputPlan;
-import backend.cpu.fused.codegen.FusedNodePlan;
-import backend.cpu.fused.codegen.ScalarDoubleAttribute;
+import backend.cpu.fused.runtime.FusedDTypeOps;
+import backend.cpu.fused.ir.FusedExpressionPlan;
+import backend.cpu.fused.ir.FusedExternalInputPlan;
+import backend.cpu.fused.ir.FusedNodePlan;
+import backend.cpu.fused.numeric.FusedComputeKind;
+import backend.cpu.fused.numeric.FusedNumericContract;
+import backend.cpu.fused.numeric.FusedValueLane;
+import backend.cpu.fused.ir.ScalarDoubleAttribute;
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.fused.FusedExecutionOptions;
@@ -27,20 +30,34 @@ import java.util.List;
  */
 public final class InterpretedPreparedFusedExecutable implements PreparedFusedExecutable {
     private final FusedExpressionPlan plan;
+    private final FusedNumericContract numericContract;
     private final int precisionMode;
 
     /**
      * Creates an interpreter for one lowered fused expression plan.
      *
      * @param plan lowered fused expression
-     * @param precisionMode fused compute precision mode
+     * @param numericContract fused storage and compute contract
      */
-    public InterpretedPreparedFusedExecutable(FusedExpressionPlan plan, int precisionMode) {
+    public InterpretedPreparedFusedExecutable(FusedExpressionPlan plan, FusedNumericContract numericContract) {
         if (plan == null) {
             throw new IllegalArgumentException("plan cannot be null");
         }
+        if (numericContract == null) {
+            throw new IllegalArgumentException("numericContract cannot be null");
+        }
         this.plan = plan;
-        this.precisionMode = precisionMode;
+        this.numericContract = numericContract;
+        this.precisionMode = precisionMode(numericContract);
+    }
+
+    private static int precisionMode(FusedNumericContract numericContract) {
+        if (numericContract.computeKind() == FusedComputeKind.F64) {
+            return FusedDTypeOps.MODE_F64;
+        }
+        return numericContract.outputValueLane() == FusedValueLane.BF16
+                ? FusedDTypeOps.MODE_BF16
+                : FusedDTypeOps.MODE_F32;
     }
 
     @Override

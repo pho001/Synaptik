@@ -1,7 +1,10 @@
 package backend.cpu.fused.plan;
 
-import backend.cpu.fused.codegen.FusedExpressionPlan;
-import backend.cpu.fused.optimize.FusedDispatchFamily;
+import backend.cpu.fused.ir.FusedExpressionPlan;
+import backend.cpu.fused.numeric.FusedComputeKind;
+import backend.cpu.fused.numeric.FusedNumericContract;
+import backend.cpu.fused.numeric.FusedValueLane;
+import backend.cpu.fused.runtime.FusedDTypeOps;
 import operations.Operation;
 
 /**
@@ -9,7 +12,7 @@ import operations.Operation;
  */
 public final class FusedOperation implements Operation {
     private final String expression;
-    private final int precisionMode;
+    private final FusedNumericContract numericContract;
     private final boolean lowCostHint;
     private final FusedDispatchFamily dispatchFamily;
     private final String schedulerSignature;
@@ -21,7 +24,7 @@ public final class FusedOperation implements Operation {
      */
     public FusedOperation(
             String expression,
-            int precisionMode,
+            FusedNumericContract numericContract,
             boolean lowCostHint,
             FusedDispatchFamily dispatchFamily,
             String schedulerSignature,
@@ -45,7 +48,10 @@ public final class FusedOperation implements Operation {
         }
 
         this.expression = expression;
-        this.precisionMode = precisionMode;
+        if (numericContract == null) {
+            throw new IllegalArgumentException("numericContract cannot be null");
+        }
+        this.numericContract = numericContract;
         this.lowCostHint = lowCostHint;
         this.dispatchFamily = dispatchFamily;
         this.schedulerSignature = schedulerSignature;
@@ -81,7 +87,18 @@ public final class FusedOperation implements Operation {
      * Returns the numeric precision mode used by generated fused code.
      */
     public int getPrecisionMode() {
-        return precisionMode;
+        return numericContract.computeKind() == FusedComputeKind.F64
+                ? FusedDTypeOps.MODE_F64
+                : numericContract.outputValueLane() == FusedValueLane.BF16
+                        ? FusedDTypeOps.MODE_BF16
+                        : FusedDTypeOps.MODE_F32;
+    }
+
+    /**
+     * Returns the explicit numeric storage/compute contract for fused execution.
+     */
+    public FusedNumericContract getNumericContract() {
+        return numericContract;
     }
 
     /**

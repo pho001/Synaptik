@@ -1,0 +1,7 @@
+package backend.cpu.fused.ir;
+
+/**
+ * Scalar double payload attached to fused scalar operations.
+ */
+public record ScalarDoubleAttribute(double value) implements FusedNodeAttributes {
+}

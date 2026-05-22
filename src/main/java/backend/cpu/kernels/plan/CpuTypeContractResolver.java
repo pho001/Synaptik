@@ -1,6 +1,6 @@
 package backend.cpu.kernels.plan;
 
-import backend.cpu.fused.codegen.FusedExternalInputPlan;
+import backend.cpu.fused.ir.FusedExternalInputPlan;
 import operations.Operation;
 import backend.cpu.fused.plan.FusedOperation;
 import operations.index.ScatterReduction;

@@ -5,8 +5,9 @@ import config.compile.GraphOptimizationConfig;
 import config.runtime.RuntimeConfig;
 import config.backend.CpuKernelConfig;
 import graph.CompiledGraph;
-import backend.cpu.fused.codegen.FusedDTypeOps;
-import backend.cpu.fused.codegen.FusedKernelGeneratorRouter;
+import backend.cpu.fused.runtime.FusedDTypeOps;
+import backend.cpu.fused.asm.FusedAsmSpecializationMatcher;
+import backend.cpu.fused.asm.emit.FusedOperationGenerator;
 import graph.execution.PreparedExecutionStep;
 import graph.execution.PreparedExecution;
 import tensor.DataType;
@@ -514,11 +515,13 @@ public class FusedExecutionModesTest {
 
         var fusedStep = findPreparedFusedStep(prepared);
 
-        byte[] bytecode = FusedKernelGeneratorRouter.generate(
+        FusedOperation fused = (FusedOperation) fusedStep.executionOperation();
+        byte[] bytecode = FusedOperationGenerator.generate(
                 "debug/test/Bf16VectorKernel",
-                ((FusedOperation) fusedStep.executionOperation()).getPlan(),
-                FusedDTypeOps.MODE_BF16,
-                testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth()
+                fused.getPlan(),
+                fused.getNumericContract(),
+                testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth(),
+                FusedAsmSpecializationMatcher.match(fused.getPlan(), fused.getPrecisionMode())
         );
         String constantPool = new String(bytecode, StandardCharsets.ISO_8859_1);
 

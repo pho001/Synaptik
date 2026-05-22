@@ -3,7 +3,7 @@ import config.compile.CompileConfig;
 import config.compile.GraphOptimizationConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import backend.cpu.fused.codegen.FusedDTypeOps;
+import backend.cpu.fused.runtime.FusedDTypeOps;
 import tensor.DataType;
 import tensor.Tensor;
 import org.junit.jupiter.params.ParameterizedTest;

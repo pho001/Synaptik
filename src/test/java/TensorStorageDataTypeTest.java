@@ -1,4 +1,4 @@
-import backend.cpu.fused.codegen.FusedDTypeOps;
+import backend.cpu.fused.runtime.FusedDTypeOps;
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;

@@ -4,7 +4,7 @@ import backend.blas.BlasProvider;
 import backend.cpu.kernels.plan.CpuExecutionPlanner;
 import config.backend.CpuMatMulMicroKernel;
 import config.profile.ExecutionProfile;
-import backend.cpu.fused.optimize.FusedDispatchFamily;
+import backend.cpu.fused.plan.FusedDispatchFamily;
 import tuning.calibration.family.CalibrationFamilyId;
 import tuning.calibration.runtime.PlatformRuntimeProfileGridCandidateSpace;
 import tuning.calibration.runtime.PlatformRuntimeProfileMutator;

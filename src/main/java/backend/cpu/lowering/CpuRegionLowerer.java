@@ -2,7 +2,7 @@ package backend.cpu.lowering;
 
 import backend.ComputeBackend;
 import backend.blas.BlasProvider;
-import backend.cpu.fused.plan.LoweredFusedOperationBuilder;
+import backend.cpu.fused.plan.FusedOperationBuilder;
 import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
 import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
 import backend.cpu.kernels.plan.CpuExecutionPlanner;
@@ -838,7 +838,7 @@ public final class CpuRegionLowerer implements RegionLowerer {
         LoweredUnitArtifact legacyArtifact = null;
         if (unit.kind() == ExecutionUnitKind.FUSED_ELEMENTWISE) {
             family = LoweringFamily.FUSED_NATIVE;
-            legacyArtifact = LoweredFusedOperationBuilder.build(
+            legacyArtifact = FusedOperationBuilder.build(
                     unit.orderedNodeIds(),
                     request.context()::compiledNode,
                     request.context().descriptorIndex()
