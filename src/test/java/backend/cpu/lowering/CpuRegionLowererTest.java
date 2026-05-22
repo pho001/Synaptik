@@ -6,7 +6,7 @@ import graph.compile.intent.BackendIntentPlan;
 
 import backend.ComputeBackend;
 import backend.blas.BlasProvider;
-import backend.blas.OpenBlasFfmBridge;
+import backend.blas.OpenBlasRuntime;
 import backend.cpu.fused.plan.FusedOperationPreparation;
 import backend.lowering.region.CpuFusedRegionPayload;
 import backend.lowering.region.CpuNativeRegionPayload;
@@ -129,7 +129,7 @@ class CpuRegionLowererTest {
 
     @Test
     void cpuNativeProfileLowersProviderBackedPartitionToNativeRegion() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor a = new Tensor(new float[64 * 64], new int[]{64, 64}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[64 * 64], new int[]{64, 64}, null, "b", DataType.FLOAT32);
@@ -170,7 +170,7 @@ class CpuRegionLowererTest {
 
     @Test
     void cpuNativeProfileSchedulesViewAsRegionLocalAliasGroup() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor a = new Tensor(new float[64 * 64], new int[]{64, 64}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[64 * 64], new int[]{64, 64}, null, "b", DataType.FLOAT32);
@@ -207,7 +207,7 @@ class CpuRegionLowererTest {
 
     @Test
     void cpuNativeRegionPlanPreservesMultipleBoundaryOutputs() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor a = new Tensor(new float[64 * 64], new int[]{64, 64}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[64 * 64], new int[]{64, 64}, null, "b", DataType.FLOAT32);
@@ -244,7 +244,7 @@ class CpuRegionLowererTest {
 
     @Test
     void cpuNativeCompareBoundaryUsesCpuArrayStorageContract() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor a = new Tensor(new float[64 * 64], new int[]{64, 64}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[64 * 64], new int[]{64, 64}, null, "b", DataType.FLOAT32);
@@ -283,7 +283,7 @@ class CpuRegionLowererTest {
 
     @Test
     void cpuNativeSubregionCanStartAfterUnsupportedPrefixInsideCpuRegion() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor prefixInput = new Tensor(new float[64 * 64], new int[]{64, 64}, null, "prefix", DataType.FLOAT32);
         Tensor a = new Tensor(new float[64 * 64], new int[]{64, 64}, null, "a", DataType.FLOAT32);
@@ -357,7 +357,7 @@ class CpuRegionLowererTest {
 
     @Test
     void autoProfileRejectsNativeRegionWhenLocalKernelIsOnlySlowSegmentKernel() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor a = new Tensor(new float[64 * 64], new int[]{64, 64}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[64 * 64], new int[]{64, 64}, null, "b", DataType.FLOAT32);

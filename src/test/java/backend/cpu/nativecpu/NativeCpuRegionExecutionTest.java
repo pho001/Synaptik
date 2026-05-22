@@ -2,7 +2,7 @@ package backend.cpu.nativecpu;
 
 import backend.ComputeBackend;
 import backend.blas.BlasProvider;
-import backend.blas.OpenBlasFfmBridge;
+import backend.blas.OpenBlasRuntime;
 import backend.lowering.LoweringFamily;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionMode;
@@ -34,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class NativeCpuRegionExecutionTest {
     @Test
     void cpuNativeMatmulPreparesSingleNativeRegionStep() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -56,7 +56,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionTraceReportsRegionAttrs() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor a = tensor("a");
         Tensor b = tensor("b");
@@ -109,7 +109,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesBiasAddReluAsRegionLocalKernels() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -142,7 +142,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesReshapeAsRegionLocalViewAlias() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -175,7 +175,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesPermuteReluWithSegmentStridedKernel() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -213,7 +213,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesSelectAndSliceViewsWithSegmentConsumers() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -262,7 +262,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesExpandViewAsZeroStrideSegmentInput() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -302,7 +302,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesStridedBroadcastBinaryWithSegmentKernel() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -340,7 +340,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesStridedMinClampWithSegmentKernels() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -377,7 +377,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesStridedPowAndPowTensorWithSegmentKernels() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -414,7 +414,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesFloorCeilSignWithSegmentKernels() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -449,7 +449,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesStridedWhereWithSegmentKernel() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuCondition = boolColumnVector("cpuCondition");
         Tensor cpuFallback = tensor("cpuFallback");
@@ -489,7 +489,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesStridedCompareWithSegmentKernelAndCpuBoolBoundary() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -527,7 +527,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionKeepsCompareWhereMaskNativeUntilBoundaryPublication() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -569,7 +569,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionKeepsLogicalMaskNativeBetweenCompareAndWhere() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -611,7 +611,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesMaskedLossLikeFragmentWithoutMaskPublication() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -651,7 +651,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesBoolMaskReductionAndPublishesBoundaryExplicitly() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -685,7 +685,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesTanhSigmoidAsRegionLocalUnaryKernels() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -715,7 +715,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesF64BiasAndActivationsAsRegionLocalKernels() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat64GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat64GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = f64Tensor("cpuA");
         Tensor cpuB = f64Tensor("cpuB");
@@ -747,7 +747,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesF64WhereAsRegionLocalKernel() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat64GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat64GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuCondition = boolTensor("cpuCondition");
         Tensor cpuFallback = f64Tensor("cpuFallback");
@@ -781,7 +781,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionPublishesMultipleBoundaryOutputsForNonNativeConsumer() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -817,7 +817,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeSubregionExecutesAfterUnsupportedPrefixInSameCpuRegion() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuPrefixInput = tensor("cpuPrefixInput");
         Tensor cpuA = tensor("cpuA");
@@ -854,7 +854,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesDenseMulAsRegionLocalBinaryKernel() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -886,7 +886,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesLastDimMulAsRegionLocalBinaryKernel() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -918,7 +918,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesSumAsRegionLocalReductionKernel() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -948,7 +948,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesAxisMeanAsRegionLocalReductionKernel() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -978,7 +978,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesReduceMinMaxAsRegionLocalReductionKernels() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -1008,7 +1008,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesWhereAsRegionLocalKernel() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuCondition = boolTensor("cpuCondition");
         Tensor cpuFallback = negativeTensor("cpuFallback");
@@ -1042,7 +1042,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesBroadcastWhereAsRegionLocalKernel() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuCondition = boolColumnVector("cpuCondition");
         Tensor cpuFallback = bias("cpuFallback");
@@ -1076,7 +1076,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesColumnBroadcastMulAsRegionLocalBinaryKernel() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -1108,7 +1108,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesCompareBoundaryAsCpuArrayOutput() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -1140,7 +1140,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesContiguousAsRegionLocalCopy() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -1170,7 +1170,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesCastAsRegionLocalKernel() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -1200,7 +1200,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesBf16UnaryAndBinaryAsRegionLocalKernels() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -1232,7 +1232,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesBf16SumMeanWithPromotedPrecisionTrace() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -1269,7 +1269,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRegionExecutesBf16CompareBoundaryAsCpuArrayOutput() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");
@@ -1301,7 +1301,7 @@ class NativeCpuRegionExecutionTest {
 
     @Test
     void cpuNativeRequireNativeAllowsFullySupportedBf16CompareRegion() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor cpuA = tensor("cpuA");
         Tensor cpuB = tensor("cpuB");

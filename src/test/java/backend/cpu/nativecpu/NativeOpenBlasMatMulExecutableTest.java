@@ -1,7 +1,7 @@
 package backend.cpu.nativecpu;
 
 import backend.ComputeBackend;
-import backend.blas.OpenBlasFfmBridge;
+import backend.blas.OpenBlasRuntime;
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
@@ -46,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class NativeOpenBlasMatMulExecutableTest {
     @Test
     void float32NativeSegmentMatmulLeavesOutputNativeUntilPublication() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
@@ -86,7 +86,7 @@ class NativeOpenBlasMatMulExecutableTest {
 
     @Test
     void float64NativeSegmentMatmulLeavesOutputNativeUntilPublication() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor a = new Tensor(new double[]{1d, 2d, 3d, 4d}, new int[]{2, 2}, null, "a", DataType.FLOAT64);
         Tensor b = new Tensor(new double[]{5d, 6d, 7d, 8d}, new int[]{2, 2}, null, "b", DataType.FLOAT64);
@@ -117,7 +117,7 @@ class NativeOpenBlasMatMulExecutableTest {
 
     @Test
     void bfloat16NativeSegmentMatmulUsesBgemmAndLeavesOutputNativeUntilPublication() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16OutputGemmAvailable(), "OpenBLAS BGEMM is unavailable");
+        Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16OutputGemmAvailable(), "OpenBLAS BGEMM is unavailable");
 
         Tensor a = new Tensor(new double[]{1d, 2d, 3d, 4d}, new int[]{2, 2}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(new double[]{5d, 6d, 7d, 8d}, new int[]{2, 2}, null, "b", DataType.BFLOAT16);
@@ -149,7 +149,7 @@ class NativeOpenBlasMatMulExecutableTest {
 
     @Test
     void nativeSegmentMatmulReportsArrayToNativeInputCopiesWhenInputsStartAsCpuArrays() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
@@ -173,7 +173,7 @@ class NativeOpenBlasMatMulExecutableTest {
 
     @Test
     void nativeSegmentFallbackPolicyAllowsJavaRouteAndRecordsReason() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{1, 2, 2}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{1, 2, 2}, null, "b", DataType.FLOAT32);
@@ -200,7 +200,7 @@ class NativeOpenBlasMatMulExecutableTest {
 
     @Test
     void nativeSegmentRequireNativePolicyRejectsJavaFallback() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{1, 2, 2}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{1, 2, 2}, null, "b", DataType.FLOAT32);

@@ -1,6 +1,6 @@
 import backend.runtime.ExecutionMode;
 import backend.blas.BlasProvider;
-import backend.blas.OpenBlasFfmBridge;
+import backend.blas.OpenBlasRuntime;
 import config.backend.KernelTuningConfig;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
@@ -93,7 +93,7 @@ public class MatMulTest {
 
     @Test
     void bfloat16MatmulThenReluMatchesBaselineWhenBlasContinuationIsEnabled() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
+        Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
 
         double[] aValues = random(64 * 64, 71);
         double[] bValues = random(64 * 96, 73);
@@ -116,7 +116,7 @@ public class MatMulTest {
 
     @Test
     void bfloat16MatmulThenAddMatchesBaselineWhenBlasContinuationIsEnabled() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
+        Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
 
         double[] aValues = random(64 * 64, 81);
         double[] bValues = random(64 * 96, 83);
@@ -142,7 +142,7 @@ public class MatMulTest {
 
     @Test
     void bfloat16MatmulThenFusedNumericChainMatchesBaselineWhenBlasContinuationIsEnabled() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
+        Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
 
         double[] aValues = random(64 * 64, 91);
         double[] bValues = random(64 * 96, 97);

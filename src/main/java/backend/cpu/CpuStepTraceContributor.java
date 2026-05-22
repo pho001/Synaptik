@@ -2,7 +2,7 @@ package backend.cpu;
 
 import backend.ComputeBackend;
 import backend.accelerator.exec.AcceleratorExecutionArtifact;
-import backend.blas.OpenBlasFfmBridge;
+import backend.blas.OpenBlasRuntime;
 import backend.cpu.fused.plan.FusedOperation;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
@@ -160,10 +160,10 @@ public final class CpuStepTraceContributor {
                 matMulRequestedCpuStorage(context),
                 matMulActualCpuStorage(route),
                 nativeCpuFallbackReason,
-                openblasProvider && OpenBlasFfmBridge.isFloat32GemmAvailable(),
-                openblasProvider && OpenBlasFfmBridge.isFloat64GemmAvailable(),
-                openblasProvider && OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable(),
-                openblasProvider && OpenBlasFfmBridge.isBFloat16OutputGemmAvailable(),
+                openblasProvider && OpenBlasRuntime.isFloat32GemmAvailable(),
+                openblasProvider && OpenBlasRuntime.isFloat64GemmAvailable(),
+                openblasProvider && OpenBlasRuntime.isBFloat16ToFloatGemmAvailable(),
+                openblasProvider && OpenBlasRuntime.isBFloat16OutputGemmAvailable(),
                 matMulBf16ContinuationRoute(node, route, blasSymbol),
                 matMulBf16OutputRoute(node, route, blasSymbol),
                 matMulBf16ComputePrecision(node, route, blasSymbol),
@@ -205,7 +205,7 @@ public final class CpuStepTraceContributor {
         attrs.put("bf16ComputePrecision", matMul.bf16ComputePrecision());
         attrs.put("bf16OutputPrecision", matMul.bf16OutputPrecision());
         if ("OPENBLAS_FFM".equals(matMul.blasProvider())) {
-            attrs.put("openblasLookupSource", OpenBlasFfmBridge.lookupSource());
+            attrs.put("openblasLookupSource", OpenBlasRuntime.lookupSource());
         }
         attrs.put("matMulCopyInBytes", matMul.copyInBytes());
         attrs.put("matMulCopyOutBytes", matMul.copyOutBytes());
@@ -531,7 +531,7 @@ public final class CpuStepTraceContributor {
                 || context.runtimeConfig().blas().provider() != backend.blas.BlasProvider.OPENBLAS_FFM) {
             return "";
         }
-        return OpenBlasFfmBridge.threadPolicy();
+        return OpenBlasRuntime.threadPolicy();
     }
 
     private static String matMulCpuStorageProfile(ExecutionContext context) {
@@ -589,7 +589,7 @@ public final class CpuStepTraceContributor {
                 || (!plan.matMulHints().useBlas() && !plan.matMulHints().useBatchedBlas())) {
             return false;
         }
-        return OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable()
+        return OpenBlasRuntime.isBFloat16ToFloatGemmAvailable()
                 && (plan.publishFloatContinuation() || linearOp.hasBias());
     }
 

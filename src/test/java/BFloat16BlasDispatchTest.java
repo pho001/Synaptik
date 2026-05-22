@@ -1,5 +1,5 @@
 import backend.blas.BlasProvider;
-import backend.blas.OpenBlasFfmBridge;
+import backend.blas.OpenBlasRuntime;
 import backend.runtime.ExecutionMode;
 import config.backend.KernelTuningConfig;
 import config.compile.BackendPlanningConfig;
@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class BFloat16BlasDispatchTest {
     @Test
     void bfloat16MatmulUsesBlasWhenEnabled() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16OutputGemmAvailable(), "OpenBLAS BGEMM is unavailable");
+        Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16OutputGemmAvailable(), "OpenBLAS BGEMM is unavailable");
 
         Tensor a = new Tensor(random(64 * 64), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(random(64 * 64), new int[]{64, 64}, null, "b", DataType.BFLOAT16);
@@ -51,7 +51,7 @@ public class BFloat16BlasDispatchTest {
 
     @Test
     void bfloat16LinearUsesBlasWhenEnabled() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
+        Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
 
         Tensor x = new Tensor(random(32 * 64), new int[]{32, 64}, null, "x", DataType.BFLOAT16);
         Tensor w = new Tensor(random(64 * 96), new int[]{64, 96}, null, "w", DataType.BFLOAT16);
@@ -108,7 +108,7 @@ public class BFloat16BlasDispatchTest {
 
     @Test
     void bfloat16WideMatmulUsesWideSpecificBlasHeuristic() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16OutputGemmAvailable(), "OpenBLAS BGEMM is unavailable");
+        Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16OutputGemmAvailable(), "OpenBLAS BGEMM is unavailable");
 
         Tensor a = new Tensor(random(256 * 256), new int[]{256, 256}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(random(256 * 2048), new int[]{256, 2048}, null, "b", DataType.BFLOAT16);
@@ -142,7 +142,7 @@ public class BFloat16BlasDispatchTest {
 
     @Test
     void bfloat16Conv2dTraceReportsBlasUsageWhenEnabled() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
+        Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
 
         Tensor input = new Tensor(random(2 * 64 * 32 * 32), new int[]{2, 64, 32, 32}, null, "input", DataType.BFLOAT16);
         Tensor weight = new Tensor(random(128 * 64 * 3 * 3), new int[]{128, 64, 3, 3}, null, "weight", DataType.BFLOAT16);
@@ -194,7 +194,7 @@ public class BFloat16BlasDispatchTest {
 
     @Test
     void blasDispatchRemainsAvailableWithAutoAcceleratorPlanning() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16OutputGemmAvailable(), "OpenBLAS BGEMM is unavailable");
+        Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16OutputGemmAvailable(), "OpenBLAS BGEMM is unavailable");
 
         Tensor a = new Tensor(random(64 * 64), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(random(64 * 96), new int[]{64, 96}, null, "b", DataType.BFLOAT16);

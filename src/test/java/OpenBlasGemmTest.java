@@ -1,4 +1,6 @@
-import backend.blas.OpenBlasFfmBridge;
+import backend.blas.OpenBlasArrayGemm;
+import backend.blas.OpenBlasRuntime;
+import backend.blas.OpenBlasSegmentGemm;
 import backend.cpu.kernels.CpuDTypeOps;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -14,27 +16,27 @@ import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
-public class OpenBlasFfmBridgeTest {
+public class OpenBlasGemmTest {
     @Test
     void bundledOrConfiguredOpenBlasProvidesRequiredGemmSymbols() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isAvailable(), OpenBlasRuntime.unavailableReason());
 
         double[] a64 = {1.0d, 2.0d, 3.0d, 4.0d};
         double[] b64 = {5.0d, 6.0d, 7.0d, 8.0d};
         double[] c64 = new double[4];
-        OpenBlasFfmBridge.dgemmRowMajorNoTrans(2, 2, 2, 1.0d, a64, 2, b64, 2, 0.0d, c64, 2);
+        OpenBlasArrayGemm.dgemmRowMajorNoTrans(2, 2, 2, 1.0d, a64, 2, b64, 2, 0.0d, c64, 2);
         assertArrayEquals(new double[]{19.0d, 22.0d, 43.0d, 50.0d}, c64, 1e-12);
 
         float[] a32 = {1.0f, 2.0f, 3.0f, 4.0f};
         float[] b32 = {5.0f, 6.0f, 7.0f, 8.0f};
         float[] c32 = new float[4];
-        OpenBlasFfmBridge.sgemmRowMajorNoTrans(2, 2, 2, 1.0f, a32, 2, b32, 2, 0.0f, c32, 2);
+        OpenBlasArrayGemm.sgemmRowMajorNoTrans(2, 2, 2, 1.0f, a32, 2, b32, 2, 0.0f, c32, 2);
         assertArrayEquals(new float[]{19.0f, 22.0f, 43.0f, 50.0f}, c32, 1e-6f);
     }
 
     @Test
     void bundledOrConfiguredOpenBlasProvidesBFloat16ToFloatGemmWhenAdvertised() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16ToFloatGemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         short[] a = {
                 CpuDTypeOps.toBFloat16Bits(1.0f),
@@ -50,14 +52,14 @@ public class OpenBlasFfmBridgeTest {
         };
         float[] c = new float[4];
 
-        OpenBlasFfmBridge.sbgemmRowMajorNoTrans(2, 2, 2, 1.0f, a, 2, b, 2, 0.0f, c, 2);
+        OpenBlasArrayGemm.sbgemmRowMajorNoTrans(2, 2, 2, 1.0f, a, 2, b, 2, 0.0f, c, 2);
 
         assertArrayEquals(new float[]{19.0f, 22.0f, 43.0f, 50.0f}, c, 1e-6f);
     }
 
     @Test
     void bundledOrConfiguredOpenBlasProvidesBFloat16OutputGemmWhenAdvertised() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16OutputGemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16OutputGemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         short[] a = {
                 CpuDTypeOps.toBFloat16Bits(1.0f),
@@ -73,7 +75,7 @@ public class OpenBlasFfmBridgeTest {
         };
         short[] c = new short[4];
 
-        OpenBlasFfmBridge.bgemmRowMajorNoTrans(
+        OpenBlasArrayGemm.bgemmRowMajorNoTrans(
                 2,
                 2,
                 2,
@@ -97,7 +99,7 @@ public class OpenBlasFfmBridgeTest {
 
     @Test
     void float32SegmentGemmWritesDirectlyIntoProvidedNativeOutput() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isAvailable(), OpenBlasRuntime.unavailableReason());
 
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment a = arena.allocate(JAVA_FLOAT, 4);
@@ -106,7 +108,7 @@ public class OpenBlasFfmBridgeTest {
             fill(a, new float[]{1f, 2f, 3f, 4f});
             fill(b, new float[]{5f, 6f, 7f, 8f});
 
-            OpenBlasFfmBridge.sgemmRowMajorNoTransSegment(
+            OpenBlasSegmentGemm.sgemmRowMajorNoTransSegment(
                     2, 2, 2,
                     1.0f,
                     a, 0L, 2,
@@ -121,7 +123,7 @@ public class OpenBlasFfmBridgeTest {
 
     @Test
     void float64SegmentGemmHonorsByteOffsets() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isAvailable(), OpenBlasRuntime.unavailableReason());
 
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment a = arena.allocate(JAVA_DOUBLE, 6);
@@ -131,7 +133,7 @@ public class OpenBlasFfmBridgeTest {
             fill(b, new double[]{-99d, 5d, 6d, 7d, 8d, -99d});
             fill(c, new double[]{-1d, -1d, -1d, -1d, -1d, -1d});
 
-            OpenBlasFfmBridge.dgemmRowMajorNoTransSegment(
+            OpenBlasSegmentGemm.dgemmRowMajorNoTransSegment(
                     2, 2, 2,
                     1.0d,
                     a, Double.BYTES, 2,
@@ -146,7 +148,7 @@ public class OpenBlasFfmBridgeTest {
 
     @Test
     void bfloat16SegmentGemmWritesFloat32OutputWhenSymbolIsAvailable() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
+        Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
 
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment a = arena.allocate(JAVA_SHORT, 4);
@@ -165,7 +167,7 @@ public class OpenBlasFfmBridgeTest {
                     CpuDTypeOps.toBFloat16Bits(8f)
             });
 
-            OpenBlasFfmBridge.sbgemmRowMajorNoTransSegment(
+            OpenBlasSegmentGemm.sbgemmRowMajorNoTransSegment(
                     2, 2, 2,
                     1.0f,
                     a, 0L, 2,
@@ -180,7 +182,7 @@ public class OpenBlasFfmBridgeTest {
 
     @Test
     void bfloat16SegmentGemmWritesBFloat16OutputWhenSymbolIsAvailable() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16OutputGemmAvailable(), "OpenBLAS BGEMM is unavailable");
+        Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16OutputGemmAvailable(), "OpenBLAS BGEMM is unavailable");
 
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment a = arena.allocate(JAVA_SHORT, 4);
@@ -199,7 +201,7 @@ public class OpenBlasFfmBridgeTest {
                     CpuDTypeOps.toBFloat16Bits(8f)
             });
 
-            OpenBlasFfmBridge.bgemmRowMajorNoTransSegment(
+            OpenBlasSegmentGemm.bgemmRowMajorNoTransSegment(
                     2, 2, 2,
                     CpuDTypeOps.toBFloat16Bits(1f),
                     a, 0L, 2,
@@ -218,12 +220,14 @@ public class OpenBlasFfmBridgeTest {
     }
 
     @Test
+    void legacyOpenBlasBridgeClassIsRemoved() {
+        assertFalse(Files.exists(Path.of("src/main/java/backend/blas/OpenBlasFfmBridge.java")));
+    }
+
+    @Test
     void segmentGemmMethodsDoNotUseArrayCopyHelpers() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/backend/blas/OpenBlasFfmBridge.java"));
-        assertNoCopyHelpers(section(source, "sgemmRowMajorNoTransSegment", "dgemmRowMajorNoTrans("));
-        assertNoCopyHelpers(section(source, "dgemmRowMajorNoTransSegment", "sbgemmRowMajorNoTrans("));
-        assertNoCopyHelpers(section(source, "sbgemmRowMajorNoTransSegment", "private static int requiredElements"));
-        assertNoCopyHelpers(section(source, "public static void bgemmRowMajorNoTransSegment", "private static int requiredElements"));
+        String source = Files.readString(Path.of("src/main/java/backend/blas/OpenBlasSegmentGemm.java"));
+        assertNoCopyHelpers(source);
     }
 
     private static void assertNoCopyHelpers(String section) {
@@ -236,15 +240,6 @@ public class OpenBlasFfmBridgeTest {
         assertFalse(section.contains("copyDoubleSegment"));
         assertFalse(section.contains("nativeShortSegment"));
         assertFalse(section.contains("copyShortSegment"));
-    }
-
-    private static String section(String source, String startNeedle, String endNeedle) {
-        int start = source.indexOf(startNeedle);
-        int end = source.indexOf(endNeedle, start + startNeedle.length());
-        if (start < 0 || end < 0 || end <= start) {
-            throw new AssertionError("Cannot locate source section " + startNeedle + " -> " + endNeedle);
-        }
-        return source.substring(start, end);
     }
 
     private static void fill(MemorySegment segment, float[] values) {

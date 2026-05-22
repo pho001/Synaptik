@@ -1,6 +1,7 @@
 package backend.cpu.kernels.nn.conv2d.plan;
 
 import backend.blas.BlasProvider;
+import backend.blas.OpenBlasRuntime;
 import backend.cpu.kernels.nn.conv2d.plan.ResolvedConv2dHints;
 import config.runtime.Conv2dConfig;
 import operations.Operation;
@@ -138,10 +139,10 @@ public final class Conv2dPlanner {
         if (dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64 && dataType != DataType.BFLOAT16) {
             return false;
         }
-        if (!backend.blas.OpenBlasFfmBridge.isAvailable()) {
+        if (!OpenBlasRuntime.isAvailable()) {
             return false;
         }
-        if (dataType == DataType.BFLOAT16 && !backend.blas.OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable()) {
+        if (dataType == DataType.BFLOAT16 && !OpenBlasRuntime.isBFloat16ToFloatGemmAvailable()) {
             return false;
         }
         if (conv2dConfig.provider() != BlasProvider.OPENBLAS_FFM) {

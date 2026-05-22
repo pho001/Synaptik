@@ -2,7 +2,8 @@ package backend.cpu.kernels.linalg.matmul.f32;
 
 import tensor.TensorInternalAccess;
 
-import backend.blas.OpenBlasFfmBridge;
+import backend.blas.OpenBlasRuntime;
+import backend.blas.OpenBlasSegmentGemm;
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
@@ -39,8 +40,8 @@ public final class F32NativeBlasMatMulExecutable implements PreparedMatMulExecut
         int m = as[as.length - 2];
         int k = as[as.length - 1];
         int n = bs[bs.length - 1];
-        if (!OpenBlasFfmBridge.isAvailable()) {
-            fallbackToJava(a, b, node, context, "OpenBLAS FFM unavailable: " + OpenBlasFfmBridge.unavailableReason());
+        if (!OpenBlasRuntime.isAvailable()) {
+            fallbackToJava(a, b, node, context, "OpenBLAS FFM unavailable: " + OpenBlasRuntime.unavailableReason());
             return;
         }
         if (as.length != 2 || bs.length != 2) {
@@ -71,7 +72,7 @@ public final class F32NativeBlasMatMulExecutable implements PreparedMatMulExecut
                     node.getFlatDataSize(),
                     "node-" + context.nodeId() + ":" + node.getLabel() + ":openblas-f32"
             );
-            OpenBlasFfmBridge.sgemmRowMajorNoTransSegment(
+            OpenBlasSegmentGemm.sgemmRowMajorNoTransSegment(
                     m,
                     n,
                     k,

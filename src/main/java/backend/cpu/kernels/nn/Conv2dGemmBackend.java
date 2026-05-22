@@ -6,7 +6,8 @@ import backend.cpu.kernels.*;
 import backend.cpu.kernels.nn.conv2d.plan.ResolvedConv2dHints;
 
 import backend.blas.BlasProvider;
-import backend.blas.OpenBlasFfmBridge;
+import backend.blas.OpenBlasArrayGemm;
+import backend.blas.OpenBlasRuntime;
 import graph.execution.trace.ConvTraceMetadata;
 import operations.nn.conv.conv2dGemm;
 import operations.nn.conv.conv2dBackwardInput;
@@ -677,7 +678,7 @@ final class Conv2dGemmBackend {
                             + ", prepared=" + hints.m() + "/" + hints.n() + "/" + hints.k()
             );
         }
-        if (hints.useBlas() && hints.provider() == BlasProvider.OPENBLAS_FFM && !OpenBlasFfmBridge.isAvailable()) {
+        if (hints.useBlas() && hints.provider() == BlasProvider.OPENBLAS_FFM && !OpenBlasRuntime.isAvailable()) {
             throw new IllegalStateException("Prepared conv2d GEMM plan requires OPENBLAS_FFM, but the bridge is not available.");
         }
         return hints;
@@ -1077,11 +1078,11 @@ final class Conv2dGemmBackend {
     }
 
     private static boolean accumulateBlasF64(double[] a, double[] b, double[] c, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable()) {
+        if (!OpenBlasRuntime.isBFloat16ToFloatGemmAvailable()) {
             return false;
         }
         try {
-            OpenBlasFfmBridge.dgemmRowMajorNoTrans(m, n, k, 1.0d, a, k, b, n, 1.0d, c, n);
+            OpenBlasArrayGemm.dgemmRowMajorNoTrans(m, n, k, 1.0d, a, k, b, n, 1.0d, c, n);
             return true;
         } catch (Throwable ignored) {
             return false;
@@ -1089,11 +1090,11 @@ final class Conv2dGemmBackend {
     }
 
     private static boolean accumulateBlasF32(float[] a, float[] b, float[] c, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable()) {
+        if (!OpenBlasRuntime.isBFloat16ToFloatGemmAvailable()) {
             return false;
         }
         try {
-            OpenBlasFfmBridge.sgemmRowMajorNoTrans(m, n, k, 1.0f, a, k, b, n, 1.0f, c, n);
+            OpenBlasArrayGemm.sgemmRowMajorNoTrans(m, n, k, 1.0f, a, k, b, n, 1.0f, c, n);
             return true;
         } catch (Throwable ignored) {
             return false;
@@ -1101,11 +1102,11 @@ final class Conv2dGemmBackend {
     }
 
     private static boolean accumulateBlasBF16(short[] a, short[] b, float[] c, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isAvailable()) {
+        if (!OpenBlasRuntime.isAvailable()) {
             return false;
         }
         try {
-            OpenBlasFfmBridge.sbgemmRowMajorNoTrans(m, n, k, 1.0f, a, k, b, n, 1.0f, c, n);
+            OpenBlasArrayGemm.sbgemmRowMajorNoTrans(m, n, k, 1.0f, a, k, b, n, 1.0f, c, n);
             return true;
         } catch (Throwable ignored) {
             return false;
@@ -1238,11 +1239,11 @@ final class Conv2dGemmBackend {
     }
 
     private static boolean tryBlasBF16(short[] a, short[] b, float[] c, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isAvailable()) {
+        if (!OpenBlasRuntime.isAvailable()) {
             return false;
         }
         try {
-            OpenBlasFfmBridge.sbgemmRowMajorNoTrans(m, n, k, 1.0f, a, k, b, n, 0.0f, c, n);
+            OpenBlasArrayGemm.sbgemmRowMajorNoTrans(m, n, k, 1.0f, a, k, b, n, 0.0f, c, n);
             return true;
         } catch (Throwable ignored) {
             return false;
@@ -1250,11 +1251,11 @@ final class Conv2dGemmBackend {
     }
 
     private static boolean tryBlasF64(double[] a, double[] b, double[] c, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isAvailable()) {
+        if (!OpenBlasRuntime.isAvailable()) {
             return false;
         }
         try {
-            OpenBlasFfmBridge.dgemmRowMajorNoTrans(m, n, k, 1.0d, a, k, b, n, 0.0d, c, n);
+            OpenBlasArrayGemm.dgemmRowMajorNoTrans(m, n, k, 1.0d, a, k, b, n, 0.0d, c, n);
             return true;
         } catch (Throwable ignored) {
             return false;
@@ -1262,11 +1263,11 @@ final class Conv2dGemmBackend {
     }
 
     private static boolean tryBlasF32(float[] a, float[] b, float[] c, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isAvailable()) {
+        if (!OpenBlasRuntime.isAvailable()) {
             return false;
         }
         try {
-            OpenBlasFfmBridge.sgemmRowMajorNoTrans(m, n, k, 1.0f, a, k, b, n, 0.0f, c, n);
+            OpenBlasArrayGemm.sgemmRowMajorNoTrans(m, n, k, 1.0f, a, k, b, n, 0.0f, c, n);
             return true;
         } catch (Throwable ignored) {
             return false;

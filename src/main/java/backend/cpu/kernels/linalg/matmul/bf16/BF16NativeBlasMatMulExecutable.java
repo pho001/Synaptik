@@ -2,7 +2,8 @@ package backend.cpu.kernels.linalg.matmul.bf16;
 
 import tensor.TensorInternalAccess;
 
-import backend.blas.OpenBlasFfmBridge;
+import backend.blas.OpenBlasRuntime;
+import backend.blas.OpenBlasSegmentGemm;
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
@@ -41,7 +42,7 @@ public final class BF16NativeBlasMatMulExecutable implements PreparedMatMulExecu
         int m = as[as.length - 2];
         int k = as[as.length - 1];
         int n = bs[bs.length - 1];
-        if (!OpenBlasFfmBridge.isBFloat16OutputGemmAvailable()) {
+        if (!OpenBlasRuntime.isBFloat16OutputGemmAvailable()) {
             fallbackToJava(a, b, node, context, "OpenBLAS FFM BGEMM unavailable");
             return;
         }
@@ -73,7 +74,7 @@ public final class BF16NativeBlasMatMulExecutable implements PreparedMatMulExecu
                     node.getFlatDataSize(),
                     "node-" + context.nodeId() + ":" + node.getLabel() + ":openblas-bf16"
             );
-            OpenBlasFfmBridge.bgemmRowMajorNoTransSegment(
+            OpenBlasSegmentGemm.bgemmRowMajorNoTransSegment(
                     m,
                     n,
                     k,

@@ -1,7 +1,8 @@
 package backend.cpu.kernels.linalg.matmul.blas;
 
 import backend.blas.BlasRuntime;
-import backend.blas.OpenBlasFfmBridge;
+import backend.blas.OpenBlasArrayGemm;
+import backend.blas.OpenBlasRuntime;
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.linalg.matmul.common.MatMulBatchingSupport;
 
@@ -11,12 +12,12 @@ public final class MatMulBlasBackend {
     private MatMulBlasBackend() {}
 
     public static boolean tryBlasF64(double[] ad, double[] bd, double[] od, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isAvailable()) {
+        if (!OpenBlasRuntime.isAvailable()) {
             maybeLogBlasUnavailable();
             return false;
         }
         try {
-            OpenBlasFfmBridge.dgemmRowMajorNoTrans(m, n, k, 1.0d, ad, k, bd, n, 0.0d, od, n);
+            OpenBlasArrayGemm.dgemmRowMajorNoTrans(m, n, k, 1.0d, ad, k, bd, n, 0.0d, od, n);
             return true;
         } catch (Throwable t) {
             if (BlasRuntime.debug()) {
@@ -27,12 +28,12 @@ public final class MatMulBlasBackend {
     }
 
     public static boolean tryBlasF32(float[] ad, float[] bd, float[] od, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isAvailable()) {
+        if (!OpenBlasRuntime.isAvailable()) {
             maybeLogBlasUnavailable();
             return false;
         }
         try {
-            OpenBlasFfmBridge.sgemmRowMajorNoTrans(m, n, k, 1.0f, ad, k, bd, n, 0.0f, od, n);
+            OpenBlasArrayGemm.sgemmRowMajorNoTrans(m, n, k, 1.0f, ad, k, bd, n, 0.0f, od, n);
             return true;
         } catch (Throwable t) {
             if (BlasRuntime.debug()) {
@@ -43,7 +44,7 @@ public final class MatMulBlasBackend {
     }
 
     public static boolean tryBatchedBlasF64(double[] ad, int[] as, double[] bd, int[] bs, double[] od, int[] outShape, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isAvailable()) {
+        if (!OpenBlasRuntime.isAvailable()) {
             maybeLogBlasUnavailable();
             return false;
         }
@@ -53,7 +54,7 @@ public final class MatMulBlasBackend {
             int[] bBatchOffsets = MatMulBatchingSupport.computeBatchOffsets(bs, outShape);
             int mn = m * n;
             for (int batch = 0; batch < batchCount; batch++) {
-                OpenBlasFfmBridge.dgemmRowMajorNoTransOffsets(m, n, k, 1.0d, ad, aBatchOffsets[batch], k, bd, bBatchOffsets[batch], n, 0.0d, od, batch * mn, n);
+                OpenBlasArrayGemm.dgemmRowMajorNoTransOffsets(m, n, k, 1.0d, ad, aBatchOffsets[batch], k, bd, bBatchOffsets[batch], n, 0.0d, od, batch * mn, n);
             }
             return true;
         } catch (Throwable t) {
@@ -65,7 +66,7 @@ public final class MatMulBlasBackend {
     }
 
     public static boolean tryBatchedBlasF32(float[] ad, int[] as, float[] bd, int[] bs, float[] od, int[] outShape, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isAvailable()) {
+        if (!OpenBlasRuntime.isAvailable()) {
             maybeLogBlasUnavailable();
             return false;
         }
@@ -75,7 +76,7 @@ public final class MatMulBlasBackend {
             int[] bBatchOffsets = MatMulBatchingSupport.computeBatchOffsets(bs, outShape);
             int mn = m * n;
             for (int batch = 0; batch < batchCount; batch++) {
-                OpenBlasFfmBridge.sgemmRowMajorNoTransOffsets(m, n, k, 1.0f, ad, aBatchOffsets[batch], k, bd, bBatchOffsets[batch], n, 0.0f, od, batch * mn, n);
+                OpenBlasArrayGemm.sgemmRowMajorNoTransOffsets(m, n, k, 1.0f, ad, aBatchOffsets[batch], k, bd, bBatchOffsets[batch], n, 0.0f, od, batch * mn, n);
             }
             return true;
         } catch (Throwable t) {
@@ -87,12 +88,12 @@ public final class MatMulBlasBackend {
     }
 
     public static boolean tryBlasBF16(short[] ad, short[] bd, short[] od, float[] tmp, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isBFloat16OutputGemmAvailable()) {
+        if (!OpenBlasRuntime.isBFloat16OutputGemmAvailable()) {
             maybeLogBlasUnavailable();
             return false;
         }
         try {
-            OpenBlasFfmBridge.bgemmRowMajorNoTrans(
+            OpenBlasArrayGemm.bgemmRowMajorNoTrans(
                     m,
                     n,
                     k,
@@ -115,7 +116,7 @@ public final class MatMulBlasBackend {
     }
 
     public static boolean tryBatchedBlasBF16(short[] ad, int[] as, short[] bd, int[] bs, short[] od, float[] tmp, int[] outShape, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isBFloat16OutputGemmAvailable()) {
+        if (!OpenBlasRuntime.isBFloat16OutputGemmAvailable()) {
             maybeLogBlasUnavailable();
             return false;
         }
@@ -127,7 +128,7 @@ public final class MatMulBlasBackend {
             short alpha = CpuDTypeOps.toBFloat16Bits(1.0f);
             short beta = CpuDTypeOps.toBFloat16Bits(0.0f);
             for (int batch = 0; batch < batchCount; batch++) {
-                OpenBlasFfmBridge.bgemmRowMajorNoTransOffsets(
+                OpenBlasArrayGemm.bgemmRowMajorNoTransOffsets(
                         m,
                         n,
                         k,
@@ -154,7 +155,7 @@ public final class MatMulBlasBackend {
     }
 
     public static boolean tryBlasBF16ToFloat(short[] ad, short[] bd, float[] out, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable()) {
+        if (!OpenBlasRuntime.isBFloat16ToFloatGemmAvailable()) {
             maybeLogBlasUnavailable();
             return false;
         }
@@ -162,7 +163,7 @@ public final class MatMulBlasBackend {
             if (out == null || out.length < m * n) {
                 return false;
             }
-            OpenBlasFfmBridge.sbgemmRowMajorNoTrans(m, n, k, 1.0f, ad, k, bd, n, 0.0f, out, n);
+            OpenBlasArrayGemm.sbgemmRowMajorNoTrans(m, n, k, 1.0f, ad, k, bd, n, 0.0f, out, n);
             return true;
         } catch (Throwable t) {
             if (BlasRuntime.debug()) {
@@ -173,7 +174,7 @@ public final class MatMulBlasBackend {
     }
 
     public static boolean tryBatchedBlasBF16ToFloat(short[] ad, int[] as, short[] bd, int[] bs, float[] out, int[] outShape, int m, int n, int k) {
-        if (!OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable()) {
+        if (!OpenBlasRuntime.isBFloat16ToFloatGemmAvailable()) {
             maybeLogBlasUnavailable();
             return false;
         }
@@ -186,7 +187,7 @@ public final class MatMulBlasBackend {
             int[] aBatchOffsets = MatMulBatchingSupport.computeBatchOffsets(as, outShape);
             int[] bBatchOffsets = MatMulBatchingSupport.computeBatchOffsets(bs, outShape);
             for (int batch = 0; batch < batchCount; batch++) {
-                OpenBlasFfmBridge.sbgemmRowMajorNoTransOffsets(m, n, k, 1.0f, ad, aBatchOffsets[batch], k, bd, bBatchOffsets[batch], n, 0.0f, out, batch * mn, n);
+                OpenBlasArrayGemm.sbgemmRowMajorNoTransOffsets(m, n, k, 1.0f, ad, aBatchOffsets[batch], k, bd, bBatchOffsets[batch], n, 0.0f, out, batch * mn, n);
             }
             return true;
         } catch (Throwable t) {
@@ -207,7 +208,7 @@ public final class MatMulBlasBackend {
             }
             if (BlasRuntime.debug()) {
                 System.err.println("[BLAS] OpenBLAS FFM unavailable, using Java matmul fallback. Reason: "
-                        + OpenBlasFfmBridge.unavailableReason());
+                        + OpenBlasRuntime.unavailableReason());
             }
             blasAvailabilityLogged = true;
         }

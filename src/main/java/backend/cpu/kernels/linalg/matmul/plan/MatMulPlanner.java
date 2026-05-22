@@ -1,7 +1,7 @@
 package backend.cpu.kernels.linalg.matmul.plan;
 
 import backend.blas.BlasProvider;
-import backend.blas.OpenBlasFfmBridge;
+import backend.blas.OpenBlasRuntime;
 import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
 import backend.cpu.kernels.plan.CpuPlanningPolicy;
 import config.backend.CpuMatMulMicroKernel;
@@ -372,9 +372,9 @@ public final class MatMulPlanner {
             return false;
         }
         return switch (outDataType) {
-            case FLOAT32 -> OpenBlasFfmBridge.isFloat32GemmAvailable();
-            case FLOAT64 -> OpenBlasFfmBridge.isFloat64GemmAvailable();
-            case BFLOAT16 -> !publishFloatContinuation && OpenBlasFfmBridge.isBFloat16OutputGemmAvailable();
+            case FLOAT32 -> OpenBlasRuntime.isFloat32GemmAvailable();
+            case FLOAT64 -> OpenBlasRuntime.isFloat64GemmAvailable();
+            case BFLOAT16 -> !publishFloatContinuation && OpenBlasRuntime.isBFloat16OutputGemmAvailable();
             default -> false;
         };
     }
@@ -430,8 +430,8 @@ public final class MatMulPlanner {
 
     private static boolean bf16BlasSymbolAvailable(boolean publishFloatContinuation) {
         return publishFloatContinuation
-                ? OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable()
-                : OpenBlasFfmBridge.isBFloat16OutputGemmAvailable();
+                ? OpenBlasRuntime.isBFloat16ToFloatGemmAvailable()
+                : OpenBlasRuntime.isBFloat16OutputGemmAvailable();
     }
 
     private MatMulBlasShapeHeuristics selectBlasShapeHeuristics(int m, int n, int k, BlasConfig blasConfig) {

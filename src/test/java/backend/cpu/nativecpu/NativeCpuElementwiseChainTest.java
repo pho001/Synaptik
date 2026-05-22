@@ -1,7 +1,7 @@
 package backend.cpu.nativecpu;
 
 import backend.blas.BlasProvider;
-import backend.blas.OpenBlasFfmBridge;
+import backend.blas.OpenBlasRuntime;
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.runtime.ExecutionMode;
 import config.backend.KernelTuningConfig;
@@ -38,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class NativeCpuElementwiseChainTest {
     @Test
     void cpuNativeMatmulReluKeepsReluOutputNative() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor out = a().matmul(b()).relu();
 
@@ -128,7 +128,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void cpuNativeMatmulAddKeepsSameShapeAddOutputNative() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor c = tensor(new float[]{1f, -1f, 2f, -2f}, "c");
         Tensor out = a().matmul(b()).add(c);
@@ -150,7 +150,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void cpuNativeMatmulBiasAddReluKeepsAddAndReluOutputNative() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor bias = vector(new float[]{1f, -100f}, "bias");
         Tensor out = a().matmul(b()).add(bias).relu();
@@ -179,7 +179,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void cpuNativeF32MatmulBiasReluMeanForwardBackwardMatchesArrayBaselineAndTracesForwardNativeHotPath() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor baselineInput = matrix(new float[]{1f, -1f, 2f, 0.5f}, new int[]{2, 2}, "baseline_input");
         Tensor baselineWeight = matrix(new float[]{2f, -1f, 1f, 3f}, new int[]{2, 2}, "baseline_weight");
@@ -213,7 +213,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void cpuNativeMatmulBiasAddSupportsBiasOnLeftSide() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor bias = vector(new float[]{1f, -100f}, "bias");
         Tensor out = bias.add(a().matmul(b()));
@@ -233,7 +233,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void cpuNativeMatmulMulReluKeepsMulAndReluOutputNative() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor scale = tensor(new float[]{2f, 3f, 4f, 5f}, "scale");
         Tensor out = a().matmul(b()).mul(scale).relu();
@@ -262,7 +262,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void cpuNativeMatmulSubNegReluKeepsOutputsNative() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor offset = tensor(new float[]{100f, 100f, 100f, 100f}, "offset");
         Tensor out = a().matmul(b()).sub(offset).neg().relu();
@@ -300,7 +300,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void cpuNativeMatmulDivKeepsDivOutputNative() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor divisor = tensor(new float[]{1f, 2f, 4f, 5f}, "divisor");
         Tensor out = a().matmul(b()).div(divisor);
@@ -389,7 +389,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void cpuNativeMatmulLogReluKeepsLogAndReluOutputNative() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor out = a().matmul(b()).log().relu();
 
@@ -408,7 +408,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void cpuNativeMatmulBiasMulScalarReluKeepsMulScalarAndReluOutputNative() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor bias = vector(new float[]{1f, -100f}, "bias");
         Tensor out = a().matmul(b()).add(bias).mul(0.5d).relu();
@@ -437,7 +437,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void cpuNativeMatmulWhereReluKeepsWhereAndReluOutputNative() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor condition = boolTensor(new byte[]{1, 0, 1, 0}, new int[]{2, 2}, "condition");
         Tensor fallback = tensor(new float[]{-100f, -100f, -100f, -100f}, "fallback");
@@ -467,7 +467,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void cpuNativeMatmulSumAllKeepsSumOutputNativeAndPublishesValue() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor out = a().matmul(b()).sum();
 
@@ -489,7 +489,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void cpuNativeMatmulMeanAllKeepsMeanOutputNativeAndPublishesValue() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor out = a().matmul(b()).mean();
 
@@ -511,7 +511,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void cpuNativeMatmulSumAxisKeepsSumOutputNativeAndPublishesValues() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor sumColumns = a().matmul(b()).sum(0);
         Tensor sumRows = a().matmul(b()).sum(1);
@@ -544,7 +544,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void cpuNativeMatmulMeanAxisKeepsMeanOutputNativeAndPublishesValues() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor meanColumns = a().matmul(b()).mean(0);
         Tensor meanRows = a().matmul(b()).mean(1);
@@ -626,7 +626,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void cpuNativeMatmulReshapeReluKeepsViewAndReluOutputsNative() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor out = a().matmul(b()).reshape(4).relu();
 
@@ -645,7 +645,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void cpuNativeMatmulSqueezeExpandDimsAddKeepsViewOutputsNative() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor bias = vector(new float[]{1f, -100f}, "bias");
         Tensor out = a().matmul(b())
@@ -693,7 +693,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void cpuNativeMatmulContiguousReluKeepsContiguousOutputNative() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor out = a().matmul(b()).contiguous().relu();
 
@@ -1226,7 +1226,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void unsupportedCpuNativeBroadcastMulFallsBackToArrayWithTraceReason() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor scale = vector(new float[]{2f, 3f}, "scale");
         Tensor out = a().matmul(b()).mul(scale);
@@ -1247,7 +1247,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void requireNativeRejectsUnsupportedCpuNativeBroadcastMul() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor scale = vector(new float[]{2f, 3f}, "scale");
         Tensor out = a().matmul(b()).mul(scale);
@@ -1264,7 +1264,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void unsupportedCpuNativeBroadcastSubFallsBackToArrayWithTraceReason() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor offset = vector(new float[]{1f, 2f}, "offset");
         Tensor out = a().matmul(b()).sub(offset);
@@ -1285,7 +1285,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void requireNativeRejectsUnsupportedCpuNativeBroadcastDiv() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor divisor = vector(new float[]{1f, 2f}, "divisor");
         Tensor out = a().matmul(b()).div(divisor);
@@ -1302,7 +1302,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void unsupportedCpuNativeBroadcastAddFallsBackToArrayWithTraceReason() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor columnBias = matrix(new float[]{1f, -100f}, new int[]{2, 1}, "column_bias");
         Tensor out = a().matmul(b()).add(columnBias);
@@ -1391,7 +1391,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void unsupportedCpuNativeBroadcastWhereFallsBackToArrayWithTraceReason() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor condition = boolTensor(new byte[]{1, 0}, new int[]{2, 1}, "condition");
         Tensor fallback = tensor(new float[]{-100f, -100f, -100f, -100f}, "fallback");
@@ -1437,7 +1437,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void requireNativeRejectsUnsupportedCpuNativeBroadcastWhere() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor condition = boolTensor(new byte[]{1, 0}, new int[]{2, 1}, "condition");
         Tensor fallback = tensor(new float[]{-100f, -100f, -100f, -100f}, "fallback");
@@ -1455,7 +1455,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void unsupportedCpuNativeStridedSumFallsBackToArrayWithTraceReason() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor out = a().matmul(b()).transpose().sum(1);
 
@@ -1475,7 +1475,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void requireNativeRejectsUnsupportedCpuNativeStridedSum() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor out = a().matmul(b()).transpose().sum(1);
 
@@ -1559,7 +1559,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void requireNativeRejectsUnsupportedCpuNativeBroadcastAdd() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor columnBias = matrix(new float[]{1f, -100f}, new int[]{2, 1}, "column_bias");
         Tensor out = a().matmul(b()).add(columnBias);
@@ -1576,7 +1576,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void unsupportedCpuNativeElementwiseFallsBackToArrayWithTraceReason() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor out = a().matmul(b()).erf();
 
@@ -1673,7 +1673,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void requireNativeRejectsUnsupportedCpuNativeElementwise() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor out = a().matmul(b()).erf();
 
@@ -1725,7 +1725,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void autoStorageDoesNotUseNativeElementwiseSlice() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor out = a().matmul(b()).add(vector(new float[]{1f, -100f}, "bias"));
 
@@ -1743,7 +1743,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void autoStorageDoesNotUseNativeUnaryTranscendentalSlice() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor out = a().matmul(b()).log();
 
@@ -1761,7 +1761,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void autoStorageDoesNotUseNativeMulSlice() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor out = a().matmul(b()).mul(tensor(new float[]{2f, 3f, 4f, 5f}, "scale"));
 
@@ -1779,7 +1779,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void autoStorageDoesNotUseNativeSubDivOrNegSlice() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor out = a().matmul(b())
                 .sub(tensor(new float[]{1f, 2f, 3f, 4f}, "offset"))
@@ -1812,7 +1812,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void autoStorageDoesNotUseNativeMulScalarSlice() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor out = a().matmul(b()).mul(0.5d);
 
@@ -1830,7 +1830,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void autoStorageDoesNotUseNativeWhereSlice() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor condition = boolTensor(new byte[]{1, 0, 1, 0}, new int[]{2, 2}, "condition");
         Tensor fallback = tensor(new float[]{-100f, -100f, -100f, -100f}, "fallback");
@@ -1850,7 +1850,7 @@ class NativeCpuElementwiseChainTest {
 
     @Test
     void autoStorageDoesNotUseNativeSumSlice() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor out = a().matmul(b()).sum();
 

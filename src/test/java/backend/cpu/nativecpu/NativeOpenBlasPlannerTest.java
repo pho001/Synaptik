@@ -1,7 +1,7 @@
 package backend.cpu.nativecpu;
 
 import backend.blas.BlasProvider;
-import backend.blas.OpenBlasFfmBridge;
+import backend.blas.OpenBlasRuntime;
 import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
 import backend.runtime.ExecutionMode;
 import config.backend.KernelTuningConfig;
@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 class NativeOpenBlasPlannerTest {
     @Test
     void cpuArrayProfileOverridesAutoStorageModeWithArrayCopyRoute() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isAvailable(), OpenBlasRuntime.unavailableReason());
 
         var step = matmulStep(DataType.FLOAT32, runtime(CpuStorageProfile.CPU_ARRAY, BlasStorageMode.AUTO, 1L));
 
@@ -34,7 +34,7 @@ class NativeOpenBlasPlannerTest {
 
     @Test
     void cpuArrayProfileOverridesNativeStorageModeWithArrayCopyRoute() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isAvailable(), OpenBlasRuntime.unavailableReason());
 
         var step = matmulStep(DataType.FLOAT32, runtime(CpuStorageProfile.CPU_ARRAY, BlasStorageMode.CPU_NATIVE, 1L));
 
@@ -44,7 +44,7 @@ class NativeOpenBlasPlannerTest {
 
     @Test
     void cpuNativeProfileSelectsFloat32NativeSegmentRouteEvenWhenBlasStorageModeIsAuto() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         var step = matmulStep(DataType.FLOAT32, runtime(CpuStorageProfile.CPU_NATIVE, BlasStorageMode.AUTO, Long.MAX_VALUE));
 
@@ -54,7 +54,7 @@ class NativeOpenBlasPlannerTest {
 
     @Test
     void autoStorageModeSelectsFloat64NativeSegmentRouteForEligibleDenseMatmul() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat64GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat64GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         var step = matmulStep(DataType.FLOAT64, runtime(CpuStorageProfile.AUTO, BlasStorageMode.AUTO, 1L));
 
@@ -84,7 +84,7 @@ class NativeOpenBlasPlannerTest {
 
     @Test
     void bfloat16SelectsNativeSegmentRouteWhenBgemmIsAvailable() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16OutputGemmAvailable(), "OpenBLAS BGEMM is unavailable");
+        Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16OutputGemmAvailable(), "OpenBLAS BGEMM is unavailable");
 
         Tensor a = tensor(DataType.BFLOAT16, 64, 64, "a");
         Tensor b = tensor(DataType.BFLOAT16, 64, 64, "b");
@@ -104,7 +104,7 @@ class NativeOpenBlasPlannerTest {
 
     @Test
     void nativeSegmentTraceReportsProviderSymbolAndCopyBytes() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor a = tensor(DataType.FLOAT32, 64, 64, "a");
         Tensor b = tensor(DataType.FLOAT32, 64, 64, "b");

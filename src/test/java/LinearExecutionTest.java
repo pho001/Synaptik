@@ -1,6 +1,6 @@
 import backend.runtime.ExecutionMode;
 import backend.blas.BlasProvider;
-import backend.blas.OpenBlasFfmBridge;
+import backend.blas.OpenBlasRuntime;
 import config.backend.KernelTuningConfig;
 import config.compile.CompileConfig;
 import config.runtime.BlasConfig;
@@ -127,7 +127,7 @@ public class LinearExecutionTest {
 
     @Test
     void bfloat16LinearWithBiasMatchesBaselineWhenBlasIsEnabled() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16OutputGemmAvailable(), "OpenBLAS BGEMM is unavailable");
+        Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16OutputGemmAvailable(), "OpenBLAS BGEMM is unavailable");
 
         double[] inputValues = random(32 * 64, 11);
         double[] weightValues = random(64 * 96, 17);
@@ -155,7 +155,7 @@ public class LinearExecutionTest {
 
     @Test
     void bfloat16LinearThenReluMatchesBaselineWhenBlasContinuationIsEnabled() {
-        Assumptions.assumeTrue(OpenBlasFfmBridge.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
+        Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
 
         double[] inputValues = random(32 * 64, 31);
         double[] weightValues = random(64 * 96, 37);

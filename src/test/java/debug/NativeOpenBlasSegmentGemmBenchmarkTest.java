@@ -1,6 +1,8 @@
 package debug;
 
-import backend.blas.OpenBlasFfmBridge;
+import backend.blas.OpenBlasArrayGemm;
+import backend.blas.OpenBlasRuntime;
+import backend.blas.OpenBlasSegmentGemm;
 import org.junit.jupiter.api.Test;
 
 import java.lang.foreign.Arena;
@@ -24,10 +26,10 @@ final class NativeOpenBlasSegmentGemmBenchmarkTest {
                 benchmarkEnabled(),
                 "Set -Dsynaptik.benchmark.nativeOpenBlasSegment=true or SYNAPTIK_BENCHMARK_NATIVE_OPENBLAS_SEGMENT=true to run diagnostic benchmark."
         );
-        assumeTrue(OpenBlasFfmBridge.isFloat32GemmAvailable(), OpenBlasFfmBridge.unavailableReason());
+        assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
         System.out.println("NATIVE_OPENBLAS_SEGMENT_GEMM_BENCHMARK");
-        System.out.println("lookupSource=" + OpenBlasFfmBridge.lookupSource()
-                + " threadPolicy=" + OpenBlasFfmBridge.threadPolicy());
+        System.out.println("lookupSource=" + OpenBlasRuntime.lookupSource()
+                + " threadPolicy=" + OpenBlasRuntime.threadPolicy());
         for (Shape shape : SHAPES) {
             Result javaDirect = measureJava(shape);
             Result arrayCopy = measureArrayCopyOpenBlas(shape);
@@ -65,7 +67,7 @@ final class NativeOpenBlasSegmentGemmBenchmarkTest {
         long best = Long.MAX_VALUE;
         for (int i = 0; i < 4; i++) {
             long t0 = System.nanoTime();
-            OpenBlasFfmBridge.sgemmRowMajorNoTrans(
+            OpenBlasArrayGemm.sgemmRowMajorNoTrans(
                     shape.m, shape.n, shape.k,
                     1f,
                     a, shape.k,
@@ -93,7 +95,7 @@ final class NativeOpenBlasSegmentGemmBenchmarkTest {
             long best = Long.MAX_VALUE;
             for (int i = 0; i < 4; i++) {
                 long t0 = System.nanoTime();
-                OpenBlasFfmBridge.sgemmRowMajorNoTransSegment(
+                OpenBlasSegmentGemm.sgemmRowMajorNoTransSegment(
                         shape.m, shape.n, shape.k,
                         1f,
                         a, 0L, shape.k,
