@@ -242,8 +242,8 @@ Important support packages:
   `TensorResidencyState`, `CpuMaterializationReason`, and `DeviceBufferBinding`. These records describe whether a
   run's newest value is CPU-current, device-current, or backed by a shared/device buffer without changing the semantic
   `Tensor` API.
-- `backend.blas` contains BLAS provider/runtime bridge abstractions. The main concrete bridge is
-  `OpenBlasFfmBridge`, which loads OpenBLAS through Java FFM and exposes only the row-major no-transpose GEMM subset
+- `backend.blas` contains BLAS provider/runtime bridge abstractions. The OpenBLAS FFM implementation is split into
+  `OpenBlasRuntime`, `OpenBlasArrayGemm`, `OpenBlasSegmentGemm`, and package-private symbol/layout classes. It loads OpenBLAS through Java FFM and exposes only the row-major no-transpose GEMM subset
   used by CPU matmul and GEMM-lowered conv2d, including array-copy and `MemorySegment` native segment routes where
   supported. See [Native Bridges & BLAS: OpenBLAS In Synaptik](native-bridges-and-blas.md#openblas-in-synaptik) for the detailed
   BLAS/GEMM/FFM model.
@@ -315,7 +315,7 @@ The CPU kernel tree is organized by operation family:
 `backend.cpu.registry.CpuKernelResolver` is the central mapping from `Operation.OpType` to concrete kernel singleton. If a new operation descriptor is added, the CPU resolver is one of the places that must be updated for CPU execution.
 
 The `linalg.matmul` subtree has both Java and BLAS execution paths. BLAS eligibility is prepared by
-`MatMulPlanner`, while `MatMulBlasBackend` calls `OpenBlasFfmBridge` for `sgemm`, `dgemm`, optional `sbgemm`
+`MatMulPlanner`, while `MatMulBlasBackend` calls `OpenBlasRuntime` plus `OpenBlasArrayGemm` or `OpenBlasSegmentGemm` for `sgemm`, `dgemm`, optional `sbgemm`
 for BF16-to-F32 continuation, or optional `bgemm` for BF16-output GEMM.
 If the bridge is unavailable or a matmul BLAS call fails, matmul falls back to the Java CPU path. The same native
 bridge can also be used by `nn.Conv2dGemmBackend` after convolution is lowered to im2col + GEMM. The concepts and

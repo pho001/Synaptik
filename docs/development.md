@@ -189,7 +189,7 @@ For native or accelerator-adjacent paths:
 `buildCudaGraphShim` calls `scripts/build-cuda-graph-shim.sh` and writes the optional native shim to `build/native/cuda/libsynaptik_cuda_graph.*`. Use it with `-Dsynaptik.cuda.graph.lib=<path>`, `SYNAPTIK_CUDA_GRAPH_LIB`, or the default library name `synaptik_cuda_graph`. CUDA native build is optional; default Java lifecycle tasks stay portable and do not require CUDA toolkit, CUDA hardware, or `nvcc`.
 
 The general native-bridge model, including BLAS/GEMM terminology and Java FFM symbol binding, is documented in
-[Native Bridges & BLAS: Java FFM Step-By-Step](native-bridges-and-blas.md#java-ffm-step-by-step). Read it before changing `backend.blas`, `OpenBlasFfmBridge`,
+[Native Bridges & BLAS: Java FFM Step-By-Step](native-bridges-and-blas.md#java-ffm-step-by-step). Read it before changing `backend.blas`, `OpenBlasRuntime`, `OpenBlasArrayGemm`, `OpenBlasSegmentGemm`,
 or native dispatch thresholds.
 
 `buildMetalMpsShim` is the low-level task that calls `scripts/build-metal-mps-shim.sh` and writes `build/native/apple/libsynaptik_apple_mps.dylib`. `refreshMetalMacosArm64Resource` rebuilds that shim on Apple Silicon and refreshes the committed native resource in `synaptik-metal-macos-arm64/src/main/resources/native/macos-arm64/`. `nativeBuild` is the user-facing optional-native lifecycle task. `metalTest` builds the shim, sets `-Dsynaptik.metal.mps.lib` to the freshly built dylib, and runs only Metal/MPS-focused tests.

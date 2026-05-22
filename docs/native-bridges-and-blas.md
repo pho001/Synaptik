@@ -68,9 +68,9 @@ Java, C, BLAS, and accelerator code, so the table is intentionally concrete.
 | Term | Plain meaning | Synaptik meaning |
 |---|---|---|
 | Native code | Code compiled outside the JVM, usually C, C++, Objective-C, CUDA, or system libraries. | OpenBLAS is native code; the Metal shim in `src/main/native/apple` is native Objective-C code. |
-| Native library | A loadable binary such as `.dylib`, `.so`, or `.dll`. | OpenBLAS is loaded by `OpenBlasFfmBridge`; Metal is loaded through `synaptik.metal.mps.lib`. |
-| Bridge | Java code that adapts Java objects and memory into a native call contract. | `OpenBlasFfmBridge`, `MetalMpsFfmBridge`, and `CudaFfmBridge`. |
-| API | Source-level interface used by code. | `Tensor.matmul(...)`, `BlasConfig`, `OpenBlasFfmBridge.sgemmRowMajorNoTrans(...)`. |
+| Native library | A loadable binary such as `.dylib`, `.so`, or `.dll`. | OpenBLAS is loaded by `OpenBlasSymbols` and exposed through `OpenBlasRuntime`; Metal is loaded through `synaptik.metal.mps.lib`. |
+| Bridge | Java code that adapts Java objects and memory into a native call contract. | OpenBLAS uses split FFM classes: `OpenBlasArrayGemm` for Java arrays and `OpenBlasSegmentGemm` for native CPU storage. Metal and CUDA still use `MetalMpsFfmBridge` and `CudaFfmBridge`. |
+| API | Source-level interface used by code. | `Tensor.matmul(...)`, `BlasConfig`, `OpenBlasArrayGemm.sgemmRowMajorNoTrans(...)`. |
 | ABI | Binary/runtime contract: symbol name, argument order, primitive sizes, pointer meaning, ownership, and lifetime. | `cblas_dgemm` must receive exactly the argument layout described by the FFM `FunctionDescriptor`. |
 | Symbol | Exported native function or data name found in a native library. | `cblas_sgemm`, `cblas_dgemm`, `cblas_sbgemm`, `cblas_bgemm`. |
 | Downcall | Java calling into native code. | `MethodHandle.invokeExact(...)` calls the CBLAS function. |
@@ -310,7 +310,7 @@ Transposed view [3,2]:
   storage = [1, 2, 3, 4, 5, 6]
 ```
 
-The transposed view is not "wrong"; it just is not the contract accepted by `OpenBlasFfmBridge.sgemmRowMajorNoTrans(...)`.
+The transposed view is not "wrong"; it just is not the contract accepted by `OpenBlasArrayGemm.sgemmRowMajorNoTrans(...)`.
 
 ## What Java FFM Is
 
@@ -370,8 +370,9 @@ arrays between calls, and the native buffer exists only for the duration of that
 
 ## Java FFM Step-By-Step
 
-The OpenBLAS bridge follows a repeatable FFM pattern. Each term below maps directly to code in
-[`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java).
+The OpenBLAS implementation follows a repeatable FFM pattern. Library lookup and downcall binding map directly to
+[`OpenBlasSymbols.java`](../src/main/java/backend/blas/OpenBlasSymbols.java); availability queries are exposed through
+[`OpenBlasRuntime.java`](../src/main/java/backend/blas/OpenBlasRuntime.java).
 
 ### 1. Choose a library lookup
 
@@ -522,7 +523,12 @@ This keeps the public tensor storage model Java-owned while still allowing the n
 
 ## OpenBLAS In Synaptik
 
-The OpenBLAS bridge lives in [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java).
+The OpenBLAS FFM implementation is split by responsibility:
+
+- [`OpenBlasSymbols.java`](../src/main/java/backend/blas/OpenBlasSymbols.java) owns native library lookup and downcall handles.
+- [`OpenBlasRuntime.java`](../src/main/java/backend/blas/OpenBlasRuntime.java) exposes availability, capability, lookup-source, and thread-policy queries.
+- [`OpenBlasArrayGemm.java`](../src/main/java/backend/blas/OpenBlasArrayGemm.java) owns Java primitive-array GEMM calls and their temporary native call buffers.
+- [`OpenBlasSegmentGemm.java`](../src/main/java/backend/blas/OpenBlasSegmentGemm.java) owns no-copy `MemorySegment` GEMM calls for native CPU storage.
 
 It discovers these symbols:
 
@@ -553,10 +559,10 @@ The bridge exposes Java methods that intentionally constrain the ABI to the subs
 Availability is discovered once at class initialization:
 
 ```java
-private static final State STATE = init();
+private static final OpenBlasSymbols INSTANCE = init();
 ```
 
-`OpenBlasFfmBridge.isAvailable()` means the library was loadable and the required `sgemm`/`dgemm` symbols were found. Optional BF16 support is reported separately:
+`OpenBlasRuntime.isAvailable()` means the library was loadable and the required `sgemm`/`dgemm` symbols were found. Optional BF16 support is reported separately:
 
 - `isBFloat16ToFloatGemmAvailable()` checks `cblas_sbgemm`.
 - `isBFloat16OutputGemmAvailable()` checks `cblas_bgemm`.
@@ -572,7 +578,7 @@ kernel execution only checks the cached state.
 ```mermaid
 sequenceDiagram
     participant JVM as JVM class loading
-    participant Bridge as OpenBlasFfmBridge
+    participant Bridge as OpenBLAS FFM GEMM classes
     participant Loader as Native loader
     participant Lookup as SymbolLookup
     participant Linker as Linker
@@ -626,7 +632,7 @@ Question 1: Did the runtime profile select OPENBLAS_FFM?
   Source: BlasConfig.provider()
 
 Question 2: Can this JVM actually call the native symbols right now?
-  Source: OpenBlasFfmBridge.isAvailable()
+  Source: OpenBlasRuntime.isAvailable()
 ```
 
 Both must be true for a BLAS call to happen. A persisted calibration profile can say `OPENBLAS_FFM`, but a different
@@ -641,7 +647,7 @@ Practical effect:
 
 ```text
 OpenBLAS library has sgemm and dgemm:
-  OpenBlasFfmBridge.isAvailable() == true
+  OpenBlasRuntime.isAvailable() == true
 
 OpenBLAS library also has sbgemm:
   BF16 -> F32 continuation path can try native sbgemm
@@ -697,7 +703,7 @@ The execution call then goes through [`MatMulBlasBackend.java`](../src/main/java
 ```text
 Prepared matmul metadata says "use BLAS"
   -> dtype-specific executable calls MatMulBlasBackend.tryBlasF32/F64/BF16
-  -> OpenBlasFfmBridge.isAvailable() is checked
+  -> OpenBlasRuntime.isAvailable() is checked
   -> cblas_*gemm is invoked through FFM
   -> true means BLAS filled the output array
   -> false means the Java fallback kernel should run
@@ -709,7 +715,7 @@ For the native segment route, the execution flow is different:
 Prepared matmul metadata says route=OPENBLAS_NATIVE_SEGMENT
   -> dtype-specific native executable requests native-readable inputs
   -> ExecutionState materializes CPU_NATIVE only if needed
-  -> OpenBlasFfmBridge.*Segment(...) receives MemorySegment slices
+  -> OpenBlasSegmentGemm.*Segment(...) receives MemorySegment slices
   -> output is attached as CPU_NATIVE current
   -> CPU array publication is delayed until PublicationPolicy or a CPU-array consumer requires it
 ```
@@ -724,7 +730,7 @@ flowchart TD
     Gate["DType, provider, work, contiguity, shape guards"]
     Metadata["ResolvedMatMulHints(useBlas=true/false)"]
     Execute["Matmul executable"]
-    Bridge["OpenBlasFfmBridge"]
+    Bridge["OpenBLAS FFM GEMM classes"]
     JavaFallback["Java tiled/micro-kernel fallback"]
 
     Node --> Prepare
@@ -797,7 +803,7 @@ Even with OPENBLAS_FFM selected:
 |---|---|---|
 | Executable | Dtype-specific matmul implementation object selected/prepared for execution. | `F64BlasMatMulExecutable`, `F32BlasMatMulExecutable`, `BF16BlasMatMulExecutable` |
 | Try method | Wrapper that attempts BLAS and returns success/failure. | `MatMulBlasBackend.tryBlasF32/F64/BF16` |
-| Bridge availability | Whether native symbols are available in this JVM. | `OpenBlasFfmBridge.isAvailable()` |
+| Bridge availability | Whether native symbols are available in this JVM. | `OpenBlasRuntime.isAvailable()` |
 | Java fallback | Built-in CPU implementation used when BLAS is unavailable or fails. | Dtype-specific Java matmul executable path |
 | Debug log | Optional stderr message explaining BLAS unavailability/failure. | `BlasRuntime.debug()` |
 
@@ -1248,7 +1254,10 @@ requires `OPENBLAS_FFM`.
 |---|---|
 | BLAS provider enum | [`BlasProvider.java`](../src/main/java/backend/blas/BlasProvider.java) |
 | Runtime BLAS system properties | [`BlasRuntime.java`](../src/main/java/backend/blas/BlasRuntime.java) |
-| OpenBLAS Java FFM bridge | [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java) |
+| OpenBLAS symbol lookup | [`OpenBlasSymbols.java`](../src/main/java/backend/blas/OpenBlasSymbols.java) |
+| OpenBLAS runtime capabilities | [`OpenBlasRuntime.java`](../src/main/java/backend/blas/OpenBlasRuntime.java) |
+| OpenBLAS Java array GEMM | [`OpenBlasArrayGemm.java`](../src/main/java/backend/blas/OpenBlasArrayGemm.java) |
+| OpenBLAS native segment GEMM | [`OpenBlasSegmentGemm.java`](../src/main/java/backend/blas/OpenBlasSegmentGemm.java) |
 | Runtime BLAS config record | [`BlasConfig.java`](../src/main/java/config/runtime/BlasConfig.java) |
 | Matmul BLAS planner gates | [`MatMulPlanner.java`](../src/main/java/backend/cpu/kernels/linalg/matmul/plan/MatMulPlanner.java) |
 | Matmul BLAS execution wrapper | [`MatMulBlasBackend.java`](../src/main/java/backend/cpu/kernels/linalg/matmul/blas/MatMulBlasBackend.java) |

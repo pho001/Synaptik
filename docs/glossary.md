@@ -34,7 +34,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Application Binary Interface (ABI)**: Runtime/binary contract between Java FFM code and the native Metal shim. It defines native symbol names, primitive argument layout, pointer meaning, buffer ownership, lifetime, and synchronization expectations. It is different from a Java API, which is a source-level method/class contract. In Synaptik, ABI-sensitive code lives around [`MetalMpsFfmBridge.java`](../src/main/java/backend/metal/bridge/MetalMpsFfmBridge.java) and [`synaptik_apple_mps_stub.m`](../src/main/native/apple/synaptik_apple_mps_stub.m).
 
-**Arena**: Java FFM lifetime scope for native allocations and library lookup resources. The OpenBLAS bridge keeps a shared arena in its cached state so symbol lookup resources stay valid for later downcalls. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [Native Bridges & BLAS: Java FFM Step-By-Step](native-bridges-and-blas.md#java-ffm-step-by-step).
+**Arena**: Java FFM lifetime scope for native allocations and library lookup resources. The OpenBLAS bridge keeps a shared arena in its cached state so symbol lookup resources stay valid for later downcalls. Source: [`OpenBlasRuntime.java`](../src/main/java/backend/blas/OpenBlasRuntime.java), [Native Bridges & BLAS: Java FFM Step-By-Step](native-bridges-and-blas.md#java-ffm-step-by-step).
 
 **Autodiff**: Reverse-mode gradient graph construction over tensor DAGs. Source: [`BackwardGraphBuilder.java`](../src/main/java/graph/compile/session/BackwardGraphBuilder.java), [`AddOp.java`](../src/main/java/tensor/ops/binary/AddOp.java).
 
@@ -54,7 +54,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Backend selection**: Prepare-time selection of backend partition plans using runtime config. Source: [`DefaultBackendSelectionPolicy.java`](../src/main/java/backend/select/DefaultBackendSelectionPolicy.java), [`PreparedExecutionBuilder.java`](../src/main/java/backend/prepare/PreparedExecutionBuilder.java).
 
-**BLAS**: Basic Linear Algebra Subprograms, a standard family of optimized vector/matrix routines. In Synaptik, BLAS currently matters mainly for GEMM-backed matmul and GEMM-lowered conv2d through the OpenBLAS FFM bridge. Source: [`BlasProvider.java`](../src/main/java/backend/blas/BlasProvider.java), [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [Native Bridges & BLAS: What BLAS Is](native-bridges-and-blas.md#what-blas-is).
+**BLAS**: Basic Linear Algebra Subprograms, a standard family of optimized vector/matrix routines. In Synaptik, BLAS currently matters mainly for GEMM-backed matmul and GEMM-lowered conv2d through the OpenBLAS FFM bridge. Source: [`BlasProvider.java`](../src/main/java/backend/blas/BlasProvider.java), [`OpenBlasRuntime.java`](../src/main/java/backend/blas/OpenBlasRuntime.java), [Native Bridges & BLAS: What BLAS Is](native-bridges-and-blas.md#what-blas-is).
 
 **Broadcast plan**: Shape, stride, and gradient-reduction metadata for broadcasted binary operations. Source: [`BroadcastPlan.java`](../src/main/java/tensor/layout/BroadcastPlan.java), [`BroadcastPlanner.java`](../src/main/java/tensor/layout/BroadcastPlanner.java).
 
@@ -62,7 +62,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Calibration**: Search for platform runtime defaults across calibration families and workloads. Source: [`DefaultPlatformCalibrationSession.java`](../src/main/java/tuning/calibration/DefaultPlatformCalibrationSession.java), [`PlatformCalibrationDefaults.java`](../src/main/java/tuning/calibration/PlatformCalibrationDefaults.java).
 
-**CBLAS**: C language interface to BLAS. Synaptik's OpenBLAS bridge looks up CBLAS symbols such as `cblas_sgemm`, `cblas_dgemm`, and optional `cblas_sbgemm`, then calls them through Java FFM. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [Native Bridges & BLAS: OpenBLAS In Synaptik](native-bridges-and-blas.md#openblas-in-synaptik).
+**CBLAS**: C language interface to BLAS. Synaptik's OpenBLAS bridge looks up CBLAS symbols such as `cblas_sgemm`, `cblas_dgemm`, and optional `cblas_sbgemm`, then calls them through Java FFM. Source: [`OpenBlasRuntime.java`](../src/main/java/backend/blas/OpenBlasRuntime.java), [Native Bridges & BLAS: OpenBLAS In Synaptik](native-bridges-and-blas.md#openblas-in-synaptik).
 
 **Compile artifact**: The immutable result set from graph compile, including compiled nodes, gradient bindings, optimizer state, partitions, memory plan, and traces. Source: [`CompileArtifacts.java`](../src/main/java/graph/compile/CompileArtifacts.java).
 
@@ -98,7 +98,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Dispatch hints**: Prepared elementwise/fused execution mode metadata such as scalar/vector/parallel mode, vector width, workers, and chunk sizes. Source: [`ResolvedDispatchHints.java`](../src/main/java/backend/cpu/kernels/elementwise/plan/ResolvedDispatchHints.java), [`CpuExecutionPlanner.java`](../src/main/java/backend/cpu/kernels/plan/CpuExecutionPlanner.java).
 
-**Downcall**: Java FFM call from Java into native code. Synaptik's OpenBLAS bridge creates downcall `MethodHandle`s for CBLAS functions and invokes them from Java CPU matmul wrappers. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [Native Bridges & BLAS: What Java FFM Is](native-bridges-and-blas.md#what-java-ffm-is).
+**Downcall**: Java FFM call from Java into native code. Synaptik's OpenBLAS bridge creates downcall `MethodHandle`s for CBLAS functions and invokes them from Java CPU matmul wrappers. Source: [`OpenBlasRuntime.java`](../src/main/java/backend/blas/OpenBlasRuntime.java), [Native Bridges & BLAS: What Java FFM Is](native-bridges-and-blas.md#what-java-ffm-is).
 
 ## E
 
@@ -134,7 +134,7 @@ Project-specific terms used in Synaptik, with source references.
 
 ## J
 
-**Java FFM**: Java Foreign Function and Memory API. Synaptik uses it to load native libraries, find exported symbols, describe native function signatures, and call native code through downcall `MethodHandle`s. The OpenBLAS bridge uses FFM to call CBLAS; Metal and CUDA bridges use FFM to call Synaptik native shims. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [`MetalMpsFfmBridge.java`](../src/main/java/backend/metal/bridge/MetalMpsFfmBridge.java), [`CudaFfmBridge.java`](../src/main/java/backend/cuda/bridge/CudaFfmBridge.java), [Native Bridges & BLAS: What Java FFM Is](native-bridges-and-blas.md#what-java-ffm-is).
+**Java FFM**: Java Foreign Function and Memory API. Synaptik uses it to load native libraries, find exported symbols, describe native function signatures, and call native code through downcall `MethodHandle`s. The OpenBLAS bridge uses FFM to call CBLAS; Metal and CUDA bridges use FFM to call Synaptik native shims. Source: [`OpenBlasRuntime.java`](../src/main/java/backend/blas/OpenBlasRuntime.java), [`MetalMpsFfmBridge.java`](../src/main/java/backend/metal/bridge/MetalMpsFfmBridge.java), [`CudaFfmBridge.java`](../src/main/java/backend/cuda/bridge/CudaFfmBridge.java), [Native Bridges & BLAS: What Java FFM Is](native-bridges-and-blas.md#what-java-ffm-is).
 
 ## L
 
@@ -142,7 +142,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Leaf tensor**: Tensor with no operation descriptor, usually user input or parameter data. Source: [`CompiledNode.java`](../src/main/java/graph/CompiledNode.java), [`Tensor.java`](../src/main/java/tensor/Tensor.java).
 
-**Leading dimension**: BLAS stride parameter describing the distance between adjacent logical rows for row-major CBLAS calls. For dense row-major `[M,K]` input `A`, Synaptik passes `lda = K`; for dense `[K,N]` input `B`, it passes `ldb = N`. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [Native Bridges & BLAS: Matrix Storage Terms](native-bridges-and-blas.md#matrix-storage-terms).
+**Leading dimension**: BLAS stride parameter describing the distance between adjacent logical rows for row-major CBLAS calls. For dense row-major `[M,K]` input `A`, Synaptik passes `lda = K`; for dense `[K,N]` input `B`, it passes `ldb = N`. Source: [`OpenBlasRuntime.java`](../src/main/java/backend/blas/OpenBlasRuntime.java), [Native Bridges & BLAS: Matrix Storage Terms](native-bridges-and-blas.md#matrix-storage-terms).
 
 **Lowering**: Conversion from higher-level graph/region structure into backend-executable units or primitive descriptors. Source: [`LoweringPipeline.java`](../src/main/java/backend/lowering/LoweringPipeline.java), [`PreparedExecutionBuilder.java`](../src/main/java/backend/prepare/PreparedExecutionBuilder.java).
 
@@ -156,7 +156,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Memory role**: Classification used by memory planning for temporaries, saved forward values, gradient targets, and related storage owners. Source: [`MemoryRole.java`](../src/main/java/graph/compile/planning/memory/MemoryRole.java), [`NodeLifetime.java`](../src/main/java/graph/compile/planning/memory/NodeLifetime.java).
 
-**Memory segment**: Java FFM view of a region of memory. In the OpenBLAS bridge, `MemorySegment.ofArray(...)` wraps Java tensor arrays and `asSlice(...)` applies element offsets for batched GEMM calls. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [Native Bridges & BLAS: Java FFM Step-By-Step](native-bridges-and-blas.md#java-ffm-step-by-step).
+**Memory segment**: Java FFM view of a region of memory. In the OpenBLAS bridge, `MemorySegment.ofArray(...)` wraps Java tensor arrays and `asSlice(...)` applies element offsets for batched GEMM calls. Source: [`OpenBlasRuntime.java`](../src/main/java/backend/blas/OpenBlasRuntime.java), [Native Bridges & BLAS: Java FFM Step-By-Step](native-bridges-and-blas.md#java-ffm-step-by-step).
 
 **Metal buffer binding**: Java-side descriptor for the current native Metal buffer execution path. It ties a compiled node id, dtype, shape, element count, access intent, and native buffer handle together without exposing semantic `Tensor` objects to native code. Source: [`MetalBufferBinding.java`](../src/main/java/backend/metal/buffer/MetalBufferBinding.java), [`MetalBufferHandle.java`](../src/main/java/backend/metal/buffer/MetalBufferHandle.java), [Metal Backend: Buffer Residency And Materialization](metal-backend.md#buffer-residency-and-materialization).
 
@@ -172,13 +172,13 @@ Project-specific terms used in Synaptik, with source references.
 
 ## N
 
-**Native bridge**: Java adapter that loads a native library, discovers symbols, converts Java-side metadata/memory into the native ABI, and calls native code. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [`MetalMpsFfmBridge.java`](../src/main/java/backend/metal/bridge/MetalMpsFfmBridge.java), [`CudaFfmBridge.java`](../src/main/java/backend/cuda/bridge/CudaFfmBridge.java), [Native Bridges & BLAS: Term Map At A Glance](native-bridges-and-blas.md#term-map-at-a-glance).
+**Native bridge**: Java adapter that loads a native library, discovers symbols, converts Java-side metadata/memory into the native ABI, and calls native code. Source: [`OpenBlasRuntime.java`](../src/main/java/backend/blas/OpenBlasRuntime.java), [`MetalMpsFfmBridge.java`](../src/main/java/backend/metal/bridge/MetalMpsFfmBridge.java), [`CudaFfmBridge.java`](../src/main/java/backend/cuda/bridge/CudaFfmBridge.java), [Native Bridges & BLAS: Term Map At A Glance](native-bridges-and-blas.md#term-map-at-a-glance).
 
-**Native library**: Loadable compiled binary outside the JVM, such as OpenBLAS or the Synaptik Metal `.dylib`. Java FFM uses `SymbolLookup.libraryLookup(...)` to load and inspect these libraries. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [`MetalMpsFfmBridge.java`](../src/main/java/backend/metal/bridge/MetalMpsFfmBridge.java).
+**Native library**: Loadable compiled binary outside the JVM, such as OpenBLAS or the Synaptik Metal `.dylib`. Java FFM uses `SymbolLookup.libraryLookup(...)` to load and inspect these libraries. Source: [`OpenBlasRuntime.java`](../src/main/java/backend/blas/OpenBlasRuntime.java), [`MetalMpsFfmBridge.java`](../src/main/java/backend/metal/bridge/MetalMpsFfmBridge.java).
 
 ## O
 
-**OpenBLAS**: Native BLAS implementation optionally used by Synaptik's CPU matmul and GEMM-lowered conv2d paths. It is selected with `BlasProvider.OPENBLAS_FFM`, but each node still needs to pass planner legality and profitability gates before the bridge is called. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [`MatMulPlanner.java`](../src/main/java/backend/cpu/kernels/linalg/matmul/plan/MatMulPlanner.java), [Native Bridges & BLAS: OpenBLAS In Synaptik](native-bridges-and-blas.md#openblas-in-synaptik).
+**OpenBLAS**: Native BLAS implementation optionally used by Synaptik's CPU matmul and GEMM-lowered conv2d paths. It is selected with `BlasProvider.OPENBLAS_FFM`, but each node still needs to pass planner legality and profitability gates before the bridge is called. Source: [`OpenBlasRuntime.java`](../src/main/java/backend/blas/OpenBlasRuntime.java), [`MatMulPlanner.java`](../src/main/java/backend/cpu/kernels/linalg/matmul/plan/MatMulPlanner.java), [Native Bridges & BLAS: OpenBLAS In Synaptik](native-bridges-and-blas.md#openblas-in-synaptik).
 
 **Operation descriptor**: Immutable semantic descriptor implementing `Operation`. Source: [`Operation.java`](../src/main/java/operations/Operation.java), [`operations/README.md`](../src/main/java/operations/README.md#core-contract).
 
@@ -206,7 +206,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Region optimization**: Compile-planning conversion of partitions into optimized regions. Source: [`DefaultRegionOptimizer.java`](../src/main/java/graph/compile/planning/region/DefaultRegionOptimizer.java), [`RegionOptimizationConfig.java`](../src/main/java/config/compile/RegionOptimizationConfig.java).
 
-**Row-major**: Matrix storage order where adjacent elements in the same row are adjacent in memory. Synaptik's OpenBLAS bridge uses row-major no-transpose CBLAS calls for dense contiguous matmul buffers. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [Native Bridges & BLAS: Matrix Storage Terms](native-bridges-and-blas.md#matrix-storage-terms).
+**Row-major**: Matrix storage order where adjacent elements in the same row are adjacent in memory. Synaptik's OpenBLAS bridge uses row-major no-transpose CBLAS calls for dense contiguous matmul buffers. Source: [`OpenBlasRuntime.java`](../src/main/java/backend/blas/OpenBlasRuntime.java), [Native Bridges & BLAS: Matrix Storage Terms](native-bridges-and-blas.md#matrix-storage-terms).
 
 **Runtime config**: Runtime/backend policy used by prepare and execution. Source: [`RuntimeConfig.java`](../src/main/java/config/runtime/RuntimeConfig.java).
 
@@ -232,7 +232,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Stride**: Per-axis step used to translate logical indices to storage positions. Source: [`TensorMetadata.java`](../src/main/java/tensor/TensorMetadata.java).
 
-**Symbol**: Exported native function or object name found in a native library. Java FFM looks up symbols such as `cblas_sgemm`, `cblas_dgemm`, and `synaptik_apple_mps_execute_partition_f32_buffers` before it can create downcall handles. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [`MetalMpsFfmBridge.java`](../src/main/java/backend/metal/bridge/MetalMpsFfmBridge.java).
+**Symbol**: Exported native function or object name found in a native library. Java FFM looks up symbols such as `cblas_sgemm`, `cblas_dgemm`, and `synaptik_apple_mps_execute_partition_f32_buffers` before it can create downcall handles. Source: [`OpenBlasRuntime.java`](../src/main/java/backend/blas/OpenBlasRuntime.java), [`MetalMpsFfmBridge.java`](../src/main/java/backend/metal/bridge/MetalMpsFfmBridge.java).
 
 ## T
 

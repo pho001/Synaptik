@@ -238,7 +238,7 @@ src/test/resources/tuning/etalon/inference-performance-baseline.properties
 
 ## Native And Optional Backend Tests
 
-OpenBLAS-related tests use `OpenBlasFfmBridge.isAvailable()` assumptions in files such as:
+OpenBLAS-related tests use `OpenBlasRuntime.isAvailable()` assumptions in files such as:
 
 - `src/test/java/MatMulTest.java`
 - `src/test/java/LinearExecutionTest.java`

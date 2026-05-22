@@ -644,7 +644,7 @@ This section covers build, core runtime, optimizer, native bridge, diagnostic, a
 | `cg.cpu.blas.debug` | `false` | Enables BLAS debug behavior where used. | `backend/blas/BlasRuntime.java` |
 | `cg.cpu.blas.f32RequireMgeK` | `true` | F32 BLAS shape guard. | `backend/blas/BlasRuntime.java` |
 | `cg.cpu.blas.f32MaxNOverK` | `3.0` | F32 BLAS shape ratio guard. | `backend/blas/BlasRuntime.java` |
-| `openblas.lib` | bundled JavaCPP OpenBLAS, then library name `openblas` | Explicit OpenBLAS library path/name for FFM lookup. When unset, Synaptik tries the bundled `org.bytedeco:openblas-platform` dependency before the platform loader name. | `backend/blas/OpenBlasFfmBridge.java` |
+| `openblas.lib` | bundled JavaCPP OpenBLAS, then library name `openblas` | Explicit OpenBLAS library path/name for FFM lookup. When unset, Synaptik tries the bundled `org.bytedeco:openblas-platform` dependency before the platform loader name. | `backend/blas/OpenBlasSymbols.java` |
 | `synaptik.metal.mps.lib` | bundled JAR resource, then library name `synaptik_apple_mps` | Explicit Metal MPS shim library path/name for FFM lookup. When unset, Synaptik tries the bundled platform resource before the system library name. | `backend/metal/bridge/MetalNativeLibraryResolver.java` |
 | `synaptik.native.cache.dir` | `~/.synaptik/native` | Root directory for extracted bundled native libraries. The Metal shim is cached below `metal-mps/<platform>/<sha256>/`. | `backend/metal/bridge/MetalNativeLibraryResolver.java` |
 | `synaptik.cuda.graph.lib` | library name `synaptik_cuda_graph` | Explicit CUDA graph bridge library path/name for FFM lookup. | `backend/cuda/bridge/CudaFfmBridge.java` |
@@ -709,7 +709,7 @@ This section covers build, core runtime, optimizer, native bridge, diagnostic, a
 
 | Variable | Effect | Source |
 |---|---|---|
-| `OPENBLAS_LIB` | OpenBLAS library path/name used when `openblas.lib` is unset; it wins over bundled JavaCPP lookup. | `backend/blas/OpenBlasFfmBridge.java` |
+| `OPENBLAS_LIB` | OpenBLAS library path/name used when `openblas.lib` is unset; it wins over bundled JavaCPP lookup. | `backend/blas/OpenBlasSymbols.java` |
 | `SYNAPTIK_METAL_MPS_LIB` | Fallback Metal MPS shim library path/name when `synaptik.metal.mps.lib` is unset. It has priority over the bundled JAR resource. | `backend/metal/bridge/MetalNativeLibraryResolver.java` |
 | `SYNAPTIK_CUDA_GRAPH_LIB` | Fallback CUDA graph bridge library path/name when `synaptik.cuda.graph.lib` is unset. | `backend/cuda/bridge/CudaFfmBridge.java` |
 

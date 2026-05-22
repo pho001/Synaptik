@@ -149,7 +149,7 @@ Prepared conv2d GEMM plan requires OPENBLAS_FFM, but the bridge is not available
 OpenBLAS FFM bridge unavailable: ...
 ```
 
-Lookup order in `src/main/java/backend/blas/OpenBlasFfmBridge.java`:
+Lookup order in `src/main/java/backend/blas/OpenBlasSymbols.java`:
 
 ```text
 -Dopenblas.lib=<path>

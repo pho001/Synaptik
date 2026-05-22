@@ -295,7 +295,7 @@ The Gradle build adds `jdk.incubator.vector` for compile, test, and run tasks in
 
 The BLAS path is an optional CPU acceleration path, not a separate backend. `BlasConfig` selects `NONE` or
 `OPENBLAS_FFM`; `MatMulPlanner` decides whether a particular matmul is large, contiguous, and shape-compatible enough
-to call OpenBLAS; `MatMulBlasBackend` invokes `OpenBlasFfmBridge`; and failed or unavailable matmul calls fall back to
+to call OpenBLAS; `MatMulBlasBackend` invokes `OpenBlasRuntime` and `OpenBlasArrayGemm` or `OpenBlasSegmentGemm`; and failed or unavailable matmul calls fall back to
 Java CPU kernels. GEMM-lowered convolution can also use the same OpenBLAS bridge when its prepared plan requires it.
 The full BLAS/GEMM and Java FFM explanation is in [Native Bridges & BLAS: Matmul Dispatch Flow](native-bridges-and-blas.md#matmul-dispatch-flow).
 
