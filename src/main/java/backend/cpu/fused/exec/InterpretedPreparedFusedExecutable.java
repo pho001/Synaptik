@@ -6,13 +6,13 @@ import backend.cpu.fused.runtime.FusedDTypeOps;
 import backend.cpu.fused.ir.FusedExpressionPlan;
 import backend.cpu.fused.ir.FusedExternalInputPlan;
 import backend.cpu.fused.ir.FusedNodePlan;
+import backend.cpu.fused.numeric.FusedApproximationContract;
 import backend.cpu.fused.numeric.FusedComputeKind;
 import backend.cpu.fused.numeric.FusedNumericContract;
 import backend.cpu.fused.numeric.FusedValueLane;
 import backend.cpu.fused.ir.ScalarDoubleAttribute;
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.fused.FusedExecutionOptions;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -31,6 +31,7 @@ import java.util.List;
 public final class InterpretedPreparedFusedExecutable implements PreparedFusedExecutable {
     private final FusedExpressionPlan plan;
     private final FusedNumericContract numericContract;
+    private final FusedApproximationContract approximationContract;
     private final int precisionMode;
 
     /**
@@ -39,15 +40,23 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
      * @param plan lowered fused expression
      * @param numericContract fused storage and compute contract
      */
-    public InterpretedPreparedFusedExecutable(FusedExpressionPlan plan, FusedNumericContract numericContract) {
+    public InterpretedPreparedFusedExecutable(
+            FusedExpressionPlan plan,
+            FusedNumericContract numericContract,
+            FusedApproximationContract approximationContract
+    ) {
         if (plan == null) {
             throw new IllegalArgumentException("plan cannot be null");
         }
         if (numericContract == null) {
             throw new IllegalArgumentException("numericContract cannot be null");
         }
+        if (approximationContract == null) {
+            throw new IllegalArgumentException("approximationContract cannot be null");
+        }
         this.plan = plan;
         this.numericContract = numericContract;
+        this.approximationContract = approximationContract;
         this.precisionMode = precisionMode(numericContract);
     }
 
@@ -66,8 +75,7 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
             Tensor out,
             CpuKernelContext context,
             int startInclusive,
-            int endExclusive,
-            FusedExecutionOptions options
+            int endExclusive
     ) {
         int inputCount = plan.inputCount();
         double[] numericValues = new double[plan.nodeCount()];
@@ -75,9 +83,9 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
         for (int index = startInclusive; index < endExclusive; index++) {
             for (FusedNodePlan node : plan.nodes()) {
                 if (node.outputType() == DataType.BOOL) {
-                    boolValues[node.index()] = evalBool(node, inputs, numericValues, boolValues, index, options);
+                    boolValues[node.index()] = evalBool(node, inputs, numericValues, boolValues, index);
                 } else {
-                    numericValues[node.index()] = evalNumeric(node, inputs, numericValues, boolValues, index, options);
+                    numericValues[node.index()] = evalNumeric(node, inputs, numericValues, boolValues, index);
                 }
             }
             FusedNodePlan output = plan.outputNode();
@@ -95,8 +103,7 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
             List<Tensor> inputs,
             double[] numericValues,
             boolean[] boolValues,
-            int index,
-            FusedExecutionOptions options
+            int index
     ) {
         Operation.OpType op = node.opType();
         return switch (op) {
@@ -119,9 +126,9 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
             case NEG -> -numericRef(node.inputRefs().get(0), inputs, numericValues, boolValues, index);
             case INV -> 1.0d / numericRef(node.inputRefs().get(0), inputs, numericValues, boolValues, index);
             case LOG -> Math.log(numericRef(node.inputRefs().get(0), inputs, numericValues, boolValues, index));
-            case EXP -> exp(numericRef(node.inputRefs().get(0), inputs, numericValues, boolValues, index), options);
+            case EXP -> exp(numericRef(node.inputRefs().get(0), inputs, numericValues, boolValues, index));
             case FAST_EXP -> fastExp(numericRef(node.inputRefs().get(0), inputs, numericValues, boolValues, index));
-            case TANH -> tanh(numericRef(node.inputRefs().get(0), inputs, numericValues, boolValues, index), options);
+            case TANH -> tanh(numericRef(node.inputRefs().get(0), inputs, numericValues, boolValues, index));
             case FAST_TANH -> fastTanh(numericRef(node.inputRefs().get(0), inputs, numericValues, boolValues, index));
             case POW -> Math.pow(
                     numericRef(node.inputRefs().get(0), inputs, numericValues, boolValues, index),
@@ -162,8 +169,7 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
             List<Tensor> inputs,
             double[] numericValues,
             boolean[] boolValues,
-            int index,
-            FusedExecutionOptions options
+            int index
     ) {
         Operation.OpType op = node.opType();
         return switch (op) {
@@ -187,7 +193,7 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
             case WHERE -> boolRef(node.inputRefs().get(0), inputs, boolValues, index)
                     ? boolRef(node.inputRefs().get(1), inputs, boolValues, index)
                     : boolRef(node.inputRefs().get(2), inputs, boolValues, index);
-            default -> evalNumeric(node, inputs, numericValues, boolValues, index, options) != 0.0d;
+            default -> evalNumeric(node, inputs, numericValues, boolValues, index) != 0.0d;
         };
     }
 
@@ -277,8 +283,8 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
         }
     }
 
-    private double exp(double value, FusedExecutionOptions options) {
-        if (options != null && options.useFastExpApprox()) {
+    private double exp(double value) {
+        if (approximationContract.useFastExp()) {
             return fastExp(value);
         }
         return Math.exp(value);
@@ -290,8 +296,8 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
                 : FastTranscendentals.fastExpF32((float) value);
     }
 
-    private double tanh(double value, FusedExecutionOptions options) {
-        if (options != null && options.useFastTanhApprox()) {
+    private double tanh(double value) {
+        if (approximationContract.useFastTanh()) {
             return fastTanh(value);
         }
         return Math.tanh(value);

@@ -28,6 +28,7 @@ import graph.execution.plan.InputResidencyRequirement;
 import graph.execution.plan.OutputResidencyEffect;
 import graph.execution.PreparedExecutionStep;
 import backend.cpu.fused.exec.FusedExecutablePreparer;
+import backend.cpu.fused.numeric.FusedApproximationContract;
 import backend.cpu.fused.plan.FusedExecutionPlan;
 import backend.cpu.fused.plan.FusedOperationPreparation;
 import backend.cpu.fused.exec.PreparedFusedExecutable;
@@ -128,7 +129,7 @@ public final class CpuNodePreparer {
                     + ", orderedNodeIds=" + loweredUnit.orderedNodeIds());
         }
         FusedOperationPreparation fusedPreparation = fusedPreparation(loweredUnit);
-        Operation operation = fusedPreparation.operation();
+        Operation operation = specializeFusedOperation(fusedPreparation.operation(), context);
         CpuKernel kernel = CpuKernelResolver.resolve(operation.opType());
         boolean publishFloatContinuation = shouldPublishFloatContinuation(outputNode, operation, context);
 
@@ -186,8 +187,20 @@ public final class CpuNodePreparer {
         return loweredUnit.requireArtifact(FusedOperationPreparation.class);
     }
 
+    private Operation specializeFusedOperation(Operation operation, BackendPrepareContext context) {
+        if (!(operation instanceof FusedOperation fused)) {
+            return operation;
+        }
+        FusedApproximationContract approximationContract = FusedApproximationContract.from(
+                runtimeConfig.approximation(),
+                context.supportsBackward()
+        );
+        return fused.withApproximationContract(approximationContract);
+    }
+
     public CompiledNodeExecutionMetadata prepareAsCpu(CompiledNode node, BackendPrepareContext context) {
         Operation operation = node.operation();
+        operation = specializeFusedOperation(operation, context);
         CpuKernel kernel = CpuKernelResolver.resolve(operation.opType());
         if (kernel == null) {
             throw new IllegalStateException("Missing CPU kernel for opType=" + operation.opType());

@@ -76,7 +76,7 @@ public final class FusedVectorMethodEmitter {
 
         for (FusedNodePlan node : plan.nodes()) {
             FusedVectorExpressionEmitter.emitNodeEvaluationBytecode(
-                    mv, plan, node, nodeVectorSlots, sm, context.precisionMode()
+                    mv, plan, node, nodeVectorSlots, sm, context.precisionMode(), context.approximationContract()
             );
             mv.visitVarInsn(ASTORE, nodeVectorSlots[node.index()]);
         }
@@ -111,7 +111,6 @@ public final class FusedVectorMethodEmitter {
         mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_CONTEXT));
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_UPPER));
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_END));
-        mv.visitVarInsn(ALOAD, sm.get(SlotKey.FUSED_OPTIONS));
         mv.visitMethodInsn(
                 INVOKEVIRTUAL,
                 context.internalClassName(),
@@ -142,7 +141,6 @@ public final class FusedVectorMethodEmitter {
         mv.visitVarInsn(ALOAD, 3);
         mv.visitVarInsn(ILOAD, 4);
         mv.visitVarInsn(ILOAD, 5);
-        mv.visitVarInsn(ALOAD, 6);
         mv.visitMethodInsn(
                 INVOKEVIRTUAL,
                 context.internalClassName(),

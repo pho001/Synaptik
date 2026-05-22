@@ -12,6 +12,7 @@ import backend.cpu.fused.ir.FusedNodePlan;
 import backend.cpu.fused.plan.FusedDispatchFamily;
 import backend.cpu.fused.plan.FusedOperation;
 import backend.cpu.fused.numeric.FusedComputeKind;
+import backend.cpu.fused.numeric.FusedApproximationContract;
 import backend.cpu.fused.numeric.FusedNumericContract;
 import backend.cpu.fused.numeric.FusedStorageKind;
 import backend.cpu.fused.numeric.FusedValueLane;
@@ -31,6 +32,7 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
         FusedOperation fused = new FusedOperation(
                 "fused(2)",
                 numeric(FusedValueLane.F32),
+                FusedApproximationContract.STRICT,
                 true,
                 FusedDispatchFamily.CHEAP_CONTIGUOUS,
                 "test",
@@ -64,6 +66,7 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
         FusedOperation fused = new FusedOperation(
                 "fused(where)",
                 numeric(FusedValueLane.F32),
+                FusedApproximationContract.STRICT,
                 false,
                 FusedDispatchFamily.NON_CHEAP_STRIDED,
                 "test",
@@ -98,6 +101,7 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
         FusedOperation fused = new FusedOperation(
                 "fused(noncheap-strided)",
                 numeric(FusedValueLane.F32),
+                FusedApproximationContract.STRICT,
                 false,
                 FusedDispatchFamily.NON_CHEAP_STRIDED,
                 "test",

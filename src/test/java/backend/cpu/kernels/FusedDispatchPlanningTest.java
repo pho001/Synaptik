@@ -11,6 +11,7 @@ import backend.cpu.fused.ir.FusedExternalInputPlan;
 import backend.cpu.fused.ir.FusedNodePlan;
 import backend.cpu.fused.ir.NoAttributes;
 import backend.cpu.fused.numeric.FusedComputeKind;
+import backend.cpu.fused.numeric.FusedApproximationContract;
 import backend.cpu.fused.numeric.FusedNumericContract;
 import backend.cpu.fused.numeric.FusedStorageKind;
 import backend.cpu.fused.numeric.FusedValueLane;
@@ -114,6 +115,7 @@ class FusedDispatchPlanningTest {
         FusedOperation fused = new FusedOperation(
                 "bf16-affine-rational-strided",
                 numeric(FusedValueLane.BF16),
+                FusedApproximationContract.STRICT,
                 false,
                 FusedDispatchFamily.NON_CHEAP_STRIDED,
                 "bf16-affine-rational-strided",
@@ -183,6 +185,7 @@ class FusedDispatchPlanningTest {
         return new FusedOperation(
                 "fused-test",
                 numeric(FusedValueLane.fromDataType(dataType)),
+                FusedApproximationContract.STRICT,
                 lowCostHint,
                 family,
                 "fused-test-sig",

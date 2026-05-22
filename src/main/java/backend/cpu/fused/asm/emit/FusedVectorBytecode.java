@@ -100,44 +100,14 @@ final class FusedVectorBytecode {
     }
 
     static void emitVectorUnaryOpCall(MethodVisitor mv, String op, int precisionMode) {
-        emitVectorUnaryOpCall(mv, op, precisionMode, null);
-    }
-
-    static void emitVectorUnaryOpCall(MethodVisitor mv, String op, int precisionMode, SlotManager sm) {
-        boolean expOp = "exp".equals(op);
-        boolean tanhOp = "tanh".equals(op);
         if (precisionMode == FusedDTypeOps.MODE_BF16) {
             mv.visitLdcInsn(precisionMode);
-            if (expOp || tanhOp) {
-                mv.visitVarInsn(ALOAD, sm.get(SlotKey.FUSED_OPTIONS));
-                mv.visitMethodInsn(
-                        INVOKEVIRTUAL,
-                        "backend/cpu/kernels/fused/FusedExecutionOptions",
-                        expOp ? "useFastExpApprox" : "useFastTanhApprox",
-                        "()Z",
-                        false
-                );
-                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op, "(Ljava/lang/Object;IZ)Ljava/lang/Object;", false);
-            } else {
-                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op, "(Ljava/lang/Object;I)Ljava/lang/Object;", false);
-            }
+            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op, "(Ljava/lang/Object;I)Ljava/lang/Object;", false);
             return;
         }
         String suffix = precisionMode == FusedDTypeOps.MODE_F32 ? "F32" : "F64";
         String vd = FusedRuntimeCalls.vectorTypeDesc(precisionMode);
-        if (expOp || tanhOp) {
-            mv.visitVarInsn(ALOAD, sm.get(SlotKey.FUSED_OPTIONS));
-            mv.visitMethodInsn(
-                    INVOKEVIRTUAL,
-                    "backend/cpu/kernels/fused/FusedExecutionOptions",
-                    expOp ? "useFastExpApprox" : "useFastTanhApprox",
-                    "()Z",
-                    false
-            );
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + suffix, "(" + vd + "Z)" + vd, false);
-        } else {
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + suffix, "(" + vd + ")" + vd, false);
-        }
+        mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + suffix, "(" + vd + ")" + vd, false);
     }
 
     static void emitVectorConstantCall(MethodVisitor mv, int precisionMode) {

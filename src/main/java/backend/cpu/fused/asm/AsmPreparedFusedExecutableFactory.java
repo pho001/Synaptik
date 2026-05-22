@@ -41,6 +41,7 @@ public final class AsmPreparedFusedExecutableFactory {
         FusedKernelCacheKey key = new FusedKernelCacheKey(
                 descriptor.getSchedulerSignature(),
                 descriptor.getNumericContract().signatureToken(),
+                descriptor.getApproximationContract().signatureToken(),
                 plan.asmVectorWidth(),
                 specializationKind
         );
@@ -77,6 +78,7 @@ public final class AsmPreparedFusedExecutableFactory {
                     internalName,
                     descriptor.getPlan(),
                     descriptor.getNumericContract(),
+                    descriptor.getApproximationContract(),
                     vectorWidth,
                     specializationKind
             );

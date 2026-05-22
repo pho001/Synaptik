@@ -3,6 +3,7 @@ package backend.cpu.fused.asm.emit;
 import backend.cpu.fused.ir.FusedExpressionPlan;
 import backend.cpu.fused.ir.FusedNodePlan;
 import backend.cpu.fused.ir.ScalarDoubleAttribute;
+import backend.cpu.fused.numeric.FusedApproximationContract;
 
 import org.objectweb.asm.MethodVisitor;
 import utils.SlotManager;
@@ -19,7 +20,8 @@ public final class FusedVectorExpressionEmitter {
             FusedNodePlan current,
             int[] nodeVectorSlots,
             SlotManager sm,
-            int precisionMode
+            int precisionMode,
+            FusedApproximationContract approximationContract
     ) {
         for (int ref : current.inputRefs()) {
             FusedVectorBytecode.loadVectorRef(mv, ref, plan, nodeVectorSlots, sm, precisionMode);
@@ -35,9 +37,17 @@ public final class FusedVectorExpressionEmitter {
             case NEG -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "neg", precisionMode);
             case INV -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "inv", precisionMode);
             case LOG -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "log", precisionMode);
-            case EXP -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "exp", precisionMode, sm);
+            case EXP -> FusedVectorBytecode.emitVectorUnaryOpCall(
+                    mv,
+                    approximationContract.useFastExp() ? "fastExp" : "exp",
+                    precisionMode
+            );
             case FAST_EXP -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "fastExp", precisionMode);
-            case TANH -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "tanh", precisionMode, sm);
+            case TANH -> FusedVectorBytecode.emitVectorUnaryOpCall(
+                    mv,
+                    approximationContract.useFastTanh() ? "fastTanh" : "tanh",
+                    precisionMode
+            );
             case FAST_TANH -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "fastTanh", precisionMode);
             case SQRT -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "sqrt", precisionMode);
             case ABS -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "abs", precisionMode);

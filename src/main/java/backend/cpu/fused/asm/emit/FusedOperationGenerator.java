@@ -7,6 +7,7 @@ import backend.cpu.fused.asm.FusedGenerationContext;
 import backend.cpu.fused.runtime.FusedDTypeOps;
 
 import backend.cpu.fused.ir.FusedExpressionPlan;
+import backend.cpu.fused.numeric.FusedApproximationContract;
 import backend.cpu.fused.numeric.FusedComputeKind;
 import backend.cpu.fused.numeric.FusedNumericContract;
 import backend.cpu.fused.numeric.FusedValueLane;
@@ -22,6 +23,7 @@ public final class FusedOperationGenerator {
             String internalClassName,
             FusedExpressionPlan plan,
             FusedNumericContract numericContract,
+            FusedApproximationContract approximationContract,
             int vectorWidth,
             FusedAsmSpecializationKind specializationKind
     ) {
@@ -36,6 +38,7 @@ public final class FusedOperationGenerator {
                 internalClassName,
                 plan,
                 numericContract,
+                approximationContract,
                 vectorWidth,
                 specializationKind
         );

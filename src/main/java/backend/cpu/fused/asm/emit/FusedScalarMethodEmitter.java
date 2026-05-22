@@ -53,7 +53,15 @@ public final class FusedScalarMethodEmitter {
 
         for (FusedNodePlan node : plan.nodes()) {
             FusedScalarExpressionEmitter.emitNodeEvaluationBytecode(
-                    mv, plan, node, nodeValueSlots, nodeBoolSlots, sm, context.precisionMode(), plan.inputs()
+                    mv,
+                    plan,
+                    node,
+                    nodeValueSlots,
+                    nodeBoolSlots,
+                    sm,
+                    context.precisionMode(),
+                    context.approximationContract(),
+                    plan.inputs()
             );
             if (node.outputType() == tensor.DataType.BOOL) {
                 FusedScalarBytecode.emitBoolScalarStoreInsn(mv, nodeBoolSlots[node.index()]);

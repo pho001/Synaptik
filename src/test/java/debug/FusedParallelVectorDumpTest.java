@@ -93,6 +93,7 @@ final class FusedParallelVectorDumpTest {
                 internalName,
                 fused.getPlan(),
                 fused.getNumericContract(),
+                fused.getApproximationContract(),
                 hints.vectorWidth(),
                 FusedAsmSpecializationMatcher.match(fused.getPlan(), fused.getPrecisionMode())
         );

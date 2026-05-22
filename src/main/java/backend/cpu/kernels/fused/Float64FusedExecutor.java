@@ -313,9 +313,9 @@ public final class Float64FusedExecutor {
             case NEG -> -in[0];
             case INV -> 1.0d / in[0];
             case LOG -> Math.log(in[0]);
-            case EXP -> options.useFastExpApprox() ? backend.cpu.fused.runtime.FusedScalarOps.fastExpF64(in[0]) : backend.cpu.fused.runtime.FusedScalarOps.expF64(in[0], false);
+            case EXP -> options.useFastExpApprox() ? backend.cpu.fused.runtime.FusedScalarOps.fastExpF64(in[0]) : backend.cpu.fused.runtime.FusedScalarOps.expF64(in[0]);
             case FAST_EXP -> backend.cpu.fused.runtime.FusedScalarOps.fastExpF64(in[0]);
-            case TANH -> options.useFastTanhApprox() ? backend.cpu.fused.runtime.FusedScalarOps.fastTanhF64(in[0]) : backend.cpu.fused.runtime.FusedScalarOps.tanhF64(in[0], false);
+            case TANH -> options.useFastTanhApprox() ? backend.cpu.fused.runtime.FusedScalarOps.fastTanhF64(in[0]) : backend.cpu.fused.runtime.FusedScalarOps.tanhF64(in[0]);
             case FAST_TANH -> backend.cpu.fused.runtime.FusedScalarOps.fastTanhF64(in[0]);
             case POW -> FusedScalarOps.powF64(in[0], ((ScalarDoubleAttribute) attrs).value());
             case POW_TENSOR -> FusedScalarOps.powF64(in[0], in[1]);

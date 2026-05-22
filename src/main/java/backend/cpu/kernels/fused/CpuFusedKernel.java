@@ -2,8 +2,6 @@ package backend.cpu.kernels.fused;
 
 import backend.cpu.kernels.*;
 
-import backend.cpu.kernels.fused.FusedExecutionOptions;
-import backend.cpu.fused.exec.PreparedFusedExecutable;
 import backend.cpu.fused.plan.FusedOperation;
 import operations.Operation;
 import tensor.Tensor;

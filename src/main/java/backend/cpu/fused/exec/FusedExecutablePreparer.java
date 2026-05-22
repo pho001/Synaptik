@@ -17,6 +17,11 @@ public final class FusedExecutablePreparer {
         FusedExecutionPolicy effectivePolicy = policy == null
                 ? FusedExecutionPolicy.defaultsInference()
                 : policy;
+        if (plan.descriptor().getNumericContract().usesMemorySegmentStorage()) {
+            throw new UnsupportedOperationException(
+                    "CPU fused MemorySegment storage is not implemented; refusing hidden Java-array materialization."
+            );
+        }
         try {
             return asmFactory.create(plan);
         } catch (RuntimeException ex) {
@@ -25,7 +30,8 @@ public final class FusedExecutablePreparer {
             }
             return new InterpretedPreparedFusedExecutable(
                     plan.descriptor().getPlan(),
-                    plan.descriptor().getNumericContract()
+                    plan.descriptor().getNumericContract(),
+                    plan.descriptor().getApproximationContract()
             );
         }
     }

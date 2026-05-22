@@ -32,10 +32,6 @@ final class FusedExecutor {
         }
 
         ResolvedDispatchHints hints = requireDispatchHints(context);
-        FusedExecutionOptions options = new FusedExecutionOptions(
-                context.useFastExpApprox(),
-                context.useFastTanhApprox()
-        );
         int length = node.getFlatDataSize();
         CpuExecutionMode mode = hints.mode();
         CpuKernelCostClass costClass = costClass(fused);
@@ -43,20 +39,20 @@ final class FusedExecutor {
         long t0 = FusedExecutionProfiler.enabled() ? System.nanoTime() : 0L;
         switch (mode) {
             case SCALAR -> {
-                executable.applyRangeScalar(inputs, node, context, 0, length, options);
+                executable.applyRangeScalar(inputs, node, context, 0, length);
                 recordProfile(fused, mode, length, 1, false, false, t0);
             }
             case VECTOR -> {
                 if (recommendVector) {
-                    executable.applyRangeVector(inputs, node, context, 0, length, options);
+                    executable.applyRangeVector(inputs, node, context, 0, length);
                     recordProfile(fused, mode, length, 1, false, true, t0);
                 } else {
-                    executable.applyRangeScalar(inputs, node, context, 0, length, options);
+                    executable.applyRangeScalar(inputs, node, context, 0, length);
                     recordProfile(fused, mode, length, 1, false, false, t0);
                 }
             }
-            case PARALLEL -> runParallel(executable, inputs, node, context, hints, options, false, fused, mode, costClass);
-            case PARALLEL_VECTOR -> runParallel(executable, inputs, node, context, hints, options, recommendVector, fused, mode, costClass);
+            case PARALLEL -> runParallel(executable, inputs, node, context, hints, false, fused, mode, costClass);
+            case PARALLEL_VECTOR -> runParallel(executable, inputs, node, context, hints, recommendVector, fused, mode, costClass);
         }
     }
 
@@ -66,7 +62,6 @@ final class FusedExecutor {
             Tensor node,
             CpuKernelContext context,
             ResolvedDispatchHints hints,
-            FusedExecutionOptions options,
             boolean preferVector,
             FusedOperation fused,
             CpuExecutionMode mode,
@@ -81,9 +76,9 @@ final class FusedExecutor {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, length);
             if (preferVector) {
-                executable.applyRangeVector(inputs, node, context, start, end, options);
+                executable.applyRangeVector(inputs, node, context, start, end);
             } else {
-                executable.applyRangeScalar(inputs, node, context, start, end, options);
+                executable.applyRangeScalar(inputs, node, context, start, end);
             }
         }, useCommonPool);
         if (FusedExecutionProfiler.enabled()) {

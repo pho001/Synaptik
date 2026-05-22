@@ -213,7 +213,6 @@ public final class FusedSpecializedVectorMethodEmitter {
         mv.visitVarInsn(ALOAD, 3);
         mv.visitVarInsn(ILOAD, RANGE_UPPER_SLOT);
         mv.visitVarInsn(ILOAD, 5);
-        mv.visitVarInsn(ALOAD, 6);
         mv.visitMethodInsn(
                 INVOKEVIRTUAL,
                 context.internalClassName(),
@@ -295,7 +294,6 @@ public final class FusedSpecializedVectorMethodEmitter {
         mv.visitVarInsn(ALOAD, 3);
         mv.visitVarInsn(ILOAD, 4);
         mv.visitVarInsn(ILOAD, 5);
-        mv.visitVarInsn(ALOAD, 6);
         mv.visitMethodInsn(
                 INVOKEVIRTUAL,
                 context.internalClassName(),

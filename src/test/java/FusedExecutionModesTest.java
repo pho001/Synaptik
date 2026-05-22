@@ -520,6 +520,7 @@ public class FusedExecutionModesTest {
                 "debug/test/Bf16VectorKernel",
                 fused.getPlan(),
                 fused.getNumericContract(),
+                fused.getApproximationContract(),
                 testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth(),
                 FusedAsmSpecializationMatcher.match(fused.getPlan(), fused.getPrecisionMode())
         );
@@ -589,6 +590,23 @@ public class FusedExecutionModesTest {
         PreparedExecution prepared = compiledGraph.prepare(runtimeConfig(CpuKernelConfig.defaultsTraining()));
         prepared.execute(ExecutionMode.FORWARD);
         assertArrayEquals(expected, out.toDoubleArrayCopy(), EPS);
+    }
+
+    @Test
+    void representativeFusedHotPathsPrepareGeneratedAsmExecutables() {
+        assertGeneratedAsmExecutableFor(new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "cheapA", DataType.FLOAT32)
+                .add(new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "cheapB", DataType.FLOAT32))
+                .relu()
+                .mul(0.5f));
+
+        assertGeneratedAsmExecutableFor(new Tensor(buildInput(4096, 0.03), new int[]{4096}, null, "transA", DataType.FLOAT64)
+                .exp()
+                .tanh()
+                .pow(2.0));
+
+        Tensor broadcastA = new Tensor(new double[]{1, 2, 3, 4}, new int[]{1, 4}, null, "broadcastA", DataType.FLOAT64);
+        Tensor broadcastB = new Tensor(new double[]{5, 6, 7, 8, 9, 10, 11, 12}, new int[]{2, 4}, null, "broadcastB", DataType.FLOAT64);
+        assertGeneratedAsmExecutableFor(broadcastA.add(broadcastB).mul(broadcastB).sigmoid());
     }
 
     private static void assertModeMatches(
@@ -710,6 +728,14 @@ public class FusedExecutionModesTest {
     private static void assertHasPreparedFusedStep(PreparedExecution prepared) {
         assertTrue(prepared.forwardSteps().stream().anyMatch(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null),
                 "Expected prepared fused execution metadata");
+    }
+
+    private static void assertGeneratedAsmExecutableFor(Tensor out) {
+        PreparedExecution prepared = CompiledGraph.compile(out, fuseOnlyInferenceConfig())
+                .prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)));
+        var executable = testsupport.MetadataArtifacts.fusedExecutable(findPreparedFusedStep(prepared).metadata());
+        assertTrue(!executable.getClass().getName().contains("InterpretedPreparedFusedExecutable"),
+                () -> "Expected generated ASM fused executable, got " + executable.getClass().getName());
     }
 
     private static PreparedExecutionStep findPreparedFusedStep(PreparedExecution prepared) {

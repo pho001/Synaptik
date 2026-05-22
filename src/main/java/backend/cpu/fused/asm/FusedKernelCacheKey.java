@@ -6,6 +6,7 @@ package backend.cpu.fused.asm;
 public record FusedKernelCacheKey(
         String signature,
         String numericContract,
+        String approximationContract,
         int vectorWidth,
         FusedAsmSpecializationKind specializationKind
 ) {}

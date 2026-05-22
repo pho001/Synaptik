@@ -12,17 +12,11 @@ public final class FusedScalarOps {
         return (float) Math.log(x);
     }
 
-    public static float expF32(float x, boolean useFastExpApprox) {
-        if (useFastExpApprox) {
-            return FastTranscendentals.fastExpF32(x);
-        }
+    public static float expF32(float x) {
         return (float) Math.exp(x);
     }
 
-    public static double expF64(double x, boolean useFastExpApprox) {
-        if (useFastExpApprox) {
-            return FastTranscendentals.fastExpF64(x);
-        }
+    public static double expF64(double x) {
         return Math.exp(x);
     }
 
@@ -34,17 +28,11 @@ public final class FusedScalarOps {
         return FastTranscendentals.fastExpF64(x);
     }
 
-    public static float tanhF32(float x, boolean useFastTanhApprox) {
-        if (useFastTanhApprox) {
-            return FastTranscendentals.fastTanhF32(x);
-        }
+    public static float tanhF32(float x) {
         return (float) Math.tanh(x);
     }
 
-    public static double tanhF64(double x, boolean useFastTanhApprox) {
-        if (useFastTanhApprox) {
-            return FastTranscendentals.fastTanhF64(x);
-        }
+    public static double tanhF64(double x) {
         return Math.tanh(x);
     }
 

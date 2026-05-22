@@ -1,7 +1,6 @@
 package backend.cpu.fused.exec;
 
 import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.fused.FusedExecutionOptions;
 import tensor.Tensor;
 
 import java.util.List;
@@ -21,8 +20,7 @@ public interface PreparedFusedExecutable {
             Tensor out,
             CpuKernelContext context,
             int startInclusive,
-            int endExclusive,
-            FusedExecutionOptions options
+            int endExclusive
     );
 
     /**
@@ -33,9 +31,8 @@ public interface PreparedFusedExecutable {
             Tensor out,
             CpuKernelContext context,
             int startInclusive,
-            int endExclusive,
-            FusedExecutionOptions options
+            int endExclusive
     ) {
-        applyRangeScalar(inputs, out, context, startInclusive, endExclusive, options);
+        applyRangeScalar(inputs, out, context, startInclusive, endExclusive);
     }
 }

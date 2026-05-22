@@ -315,9 +315,9 @@ public final class Float32FusedExecutor {
             case NEG -> -in[0];
             case INV -> 1.0f / in[0];
             case LOG -> (float) Math.log(in[0]);
-            case EXP -> options.useFastExpApprox() ? backend.cpu.fused.runtime.FusedScalarOps.fastExpF32(in[0]) : backend.cpu.fused.runtime.FusedScalarOps.expF32(in[0], false);
+            case EXP -> options.useFastExpApprox() ? backend.cpu.fused.runtime.FusedScalarOps.fastExpF32(in[0]) : backend.cpu.fused.runtime.FusedScalarOps.expF32(in[0]);
             case FAST_EXP -> backend.cpu.fused.runtime.FusedScalarOps.fastExpF32(in[0]);
-            case TANH -> options.useFastTanhApprox() ? backend.cpu.fused.runtime.FusedScalarOps.fastTanhF32(in[0]) : backend.cpu.fused.runtime.FusedScalarOps.tanhF32(in[0], false);
+            case TANH -> options.useFastTanhApprox() ? backend.cpu.fused.runtime.FusedScalarOps.fastTanhF32(in[0]) : backend.cpu.fused.runtime.FusedScalarOps.tanhF32(in[0]);
             case FAST_TANH -> backend.cpu.fused.runtime.FusedScalarOps.fastTanhF32(in[0]);
             case POW -> backend.cpu.fused.runtime.FusedScalarOps.powF32(in[0], (float) ((ScalarDoubleAttribute) attrs).value());
             case POW_TENSOR -> backend.cpu.fused.runtime.FusedScalarOps.powF32(in[0], in[1]);

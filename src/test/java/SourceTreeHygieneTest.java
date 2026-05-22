@@ -557,6 +557,33 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void cpuFusedGeneratedBytecodeDoesNotReadRuntimeApproximationBooleans() throws IOException {
+        List<String> offenders = sourceLinesContaining(
+                List.of(Path.of("src/main/java/backend/cpu/fused/asm/emit")),
+                List.of(
+                        "useFastExpApprox",
+                        "useFastTanhApprox",
+                        "FusedExecutionOptions",
+                        "(FZ)F",
+                        "(DZ)D",
+                        "(Ljava/lang/Object;IZ)"
+                )
+        );
+        assertTrue(offenders.isEmpty(),
+                () -> "CPU fused ASM must specialize EXP/TANH approximation at prepare/generation time: " + offenders);
+    }
+
+    @Test
+    void cpuFusedPackageUsesExplicitStorageContractNames() throws IOException {
+        List<String> offenders = sourceLinesContaining(
+                List.of(Path.of("src/main/java/backend/cpu/fused"), Path.of("src/test/java/backend/cpu/fused")),
+                List.of("CPU_NATIVE", "CPU_OFF_HEAP", "OFF_HEAP")
+        );
+        assertTrue(offenders.isEmpty(),
+                () -> "CPU fused storage contracts must use CPU_JAVA_ARRAY and CPU_MEMORY_SEGMENT only: " + offenders);
+    }
+
+    @Test
     void sourceDoesNotImportLegacyGraphFusionPackage() throws IOException {
         List<Path> roots = List.of(Path.of("src/main/java"), Path.of("src/test/java"));
         try (Stream<Path> paths = roots.stream()

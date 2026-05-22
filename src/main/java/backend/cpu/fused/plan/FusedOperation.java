@@ -1,6 +1,7 @@
 package backend.cpu.fused.plan;
 
 import backend.cpu.fused.ir.FusedExpressionPlan;
+import backend.cpu.fused.numeric.FusedApproximationContract;
 import backend.cpu.fused.numeric.FusedComputeKind;
 import backend.cpu.fused.numeric.FusedNumericContract;
 import backend.cpu.fused.numeric.FusedValueLane;
@@ -13,6 +14,7 @@ import operations.Operation;
 public final class FusedOperation implements Operation {
     private final String expression;
     private final FusedNumericContract numericContract;
+    private final FusedApproximationContract approximationContract;
     private final boolean lowCostHint;
     private final FusedDispatchFamily dispatchFamily;
     private final String schedulerSignature;
@@ -25,6 +27,7 @@ public final class FusedOperation implements Operation {
     public FusedOperation(
             String expression,
             FusedNumericContract numericContract,
+            FusedApproximationContract approximationContract,
             boolean lowCostHint,
             FusedDispatchFamily dispatchFamily,
             String schedulerSignature,
@@ -52,6 +55,10 @@ public final class FusedOperation implements Operation {
             throw new IllegalArgumentException("numericContract cannot be null");
         }
         this.numericContract = numericContract;
+        if (approximationContract == null) {
+            throw new IllegalArgumentException("approximationContract cannot be null");
+        }
+        this.approximationContract = approximationContract;
         this.lowCostHint = lowCostHint;
         this.dispatchFamily = dispatchFamily;
         this.schedulerSignature = schedulerSignature;
@@ -99,6 +106,29 @@ public final class FusedOperation implements Operation {
      */
     public FusedNumericContract getNumericContract() {
         return numericContract;
+    }
+
+    /**
+     * Returns the prepared approximation contract used by generated fused code.
+     */
+    public FusedApproximationContract getApproximationContract() {
+        return approximationContract;
+    }
+
+    /**
+     * Returns a copy with a different approximation contract.
+     */
+    public FusedOperation withApproximationContract(FusedApproximationContract newContract) {
+        return new FusedOperation(
+                expression,
+                numericContract,
+                newContract,
+                lowCostHint,
+                dispatchFamily,
+                FusedSignatureBuilder.buildFromPlan(plan, numericContract, newContract),
+                dispatchScale,
+                plan
+        );
     }
 
     /**

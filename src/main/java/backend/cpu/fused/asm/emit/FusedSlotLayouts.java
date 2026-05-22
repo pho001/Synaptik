@@ -13,7 +13,6 @@ final class FusedSlotLayouts {
         sm.define(SlotKey.CLUSTER_CONTEXT);
         sm.define(SlotKey.RANGE_START);
         sm.define(SlotKey.RANGE_END);
-        sm.define(SlotKey.FUSED_OPTIONS);
         sm.define(SlotKey.CLUSTER_TENSOR_VALUES);
         sm.define(SlotKey.LOOP_COUNTER);
         sm.defineGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS, externalInputCount);
@@ -32,7 +31,6 @@ final class FusedSlotLayouts {
         sm.define(SlotKey.CLUSTER_CONTEXT);
         sm.define(SlotKey.RANGE_START);
         sm.define(SlotKey.RANGE_END);
-        sm.define(SlotKey.FUSED_OPTIONS);
         sm.define(SlotKey.CLUSTER_TENSOR_VALUES);
         sm.define(SlotKey.LOOP_COUNTER);
         sm.define(SlotKey.SECOND_LOOP_COUNTER);

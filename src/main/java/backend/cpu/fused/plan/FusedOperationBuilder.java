@@ -2,6 +2,7 @@ package backend.cpu.fused.plan;
 
 import backend.cpu.fused.ir.FusedExpressionPlan;
 import backend.cpu.fused.ir.FusedIrBuilder;
+import backend.cpu.fused.numeric.FusedApproximationContract;
 import backend.cpu.fused.numeric.FusedNumericContract;
 import backend.cpu.fused.numeric.FusedNumericContractResolver;
 import backend.lowering.LoweredExecutionUnit;
@@ -67,9 +68,10 @@ public final class FusedOperationBuilder {
         FusedOperation operation = new FusedOperation(
                 "fused(" + safeOrderedNodeIds.size() + ")",
                 numericContract,
+                FusedApproximationContract.STRICT,
                 lowCostHint,
                 dispatchFamily,
-                FusedSignatureBuilder.buildFromPlan(plan, numericContract),
+                FusedSignatureBuilder.buildFromPlan(plan, numericContract, FusedApproximationContract.STRICT),
                 dispatchScale,
                 plan
         );

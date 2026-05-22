@@ -4,6 +4,7 @@ import backend.cpu.fused.ir.FusedExpressionPlan;
 import backend.cpu.fused.ir.FusedExternalInputPlan;
 import backend.cpu.fused.ir.FusedNodePlan;
 import backend.cpu.fused.ir.ScalarDoubleAttribute;
+import backend.cpu.fused.numeric.FusedApproximationContract;
 
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
@@ -26,6 +27,7 @@ public final class FusedScalarExpressionEmitter {
             int[] nodeBoolSlots,
             SlotManager sm,
             int precisionMode,
+            FusedApproximationContract approximationContract,
             java.util.List<FusedExternalInputPlan> inputAccess
     ) {
         if (current.opType() == operations.Operation.OpType.WHERE) {
@@ -89,13 +91,21 @@ public final class FusedScalarExpressionEmitter {
                 break;
             case EXP:
                 if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
-                    mv.visitVarInsn(ALOAD, sm.get(SlotKey.FUSED_OPTIONS));
-                    mv.visitMethodInsn(INVOKEVIRTUAL, "backend/cpu/kernels/fused/FusedExecutionOptions", "useFastExpApprox", "()Z", false);
-                    mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedScalarOps", "expF32", "(FZ)F", false);
+                    mv.visitMethodInsn(
+                            INVOKESTATIC,
+                            "backend/cpu/fused/runtime/FusedScalarOps",
+                            approximationContract.useFastExp() ? "fastExpF32" : "expF32",
+                            "(F)F",
+                            false
+                    );
                 } else {
-                    mv.visitVarInsn(ALOAD, sm.get(SlotKey.FUSED_OPTIONS));
-                    mv.visitMethodInsn(INVOKEVIRTUAL, "backend/cpu/kernels/fused/FusedExecutionOptions", "useFastExpApprox", "()Z", false);
-                    mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedScalarOps", "expF64", "(DZ)D", false);
+                    mv.visitMethodInsn(
+                            INVOKESTATIC,
+                            "backend/cpu/fused/runtime/FusedScalarOps",
+                            approximationContract.useFastExp() ? "fastExpF64" : "expF64",
+                            "(D)D",
+                            false
+                    );
                 }
                 break;
             case FAST_EXP:
@@ -107,13 +117,21 @@ public final class FusedScalarExpressionEmitter {
                 break;
             case TANH:
                 if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
-                    mv.visitVarInsn(ALOAD, sm.get(SlotKey.FUSED_OPTIONS));
-                    mv.visitMethodInsn(INVOKEVIRTUAL, "backend/cpu/kernels/fused/FusedExecutionOptions", "useFastTanhApprox", "()Z", false);
-                    mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedScalarOps", "tanhF32", "(FZ)F", false);
+                    mv.visitMethodInsn(
+                            INVOKESTATIC,
+                            "backend/cpu/fused/runtime/FusedScalarOps",
+                            approximationContract.useFastTanh() ? "fastTanhF32" : "tanhF32",
+                            "(F)F",
+                            false
+                    );
                 } else {
-                    mv.visitVarInsn(ALOAD, sm.get(SlotKey.FUSED_OPTIONS));
-                    mv.visitMethodInsn(INVOKEVIRTUAL, "backend/cpu/kernels/fused/FusedExecutionOptions", "useFastTanhApprox", "()Z", false);
-                    mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedScalarOps", "tanhF64", "(DZ)D", false);
+                    mv.visitMethodInsn(
+                            INVOKESTATIC,
+                            "backend/cpu/fused/runtime/FusedScalarOps",
+                            approximationContract.useFastTanh() ? "fastTanhF64" : "tanhF64",
+                            "(D)D",
+                            false
+                    );
                 }
                 break;
             case FAST_TANH:
