@@ -84,6 +84,20 @@ public final class TensorResidencyState {
     }
 
     /**
+     * Marks native CPU storage as reserved for an output write whose value is not current yet.
+     *
+     * @param reason diagnostic reason
+     */
+    public void markNativeOutputReserved(String reason) {
+        residency = StorageResidency.CPU_NATIVE;
+        cpuCurrent = false;
+        nativeCurrent = false;
+        deviceCurrent = false;
+        deviceBackend = "";
+        lastTransitionReason = normalize(reason);
+    }
+
+    /**
      * Marks a device-side write as the newest representation.
      *
      * @param residency new device residency; must not be {@link StorageResidency#CPU_ARRAY} or

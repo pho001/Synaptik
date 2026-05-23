@@ -63,6 +63,26 @@ final class RuntimeNativeCpuMemoryState {
         residencyForNodeId(nodeId).markNativeCurrent(reason);
     }
 
+    void reserveNativeOutputStorage(int nodeId, NativeTensorStorage storage) {
+        Objects.requireNonNull(storage, "storage cannot be null");
+        Tensor tensor = tensorStore.runtimeTensorForNodeId(nodeId);
+        if (tensor.getDataType() != storage.getType()) {
+            throw new IllegalArgumentException("Native output storage dtype mismatch for nodeId=" + nodeId
+                    + ". tensorType=" + tensor.getDataType() + ", storageType=" + storage.getType());
+        }
+        if (tensor.getFlatDataSize() != storage.getSize()) {
+            throw new IllegalArgumentException("Native output storage size mismatch for nodeId=" + nodeId
+                    + ". tensorElements=" + tensor.getFlatDataSize() + ", storageElements=" + storage.getSize());
+        }
+        storage.ensureOpen();
+        nativeStorageRegistry.put(nodeId, storage);
+        if (storage.ownsSegment()) {
+            resourceRegistry.registerResource(storage.allocation());
+        }
+        deviceBindingRegistry.remove(nodeId);
+        residencyForNodeId(nodeId).markNativeOutputReserved("native output storage reserved");
+    }
+
     NativeTensorStorage allocateNativeStorage(DataType dataType, int elements, String label) {
         return resourceRegistry.allocateNativeStorage(dataType, elements, label);
     }

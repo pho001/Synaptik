@@ -1,31 +1,50 @@
+import backend.ComputeBackend;
+import backend.cpu.CpuFusedExecutionArtifact;
 import backend.cpu.fused.asm.FusedAsmSpecializationKind;
 import backend.cpu.fused.asm.emit.FusedOperationGenerator;
+import backend.cpu.fused.exec.PreparedFusedExecutable;
 import backend.cpu.fused.plan.FusedOperation;
 import backend.cpu.fused.numeric.FusedStorageKind;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.StorageResidency;
 import config.backend.CpuKernelConfig;
 import backend.runtime.ExecutionMode;
+import backend.runtime.ExecutionContext;
 import config.compile.CompileConfig;
 import config.compile.GraphOptimizationConfig;
 import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
+import graph.execution.PreparedExecutionStep;
 import graph.execution.PublicationPolicy;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.plan.InputResidencyRequirement;
 import graph.execution.plan.OutputResidencyEffect;
+import graph.execution.residency.RuntimeMemoryBinder;
+import graph.execution.runner.PreparedExecutionRunner;
+import graph.execution.state.ExecutionState;
 import graph.execution.trace.RunTrace;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.dtype.BFloat16Bits;
+import tensor.storage.NativeFloat32Storage;
+import tensor.storage.NativeTensorStorage;
 
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CpuFusedMemorySegmentExecutionTest {
@@ -451,6 +470,137 @@ public class CpuFusedMemorySegmentExecutionTest {
         assertGraphOutputMaterializedFromNativeFusedOutput(prepared, trace);
     }
 
+    @Test
+    void segmentFusedOutputReusesReservedNativeStorage() {
+        Tensor a = new Tensor(new float[]{1.0f, -4.0f, 3.0f, 5.0f}, new int[]{4}, null, "reuse_a");
+        Tensor b = new Tensor(new float[]{2.0f, 2.0f, -8.0f, 1.0f}, new int[]{4}, null, "reuse_b");
+        Tensor out = a.add(b).relu();
+        FusedRunFixture fixture = runFixture(out, nativeRuntime());
+        try {
+            PreparedExecutionStep step = fusedStep(fixture.prepared());
+            int outputNodeId = step.compiledNode().id();
+            NativeTensorStorage reserved = fixture.state().allocateNativeStorage(
+                    DataType.FLOAT32,
+                    step.compiledNode().flatDataSize(),
+                    "reserved-fused-output"
+            );
+            fixture.state().reserveNativeOutputStorage(outputNodeId, reserved);
+
+            PreparedExecutionRunner.executeSteps(List.of(step), fixture.context(), false, null, 0);
+
+            assertSame(reserved, fixture.state().nativeStorageForNodeId(outputNodeId));
+            assertTrue(fixture.state().residencyForNodeId(outputNodeId).nativeCurrent());
+            fixture.state().requireCpuReadable(outputNodeId, CpuMaterializationReason.GRAPH_OUTPUT);
+            assertArrayEquals(
+                    new float[]{3.0f, 0.0f, 0.0f, 6.0f},
+                    fixture.state().runtimeTensorForNodeId(outputNodeId).toFloat32ArrayCopy(),
+                    0f
+            );
+        } finally {
+            fixture.close();
+        }
+    }
+
+    @Test
+    void segmentFusedOutputAllocatesReplacementForWrongSizeNativeStorage() throws Exception {
+        Tensor a = new Tensor(new float[]{1.0f, -4.0f, 3.0f, 5.0f}, new int[]{4}, null, "replace_a");
+        Tensor b = new Tensor(new float[]{2.0f, 2.0f, -8.0f, 1.0f}, new int[]{4}, null, "replace_b");
+        Tensor out = a.add(b).relu();
+        FusedRunFixture fixture = runFixture(out, nativeRuntime());
+        NativeTensorStorage wrongSize = fixture.state().allocateNativeStorage(
+                DataType.FLOAT32,
+                1,
+                "wrong-size-fused-output"
+        );
+        try {
+            PreparedExecutionStep step = fusedStep(fixture.prepared());
+            int outputNodeId = step.compiledNode().id();
+            forceNativeStorageBinding(fixture.state(), outputNodeId, wrongSize);
+
+            PreparedExecutionRunner.executeSteps(List.of(step), fixture.context(), false, null, 0);
+
+            NativeTensorStorage actual = fixture.state().nativeStorageForNodeId(outputNodeId);
+            assertNotNull(actual);
+            assertNotSame(wrongSize, actual);
+            assertEquals(DataType.FLOAT32, actual.getType());
+            assertEquals(step.compiledNode().flatDataSize(), actual.getSize());
+            assertTrue(fixture.state().residencyForNodeId(outputNodeId).nativeCurrent());
+        } finally {
+            fixture.close();
+            wrongSize.close();
+        }
+    }
+
+    @Test
+    void segmentFusedOutputAllocatesReplacementForWrongDtypeNativeStorage() throws Exception {
+        Tensor a = new Tensor(new float[]{1.0f, -4.0f, 3.0f, 5.0f}, new int[]{4}, null, "replace_dtype_a");
+        Tensor b = new Tensor(new float[]{2.0f, 2.0f, -8.0f, 1.0f}, new int[]{4}, null, "replace_dtype_b");
+        Tensor out = a.add(b).relu();
+        FusedRunFixture fixture = runFixture(out, nativeRuntime());
+        NativeTensorStorage wrongDtype = fixture.state().allocateNativeStorage(
+                DataType.FLOAT64,
+                4,
+                "wrong-dtype-fused-output"
+        );
+        try {
+            PreparedExecutionStep step = fusedStep(fixture.prepared());
+            int outputNodeId = step.compiledNode().id();
+            forceNativeStorageBinding(fixture.state(), outputNodeId, wrongDtype);
+
+            PreparedExecutionRunner.executeSteps(List.of(step), fixture.context(), false, null, 0);
+
+            NativeTensorStorage actual = fixture.state().nativeStorageForNodeId(outputNodeId);
+            assertNotNull(actual);
+            assertNotSame(wrongDtype, actual);
+            assertEquals(DataType.FLOAT32, actual.getType());
+            assertEquals(step.compiledNode().flatDataSize(), actual.getSize());
+            assertTrue(fixture.state().residencyForNodeId(outputNodeId).nativeCurrent());
+        } finally {
+            fixture.close();
+            wrongDtype.close();
+        }
+    }
+
+    @Test
+    void segmentFusedOutputReservationDemotesReusedNativeCurrentStorageWhenGeneratedExecutionFails() {
+        Tensor a = new Tensor(new float[]{1.0f, -4.0f, 3.0f, 5.0f}, new int[]{4}, null, "fail_a");
+        Tensor b = new Tensor(new float[]{2.0f, 2.0f, -8.0f, 1.0f}, new int[]{4}, null, "fail_b");
+        Tensor out = a.add(b).relu();
+        FusedRunFixture fixture = runFixture(out, nativeRuntime());
+        try {
+            PreparedExecutionStep step = fusedStep(fixture.prepared());
+            int outputNodeId = step.compiledNode().id();
+            NativeTensorStorage preexisting = fixture.state().allocateNativeStorage(
+                    DataType.FLOAT32,
+                    step.compiledNode().flatDataSize(),
+                    "preexisting-native-current-fused-output"
+            );
+            NativeFloat32Storage preexistingF32 = (NativeFloat32Storage) preexisting;
+            preexistingF32.setFloat32At(0, -101.0f);
+            preexistingF32.setFloat32At(1, -102.0f);
+            preexistingF32.setFloat32At(2, -103.0f);
+            preexistingF32.setFloat32At(3, -104.0f);
+            fixture.state().attachNativeStorage(outputNodeId, preexisting, "preexisting native output");
+            assertTrue(fixture.state().residencyForNodeId(outputNodeId).nativeCurrent());
+
+            PreparedExecutionStep throwingStep = withThrowingFusedExecutable(step);
+
+            IllegalStateException failure = assertThrows(
+                    IllegalStateException.class,
+                    () -> PreparedExecutionRunner.executeSteps(List.of(throwingStep), fixture.context(), false, null, 0)
+            );
+
+            assertTrue(failure.getMessage().contains("intentional fused segment failure"));
+            assertSame(preexisting, fixture.state().nativeStorageForNodeId(outputNodeId));
+            assertEquals(123.0f, preexistingF32.getFloat32At(0), 0f);
+            assertFalse(fixture.state().residencyForNodeId(outputNodeId).nativeCurrent());
+            assertFalse(fixture.state().residencyForNodeId(outputNodeId).cpuCurrent());
+            assertEquals(StorageResidency.CPU_NATIVE, fixture.state().residencyForNodeId(outputNodeId).residency());
+        } finally {
+            fixture.close();
+        }
+    }
+
     private static PreparedExecution prepare(Tensor out) {
         return prepare(out, nativeRuntime());
     }
@@ -545,6 +695,117 @@ public class CpuFusedMemorySegmentExecutionTest {
         assertFalse(constantPool.contains("float64Data"));
         assertFalse(constantPool.contains("bfloat16Data"));
         assertFalse(constantPool.contains("boolData"));
+    }
+
+    private static FusedRunFixture runFixture(Tensor out, RuntimeConfig runtimeConfig) {
+        CompiledGraph compiled = CompiledGraph.compile(out, fusedOnlyConfig());
+        PreparedExecution prepared = compiled.prepare(runtimeConfig);
+        Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
+        for (PreparedExecutionStep step : prepared.executionSteps()) {
+            metadata.put(step.compiledNode().id(), step.metadata());
+        }
+        ExecutionState state = ExecutionState.create(
+                compiled.program().compiledNodes(),
+                compiled.program().descriptorIndex(),
+                metadata,
+                compiled.program().forwardOutputNode().id(),
+                compiled.publication()
+        );
+        state.configureNativeCpuMemory(runtimeConfig.nativeCpuMemory());
+        RuntimeMemoryBinder.bind(
+                compiled.program().memoryPlan(),
+                compiled.program().compiledNodes(),
+                compiled.program().descriptorIndex(),
+                state
+        );
+        ExecutionContext context = ExecutionContext.fromRuntimeConfig(
+                runtimeConfig,
+                ExecutionMode.FORWARD,
+                metadata,
+                state
+        );
+        return new FusedRunFixture(prepared, state, context);
+    }
+
+    private static PreparedExecutionStep withThrowingFusedExecutable(PreparedExecutionStep step) {
+        CpuFusedExecutionArtifact artifact = (CpuFusedExecutionArtifact) step.metadata().artifact();
+        PreparedFusedExecutable throwingExecutable = new PreparedFusedExecutable() {
+            @Override
+            public void applyRangeScalar(
+                    List<Tensor> inputs,
+                    Tensor out,
+                    backend.cpu.kernels.CpuKernelContext context,
+                    int startInclusive,
+                    int endExclusive
+            ) {
+                writePartialNativeOutput(context);
+                throw new IllegalStateException("intentional fused segment failure");
+            }
+
+            @Override
+            public void applyRangeVector(
+                    List<Tensor> inputs,
+                    Tensor out,
+                    backend.cpu.kernels.CpuKernelContext context,
+                    int startInclusive,
+                    int endExclusive
+            ) {
+                writePartialNativeOutput(context);
+                throw new IllegalStateException("intentional fused segment failure");
+            }
+        };
+        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
+                ComputeBackend.CPU,
+                step.metadata().executionOperation(),
+                step.metadata().executionInputNodeIds(),
+                new CpuFusedExecutionArtifact(
+                        artifact.cpuKernel(),
+                        artifact.cpuPlan(),
+                        throwingExecutable,
+                        artifact.cpuWorkspace(),
+                        artifact.vectorBlockReason()
+                ),
+                step.metadata().inputResidencyRequirement(),
+                step.metadata().outputResidencyEffect()
+        );
+        return new PreparedExecutionStep(
+                step.compiledNode(),
+                metadata,
+                step.orderedNodeIds(),
+                step.boundaryOutputNodeIds()
+        );
+    }
+
+    private static void writePartialNativeOutput(backend.cpu.kernels.CpuKernelContext context) {
+        NativeTensorStorage output = context.fusedNativeOutputStorage();
+        if (output instanceof NativeFloat32Storage f32 && output.getSize() > 0) {
+            f32.setFloat32At(0, 123.0f);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void forceNativeStorageBinding(
+            ExecutionState state,
+            int nodeId,
+            NativeTensorStorage storage
+    ) throws Exception {
+        Field nativeStorageRegistryField = ExecutionState.class.getDeclaredField("nativeStorageRegistry");
+        nativeStorageRegistryField.setAccessible(true);
+        Object nativeStorageRegistry = nativeStorageRegistryField.get(state);
+        Field storageByNodeIdField = nativeStorageRegistry.getClass().getDeclaredField("nativeStorageByNodeId");
+        storageByNodeIdField.setAccessible(true);
+        ((Map<Integer, NativeTensorStorage>) storageByNodeIdField.get(nativeStorageRegistry)).put(nodeId, storage);
+    }
+
+    private record FusedRunFixture(
+            PreparedExecution prepared,
+            ExecutionState state,
+            ExecutionContext context
+    ) {
+        void close() {
+            state.closeResources();
+            prepared.close();
+        }
     }
 
     private static Tensor bf16(String label, float... values) {

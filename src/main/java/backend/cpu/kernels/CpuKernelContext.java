@@ -182,14 +182,33 @@ public final class CpuKernelContext {
             }
             inputStorages.add(storage);
         }
-        NativeTensorStorage outputStorage = executionContext.allocateNativeStorage(
-                output.getDataType(),
-                output.getFlatDataSize(),
-                "fused-node-" + nodeId + ":" + output.getLabel()
-        );
+        NativeTensorStorage outputStorage = reusableFusedNativeOutputStorage(output);
+        if (outputStorage == null) {
+            outputStorage = executionContext.allocateNativeStorage(
+                    output.getDataType(),
+                    output.getFlatDataSize(),
+                    "fused-node-" + nodeId + ":" + output.getLabel()
+            );
+        }
+        executionContext.reserveNativeOutputStorage(nodeId, outputStorage);
         FusedNativeSegmentBindings bindings = new FusedNativeSegmentBindings(inputStorages, outputStorage);
         putRuntimeState(output, bindings);
         return bindings;
+    }
+
+    private NativeTensorStorage reusableFusedNativeOutputStorage(Tensor output) {
+        NativeTensorStorage storage = executionContext.nativeStorageForNodeId(nodeId);
+        if (storage == null || storage.closed()) {
+            return null;
+        }
+        if (storage.getType() != output.getDataType() || storage.getSize() != output.getFlatDataSize()) {
+            return null;
+        }
+        if (!output.isContiguous() || output.getStorageOffsetUnsafe() != 0) {
+            return null;
+        }
+        storage.ensureOpen();
+        return storage;
     }
 
     public MemorySegment fusedNativeInputSegment(int inputIndex) {

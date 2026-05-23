@@ -216,6 +216,19 @@ public final class ExecutionState {
     }
 
     /**
+     * Reserves native CPU storage for a future output write and marks the output value stale.
+     *
+     * <p>Backends must call {@link #attachNativeStorage(int, NativeTensorStorage, String)} only after they
+     * have successfully written the reserved storage.</p>
+     *
+     * @param nodeId compiled node id
+     * @param storage native CPU storage available for an upcoming write
+     */
+    public void reserveNativeOutputStorage(int nodeId, NativeTensorStorage storage) {
+        nativeCpuMemoryState.reserveNativeOutputStorage(nodeId, storage);
+    }
+
+    /**
      * Allocates run-owned native CPU tensor storage through this execution state's allocator.
      *
      * @param dataType tensor dtype

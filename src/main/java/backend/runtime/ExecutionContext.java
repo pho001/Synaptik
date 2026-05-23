@@ -302,6 +302,18 @@ public final class ExecutionContext {
     }
 
     /**
+     * Reserves native CPU storage for a future output write without marking it current.
+     *
+     * @param nodeId compiled node id
+     * @param storage native CPU storage available for an upcoming write
+     */
+    public void reserveNativeOutputStorage(int nodeId, NativeTensorStorage storage) {
+        if (executionState != null) {
+            executionState.reserveNativeOutputStorage(nodeId, storage);
+        }
+    }
+
+    /**
      * Attaches a target node to the current native CPU storage of a source node for view-only aliases.
      *
      * @param targetNodeId target compiled node id
