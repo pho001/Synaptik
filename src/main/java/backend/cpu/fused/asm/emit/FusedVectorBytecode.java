@@ -17,6 +17,15 @@ final class FusedVectorBytecode {
         mv.visitLdcInsn(Math.max(1, vectorWidth));
     }
 
+    static void emitF32VectorSpeciesConstant(MethodVisitor mv, int vectorWidth) {
+        mv.visitFieldInsn(
+                GETSTATIC,
+                "jdk/incubator/vector/FloatVector",
+                FusedVectorSpecies.f32FieldName(vectorWidth),
+                "Ljdk/incubator/vector/VectorSpecies;"
+        );
+    }
+
     static void emitVectorSpeciesConstant(MethodVisitor mv, int precisionMode, int vectorWidth) {
         String owner;
         String fieldName;

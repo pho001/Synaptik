@@ -4,8 +4,6 @@ import backend.cpu.fused.asm.FusedAsmSpecializationMatcher;
 
 import backend.cpu.fused.asm.FusedGenerationContext;
 
-import backend.cpu.fused.runtime.FusedDTypeOps;
-
 import backend.cpu.fused.ir.FusedExternalInputPlan;
 
 import org.objectweb.asm.ClassWriter;
@@ -102,7 +100,7 @@ public final class FusedSpecializedVectorMethodEmitter {
         mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getStorageOffsetUnsafe", "()I", false);
         mv.visitVarInsn(ISTORE, OUT_BASE_SLOT);
 
-        FusedVectorBytecode.emitVectorSpeciesConstant(mv, FusedDTypeOps.MODE_F32, context.vectorWidth());
+        FusedVectorBytecode.emitF32VectorSpeciesConstant(mv, context.vectorWidth());
         mv.visitVarInsn(ASTORE, SPECIES_SLOT);
 
         mv.visitVarInsn(ALOAD, SPECIES_SLOT);
@@ -196,7 +194,7 @@ public final class FusedSpecializedVectorMethodEmitter {
         mv.visitVarInsn(ILOAD, OUT_BASE_SLOT);
         mv.visitInsn(IADD);
         mv.visitVarInsn(ALOAD, RESULT_VEC_SLOT);
-        FusedRuntimeCalls.emitDirectStoreVectorToArrayCall(mv, FusedDTypeOps.MODE_F32);
+        FusedRuntimeCalls.emitDirectStoreF32VectorToArrayCall(mv);
 
         mv.visitVarInsn(ILOAD, LOOP_COUNTER_SLOT);
         FusedVectorBytecode.emitVectorWidthConstant(mv, context.vectorWidth());

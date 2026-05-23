@@ -282,9 +282,7 @@ final class FusedRuntimeCalls {
 
     static void emitDirectStoreVectorToArrayCall(MethodVisitor mv, int precisionMode) {
         if (precisionMode == FusedDTypeOps.MODE_F32) {
-            mv.visitInsn(DUP_X2);
-            mv.visitInsn(POP);
-            mv.visitMethodInsn(INVOKEVIRTUAL, "jdk/incubator/vector/FloatVector", "intoArray", "([FI)V", false);
+            emitDirectStoreF32VectorToArrayCall(mv);
         } else if (precisionMode == FusedDTypeOps.MODE_F64) {
             mv.visitInsn(DUP_X2);
             mv.visitInsn(POP);
@@ -292,6 +290,12 @@ final class FusedRuntimeCalls {
         } else {
             throw new UnsupportedOperationException("Direct vector stores are supported only for F32/F64 fused modes.");
         }
+    }
+
+    static void emitDirectStoreF32VectorToArrayCall(MethodVisitor mv) {
+        mv.visitInsn(DUP_X2);
+        mv.visitInsn(POP);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "jdk/incubator/vector/FloatVector", "intoArray", "([FI)V", false);
     }
 
     static void emitDirectStoreVectorToSegmentCall(MethodVisitor mv, int precisionMode) {

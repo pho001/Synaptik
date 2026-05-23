@@ -4,7 +4,6 @@ import backend.cpu.fused.asm.FusedGenerationContext;
 
 import backend.cpu.fused.numeric.FusedStorageKind;
 import backend.cpu.fused.plan.FusedVectorGuard;
-import backend.cpu.fused.runtime.FusedDTypeOps;
 
 import backend.cpu.fused.ir.FusedExpressionPlan;
 import backend.cpu.fused.ir.FusedNodePlan;
@@ -104,7 +103,7 @@ public final class FusedVectorMethodEmitter {
             if (plan.outputNode().outputType() == tensor.DataType.BOOL) {
                 FusedVectorBytecode.emitVectorWidthConstant(mv, context.vectorWidth());
                 FusedRuntimeCalls.emitStoreBoolVectorToArrayCall(mv, context.precisionMode());
-            } else if (context.precisionMode() == FusedDTypeOps.MODE_F32 || context.precisionMode() == FusedDTypeOps.MODE_F64) {
+            } else if (!context.numericContract().writesBf16()) {
                 FusedRuntimeCalls.emitDirectStoreVectorToArrayCall(mv, context.precisionMode());
             } else {
                 FusedRuntimeCalls.emitStoreVectorToArrayCall(mv, context.precisionMode());

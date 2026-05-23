@@ -3,7 +3,6 @@ package backend.cpu.fused.asm.emit;
 import backend.cpu.fused.asm.FusedGenerationContext;
 
 import backend.cpu.fused.numeric.FusedStorageKind;
-import backend.cpu.fused.runtime.FusedDTypeOps;
 
 import backend.cpu.fused.ir.FusedExternalInputPlan;
 
@@ -196,7 +195,7 @@ public final class FusedInputBindingEmitter {
                 }
             } else {
                 Label storeLoadedVector = null;
-                if (meta.dataType() == DataType.BFLOAT16 && precisionMode != FusedDTypeOps.MODE_F64) {
+                if (meta.dataType() == DataType.BFLOAT16 && !context.numericContract().usesDoubleCompute()) {
                     Label loadFromStorage = new Label();
                     storeLoadedVector = new Label();
                     mv.visitVarInsn(ALOAD, continuationSlots.get(i));
@@ -227,7 +226,7 @@ public final class FusedInputBindingEmitter {
                     }
                     if (memorySegmentStorage) {
                         FusedRuntimeCalls.emitDirectLinearSegmentVectorLoad(mv, precisionMode, vectorWidth);
-                    } else if (precisionMode == FusedDTypeOps.MODE_F32 || precisionMode == FusedDTypeOps.MODE_F64) {
+                    } else if (!context.numericContract().writesBf16()) {
                         FusedRuntimeCalls.emitDirectLinearVectorLoad(mv, precisionMode, vectorWidth);
                     } else {
                         FusedVectorBytecode.emitVectorWidthConstant(mv, vectorWidth);
