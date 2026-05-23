@@ -3,7 +3,6 @@ import config.compile.CompileConfig;
 import config.compile.GraphOptimizationConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import backend.cpu.fused.runtime.FusedDTypeOps;
 import tensor.DataType;
 import tensor.Tensor;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -11,13 +10,27 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static testsupport.NumericPrecisionOracle.add;
+import static testsupport.NumericPrecisionOracle.cast;
+import static testsupport.NumericPrecisionOracle.div;
+import static testsupport.NumericPrecisionOracle.exp;
+import static testsupport.NumericPrecisionOracle.inv;
+import static testsupport.NumericPrecisionOracle.log;
+import static testsupport.NumericPrecisionOracle.max;
+import static testsupport.NumericPrecisionOracle.min;
+import static testsupport.NumericPrecisionOracle.mul;
+import static testsupport.NumericPrecisionOracle.mulScalar;
+import static testsupport.NumericPrecisionOracle.neg;
+import static testsupport.NumericPrecisionOracle.pow;
+import static testsupport.NumericPrecisionOracle.sigmoid;
+import static testsupport.NumericPrecisionOracle.sqrt;
+import static testsupport.NumericPrecisionOracle.sub;
 
 public class DataTypeExecutionCoverageTest {
 
     @ParameterizedTest
     @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "BFLOAT16"})
     void nonFusedElementWiseAcrossAllDataTypes(DataType dataType) {
-        int mode = modeFor(dataType);
         double eps = epsFor(dataType);
 
         Tensor a = tensor(new double[]{0.25, 0.75, 1.25, 2.0}, dataType, "a");
@@ -25,38 +38,37 @@ public class DataTypeExecutionCoverageTest {
 
         Tensor add = a.add(b);
         CompiledGraph.compile(add, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
-        assertArrayEquals(expectedBinary(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), mode, "add"), add.toDoubleArrayCopy(), eps);
+        assertArrayEquals(expectedBinary(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), dataType, "add"), add.toDoubleArrayCopy(), eps);
 
         Tensor sub = a.sub(b);
         CompiledGraph.compile(sub, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
-        assertArrayEquals(expectedBinary(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), mode, "sub"), sub.toDoubleArrayCopy(), eps);
+        assertArrayEquals(expectedBinary(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), dataType, "sub"), sub.toDoubleArrayCopy(), eps);
 
         Tensor mul = a.mul(b);
         CompiledGraph.compile(mul, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
-        assertArrayEquals(expectedBinary(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), mode, "mul"), mul.toDoubleArrayCopy(), eps);
+        assertArrayEquals(expectedBinary(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), dataType, "mul"), mul.toDoubleArrayCopy(), eps);
 
         Tensor div = a.div(b);
         CompiledGraph.compile(div, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
-        assertArrayEquals(expectedBinary(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), mode, "div"), div.toDoubleArrayCopy(), eps);
+        assertArrayEquals(expectedBinary(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), dataType, "div"), div.toDoubleArrayCopy(), eps);
 
         Tensor min = a.min(b);
         CompiledGraph.compile(min, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
-        assertArrayEquals(expectedBinary(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), mode, "min"), min.toDoubleArrayCopy(), eps);
+        assertArrayEquals(expectedBinary(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), dataType, "min"), min.toDoubleArrayCopy(), eps);
 
         Tensor max = a.max(b);
         CompiledGraph.compile(max, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
-        assertArrayEquals(expectedBinary(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), mode, "max"), max.toDoubleArrayCopy(), eps);
+        assertArrayEquals(expectedBinary(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), dataType, "max"), max.toDoubleArrayCopy(), eps);
 
         Tensor chain = a.mul(0.5).exp().log().pow(2.0).sqrt().sigmoid().inv().neg();
         CompiledGraph.compile(chain, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
-        assertArrayEquals(expectedUnaryChain(a.toDoubleArrayCopy(), mode), chain.toDoubleArrayCopy(), epsForChain(dataType));
+        assertArrayEquals(expectedUnaryChain(a.toDoubleArrayCopy(), dataType), chain.toDoubleArrayCopy(), epsForChain(dataType));
         assertEquals(dataType, chain.getDataType());
     }
 
     @ParameterizedTest
     @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "BFLOAT16"})
     void fusedElementWiseAcrossAllDataTypes(DataType dataType) {
-        int mode = modeFor(dataType);
         double eps = epsForChain(dataType);
 
         Tensor a = tensor(buildInput(4096, 0.05), dataType, "af");
@@ -66,14 +78,13 @@ public class DataTypeExecutionCoverageTest {
         Tensor out = a.add(b).mul(c).add(a.mul(0.25)).max(b).min(c).sigmoid();
         CompiledGraph.compile(out, fuseOnlyInferenceConfig()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
-        assertArrayEquals(expectedFused(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), c.toDoubleArrayCopy(), mode), out.toDoubleArrayCopy(), eps);
+        assertArrayEquals(expectedFused(a.toDoubleArrayCopy(), b.toDoubleArrayCopy(), c.toDoubleArrayCopy(), dataType), out.toDoubleArrayCopy(), eps);
         assertEquals(dataType, out.getDataType());
     }
 
     @ParameterizedTest
     @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "BFLOAT16"})
     void sumAndContiguousAcrossAllDataTypes(DataType dataType) {
-        int mode = modeFor(dataType);
         double eps = epsFor(dataType);
 
         Tensor base = tensor(new double[]{1.0, 2.0, 3.0, 4.0}, dataType, "base");
@@ -81,7 +92,7 @@ public class DataTypeExecutionCoverageTest {
         CompiledGraph.compile(sum, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
         double expectedSum = 0.0;
         for (double v : base.toDoubleArrayCopy()) {
-            expectedSum = FusedDTypeOps.add(expectedSum, v, mode);
+            expectedSum = add(expectedSum, v, dataType);
         }
         assertArrayEquals(new double[]{expectedSum}, sum.toDoubleArrayCopy(), eps);
         assertEquals(dataType, sum.getDataType());
@@ -91,7 +102,7 @@ public class DataTypeExecutionCoverageTest {
         Tensor contiguous = view.contiguous();
         CompiledGraph.compile(contiguous, CompileConfig.noGraphOptimizationBaseline()).prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
-        double[] expectedContiguous = expectedContiguousView(base.toDoubleArrayCopy(), new int[]{2, 2}, new int[]{1, 2}, mode);
+        double[] expectedContiguous = expectedContiguousView(base.toDoubleArrayCopy(), new int[]{2, 2}, new int[]{1, 2}, dataType);
         assertArrayEquals(expectedContiguous, contiguous.toDoubleArrayCopy(), eps);
         assertEquals(dataType, contiguous.getDataType());
     }
@@ -100,15 +111,6 @@ public class DataTypeExecutionCoverageTest {
         Tensor t = new Tensor(values.clone(), new int[]{values.length}, null, label);
         t.setDataType(dataType);
         return t;
-    }
-
-    private static int modeFor(DataType dataType) {
-        return switch (dataType) {
-            case FLOAT64 -> FusedDTypeOps.MODE_F64;
-            case FLOAT32 -> FusedDTypeOps.MODE_F32;
-            case BFLOAT16 -> FusedDTypeOps.MODE_BF16;
-            case INT32, INT64, BOOL -> throw new UnsupportedOperationException("INT32/INT64/BOOL are not part of DataTypeExecutionCoverageTest.");
-        };
     }
 
     private static double epsFor(DataType dataType) {
@@ -129,34 +131,34 @@ public class DataTypeExecutionCoverageTest {
         };
     }
 
-    private static double[] expectedBinary(double[] a, double[] b, int mode, String op) {
+    private static double[] expectedBinary(double[] a, double[] b, DataType dataType, String op) {
         double[] out = new double[a.length];
         for (int i = 0; i < out.length; i++) {
             out[i] = switch (op) {
-                case "add" -> FusedDTypeOps.add(a[i], b[i], mode);
-                case "sub" -> FusedDTypeOps.sub(a[i], b[i], mode);
-                case "mul" -> FusedDTypeOps.mul(a[i], b[i], mode);
-                case "div" -> FusedDTypeOps.div(a[i], b[i], mode);
-                case "min" -> FusedDTypeOps.min(a[i], b[i], mode);
-                case "max" -> FusedDTypeOps.max(a[i], b[i], mode);
+                case "add" -> add(a[i], b[i], dataType);
+                case "sub" -> sub(a[i], b[i], dataType);
+                case "mul" -> mul(a[i], b[i], dataType);
+                case "div" -> div(a[i], b[i], dataType);
+                case "min" -> min(a[i], b[i], dataType);
+                case "max" -> max(a[i], b[i], dataType);
                 default -> throw new IllegalArgumentException("Unsupported op: " + op);
             };
         }
         return out;
     }
 
-    private static double[] expectedUnaryChain(double[] in, int mode) {
+    private static double[] expectedUnaryChain(double[] in, DataType dataType) {
         double[] out = new double[in.length];
         for (int i = 0; i < out.length; i++) {
             double v = in[i];
-            v = FusedDTypeOps.mulScalar(v, 0.5, mode);
-            v = FusedDTypeOps.exp(v, mode);
-            v = FusedDTypeOps.log(v, mode);
-            v = FusedDTypeOps.pow(v, 2.0, mode);
-            v = FusedDTypeOps.sqrt(v, mode);
-            v = FusedDTypeOps.sigmoid(v, mode);
-            v = FusedDTypeOps.inv(v, mode);
-            v = FusedDTypeOps.neg(v, mode);
+            v = mulScalar(v, 0.5, dataType);
+            v = exp(v, dataType);
+            v = log(v, dataType);
+            v = pow(v, 2.0, dataType);
+            v = sqrt(v, dataType);
+            v = sigmoid(v, dataType);
+            v = inv(v, dataType);
+            v = neg(v, dataType);
             out[i] = v;
         }
         return out;
@@ -170,28 +172,28 @@ public class DataTypeExecutionCoverageTest {
         return out;
     }
 
-    private static double[] expectedFused(double[] a, double[] b, double[] c, int mode) {
+    private static double[] expectedFused(double[] a, double[] b, double[] c, DataType dataType) {
         double[] out = new double[a.length];
         for (int i = 0; i < out.length; i++) {
-            double v1 = FusedDTypeOps.add(a[i], b[i], mode);
-            double v2 = FusedDTypeOps.mul(v1, c[i], mode);
-            double v3 = FusedDTypeOps.mulScalar(a[i], 0.25, mode);
-            double v4 = FusedDTypeOps.add(v2, v3, mode);
-            double v5 = FusedDTypeOps.max(v4, b[i], mode);
-            double v6 = FusedDTypeOps.min(v5, c[i], mode);
-            out[i] = FusedDTypeOps.sigmoid(v6, mode);
+            double v1 = add(a[i], b[i], dataType);
+            double v2 = mul(v1, c[i], dataType);
+            double v3 = mulScalar(a[i], 0.25, dataType);
+            double v4 = add(v2, v3, dataType);
+            double v5 = max(v4, b[i], dataType);
+            double v6 = min(v5, c[i], dataType);
+            out[i] = sigmoid(v6, dataType);
         }
         return out;
     }
 
-    private static double[] expectedContiguousView(double[] data, int[] shape, int[] strides, int mode) {
+    private static double[] expectedContiguousView(double[] data, int[] shape, int[] strides, DataType dataType) {
         int size = shape[0] * shape[1];
         double[] out = new double[size];
         int idx = 0;
         for (int i = 0; i < shape[0]; i++) {
             for (int j = 0; j < shape[1]; j++) {
                 int offset = i * strides[0] + j * strides[1];
-                out[idx++] = FusedDTypeOps.cast(data[offset], mode);
+                out[idx++] = cast(data[offset], dataType);
             }
         }
         return out;

@@ -5,7 +5,6 @@ import config.compile.GraphOptimizationConfig;
 import config.runtime.RuntimeConfig;
 import config.backend.CpuKernelConfig;
 import graph.CompiledGraph;
-import backend.cpu.fused.runtime.FusedDTypeOps;
 import backend.cpu.fused.asm.FusedAsmSpecializationMatcher;
 import backend.cpu.fused.asm.emit.FusedOperationGenerator;
 import graph.execution.PreparedExecutionStep;
@@ -19,6 +18,13 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static testsupport.NumericPrecisionOracle.add;
+import static testsupport.NumericPrecisionOracle.max;
+import static testsupport.NumericPrecisionOracle.min;
+import static testsupport.NumericPrecisionOracle.mul;
+import static testsupport.NumericPrecisionOracle.mulScalar;
+import static testsupport.NumericPrecisionOracle.pow;
+import static testsupport.NumericPrecisionOracle.sigmoid;
 
 public class FusedExecutionModesTest {
     private static final double EPS = 1e-9;
@@ -61,8 +67,8 @@ public class FusedExecutionModesTest {
         double[] outF32 = runTypedFused(aVals, bVals, cVals, DataType.FLOAT32);
         double[] outBF16 = runTypedFused(aVals, bVals, cVals, DataType.BFLOAT16);
 
-        double[] expectedF32 = expectedTyped(aVals, bVals, cVals, FusedDTypeOps.MODE_F32);
-        double[] expectedBF16 = expectedTyped(aVals, bVals, cVals, FusedDTypeOps.MODE_BF16);
+        double[] expectedF32 = expectedTyped(aVals, bVals, cVals, DataType.FLOAT32);
+        double[] expectedBF16 = expectedTyped(aVals, bVals, cVals, DataType.BFLOAT16);
 
         assertArrayEquals(expectedF32, outF32, 1e-6);
         assertArrayEquals(expectedBF16, outBF16, 6e-3);
@@ -215,7 +221,7 @@ public class FusedExecutionModesTest {
 
     @Test
     void fusedGraphExecutesCanonicalizedConstantNodes() {
-        assertConstantNodeFusion(DataType.FLOAT64, FusedDTypeOps.MODE_F64, 1e-9);
+        assertConstantNodeFusion(DataType.FLOAT64, 1e-9);
     }
 
     @Test
@@ -682,21 +688,21 @@ public class FusedExecutionModesTest {
         return out.toDoubleArrayCopy().clone();
     }
 
-    private static double[] expectedTyped(double[] a, double[] b, double[] c, int mode) {
+    private static double[] expectedTyped(double[] a, double[] b, double[] c, DataType dataType) {
         double[] out = new double[a.length];
         for (int i = 0; i < out.length; i++) {
-            double v1 = FusedDTypeOps.add(a[i], b[i], mode);
-            double v2 = FusedDTypeOps.mul(v1, c[i], mode);
-            double v3 = FusedDTypeOps.mulScalar(a[i], 0.25, mode);
-            double v4 = FusedDTypeOps.add(v2, v3, mode);
-            double v5 = FusedDTypeOps.max(v4, b[i], mode);
-            double v6 = FusedDTypeOps.min(v5, c[i], mode);
-            out[i] = FusedDTypeOps.sigmoid(v6, mode);
+            double v1 = add(a[i], b[i], dataType);
+            double v2 = mul(v1, c[i], dataType);
+            double v3 = mulScalar(a[i], 0.25, dataType);
+            double v4 = add(v2, v3, dataType);
+            double v5 = max(v4, b[i], dataType);
+            double v6 = min(v5, c[i], dataType);
+            out[i] = sigmoid(v6, dataType);
         }
         return out;
     }
 
-    private static void assertConstantNodeFusion(DataType dataType, int mode, double tolerance) {
+    private static void assertConstantNodeFusion(DataType dataType, double tolerance) {
         double[] inputValues = buildInput(4096, 0.09);
         Tensor input = new Tensor(inputValues.clone(), new int[]{inputValues.length}, null, "x", dataType);
 
@@ -713,10 +719,10 @@ public class FusedExecutionModesTest {
 
         double[] expected = new double[inputValues.length];
         for (int i = 0; i < inputValues.length; i++) {
-            double pow0 = FusedDTypeOps.pow(inputValues[i], 0.0d, mode);
-            double mul0 = FusedDTypeOps.mulScalar(inputValues[i], 0.0d, mode);
-            double inv = FusedDTypeOps.pow(inputValues[i], -1.0d, mode);
-            expected[i] = FusedDTypeOps.add(FusedDTypeOps.add(pow0, mul0, mode), inv, mode);
+            double pow0 = pow(inputValues[i], 0.0d, dataType);
+            double mul0 = mulScalar(inputValues[i], 0.0d, dataType);
+            double inv = pow(inputValues[i], -1.0d, dataType);
+            expected[i] = add(add(pow0, mul0, dataType), inv, dataType);
         }
         assertArrayEquals(expected, out.toDoubleArrayCopy(), tolerance);
     }

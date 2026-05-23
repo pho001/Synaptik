@@ -1,4 +1,3 @@
-import backend.cpu.fused.runtime.FusedDTypeOps;
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
@@ -13,6 +12,9 @@ import tensor.TensorInternalAccess;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static testsupport.NumericPrecisionOracle.add;
+import static testsupport.NumericPrecisionOracle.mul;
+import static testsupport.NumericPrecisionOracle.sigmoid;
 
 public class TensorStorageDataTypeTest {
     @Test
@@ -31,8 +33,8 @@ public class TensorStorageDataTypeTest {
         double[] aVals = a.toDoubleArrayCopy();
         double[] bVals = b.toDoubleArrayCopy();
         for (int i = 0; i < expected.length; i++) {
-            double s = FusedDTypeOps.add(aVals[i], bVals[i], FusedDTypeOps.MODE_F32);
-            expected[i] = FusedDTypeOps.mul(s, aVals[i], FusedDTypeOps.MODE_F32);
+            double s = add(aVals[i], bVals[i], DataType.FLOAT32);
+            expected[i] = mul(s, aVals[i], DataType.FLOAT32);
         }
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
     }
@@ -53,8 +55,8 @@ public class TensorStorageDataTypeTest {
         double[] aVals = a.toDoubleArrayCopy();
         double[] bVals = b.toDoubleArrayCopy();
         for (int i = 0; i < expected.length; i++) {
-            double s = FusedDTypeOps.add(aVals[i], bVals[i], FusedDTypeOps.MODE_BF16);
-            expected[i] = FusedDTypeOps.sigmoid(s, FusedDTypeOps.MODE_BF16);
+            double s = add(aVals[i], bVals[i], DataType.BFLOAT16);
+            expected[i] = sigmoid(s, DataType.BFLOAT16);
         }
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-3);
     }
@@ -102,7 +104,7 @@ public class TensorStorageDataTypeTest {
         double[] aVals = a.toDoubleArrayCopy();
         double[] bVals = b.toDoubleArrayCopy();
         for (int i = 0; i < expected.length; i++) {
-            expected[i] = FusedDTypeOps.add(aVals[i], bVals[i], FusedDTypeOps.MODE_BF16);
+            expected[i] = add(aVals[i], bVals[i], DataType.BFLOAT16);
         }
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 0.0);
     }
