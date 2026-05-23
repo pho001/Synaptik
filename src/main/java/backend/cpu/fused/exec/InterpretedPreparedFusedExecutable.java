@@ -21,12 +21,16 @@ import utils.FastTranscendentals;
 import java.util.List;
 
 /**
- * Conservative interpreted fused executable used when generated ASM cannot be prepared.
+ * Conservative CPU_JAVA_ARRAY interpreted fused executable used when generated ASM cannot be prepared.
  *
  * <p>The interpreter keeps the same fused execution contract as generated kernels: it evaluates the
- * lowered fused expression over a half-open output range and writes directly into the output tensor.
- * It is intentionally scalar and correctness-oriented. Hot numeric paths still use generated ASM
- * whenever bytecode preparation succeeds.</p>
+ * lowered fused expression over a half-open output range and writes directly into Java-array tensor
+ * storage. It is intentionally scalar and correctness-oriented. Hot numeric paths still use
+ * generated ASM whenever bytecode preparation succeeds.</p>
+ *
+ * <p>CPU_MEMORY_SEGMENT fused execution is ASM-only in this implementation. Segment contracts must
+ * not be routed here because this class uses {@link TensorInternalAccess} array accessors and would
+ * otherwise hide native storage materialization behind a fallback path.</p>
  */
 public final class InterpretedPreparedFusedExecutable implements PreparedFusedExecutable {
     private final FusedExpressionPlan plan;
@@ -50,6 +54,12 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
         }
         if (numericContract == null) {
             throw new IllegalArgumentException("numericContract cannot be null");
+        }
+        if (numericContract.usesMemorySegmentStorage()) {
+            throw new IllegalArgumentException(
+                    "InterpretedPreparedFusedExecutable is CPU_JAVA_ARRAY-only; "
+                            + "CPU_MEMORY_SEGMENT fused execution is ASM-only."
+            );
         }
         if (approximationContract == null) {
             throw new IllegalArgumentException("approximationContract cannot be null");

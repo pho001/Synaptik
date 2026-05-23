@@ -8,7 +8,18 @@ import config.runtime.FusedExecutionPolicy;
  * Prepares the executable for the single production CPU fused compiled path.
  */
 public final class FusedExecutablePreparer {
-    private final AsmPreparedFusedExecutableFactory asmFactory = new AsmPreparedFusedExecutableFactory();
+    private final AsmCompiler asmCompiler;
+
+    public FusedExecutablePreparer() {
+        this(new AsmPreparedFusedExecutableFactory()::create);
+    }
+
+    FusedExecutablePreparer(AsmCompiler asmCompiler) {
+        if (asmCompiler == null) {
+            throw new IllegalArgumentException("asmCompiler cannot be null");
+        }
+        this.asmCompiler = asmCompiler;
+    }
 
     public PreparedFusedExecutable prepare(FusedExecutionPlan plan, FusedExecutionPolicy policy) {
         if (plan == null) {
@@ -17,15 +28,12 @@ public final class FusedExecutablePreparer {
         FusedExecutionPolicy effectivePolicy = policy == null
                 ? FusedExecutionPolicy.defaultsInference()
                 : policy;
-        boolean memorySegmentStorage = plan.descriptor().getNumericContract().usesMemorySegmentStorage();
+        boolean asmOnlyMemorySegmentContract = plan.descriptor().getNumericContract().usesMemorySegmentStorage();
         try {
-            return asmFactory.create(plan);
+            return asmCompiler.create(plan);
         } catch (RuntimeException ex) {
-            if (memorySegmentStorage) {
-                throw new IllegalStateException(
-                        "CPU fused MemorySegment ASM preparation failed; refusing Java-array interpreter fallback.",
-                        ex
-                );
+            if (asmOnlyMemorySegmentContract) {
+                throw memorySegmentAsmPreparationFailure(ex);
             }
             if (!effectivePolicy.allowBackendFallback()) {
                 throw ex;
@@ -36,5 +44,18 @@ public final class FusedExecutablePreparer {
                     plan.descriptor().getApproximationContract()
             );
         }
+    }
+
+    private static IllegalStateException memorySegmentAsmPreparationFailure(RuntimeException cause) {
+        return new IllegalStateException(
+                "CPU_MEMORY_SEGMENT fused execution is ASM-only; "
+                        + "refusing Java-array interpreter fallback after ASM preparation failure.",
+                cause
+        );
+    }
+
+    @FunctionalInterface
+    interface AsmCompiler {
+        PreparedFusedExecutable create(FusedExecutionPlan plan);
     }
 }
