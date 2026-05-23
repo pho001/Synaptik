@@ -95,7 +95,7 @@ public final class AsmPreparedFusedExecutableFactory {
                         descriptor.getExpression(),
                         descriptor.getPlan().nodeCount(),
                         descriptor.getPlan().inputCount(),
-                        descriptor.getPrecisionMode(),
+                        descriptor.getNumericContract().signatureToken(),
                         descriptor.isLowCostHint(),
                         System.nanoTime() - t0
                 );

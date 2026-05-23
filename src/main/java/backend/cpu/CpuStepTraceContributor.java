@@ -121,7 +121,7 @@ public final class CpuStepTraceContributor {
                     && cpuPlan.dispatchHints().vectorWidth() > 1);
             addFusedNativeOutputWriteAttrs(attrs, fused, node, context);
             fusedMeta = new FusedTraceMetadata(
-                    fused.getPrecisionMode(),
+                    fused.getNumericContract().signatureToken(),
                     fused.isLowCostHint(),
                     fused.getDispatchFamily().id(),
                     fused.getSchedulerSignature(),

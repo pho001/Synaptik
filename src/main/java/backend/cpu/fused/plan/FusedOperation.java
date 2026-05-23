@@ -2,10 +2,7 @@ package backend.cpu.fused.plan;
 
 import backend.cpu.fused.ir.FusedExpressionPlan;
 import backend.cpu.fused.numeric.FusedApproximationContract;
-import backend.cpu.fused.numeric.FusedComputeKind;
 import backend.cpu.fused.numeric.FusedNumericContract;
-import backend.cpu.fused.numeric.FusedValueLane;
-import backend.cpu.fused.runtime.FusedDTypeOps;
 import operations.Operation;
 
 /**
@@ -81,17 +78,6 @@ public final class FusedOperation implements Operation {
     @Override
     public boolean isCheap() {
         return lowCostHint;
-    }
-
-    /**
-     * Returns the numeric precision mode used by generated fused code.
-     */
-    public int getPrecisionMode() {
-        return numericContract.computeKind() == FusedComputeKind.F64
-                ? FusedDTypeOps.MODE_F64
-                : numericContract.outputValueLane() == FusedValueLane.BF16
-                        ? FusedDTypeOps.MODE_BF16
-                        : FusedDTypeOps.MODE_F32;
     }
 
     /**

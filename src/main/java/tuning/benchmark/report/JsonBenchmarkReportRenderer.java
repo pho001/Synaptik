@@ -1569,7 +1569,7 @@ public final class JsonBenchmarkReportRenderer {
             return "null";
         }
         return "{"
-                + "\"precisionMode\": " + fused.precisionMode() + ", "
+                + "\"numericContract\": \"" + escape(fused.numericContract()) + "\", "
                 + "\"lowCostHint\": " + fused.lowCostHint() + ", "
                 + "\"dispatchFamily\": \"" + escape(fused.dispatchFamily()) + "\", "
                 + "\"schedulerSignature\": \"" + escape(fused.schedulerSignature()) + "\", "

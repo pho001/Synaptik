@@ -5,7 +5,6 @@ import backend.cpu.fused.ir.FusedExpressionPlan;
 import backend.cpu.fused.ir.FusedExternalInputPlan;
 import backend.cpu.fused.ir.FusedNodePlan;
 import backend.cpu.fused.ir.ScalarDoubleAttribute;
-import backend.cpu.fused.runtime.FusedDTypeOps;
 import backend.cpu.kernels.CpuComputeDType;
 import backend.cpu.kernels.ResolvedCpuComputeContract;
 import backend.cpu.fused.numeric.FusedComputeKind;
@@ -125,7 +124,9 @@ public final class FusedVectorGuard {
             return false;
         }
         var plan = fused.getPlan();
-        if (fused.getPrecisionMode() != FusedDTypeOps.MODE_F32 || plan.inputCount() != 3 || plan.nodeCount() != 2) {
+        FusedNumericContract numericContract = fused.getNumericContract();
+        if (!numericContract.usesFloatCompute() || numericContract.writesBf16()
+                || plan.inputCount() != 3 || plan.nodeCount() != 2) {
             return false;
         }
         FusedExternalInputPlan maskInput = plan.inputs().get(0);
@@ -168,7 +169,7 @@ public final class FusedVectorGuard {
                 || fused == null
                 || fused.getPlan() == null
                 || fused.getDispatchFamily() != FusedDispatchFamily.NON_CHEAP_STRIDED
-                || fused.getPrecisionMode() != FusedDTypeOps.MODE_BF16) {
+                || !fused.getNumericContract().writesBf16()) {
             return false;
         }
         int directStridedInputs = 0;

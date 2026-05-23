@@ -3,7 +3,7 @@ package graph.execution.trace;
 /**
  * Fused operation metadata for a step.
  *
- * @param precisionMode fused precision mode
+ * @param numericContract fused numeric storage/compute/output contract
  * @param lowCostHint whether the fused op was classified as low-cost
  * @param dispatchFamily dispatch family label
  * @param schedulerSignature scheduler signature used for dispatch
@@ -13,7 +13,7 @@ package graph.execution.trace;
  * @param vectorBlockReason reason fused vector dispatch was blocked, or NONE
  */
 public record FusedTraceMetadata(
-        int precisionMode,
+        String numericContract,
         boolean lowCostHint,
         String dispatchFamily,
         String schedulerSignature,

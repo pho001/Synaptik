@@ -1044,7 +1044,7 @@ public final class TextBenchmarkReportRenderer {
             }
             if (metadata.fused() != null) {
                 sb.append("      fused: ")
-                        .append("precisionMode=").append(metadata.fused().precisionMode())
+                        .append("numericContract=").append(metadata.fused().numericContract())
                         .append(" lowCostHint=").append(metadata.fused().lowCostHint())
                         .append(" dispatchFamily=").append(metadata.fused().dispatchFamily())
                         .append(" schedulerSignature=").append(metadata.fused().schedulerSignature())

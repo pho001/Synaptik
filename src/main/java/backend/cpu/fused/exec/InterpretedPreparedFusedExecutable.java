@@ -2,14 +2,11 @@ package backend.cpu.fused.exec;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.fused.runtime.FusedDTypeOps;
 import backend.cpu.fused.ir.FusedExpressionPlan;
 import backend.cpu.fused.ir.FusedExternalInputPlan;
 import backend.cpu.fused.ir.FusedNodePlan;
 import backend.cpu.fused.numeric.FusedApproximationContract;
-import backend.cpu.fused.numeric.FusedComputeKind;
 import backend.cpu.fused.numeric.FusedNumericContract;
-import backend.cpu.fused.numeric.FusedValueLane;
 import backend.cpu.fused.ir.ScalarDoubleAttribute;
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
@@ -36,7 +33,6 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
     private final FusedExpressionPlan plan;
     private final FusedNumericContract numericContract;
     private final FusedApproximationContract approximationContract;
-    private final int precisionMode;
 
     /**
      * Creates an interpreter for one lowered fused expression plan.
@@ -67,16 +63,6 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
         this.plan = plan;
         this.numericContract = numericContract;
         this.approximationContract = approximationContract;
-        this.precisionMode = precisionMode(numericContract);
-    }
-
-    private static int precisionMode(FusedNumericContract numericContract) {
-        if (numericContract.computeKind() == FusedComputeKind.F64) {
-            return FusedDTypeOps.MODE_F64;
-        }
-        return numericContract.outputValueLane() == FusedValueLane.BF16
-                ? FusedDTypeOps.MODE_BF16
-                : FusedDTypeOps.MODE_F32;
     }
 
     @Override
@@ -301,7 +287,7 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
     }
 
     private double fastExp(double value) {
-        return precisionMode == FusedDTypeOps.MODE_F64
+        return numericContract.usesDoubleCompute()
                 ? FastTranscendentals.fastExpF64(value)
                 : FastTranscendentals.fastExpF32((float) value);
     }
@@ -314,7 +300,7 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
     }
 
     private double fastTanh(double value) {
-        return precisionMode == FusedDTypeOps.MODE_F64
+        return numericContract.usesDoubleCompute()
                 ? FastTranscendentals.fastTanhF64(value)
                 : FastTranscendentals.fastTanhF32((float) value);
     }

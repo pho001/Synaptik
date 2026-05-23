@@ -26,7 +26,7 @@ public final class FusedExecutionProfiler {
             String expression,
             int clusterSize,
             int externalInputCount,
-            int precisionMode,
+            String numericContract,
             boolean lowCostHint,
             long compileNs
     ) {
@@ -37,7 +37,7 @@ public final class FusedExecutionProfiler {
         entry.expression = expression;
         entry.clusterSize = clusterSize;
         entry.externalInputCount = externalInputCount;
-        entry.precisionMode = precisionMode;
+        entry.numericContract = numericContract;
         entry.lowCostHint = lowCostHint;
         entry.compileCount.increment();
         entry.compileNsTotal.add(Math.max(0L, compileNs));
@@ -96,7 +96,7 @@ public final class FusedExecutionProfiler {
             sb.append("  expr=").append(entry.expression).append('\n');
             sb.append("  clusterSize=").append(entry.clusterSize)
                     .append(", externalInputs=").append(entry.externalInputCount)
-                    .append(", precisionMode=").append(entry.precisionMode)
+                    .append(", numericContract=").append(entry.numericContract)
                     .append(", lowCostHint=").append(entry.lowCostHint).append('\n');
             sb.append("  compileCount=").append(compileCount)
                     .append(", avgCompileMs=").append(fmt(avgCompileMs))
@@ -144,7 +144,7 @@ public final class FusedExecutionProfiler {
         private volatile String expression = "";
         private volatile int clusterSize = -1;
         private volatile int externalInputCount = -1;
-        private volatile int precisionMode = -1;
+        private volatile String numericContract = "";
         private volatile boolean lowCostHint;
         private final LongAdder compileCount = new LongAdder();
         private final LongAdder compileNsTotal = new LongAdder();
