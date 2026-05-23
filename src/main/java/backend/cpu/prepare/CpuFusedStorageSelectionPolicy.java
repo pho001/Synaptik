@@ -9,6 +9,9 @@ import backend.cpu.fused.plan.FusedOperation;
 import config.runtime.CpuStorageProfile;
 import operations.Operation;
 import tensor.DataType;
+import tensor.TensorMetadata;
+
+import java.util.Arrays;
 
 /**
  * Prepare-time storage policy for CPU fused execution.
@@ -41,7 +44,7 @@ final class CpuFusedStorageSelectionPolicy {
         }
         FusedExpressionPlan plan = fused.getPlan();
         for (FusedExternalInputPlan input : plan.inputs()) {
-            if (!isSupportedSegmentDType(input.dataType())) {
+            if (!isSupportedSegmentDType(input.dataType()) || !isNativeSegmentBindableInput(input)) {
                 return false;
             }
         }
@@ -58,6 +61,21 @@ final class CpuFusedStorageSelectionPolicy {
             case FLOAT32, FLOAT64, BFLOAT16, BOOL -> true;
             default -> false;
         };
+    }
+
+    private static boolean isNativeSegmentBindableInput(FusedExternalInputPlan input) {
+        if (input.storageOffset() != 0) {
+            return false;
+        }
+        return switch (input.accessKind()) {
+            case DIRECT_CONTIGUOUS -> isDenseContiguousSource(input);
+            case BROADCAST_STRIDED -> isDenseContiguousSource(input);
+            case DIRECT_STRIDED, OFFSET_CONTIGUOUS, OFFSET_STRIDED -> false;
+        };
+    }
+
+    private static boolean isDenseContiguousSource(FusedExternalInputPlan input) {
+        return Arrays.equals(input.inputStrides(), TensorMetadata.computeStrides(input.inputShape()));
     }
 
     private static boolean isSupportedSegmentScalarOp(Operation.OpType opType) {

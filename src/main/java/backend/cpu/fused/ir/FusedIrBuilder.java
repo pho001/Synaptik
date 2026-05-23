@@ -185,6 +185,8 @@ public final class FusedIrBuilder {
             plans.add(new FusedExternalInputPlan(
                     i,
                     input.dataType(),
+                    input.shape(),
+                    input.strides(),
                     outShape,
                     outDenseStrides,
                     input.storageOffset(),

@@ -92,6 +92,21 @@ public class CpuFusedMemorySegmentExecutionTest {
     }
 
     @Test
+    void f32SmallDirectFusedSegmentUsesScalarMemorySegmentPathBelowVectorThreshold() {
+        Tensor a = new Tensor(new float[]{1.0f, -4.0f, 3.0f}, new int[]{3}, null, "f32_scalar_a");
+        Tensor b = new Tensor(new float[]{2.0f, 2.0f, -8.0f}, new int[]{3}, null, "f32_scalar_b");
+        Tensor out = a.add(b).relu();
+
+        PreparedExecution prepared = prepare(out, vectorNativeRuntime());
+        assertSegmentPrepared(prepared);
+        RunTrace trace = prepared.executeTraced(ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{3.0, 0.0, 0.0}, out.toDoubleArrayCopy(), 1e-5);
+        assertBelowThresholdSegmentTrace(trace);
+        assertGraphOutputMaterializedFromNativeFusedOutput(prepared, trace);
+    }
+
+    @Test
     void f64ContiguousFusedSegmentUsesVectorMemorySegmentPathWithScalarTail() {
         int size = 515;
         double[] left = new double[size];
@@ -116,6 +131,21 @@ public class CpuFusedMemorySegmentExecutionTest {
     }
 
     @Test
+    void f64SmallDirectFusedSegmentUsesScalarMemorySegmentPathBelowVectorThreshold() {
+        Tensor a = new Tensor(new double[]{1.0, 2.0, 3.0}, new int[]{3}, null, "f64_scalar_a");
+        Tensor b = new Tensor(new double[]{4.0, -8.0, 5.0}, new int[]{3}, null, "f64_scalar_b");
+        Tensor out = a.add(b).relu();
+
+        PreparedExecution prepared = prepare(out, vectorNativeRuntime());
+        assertSegmentPrepared(prepared);
+        RunTrace trace = prepared.executeTraced(ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{5.0, 0.0, 8.0}, out.toDoubleArrayCopy(), 1e-9);
+        assertBelowThresholdSegmentTrace(trace);
+        assertGraphOutputMaterializedFromNativeFusedOutput(prepared, trace);
+    }
+
+    @Test
     void f32ScalarBroadcastFusedSegmentUsesVectorMemorySegmentPath() {
         int size = 140_011;
         float[] left = new float[size];
@@ -134,6 +164,30 @@ public class CpuFusedMemorySegmentExecutionTest {
         assertEquals(Math.max(0.0, left[0] + 2.25f), values[0], 1e-5);
         assertEquals(Math.max(0.0, left[997] + 2.25f), values[997], 1e-5);
         assertEquals(Math.max(0.0, left[size - 1] + 2.25f), values[size - 1], 1e-5);
+        assertVectorSegmentTrace(trace);
+        assertGraphOutputMaterializedFromNativeFusedOutput(prepared, trace);
+    }
+
+    @Test
+    void f32AllZeroBroadcast2dFusedSegmentUsesVectorMemorySegmentPath() {
+        int rows = 8192;
+        int cols = 17;
+        float[] left = new float[rows * cols];
+        for (int i = 0; i < left.length; i++) {
+            left[i] = (i % 31) - 15.0f;
+        }
+        Tensor a = new Tensor(left, new int[]{rows, cols}, null, "f32_broadcast2d_a");
+        Tensor bias = new Tensor(new float[]{1.75f}, new int[]{1, 1}, null, "f32_broadcast2d_bias");
+        Tensor out = a.add(bias).relu();
+
+        PreparedExecution prepared = prepare(out, vectorNativeRuntime());
+        assertSegmentPrepared(prepared);
+        RunTrace trace = prepared.executeTraced(ExecutionMode.FORWARD);
+
+        double[] values = out.toDoubleArrayCopy();
+        assertEquals(Math.max(0.0, left[0] + 1.75f), values[0], 1e-5);
+        assertEquals(Math.max(0.0, left[997] + 1.75f), values[997], 1e-5);
+        assertEquals(Math.max(0.0, left[left.length - 1] + 1.75f), values[left.length - 1], 1e-5);
         assertVectorSegmentTrace(trace);
         assertGraphOutputMaterializedFromNativeFusedOutput(prepared, trace);
     }
@@ -184,8 +238,35 @@ public class CpuFusedMemorySegmentExecutionTest {
 
         assertTrue(constantPool.contains("fromMemorySegment"));
         assertTrue(constantPool.contains("intoMemorySegment"));
-        assertFalse(constantPool.contains("TensorInternalAccess"));
-        assertFalse(constantPool.contains("float32Data"));
+        assertNoArrayBackedSegmentBytecode(constantPool);
+    }
+
+    @Test
+    void generatedF32SegmentScalarKernelUsesMemorySegmentApiWithoutArrayBindings() {
+        Tensor a = new Tensor(new float[]{1.0f, 2.0f, 3.0f, 4.0f}, new int[]{4}, null, "bytecode_scalar_a");
+        Tensor out = a.exp().relu();
+
+        PreparedExecution prepared = prepare(out, vectorNativeRuntime());
+        var fusedStep = fusedStep(prepared);
+        FusedOperation fused = (FusedOperation) fusedStep.metadata().executionOperation();
+        int vectorWidth = testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth();
+
+        byte[] bytecode = FusedOperationGenerator.generate(
+                "debug/test/F32SegmentScalarKernel",
+                fused.getPlan(),
+                fused.getNumericContract(),
+                fused.getApproximationContract(),
+                vectorWidth,
+                FusedAsmSpecializationKind.NONE
+        );
+        String constantPool = new String(bytecode, StandardCharsets.ISO_8859_1);
+
+        assertEquals(1, vectorWidth);
+        assertTrue(constantPool.contains("loadScalarF32Segment"));
+        assertTrue(constantPool.contains("storeScalarF32Segment"));
+        assertFalse(constantPool.contains("fromMemorySegment"));
+        assertFalse(constantPool.contains("intoMemorySegment"));
+        assertNoArrayBackedSegmentBytecode(constantPool);
     }
 
     @Test
@@ -212,8 +293,7 @@ public class CpuFusedMemorySegmentExecutionTest {
         assertTrue(constantPool.contains("loadScalarF32Segment"));
         assertTrue(constantPool.contains("broadcast"));
         assertTrue(constantPool.contains("intoMemorySegment"));
-        assertFalse(constantPool.contains("TensorInternalAccess"));
-        assertFalse(constantPool.contains("float32Data"));
+        assertNoArrayBackedSegmentBytecode(constantPool);
     }
 
     @Test
@@ -314,6 +394,21 @@ public class CpuFusedMemorySegmentExecutionTest {
         RunTrace trace = prepared.executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new byte[]{1, 0, 0, 1}, out.toBoolByteArrayCopy());
+        assertScalarOnlySegmentTrace(trace);
+        assertGraphOutputMaterializedFromNativeFusedOutput(prepared, trace);
+    }
+
+    @Test
+    void boolMaskFusedSegmentWritesNativeScalarOnlyOutput() {
+        Tensor a = new Tensor(new byte[]{1, 0, 1, 0, 1}, new int[]{5}, null, "bool_mask_a", DataType.BOOL);
+        Tensor b = new Tensor(new byte[]{1, 1, 0, 0, 1}, new int[]{5}, null, "bool_mask_b", DataType.BOOL);
+        Tensor out = a.logicalAnd(b).logicalNot();
+
+        PreparedExecution prepared = prepare(out, vectorNativeRuntime());
+        assertSegmentPrepared(prepared);
+        RunTrace trace = prepared.executeTraced(ExecutionMode.FORWARD);
+
+        assertArrayEquals(new byte[]{0, 1, 1, 1, 0}, out.toBoolByteArrayCopy());
         assertScalarOnlySegmentTrace(trace);
         assertGraphOutputMaterializedFromNativeFusedOutput(prepared, trace);
     }
@@ -438,6 +533,78 @@ public class CpuFusedMemorySegmentExecutionTest {
     }
 
     @Test
+    void nonContiguousFusedInputStaysOnVisibleJavaArrayPathUnderCpuNativeProfile() {
+        Tensor left = new Tensor(
+                new float[]{1, 2, 3, 4, 5, 6, 7, 8},
+                new int[]{2, 4},
+                new int[]{1, 2},
+                null,
+                "noncontiguous_left",
+                DataType.FLOAT32
+        );
+        Tensor right = new Tensor(new float[]{2, 3, 4, 5, 6, 7, 8, 9}, new int[]{2, 4}, null, "right");
+        double[] leftLogical = left.toDoubleArrayCopy();
+        Tensor out = left.mul(right).relu();
+
+        PreparedExecution prepared = prepare(out, vectorNativeRuntime());
+        assertArrayPrepared(prepared);
+        RunTrace trace = prepared.executeTraced(ExecutionMode.FORWARD);
+
+        double[] values = out.toDoubleArrayCopy();
+        for (int i = 0; i < values.length; i++) {
+            assertEquals(Math.max(0.0, leftLogical[i] * (i + 2.0)), values[i], 1e-5);
+        }
+        assertEquals("CPU_JAVA_ARRAY", fusedTrace(trace).metadata().attributes().get("fusedInputStorageKind"));
+        assertEquals("CPU_JAVA_ARRAY", fusedTrace(trace).metadata().attributes().get("fusedOutputStorageKind"));
+        assertFalse(fusedTrace(trace).metadata().attributes().containsKey("fusedNativeOutputWritten"));
+    }
+
+    @Test
+    void explicitExpandFusedInputStaysOnVisibleJavaArrayPathUnderCpuNativeProfile() {
+        Tensor row = new Tensor(new float[]{1.0f, -2.0f, 3.0f, -4.0f}, new int[]{1, 4}, null, "expanded_row");
+        Tensor expanded = row.expand(3, 4);
+        Tensor zeros = new Tensor(new float[12], new int[]{3, 4}, null, "expanded_zeros");
+        Tensor out = expanded.add(zeros).relu();
+
+        PreparedExecution prepared = prepare(out, vectorNativeRuntime());
+        assertArrayPrepared(prepared);
+        RunTrace trace = prepared.executeTraced(ExecutionMode.FORWARD);
+
+        assertArrayEquals(
+                new double[]{1.0, 0.0, 3.0, 0.0, 1.0, 0.0, 3.0, 0.0, 1.0, 0.0, 3.0, 0.0},
+                out.toDoubleArrayCopy(),
+                1e-5
+        );
+        assertJavaArrayFusedTrace(trace);
+    }
+
+    @Test
+    void stridedExpandBroadcastFusedInputStaysOnVisibleJavaArrayPathUnderCpuNativeProfile() {
+        Tensor column = new Tensor(
+                new float[]{1.0f, -2.0f, 3.0f, -4.0f},
+                new int[]{4, 1},
+                new int[]{1, 2},
+                null,
+                "strided_column",
+                DataType.FLOAT32
+        );
+        Tensor expanded = column.expand(4, 3);
+        Tensor zeros = new Tensor(new float[12], new int[]{4, 3}, null, "strided_expand_zeros");
+        Tensor out = expanded.add(zeros).relu();
+
+        PreparedExecution prepared = prepare(out, vectorNativeRuntime());
+        assertArrayPrepared(prepared);
+        RunTrace trace = prepared.executeTraced(ExecutionMode.FORWARD);
+
+        assertArrayEquals(
+                new double[]{1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 3.0, 3.0, 3.0, 0.0, 0.0, 0.0},
+                out.toDoubleArrayCopy(),
+                1e-5
+        );
+        assertJavaArrayFusedTrace(trace);
+    }
+
+    @Test
     void segmentParallelVectorDispatchBindsNativeSegmentsAndPublishesAfterVectorChunks() {
         int size = 140_000;
         float[] left = new float[size];
@@ -468,6 +635,38 @@ public class CpuFusedMemorySegmentExecutionTest {
         assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedInputStorageKind"));
         assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedOutputStorageKind"));
         assertGraphOutputMaterializedFromNativeFusedOutput(prepared, trace);
+    }
+
+    @Test
+    void segmentFusedExecutionLeavesCpuArrayStaleUntilExplicitMaterialization() {
+        Tensor a = new Tensor(new float[]{1.0f, -4.0f, 3.0f, 5.0f}, new int[]{4}, null, "stale_a");
+        Tensor b = new Tensor(new float[]{2.0f, 2.0f, -8.0f, 1.0f}, new int[]{4}, null, "stale_b");
+        Tensor out = a.add(b).relu();
+        FusedRunFixture fixture = runFixture(out, nativeRuntime());
+        try {
+            PreparedExecutionStep step = fusedStep(fixture.prepared());
+            int outputNodeId = step.compiledNode().id();
+
+            PreparedExecutionRunner.executeSteps(List.of(step), fixture.context(), false, null, 0);
+
+            assertTrue(fixture.state().residencyForNodeId(outputNodeId).nativeCurrent());
+            assertFalse(fixture.state().residencyForNodeId(outputNodeId).cpuCurrent());
+            assertTrue(fixture.state().cpuMaterializationTraces().stream().noneMatch(entry ->
+                            entry.nodeId() == outputNodeId && entry.detail().contains("native_to_array")),
+                    () -> "native fused output should not materialize before an explicit CPU read: "
+                            + fixture.state().cpuMaterializationTraces());
+
+            fixture.state().requireCpuReadable(outputNodeId, CpuMaterializationReason.GRAPH_OUTPUT);
+
+            assertTrue(fixture.state().residencyForNodeId(outputNodeId).cpuCurrent());
+            assertArrayEquals(
+                    new float[]{3.0f, 0.0f, 0.0f, 6.0f},
+                    fixture.state().runtimeTensorForNodeId(outputNodeId).toFloat32ArrayCopy(),
+                    0f
+            );
+        } finally {
+            fixture.close();
+        }
     }
 
     @Test
@@ -680,6 +879,25 @@ public class CpuFusedMemorySegmentExecutionTest {
         assertNativeOutputWriteTrace(fusedTrace);
     }
 
+    private static void assertBelowThresholdSegmentTrace(RunTrace trace) {
+        var fusedTrace = fusedTrace(trace);
+        assertTrue(fusedTrace.metadata().dispatch().vectorWidth() > 1);
+        assertEquals("SCALAR", fusedTrace.metadata().dispatch().mode());
+        assertEquals("BELOW_VECTOR_THRESHOLD", fusedTrace.metadata().fused().vectorBlockReason());
+        assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedInputStorageKind"));
+        assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedOutputStorageKind"));
+        assertEquals("BELOW_VECTOR_THRESHOLD", fusedTrace.metadata().attributes().get("fusedVectorBlockReason"));
+        assertEquals(false, fusedTrace.metadata().attributes().get("fusedVectorEligible"));
+        assertNativeOutputWriteTrace(fusedTrace);
+    }
+
+    private static void assertJavaArrayFusedTrace(RunTrace trace) {
+        var fusedTrace = fusedTrace(trace);
+        assertEquals("CPU_JAVA_ARRAY", fusedTrace.metadata().attributes().get("fusedInputStorageKind"));
+        assertEquals("CPU_JAVA_ARRAY", fusedTrace.metadata().attributes().get("fusedOutputStorageKind"));
+        assertFalse(fusedTrace.metadata().attributes().containsKey("fusedNativeOutputWritten"));
+    }
+
     private static void assertNativeOutputWriteTrace(graph.execution.trace.ExecutionStepTrace fusedTrace) {
         assertEquals(true, fusedTrace.metadata().attributes().get("fusedNativeOutputWritten"));
         assertEquals("CPU_NATIVE", fusedTrace.metadata().attributes().get("fusedNativeOutputResidency"));
@@ -695,6 +913,15 @@ public class CpuFusedMemorySegmentExecutionTest {
         assertFalse(constantPool.contains("float64Data"));
         assertFalse(constantPool.contains("bfloat16Data"));
         assertFalse(constantPool.contains("boolData"));
+        assertFalse(constantPool.contains("inputFloatContinuation"));
+        assertFalse(constantPool.contains("fromArray"));
+        assertFalse(constantPool.contains("intoArray"));
+        assertFalse(constantPool.contains("loadVectorBF16Array"));
+        assertFalse(constantPool.contains("storeVectorBF16Array"));
+        assertFalse(constantPool.contains("loadMaskF32Array"));
+        assertFalse(constantPool.contains("loadMaskF64Array"));
+        assertFalse(constantPool.contains("storeMaskF32Array"));
+        assertFalse(constantPool.contains("storeMaskF64Array"));
     }
 
     private static FusedRunFixture runFixture(Tensor out, RuntimeConfig runtimeConfig) {
