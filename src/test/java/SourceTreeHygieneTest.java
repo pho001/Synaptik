@@ -617,6 +617,8 @@ public class SourceTreeHygieneTest {
                 "segment fused output binding must bind MemorySegment output through CpuKernelContext");
         assertTrue(vectorEmitter.contains("usesMemorySegmentStorage()"),
                 "segment fused vector execution must delegate away from array-only vector bytecode");
+        assertTrue(vectorEmitter.contains("FusedVectorGuard.supportsMemorySegmentVectorAsm(context.numericContract(), plan)"),
+                "segment fused vector support must use the same guard as dispatch planning");
         assertTrue(preparer.contains("refusing Java-array interpreter fallback"),
                 "segment fused ASM failures must not use the array-bound interpreted fallback");
     }

@@ -253,6 +253,92 @@ class FusedDispatchPlanningTest {
     }
 
     @Test
+    void memorySegmentBoolCompareAndWhereDispatchStayScalarOnly() {
+        CpuExecutionPlanner planner = CpuExecutionPlanner.from(testKernelConfig());
+        FusedOperation compare = new FusedOperation(
+                "fused-segment-compare",
+                new FusedNumericContract(
+                        FusedStorageKind.CPU_MEMORY_SEGMENT,
+                        FusedStorageKind.CPU_MEMORY_SEGMENT,
+                        FusedValueLane.F32,
+                        FusedComputeKind.F32,
+                        FusedValueLane.BOOL
+                ),
+                FusedApproximationContract.STRICT,
+                true,
+                FusedDispatchFamily.CHEAP_CONTIGUOUS,
+                "fused-segment-compare",
+                new FusedExpressionPlan(
+                        List.of(new FusedNodePlan(
+                                0,
+                                Operation.OpType.GT,
+                                List.of(0, 1),
+                                2,
+                                DataType.BOOL,
+                                NoAttributes.INSTANCE
+                        )),
+                        List.of(
+                                contiguousSegmentInput(0, DataType.FLOAT32),
+                                contiguousSegmentInput(1, DataType.FLOAT32)
+                        ),
+                        2
+                )
+        );
+        FusedOperation where = new FusedOperation(
+                "fused-segment-where",
+                numericSegment(FusedValueLane.F32),
+                FusedApproximationContract.STRICT,
+                true,
+                FusedDispatchFamily.CHEAP_CONTIGUOUS,
+                "fused-segment-where",
+                new FusedExpressionPlan(
+                        List.of(new FusedNodePlan(
+                                0,
+                                Operation.OpType.WHERE,
+                                List.of(0, 1, 2),
+                                3,
+                                DataType.FLOAT32,
+                                NoAttributes.INSTANCE
+                        )),
+                        List.of(
+                                contiguousSegmentInput(0, DataType.BOOL),
+                                contiguousSegmentInput(1, DataType.FLOAT32),
+                                contiguousSegmentInput(2, DataType.FLOAT32)
+                        ),
+                        3
+                )
+        );
+
+        PreparedFusedDispatch comparePrepared = planner.resolveFusedDispatch(
+                compare,
+                new Tensor(new int[]{2_048}, null, "compare_out", DataType.BOOL),
+                new ResolvedCpuComputeContract(
+                        DataType.BOOL,
+                        CpuComputeDType.BOOL,
+                        CpuExecutionBackend.CPU_FUSED,
+                        CpuAccumulateDType.NONE
+                )
+        );
+        PreparedFusedDispatch wherePrepared = planner.resolveFusedDispatch(
+                where,
+                new Tensor(new int[]{2_048}, null, "where_out", DataType.FLOAT32),
+                new ResolvedCpuComputeContract(
+                        DataType.FLOAT32,
+                        CpuComputeDType.F32,
+                        CpuExecutionBackend.CPU_FUSED,
+                        CpuAccumulateDType.NONE
+                )
+        );
+
+        assertEquals(1, comparePrepared.asmVectorWidth());
+        assertEquals(1, comparePrepared.dispatchHints().vectorWidth());
+        assertEquals(FusedVectorBlockReason.MEMORY_SEGMENT_SCALAR_ONLY, comparePrepared.vectorBlockReason());
+        assertEquals(1, wherePrepared.asmVectorWidth());
+        assertEquals(1, wherePrepared.dispatchHints().vectorWidth());
+        assertEquals(FusedVectorBlockReason.MEMORY_SEGMENT_SCALAR_ONLY, wherePrepared.vectorBlockReason());
+    }
+
+    @Test
     void clampsBf16AffineRationalNonCheapStridedDispatchToScalarAsmWidth() {
         CpuExecutionPlanner planner = CpuExecutionPlanner.from(testKernelConfig());
         FusedExpressionPlan plan = new FusedExpressionPlan(
@@ -368,6 +454,18 @@ class FusedDispatchPlanningTest {
                 lane,
                 lane == FusedValueLane.F64 ? FusedComputeKind.F64 : FusedComputeKind.F32,
                 lane
+        );
+    }
+
+    private static FusedExternalInputPlan contiguousSegmentInput(int index, DataType dataType) {
+        return new FusedExternalInputPlan(
+                index,
+                dataType,
+                new int[]{2_048},
+                new int[]{1},
+                0,
+                new int[]{1},
+                FusedAccessKind.DIRECT_CONTIGUOUS
         );
     }
 }

@@ -249,6 +249,37 @@ public class CpuFusedMemorySegmentExecutionTest {
     }
 
     @Test
+    void generatedBf16SegmentKernelStaysScalarOnlyWithoutArrayBindings() {
+        Tensor a = bf16("bf16_bytecode_a", 1.0f, -2.0f, 3.0f, 4.0f);
+        Tensor b = bf16("bf16_bytecode_b", 0.5f, 1.0f, -1.5f, 2.0f);
+        Tensor out = a.add(b).relu();
+
+        PreparedExecution prepared = prepare(out, vectorNativeRuntime());
+        var fusedStep = fusedStep(prepared);
+        FusedOperation fused = (FusedOperation) fusedStep.metadata().executionOperation();
+        int vectorWidth = testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth();
+
+        byte[] bytecode = FusedOperationGenerator.generate(
+                "debug/test/Bf16SegmentScalarOnlyKernel",
+                fused.getPlan(),
+                fused.getNumericContract(),
+                fused.getApproximationContract(),
+                vectorWidth,
+                FusedAsmSpecializationKind.NONE
+        );
+        String constantPool = new String(bytecode, StandardCharsets.ISO_8859_1);
+
+        assertEquals(1, vectorWidth);
+        assertTrue(constantPool.contains("loadScalarBF16Segment"));
+        assertTrue(constantPool.contains("storeScalarBF16Segment"));
+        assertFalse(constantPool.contains("fromMemorySegment"));
+        assertFalse(constantPool.contains("intoMemorySegment"));
+        assertNoArrayBackedSegmentBytecode(constantPool);
+        assertFalse(constantPool.contains("loadVectorBF16Array"));
+        assertFalse(constantPool.contains("storeVectorBF16Array"));
+    }
+
+    @Test
     void boolFusedSegmentWritesNativeOutput() {
         Tensor a = new Tensor(new float[]{1.0f, 5.0f, -1.0f, 7.0f}, new int[]{4}, null, "bool_a");
         Tensor b = new Tensor(new float[]{2.0f, 3.0f, -2.0f, 8.0f}, new int[]{4}, null, "bool_b");
@@ -261,6 +292,34 @@ public class CpuFusedMemorySegmentExecutionTest {
         assertArrayEquals(new byte[]{1, 0, 0, 1}, out.toBoolByteArrayCopy());
         assertScalarOnlySegmentTrace(trace);
         assertGraphOutputMaterializedFromNativeFusedOutput(prepared, trace);
+    }
+
+    @Test
+    void generatedBoolCompareSegmentKernelStaysScalarOnlyWithoutArrayBindings() {
+        Tensor a = new Tensor(new float[]{1.0f, 5.0f, -1.0f, 7.0f}, new int[]{4}, null, "bool_bytecode_a");
+        Tensor b = new Tensor(new float[]{2.0f, 3.0f, -2.0f, 8.0f}, new int[]{4}, null, "bool_bytecode_b");
+        Tensor out = a.greaterThan(b).logicalNot();
+
+        PreparedExecution prepared = prepare(out, vectorNativeRuntime());
+        var fusedStep = fusedStep(prepared);
+        FusedOperation fused = (FusedOperation) fusedStep.metadata().executionOperation();
+        int vectorWidth = testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth();
+
+        byte[] bytecode = FusedOperationGenerator.generate(
+                "debug/test/BoolCompareSegmentScalarOnlyKernel",
+                fused.getPlan(),
+                fused.getNumericContract(),
+                fused.getApproximationContract(),
+                vectorWidth,
+                FusedAsmSpecializationKind.NONE
+        );
+        String constantPool = new String(bytecode, StandardCharsets.ISO_8859_1);
+
+        assertEquals(1, vectorWidth);
+        assertTrue(constantPool.contains("loadScalarF32Segment"));
+        assertTrue(constantPool.contains("storeScalarBoolSegment"));
+        assertFalse(constantPool.contains("storeMaskF32Array"));
+        assertNoArrayBackedSegmentBytecode(constantPool);
     }
 
     @Test
@@ -313,6 +372,45 @@ public class CpuFusedMemorySegmentExecutionTest {
         assertEquals(trueData[255], values[255], 1e-5);
         assertScalarOnlySegmentTrace(trace);
         assertGraphOutputMaterializedFromNativeFusedOutput(prepared, trace);
+    }
+
+    @Test
+    void generatedWhereMaskSegmentKernelStaysScalarOnlyWithoutArrayBindings() {
+        int size = 64;
+        byte[] maskData = new byte[size];
+        float[] trueData = new float[size];
+        float[] falseData = new float[size];
+        for (int i = 0; i < size; i++) {
+            maskData[i] = (byte) (i % 2 == 0 ? 1 : 0);
+            trueData[i] = i;
+            falseData[i] = -i;
+        }
+        Tensor mask = new Tensor(maskData, new int[]{size}, null, "where_bytecode_mask", DataType.BOOL);
+        Tensor ifTrue = new Tensor(trueData, new int[]{size}, null, "where_bytecode_true");
+        Tensor ifFalse = new Tensor(falseData, new int[]{size}, null, "where_bytecode_false");
+        Tensor out = Tensor.where(mask, ifTrue, ifFalse).relu();
+
+        PreparedExecution prepared = prepare(out, vectorNativeRuntime());
+        var fusedStep = fusedStep(prepared);
+        FusedOperation fused = (FusedOperation) fusedStep.metadata().executionOperation();
+        int vectorWidth = testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth();
+
+        byte[] bytecode = FusedOperationGenerator.generate(
+                "debug/test/WhereMaskSegmentScalarOnlyKernel",
+                fused.getPlan(),
+                fused.getNumericContract(),
+                fused.getApproximationContract(),
+                vectorWidth,
+                FusedAsmSpecializationKind.NONE
+        );
+        String constantPool = new String(bytecode, StandardCharsets.ISO_8859_1);
+
+        assertEquals(1, vectorWidth);
+        assertTrue(constantPool.contains("loadScalarBoolSegment"));
+        assertTrue(constantPool.contains("loadScalarF32Segment"));
+        assertTrue(constantPool.contains("storeScalarF32Segment"));
+        assertFalse(constantPool.contains("loadMaskF32Array"));
+        assertNoArrayBackedSegmentBytecode(constantPool);
     }
 
     @Test
@@ -415,6 +513,14 @@ public class CpuFusedMemorySegmentExecutionTest {
         assertEquals("MEMORY_SEGMENT_SCALAR_ONLY", fusedTrace.metadata().fused().vectorBlockReason());
         assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedInputStorageKind"));
         assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedOutputStorageKind"));
+    }
+
+    private static void assertNoArrayBackedSegmentBytecode(String constantPool) {
+        assertFalse(constantPool.contains("TensorInternalAccess"));
+        assertFalse(constantPool.contains("float32Data"));
+        assertFalse(constantPool.contains("float64Data"));
+        assertFalse(constantPool.contains("bfloat16Data"));
+        assertFalse(constantPool.contains("boolData"));
     }
 
     private static Tensor bf16(String label, float... values) {

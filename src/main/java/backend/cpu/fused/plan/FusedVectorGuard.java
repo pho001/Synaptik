@@ -84,11 +84,11 @@ public final class FusedVectorGuard {
                 || numericContract.outputStorageKind() != FusedStorageKind.CPU_MEMORY_SEGMENT) {
             return false;
         }
-        if (!isF32OrF64Contract(numericContract)) {
+        if (!usesAllocationFreeSegmentVectorLanes(numericContract)) {
             return false;
         }
         DataType outputType = plan.outputNode().outputType();
-        if (outputType != DataType.FLOAT32 && outputType != DataType.FLOAT64) {
+        if (!isAllocationFreeSegmentVectorOutput(outputType)) {
             return false;
         }
         for (int i = 0; i < plan.inputCount(); i++) {
@@ -244,13 +244,21 @@ public final class FusedVectorGuard {
         });
     }
 
-    private static boolean isF32OrF64Contract(FusedNumericContract numericContract) {
+    private static boolean usesAllocationFreeSegmentVectorLanes(FusedNumericContract numericContract) {
+        // MemorySegment vector ASM intentionally admits only lanes the emitter can load,
+        // compute, and store through Vector API segment methods without scratch arrays.
+        // BF16 and BOOL/mask segment paths stay scalar until they have a separate
+        // allocation-free emitter instead of using the Java-array BF16/mask helpers.
         if (numericContract.computeKind() != FusedComputeKind.F32
                 && numericContract.computeKind() != FusedComputeKind.F64) {
             return false;
         }
         return numericContract.outputValueLane() == FusedValueLane.F32
                 || numericContract.outputValueLane() == FusedValueLane.F64;
+    }
+
+    private static boolean isAllocationFreeSegmentVectorOutput(DataType dataType) {
+        return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64;
     }
 
     private static boolean isF32OrF64(DataType dataType) {
