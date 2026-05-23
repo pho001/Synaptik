@@ -213,6 +213,11 @@ public class CpuFusedMemorySegmentExecutionTest {
 
             assertEquals("CPU_JAVA_ARRAY", fusedTrace(trace).metadata().attributes().get("fusedInputStorageKind"));
             assertEquals("CPU_JAVA_ARRAY", fusedTrace(trace).metadata().attributes().get("fusedOutputStorageKind"));
+            assertEquals(fusedTrace(trace).metadata().fused().executionBackend(),
+                    fusedTrace(trace).metadata().attributes().get("fusedExecutionClass"));
+            assertEquals(fusedTrace(trace).metadata().fused().vectorBlockReason(),
+                    fusedTrace(trace).metadata().attributes().get("fusedVectorBlockReason"));
+            assertFalse(fusedTrace(trace).metadata().attributes().containsKey("fusedNativeOutputWritten"));
             assertTrue(trace.cpuMaterializations().stream().noneMatch(entry ->
                             entry.detail().contains("array_to_native") || entry.detail().contains("native_to_array")),
                     () -> "array fused path should not bridge through native storage: " + trace.cpuMaterializations());
@@ -505,6 +510,11 @@ public class CpuFusedMemorySegmentExecutionTest {
         assertEquals("NONE", fusedTrace.metadata().fused().vectorBlockReason());
         assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedInputStorageKind"));
         assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedOutputStorageKind"));
+        assertEquals(fusedTrace.metadata().fused().executionBackend(),
+                fusedTrace.metadata().attributes().get("fusedExecutionClass"));
+        assertEquals("NONE", fusedTrace.metadata().attributes().get("fusedVectorBlockReason"));
+        assertEquals(true, fusedTrace.metadata().attributes().get("fusedVectorEligible"));
+        assertNativeOutputWriteTrace(fusedTrace);
     }
 
     private static void assertScalarOnlySegmentTrace(RunTrace trace) {
@@ -513,6 +523,20 @@ public class CpuFusedMemorySegmentExecutionTest {
         assertEquals("MEMORY_SEGMENT_SCALAR_ONLY", fusedTrace.metadata().fused().vectorBlockReason());
         assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedInputStorageKind"));
         assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedOutputStorageKind"));
+        assertEquals(fusedTrace.metadata().fused().executionBackend(),
+                fusedTrace.metadata().attributes().get("fusedExecutionClass"));
+        assertEquals("MEMORY_SEGMENT_SCALAR_ONLY", fusedTrace.metadata().attributes().get("fusedVectorBlockReason"));
+        assertEquals(false, fusedTrace.metadata().attributes().get("fusedVectorEligible"));
+        assertNativeOutputWriteTrace(fusedTrace);
+    }
+
+    private static void assertNativeOutputWriteTrace(graph.execution.trace.ExecutionStepTrace fusedTrace) {
+        assertEquals(true, fusedTrace.metadata().attributes().get("fusedNativeOutputWritten"));
+        assertEquals("CPU_NATIVE", fusedTrace.metadata().attributes().get("fusedNativeOutputResidency"));
+        assertEquals("CPU fused MemorySegment wrote output",
+                fusedTrace.metadata().attributes().get("fusedNativeOutputWriteReason"));
+        assertEquals("CPU_NATIVE", fusedTrace.metadata().attributes().get("storageResidency"));
+        assertEquals(false, fusedTrace.metadata().attributes().get("storageCpuCurrent"));
     }
 
     private static void assertNoArrayBackedSegmentBytecode(String constantPool) {

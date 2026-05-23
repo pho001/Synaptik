@@ -4,10 +4,12 @@ import backend.ComputeBackend;
 import backend.accelerator.exec.AcceleratorExecutionArtifact;
 import backend.blas.OpenBlasRuntime;
 import backend.cpu.fused.plan.FusedOperation;
+import backend.cpu.fused.plan.FusedVectorBlockReason;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
+import backend.memory.TensorResidencyState;
 import backend.cpu.nativecpu.NativeCpuParityMatrix;
 import backend.cpu.nativecpu.NativeCpuTraceState;
 import backend.cpu.nativecpu.PreparedNativeCpuPlan;
@@ -105,19 +107,28 @@ public final class CpuStepTraceContributor {
             var fusedExecutable = metadata.artifact() instanceof CpuFusedExecutionArtifact artifact
                     ? artifact.fusedExecutable()
                     : null;
+            String executionClass = fusedExecutable == null ? "" : fusedExecutable.getClass().getSimpleName();
+            FusedVectorBlockReason vectorBlockReason = metadata.artifact() instanceof CpuFusedExecutionArtifact artifact
+                    ? artifact.vectorBlockReason()
+                    : FusedVectorBlockReason.NONE;
             attrs.put("fusedInputStorageKind", fused.getNumericContract().inputStorageKind().name());
             attrs.put("fusedOutputStorageKind", fused.getNumericContract().outputStorageKind().name());
+            attrs.put("fusedExecutionClass", executionClass);
+            attrs.put("fusedVectorBlockReason", vectorBlockReason.name());
+            attrs.put("fusedVectorEligible", vectorBlockReason == FusedVectorBlockReason.NONE
+                    && cpuPlan != null
+                    && cpuPlan.dispatchHints() != null
+                    && cpuPlan.dispatchHints().vectorWidth() > 1);
+            addFusedNativeOutputWriteAttrs(attrs, fused, node, context);
             fusedMeta = new FusedTraceMetadata(
                     fused.getPrecisionMode(),
                     fused.isLowCostHint(),
                     fused.getDispatchFamily().id(),
                     fused.getSchedulerSignature(),
-                    fusedExecutable == null ? "" : fusedExecutable.getClass().getSimpleName(),
+                    executionClass,
                     fused.getPlan().nodeCount(),
                     fused.getPlan().inputCount(),
-                    metadata.artifact() instanceof CpuFusedExecutionArtifact artifact
-                            ? artifact.vectorBlockReason().name()
-                            : "NONE"
+                    vectorBlockReason.name()
             );
         }
 
@@ -136,6 +147,24 @@ public final class CpuStepTraceContributor {
                 conv,
                 fusedMeta
         );
+    }
+
+    private static void addFusedNativeOutputWriteAttrs(
+            LinkedHashMap<String, Object> attrs,
+            FusedOperation fused,
+            CompiledNode node,
+            ExecutionContext context
+    ) {
+        if (fused == null || !fused.getNumericContract().usesMemorySegmentStorage()) {
+            return;
+        }
+        TensorResidencyState residency = context.residencyForNodeId(node.id());
+        if (residency == null || !residency.nativeCurrent() || context.nativeStorageForNodeId(node.id()) == null) {
+            return;
+        }
+        attrs.put("fusedNativeOutputWritten", true);
+        attrs.put("fusedNativeOutputResidency", residency.residency().name());
+        attrs.put("fusedNativeOutputWriteReason", residency.lastTransitionReason());
     }
 
     private static MatMulTraceMetadata matMulTrace(
