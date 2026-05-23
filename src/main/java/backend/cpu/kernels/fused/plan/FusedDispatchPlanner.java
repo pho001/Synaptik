@@ -6,6 +6,8 @@ import backend.cpu.kernels.ResolvedCpuComputeContract;
 import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
 import backend.cpu.kernels.plan.CpuPlanningPolicy;
 import backend.cpu.fused.plan.FusedOperation;
+import backend.cpu.fused.plan.FusedVectorBlockReason;
+import backend.cpu.fused.plan.FusedVectorGuard;
 import tensor.Tensor;
 
 import java.util.Objects;
@@ -41,8 +43,9 @@ public final class FusedDispatchPlanner {
         CpuKernelCostClass costClass = fusedCostClass(fused);
         int targetChunks = policy.targetChunksPerWorker(costClass);
         int cpuVectorMinSize = policy.fusedDirectVectorMinSize(fused);
+        FusedVectorBlockReason dispatchBlockReason = FusedVectorGuard.dispatchBlockReason(fused);
 
-        if (policy.shouldForceSerialScalarDispatch(fused)) {
+        if (dispatchBlockReason.forceSerialScalarDispatch()) {
             return new PreparedFusedDispatch(
                     new ResolvedDispatchHints(
                             totalLength,
@@ -54,7 +57,8 @@ public final class FusedDispatchPlanner {
                             false
                     ),
                     cpuVectorMinSize,
-                    1
+                    1,
+                    dispatchBlockReason
             );
         }
 
@@ -81,13 +85,12 @@ public final class FusedDispatchPlanner {
                                 && policy.shouldUseCommonPoolFor(costClass, totalLength)
                 ),
                 cpuVectorMinSize,
-                asmVectorWidth
+                asmVectorWidth,
+                FusedVectorGuard.preparedBlockReason(contract, fused, totalLength, cpuVectorMinSize, asmVectorWidth)
         );
     }
 
     private static CpuKernelCostClass fusedCostClass(FusedOperation fused) {
-        return fused.isLowCostHint() && fused.getDispatchScale() == 1
-                ? CpuKernelCostClass.LOW
-                : CpuKernelCostClass.MEDIUM;
+        return fused.isLowCostHint() ? CpuKernelCostClass.LOW : CpuKernelCostClass.MEDIUM;
     }
 }

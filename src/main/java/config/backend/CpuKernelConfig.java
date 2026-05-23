@@ -2,24 +2,12 @@ package config.backend;
 
 /**
  * CPU kernel tuning configuration used by runtime dispatch.
- *
- * <p>This class groups the calibrated thresholds that decide when CPU kernels use scalar loops,
- * vector loops, parallel execution, BLAS-backed matmul, fused generated ASM loops, materialization, and
- * attention-specific matmul settings. Values are normalized defensively: thresholds are clamped to
- * positive or zero ranges as appropriate, and fused ASM widths are rounded into supported buckets.</p>
- *
- * <p>The object is immutable and thread-safe as a value object. It does not allocate buffers or start
- * worker threads by itself; it is read by backend planning and execution code.</p>
  */
 public final class CpuKernelConfig {
     private static final int DEFAULT_VECTOR_MIN_SIZE = 1_024;
     private static final int DEFAULT_PARALLEL_MIN_SIZE = 100_000;
     private static final int DEFAULT_MATMUL_PARALLEL_MIN_SIZE = 2_000_000;
     private static final int DEFAULT_CONTIGUOUS_MATERIALIZE_THRESHOLD = 1_000_000_000;
-    private static final int DEFAULT_CHEAP_F64_MATERIALIZE_THRESHOLD = DEFAULT_CONTIGUOUS_MATERIALIZE_THRESHOLD;
-    private static final int DEFAULT_CHEAP_F32_MATERIALIZE_THRESHOLD = DEFAULT_CONTIGUOUS_MATERIALIZE_THRESHOLD;
-    private static final int DEFAULT_CHEAP_BF16_MATERIALIZE_THRESHOLD = DEFAULT_CONTIGUOUS_MATERIALIZE_THRESHOLD;
-    private static final int DEFAULT_WHERE_MATERIALIZE_THRESHOLD = DEFAULT_CONTIGUOUS_MATERIALIZE_THRESHOLD;
     private static final int DEFAULT_LOW_COST_TARGET_CHUNKS_PER_WORKER = 4;
     private static final int DEFAULT_MEDIUM_COST_TARGET_CHUNKS_PER_WORKER = 2;
     private static final int DEFAULT_HIGH_COST_TARGET_CHUNKS_PER_WORKER = 1;
@@ -27,7 +15,7 @@ public final class CpuKernelConfig {
     private static final int DEFAULT_MIN_VECTOR_CHUNK_SIZE = 8_192;
     private static final int DEFAULT_MIN_REDUCTION_CHUNK_SIZE = 16_384;
     private static final int DEFAULT_COMMON_POOL_LOW_COST_MAX_WORK_PER_WORKER = 16_384;
-    private static final int DEFAULT_FUSED_ASM_VECTOR_WIDTH = 1;
+    private static final int DEFAULT_FUSED_ASM_VECTOR_WIDTH = 0;
     private static final SumAccuracyMode DEFAULT_SUM_ACCURACY_MODE = SumAccuracyMode.FAST;
     private static final AttentionMatMulPolicy DEFAULT_ATTENTION_MATMUL_POLICY = AttentionMatMulPolicy.AUTO;
     private static final CpuMatMulMicroKernel DEFAULT_MATMUL_MICRO_KERNEL = CpuMatMulMicroKernel.AUTO;
@@ -65,23 +53,12 @@ public final class CpuKernelConfig {
     private final int minVectorChunkSize;
     private final int minReductionChunkSize;
     private final int commonPoolLowCostMaxWorkPerWorker;
-    private final int fusedCheapContiguousAsmVectorWidth;
-    private final int fusedCheapStridedAsmVectorWidth;
-    private final int fusedNonCheapContiguousAsmVectorWidth;
-    private final int fusedNonCheapStridedAsmVectorWidth;
+    private final int fusedAsmVectorWidth;
     private final SumAccuracyMode sumAccuracyMode;
     private final AttentionMatMulPolicy attentionMatMulPolicy;
     private final CpuMatMulMicroKernel matMulMicroKernel;
     private final CpuMatMulMicroKernel attentionMatMulMicroKernel;
 
-    /**
-     * Creates a compact CPU kernel config with default vector and parallel thresholds.
-     *
-     * @param loopUnrollFactor scalar loop unroll factor
-     * @param matMulTileM CPU matmul tile size in M dimension
-     * @param matMulTileN CPU matmul tile size in N dimension
-     * @param matMulTileK CPU matmul tile size in K dimension
-     */
     public CpuKernelConfig(int loopUnrollFactor, int matMulTileM, int matMulTileN, int matMulTileK) {
         this(loopUnrollFactor, matMulTileM, matMulTileN, matMulTileK, DEFAULT_VECTOR_MIN_SIZE, DEFAULT_PARALLEL_MIN_SIZE);
     }
@@ -94,7 +71,8 @@ public final class CpuKernelConfig {
             int vectorMinSize,
             int parallelMinSize
     ) {
-        this(loopUnrollFactor, matMulTileM, matMulTileN, matMulTileK, vectorMinSize, parallelMinSize, DEFAULT_CONTIGUOUS_MATERIALIZE_THRESHOLD);
+        this(loopUnrollFactor, matMulTileM, matMulTileN, matMulTileK, vectorMinSize, parallelMinSize,
+                DEFAULT_CONTIGUOUS_MATERIALIZE_THRESHOLD);
     }
 
     public CpuKernelConfig(
@@ -106,7 +84,8 @@ public final class CpuKernelConfig {
             int parallelMinSize,
             int contiguousMaterializeThreshold
     ) {
-        this(loopUnrollFactor, matMulTileM, matMulTileN, matMulTileK, vectorMinSize, parallelMinSize, contiguousMaterializeThreshold, DEFAULT_SUM_ACCURACY_MODE);
+        this(loopUnrollFactor, matMulTileM, matMulTileN, matMulTileK, vectorMinSize, parallelMinSize,
+                contiguousMaterializeThreshold, DEFAULT_SUM_ACCURACY_MODE);
     }
 
     public CpuKernelConfig(
@@ -145,200 +124,9 @@ public final class CpuKernelConfig {
                 DEFAULT_MIN_REDUCTION_CHUNK_SIZE,
                 DEFAULT_COMMON_POOL_LOW_COST_MAX_WORK_PER_WORKER,
                 DEFAULT_FUSED_ASM_VECTOR_WIDTH,
-                DEFAULT_FUSED_ASM_VECTOR_WIDTH,
-                DEFAULT_FUSED_ASM_VECTOR_WIDTH,
-                DEFAULT_FUSED_ASM_VECTOR_WIDTH,
                 sumAccuracyMode,
                 DEFAULT_MATMUL_PARALLEL_MIN_SIZE,
-                DEFAULT_ATTENTION_MATMUL_POLICY,
-                DEFAULT_MATMUL_MICRO_KERNEL
-        );
-    }
-
-    public CpuKernelConfig(
-            int loopUnrollFactor,
-            int matMulTileM,
-            int matMulTileN,
-            int matMulTileK,
-            int cheapVectorMinSize,
-            int transcendentalVectorMinSize,
-            int fusedCheapVectorMinSize,
-            int fusedTranscendentalVectorMinSize,
-            int reductionVectorMinSize,
-            int attentionVectorMinSize,
-            int cheapParallelMinSize,
-            int transcendentalParallelMinSize,
-            int fusedCheapParallelMinSize,
-            int fusedTranscendentalParallelMinSize,
-            int reductionParallelMinSize,
-            int attentionParallelMinSize,
-            int contiguousMaterializeThreshold,
-            int lowCostTargetChunksPerWorker,
-            int mediumCostTargetChunksPerWorker,
-            int highCostTargetChunksPerWorker,
-            int minScalarChunkSize,
-            int minVectorChunkSize,
-            int minReductionChunkSize,
-            int commonPoolLowCostMaxWorkPerWorker,
-            int fusedCheapContiguousAsmVectorWidth,
-            int fusedCheapStridedAsmVectorWidth,
-            int fusedNonCheapContiguousAsmVectorWidth,
-            int fusedNonCheapStridedAsmVectorWidth,
-            SumAccuracyMode sumAccuracyMode,
-            int matMulParallelMinSize,
-            AttentionMatMulPolicy attentionMatMulPolicy
-    ) {
-        this(
-                loopUnrollFactor,
-                matMulTileM,
-                matMulTileN,
-                matMulTileK,
-                cheapVectorMinSize,
-                transcendentalVectorMinSize,
-                fusedCheapVectorMinSize,
-                fusedTranscendentalVectorMinSize,
-                reductionVectorMinSize,
-                reductionVectorMinSize,
-                cheapParallelMinSize,
-                transcendentalParallelMinSize,
-                fusedCheapParallelMinSize,
-                fusedTranscendentalParallelMinSize,
-                reductionParallelMinSize,
-                reductionParallelMinSize,
-                contiguousMaterializeThreshold,
-                lowCostTargetChunksPerWorker,
-                mediumCostTargetChunksPerWorker,
-                highCostTargetChunksPerWorker,
-                minScalarChunkSize,
-                minVectorChunkSize,
-                minReductionChunkSize,
-                commonPoolLowCostMaxWorkPerWorker,
-                fusedCheapContiguousAsmVectorWidth,
-                fusedCheapStridedAsmVectorWidth,
-                fusedNonCheapContiguousAsmVectorWidth,
-                fusedNonCheapStridedAsmVectorWidth,
-                sumAccuracyMode,
-                matMulParallelMinSize,
-                attentionMatMulPolicy,
-                DEFAULT_MATMUL_MICRO_KERNEL
-        );
-    }
-
-    public CpuKernelConfig(
-            int loopUnrollFactor,
-            int matMulTileM,
-            int matMulTileN,
-            int matMulTileK,
-            int cheapVectorMinSize,
-            int transcendentalVectorMinSize,
-            int fusedCheapVectorMinSize,
-            int fusedTranscendentalVectorMinSize,
-            int reductionVectorMinSize,
-            int attentionVectorMinSize,
-            int cheapParallelMinSize,
-            int transcendentalParallelMinSize,
-            int fusedCheapParallelMinSize,
-            int fusedTranscendentalParallelMinSize,
-            int reductionParallelMinSize,
-            int attentionParallelMinSize,
-            int contiguousMaterializeThreshold,
-            SumAccuracyMode sumAccuracyMode,
-            int matMulParallelMinSize,
-            AttentionMatMulPolicy attentionMatMulPolicy
-    ) {
-        this(
-                loopUnrollFactor,
-                matMulTileM,
-                matMulTileN,
-                matMulTileK,
-                cheapVectorMinSize,
-                transcendentalVectorMinSize,
-                fusedCheapVectorMinSize,
-                fusedTranscendentalVectorMinSize,
-                reductionVectorMinSize,
-                reductionVectorMinSize,
-                cheapParallelMinSize,
-                transcendentalParallelMinSize,
-                fusedCheapParallelMinSize,
-                fusedTranscendentalParallelMinSize,
-                reductionParallelMinSize,
-                reductionParallelMinSize,
-                contiguousMaterializeThreshold,
-                DEFAULT_LOW_COST_TARGET_CHUNKS_PER_WORKER,
-                DEFAULT_MEDIUM_COST_TARGET_CHUNKS_PER_WORKER,
-                DEFAULT_HIGH_COST_TARGET_CHUNKS_PER_WORKER,
-                DEFAULT_MIN_SCALAR_CHUNK_SIZE,
-                DEFAULT_MIN_VECTOR_CHUNK_SIZE,
-                DEFAULT_MIN_REDUCTION_CHUNK_SIZE,
-                DEFAULT_COMMON_POOL_LOW_COST_MAX_WORK_PER_WORKER,
-                DEFAULT_FUSED_ASM_VECTOR_WIDTH,
-                DEFAULT_FUSED_ASM_VECTOR_WIDTH,
-                DEFAULT_FUSED_ASM_VECTOR_WIDTH,
-                DEFAULT_FUSED_ASM_VECTOR_WIDTH,
-                sumAccuracyMode,
-                matMulParallelMinSize,
-                attentionMatMulPolicy,
-                DEFAULT_MATMUL_MICRO_KERNEL
-        );
-    }
-
-    public CpuKernelConfig(
-            int loopUnrollFactor,
-            int matMulTileM,
-            int matMulTileN,
-            int matMulTileK,
-            int cheapVectorMinSize,
-            int transcendentalVectorMinSize,
-            int reductionVectorMinSize,
-            int cheapParallelMinSize,
-            int transcendentalParallelMinSize,
-            int reductionParallelMinSize,
-            int contiguousMaterializeThreshold,
-            int lowCostTargetChunksPerWorker,
-            int mediumCostTargetChunksPerWorker,
-            int highCostTargetChunksPerWorker,
-            int minScalarChunkSize,
-            int minVectorChunkSize,
-            int minReductionChunkSize,
-            int commonPoolLowCostMaxWorkPerWorker,
-            int fusedAsmVectorWidth,
-            SumAccuracyMode sumAccuracyMode,
-            int matMulParallelMinSize,
-            AttentionMatMulPolicy attentionMatMulPolicy
-    ) {
-        this(
-                loopUnrollFactor,
-                matMulTileM,
-                matMulTileN,
-                matMulTileK,
-                cheapVectorMinSize,
-                transcendentalVectorMinSize,
-                cheapVectorMinSize,
-                transcendentalVectorMinSize,
-                reductionVectorMinSize,
-                reductionVectorMinSize,
-                cheapParallelMinSize,
-                transcendentalParallelMinSize,
-                cheapParallelMinSize,
-                transcendentalParallelMinSize,
-                reductionParallelMinSize,
-                reductionParallelMinSize,
-                contiguousMaterializeThreshold,
-                lowCostTargetChunksPerWorker,
-                mediumCostTargetChunksPerWorker,
-                highCostTargetChunksPerWorker,
-                minScalarChunkSize,
-                minVectorChunkSize,
-                minReductionChunkSize,
-                commonPoolLowCostMaxWorkPerWorker,
-                fusedAsmVectorWidth,
-                fusedAsmVectorWidth,
-                fusedAsmVectorWidth,
-                fusedAsmVectorWidth,
-                sumAccuracyMode,
-                matMulParallelMinSize,
-                attentionMatMulPolicy,
-                DEFAULT_MATMUL_MICRO_KERNEL
+                DEFAULT_ATTENTION_MATMUL_POLICY
         );
     }
 
@@ -396,13 +184,9 @@ public final class CpuKernelConfig {
                 minReductionChunkSize,
                 commonPoolLowCostMaxWorkPerWorker,
                 fusedAsmVectorWidth,
-                fusedAsmVectorWidth,
-                fusedAsmVectorWidth,
-                fusedAsmVectorWidth,
                 sumAccuracyMode,
                 matMulParallelMinSize,
-                attentionMatMulPolicy,
-                DEFAULT_MATMUL_MICRO_KERNEL
+                attentionMatMulPolicy
         );
     }
 
@@ -429,10 +213,131 @@ public final class CpuKernelConfig {
             int minVectorChunkSize,
             int minReductionChunkSize,
             int commonPoolLowCostMaxWorkPerWorker,
-            int fusedCheapContiguousAsmVectorWidth,
-            int fusedCheapStridedAsmVectorWidth,
-            int fusedNonCheapContiguousAsmVectorWidth,
-            int fusedNonCheapStridedAsmVectorWidth,
+            int fusedAsmVectorWidth,
+            SumAccuracyMode sumAccuracyMode,
+            int matMulParallelMinSize,
+            AttentionMatMulPolicy attentionMatMulPolicy,
+            CpuMatMulMicroKernel matMulMicroKernel
+    ) {
+        this(
+                loopUnrollFactor,
+                matMulTileM,
+                matMulTileN,
+                matMulTileK,
+                cheapVectorMinSize,
+                transcendentalVectorMinSize,
+                fusedCheapVectorMinSize,
+                fusedTranscendentalVectorMinSize,
+                reductionVectorMinSize,
+                reductionVectorMinSize,
+                cheapParallelMinSize,
+                transcendentalParallelMinSize,
+                fusedCheapParallelMinSize,
+                fusedTranscendentalParallelMinSize,
+                reductionParallelMinSize,
+                reductionParallelMinSize,
+                contiguousMaterializeThreshold,
+                lowCostTargetChunksPerWorker,
+                mediumCostTargetChunksPerWorker,
+                highCostTargetChunksPerWorker,
+                minScalarChunkSize,
+                minVectorChunkSize,
+                minReductionChunkSize,
+                commonPoolLowCostMaxWorkPerWorker,
+                fusedAsmVectorWidth,
+                sumAccuracyMode,
+                matMulParallelMinSize,
+                attentionMatMulPolicy,
+                matMulMicroKernel,
+                matMulMicroKernel,
+                matMulTileM,
+                matMulTileN,
+                matMulTileK
+        );
+    }
+
+    public CpuKernelConfig(
+            int loopUnrollFactor,
+            int matMulTileM,
+            int matMulTileN,
+            int matMulTileK,
+            int cheapVectorMinSize,
+            int transcendentalVectorMinSize,
+            int reductionVectorMinSize,
+            int cheapParallelMinSize,
+            int transcendentalParallelMinSize,
+            int reductionParallelMinSize,
+            int contiguousMaterializeThreshold,
+            int lowCostTargetChunksPerWorker,
+            int mediumCostTargetChunksPerWorker,
+            int highCostTargetChunksPerWorker,
+            int minScalarChunkSize,
+            int minVectorChunkSize,
+            int minReductionChunkSize,
+            int commonPoolLowCostMaxWorkPerWorker,
+            int fusedAsmVectorWidth,
+            SumAccuracyMode sumAccuracyMode,
+            int matMulParallelMinSize,
+            AttentionMatMulPolicy attentionMatMulPolicy
+    ) {
+        this(
+                loopUnrollFactor,
+                matMulTileM,
+                matMulTileN,
+                matMulTileK,
+                cheapVectorMinSize,
+                transcendentalVectorMinSize,
+                cheapVectorMinSize,
+                transcendentalVectorMinSize,
+                reductionVectorMinSize,
+                reductionVectorMinSize,
+                cheapParallelMinSize,
+                transcendentalParallelMinSize,
+                cheapParallelMinSize,
+                transcendentalParallelMinSize,
+                reductionParallelMinSize,
+                reductionParallelMinSize,
+                contiguousMaterializeThreshold,
+                lowCostTargetChunksPerWorker,
+                mediumCostTargetChunksPerWorker,
+                highCostTargetChunksPerWorker,
+                minScalarChunkSize,
+                minVectorChunkSize,
+                minReductionChunkSize,
+                commonPoolLowCostMaxWorkPerWorker,
+                fusedAsmVectorWidth,
+                sumAccuracyMode,
+                matMulParallelMinSize,
+                attentionMatMulPolicy
+        );
+    }
+
+    public CpuKernelConfig(
+            int loopUnrollFactor,
+            int matMulTileM,
+            int matMulTileN,
+            int matMulTileK,
+            int cheapVectorMinSize,
+            int transcendentalVectorMinSize,
+            int fusedCheapVectorMinSize,
+            int fusedTranscendentalVectorMinSize,
+            int reductionVectorMinSize,
+            int attentionVectorMinSize,
+            int cheapParallelMinSize,
+            int transcendentalParallelMinSize,
+            int fusedCheapParallelMinSize,
+            int fusedTranscendentalParallelMinSize,
+            int reductionParallelMinSize,
+            int attentionParallelMinSize,
+            int contiguousMaterializeThreshold,
+            int lowCostTargetChunksPerWorker,
+            int mediumCostTargetChunksPerWorker,
+            int highCostTargetChunksPerWorker,
+            int minScalarChunkSize,
+            int minVectorChunkSize,
+            int minReductionChunkSize,
+            int commonPoolLowCostMaxWorkPerWorker,
+            int fusedAsmVectorWidth,
             SumAccuracyMode sumAccuracyMode,
             int matMulParallelMinSize,
             AttentionMatMulPolicy attentionMatMulPolicy
@@ -447,144 +352,6 @@ public final class CpuKernelConfig {
                 fusedCheapVectorMinSize,
                 fusedTranscendentalVectorMinSize,
                 reductionVectorMinSize,
-                reductionVectorMinSize,
-                cheapParallelMinSize,
-                transcendentalParallelMinSize,
-                fusedCheapParallelMinSize,
-                fusedTranscendentalParallelMinSize,
-                reductionParallelMinSize,
-                reductionParallelMinSize,
-                contiguousMaterializeThreshold,
-                lowCostTargetChunksPerWorker,
-                mediumCostTargetChunksPerWorker,
-                highCostTargetChunksPerWorker,
-                minScalarChunkSize,
-                minVectorChunkSize,
-                minReductionChunkSize,
-                commonPoolLowCostMaxWorkPerWorker,
-                fusedCheapContiguousAsmVectorWidth,
-                fusedCheapStridedAsmVectorWidth,
-                fusedNonCheapContiguousAsmVectorWidth,
-                fusedNonCheapStridedAsmVectorWidth,
-                sumAccuracyMode,
-                matMulParallelMinSize,
-                attentionMatMulPolicy,
-                DEFAULT_MATMUL_MICRO_KERNEL
-        );
-    }
-
-    public CpuKernelConfig(
-            int loopUnrollFactor,
-            int matMulTileM,
-            int matMulTileN,
-            int matMulTileK,
-            int cheapVectorMinSize,
-            int transcendentalVectorMinSize,
-            int fusedCheapVectorMinSize,
-            int fusedTranscendentalVectorMinSize,
-            int reductionVectorMinSize,
-            int cheapParallelMinSize,
-            int transcendentalParallelMinSize,
-            int fusedCheapParallelMinSize,
-            int fusedTranscendentalParallelMinSize,
-            int reductionParallelMinSize,
-            int contiguousMaterializeThreshold,
-            int lowCostTargetChunksPerWorker,
-            int mediumCostTargetChunksPerWorker,
-            int highCostTargetChunksPerWorker,
-            int minScalarChunkSize,
-            int minVectorChunkSize,
-            int minReductionChunkSize,
-            int commonPoolLowCostMaxWorkPerWorker,
-            int fusedCheapContiguousAsmVectorWidth,
-            int fusedCheapStridedAsmVectorWidth,
-            int fusedNonCheapContiguousAsmVectorWidth,
-            int fusedNonCheapStridedAsmVectorWidth,
-            SumAccuracyMode sumAccuracyMode,
-            int matMulParallelMinSize,
-            AttentionMatMulPolicy attentionMatMulPolicy,
-            CpuMatMulMicroKernel matMulMicroKernel
-    ) {
-        this(
-                loopUnrollFactor,
-                matMulTileM,
-                matMulTileN,
-                matMulTileK,
-                cheapVectorMinSize,
-                transcendentalVectorMinSize,
-                fusedCheapVectorMinSize,
-                fusedTranscendentalVectorMinSize,
-                reductionVectorMinSize,
-                reductionVectorMinSize,
-                cheapParallelMinSize,
-                transcendentalParallelMinSize,
-                fusedCheapParallelMinSize,
-                fusedTranscendentalParallelMinSize,
-                reductionParallelMinSize,
-                reductionParallelMinSize,
-                contiguousMaterializeThreshold,
-                lowCostTargetChunksPerWorker,
-                mediumCostTargetChunksPerWorker,
-                highCostTargetChunksPerWorker,
-                minScalarChunkSize,
-                minVectorChunkSize,
-                minReductionChunkSize,
-                commonPoolLowCostMaxWorkPerWorker,
-                fusedCheapContiguousAsmVectorWidth,
-                fusedCheapStridedAsmVectorWidth,
-                fusedNonCheapContiguousAsmVectorWidth,
-                fusedNonCheapStridedAsmVectorWidth,
-                sumAccuracyMode,
-                matMulParallelMinSize,
-                attentionMatMulPolicy,
-                matMulMicroKernel
-        );
-    }
-
-    public CpuKernelConfig(
-            int loopUnrollFactor,
-            int matMulTileM,
-            int matMulTileN,
-            int matMulTileK,
-            int cheapVectorMinSize,
-            int transcendentalVectorMinSize,
-            int fusedCheapVectorMinSize,
-            int fusedTranscendentalVectorMinSize,
-            int reductionVectorMinSize,
-            int attentionVectorMinSize,
-            int cheapParallelMinSize,
-            int transcendentalParallelMinSize,
-            int fusedCheapParallelMinSize,
-            int fusedTranscendentalParallelMinSize,
-            int reductionParallelMinSize,
-            int attentionParallelMinSize,
-            int contiguousMaterializeThreshold,
-            int lowCostTargetChunksPerWorker,
-            int mediumCostTargetChunksPerWorker,
-            int highCostTargetChunksPerWorker,
-            int minScalarChunkSize,
-            int minVectorChunkSize,
-            int minReductionChunkSize,
-            int commonPoolLowCostMaxWorkPerWorker,
-            int fusedCheapContiguousAsmVectorWidth,
-            int fusedCheapStridedAsmVectorWidth,
-            int fusedNonCheapContiguousAsmVectorWidth,
-            int fusedNonCheapStridedAsmVectorWidth,
-            SumAccuracyMode sumAccuracyMode,
-            int matMulParallelMinSize,
-            AttentionMatMulPolicy attentionMatMulPolicy,
-            CpuMatMulMicroKernel matMulMicroKernel
-    ) {
-        this(
-                loopUnrollFactor,
-                matMulTileM,
-                matMulTileN,
-                matMulTileK,
-                cheapVectorMinSize,
-                transcendentalVectorMinSize,
-                fusedCheapVectorMinSize,
-                fusedTranscendentalVectorMinSize,
-                reductionVectorMinSize,
                 attentionVectorMinSize,
                 cheapParallelMinSize,
                 transcendentalParallelMinSize,
@@ -600,91 +367,12 @@ public final class CpuKernelConfig {
                 minVectorChunkSize,
                 minReductionChunkSize,
                 commonPoolLowCostMaxWorkPerWorker,
-                fusedCheapContiguousAsmVectorWidth,
-                fusedCheapStridedAsmVectorWidth,
-                fusedNonCheapContiguousAsmVectorWidth,
-                fusedNonCheapStridedAsmVectorWidth,
+                fusedAsmVectorWidth,
                 sumAccuracyMode,
                 matMulParallelMinSize,
                 attentionMatMulPolicy,
-                matMulMicroKernel,
-                matMulMicroKernel
-        );
-    }
-
-    public CpuKernelConfig(
-            int loopUnrollFactor,
-            int matMulTileM,
-            int matMulTileN,
-            int matMulTileK,
-            int cheapVectorMinSize,
-            int transcendentalVectorMinSize,
-            int fusedCheapVectorMinSize,
-            int fusedTranscendentalVectorMinSize,
-            int reductionVectorMinSize,
-            int attentionVectorMinSize,
-            int cheapParallelMinSize,
-            int transcendentalParallelMinSize,
-            int fusedCheapParallelMinSize,
-            int fusedTranscendentalParallelMinSize,
-            int reductionParallelMinSize,
-            int attentionParallelMinSize,
-            int contiguousMaterializeThreshold,
-            int lowCostTargetChunksPerWorker,
-            int mediumCostTargetChunksPerWorker,
-            int highCostTargetChunksPerWorker,
-            int minScalarChunkSize,
-            int minVectorChunkSize,
-            int minReductionChunkSize,
-            int commonPoolLowCostMaxWorkPerWorker,
-            int fusedCheapContiguousAsmVectorWidth,
-            int fusedCheapStridedAsmVectorWidth,
-            int fusedNonCheapContiguousAsmVectorWidth,
-            int fusedNonCheapStridedAsmVectorWidth,
-            SumAccuracyMode sumAccuracyMode,
-            int matMulParallelMinSize,
-            AttentionMatMulPolicy attentionMatMulPolicy,
-            CpuMatMulMicroKernel matMulMicroKernel,
-            CpuMatMulMicroKernel attentionMatMulMicroKernel
-    ) {
-        this(
-                loopUnrollFactor,
-                matMulTileM,
-                matMulTileN,
-                matMulTileK,
-                cheapVectorMinSize,
-                transcendentalVectorMinSize,
-                fusedCheapVectorMinSize,
-                fusedTranscendentalVectorMinSize,
-                reductionVectorMinSize,
-                attentionVectorMinSize,
-                cheapParallelMinSize,
-                transcendentalParallelMinSize,
-                fusedCheapParallelMinSize,
-                fusedTranscendentalParallelMinSize,
-                reductionParallelMinSize,
-                attentionParallelMinSize,
-                contiguousMaterializeThreshold,
-                contiguousMaterializeThreshold,
-                contiguousMaterializeThreshold,
-                contiguousMaterializeThreshold,
-                contiguousMaterializeThreshold,
-                lowCostTargetChunksPerWorker,
-                mediumCostTargetChunksPerWorker,
-                highCostTargetChunksPerWorker,
-                minScalarChunkSize,
-                minVectorChunkSize,
-                minReductionChunkSize,
-                commonPoolLowCostMaxWorkPerWorker,
-                fusedCheapContiguousAsmVectorWidth,
-                fusedCheapStridedAsmVectorWidth,
-                fusedNonCheapContiguousAsmVectorWidth,
-                fusedNonCheapStridedAsmVectorWidth,
-                sumAccuracyMode,
-                matMulParallelMinSize,
-                attentionMatMulPolicy,
-                matMulMicroKernel,
-                attentionMatMulMicroKernel,
+                DEFAULT_MATMUL_MICRO_KERNEL,
+                DEFAULT_ATTENTION_MATMUL_MICRO_KERNEL,
                 matMulTileM,
                 matMulTileN,
                 matMulTileK
@@ -716,10 +404,7 @@ public final class CpuKernelConfig {
             int minVectorChunkSize,
             int minReductionChunkSize,
             int commonPoolLowCostMaxWorkPerWorker,
-            int fusedCheapContiguousAsmVectorWidth,
-            int fusedCheapStridedAsmVectorWidth,
-            int fusedNonCheapContiguousAsmVectorWidth,
-            int fusedNonCheapStridedAsmVectorWidth,
+            int fusedAsmVectorWidth,
             SumAccuracyMode sumAccuracyMode,
             int matMulParallelMinSize,
             AttentionMatMulPolicy attentionMatMulPolicy,
@@ -758,10 +443,7 @@ public final class CpuKernelConfig {
                 minVectorChunkSize,
                 minReductionChunkSize,
                 commonPoolLowCostMaxWorkPerWorker,
-                fusedCheapContiguousAsmVectorWidth,
-                fusedCheapStridedAsmVectorWidth,
-                fusedNonCheapContiguousAsmVectorWidth,
-                fusedNonCheapStridedAsmVectorWidth,
+                fusedAsmVectorWidth,
                 sumAccuracyMode,
                 matMulParallelMinSize,
                 attentionMatMulPolicy,
@@ -802,10 +484,7 @@ public final class CpuKernelConfig {
             int minVectorChunkSize,
             int minReductionChunkSize,
             int commonPoolLowCostMaxWorkPerWorker,
-            int fusedCheapContiguousAsmVectorWidth,
-            int fusedCheapStridedAsmVectorWidth,
-            int fusedNonCheapContiguousAsmVectorWidth,
-            int fusedNonCheapStridedAsmVectorWidth,
+            int fusedAsmVectorWidth,
             SumAccuracyMode sumAccuracyMode,
             int matMulParallelMinSize,
             AttentionMatMulPolicy attentionMatMulPolicy,
@@ -847,10 +526,7 @@ public final class CpuKernelConfig {
         this.minVectorChunkSize = Math.max(1, minVectorChunkSize);
         this.minReductionChunkSize = Math.max(1, minReductionChunkSize);
         this.commonPoolLowCostMaxWorkPerWorker = Math.max(1, commonPoolLowCostMaxWorkPerWorker);
-        this.fusedCheapContiguousAsmVectorWidth = normalizeFusedAsmVectorWidth(fusedCheapContiguousAsmVectorWidth);
-        this.fusedCheapStridedAsmVectorWidth = normalizeFusedAsmVectorWidth(fusedCheapStridedAsmVectorWidth);
-        this.fusedNonCheapContiguousAsmVectorWidth = normalizeFusedAsmVectorWidth(fusedNonCheapContiguousAsmVectorWidth);
-        this.fusedNonCheapStridedAsmVectorWidth = normalizeFusedAsmVectorWidth(fusedNonCheapStridedAsmVectorWidth);
+        this.fusedAsmVectorWidth = normalizeFusedAsmVectorWidth(fusedAsmVectorWidth);
         this.sumAccuracyMode = sumAccuracyMode == null ? DEFAULT_SUM_ACCURACY_MODE : sumAccuracyMode;
         this.attentionMatMulPolicy = attentionMatMulPolicy == null ? DEFAULT_ATTENTION_MATMUL_POLICY : attentionMatMulPolicy;
         this.matMulMicroKernel = matMulMicroKernel == null ? DEFAULT_MATMUL_MICRO_KERNEL : matMulMicroKernel;
@@ -859,89 +535,26 @@ public final class CpuKernelConfig {
                 : attentionMatMulMicroKernel;
     }
 
-    /**
-     * @return scalar loop unroll factor used by CPU kernels
-     */
     public int loopUnrollFactor() { return loopUnrollFactor; }
-    /**
-     * @return regular matmul tile size in M dimension
-     */
     public int matMulTileM() { return matMulTileM; }
-    /**
-     * @return regular matmul tile size in N dimension
-     */
     public int matMulTileN() { return matMulTileN; }
-    /**
-     * @return regular matmul tile size in K dimension
-     */
     public int matMulTileK() { return matMulTileK; }
-    /**
-     * @return attention matmul tile size in M dimension
-     */
     public int attentionMatMulTileM() { return attentionMatMulTileM; }
-    /**
-     * @return attention matmul tile size in N dimension
-     */
     public int attentionMatMulTileN() { return attentionMatMulTileN; }
-    /**
-     * @return attention matmul tile size in K dimension
-     */
     public int attentionMatMulTileK() { return attentionMatMulTileK; }
-    /**
-     * @return minimum element count before vectorizing cheap elementwise kernels
-     */
     public int cheapVectorMinSize() { return cheapVectorMinSize; }
-    /**
-     * @return minimum element count before vectorizing transcendental kernels
-     */
     public int transcendentalVectorMinSize() { return transcendentalVectorMinSize; }
-    /**
-     * @return minimum element count before vectorizing cheap fused kernels
-     */
     public int fusedCheapVectorMinSize() { return fusedCheapVectorMinSize; }
-    /**
-     * @return minimum element count before vectorizing transcendental fused kernels
-     */
     public int fusedTranscendentalVectorMinSize() { return fusedTranscendentalVectorMinSize; }
-    /**
-     * @return minimum element count before vectorizing reductions
-     */
     public int reductionVectorMinSize() { return reductionVectorMinSize; }
-    /**
-     * @return minimum element count before vectorizing attention reductions
-     */
     public int attentionVectorMinSize() { return attentionVectorMinSize; }
-    /**
-     * @return minimum element count before parallelizing cheap elementwise kernels
-     */
     public int cheapParallelMinSize() { return cheapParallelMinSize; }
-    /**
-     * @return minimum element count before parallelizing transcendental kernels
-     */
     public int transcendentalParallelMinSize() { return transcendentalParallelMinSize; }
-    /**
-     * @return minimum element count before parallelizing cheap fused kernels
-     */
     public int fusedCheapParallelMinSize() { return fusedCheapParallelMinSize; }
-    /**
-     * @return minimum element count before parallelizing transcendental fused kernels
-     */
     public int fusedTranscendentalParallelMinSize() { return fusedTranscendentalParallelMinSize; }
-    /**
-     * @return minimum element count before parallelizing reductions
-     */
     public int reductionParallelMinSize() { return reductionParallelMinSize; }
-    /**
-     * @return minimum element count before parallelizing attention reductions
-     */
     public int attentionParallelMinSize() { return attentionParallelMinSize; }
-    /**
-     * @return legacy cheap parallel threshold alias
-     */
     public int parallelMinSize() { return cheapParallelMinSize; }
-    /**
-     * @return minimum matmul work before CPU parallel matmul is eligible
-     */
     public int matMulParallelMinSize() { return matMulParallelMinSize; }
     public int contiguousMaterializeThreshold() { return contiguousMaterializeThreshold; }
     public int cheapF64MaterializeThreshold() { return cheapF64MaterializeThreshold; }
@@ -955,11 +568,7 @@ public final class CpuKernelConfig {
     public int minVectorChunkSize() { return minVectorChunkSize; }
     public int minReductionChunkSize() { return minReductionChunkSize; }
     public int commonPoolLowCostMaxWorkPerWorker() { return commonPoolLowCostMaxWorkPerWorker; }
-    public int fusedCheapContiguousAsmVectorWidth() { return fusedCheapContiguousAsmVectorWidth; }
-    public int fusedCheapStridedAsmVectorWidth() { return fusedCheapStridedAsmVectorWidth; }
-    public int fusedNonCheapContiguousAsmVectorWidth() { return fusedNonCheapContiguousAsmVectorWidth; }
-    public int fusedNonCheapStridedAsmVectorWidth() { return fusedNonCheapStridedAsmVectorWidth; }
-    public int fusedAsmVectorWidth() { return fusedCheapContiguousAsmVectorWidth; }
+    public int fusedAsmVectorWidth() { return fusedAsmVectorWidth; }
     public SumAccuracyMode sumAccuracyMode() { return sumAccuracyMode; }
     public AttentionMatMulPolicy attentionMatMulPolicy() { return attentionMatMulPolicy; }
     public CpuMatMulMicroKernel matMulMicroKernel() { return matMulMicroKernel; }
@@ -989,6 +598,9 @@ public final class CpuKernelConfig {
 
     private static int normalizeFusedAsmVectorWidth(int value) {
         if (value <= 1) {
+            if (value <= 0) {
+                return 0;
+            }
             return 1;
         }
         if (value <= 2) {
@@ -997,6 +609,9 @@ public final class CpuKernelConfig {
         if (value <= 4) {
             return 4;
         }
-        return 8;
+        if (value <= 8) {
+            return 8;
+        }
+        return 16;
     }
 }

@@ -32,6 +32,7 @@ import backend.cpu.fused.numeric.FusedApproximationContract;
 import backend.cpu.fused.plan.FusedExecutionPlan;
 import backend.cpu.fused.plan.FusedOperationPreparation;
 import backend.cpu.fused.exec.PreparedFusedExecutable;
+import backend.cpu.fused.plan.FusedVectorBlockReason;
 import operations.Operation;
 import backend.cpu.fused.plan.FusedOperation;
 import tensor.layout.BroadcastPlanner;
@@ -173,9 +174,15 @@ public final class CpuNodePreparer {
                 ComputeBackend.CPU,
                 operation,
                 fusedPreparation.runtimeInputNodeIds(),
-                new CpuFusedExecutionArtifact(kernel, cpuPlan, fusedExecutable, cpuWorkspace),
-                inputResidencyRequirement(cpuPlan),
-                OutputResidencyEffect.cpuCurrentPreserveNative()
+                new CpuFusedExecutionArtifact(
+                        kernel,
+                        cpuPlan,
+                        fusedExecutable,
+                        cpuWorkspace,
+                        preparedFusedDispatch.vectorBlockReason()
+                ),
+                inputResidencyRequirement(cpuPlan, operation),
+                outputResidencyEffect(operation)
         );
     }
 
@@ -195,7 +202,8 @@ public final class CpuNodePreparer {
                 runtimeConfig.approximation(),
                 context.supportsBackward()
         );
-        return fused.withApproximationContract(approximationContract);
+        FusedOperation specialized = fused.withApproximationContract(approximationContract);
+        return CpuFusedStorageSelectionPolicy.specialize(specialized, runtimeConfig.cpuStorageProfile());
     }
 
     public CompiledNodeExecutionMetadata prepareAsCpu(CompiledNode node, BackendPrepareContext context) {
@@ -262,18 +270,30 @@ public final class CpuNodePreparer {
         CpuNodeWorkspace cpuWorkspace = resolveCpuWorkspace(node, operation, cpuPlan, publishFloatContinuation, context);
         var artifact = fusedExecutable == null
                 ? new CpuNodeExecutionArtifact(kernel, cpuPlan, cpuWorkspace)
-                : new CpuFusedExecutionArtifact(kernel, cpuPlan, fusedExecutable, cpuWorkspace);
+                : new CpuFusedExecutionArtifact(
+                        kernel,
+                        cpuPlan,
+                        fusedExecutable,
+                        cpuWorkspace,
+                        preparedFusedDispatch == null
+                                ? FusedVectorBlockReason.NONE
+                                : preparedFusedDispatch.vectorBlockReason()
+                );
         return new CompiledNodeExecutionMetadata(
                 ComputeBackend.CPU,
                 null,
                 List.of(),
                 artifact,
-                inputResidencyRequirement(cpuPlan),
-                OutputResidencyEffect.cpuCurrentPreserveNative()
+                inputResidencyRequirement(cpuPlan, operation),
+                outputResidencyEffect(operation)
         );
     }
 
-    private static InputResidencyRequirement inputResidencyRequirement(CpuNodeExecutionPlan cpuPlan) {
+    private static InputResidencyRequirement inputResidencyRequirement(CpuNodeExecutionPlan cpuPlan, Operation operation) {
+        if (operation instanceof FusedOperation fused
+                && fused.getNumericContract().usesMemorySegmentStorage()) {
+            return InputResidencyRequirement.none();
+        }
         if (cpuPlan == null || cpuPlan.nativeCpuPlan() == null) {
             return InputResidencyRequirement.cpuReadableAll();
         }
@@ -282,6 +302,14 @@ public final class CpuNodePreparer {
             case CONDITION_CPU_VALUES_NATIVE -> InputResidencyRequirement.cpuReadableFirst();
             default -> InputResidencyRequirement.cpuReadableAll();
         };
+    }
+
+    private static OutputResidencyEffect outputResidencyEffect(Operation operation) {
+        if (operation instanceof FusedOperation fused
+                && fused.getNumericContract().usesMemorySegmentStorage()) {
+            return OutputResidencyEffect.none();
+        }
+        return OutputResidencyEffect.cpuCurrentPreserveNative();
     }
 
     private CpuNodeWorkspace resolveCpuWorkspace(

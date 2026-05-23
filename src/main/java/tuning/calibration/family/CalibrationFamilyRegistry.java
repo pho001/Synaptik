@@ -29,10 +29,7 @@ public final class CalibrationFamilyRegistry {
                 CalibrationFamilyId.CONV2D_GEMM_DISPATCH,
                 CalibrationFamilyId.ELEMENTWISE_DISPATCH,
                 CalibrationFamilyId.FUSED_DISPATCH,
-                CalibrationFamilyId.FUSED_CHEAP_CONTIGUOUS_WIDTH,
-                CalibrationFamilyId.FUSED_CHEAP_STRIDED_WIDTH,
-                CalibrationFamilyId.FUSED_NON_CHEAP_CONTIGUOUS_WIDTH,
-                CalibrationFamilyId.FUSED_NON_CHEAP_STRIDED_WIDTH,
+                CalibrationFamilyId.FUSED_ASM_WIDTH,
                 CalibrationFamilyId.REDUCTION,
                 CalibrationFamilyId.ATTENTION_THRESHOLDS,
                 CalibrationFamilyId.MATERIALIZATION
@@ -149,14 +146,8 @@ public final class CalibrationFamilyRegistry {
                 "cpu.fusedCheapParallelMinSize",
                 "cpu.fusedTranscendentalParallelMinSize"
         ));
-        put(specs, CalibrationFamilyId.FUSED_CHEAP_CONTIGUOUS_WIDTH, "fused-cheap-contiguous-width", false,
-                Set.of("cpu.fusedCheapContiguousAsmVectorWidth"));
-        put(specs, CalibrationFamilyId.FUSED_CHEAP_STRIDED_WIDTH, "fused-cheap-strided-width", false,
-                Set.of("cpu.fusedCheapStridedAsmVectorWidth"));
-        put(specs, CalibrationFamilyId.FUSED_NON_CHEAP_CONTIGUOUS_WIDTH, "fused-noncheap-contiguous-width", false,
-                Set.of("cpu.fusedNonCheapContiguousAsmVectorWidth"));
-        put(specs, CalibrationFamilyId.FUSED_NON_CHEAP_STRIDED_WIDTH, "fused-noncheap-strided-width", false,
-                Set.of("cpu.fusedNonCheapStridedAsmVectorWidth"));
+        put(specs, CalibrationFamilyId.FUSED_ASM_WIDTH, "fused-asm-width", false,
+                Set.of("cpu.fusedAsmVectorWidth"));
         put(specs, CalibrationFamilyId.REDUCTION, "reduction", false, Set.of(
                 "cpu.reductionVectorMinSize",
                 "cpu.reductionParallelMinSize"

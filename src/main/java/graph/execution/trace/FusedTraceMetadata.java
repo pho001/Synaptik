@@ -8,9 +8,9 @@ package graph.execution.trace;
  * @param dispatchFamily dispatch family label
  * @param schedulerSignature scheduler signature used for dispatch
  * @param executionBackend backend selected for fused execution
- * @param dispatchScale dispatch scale factor
  * @param fusedNodeCount number of nodes represented by the fused op
  * @param fusedInputCount number of fused inputs
+ * @param vectorBlockReason reason fused vector dispatch was blocked, or NONE
  */
 public record FusedTraceMetadata(
         int precisionMode,
@@ -18,8 +18,8 @@ public record FusedTraceMetadata(
         String dispatchFamily,
         String schedulerSignature,
         String executionBackend,
-        int dispatchScale,
         int fusedNodeCount,
-        int fusedInputCount
+        int fusedInputCount,
+        String vectorBlockReason
 ) {
 }

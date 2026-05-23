@@ -5,6 +5,7 @@ import backend.cpu.fused.asm.FusedGenerationContext;
 import backend.cpu.fused.ir.FusedExpressionPlan;
 import backend.cpu.fused.ir.FusedExternalInputPlan;
 import backend.cpu.fused.ir.FusedNodePlan;
+import backend.cpu.fused.numeric.FusedStorageKind;
 
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
@@ -37,6 +38,8 @@ public final class FusedScalarMethodEmitter {
         SlotManager sm = FusedSlotLayouts.buildRangeSlotLayout(plan.inputCount(), plan.nodeCount());
         int[] nodeValueSlots = sm.getGroup(SlotKey.FUSED_NODE_VALUES).stream().mapToInt(Integer::intValue).toArray();
         int[] nodeBoolSlots = sm.getGroup(SlotKey.FUSED_NODE_BOOL_VALUES).stream().mapToInt(Integer::intValue).toArray();
+        boolean inputMemorySegmentStorage = context.numericContract().inputStorageKind() == FusedStorageKind.CPU_MEMORY_SEGMENT;
+        boolean outputMemorySegmentStorage = context.numericContract().outputStorageKind() == FusedStorageKind.CPU_MEMORY_SEGMENT;
 
         FusedInputBindingEmitter.emitScalarBindings(mv, context, sm);
         FusedOutputBindingEmitter.emitScalarBinding(mv, context, sm);
@@ -61,7 +64,8 @@ public final class FusedScalarMethodEmitter {
                     sm,
                     context.precisionMode(),
                     context.approximationContract(),
-                    plan.inputs()
+                    plan.inputs(),
+                    inputMemorySegmentStorage
             );
             if (node.outputType() == tensor.DataType.BOOL) {
                 FusedScalarBytecode.emitBoolScalarStoreInsn(mv, nodeBoolSlots[node.index()]);
@@ -69,22 +73,40 @@ public final class FusedScalarMethodEmitter {
                 FusedScalarBytecode.emitScalarStoreInsn(mv, nodeValueSlots[node.index()], context.precisionMode());
             }
         }
-        mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
-        mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
         FusedNodePlan outputNode = plan.outputNode();
-        if (outputNode.outputType() == tensor.DataType.BOOL) {
-            FusedScalarBytecode.emitBoolScalarLoadInsn(
-                    mv,
-                    nodeBoolSlots[outputNode.index()]
-            );
-            mv.visitInsn(BASTORE);
+        if (outputMemorySegmentStorage) {
+            mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
+            mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+            if (outputNode.outputType() == tensor.DataType.BOOL) {
+                FusedScalarBytecode.emitBoolScalarLoadInsn(
+                        mv,
+                        nodeBoolSlots[outputNode.index()]
+                );
+            } else {
+                FusedScalarBytecode.emitScalarLoadInsn(
+                        mv,
+                        nodeValueSlots[outputNode.index()],
+                        context.precisionMode()
+                );
+            }
+            FusedRuntimeCalls.emitStoreScalarToSegmentCall(mv, outputNode.outputType(), context.precisionMode());
         } else {
-            FusedScalarBytecode.emitScalarLoadInsn(
-                    mv,
-                    nodeValueSlots[outputNode.index()],
-                    context.precisionMode()
-            );
-            FusedScalarBytecode.emitScalarArrayStoreInsn(mv, context.precisionMode());
+            mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
+            mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+            if (outputNode.outputType() == tensor.DataType.BOOL) {
+                FusedScalarBytecode.emitBoolScalarLoadInsn(
+                        mv,
+                        nodeBoolSlots[outputNode.index()]
+                );
+                mv.visitInsn(BASTORE);
+            } else {
+                FusedScalarBytecode.emitScalarLoadInsn(
+                        mv,
+                        nodeValueSlots[outputNode.index()],
+                        context.precisionMode()
+                );
+                FusedScalarBytecode.emitScalarArrayStoreInsn(mv, context.precisionMode());
+            }
         }
 
         List<Integer> cursorSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS);

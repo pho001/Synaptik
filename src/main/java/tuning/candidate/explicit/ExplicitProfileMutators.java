@@ -11,7 +11,6 @@ import config.runtime.BlasConfig;
 import config.runtime.BlasStorageMode;
 import config.runtime.CpuStorageProfile;
 import config.runtime.FusedExecutionPolicy;
-import config.runtime.FusedPrimaryBackend;
 import config.runtime.NativeCpuFailurePolicy;
 import tuning.candidate.ExecutionProfileMutator;
 import tuning.candidate.ExecutionProfileVariant;
@@ -33,7 +32,7 @@ public final class ExplicitProfileMutators {
                 )),
                 matmulBlasProviders(List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM), List.of(1_000_000L, 2_000_000L)),
                 blasThreads(List.of(0)),
-                fusedExecutionPolicies(List.of(FusedPrimaryBackend.ASM), List.of(true))
+                fusedExecutionPolicies(List.of(true))
         );
     }
 
@@ -43,7 +42,7 @@ public final class ExplicitProfileMutators {
                 matmulBlasProviders(List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM), List.of(1_000_000L, 2_000_000L, 4_000_000L)),
                 blasThreads(List.of(0)),
                 matmulParallelThresholds(List.of(100_000, 500_000, 2_000_000)),
-                fusedExecutionPolicies(List.of(FusedPrimaryBackend.ASM), List.of(true))
+                fusedExecutionPolicies(List.of(true))
         );
     }
 
@@ -62,7 +61,7 @@ public final class ExplicitProfileMutators {
                         List.of(512, 2_048, 8_192),
                         List.of(1_024, 4_096, 16_384)
                 ),
-                fusedExecutionPolicies(List.of(FusedPrimaryBackend.ASM), List.of(true))
+                fusedExecutionPolicies(List.of(true))
         );
     }
 
@@ -72,7 +71,7 @@ public final class ExplicitProfileMutators {
                 matmulBlasProviders(List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM), List.of(1_000_000L, 2_000_000L, 4_000_000L)),
                 blasThreads(List.of(0)),
                 matmulParallelThresholds(List.of(100_000, 500_000, 2_000_000)),
-                fusedExecutionPolicies(List.of(FusedPrimaryBackend.ASM), List.of(true))
+                fusedExecutionPolicies(List.of(true))
         );
     }
 
@@ -83,7 +82,7 @@ public final class ExplicitProfileMutators {
                         List.of(256, 1_024, 4_096),
                         List.of(512, 2_048, 8_192)
                 ),
-                fusedExecutionPolicies(List.of(FusedPrimaryBackend.ASM), List.of(true))
+                fusedExecutionPolicies(List.of(true))
         );
     }
 
@@ -94,7 +93,7 @@ public final class ExplicitProfileMutators {
                         List.of(256, 1_024, 4_096),
                         List.of(512, 2_048, 8_192)
                 ),
-                fusedExecutionPolicies(List.of(FusedPrimaryBackend.ASM), List.of(true))
+                fusedExecutionPolicies(List.of(true))
         );
     }
 
@@ -105,7 +104,7 @@ public final class ExplicitProfileMutators {
                         List.of(256, 1_024, 4_096),
                         List.of(512, 2_048, 8_192)
                 ),
-                fusedExecutionPolicies(List.of(FusedPrimaryBackend.ASM), List.of(true))
+                fusedExecutionPolicies(List.of(true))
         );
     }
 
@@ -164,10 +163,7 @@ public final class ExplicitProfileMutators {
                                                 minVector,
                                                 minReduction,
                                                 commonPool,
-                                                baseCpu.fusedCheapContiguousAsmVectorWidth(),
-                                                baseCpu.fusedCheapStridedAsmVectorWidth(),
-                                                baseCpu.fusedNonCheapContiguousAsmVectorWidth(),
-                                                baseCpu.fusedNonCheapStridedAsmVectorWidth(),
+                                                baseCpu.fusedAsmVectorWidth(),
                                                 baseCpu.sumAccuracyMode(),
                                                 baseCpu.matMulParallelMinSize(),
                                                 baseCpu.attentionMatMulPolicy(),
@@ -195,38 +191,28 @@ public final class ExplicitProfileMutators {
         };
     }
 
-    public static ExecutionProfileMutator fusedExecutionPolicies(
-            List<FusedPrimaryBackend> primaryBackends,
-            List<Boolean> allowFallbackValues
-    ) {
-        List<FusedPrimaryBackend> safePrimary = primaryBackends == null ? List.of() : List.copyOf(primaryBackends);
+    public static ExecutionProfileMutator fusedExecutionPolicies(List<Boolean> allowFallbackValues) {
         List<Boolean> safeFallback = allowFallbackValues == null ? List.of() : List.copyOf(allowFallbackValues);
         return (baseProfile, workload) -> {
             if (!usesFusedRuntimePolicies(workload.kind())) {
                 return List.of(new ExecutionProfileVariant("fusedPolicy=current", baseProfile));
             }
             List<ExecutionProfileVariant> variants = new ArrayList<>();
-            for (FusedPrimaryBackend primary : safePrimary) {
-                for (Boolean allowFallback : safeFallback) {
-                    FusedExecutionPolicy policy = new FusedExecutionPolicy(
-                            primary,
-                            allowFallback
-                    );
-                    variants.add(new ExecutionProfileVariant(
-                            "fused=" + primary.name()
-                                    + ":fallback=" + allowFallback,
-                            withRuntime(baseProfile, new config.runtime.RuntimeConfig(
-                                    baseProfile.runtime().kernel(),
-                                    baseProfile.runtime().approximation(),
-                                    baseProfile.runtime().blas(),
-                                    baseProfile.runtime().conv2d(),
-                                    policy,
-                                    baseProfile.runtime().accelerator(),
-                                    baseProfile.runtime().cpuStorageProfile(),
-                                    baseProfile.runtime().nativeCpuFailurePolicy()
-                            ))
-                    ));
-                }
+            for (Boolean allowFallback : safeFallback) {
+                FusedExecutionPolicy policy = new FusedExecutionPolicy(allowFallback);
+                variants.add(new ExecutionProfileVariant(
+                        "fusedFallback=" + allowFallback,
+                        withRuntime(baseProfile, new config.runtime.RuntimeConfig(
+                                baseProfile.runtime().kernel(),
+                                baseProfile.runtime().approximation(),
+                                baseProfile.runtime().blas(),
+                                baseProfile.runtime().conv2d(),
+                                policy,
+                                baseProfile.runtime().accelerator(),
+                                baseProfile.runtime().cpuStorageProfile(),
+                                baseProfile.runtime().nativeCpuFailurePolicy()
+                        ))
+                ));
             }
             return variants;
         };
@@ -560,10 +546,7 @@ public final class ExplicitProfileMutators {
                         baseCpu.minVectorChunkSize(),
                         baseCpu.minReductionChunkSize(),
                         baseCpu.commonPoolLowCostMaxWorkPerWorker(),
-                        width == null ? baseCpu.fusedCheapContiguousAsmVectorWidth() : width,
-                        width == null ? baseCpu.fusedCheapStridedAsmVectorWidth() : width,
-                        width == null ? baseCpu.fusedNonCheapContiguousAsmVectorWidth() : width,
-                        width == null ? baseCpu.fusedNonCheapStridedAsmVectorWidth() : width,
+                        width == null ? baseCpu.fusedAsmVectorWidth() : width,
                         baseCpu.sumAccuracyMode(),
                         baseCpu.matMulParallelMinSize(),
                         baseCpu.attentionMatMulPolicy(),
@@ -669,10 +652,7 @@ public final class ExplicitProfileMutators {
                                 baseCpu.minVectorChunkSize(),
                                 baseCpu.minReductionChunkSize(),
                                 baseCpu.commonPoolLowCostMaxWorkPerWorker(),
-                                baseCpu.fusedCheapContiguousAsmVectorWidth(),
-                                baseCpu.fusedCheapStridedAsmVectorWidth(),
-                                baseCpu.fusedNonCheapContiguousAsmVectorWidth(),
-                                baseCpu.fusedNonCheapStridedAsmVectorWidth(),
+                                baseCpu.fusedAsmVectorWidth(),
                                 baseCpu.sumAccuracyMode(),
                                 baseCpu.matMulParallelMinSize(),
                                 baseCpu.attentionMatMulPolicy(),
@@ -899,10 +879,7 @@ public final class ExplicitProfileMutators {
                 base.minVectorChunkSize(),
                 base.minReductionChunkSize(),
                 base.commonPoolLowCostMaxWorkPerWorker(),
-                base.fusedCheapContiguousAsmVectorWidth(),
-                base.fusedCheapStridedAsmVectorWidth(),
-                base.fusedNonCheapContiguousAsmVectorWidth(),
-                base.fusedNonCheapStridedAsmVectorWidth(),
+                base.fusedAsmVectorWidth(),
                 base.sumAccuracyMode(),
                 matmulParallelMin == null ? base.matMulParallelMinSize() : matmulParallelMin,
                 attention == null ? base.attentionMatMulPolicy() : attention,

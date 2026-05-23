@@ -42,10 +42,7 @@ public class PlatformCalibrationDefaultsTest {
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.ATTENTION_MATMUL));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.CONV2D_GEMM_DISPATCH));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_DISPATCH));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_CHEAP_CONTIGUOUS_WIDTH));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_CHEAP_STRIDED_WIDTH));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_NON_CHEAP_CONTIGUOUS_WIDTH));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_NON_CHEAP_STRIDED_WIDTH));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_ASM_WIDTH));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.ELEMENTWISE_DISPATCH));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.SCHEDULER));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.MATERIALIZATION));
@@ -76,17 +73,14 @@ public class PlatformCalibrationDefaultsTest {
                 Path.of("build", "test-platform-profile.json")
         );
 
-        assertEquals(16, request.steps().size());
+        assertEquals(13, request.steps().size());
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.MATMUL));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.MATMUL));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.MATMUL));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.ATTENTION_MATMUL));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.CONV2D_GEMM_DISPATCH));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_DISPATCH));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_CHEAP_CONTIGUOUS_WIDTH));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_CHEAP_STRIDED_WIDTH));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_NON_CHEAP_CONTIGUOUS_WIDTH));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_NON_CHEAP_STRIDED_WIDTH));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_ASM_WIDTH));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.ELEMENTWISE_DISPATCH));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.REDUCTION));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.SCHEDULER));
@@ -306,9 +300,9 @@ public class PlatformCalibrationDefaultsTest {
     }
 
     @Test
-    void fusedCheapContiguousCalibrationStepGeneratesFamilySpecificAsmWidthCandidates() {
-        var step = PlatformCalibrationDefaults.fusedCheapContiguousStep(
-                "fused-cheap-contig",
+    void fusedAsmWidthCalibrationStepGeneratesCanonicalWidthCandidates() {
+        var step = PlatformCalibrationDefaults.fusedAsmWidthStep(
+                "fused-asm-width",
                 TuningPreset.QUICK,
                 tensor.DataType.FLOAT32
         );
@@ -330,14 +324,11 @@ public class PlatformCalibrationDefaultsTest {
 
         var candidates = step.candidateSpaceFactory().create(base).generate(step.workloads().getFirst());
         var width8 = candidates.stream()
-                .filter(candidate -> "8".equals(candidate.knobAssignments().get("cpu.fusedCheapContiguousAsmVectorWidth")))
+                .filter(candidate -> "8".equals(candidate.knobAssignments().get("cpu.fusedAsmVectorWidth")))
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("Expected cheap-contiguous fused width candidate with width 8."));
+                .orElseThrow(() -> new AssertionError("Expected fused width candidate with width 8."));
 
-        assertEquals(8, width8.runtimeProfile().fused().fusedCheapContiguousAsmVectorWidth());
-        assertEquals(base.fused().fusedCheapStridedAsmVectorWidth(), width8.runtimeProfile().fused().fusedCheapStridedAsmVectorWidth());
-        assertEquals(base.fused().fusedNonCheapContiguousAsmVectorWidth(), width8.runtimeProfile().fused().fusedNonCheapContiguousAsmVectorWidth());
-        assertEquals(base.fused().fusedNonCheapStridedAsmVectorWidth(), width8.runtimeProfile().fused().fusedNonCheapStridedAsmVectorWidth());
+        assertEquals(8, width8.runtimeProfile().fused().fusedAsmVectorWidth());
     }
 
     @Test
@@ -364,9 +355,9 @@ public class PlatformCalibrationDefaultsTest {
     }
 
     @Test
-    void fusedCheapStridedCalibrationStepDoesNotGenerateExtendedAsmWidthCandidate() {
-        var step = PlatformCalibrationDefaults.fusedCheapStridedStep(
-                "fused-cheap-strided",
+    void fusedAsmWidthCalibrationStepKeepsSingleCanonicalKnob() {
+        var step = PlatformCalibrationDefaults.fusedAsmWidthStep(
+                "fused-asm-width",
                 TuningPreset.QUICK,
                 tensor.DataType.FLOAT32
         );
@@ -387,20 +378,22 @@ public class PlatformCalibrationDefaultsTest {
         );
 
         var candidates = step.candidateSpaceFactory().create(base).generate(step.workloads().getFirst());
-        assertFalse(candidates.stream()
-                .anyMatch(candidate -> "8".equals(candidate.knobAssignments().get("cpu.fusedCheapStridedAsmVectorWidth"))));
+        assertTrue(candidates.stream()
+                .allMatch(candidate -> candidate.knobAssignments().keySet().equals(Set.of("cpu.fusedAsmVectorWidth"))));
     }
 
     @Test
-    void fusedNonCheapStridedCalibrationStepCoversTranscendentalAndAffineRationalPatterns() {
-        var step = PlatformCalibrationDefaults.fusedNonCheapStridedStep(
-                "fused-noncheap-strided",
+    void fusedAsmWidthCalibrationStepCoversContiguousStridedAndRationalPatterns() {
+        var step = PlatformCalibrationDefaults.fusedAsmWidthStep(
+                "fused-asm-width",
                 TuningPreset.QUICK,
                 tensor.DataType.BFLOAT16
         );
 
-        assertEquals(2, step.workloads().size());
-        assertTrue(step.workloads().get(0).name().contains("transcendental"));
-        assertTrue(step.workloads().get(1).name().contains("affine_rational"));
+        assertEquals(5, step.workloads().size());
+        assertTrue(step.workloads().stream().anyMatch(workload -> workload.name().contains("cheap_contiguous")));
+        assertTrue(step.workloads().stream().anyMatch(workload -> workload.name().contains("cheap_strided")));
+        assertTrue(step.workloads().stream().anyMatch(workload -> workload.name().contains("transcendental")));
+        assertTrue(step.workloads().stream().anyMatch(workload -> workload.name().contains("affine_rational")));
     }
 }

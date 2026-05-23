@@ -8,15 +8,17 @@ import tensor.DataType;
 public enum FusedValueLane {
     F32,
     F64,
-    BF16;
+    BF16,
+    BOOL;
 
     public static FusedValueLane fromDataType(DataType dataType) {
         return switch (dataType) {
             case FLOAT64 -> F64;
             case FLOAT32 -> F32;
             case BFLOAT16 -> BF16;
-            case INT32, INT64, BOOL -> throw new UnsupportedOperationException(
-                    "Fused numeric lanes support FLOAT32, FLOAT64, and BFLOAT16 only: " + dataType
+            case BOOL -> BOOL;
+            case INT32, INT64 -> throw new UnsupportedOperationException(
+                    "Fused numeric lanes support FLOAT32, FLOAT64, BFLOAT16, and BOOL only: " + dataType
             );
         };
     }

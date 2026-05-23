@@ -1,6 +1,7 @@
 package backend.cpu.fused.asm.emit;
 
 import backend.cpu.fused.asm.FusedGenerationContext;
+import backend.cpu.fused.numeric.FusedStorageKind;
 
 import org.objectweb.asm.MethodVisitor;
 import utils.SlotKey;
@@ -15,14 +16,24 @@ public final class FusedOutputBindingEmitter {
     private FusedOutputBindingEmitter() {}
 
     public static void emitScalarBinding(MethodVisitor mv, FusedGenerationContext context, SlotManager sm) {
-        mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR));
-        FusedRuntimeCalls.emitGetRawArrayFromTensorCall(mv, context.plan().outputNode().outputType());
+        if (context.numericContract().outputStorageKind() == FusedStorageKind.CPU_MEMORY_SEGMENT) {
+            mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_CONTEXT));
+            FusedRuntimeCalls.emitGetNativeOutputSegmentCall(mv);
+        } else {
+            mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR));
+            FusedRuntimeCalls.emitGetRawArrayFromTensorCall(mv, context.plan().outputNode().outputType());
+        }
         mv.visitVarInsn(ASTORE, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
     }
 
     public static void emitVectorBinding(MethodVisitor mv, FusedGenerationContext context, SlotManager sm) {
-        mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR));
-        FusedRuntimeCalls.emitGetRawArrayFromTensorCall(mv, context.plan().outputNode().outputType());
+        if (context.numericContract().outputStorageKind() == FusedStorageKind.CPU_MEMORY_SEGMENT) {
+            mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_CONTEXT));
+            FusedRuntimeCalls.emitGetNativeOutputSegmentCall(mv);
+        } else {
+            mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR));
+            FusedRuntimeCalls.emitGetRawArrayFromTensorCall(mv, context.plan().outputNode().outputType());
+        }
         mv.visitVarInsn(ASTORE, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
     }
 }

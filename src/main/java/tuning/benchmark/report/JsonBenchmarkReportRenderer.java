@@ -1573,8 +1573,8 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"lowCostHint\": " + fused.lowCostHint() + ", "
                 + "\"dispatchFamily\": \"" + escape(fused.dispatchFamily()) + "\", "
                 + "\"schedulerSignature\": \"" + escape(fused.schedulerSignature()) + "\", "
+                + "\"vectorBlockReason\": \"" + escape(fused.vectorBlockReason()) + "\", "
                 + "\"executionBackend\": \"" + escape(fused.executionBackend()) + "\", "
-                + "\"dispatchScale\": " + fused.dispatchScale() + ", "
                 + "\"fusedNodeCount\": " + fused.fusedNodeCount() + ", "
                 + "\"fusedInputCount\": " + fused.fusedInputCount()
                 + "}";

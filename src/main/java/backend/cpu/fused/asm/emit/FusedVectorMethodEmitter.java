@@ -2,6 +2,8 @@ package backend.cpu.fused.asm.emit;
 
 import backend.cpu.fused.asm.FusedGenerationContext;
 
+import backend.cpu.fused.numeric.FusedStorageKind;
+import backend.cpu.fused.plan.FusedVectorGuard;
 import backend.cpu.fused.runtime.FusedDTypeOps;
 
 import backend.cpu.fused.ir.FusedExpressionPlan;
@@ -39,6 +41,8 @@ public final class FusedVectorMethodEmitter {
         }
         SlotManager sm = FusedSlotLayouts.buildVectorSlotLayout(plan.inputCount(), plan.nodeCount());
         int[] nodeVectorSlots = sm.getGroup(SlotKey.FUSED_NODE_VECTOR_VALUES).stream().mapToInt(Integer::intValue).toArray();
+        boolean outputMemorySegmentStorage =
+                context.numericContract().outputStorageKind() == FusedStorageKind.CPU_MEMORY_SEGMENT;
 
         FusedInputBindingEmitter.emitVectorBindings(mv, context, sm);
         FusedOutputBindingEmitter.emitVectorBinding(mv, context, sm);
@@ -67,6 +71,7 @@ public final class FusedVectorMethodEmitter {
 
         FusedInputBindingEmitter.emitVectorCachedInputLoads(
                 mv,
+                context,
                 plan.inputCount(),
                 plan.inputs(),
                 sm,
@@ -81,16 +86,24 @@ public final class FusedVectorMethodEmitter {
             mv.visitVarInsn(ASTORE, nodeVectorSlots[node.index()]);
         }
 
-        mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
-        mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
-        mv.visitVarInsn(ALOAD, nodeVectorSlots[plan.outputRef() - plan.inputCount()]);
-        if (plan.outputNode().outputType() == tensor.DataType.BOOL) {
-            FusedVectorBytecode.emitVectorWidthConstant(mv, context.vectorWidth());
-            FusedRuntimeCalls.emitStoreBoolVectorToArrayCall(mv, context.precisionMode());
-        } else if (context.precisionMode() == FusedDTypeOps.MODE_F32 || context.precisionMode() == FusedDTypeOps.MODE_F64) {
-            FusedRuntimeCalls.emitDirectStoreVectorToArrayCall(mv, context.precisionMode());
+        if (outputMemorySegmentStorage) {
+            mv.visitVarInsn(ALOAD, nodeVectorSlots[plan.outputRef() - plan.inputCount()]);
+            FusedVectorBytecode.emitVectorRefCast(mv, plan.outputNode().outputType(), context.precisionMode());
+            mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
+            mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+            FusedRuntimeCalls.emitDirectStoreVectorToSegmentCall(mv, context.precisionMode());
         } else {
-            FusedRuntimeCalls.emitStoreVectorToArrayCall(mv, context.precisionMode());
+            mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
+            mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+            mv.visitVarInsn(ALOAD, nodeVectorSlots[plan.outputRef() - plan.inputCount()]);
+            if (plan.outputNode().outputType() == tensor.DataType.BOOL) {
+                FusedVectorBytecode.emitVectorWidthConstant(mv, context.vectorWidth());
+                FusedRuntimeCalls.emitStoreBoolVectorToArrayCall(mv, context.precisionMode());
+            } else if (context.precisionMode() == FusedDTypeOps.MODE_F32 || context.precisionMode() == FusedDTypeOps.MODE_F64) {
+                FusedRuntimeCalls.emitDirectStoreVectorToArrayCall(mv, context.precisionMode());
+            } else {
+                FusedRuntimeCalls.emitStoreVectorToArrayCall(mv, context.precisionMode());
+            }
         }
 
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
@@ -126,6 +139,9 @@ public final class FusedVectorMethodEmitter {
     }
 
     private static boolean supportsVector(FusedGenerationContext context, FusedExpressionPlan plan) {
+        if (context.numericContract().usesMemorySegmentStorage()) {
+            return FusedVectorGuard.supportsMemorySegmentVectorAsm(context.numericContract(), plan);
+        }
         for (FusedNodePlan node : plan.nodes()) {
             if (node.opType() == operations.Operation.OpType.POW_TENSOR) {
                 return false;

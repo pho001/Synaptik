@@ -4,7 +4,6 @@ import backend.blas.BlasProvider;
 import backend.cpu.kernels.plan.CpuExecutionPlanner;
 import config.backend.CpuMatMulMicroKernel;
 import config.profile.ExecutionProfile;
-import backend.cpu.fused.plan.FusedDispatchFamily;
 import tuning.calibration.family.CalibrationFamilyId;
 import tuning.calibration.runtime.PlatformRuntimeProfileGridCandidateSpace;
 import tuning.calibration.runtime.PlatformRuntimeProfileMutator;
@@ -421,60 +420,22 @@ public final class PlatformCalibrationDefaults {
         );
     }
 
-    public static PlatformCalibrationStep fusedCheapContiguousStep(String name, TuningPreset preset, DataType dataType) {
+    public static PlatformCalibrationStep fusedAsmWidthStep(String name, TuningPreset preset, DataType dataType) {
         return fusedAsmWidthStep(
                 name,
-                CalibrationFamilyId.FUSED_CHEAP_CONTIGUOUS_WIDTH,
-                FusedDispatchFamily.CHEAP_CONTIGUOUS,
                 List.of(
-                        CalibrationWorkloads.fusedCheapElementwise(name + "_workload_medium", 65_536),
-                        CalibrationWorkloads.fusedCheapElementwise(name + "_workload_large", 262_144)
+                        CalibrationWorkloads.fusedCheapElementwise(name + "_cheap_contiguous", 65_536),
+                        CalibrationWorkloads.fusedCheapStridedElementwise(name + "_cheap_strided", 256, 256),
+                        CalibrationWorkloads.fusedTranscendental(name + "_transcendental_contiguous", 65_536),
+                        CalibrationWorkloads.fusedTranscendentalStrided(name + "_transcendental_strided", 256, 256),
+                        CalibrationWorkloads.fusedAffineRationalStrided(name + "_affine_rational_strided", 256, 2048)
                 ),
                 preset,
                 dataType
         );
     }
 
-    public static PlatformCalibrationStep fusedCheapStridedStep(String name, TuningPreset preset, DataType dataType) {
-        return fusedAsmWidthStep(
-                name,
-                CalibrationFamilyId.FUSED_CHEAP_STRIDED_WIDTH,
-                FusedDispatchFamily.CHEAP_STRIDED,
-                List.of(CalibrationWorkloads.fusedCheapStridedElementwise(name + "_workload", 256, 256)),
-                preset,
-                dataType
-        );
-    }
-
-    public static PlatformCalibrationStep fusedNonCheapContiguousStep(String name, TuningPreset preset, DataType dataType) {
-        return fusedAsmWidthStep(
-                name,
-                CalibrationFamilyId.FUSED_NON_CHEAP_CONTIGUOUS_WIDTH,
-                FusedDispatchFamily.NON_CHEAP_CONTIGUOUS,
-                List.of(
-                        CalibrationWorkloads.fusedTranscendental(name + "_workload_medium", 65_536),
-                        CalibrationWorkloads.fusedTranscendental(name + "_workload_large", 262_144)
-                ),
-                preset,
-                dataType
-        );
-    }
-
-    public static PlatformCalibrationStep fusedNonCheapStridedStep(String name, TuningPreset preset, DataType dataType) {
-        return fusedAsmWidthStep(
-                name,
-                CalibrationFamilyId.FUSED_NON_CHEAP_STRIDED_WIDTH,
-                FusedDispatchFamily.NON_CHEAP_STRIDED,
-                List.of(
-                        CalibrationWorkloads.fusedTranscendentalStrided(name + "_transcendental_workload", 256, 256),
-                        CalibrationWorkloads.fusedAffineRationalStrided(name + "_affine_rational_workload", 256, 2048)
-                ),
-                preset,
-                dataType
-        );
-    }
-
-    private static List<Integer> supportedFusedAsmVectorWidths(FusedDispatchFamily family, DataType dataType) {
+    private static List<Integer> supportedFusedAsmVectorWidths(DataType dataType) {
         int maxWidth = switch (dataType) {
             case FLOAT64 -> jdk.incubator.vector.DoubleVector.SPECIES_PREFERRED.length();
             case FLOAT32, BFLOAT16 -> jdk.incubator.vector.FloatVector.SPECIES_PREFERRED.length();
@@ -488,9 +449,7 @@ public final class PlatformCalibrationDefaults {
         if (maxWidth >= 4) {
             widths.add(4);
         }
-        if (maxWidth >= 8
-                || (family == FusedDispatchFamily.CHEAP_CONTIGUOUS
-                && (dataType == DataType.FLOAT32 || dataType == DataType.BFLOAT16))) {
+        if (maxWidth >= 8 || dataType == DataType.FLOAT32 || dataType == DataType.BFLOAT16) {
             widths.add(8);
         }
         return List.copyOf(widths);
@@ -498,23 +457,20 @@ public final class PlatformCalibrationDefaults {
 
     private static PlatformCalibrationStep fusedAsmWidthStep(
             String name,
-            CalibrationFamilyId family,
-            FusedDispatchFamily dispatchFamily,
             List<tuning.workload.WorkloadSpec> workloads,
             TuningPreset preset,
             DataType dataType
     ) {
         return new PlatformCalibrationStep(
                 name,
-                family,
+                CalibrationFamilyId.FUSED_ASM_WIDTH,
                 workloads,
                 preset,
                 base -> new PlatformRuntimeProfileGridCandidateSpace(
                         base,
                         List.of(
                                 PlatformRuntimeProfileMutators.fusedAsmVectorWidths(
-                                        dispatchFamily,
-                                        supportedFusedAsmVectorWidths(dispatchFamily, dataType)
+                                        supportedFusedAsmVectorWidths(dataType)
                                 )
                         )
                 ),
@@ -623,10 +579,7 @@ public final class PlatformCalibrationDefaults {
             DataType dataType
     ) {
         steps.add(fusedDispatchStep(prefix + "-thresholds", preset));
-        steps.add(fusedCheapContiguousStep(prefix + "-cheap-contig", preset, dataType));
-        steps.add(fusedCheapStridedStep(prefix + "-cheap-strided", preset, dataType));
-        steps.add(fusedNonCheapContiguousStep(prefix + "-noncheap-contig", preset, dataType));
-        steps.add(fusedNonCheapStridedStep(prefix + "-noncheap-strided", preset, dataType));
+        steps.add(fusedAsmWidthStep(prefix + "-fused-asm-width", preset, dataType));
     }
 
     private static void addMatmulSteps(

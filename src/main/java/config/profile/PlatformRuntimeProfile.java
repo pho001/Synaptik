@@ -285,10 +285,7 @@ public record PlatformRuntimeProfile(
                         cpu.fusedTranscendentalVectorMinSize(),
                         cpu.fusedCheapParallelMinSize(),
                         cpu.fusedTranscendentalParallelMinSize(),
-                        cpu.fusedCheapContiguousAsmVectorWidth(),
-                        cpu.fusedCheapStridedAsmVectorWidth(),
-                        cpu.fusedNonCheapContiguousAsmVectorWidth(),
-                        cpu.fusedNonCheapStridedAsmVectorWidth()
+                        cpu.fusedAsmVectorWidth()
                 ),
                 new ElementwiseDispatchPlatformProfile(
                         cpu.cheapVectorMinSize(),
@@ -370,10 +367,7 @@ public record PlatformRuntimeProfile(
                 scheduler.minVectorChunkSize(),
                 scheduler.minReductionChunkSize(),
                 scheduler.commonPoolLowCostMaxWorkPerWorker(),
-                fused.fusedCheapContiguousAsmVectorWidth(),
-                fused.fusedCheapStridedAsmVectorWidth(),
-                fused.fusedNonCheapContiguousAsmVectorWidth(),
-                fused.fusedNonCheapStridedAsmVectorWidth(),
+                fused.fusedAsmVectorWidth(),
                 reduction.sumAccuracyMode(),
                 matmul.matMulParallelMinSize(),
                 AttentionMatMulPolicy.AUTO,

@@ -108,10 +108,7 @@ public final class ExecutableProfileFingerprint {
         sb.append("cpu.minVectorChunk=").append(cpu.minVectorChunkSize()).append('|');
         sb.append("cpu.minReductionChunk=").append(cpu.minReductionChunkSize()).append('|');
         sb.append("cpu.commonPoolLowCostMaxWorkPerWorker=").append(cpu.commonPoolLowCostMaxWorkPerWorker()).append('|');
-        sb.append("cpu.fusedCheapContiguousAsmVectorWidth=").append(cpu.fusedCheapContiguousAsmVectorWidth()).append('|');
-        sb.append("cpu.fusedCheapStridedAsmVectorWidth=").append(cpu.fusedCheapStridedAsmVectorWidth()).append('|');
-        sb.append("cpu.fusedNonCheapContiguousAsmVectorWidth=").append(cpu.fusedNonCheapContiguousAsmVectorWidth()).append('|');
-        sb.append("cpu.fusedNonCheapStridedAsmVectorWidth=").append(cpu.fusedNonCheapStridedAsmVectorWidth()).append('|');
+        sb.append("cpu.fusedAsmVectorWidth=").append(cpu.fusedAsmVectorWidth()).append('|');
         sb.append("cpu.sumAccuracy=").append(cpu.sumAccuracyMode()).append('|');
         sb.append("cpu.attnMatMul=").append(cpu.attentionMatMulPolicy()).append('|');
         sb.append("cpu.matMulMicroKernel=").append(cpu.matMulMicroKernel()).append('|');
@@ -131,7 +128,6 @@ public final class ExecutableProfileFingerprint {
         sb.append("conv2d.bf16MinWork=").append(runtime.conv2d().bf16MinWork()).append('|');
         sb.append("conv2d.bf16Req=").append(runtime.conv2d().bf16RequireMgeK()).append('|');
         sb.append("conv2d.bf16MaxNOverK=").append(fmt(runtime.conv2d().bf16MaxNOverK())).append('|');
-        sb.append("fused.primary=").append(runtime.fused().primaryBackend()).append('|');
         sb.append("fused.allowFallback=").append(runtime.fused().allowBackendFallback()).append('|');
         return sb.toString();
     }

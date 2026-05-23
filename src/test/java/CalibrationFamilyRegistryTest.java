@@ -21,10 +21,7 @@ public class CalibrationFamilyRegistryTest {
                         CalibrationFamilyId.CONV2D_GEMM_DISPATCH,
                         CalibrationFamilyId.ELEMENTWISE_DISPATCH,
                         CalibrationFamilyId.FUSED_DISPATCH,
-                        CalibrationFamilyId.FUSED_CHEAP_CONTIGUOUS_WIDTH,
-                        CalibrationFamilyId.FUSED_CHEAP_STRIDED_WIDTH,
-                        CalibrationFamilyId.FUSED_NON_CHEAP_CONTIGUOUS_WIDTH,
-                        CalibrationFamilyId.FUSED_NON_CHEAP_STRIDED_WIDTH,
+                        CalibrationFamilyId.FUSED_ASM_WIDTH,
                         CalibrationFamilyId.REDUCTION,
                         CalibrationFamilyId.ATTENTION_THRESHOLDS,
                         CalibrationFamilyId.MATERIALIZATION

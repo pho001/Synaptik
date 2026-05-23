@@ -207,10 +207,7 @@ The CLI currently exposes family-specific calibration steps such as:
 - `attention-matmul`
 - `conv2d`
 - `fused-thresholds`
-- `fused-cheap-contiguous`
-- `fused-cheap-strided`
-- `fused-noncheap-contiguous`
-- `fused-noncheap-strided-width`
+- `fused-asm-width`
 - `elementwise-dispatch`
 - `reduction`
 - `attention-thresholds`

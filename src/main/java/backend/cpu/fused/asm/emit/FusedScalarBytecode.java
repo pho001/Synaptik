@@ -134,12 +134,17 @@ final class FusedScalarBytecode {
             int[] nodeBoolSlots,
             SlotManager sm,
             int precisionMode,
-            java.util.List<FusedExternalInputPlan> inputPlans
+            java.util.List<FusedExternalInputPlan> inputPlans,
+            boolean memorySegmentStorage
     ) {
         if (ref < inputPlans.size()) {
             FusedExternalInputPlan meta = inputPlans.get(ref);
+            if (meta.dataType() == tensor.DataType.BOOL) {
+                loadExternalBoolScalar(mv, ref, sm, inputPlans, memorySegmentStorage);
+                return;
+            }
             Label done = null;
-            if (meta.dataType() == tensor.DataType.BFLOAT16) {
+            if (!memorySegmentStorage && meta.dataType() == tensor.DataType.BFLOAT16) {
                 int continuationSlot = sm.getGroup(SlotKey.CLUSTER_INPUTS_CONTINUATION_ARRAYS).get(ref);
                 Label storageLoad = new Label();
                 done = new Label();
@@ -175,7 +180,11 @@ final class FusedScalarBytecode {
                 mv.visitVarInsn(ALOAD, sm.getGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS).get(ref));
                 mv.visitMethodInsn(INVOKEVIRTUAL, "backend/cpu/fused/runtime/FusedBroadcastCursor", "idx", "()I", false);
             }
-            emitScalarArrayLoadInsn(mv, precisionMode);
+            if (memorySegmentStorage) {
+                FusedRuntimeCalls.emitLoadScalarFromSegmentCall(mv, meta.dataType(), precisionMode);
+            } else {
+                emitScalarArrayLoadInsn(mv, precisionMode);
+            }
             if (done != null) {
                 mv.visitLabel(done);
             }
@@ -191,5 +200,32 @@ final class FusedScalarBytecode {
             return;
         }
         emitScalarLoadInsn(mv, nodeValueSlots[nodeIndex], precisionMode);
+    }
+
+    static void loadExternalBoolScalar(
+            MethodVisitor mv,
+            int ref,
+            SlotManager sm,
+            List<FusedExternalInputPlan> inputPlans,
+            boolean memorySegmentStorage
+    ) {
+        int inputSlot = sm.getGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS).get(ref);
+        mv.visitVarInsn(ALOAD, inputSlot);
+        FusedExternalInputPlan meta = inputPlans.get(ref);
+        if (meta.isLinearAccess()) {
+            mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+            if (meta.storageOffset() != 0) {
+                mv.visitLdcInsn(meta.storageOffset());
+                mv.visitInsn(IADD);
+            }
+        } else {
+            mv.visitVarInsn(ALOAD, sm.getGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS).get(ref));
+            mv.visitMethodInsn(INVOKEVIRTUAL, "backend/cpu/fused/runtime/FusedBroadcastCursor", "idx", "()I", false);
+        }
+        if (memorySegmentStorage) {
+            FusedRuntimeCalls.emitLoadBoolFromSegmentCall(mv);
+        } else {
+            mv.visitInsn(BALOAD);
+        }
     }
 }

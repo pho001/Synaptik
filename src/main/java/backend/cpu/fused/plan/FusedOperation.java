@@ -18,7 +18,6 @@ public final class FusedOperation implements Operation {
     private final boolean lowCostHint;
     private final FusedDispatchFamily dispatchFamily;
     private final String schedulerSignature;
-    private final int dispatchScale;
     private final FusedExpressionPlan plan;
 
     /**
@@ -31,7 +30,6 @@ public final class FusedOperation implements Operation {
             boolean lowCostHint,
             FusedDispatchFamily dispatchFamily,
             String schedulerSignature,
-            int dispatchScale,
             FusedExpressionPlan plan
     ) {
         if (expression == null || expression.isBlank()) {
@@ -46,10 +44,6 @@ public final class FusedOperation implements Operation {
         if (plan == null) {
             throw new IllegalArgumentException("plan cannot be null");
         }
-        if (dispatchScale < 1) {
-            throw new IllegalArgumentException("dispatchScale must be >= 1");
-        }
-
         this.expression = expression;
         if (numericContract == null) {
             throw new IllegalArgumentException("numericContract cannot be null");
@@ -62,7 +56,6 @@ public final class FusedOperation implements Operation {
         this.lowCostHint = lowCostHint;
         this.dispatchFamily = dispatchFamily;
         this.schedulerSignature = schedulerSignature;
-        this.dispatchScale = dispatchScale;
         this.plan = plan;
     }
 
@@ -87,7 +80,7 @@ public final class FusedOperation implements Operation {
      */
     @Override
     public boolean isCheap() {
-        return lowCostHint && dispatchScale == 1;
+        return lowCostHint;
     }
 
     /**
@@ -126,7 +119,24 @@ public final class FusedOperation implements Operation {
                 lowCostHint,
                 dispatchFamily,
                 FusedSignatureBuilder.buildFromPlan(plan, numericContract, newContract),
-                dispatchScale,
+                plan
+        );
+    }
+
+    /**
+     * Returns a copy with a different numeric storage/compute contract.
+     */
+    public FusedOperation withNumericContract(FusedNumericContract newContract) {
+        if (newContract == null) {
+            throw new IllegalArgumentException("newContract cannot be null");
+        }
+        return new FusedOperation(
+                expression,
+                newContract,
+                approximationContract,
+                lowCostHint,
+                dispatchFamily,
+                FusedSignatureBuilder.buildFromPlan(plan, newContract, approximationContract),
                 plan
         );
     }
@@ -150,13 +160,6 @@ public final class FusedOperation implements Operation {
      */
     public String getSchedulerSignature() {
         return schedulerSignature;
-    }
-
-    /**
-     * Returns the dispatch-scale multiplier chosen from plan complexity.
-     */
-    public int getDispatchScale() {
-        return dispatchScale;
     }
 
     /**

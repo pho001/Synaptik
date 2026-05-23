@@ -36,7 +36,9 @@ public final class AsmPreparedFusedExecutableFactory {
         }
         FusedOperation descriptor = plan.descriptor();
         FusedAsmSpecializationKind specializationKind =
-                FusedAsmSpecializationMatcher.match(descriptor.getPlan(), descriptor.getPrecisionMode());
+                descriptor.getNumericContract().usesMemorySegmentStorage()
+                        ? FusedAsmSpecializationKind.NONE
+                        : FusedAsmSpecializationMatcher.match(descriptor.getPlan(), descriptor.getPrecisionMode());
 
         FusedKernelCacheKey key = new FusedKernelCacheKey(
                 descriptor.getSchedulerSignature(),

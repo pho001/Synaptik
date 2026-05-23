@@ -9,13 +9,10 @@ import jdk.incubator.vector.VectorSpecies;
  * Internal vector load helpers for broadcasted fused inputs.
  */
 public final class FusedBroadcastVectorOps {
-    private static final VectorSpecies<Float> F32 = FloatVector.SPECIES_PREFERRED;
-    private static final VectorSpecies<Double> F64 = DoubleVector.SPECIES_PREFERRED;
-
     private FusedBroadcastVectorOps() {}
 
     public static FloatVector loadVectorF32(FusedBroadcastCursor cursor, float[] input, int width) {
-        VectorSpecies<Float> species = speciesF32(width);
+        var species = FusedVectorSpecies.f32(width);
         if (cursor.isScalarBroadcast()) {
             return FloatVector.broadcast(species, input[cursor.idx()]);
         }
@@ -35,7 +32,7 @@ public final class FusedBroadcastVectorOps {
     }
 
     public static DoubleVector loadVectorF64(FusedBroadcastCursor cursor, double[] input, int width) {
-        VectorSpecies<Double> species = speciesF64(width);
+        var species = FusedVectorSpecies.f64(width);
         if (cursor.isScalarBroadcast()) {
             return DoubleVector.broadcast(species, input[cursor.idx()]);
         }
@@ -55,7 +52,7 @@ public final class FusedBroadcastVectorOps {
     }
 
     public static Object loadVectorBF16(FusedBroadcastCursor cursor, short[] input, int width) {
-        VectorSpecies<Float> species = speciesF32(width);
+        var species = FusedVectorSpecies.f32(width);
         if (cursor.isScalarBroadcast()) {
             return FloatVector.broadcast(species, backend.cpu.kernels.CpuDTypeOps.fromBFloat16Bits(input[cursor.idx()]));
         }
@@ -82,7 +79,7 @@ public final class FusedBroadcastVectorOps {
     }
 
     public static Object loadMaskF32(FusedBroadcastCursor cursor, byte[] input, int width) {
-        VectorSpecies<Float> species = speciesF32(width);
+        var species = FusedVectorSpecies.f32(width);
         if (cursor.isScalarBroadcast()) {
             return maskFromBroadcastF32(species, input[cursor.idx()] != 0);
         }
@@ -96,7 +93,7 @@ public final class FusedBroadcastVectorOps {
     }
 
     public static Object loadMaskF64(FusedBroadcastCursor cursor, byte[] input, int width) {
-        VectorSpecies<Double> species = speciesF64(width);
+        var species = FusedVectorSpecies.f64(width);
         if (cursor.isScalarBroadcast()) {
             return maskFromBroadcastF64(species, input[cursor.idx()] != 0);
         }
@@ -107,38 +104,6 @@ public final class FusedBroadcastVectorOps {
         }
         int[] idx = cursor.nextIndices(species.length());
         return maskFromIndicesF64(species, input, idx);
-    }
-
-    private static VectorSpecies<Float> speciesF32(int width) {
-        return switch (normalizeWidth(width)) {
-            case 2 -> FloatVector.SPECIES_64;
-            case 4 -> FloatVector.SPECIES_128;
-            case 8 -> FloatVector.SPECIES_256;
-            default -> F32;
-        };
-    }
-
-    private static VectorSpecies<Double> speciesF64(int width) {
-        return switch (normalizeWidth(width)) {
-            case 1 -> DoubleVector.SPECIES_64;
-            case 2 -> DoubleVector.SPECIES_128;
-            case 4 -> DoubleVector.SPECIES_256;
-            case 8 -> DoubleVector.SPECIES_512;
-            default -> F64;
-        };
-    }
-
-    private static int normalizeWidth(int width) {
-        if (width <= 1) {
-            return 1;
-        }
-        if (width <= 2) {
-            return 2;
-        }
-        if (width <= 4) {
-            return 4;
-        }
-        return 8;
     }
 
     private static VectorMask<Float> maskFromBroadcastF32(VectorSpecies<Float> species, boolean set) {

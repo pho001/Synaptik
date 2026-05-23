@@ -7,15 +7,18 @@ import tensor.Tensor;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorMask;
-import jdk.incubator.vector.VectorSpecies;
+
+import java.lang.foreign.MemorySegment;
+
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
+import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
+import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
 /**
  * Internal runtime helper methods invoked by generated fused kernels for tensor storage access.
  */
 public final class FusedStorageOps {
-    private static final VectorSpecies<Double> DOUBLE_SPECIES = DoubleVector.SPECIES_PREFERRED;
-    private static final VectorSpecies<Float> FLOAT_SPECIES = FloatVector.SPECIES_PREFERRED;
-
     private FusedStorageOps() {}
 
     public static double loadScalar(Tensor tensor, int index, int mode) {
@@ -45,10 +48,10 @@ public final class FusedStorageOps {
                 return loadVectorF32(tensor, index);
             }
             case FusedDTypeOps.MODE_BF16 -> {
-                float[] lanes = new float[FLOAT_SPECIES.length()];
+                float[] lanes = new float[FloatVector.SPECIES_PREFERRED.length()];
                 short[] src = TensorInternalAccess.bfloat16Data(tensor);
                 for (int i = 0; i < lanes.length; i++) lanes[i] = CpuDTypeOps.fromBFloat16Bits(src[index + i]);
-                return FloatVector.fromArray(FLOAT_SPECIES, lanes, 0);
+                return FloatVector.fromArray(FloatVector.SPECIES_PREFERRED, lanes, 0);
             }
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         }
@@ -61,7 +64,7 @@ public final class FusedStorageOps {
                 storeVectorF32(tensor, index, (FloatVector) vector);
             }
             case FusedDTypeOps.MODE_BF16 -> {
-                float[] lanes = new float[FLOAT_SPECIES.length()];
+                float[] lanes = new float[FloatVector.SPECIES_PREFERRED.length()];
                 ((FloatVector) vector).intoArray(lanes, 0);
                 short[] dst = TensorInternalAccess.bfloat16Data(tensor);
                 for (int i = 0; i < lanes.length; i++) dst[index + i] = CpuDTypeOps.toBFloat16Bits((float) lanes[i]);
@@ -78,20 +81,52 @@ public final class FusedStorageOps {
         dst[index] = CpuDTypeOps.toBFloat16Bits((float) value);
     }
 
+    public static float loadScalarF32Segment(MemorySegment segment, int index) {
+        return segment.get(JAVA_FLOAT, (long) index * Float.BYTES);
+    }
+
+    public static double loadScalarF64Segment(MemorySegment segment, int index) {
+        return segment.get(JAVA_DOUBLE, (long) index * Double.BYTES);
+    }
+
+    public static double loadScalarBF16Segment(MemorySegment segment, int index) {
+        return CpuDTypeOps.fromBFloat16Bits(segment.get(JAVA_SHORT, (long) index * Short.BYTES));
+    }
+
+    public static int loadScalarBoolSegment(MemorySegment segment, int index) {
+        return segment.get(JAVA_BYTE, index) == 0 ? 0 : 1;
+    }
+
+    public static void storeScalarF32Segment(MemorySegment segment, int index, float value) {
+        segment.set(JAVA_FLOAT, (long) index * Float.BYTES, value);
+    }
+
+    public static void storeScalarF64Segment(MemorySegment segment, int index, double value) {
+        segment.set(JAVA_DOUBLE, (long) index * Double.BYTES, value);
+    }
+
+    public static void storeScalarBF16Segment(MemorySegment segment, int index, double value) {
+        segment.set(JAVA_SHORT, (long) index * Short.BYTES, CpuDTypeOps.toBFloat16Bits((float) value));
+    }
+
+    public static void storeScalarBoolSegment(MemorySegment segment, int index, int value) {
+        segment.set(JAVA_BYTE, index, value == 0 ? (byte) 0 : (byte) 1);
+    }
+
     public static DoubleVector loadVectorF64(Tensor tensor, int index) {
-        return DoubleVector.fromArray(DOUBLE_SPECIES, TensorInternalAccess.float64Data(tensor), index);
+        return DoubleVector.fromArray(DoubleVector.SPECIES_PREFERRED, TensorInternalAccess.float64Data(tensor), index);
     }
 
     public static FloatVector loadVectorF32(Tensor tensor, int index) {
-        return FloatVector.fromArray(FLOAT_SPECIES, TensorInternalAccess.float32Data(tensor), index);
+        return FloatVector.fromArray(FloatVector.SPECIES_PREFERRED, TensorInternalAccess.float32Data(tensor), index);
     }
 
     public static DoubleVector loadVectorF64Array(double[] src, int index, int width) {
-        return DoubleVector.fromArray(speciesF64(width), src, index);
+        return DoubleVector.fromArray(FusedVectorSpecies.f64(width), src, index);
     }
 
     public static FloatVector loadVectorF32Array(float[] src, int index, int width) {
-        return FloatVector.fromArray(speciesF32(width), src, index);
+        return FloatVector.fromArray(FusedVectorSpecies.f32(width), src, index);
     }
 
     public static void storeVectorF64(Tensor tensor, int index, DoubleVector vector) {
@@ -103,7 +138,7 @@ public final class FusedStorageOps {
     }
 
     public static Object loadVectorBF16Array(short[] src, int index, int width) {
-        VectorSpecies<Float> species = speciesF32(width);
+        var species = FusedVectorSpecies.f32(width);
         float[] lanes = new float[species.length()];
         for (int i = 0; i < lanes.length; i++) {
             lanes[i] = CpuDTypeOps.fromBFloat16Bits(src[index + i]);
@@ -112,7 +147,7 @@ public final class FusedStorageOps {
     }
 
     public static Object loadMaskF32Array(byte[] src, int index, int width) {
-        VectorSpecies<Float> species = speciesF32(width);
+        var species = FusedVectorSpecies.f32(width);
         long bits = 0L;
         for (int i = 0; i < species.length(); i++) {
             if (src[index + i] != 0) {
@@ -123,7 +158,7 @@ public final class FusedStorageOps {
     }
 
     public static Object loadMaskF64Array(byte[] src, int index, int width) {
-        VectorSpecies<Double> species = speciesF64(width);
+        var species = FusedVectorSpecies.f64(width);
         long bits = 0L;
         for (int i = 0; i < species.length(); i++) {
             if (src[index + i] != 0) {
@@ -135,14 +170,14 @@ public final class FusedStorageOps {
 
     public static void storeMaskF32Array(byte[] dst, int index, Object maskObject, int width) {
         VectorMask<Float> mask = (VectorMask<Float>) maskObject;
-        for (int i = 0; i < speciesF32(width).length(); i++) {
+        for (int i = 0; i < FusedVectorSpecies.f32(width).length(); i++) {
             dst[index + i] = mask.laneIsSet(i) ? (byte) 1 : (byte) 0;
         }
     }
 
     public static void storeMaskF64Array(byte[] dst, int index, Object maskObject, int width) {
         VectorMask<Double> mask = (VectorMask<Double>) maskObject;
-        for (int i = 0; i < speciesF64(width).length(); i++) {
+        for (int i = 0; i < FusedVectorSpecies.f64(width).length(); i++) {
             dst[index + i] = mask.laneIsSet(i) ? (byte) 1 : (byte) 0;
         }
     }
@@ -156,35 +191,4 @@ public final class FusedStorageOps {
         }
     }
 
-    private static VectorSpecies<Float> speciesF32(int width) {
-        return switch (normalizeWidth(width)) {
-            case 2 -> FloatVector.SPECIES_64;
-            case 4 -> FloatVector.SPECIES_128;
-            case 8 -> FloatVector.SPECIES_256;
-            default -> FLOAT_SPECIES;
-        };
-    }
-
-    private static VectorSpecies<Double> speciesF64(int width) {
-        return switch (normalizeWidth(width)) {
-            case 1 -> DoubleVector.SPECIES_64;
-            case 2 -> DoubleVector.SPECIES_128;
-            case 4 -> DoubleVector.SPECIES_256;
-            case 8 -> DoubleVector.SPECIES_512;
-            default -> DOUBLE_SPECIES;
-        };
-    }
-
-    private static int normalizeWidth(int width) {
-        if (width <= 1) {
-            return 1;
-        }
-        if (width <= 2) {
-            return 2;
-        }
-        if (width <= 4) {
-            return 4;
-        }
-        return 8;
-    }
 }

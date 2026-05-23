@@ -25,7 +25,6 @@ import tensor.DataType;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FusedExecutionContractTest {
@@ -78,7 +77,7 @@ class FusedExecutionContractTest {
     }
 
     @Test
-    void memorySegmentBf16ContractIsRepresentableButNotSilentlyMaterialized() {
+    void memorySegmentBf16ContractIsPreparedWithoutInterpreterFallback() {
         FusedNumericContract segmentBf16 = new FusedNumericContract(
                 FusedStorageKind.CPU_MEMORY_SEGMENT,
                 FusedStorageKind.CPU_MEMORY_SEGMENT,
@@ -105,11 +104,45 @@ class FusedExecutionContractTest {
                 1
         );
 
-        UnsupportedOperationException ex = assertThrows(
-                UnsupportedOperationException.class,
-                () -> new FusedExecutablePreparer().prepare(plan, FusedExecutionPolicy.defaultsInference())
+        assertTrue(new FusedExecutablePreparer().prepare(plan, FusedExecutionPolicy.defaultsInference())
+                .getClass()
+                .getName()
+                .contains("GeneratedFusedExecutable"));
+    }
+
+    @Test
+    void numericContractChangesSchedulerAndCacheIdentity() {
+        FusedOperation array = operation(
+                javaArrayContract(FusedValueLane.F32),
+                FusedApproximationContract.STRICT
         );
-        assertTrue(ex.getMessage().contains("refusing hidden Java-array materialization"));
+        FusedNumericContract segmentContract = new FusedNumericContract(
+                FusedStorageKind.CPU_MEMORY_SEGMENT,
+                FusedStorageKind.CPU_MEMORY_SEGMENT,
+                FusedValueLane.F32,
+                FusedComputeKind.F32,
+                FusedValueLane.F32
+        );
+        FusedOperation segment = array.withNumericContract(segmentContract);
+
+        assertTrue(array.getSchedulerSignature().contains("numeric=CPU_JAVA_ARRAY:F32"));
+        assertTrue(segment.getSchedulerSignature().contains("numeric=CPU_MEMORY_SEGMENT:F32"));
+
+        FusedKernelCacheKey arrayKey = new FusedKernelCacheKey(
+                array.getSchedulerSignature(),
+                array.getNumericContract().signatureToken(),
+                array.getApproximationContract().signatureToken(),
+                1,
+                FusedAsmSpecializationKind.NONE
+        );
+        FusedKernelCacheKey segmentKey = new FusedKernelCacheKey(
+                segment.getSchedulerSignature(),
+                segment.getNumericContract().signatureToken(),
+                segment.getApproximationContract().signatureToken(),
+                1,
+                FusedAsmSpecializationKind.NONE
+        );
+        assertTrue(!arrayKey.equals(segmentKey));
     }
 
     private static FusedOperation operation(
@@ -136,7 +169,6 @@ class FusedExecutionContractTest {
                 false,
                 FusedDispatchFamily.NON_CHEAP_CONTIGUOUS,
                 backend.cpu.fused.plan.FusedSignatureBuilder.buildFromPlan(plan, numericContract, approximationContract),
-                1,
                 plan
         );
     }

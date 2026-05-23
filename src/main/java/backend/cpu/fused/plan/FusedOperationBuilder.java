@@ -62,8 +62,6 @@ public final class FusedOperationBuilder {
         FusedNumericContract numericContract = FusedNumericContractResolver.resolve(plan);
         boolean lowCostHint = FusedDispatchPlanner.resolveLowCostHint(plan);
         FusedDispatchFamily dispatchFamily = FusedDispatchPlanner.resolveDispatchFamily(plan);
-        int dispatchComplexity = FusedDispatchPlanner.estimateDispatchComplexity(plan);
-        int dispatchScale = FusedDispatchPlanner.resolveDispatchScale(dispatchComplexity);
 
         FusedOperation operation = new FusedOperation(
                 "fused(" + safeOrderedNodeIds.size() + ")",
@@ -72,7 +70,6 @@ public final class FusedOperationBuilder {
                 lowCostHint,
                 dispatchFamily,
                 FusedSignatureBuilder.buildFromPlan(plan, numericContract, FusedApproximationContract.STRICT),
-                dispatchScale,
                 plan
         );
         return new FusedOperationPreparation(operation, externalInputNodeIds);

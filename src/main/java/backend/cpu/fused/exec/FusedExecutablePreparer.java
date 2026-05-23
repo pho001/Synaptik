@@ -17,14 +17,16 @@ public final class FusedExecutablePreparer {
         FusedExecutionPolicy effectivePolicy = policy == null
                 ? FusedExecutionPolicy.defaultsInference()
                 : policy;
-        if (plan.descriptor().getNumericContract().usesMemorySegmentStorage()) {
-            throw new UnsupportedOperationException(
-                    "CPU fused MemorySegment storage is not implemented; refusing hidden Java-array materialization."
-            );
-        }
+        boolean memorySegmentStorage = plan.descriptor().getNumericContract().usesMemorySegmentStorage();
         try {
             return asmFactory.create(plan);
         } catch (RuntimeException ex) {
+            if (memorySegmentStorage) {
+                throw new IllegalStateException(
+                        "CPU fused MemorySegment ASM preparation failed; refusing Java-array interpreter fallback.",
+                        ex
+                );
+            }
             if (!effectivePolicy.allowBackendFallback()) {
                 throw ex;
             }

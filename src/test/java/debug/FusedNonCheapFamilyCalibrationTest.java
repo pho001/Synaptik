@@ -54,20 +54,9 @@ final class FusedNonCheapFamilyCalibrationTest {
         PlatformRuntimeProfile original = current;
 
         current = calibrateStep(
-                "FUSED_NON_CHEAP_CONTIGUOUS_CALIBRATION",
-                PlatformCalibrationDefaults.fusedNonCheapContiguousStep(
-                        "fused_noncheap_contiguous_family",
-                        tuning.preset.TuningPreset.BALANCED,
-                        DataType.FLOAT32
-                ),
-                current,
-                layout,
-                loweredPolicy
-        );
-        current = calibrateStep(
-                "FUSED_NON_CHEAP_STRIDED_CALIBRATION",
-                PlatformCalibrationDefaults.fusedNonCheapStridedStep(
-                        "fused_noncheap_strided_family",
+                "FUSED_ASM_WIDTH_CALIBRATION",
+                PlatformCalibrationDefaults.fusedAsmWidthStep(
+                        "fused_asm_width_family",
                         tuning.preset.TuningPreset.BALANCED,
                         DataType.FLOAT32
                 ),

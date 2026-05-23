@@ -392,7 +392,7 @@ public record RuntimeConfig(
                 Integer.MAX_VALUE,  // minVectorChunkSize
                 Integer.MAX_VALUE,  // minReductionChunkSize
                 Integer.MAX_VALUE,  // commonPoolLowCostMaxWorkPerWorker
-                1,                  // fusedAsmVectorWidth
+                0,                  // fusedAsmVectorWidth: preferred species
                 SumAccuracyMode.FAST,
                 Integer.MAX_VALUE,  // matMulParallelMinSize => matmul paralelizace se prakticky nikdy nezapne
                 config.backend.AttentionMatMulPolicy.AUTO
@@ -402,7 +402,6 @@ public record RuntimeConfig(
                 new ApproximationConfig(ApproxMode.OFF, true), // bez fast aproximací
                 BlasConfig.disabled(),                         // bez BLAS
                 new FusedExecutionPolicy(
-                        FusedPrimaryBackend.ASM,
                         false
                 ),
                 AcceleratorConfig.disabled()

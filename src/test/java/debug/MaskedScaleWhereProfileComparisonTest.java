@@ -7,7 +7,6 @@ import config.compile.CompileConfig;
 import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
 import config.runtime.FusedExecutionPolicy;
-import config.runtime.FusedPrimaryBackend;
 import config.runtime.RuntimeConfig;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -89,19 +88,13 @@ final class MaskedScaleWhereProfileComparisonTest {
                 "masked-scale-where",
                 runtimeWithFusedAsmWidthsRaw(
                         cheapContiguous,
-                        cheapStrided,
-                        nonCheapContiguous,
-                        nonCheapStrided,
                         fusedParallelMinOverride
                 )
         );
     }
 
     private static RuntimeConfig runtimeWithFusedAsmWidthsRaw(
-            int cheapContiguous,
-            int cheapStrided,
-            int nonCheapContiguous,
-            int nonCheapStrided,
+            int fusedAsmVectorWidth,
             int fusedParallelMinOverride
     ) {
         var base = RuntimeConfig.inferenceDefaults();
@@ -134,10 +127,7 @@ final class MaskedScaleWhereProfileComparisonTest {
                                 cpu.minVectorChunkSize(),
                                 cpu.minReductionChunkSize(),
                                 cpu.commonPoolLowCostMaxWorkPerWorker(),
-                                cheapContiguous,
-                                cheapStrided,
-                                nonCheapContiguous,
-                                nonCheapStrided,
+                                fusedAsmVectorWidth,
                                 cpu.sumAccuracyMode(),
                                 cpu.matMulParallelMinSize(),
                                 cpu.attentionMatMulPolicy()
@@ -147,7 +137,7 @@ final class MaskedScaleWhereProfileComparisonTest {
                 ),
                 ApproximationConfig.defaults(),
                 BlasConfig.disabled(),
-                new FusedExecutionPolicy(FusedPrimaryBackend.ASM, true)
+                new FusedExecutionPolicy(true)
         );
     }
 }

@@ -55,7 +55,6 @@ import config.runtime.Conv2dConfig;
 import config.runtime.CpuStorageProfile;
 import config.runtime.DeviceTransferPolicy;
 import config.runtime.FusedExecutionPolicy;
-import config.runtime.FusedPrimaryBackend;
 import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.NativeCpuMemoryConfig;
 import config.runtime.NativeMemoryPoolPolicy;
@@ -265,26 +264,7 @@ public final class ExecutionProfileIO {
                     findInt(json, "cpuMinVectorChunkSize", defaultKernel.cpu().minVectorChunkSize()),
                     findInt(json, "cpuMinReductionChunkSize", defaultKernel.cpu().minReductionChunkSize()),
                     findInt(json, "cpuCommonPoolLowCostMaxWorkPerWorker", defaultKernel.cpu().commonPoolLowCostMaxWorkPerWorker()),
-                    findInt(
-                            json,
-                            "cpuFusedCheapContiguousAsmVectorWidth",
-                            findInt(json, "cpuFusedAsmVectorWidth", defaultKernel.cpu().fusedCheapContiguousAsmVectorWidth())
-                    ),
-                    findInt(
-                            json,
-                            "cpuFusedCheapStridedAsmVectorWidth",
-                            findInt(json, "cpuFusedAsmVectorWidth", defaultKernel.cpu().fusedCheapStridedAsmVectorWidth())
-                    ),
-                    findInt(
-                            json,
-                            "cpuFusedNonCheapContiguousAsmVectorWidth",
-                            findInt(json, "cpuFusedAsmVectorWidth", defaultKernel.cpu().fusedNonCheapContiguousAsmVectorWidth())
-                    ),
-                    findInt(
-                            json,
-                            "cpuFusedNonCheapStridedAsmVectorWidth",
-                            findInt(json, "cpuFusedAsmVectorWidth", defaultKernel.cpu().fusedNonCheapStridedAsmVectorWidth())
-                    ),
+                    findInt(json, "cpuFusedAsmVectorWidth", defaultKernel.cpu().fusedAsmVectorWidth()),
                     findEnum(json, "cpuSumAccuracyMode", defaultKernel.cpu().sumAccuracyMode(), SumAccuracyMode.class),
                     findInt(json, "cpuMatMulParallelMinSize", defaultKernel.cpu().matMulParallelMinSize()),
                     findEnum(json, "cpuAttentionMatMulPolicy", defaultKernel.cpu().attentionMatMulPolicy(), AttentionMatMulPolicy.class),
@@ -374,7 +354,6 @@ public final class ExecutionProfileIO {
                     )
             );
             FusedExecutionPolicy fused = new FusedExecutionPolicy(
-                    findEnum(json, "fusedPrimaryBackend", defaultProfile.runtime().fused().primaryBackend(), FusedPrimaryBackend.class),
                     findBoolean(json, "fusedAllowBackendFallback", defaultProfile.runtime().fused().allowBackendFallback())
             );
             AcceleratorConfig accelerator = new AcceleratorConfig(
@@ -683,10 +662,7 @@ public final class ExecutionProfileIO {
                 "        \"cpuMinVectorChunkSize\": " + cpu.minVectorChunkSize() + ",\n" +
                 "        \"cpuMinReductionChunkSize\": " + cpu.minReductionChunkSize() + ",\n" +
                 "        \"cpuCommonPoolLowCostMaxWorkPerWorker\": " + cpu.commonPoolLowCostMaxWorkPerWorker() + ",\n" +
-                "        \"cpuFusedCheapContiguousAsmVectorWidth\": " + cpu.fusedCheapContiguousAsmVectorWidth() + ",\n" +
-                "        \"cpuFusedCheapStridedAsmVectorWidth\": " + cpu.fusedCheapStridedAsmVectorWidth() + ",\n" +
-                "        \"cpuFusedNonCheapContiguousAsmVectorWidth\": " + cpu.fusedNonCheapContiguousAsmVectorWidth() + ",\n" +
-                "        \"cpuFusedNonCheapStridedAsmVectorWidth\": " + cpu.fusedNonCheapStridedAsmVectorWidth() + ",\n" +
+                "        \"cpuFusedAsmVectorWidth\": " + cpu.fusedAsmVectorWidth() + ",\n" +
                 "        \"cpuSumAccuracyMode\": \"" + cpu.sumAccuracyMode().name() + "\",\n" +
                 "        \"cpuAttentionMatMulPolicy\": \"" + cpu.attentionMatMulPolicy().name() + "\",\n" +
                 "        \"cpuMatMulMicroKernel\": \"" + cpu.matMulMicroKernel().name() + "\",\n" +
@@ -727,7 +703,6 @@ public final class ExecutionProfileIO {
                 "      \"conv2dBf16MaxNOverK\": " + conv2d.bf16MaxNOverK() + "\n" +
                 "    },\n" +
                 "    \"fused\": {\n" +
-                "      \"fusedPrimaryBackend\": \"" + fused.primaryBackend().name() + "\",\n" +
                 "      \"fusedAllowBackendFallback\": " + fused.allowBackendFallback() + "\n" +
                 "    },\n" +
                 "    \"accelerator\": {\n" +

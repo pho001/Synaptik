@@ -10,7 +10,6 @@ import config.profile.WorkloadProfile;
 import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
 import config.runtime.FusedExecutionPolicy;
-import config.runtime.FusedPrimaryBackend;
 import config.runtime.RuntimeConfig;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -166,9 +165,6 @@ final class HotPathAnalysisTest {
                                 cpu.minReductionChunkSize(),
                                 cpu.commonPoolLowCostMaxWorkPerWorker(),
                                 cheapContiguous,
-                                cheapStrided,
-                                nonCheapContiguous,
-                                nonCheapStrided,
                                 cpu.sumAccuracyMode(),
                                 cpu.matMulParallelMinSize(),
                                 cpu.attentionMatMulPolicy()
@@ -178,7 +174,7 @@ final class HotPathAnalysisTest {
                 ),
                 ApproximationConfig.defaults(),
                 BlasConfig.disabled(),
-                new FusedExecutionPolicy(FusedPrimaryBackend.ASM, true)
+                new FusedExecutionPolicy(true)
         );
     }
 }

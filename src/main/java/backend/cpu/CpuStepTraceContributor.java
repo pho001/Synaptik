@@ -105,15 +105,19 @@ public final class CpuStepTraceContributor {
             var fusedExecutable = metadata.artifact() instanceof CpuFusedExecutionArtifact artifact
                     ? artifact.fusedExecutable()
                     : null;
+            attrs.put("fusedInputStorageKind", fused.getNumericContract().inputStorageKind().name());
+            attrs.put("fusedOutputStorageKind", fused.getNumericContract().outputStorageKind().name());
             fusedMeta = new FusedTraceMetadata(
                     fused.getPrecisionMode(),
                     fused.isLowCostHint(),
                     fused.getDispatchFamily().id(),
                     fused.getSchedulerSignature(),
                     fusedExecutable == null ? "" : fusedExecutable.getClass().getSimpleName(),
-                    fused.getDispatchScale(),
                     fused.getPlan().nodeCount(),
-                    fused.getPlan().inputCount()
+                    fused.getPlan().inputCount(),
+                    metadata.artifact() instanceof CpuFusedExecutionArtifact artifact
+                            ? artifact.vectorBlockReason().name()
+                            : "NONE"
             );
         }
 

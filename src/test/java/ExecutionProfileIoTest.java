@@ -52,7 +52,6 @@ import config.runtime.BlasConfig;
 import config.runtime.CpuStorageProfile;
 import config.runtime.DeviceTransferPolicy;
 import config.runtime.FusedExecutionPolicy;
-import config.runtime.FusedPrimaryBackend;
 import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.NativeCpuMemoryConfig;
 import config.runtime.NativeMemoryPoolPolicy;
@@ -134,7 +133,7 @@ public class ExecutionProfileIoTest {
                                         16_384,
                                         5, 3, 2,
                                         2_048, 4_096, 8_192, 32_768,
-                                        1, 1, 1, 1,
+                                        1,
                                         config.backend.SumAccuracyMode.FAST,
                                         2_000_000, AttentionMatMulPolicy.FORCE_ON, CpuMatMulMicroKernel.F32_4X2),
                                 CudaKernelConfig.defaultsInference(),
@@ -142,7 +141,7 @@ public class ExecutionProfileIoTest {
                         ),
                         new ApproximationConfig(ApproxMode.OFF, false),
                         new BlasConfig(BlasProvider.NONE, 2_000_000L, true, 3.0d, false, 12.0d, false, 0),
-                        new FusedExecutionPolicy(FusedPrimaryBackend.ASM, true),
+                        new FusedExecutionPolicy(true),
                         new AcceleratorConfig(
                                 new AcceleratorBackendConfig(
                                         false,

@@ -14,7 +14,6 @@ import config.profile.MatmulPlatformProfile;
 import config.profile.PlatformRuntimeProfile;
 import config.profile.ReductionPlatformProfile;
 import config.profile.SchedulerPlatformProfile;
-import backend.cpu.fused.plan.FusedDispatchFamily;
 import tuning.workload.WorkloadKind;
 
 import java.util.ArrayList;
@@ -465,10 +464,7 @@ public final class PlatformRuntimeProfileMutators {
                                     transVec == null ? baseProfile.fused().fusedTranscendentalVectorMinSize() : transVec,
                                     cheapPar == null ? baseProfile.fused().fusedCheapParallelMinSize() : cheapPar,
                                     transPar == null ? baseProfile.fused().fusedTranscendentalParallelMinSize() : transPar,
-                                    baseProfile.fused().fusedCheapContiguousAsmVectorWidth(),
-                                    baseProfile.fused().fusedCheapStridedAsmVectorWidth(),
-                                    baseProfile.fused().fusedNonCheapContiguousAsmVectorWidth(),
-                                    baseProfile.fused().fusedNonCheapStridedAsmVectorWidth()
+                                    baseProfile.fused().fusedAsmVectorWidth()
                             );
                             out.add(new RuntimeProfileCandidate(
                                     "fusedDispatch=" + fused.fusedCheapVectorMinSize() + "/" + fused.fusedTranscendentalVectorMinSize()
@@ -624,38 +620,12 @@ public final class PlatformRuntimeProfileMutators {
                         baseProfile.fused().fusedTranscendentalVectorMinSize(),
                         baseProfile.fused().fusedCheapParallelMinSize(),
                         baseProfile.fused().fusedTranscendentalParallelMinSize(),
-                        width == null ? baseProfile.fused().fusedCheapContiguousAsmVectorWidth() : width,
-                        width == null ? baseProfile.fused().fusedCheapStridedAsmVectorWidth() : width,
-                        width == null ? baseProfile.fused().fusedNonCheapContiguousAsmVectorWidth() : width,
-                        width == null ? baseProfile.fused().fusedNonCheapStridedAsmVectorWidth() : width
+                        width == null ? baseProfile.fused().fusedAsmVectorWidth() : width
                 );
                 out.add(new RuntimeProfileCandidate(
                         "fusedAsmVectorWidth=" + fused.fusedAsmVectorWidth(),
                         withFused(baseProfile, fused),
                         Map.of("cpu.fusedAsmVectorWidth", String.valueOf(fused.fusedAsmVectorWidth()))
-                ));
-            }
-            return out;
-        };
-    }
-
-    public static PlatformRuntimeProfileMutator fusedAsmVectorWidths(
-            FusedDispatchFamily family,
-            List<Integer> widths
-    ) {
-        List<Integer> safeWidths = widths == null ? List.of() : List.copyOf(widths);
-        return (baseProfile, workload) -> {
-            if (!usesGenericRuntimeFamily(workload.kind())) {
-                return List.of(new RuntimeProfileCandidate("fusedAsmVectorWidth=current", baseProfile, Map.of()));
-            }
-            List<RuntimeProfileCandidate> out = new ArrayList<>();
-            for (Integer width : safeWidths) {
-                int resolvedWidth = width == null ? currentFusedAsmVectorWidth(baseProfile.fused(), family) : width;
-                FusedPlatformProfile fused = withFusedAsmVectorWidth(baseProfile.fused(), family, resolvedWidth);
-                out.add(new RuntimeProfileCandidate(
-                        "fusedAsmVectorWidth[" + family.id() + "]=" + currentFusedAsmVectorWidth(fused, family),
-                        withFused(baseProfile, fused),
-                        Map.of(fusedAsmVectorWidthKey(family), String.valueOf(currentFusedAsmVectorWidth(fused, family)))
                 ));
             }
             return out;
@@ -1114,73 +1084,6 @@ public final class PlatformRuntimeProfileMutators {
                 || kind == WorkloadKind.MATMUL
                 || kind == WorkloadKind.MLP_CLASSIFICATION
                 || kind == WorkloadKind.ABC_SEQUENCE_MATMUL;
-    }
-
-    private static FusedPlatformProfile withFusedAsmVectorWidth(
-            FusedPlatformProfile base,
-            FusedDispatchFamily family,
-            int width
-    ) {
-        return switch (family) {
-            case CHEAP_CONTIGUOUS -> new FusedPlatformProfile(
-                    base.fusedCheapVectorMinSize(),
-                    base.fusedTranscendentalVectorMinSize(),
-                    base.fusedCheapParallelMinSize(),
-                    base.fusedTranscendentalParallelMinSize(),
-                    width,
-                    base.fusedCheapStridedAsmVectorWidth(),
-                    base.fusedNonCheapContiguousAsmVectorWidth(),
-                    base.fusedNonCheapStridedAsmVectorWidth()
-            );
-            case CHEAP_STRIDED -> new FusedPlatformProfile(
-                    base.fusedCheapVectorMinSize(),
-                    base.fusedTranscendentalVectorMinSize(),
-                    base.fusedCheapParallelMinSize(),
-                    base.fusedTranscendentalParallelMinSize(),
-                    base.fusedCheapContiguousAsmVectorWidth(),
-                    width,
-                    base.fusedNonCheapContiguousAsmVectorWidth(),
-                    base.fusedNonCheapStridedAsmVectorWidth()
-            );
-            case NON_CHEAP_CONTIGUOUS -> new FusedPlatformProfile(
-                    base.fusedCheapVectorMinSize(),
-                    base.fusedTranscendentalVectorMinSize(),
-                    base.fusedCheapParallelMinSize(),
-                    base.fusedTranscendentalParallelMinSize(),
-                    base.fusedCheapContiguousAsmVectorWidth(),
-                    base.fusedCheapStridedAsmVectorWidth(),
-                    width,
-                    base.fusedNonCheapStridedAsmVectorWidth()
-            );
-            case NON_CHEAP_STRIDED -> new FusedPlatformProfile(
-                    base.fusedCheapVectorMinSize(),
-                    base.fusedTranscendentalVectorMinSize(),
-                    base.fusedCheapParallelMinSize(),
-                    base.fusedTranscendentalParallelMinSize(),
-                    base.fusedCheapContiguousAsmVectorWidth(),
-                    base.fusedCheapStridedAsmVectorWidth(),
-                    base.fusedNonCheapContiguousAsmVectorWidth(),
-                    width
-            );
-        };
-    }
-
-    private static int currentFusedAsmVectorWidth(FusedPlatformProfile profile, FusedDispatchFamily family) {
-        return switch (family) {
-            case CHEAP_CONTIGUOUS -> profile.fusedCheapContiguousAsmVectorWidth();
-            case CHEAP_STRIDED -> profile.fusedCheapStridedAsmVectorWidth();
-            case NON_CHEAP_CONTIGUOUS -> profile.fusedNonCheapContiguousAsmVectorWidth();
-            case NON_CHEAP_STRIDED -> profile.fusedNonCheapStridedAsmVectorWidth();
-        };
-    }
-
-    private static String fusedAsmVectorWidthKey(FusedDispatchFamily family) {
-        return switch (family) {
-            case CHEAP_CONTIGUOUS -> "cpu.fusedCheapContiguousAsmVectorWidth";
-            case CHEAP_STRIDED -> "cpu.fusedCheapStridedAsmVectorWidth";
-            case NON_CHEAP_CONTIGUOUS -> "cpu.fusedNonCheapContiguousAsmVectorWidth";
-            case NON_CHEAP_STRIDED -> "cpu.fusedNonCheapStridedAsmVectorWidth";
-        };
     }
 
     private static PlatformRuntimeProfile withConv2d(PlatformRuntimeProfile baseProfile, Conv2dPlatformProfile conv2d) {

@@ -11,6 +11,7 @@ import backend.cpu.fused.ir.FusedExternalInputPlan;
 import backend.cpu.fused.ir.FusedNodePlan;
 import backend.cpu.fused.plan.FusedDispatchFamily;
 import backend.cpu.fused.plan.FusedOperation;
+import backend.cpu.fused.plan.FusedVectorBlockReason;
 import backend.cpu.fused.numeric.FusedComputeKind;
 import backend.cpu.fused.numeric.FusedApproximationContract;
 import backend.cpu.fused.numeric.FusedNumericContract;
@@ -36,7 +37,6 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
                 true,
                 FusedDispatchFamily.CHEAP_CONTIGUOUS,
                 "test",
-                1,
                 new FusedExpressionPlan(
                         List.of(
                                 new FusedNodePlan(0, Operation.OpType.ADD, List.of(0, 1), 2, DataType.FLOAT32, backend.cpu.fused.ir.NoAttributes.INSTANCE),
@@ -50,14 +50,16 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
                 )
         );
 
-        var hints = planner.resolveFusedDispatch(
+        var prepared = planner.resolveFusedDispatch(
                 fused,
                 new Tensor(new float[65_536], new int[]{65_536}, null, "out", DataType.FLOAT32),
                 new ResolvedCpuComputeContract(DataType.FLOAT32, CpuComputeDType.F32, CpuExecutionBackend.CPU_FUSED, CpuAccumulateDType.NONE)
-        ).dispatchHints();
+        );
+        var hints = prepared.dispatchHints();
 
         assertEquals(CpuExecutionMode.PARALLEL, hints.mode());
         assertEquals(4, hints.vectorWidth());
+        assertEquals(FusedVectorBlockReason.BELOW_VECTOR_THRESHOLD, prepared.vectorBlockReason());
     }
 
     @Test
@@ -70,7 +72,6 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
                 false,
                 FusedDispatchFamily.NON_CHEAP_STRIDED,
                 "test",
-                2,
                 new FusedExpressionPlan(
                         List.of(
                                 new FusedNodePlan(0, Operation.OpType.MUL_SCALAR, List.of(2), 3, DataType.FLOAT32, new backend.cpu.fused.ir.ScalarDoubleAttribute(0.5)),
@@ -85,14 +86,16 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
                 )
         );
 
-        var hints = planner.resolveFusedDispatch(
+        var prepared = planner.resolveFusedDispatch(
                 fused,
                 new Tensor(new float[65_536], new int[]{65_536}, null, "out", DataType.FLOAT32),
                 new ResolvedCpuComputeContract(DataType.FLOAT32, CpuComputeDType.F32, CpuExecutionBackend.CPU_FUSED, CpuAccumulateDType.NONE)
-        ).dispatchHints();
+        );
+        var hints = prepared.dispatchHints();
 
         assertEquals(CpuExecutionMode.SCALAR, hints.mode());
         assertEquals(1, hints.vectorWidth());
+        assertEquals(FusedVectorBlockReason.MASKED_SCALE_WHERE_SCALAR_ONLY, prepared.vectorBlockReason());
     }
 
     @Test
@@ -105,7 +108,6 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
                 false,
                 FusedDispatchFamily.NON_CHEAP_STRIDED,
                 "test",
-                2,
                 new FusedExpressionPlan(
                         List.of(
                                 new FusedNodePlan(0, Operation.OpType.DIV, List.of(0, 1), 2, DataType.FLOAT32, backend.cpu.fused.ir.NoAttributes.INSTANCE),
@@ -119,14 +121,16 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
                 )
         );
 
-        var hints = planner.resolveFusedDispatch(
+        var prepared = planner.resolveFusedDispatch(
                 fused,
                 new Tensor(new float[65_536], new int[]{65_536}, null, "out", DataType.FLOAT32),
                 new ResolvedCpuComputeContract(DataType.FLOAT32, CpuComputeDType.F32, CpuExecutionBackend.CPU_FUSED, CpuAccumulateDType.NONE)
-        ).dispatchHints();
+        );
+        var hints = prepared.dispatchHints();
 
         assertEquals(CpuExecutionMode.PARALLEL, hints.mode());
         assertEquals(4, hints.vectorWidth());
+        assertEquals(FusedVectorBlockReason.BELOW_VECTOR_THRESHOLD, prepared.vectorBlockReason());
     }
 
     private static CpuKernelConfig vectorizedFusedConfig() {
@@ -153,9 +157,6 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
                 8192,
                 16384,
                 16384,
-                4,
-                4,
-                4,
                 4,
                 config.backend.SumAccuracyMode.FAST,
                 2_000_000,

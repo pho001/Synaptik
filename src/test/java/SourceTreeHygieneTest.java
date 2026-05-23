@@ -574,6 +574,27 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void cpuFusedVectorSpeciesSelectionHasSingleOwner() throws IOException {
+        List<String> speciesConstants = List.of("SPECIES_64", "SPECIES_128", "SPECIES_256", "SPECIES_512");
+        List<String> offenders = javaFilesUnder(Path.of("src/main/java/backend/cpu/fused")).stream()
+                .filter(path -> !path.endsWith("backend/cpu/fused/runtime/FusedVectorSpecies.java"))
+                .flatMap(path -> {
+                    try {
+                        String source = Files.readString(Path.of(path));
+                        return speciesConstants.stream()
+                                .filter(source::contains)
+                                .map(constant -> path + ": " + constant);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .sorted()
+                .toList();
+        assertTrue(offenders.isEmpty(),
+                () -> "CPU fused fixed Vector API species selection must be owned by FusedVectorSpecies: " + offenders);
+    }
+
+    @Test
     void cpuFusedPackageUsesExplicitStorageContractNames() throws IOException {
         List<String> offenders = sourceLinesContaining(
                 List.of(Path.of("src/main/java/backend/cpu/fused"), Path.of("src/test/java/backend/cpu/fused")),
@@ -581,6 +602,23 @@ public class SourceTreeHygieneTest {
         );
         assertTrue(offenders.isEmpty(),
                 () -> "CPU fused storage contracts must use CPU_JAVA_ARRAY and CPU_MEMORY_SEGMENT only: " + offenders);
+    }
+
+    @Test
+    void cpuFusedMemorySegmentPathDoesNotBindGeneratedKernelsToTensorArrays() throws IOException {
+        String inputEmitter = Files.readString(Path.of("src/main/java/backend/cpu/fused/asm/emit/FusedInputBindingEmitter.java"));
+        String outputEmitter = Files.readString(Path.of("src/main/java/backend/cpu/fused/asm/emit/FusedOutputBindingEmitter.java"));
+        String vectorEmitter = Files.readString(Path.of("src/main/java/backend/cpu/fused/asm/emit/FusedVectorMethodEmitter.java"));
+        String preparer = Files.readString(Path.of("src/main/java/backend/cpu/fused/exec/FusedExecutablePreparer.java"));
+
+        assertTrue(inputEmitter.contains("emitGetNativeInputSegmentCall"),
+                "segment fused input binding must bind MemorySegment inputs through CpuKernelContext");
+        assertTrue(outputEmitter.contains("emitGetNativeOutputSegmentCall"),
+                "segment fused output binding must bind MemorySegment output through CpuKernelContext");
+        assertTrue(vectorEmitter.contains("usesMemorySegmentStorage()"),
+                "segment fused vector execution must delegate away from array-only vector bytecode");
+        assertTrue(preparer.contains("refusing Java-array interpreter fallback"),
+                "segment fused ASM failures must not use the array-bound interpreted fallback");
     }
 
     @Test

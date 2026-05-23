@@ -93,7 +93,7 @@ public class PlatformCalibrationSessionTest {
                                         32_768, 4_096, 2_048, 8_192,
                                         5, 3, 2,
                                         2_048, 4_096, 8_192, 32_768,
-                                        4, 2, 8, 1,
+                                        4,
                                         config.backend.SumAccuracyMode.FAST,
                                         2_000_000,
                                         config.backend.AttentionMatMulPolicy.AUTO,
@@ -157,14 +157,8 @@ public class PlatformCalibrationSessionTest {
                 PlatformRuntimeProfile.fromExecutionProfile("fallback", "fallback", "TEST", defaultSeed())
         );
 
-        assertEquals(4, profile.fused().fusedCheapContiguousAsmVectorWidth());
-        assertEquals(2, profile.fused().fusedCheapStridedAsmVectorWidth());
-        assertEquals(8, profile.fused().fusedNonCheapContiguousAsmVectorWidth());
-        assertEquals(1, profile.fused().fusedNonCheapStridedAsmVectorWidth());
-        assertEquals(4, loaded.fused().fusedCheapContiguousAsmVectorWidth());
-        assertEquals(2, loaded.fused().fusedCheapStridedAsmVectorWidth());
-        assertEquals(8, loaded.fused().fusedNonCheapContiguousAsmVectorWidth());
-        assertEquals(1, loaded.fused().fusedNonCheapStridedAsmVectorWidth());
+        assertEquals(4, profile.fused().fusedAsmVectorWidth());
+        assertEquals(4, loaded.fused().fusedAsmVectorWidth());
         assertEquals(16_384, loaded.materialization().contiguousMaterializeThreshold());
         assertEquals(32_768, loaded.materialization().cheapF64MaterializeThreshold());
         assertEquals(4_096, loaded.materialization().cheapF32MaterializeThreshold());
@@ -183,10 +177,7 @@ public class PlatformCalibrationSessionTest {
         assertEquals(CpuStorageProfile.AUTO, loaded.cpuStorageProfile());
         assertEquals(NativeCpuFailurePolicy.REQUIRE_NATIVE, loaded.nativeCpuFailurePolicy());
         assertEquals(DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE, loaded.deviceTransferPolicy());
-        assertEquals(4, loaded.toRuntimeConfig().kernel().cpu().fusedCheapContiguousAsmVectorWidth());
-        assertEquals(2, loaded.toRuntimeConfig().kernel().cpu().fusedCheapStridedAsmVectorWidth());
-        assertEquals(8, loaded.toRuntimeConfig().kernel().cpu().fusedNonCheapContiguousAsmVectorWidth());
-        assertEquals(1, loaded.toRuntimeConfig().kernel().cpu().fusedNonCheapStridedAsmVectorWidth());
+        assertEquals(4, loaded.toRuntimeConfig().kernel().cpu().fusedAsmVectorWidth());
         assertEquals(16_384, loaded.toRuntimeConfig().kernel().cpu().contiguousMaterializeThreshold());
         assertEquals(32_768, loaded.toRuntimeConfig().kernel().cpu().cheapF64MaterializeThreshold());
         assertEquals(4_096, loaded.toRuntimeConfig().kernel().cpu().cheapF32MaterializeThreshold());

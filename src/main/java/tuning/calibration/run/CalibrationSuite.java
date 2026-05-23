@@ -31,10 +31,7 @@ public final class CalibrationSuite {
             case CONV2D_GEMM_DISPATCH -> List.of(PlatformCalibrationDefaults.conv2dGemmDispatchStep(name, preset, dataType));
             case ELEMENTWISE_DISPATCH -> List.of(PlatformCalibrationDefaults.elementwiseDispatchStep(name, preset));
             case FUSED_DISPATCH -> List.of(PlatformCalibrationDefaults.fusedDispatchStep(name, preset));
-            case FUSED_CHEAP_CONTIGUOUS_WIDTH -> List.of(PlatformCalibrationDefaults.fusedCheapContiguousStep(name, preset, dataType));
-            case FUSED_CHEAP_STRIDED_WIDTH -> List.of(PlatformCalibrationDefaults.fusedCheapStridedStep(name, preset, dataType));
-            case FUSED_NON_CHEAP_CONTIGUOUS_WIDTH -> List.of(PlatformCalibrationDefaults.fusedNonCheapContiguousStep(name, preset, dataType));
-            case FUSED_NON_CHEAP_STRIDED_WIDTH -> List.of(PlatformCalibrationDefaults.fusedNonCheapStridedStep(name, preset, dataType));
+            case FUSED_ASM_WIDTH -> List.of(PlatformCalibrationDefaults.fusedAsmWidthStep(name, preset, dataType));
             case REDUCTION -> List.of(PlatformCalibrationDefaults.reductionStep(name, preset));
             case ATTENTION_THRESHOLDS -> List.of(PlatformCalibrationDefaults.attentionStep(name, preset));
             case MATERIALIZATION -> List.of(

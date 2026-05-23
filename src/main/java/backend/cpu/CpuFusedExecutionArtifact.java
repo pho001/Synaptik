@@ -1,5 +1,6 @@
 package backend.cpu;
 
+import backend.cpu.fused.plan.FusedVectorBlockReason;
 import backend.cpu.fused.exec.PreparedFusedExecutable;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
@@ -17,8 +18,13 @@ public record CpuFusedExecutionArtifact(
         CpuKernel cpuKernel,
         CpuNodeExecutionPlan cpuPlan,
         PreparedFusedExecutable fusedExecutable,
-        CpuNodeWorkspace cpuWorkspace
+        CpuNodeWorkspace cpuWorkspace,
+        FusedVectorBlockReason vectorBlockReason
 ) implements PreparedExecutionArtifact {
+    public CpuFusedExecutionArtifact {
+        vectorBlockReason = vectorBlockReason == null ? FusedVectorBlockReason.NONE : vectorBlockReason;
+    }
+
     @Override
     public void allocateRuntimeState(int nodeId, PreparedRuntimeStateAllocator allocator) {
         if (allocator == null) {

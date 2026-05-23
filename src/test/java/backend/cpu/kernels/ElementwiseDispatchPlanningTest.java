@@ -74,9 +74,6 @@ class ElementwiseDispatchPlanningTest {
                 16,
                 1_024,
                 1,
-                1,
-                1,
-                1,
                 SumAccuracyMode.FAST,
                 2_000_000,
                 AttentionMatMulPolicy.AUTO

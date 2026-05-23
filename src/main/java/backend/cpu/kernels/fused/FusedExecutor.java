@@ -16,7 +16,7 @@ final class FusedExecutor {
     }
 
     static CpuKernelCostClass costClass(FusedOperation fused) {
-        return fused != null && fused.isLowCostHint() && fused.getDispatchScale() == 1
+        return fused != null && fused.isLowCostHint()
                 ? CpuKernelCostClass.LOW
                 : CpuKernelCostClass.MEDIUM;
     }
@@ -37,22 +37,35 @@ final class FusedExecutor {
         CpuKernelCostClass costClass = costClass(fused);
         boolean recommendVector = hints.vectorWidth() > 1;
         long t0 = FusedExecutionProfiler.enabled() ? System.nanoTime() : 0L;
-        switch (mode) {
-            case SCALAR -> {
-                executable.applyRangeScalar(inputs, node, context, 0, length);
-                recordProfile(fused, mode, length, 1, false, false, t0);
-            }
-            case VECTOR -> {
-                if (recommendVector) {
-                    executable.applyRangeVector(inputs, node, context, 0, length);
-                    recordProfile(fused, mode, length, 1, false, true, t0);
-                } else {
+        boolean nativeSegments = fused.getNumericContract().usesMemorySegmentStorage();
+        if (nativeSegments) {
+            context.bindFusedNativeSegments(inputs, node);
+        }
+        try {
+            switch (mode) {
+                case SCALAR -> {
                     executable.applyRangeScalar(inputs, node, context, 0, length);
                     recordProfile(fused, mode, length, 1, false, false, t0);
                 }
+                case VECTOR -> {
+                    if (recommendVector) {
+                        executable.applyRangeVector(inputs, node, context, 0, length);
+                        recordProfile(fused, mode, length, 1, false, true, t0);
+                    } else {
+                        executable.applyRangeScalar(inputs, node, context, 0, length);
+                        recordProfile(fused, mode, length, 1, false, false, t0);
+                    }
+                }
+                case PARALLEL -> runParallel(executable, inputs, node, context, hints, false, fused, mode, costClass);
+                case PARALLEL_VECTOR -> runParallel(executable, inputs, node, context, hints, recommendVector, fused, mode, costClass);
             }
-            case PARALLEL -> runParallel(executable, inputs, node, context, hints, false, fused, mode, costClass);
-            case PARALLEL_VECTOR -> runParallel(executable, inputs, node, context, hints, recommendVector, fused, mode, costClass);
+            if (nativeSegments) {
+                context.publishFusedNativeOutput(node, "CPU fused MemorySegment wrote output");
+            }
+        } finally {
+            if (nativeSegments) {
+                context.clearFusedNativeBindings(node);
+            }
         }
     }
 

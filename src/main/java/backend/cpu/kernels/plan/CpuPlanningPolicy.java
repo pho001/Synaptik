@@ -3,21 +3,16 @@ package backend.cpu.kernels.plan;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuMatMulMicroKernel;
 import config.backend.SumAccuracyMode;
-import backend.cpu.fused.ir.FusedAccessKind;
-import backend.cpu.fused.ir.FusedExternalInputPlan;
-import backend.cpu.fused.ir.FusedNodePlan;
-import backend.cpu.fused.ir.ScalarDoubleAttribute;
-import backend.cpu.fused.plan.FusedDispatchFamily;
+import backend.cpu.fused.runtime.FusedVectorSpecies;
+import backend.cpu.fused.plan.FusedVectorGuard;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import backend.cpu.fused.plan.FusedOperation;
 import operations.Operation;
 import backend.cpu.kernels.CpuExecutionBackend;
 import backend.cpu.kernels.CpuKernelCostClass;
-import backend.cpu.kernels.CpuComputeDType;
 import backend.cpu.kernels.ResolvedCpuComputeContract;
 import tensor.DataType;
-import backend.cpu.fused.runtime.FusedDTypeOps;
 
 import java.util.Objects;
 
@@ -57,10 +52,7 @@ public final class CpuPlanningPolicy {
     private final int minVectorChunkSize;
     private final int minReductionChunkSize;
     private final int commonPoolLowCostMaxWorkPerWorker;
-    private final int fusedCheapContiguousAsmVectorWidth;
-    private final int fusedCheapStridedAsmVectorWidth;
-    private final int fusedNonCheapContiguousAsmVectorWidth;
-    private final int fusedNonCheapStridedAsmVectorWidth;
+    private final int fusedAsmVectorWidth;
     private final SumAccuracyMode sumAccuracyMode;
     private final AttentionMatMulPolicy attentionMatMulPolicy;
     private final CpuMatMulMicroKernel matMulMicroKernel;
@@ -95,10 +87,7 @@ public final class CpuPlanningPolicy {
             int minVectorChunkSize,
             int minReductionChunkSize,
             int commonPoolLowCostMaxWorkPerWorker,
-            int fusedCheapContiguousAsmVectorWidth,
-            int fusedCheapStridedAsmVectorWidth,
-            int fusedNonCheapContiguousAsmVectorWidth,
-            int fusedNonCheapStridedAsmVectorWidth,
+            int fusedAsmVectorWidth,
             SumAccuracyMode sumAccuracyMode,
             AttentionMatMulPolicy attentionMatMulPolicy,
             CpuMatMulMicroKernel matMulMicroKernel,
@@ -138,10 +127,7 @@ public final class CpuPlanningPolicy {
         this.minVectorChunkSize = Math.max(1, minVectorChunkSize);
         this.minReductionChunkSize = Math.max(1, minReductionChunkSize);
         this.commonPoolLowCostMaxWorkPerWorker = Math.max(1, commonPoolLowCostMaxWorkPerWorker);
-        this.fusedCheapContiguousAsmVectorWidth = Math.max(1, fusedCheapContiguousAsmVectorWidth);
-        this.fusedCheapStridedAsmVectorWidth = Math.max(1, fusedCheapStridedAsmVectorWidth);
-        this.fusedNonCheapContiguousAsmVectorWidth = Math.max(1, fusedNonCheapContiguousAsmVectorWidth);
-        this.fusedNonCheapStridedAsmVectorWidth = Math.max(1, fusedNonCheapStridedAsmVectorWidth);
+        this.fusedAsmVectorWidth = FusedVectorSpecies.normalizeLaneCount(fusedAsmVectorWidth);
         this.sumAccuracyMode = Objects.requireNonNullElse(sumAccuracyMode, SumAccuracyMode.FAST);
         this.attentionMatMulPolicy = Objects.requireNonNullElse(attentionMatMulPolicy, AttentionMatMulPolicy.AUTO);
         this.matMulMicroKernel = Objects.requireNonNullElse(matMulMicroKernel, CpuMatMulMicroKernel.AUTO);
@@ -277,7 +263,7 @@ public final class CpuPlanningPolicy {
         if (contract == null) {
             return 1;
         }
-        if (shouldForceScalarFusedAsm(fused) || shouldClampBf16NonCheapStridedAsmWidthToScalar(contract, fused)) {
+        if (FusedVectorGuard.requiresScalarAsmWidth(contract, fused)) {
             return 1;
         }
         int available = switch (contract.computeType()) {
@@ -285,27 +271,19 @@ public final class CpuPlanningPolicy {
             case F64 -> DoubleVector.SPECIES_PREFERRED.length();
             case INT32, INT64, BOOL -> 1;
         };
-        int configuredWidth = resolveFusedAsmVectorWidthForFamily(
-                fused == null ? FusedDispatchFamily.NON_CHEAP_STRIDED : fused.getDispatchFamily()
-        );
+        int configuredWidth = fusedAsmVectorWidth <= 0 ? available : fusedAsmVectorWidth;
         if (configuredWidth <= 1 || available <= 1) {
             return 1;
         }
         int width = Math.min(configuredWidth, available);
-        if (width >= 8) {
-            return 8;
+        if (contract.computeType() == backend.cpu.kernels.CpuComputeDType.F64) {
+            return FusedVectorSpecies.normalizeF64LaneCount(width);
         }
-        if (width >= 4) {
-            return 4;
-        }
-        if (width >= 2) {
-            return 2;
-        }
-        return 1;
+        return FusedVectorSpecies.normalizeF32LaneCount(width);
     }
 
     public boolean shouldForceSerialScalarDispatch(FusedOperation fused) {
-        return shouldForceScalarFusedAsm(fused);
+        return FusedVectorGuard.requiresScalarDispatch(fused);
     }
 
     public int computeChunkSize(int totalLength, int alignment, int targetChunksPerWorker, int minChunkSize) {
@@ -346,9 +324,7 @@ public final class CpuPlanningPolicy {
             return CpuKernelCostClass.MEDIUM;
         }
         if (op instanceof FusedOperation fused) {
-            return fused.isLowCostHint() && fused.getDispatchScale() == 1
-                    ? CpuKernelCostClass.LOW
-                    : CpuKernelCostClass.MEDIUM;
+            return fused.isLowCostHint() ? CpuKernelCostClass.LOW : CpuKernelCostClass.MEDIUM;
         }
         return op.isCheap() ? CpuKernelCostClass.LOW : CpuKernelCostClass.MEDIUM;
     }
@@ -380,76 +356,6 @@ public final class CpuPlanningPolicy {
         return minReductionChunkSize;
     }
 
-    private boolean shouldForceScalarFusedAsm(FusedOperation fused) {
-        if (fused == null || fused.getPlan() == null) {
-            return false;
-        }
-        return isMaskedScaleWherePlan(fused);
-    }
-
-    private boolean isMaskedScaleWherePlan(FusedOperation fused) {
-        var plan = fused.getPlan();
-        if (fused.getPrecisionMode() != FusedDTypeOps.MODE_F32 || plan.inputCount() != 3 || plan.nodeCount() != 2) {
-            return false;
-        }
-        FusedExternalInputPlan maskInput = plan.inputs().get(0);
-        FusedExternalInputPlan fillInput = plan.inputs().get(1);
-        FusedExternalInputPlan valueInput = plan.inputs().get(2);
-        if (maskInput.dataType() != DataType.BOOL
-                || fillInput.dataType() != DataType.FLOAT32
-                || valueInput.dataType() != DataType.FLOAT32
-                || !isContiguousLinear(maskInput)
-                || !isContiguousLinear(valueInput)
-                || fillInput.accessKind() != FusedAccessKind.BROADCAST_STRIDED
-                || !isZeroStrideBroadcast(fillInput)) {
-            return false;
-        }
-        FusedNodePlan scaleNode = plan.nodes().get(0);
-        FusedNodePlan whereNode = plan.nodes().get(1);
-        if (scaleNode.opType() != Operation.OpType.MUL_SCALAR
-                || whereNode.opType() != Operation.OpType.WHERE
-                || scaleNode.outputType() != DataType.FLOAT32
-                || whereNode.outputType() != DataType.FLOAT32
-                || !(scaleNode.attributes() instanceof ScalarDoubleAttribute)
-                || scaleNode.inputRefs().size() != 1
-                || scaleNode.inputRefs().get(0) != 2
-                || whereNode.inputRefs().size() != 3
-                || whereNode.inputRefs().get(0) != 0
-                || plan.outputNode().index() != whereNode.index()) {
-            return false;
-        }
-        int scaledValueRef = plan.inputCount() + scaleNode.index();
-        return (whereNode.inputRefs().get(1) == 1 && whereNode.inputRefs().get(2) == scaledValueRef)
-                || (whereNode.inputRefs().get(1) == scaledValueRef && whereNode.inputRefs().get(2) == 1);
-    }
-
-    private static boolean isContiguousLinear(FusedExternalInputPlan input) {
-        return input.accessKind() == FusedAccessKind.DIRECT_CONTIGUOUS
-                || input.accessKind() == FusedAccessKind.OFFSET_CONTIGUOUS;
-    }
-
-    private static boolean isZeroStrideBroadcast(FusedExternalInputPlan input) {
-        for (int stride : input.effectiveStrides()) {
-            if (stride != 0) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean shouldClampBf16NonCheapStridedAsmWidthToScalar(
-            ResolvedCpuComputeContract contract,
-            FusedOperation fused
-    ) {
-        if (contract == null
-                || contract.computeType() != CpuComputeDType.BF16_NATIVE
-                || fused == null
-                || fused.getDispatchFamily() != FusedDispatchFamily.NON_CHEAP_STRIDED) {
-            return false;
-        }
-        return isBf16AffineRationalStridedPlan(fused);
-    }
-
     private int effectiveVectorMinSize(Operation op) {
         int base = Math.max(1, resolveBaseVectorMinSize(op));
         if (op == null) {
@@ -457,9 +363,7 @@ public final class CpuPlanningPolicy {
         }
         if (op.opType() == Operation.OpType.FUSED) {
             FusedOperation fused = (FusedOperation) op;
-            int adjustedBase = adjustFusedVectorMinSize(base, fused);
-            int scale = fused.getDispatchScale();
-            return Math.max(1, adjustedBase / Math.max(1, scale));
+            return adjustFusedVectorMinSize(base, fused);
         }
         return base;
     }
@@ -468,10 +372,6 @@ public final class CpuPlanningPolicy {
         int base = Math.max(1, resolveBaseParallelMinSize(op));
         if (op == null) {
             return base;
-        }
-        if (op.opType() == Operation.OpType.FUSED) {
-            int scale = ((FusedOperation) op).getDispatchScale();
-            return Math.max(1, base / Math.max(1, scale));
         }
         return base;
     }
@@ -506,84 +406,10 @@ public final class CpuPlanningPolicy {
         if (fused == null || fused.getPlan() == null) {
             return base;
         }
-        int dispatchScale = Math.max(1, fused.getDispatchScale());
-        if ((fused.getDispatchFamily() == FusedDispatchFamily.CHEAP_CONTIGUOUS
-                || fused.getDispatchFamily() == FusedDispatchFamily.CHEAP_STRIDED)
-                && fused.getPlan().nodeCount() <= 2) {
-            return conservativeFusedVectorMinSize(base, dispatchScale);
-        }
-        if (fused.getDispatchFamily() == FusedDispatchFamily.NON_CHEAP_STRIDED
-                && !isVectorFriendlyNonCheapStridedPlan(fused)) {
-            return conservativeFusedVectorMinSize(base, dispatchScale);
+        if (FusedVectorGuard.shouldUseConservativeVectorThreshold(fused)) {
+            return conservativeFusedVectorMinSize(base);
         }
         return base;
-    }
-
-    private boolean isVectorFriendlyNonCheapStridedPlan(FusedOperation fused) {
-        if (fused == null || fused.getPlan() == null) {
-            return false;
-        }
-        if (fusedContainsTranscendental(fused)) {
-            return false;
-        }
-        boolean hasWhere = false;
-        boolean hasBoolInput = false;
-        boolean hasBroadcastInput = false;
-        for (FusedNodePlan node : fused.getPlan().nodes()) {
-            if (node.opType() == Operation.OpType.WHERE) {
-                hasWhere = true;
-            }
-        }
-        for (FusedExternalInputPlan input : fused.getPlan().inputs()) {
-            if (input.dataType() == DataType.BOOL) {
-                hasBoolInput = true;
-            }
-            if (input.accessKind() == FusedAccessKind.BROADCAST_STRIDED) {
-                hasBroadcastInput = true;
-            }
-        }
-        return hasWhere && hasBoolInput && hasBroadcastInput;
-    }
-
-    private boolean isBf16AffineRationalStridedPlan(FusedOperation fused) {
-        if (fused == null || fused.getPlan() == null || fused.getPrecisionMode() != FusedDTypeOps.MODE_BF16) {
-            return false;
-        }
-        int directStridedInputs = 0;
-        int directContiguousInputs = 0;
-        for (FusedExternalInputPlan input : fused.getPlan().inputs()) {
-            if (input.dataType() != DataType.BFLOAT16) {
-                return false;
-            }
-            switch (input.accessKind()) {
-                case DIRECT_STRIDED -> directStridedInputs++;
-                case DIRECT_CONTIGUOUS -> directContiguousInputs++;
-                default -> {
-                    return false;
-                }
-            }
-        }
-        if (directStridedInputs != 1 || directContiguousInputs < 3) {
-            return false;
-        }
-
-        boolean hasDivision = false;
-        for (FusedNodePlan node : fused.getPlan().nodes()) {
-            if (node.outputType() != DataType.BFLOAT16) {
-                return false;
-            }
-            switch (node.opType()) {
-                case NEG, ADD, SUB, MUL, DIV, INV, MUL_SCALAR -> {
-                    if (node.opType() == Operation.OpType.DIV || node.opType() == Operation.OpType.INV) {
-                        hasDivision = true;
-                    }
-                }
-                default -> {
-                    return false;
-                }
-            }
-        }
-        return hasDivision && fused.getPlan().nodeCount() >= 5;
     }
 
     private boolean fusedContainsTranscendental(FusedOperation fused) {
@@ -596,25 +422,13 @@ public final class CpuPlanningPolicy {
         });
     }
 
-    private int resolveFusedAsmVectorWidthForFamily(FusedDispatchFamily family) {
-        if (family == null) {
-            return fusedNonCheapStridedAsmVectorWidth;
-        }
-        return switch (family) {
-            case CHEAP_CONTIGUOUS -> fusedCheapContiguousAsmVectorWidth;
-            case CHEAP_STRIDED -> fusedCheapStridedAsmVectorWidth;
-            case NON_CHEAP_CONTIGUOUS -> fusedNonCheapContiguousAsmVectorWidth;
-            case NON_CHEAP_STRIDED -> fusedNonCheapStridedAsmVectorWidth;
-        };
-    }
-
     private static int saturatingMultiply(int value, int factor) {
         long product = (long) Math.max(1, value) * Math.max(1, factor);
         return product >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) product;
     }
 
-    private int conservativeFusedVectorMinSize(int base, int dispatchScale) {
-        int conservativeMultiplier = saturatingMultiply(16, dispatchScale);
+    private int conservativeFusedVectorMinSize(int base) {
+        int conservativeMultiplier = 16;
         return Math.max(
                 saturatingMultiply(base, conservativeMultiplier),
                 saturatingMultiply(minVectorChunkSize, conservativeMultiplier)

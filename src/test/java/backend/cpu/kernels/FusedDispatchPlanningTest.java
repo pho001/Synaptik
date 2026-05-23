@@ -16,6 +16,7 @@ import backend.cpu.fused.numeric.FusedNumericContract;
 import backend.cpu.fused.numeric.FusedStorageKind;
 import backend.cpu.fused.numeric.FusedValueLane;
 import backend.cpu.fused.plan.FusedDispatchFamily;
+import backend.cpu.fused.plan.FusedVectorBlockReason;
 import jdk.incubator.vector.FloatVector;
 import backend.cpu.fused.plan.FusedOperation;
 import operations.Operation;
@@ -54,6 +55,7 @@ class FusedDispatchPlanningTest {
         assertEquals(expectedVectorMinSize, prepared.cpuVectorMinSize());
         assertEquals(expectedWidth, prepared.asmVectorWidth());
         assertEquals(expectedWidth, prepared.dispatchHints().vectorWidth());
+        assertEquals(FusedVectorBlockReason.BELOW_VECTOR_THRESHOLD, prepared.vectorBlockReason());
         assertEquals(
                 expectedWidth > 1 && out.getFlatDataSize() >= expectedVectorMinSize ? CpuExecutionMode.VECTOR : CpuExecutionMode.SCALAR,
                 prepared.dispatchHints().mode()
@@ -61,7 +63,7 @@ class FusedDispatchPlanningTest {
     }
 
     @Test
-    void resolvesNonCheapStridedDispatchWithFamilySpecificAsmWidth() {
+    void resolvesNonCheapStridedDispatchWithCanonicalAsmWidth() {
         CpuExecutionPlanner planner = CpuExecutionPlanner.from(testKernelConfig());
         FusedOperation fused = fusedUnary(
                 Operation.OpType.LOG,
@@ -80,15 +82,103 @@ class FusedDispatchPlanningTest {
 
         PreparedFusedDispatch prepared = planner.resolveFusedDispatch(fused, out, contract);
 
-        int expectedWidth = Math.min(2, FloatVector.SPECIES_PREFERRED.length());
+        int expectedWidth = Math.min(4, FloatVector.SPECIES_PREFERRED.length());
         int expectedVectorMinSize = planner.fusedDirectVectorMinSize(fused);
         assertEquals(expectedVectorMinSize, prepared.cpuVectorMinSize());
         assertEquals(expectedWidth, prepared.asmVectorWidth());
         assertEquals(expectedWidth, prepared.dispatchHints().vectorWidth());
+        assertEquals(FusedVectorBlockReason.BELOW_VECTOR_THRESHOLD, prepared.vectorBlockReason());
         assertEquals(
                 expectedWidth > 1 && out.getFlatDataSize() >= expectedVectorMinSize ? CpuExecutionMode.VECTOR : CpuExecutionMode.SCALAR,
                 prepared.dispatchHints().mode()
         );
+    }
+
+    @Test
+    void defaultFusedAsmWidthUsesPreferredSpecies() {
+        CpuExecutionPlanner planner = CpuExecutionPlanner.from(CpuKernelConfig.defaultsInference());
+        FusedOperation fused = fusedUnary(
+                Operation.OpType.LOG,
+                false,
+                FusedDispatchFamily.NON_CHEAP_CONTIGUOUS,
+                FusedAccessKind.DIRECT_CONTIGUOUS,
+                DataType.FLOAT32
+        );
+        Tensor out = new Tensor(new int[]{2_048}, null, "fused_out", DataType.FLOAT32);
+        ResolvedCpuComputeContract contract = new ResolvedCpuComputeContract(
+                DataType.FLOAT32,
+                CpuComputeDType.F32,
+                CpuExecutionBackend.CPU_FUSED,
+                CpuAccumulateDType.NONE
+        );
+
+        PreparedFusedDispatch prepared = planner.resolveFusedDispatch(fused, out, contract);
+
+        int expectedWidth = FloatVector.SPECIES_PREFERRED.length();
+        assertEquals(expectedWidth, prepared.asmVectorWidth());
+        assertEquals(expectedWidth, prepared.dispatchHints().vectorWidth());
+        assertEquals(FusedVectorBlockReason.NONE, prepared.vectorBlockReason());
+    }
+
+    @Test
+    void memorySegmentF32ContiguousDispatchKeepsVectorAsmWidth() {
+        CpuExecutionPlanner planner = CpuExecutionPlanner.from(testKernelConfig());
+        FusedOperation fused = fusedUnary(
+                Operation.OpType.RELU,
+                true,
+                FusedDispatchFamily.CHEAP_CONTIGUOUS,
+                FusedAccessKind.DIRECT_CONTIGUOUS,
+                DataType.FLOAT32
+        ).withNumericContract(numericSegment(FusedValueLane.F32));
+        Tensor out = new Tensor(new int[]{2_048}, null, "fused_out", DataType.FLOAT32);
+        ResolvedCpuComputeContract contract = new ResolvedCpuComputeContract(
+                DataType.FLOAT32,
+                CpuComputeDType.F32,
+                CpuExecutionBackend.CPU_FUSED,
+                CpuAccumulateDType.NONE
+        );
+
+        PreparedFusedDispatch prepared = planner.resolveFusedDispatch(fused, out, contract);
+
+        int expectedWidth = Math.min(4, FloatVector.SPECIES_PREFERRED.length());
+        assertEquals(expectedWidth, prepared.asmVectorWidth());
+        assertEquals(expectedWidth, prepared.dispatchHints().vectorWidth());
+        assertEquals(FusedVectorBlockReason.NONE, prepared.vectorBlockReason());
+    }
+
+    @Test
+    void memorySegmentBf16AndStridedDispatchStayScalarOnly() {
+        CpuExecutionPlanner planner = CpuExecutionPlanner.from(testKernelConfig());
+        FusedOperation bf16 = fusedUnary(
+                Operation.OpType.RELU,
+                true,
+                FusedDispatchFamily.CHEAP_CONTIGUOUS,
+                FusedAccessKind.DIRECT_CONTIGUOUS,
+                DataType.BFLOAT16
+        ).withNumericContract(numericSegment(FusedValueLane.BF16));
+        FusedOperation strided = fusedUnary(
+                Operation.OpType.RELU,
+                false,
+                FusedDispatchFamily.NON_CHEAP_STRIDED,
+                FusedAccessKind.DIRECT_STRIDED,
+                DataType.FLOAT32
+        ).withNumericContract(numericSegment(FusedValueLane.F32));
+
+        PreparedFusedDispatch bf16Prepared = planner.resolveFusedDispatch(
+                bf16,
+                new Tensor(new int[]{2_048}, null, "bf16_out", DataType.BFLOAT16),
+                new ResolvedCpuComputeContract(DataType.BFLOAT16, CpuComputeDType.BF16_NATIVE, CpuExecutionBackend.CPU_FUSED, CpuAccumulateDType.NONE)
+        );
+        PreparedFusedDispatch stridedPrepared = planner.resolveFusedDispatch(
+                strided,
+                new Tensor(new int[]{2_048}, null, "strided_out", DataType.FLOAT32),
+                new ResolvedCpuComputeContract(DataType.FLOAT32, CpuComputeDType.F32, CpuExecutionBackend.CPU_FUSED, CpuAccumulateDType.NONE)
+        );
+
+        assertEquals(1, bf16Prepared.asmVectorWidth());
+        assertEquals(FusedVectorBlockReason.MEMORY_SEGMENT_SCALAR_ONLY, bf16Prepared.vectorBlockReason());
+        assertEquals(1, stridedPrepared.asmVectorWidth());
+        assertEquals(FusedVectorBlockReason.MEMORY_SEGMENT_SCALAR_ONLY, stridedPrepared.vectorBlockReason());
     }
 
     @Test
@@ -119,7 +209,6 @@ class FusedDispatchPlanningTest {
                 false,
                 FusedDispatchFamily.NON_CHEAP_STRIDED,
                 "bf16-affine-rational-strided",
-                1,
                 plan
         );
         Tensor out = new Tensor(new int[]{8, 256}, null, "fused_out", DataType.BFLOAT16);
@@ -134,6 +223,7 @@ class FusedDispatchPlanningTest {
 
         assertEquals(1, prepared.asmVectorWidth());
         assertEquals(1, prepared.dispatchHints().vectorWidth());
+        assertEquals(FusedVectorBlockReason.BF16_STRIDED_RATIONAL_SCALAR_ONLY, prepared.vectorBlockReason());
     }
 
     private static CpuKernelConfig testKernelConfig() {
@@ -161,9 +251,6 @@ class FusedDispatchPlanningTest {
                 16,
                 1_024,
                 4,
-                4,
-                4,
-                2,
                 SumAccuracyMode.FAST,
                 2_000_000,
                 AttentionMatMulPolicy.AUTO
@@ -189,7 +276,6 @@ class FusedDispatchPlanningTest {
                 lowCostHint,
                 family,
                 "fused-test-sig",
-                1,
                 plan
         );
     }
@@ -198,6 +284,16 @@ class FusedDispatchPlanningTest {
         return new FusedNumericContract(
                 FusedStorageKind.CPU_JAVA_ARRAY,
                 FusedStorageKind.CPU_JAVA_ARRAY,
+                lane,
+                lane == FusedValueLane.F64 ? FusedComputeKind.F64 : FusedComputeKind.F32,
+                lane
+        );
+    }
+
+    private static FusedNumericContract numericSegment(FusedValueLane lane) {
+        return new FusedNumericContract(
+                FusedStorageKind.CPU_MEMORY_SEGMENT,
+                FusedStorageKind.CPU_MEMORY_SEGMENT,
                 lane,
                 lane == FusedValueLane.F64 ? FusedComputeKind.F64 : FusedComputeKind.F32,
                 lane

@@ -2,6 +2,7 @@ package backend.cpu.fused.asm.emit;
 
 import backend.cpu.fused.ir.FusedExpressionPlan;
 import backend.cpu.fused.runtime.FusedDTypeOps;
+import backend.cpu.fused.runtime.FusedVectorSpecies;
 import org.objectweb.asm.MethodVisitor;
 import tensor.DataType;
 import utils.SlotKey;
@@ -21,38 +22,14 @@ final class FusedVectorBytecode {
         String fieldName;
         if (precisionMode == FusedDTypeOps.MODE_F32 || precisionMode == FusedDTypeOps.MODE_BF16) {
             owner = "jdk/incubator/vector/FloatVector";
-            fieldName = switch (normalizedVectorWidth(vectorWidth)) {
-                case 2 -> "SPECIES_64";
-                case 4 -> "SPECIES_128";
-                case 8 -> "SPECIES_256";
-                default -> "SPECIES_PREFERRED";
-            };
+            fieldName = FusedVectorSpecies.f32FieldName(vectorWidth);
         } else if (precisionMode == FusedDTypeOps.MODE_F64) {
             owner = "jdk/incubator/vector/DoubleVector";
-            fieldName = switch (normalizedVectorWidth(vectorWidth)) {
-                case 1 -> "SPECIES_64";
-                case 2 -> "SPECIES_128";
-                case 4 -> "SPECIES_256";
-                case 8 -> "SPECIES_512";
-                default -> "SPECIES_PREFERRED";
-            };
+            fieldName = FusedVectorSpecies.f64FieldName(vectorWidth);
         } else {
             throw new UnsupportedOperationException("Vector species constants are supported only for F32/F64/BF16 fused modes.");
         }
         mv.visitFieldInsn(GETSTATIC, owner, fieldName, "Ljdk/incubator/vector/VectorSpecies;");
-    }
-
-    private static int normalizedVectorWidth(int vectorWidth) {
-        if (vectorWidth <= 1) {
-            return 1;
-        }
-        if (vectorWidth <= 2) {
-            return 2;
-        }
-        if (vectorWidth <= 4) {
-            return 4;
-        }
-        return 8;
     }
 
     static void emitVectorBinaryOpCall(MethodVisitor mv, String op, int precisionMode) {
@@ -201,7 +178,7 @@ final class FusedVectorBytecode {
         emitVectorRefCast(mv, plan.nodes().get(nodeIndex).outputType(), precisionMode);
     }
 
-    private static void emitVectorRefCast(MethodVisitor mv, DataType dataType, int precisionMode) {
+    static void emitVectorRefCast(MethodVisitor mv, DataType dataType, int precisionMode) {
         if (precisionMode != FusedDTypeOps.MODE_F32 && precisionMode != FusedDTypeOps.MODE_F64) {
             return;
         }

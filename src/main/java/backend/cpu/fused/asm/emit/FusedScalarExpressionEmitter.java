@@ -28,16 +28,17 @@ public final class FusedScalarExpressionEmitter {
             SlotManager sm,
             int precisionMode,
             FusedApproximationContract approximationContract,
-            java.util.List<FusedExternalInputPlan> inputAccess
+            java.util.List<FusedExternalInputPlan> inputAccess,
+            boolean memorySegmentStorage
     ) {
         if (current.opType() == operations.Operation.OpType.WHERE) {
-            emitWhereNode(mv, plan, current, nodeValueSlots, nodeBoolSlots, sm, precisionMode, inputAccess);
+            emitWhereNode(mv, plan, current, nodeValueSlots, nodeBoolSlots, sm, precisionMode, inputAccess, memorySegmentStorage);
             return;
         }
 
         for (int ref : current.inputRefs()) {
             FusedScalarBytecode.loadScalarRef(
-                    mv, ref, plan, nodeValueSlots, nodeBoolSlots, sm, precisionMode, inputAccess
+                    mv, ref, plan, nodeValueSlots, nodeBoolSlots, sm, precisionMode, inputAccess, memorySegmentStorage
             );
         }
 
@@ -272,7 +273,8 @@ public final class FusedScalarExpressionEmitter {
             int[] nodeBoolSlots,
             SlotManager sm,
             int precisionMode,
-            java.util.List<FusedExternalInputPlan> inputAccess
+            java.util.List<FusedExternalInputPlan> inputAccess,
+            boolean memorySegmentStorage
     ) {
         java.util.List<Integer> refs = current.inputRefs();
         if (refs.size() != 3) {
@@ -282,14 +284,14 @@ public final class FusedScalarExpressionEmitter {
         int trueRef = refs.get(1);
         int falseRef = refs.get(2);
 
-        loadBoolScalarRef(mv, condRef, plan, nodeBoolSlots, sm, inputAccess);
+        loadBoolScalarRef(mv, condRef, plan, nodeBoolSlots, sm, inputAccess, memorySegmentStorage);
         Label falseBranch = new Label();
         Label done = new Label();
         mv.visitJumpInsn(IFEQ, falseBranch);
-        FusedScalarBytecode.loadScalarRef(mv, trueRef, plan, nodeValueSlots, nodeBoolSlots, sm, precisionMode, inputAccess);
+        FusedScalarBytecode.loadScalarRef(mv, trueRef, plan, nodeValueSlots, nodeBoolSlots, sm, precisionMode, inputAccess, memorySegmentStorage);
         mv.visitJumpInsn(GOTO, done);
         mv.visitLabel(falseBranch);
-        FusedScalarBytecode.loadScalarRef(mv, falseRef, plan, nodeValueSlots, nodeBoolSlots, sm, precisionMode, inputAccess);
+        FusedScalarBytecode.loadScalarRef(mv, falseRef, plan, nodeValueSlots, nodeBoolSlots, sm, precisionMode, inputAccess, memorySegmentStorage);
         mv.visitLabel(done);
     }
 
@@ -297,22 +299,10 @@ public final class FusedScalarExpressionEmitter {
             MethodVisitor mv,
             int ref,
             SlotManager sm,
-            java.util.List<FusedExternalInputPlan> inputPlans
+            java.util.List<FusedExternalInputPlan> inputPlans,
+            boolean memorySegmentStorage
     ) {
-        int inputSlot = sm.getGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS).get(ref);
-        mv.visitVarInsn(ALOAD, inputSlot);
-        FusedExternalInputPlan meta = inputPlans.get(ref);
-        if (meta.isLinearAccess()) {
-            mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
-            if (meta.storageOffset() != 0) {
-                mv.visitLdcInsn(meta.storageOffset());
-                mv.visitInsn(IADD);
-            }
-        } else {
-            mv.visitVarInsn(ALOAD, sm.getGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS).get(ref));
-            mv.visitMethodInsn(INVOKEVIRTUAL, "backend/cpu/fused/runtime/FusedBroadcastCursor", "idx", "()I", false);
-        }
-        mv.visitInsn(BALOAD);
+        FusedScalarBytecode.loadExternalBoolScalar(mv, ref, sm, inputPlans, memorySegmentStorage);
     }
 
     private static void loadBoolScalarRef(
@@ -321,14 +311,15 @@ public final class FusedScalarExpressionEmitter {
             FusedExpressionPlan plan,
             int[] nodeBoolSlots,
             SlotManager sm,
-            java.util.List<FusedExternalInputPlan> inputPlans
+            java.util.List<FusedExternalInputPlan> inputPlans,
+            boolean memorySegmentStorage
     ) {
         if (ref < inputPlans.size()) {
             FusedExternalInputPlan condMeta = inputPlans.get(ref);
             if (condMeta.dataType() != tensor.DataType.BOOL) {
                 throw new UnsupportedOperationException("Fused bool ref must use BOOL external input.");
             }
-            loadExternalBoolScalarRef(mv, ref, sm, inputPlans);
+            loadExternalBoolScalarRef(mv, ref, sm, inputPlans, memorySegmentStorage);
             return;
         }
         int nodeIndex = ref - inputPlans.size();

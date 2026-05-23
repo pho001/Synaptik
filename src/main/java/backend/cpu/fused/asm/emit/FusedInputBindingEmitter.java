@@ -2,6 +2,7 @@ package backend.cpu.fused.asm.emit;
 
 import backend.cpu.fused.asm.FusedGenerationContext;
 
+import backend.cpu.fused.numeric.FusedStorageKind;
 import backend.cpu.fused.runtime.FusedDTypeOps;
 
 import backend.cpu.fused.ir.FusedExternalInputPlan;
@@ -31,14 +32,21 @@ public final class FusedInputBindingEmitter {
         List<Integer> inputSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS);
         List<Integer> continuationSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_CONTINUATION_ARRAYS);
         for (int i = 0; i < context.plan().inputCount(); i++) {
-            mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_INPUTS));
-            mv.visitLdcInsn(i);
-            mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
-            mv.visitTypeInsn(CHECKCAST, "tensor/Tensor");
-            FusedRuntimeCalls.emitGetRawArrayFromTensorCall(mv, context.plan().inputs().get(i).dataType());
+            if (context.numericContract().inputStorageKind() == FusedStorageKind.CPU_MEMORY_SEGMENT) {
+                mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_CONTEXT));
+                mv.visitLdcInsn(i);
+                FusedRuntimeCalls.emitGetNativeInputSegmentCall(mv);
+            } else {
+                mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_INPUTS));
+                mv.visitLdcInsn(i);
+                mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
+                mv.visitTypeInsn(CHECKCAST, "tensor/Tensor");
+                FusedRuntimeCalls.emitGetRawArrayFromTensorCall(mv, context.plan().inputs().get(i).dataType());
+            }
             mv.visitVarInsn(ASTORE, inputSlots.get(i));
 
-            if (context.plan().inputs().get(i).dataType() == DataType.BFLOAT16) {
+            if (context.numericContract().inputStorageKind() == FusedStorageKind.CPU_JAVA_ARRAY
+                    && context.plan().inputs().get(i).dataType() == DataType.BFLOAT16) {
                 mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_CONTEXT));
                 mv.visitLdcInsn(i);
                 mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_INPUTS));
@@ -89,14 +97,21 @@ public final class FusedInputBindingEmitter {
         List<Integer> inputSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS);
         List<Integer> continuationSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_CONTINUATION_ARRAYS);
         for (int i = 0; i < context.plan().inputCount(); i++) {
-            mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_INPUTS));
-            mv.visitLdcInsn(i);
-            mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
-            mv.visitTypeInsn(CHECKCAST, "tensor/Tensor");
-            FusedRuntimeCalls.emitGetRawArrayFromTensorCall(mv, context.plan().inputs().get(i).dataType());
+            if (context.numericContract().inputStorageKind() == FusedStorageKind.CPU_MEMORY_SEGMENT) {
+                mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_CONTEXT));
+                mv.visitLdcInsn(i);
+                FusedRuntimeCalls.emitGetNativeInputSegmentCall(mv);
+            } else {
+                mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_INPUTS));
+                mv.visitLdcInsn(i);
+                mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
+                mv.visitTypeInsn(CHECKCAST, "tensor/Tensor");
+                FusedRuntimeCalls.emitGetRawArrayFromTensorCall(mv, context.plan().inputs().get(i).dataType());
+            }
             mv.visitVarInsn(ASTORE, inputSlots.get(i));
 
-            if (context.plan().inputs().get(i).dataType() == DataType.BFLOAT16) {
+            if (context.numericContract().inputStorageKind() == FusedStorageKind.CPU_JAVA_ARRAY
+                    && context.plan().inputs().get(i).dataType() == DataType.BFLOAT16) {
                 mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_CONTEXT));
                 mv.visitLdcInsn(i);
                 mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_INPUTS));
@@ -141,6 +156,7 @@ public final class FusedInputBindingEmitter {
 
     public static void emitVectorCachedInputLoads(
             MethodVisitor mv,
+            FusedGenerationContext context,
             int inputCount,
             List<FusedExternalInputPlan> inputAccess,
             SlotManager sm,
@@ -151,10 +167,14 @@ public final class FusedInputBindingEmitter {
         List<Integer> continuationSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_CONTINUATION_ARRAYS);
         List<Integer> cachedInputVectorSlots = sm.getGroup(SlotKey.CLUSTER_INTERMEDIATES_ARRAYS);
         List<Integer> cursorSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS);
+        boolean memorySegmentStorage = context.numericContract().inputStorageKind() == FusedStorageKind.CPU_MEMORY_SEGMENT;
 
         for (int i = 0; i < inputCount; i++) {
             FusedExternalInputPlan meta = inputAccess.get(i);
             if (meta.dataType() == DataType.BOOL) {
+                if (memorySegmentStorage) {
+                    throw new UnsupportedOperationException("BOOL MemorySegment vector loads are not supported for fused execution.");
+                }
                 if (meta.isLinearAccess()) {
                     mv.visitVarInsn(ALOAD, inputSlots.get(i));
                     mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
@@ -201,13 +221,18 @@ public final class FusedInputBindingEmitter {
                         mv.visitLdcInsn(meta.storageOffset());
                         mv.visitInsn(IADD);
                     }
-                    if (precisionMode == FusedDTypeOps.MODE_F32 || precisionMode == FusedDTypeOps.MODE_F64) {
+                    if (memorySegmentStorage) {
+                        FusedRuntimeCalls.emitDirectLinearSegmentVectorLoad(mv, precisionMode, vectorWidth);
+                    } else if (precisionMode == FusedDTypeOps.MODE_F32 || precisionMode == FusedDTypeOps.MODE_F64) {
                         FusedRuntimeCalls.emitDirectLinearVectorLoad(mv, precisionMode, vectorWidth);
                     } else {
                         FusedVectorBytecode.emitVectorWidthConstant(mv, vectorWidth);
                         FusedRuntimeCalls.emitLoadVectorFromArrayCall(mv, precisionMode);
                     }
                 } else {
+                    if (memorySegmentStorage) {
+                        throw new UnsupportedOperationException("Non-linear MemorySegment vector loads are not supported for fused execution.");
+                    }
                     mv.visitVarInsn(ALOAD, cursorSlots.get(i));
                     mv.visitVarInsn(ALOAD, inputSlots.get(i));
                     FusedVectorBytecode.emitVectorWidthConstant(mv, vectorWidth);

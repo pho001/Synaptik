@@ -24,7 +24,6 @@ import config.runtime.AcceleratorBufferConfig;
 import config.runtime.AcceleratorConfig;
 import config.runtime.RuntimeConfig;
 import config.runtime.FusedExecutionPolicy;
-import config.runtime.FusedPrimaryBackend;
 import graph.CompiledGraph;
 import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
@@ -1356,7 +1355,7 @@ public class PreparedExecutionBuildTest {
                         kernelWithVectorMin(1),
                         config.runtime.ApproximationConfig.defaults(),
                         config.runtime.BlasConfig.disabled(),
-                        new FusedExecutionPolicy(FusedPrimaryBackend.ASM, true)
+                        new FusedExecutionPolicy(true)
                 ));
 
         var fusedStep = execution.forwardSteps().stream()
@@ -1381,7 +1380,7 @@ public class PreparedExecutionBuildTest {
                         kernelWithVectorMin(1),
                         config.runtime.ApproximationConfig.defaults(),
                         config.runtime.BlasConfig.disabled(),
-                        new FusedExecutionPolicy(FusedPrimaryBackend.ASM, true)
+                        new FusedExecutionPolicy(true)
                 ));
 
         var fusedStep = execution.forwardSteps().stream()
@@ -1442,7 +1441,7 @@ public class PreparedExecutionBuildTest {
                         config.backend.KernelTuningConfig.defaultsInference(),
                         config.runtime.ApproximationConfig.defaults(),
                         config.runtime.BlasConfig.disabled(),
-                        new FusedExecutionPolicy(FusedPrimaryBackend.ASM, true)
+                        new FusedExecutionPolicy(true)
                 ));
 
         var fusedStep = execution.forwardSteps().stream()
@@ -4485,7 +4484,7 @@ public class PreparedExecutionBuildTest {
     }
 
     private static KernelTuningConfig kernelWithVectorMin(int vectorMinSize) {
-        return kernelWithVectorMinAndFusedAsmWidth(vectorMinSize, KernelTuningConfig.defaultsInference().cpu().fusedCheapContiguousAsmVectorWidth());
+        return kernelWithVectorMinAndFusedAsmWidth(vectorMinSize, KernelTuningConfig.defaultsInference().cpu().fusedAsmVectorWidth());
     }
 
     private static RuntimeConfig runtimeWithFusedAsmWidth(int fusedAsmWidth) {
@@ -4493,7 +4492,7 @@ public class PreparedExecutionBuildTest {
                 kernelWithVectorMinAndFusedAsmWidth(1, fusedAsmWidth),
                 config.runtime.ApproximationConfig.defaults(),
                 config.runtime.BlasConfig.disabled(),
-                new FusedExecutionPolicy(FusedPrimaryBackend.ASM, true)
+                new FusedExecutionPolicy(true)
         );
     }
 
@@ -4538,9 +4537,6 @@ public class PreparedExecutionBuildTest {
                         cpu.minVectorChunkSize(),
                         cpu.minReductionChunkSize(),
                         cpu.commonPoolLowCostMaxWorkPerWorker(),
-                        fusedAsmWidth,
-                        fusedAsmWidth,
-                        fusedAsmWidth,
                         fusedAsmWidth,
                         cpu.sumAccuracyMode(),
                         cpu.matMulParallelMinSize(),

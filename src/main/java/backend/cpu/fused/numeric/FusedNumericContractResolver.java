@@ -30,17 +30,21 @@ public final class FusedNumericContractResolver {
                 target = resolveTarget(target, node.outputType());
             }
         }
-        DataType storageType = target == null ? DataType.FLOAT32 : target;
-        FusedValueLane lane = FusedValueLane.fromDataType(storageType);
-        FusedComputeKind computeKind = storageType == DataType.FLOAT64
+        DataType computeStorageType = target == null ? DataType.FLOAT32 : target;
+        DataType outputStorageType = plan == null ? computeStorageType : plan.outputNode().outputType();
+        FusedValueLane inputLane = target == null
+                ? FusedValueLane.fromDataType(outputStorageType == DataType.BOOL ? DataType.BOOL : computeStorageType)
+                : FusedValueLane.fromDataType(computeStorageType);
+        FusedValueLane outputLane = FusedValueLane.fromDataType(outputStorageType);
+        FusedComputeKind computeKind = computeStorageType == DataType.FLOAT64
                 ? FusedComputeKind.F64
                 : FusedComputeKind.F32;
         return new FusedNumericContract(
                 inputStorageKind,
                 outputStorageKind,
-                lane,
+                inputLane,
                 computeKind,
-                lane
+                outputLane
         );
     }
 

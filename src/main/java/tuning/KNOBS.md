@@ -67,10 +67,7 @@ These decide when fused nodes become worth vectorization or parallelization.
 
 Current fused width knobs are family-specific:
 
-- `cpu.fusedCheapContiguousAsmVectorWidth`
-- `cpu.fusedCheapStridedAsmVectorWidth`
-- `cpu.fusedNonCheapContiguousAsmVectorWidth`
-- `cpu.fusedNonCheapStridedAsmVectorWidth`
+- `cpu.fusedAsmVectorWidth`
 
 These are real public runtime knobs now.
 They are no longer just internal experiment flags.
