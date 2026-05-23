@@ -86,7 +86,10 @@ public final class FusedSpecializedVectorMethodEmitter {
         FusedExternalInputPlan maskInput = context.plan().inputs().get(0);
         FusedExternalInputPlan fillInput = context.plan().inputs().get(1);
         FusedExternalInputPlan valueInput = context.plan().inputs().get(2);
-        float scale = FusedAsmSpecializationMatcher.requireF32MaskedScaleWhereScalar(context.plan());
+        float scale = FusedAsmSpecializationMatcher.requireF32MaskedScaleWhereScalar(
+                context.plan(),
+                context.specializationKind()
+        );
 
         emitInputArrayBinding(mv, 0, "boolData", "[B", MASK_ARRAY_SLOT);
         emitInputArrayBinding(mv, 1, "float32Data", "[F", FILL_ARRAY_SLOT);

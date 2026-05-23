@@ -95,7 +95,7 @@ final class FusedParallelVectorDumpTest {
                 fused.getNumericContract(),
                 fused.getApproximationContract(),
                 hints.vectorWidth(),
-                FusedAsmSpecializationMatcher.match(fused.getPlan(), fused.getPrecisionMode())
+                FusedAsmSpecializationMatcher.match(fused.getPlan(), fused.getNumericContract())
         );
 
         Path classPath = OUTPUT_DIR.resolve(binaryName.replace('.', '/') + ".class");

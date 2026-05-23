@@ -1,12 +1,11 @@
 package backend.cpu.fused.asm;
 
-import backend.cpu.fused.runtime.FusedDTypeOps;
-
 import backend.cpu.fused.ir.FusedAccessKind;
 import backend.cpu.fused.ir.FusedExpressionPlan;
 import backend.cpu.fused.ir.FusedExternalInputPlan;
 import backend.cpu.fused.ir.FusedNodePlan;
 import backend.cpu.fused.ir.ScalarDoubleAttribute;
+import backend.cpu.fused.numeric.FusedNumericContract;
 
 import operations.Operation;
 import tensor.DataType;
@@ -17,8 +16,8 @@ import tensor.DataType;
 public final class FusedAsmSpecializationMatcher {
     private FusedAsmSpecializationMatcher() {}
 
-    public static FusedAsmSpecializationKind match(FusedExpressionPlan plan, int precisionMode) {
-        if (plan == null || precisionMode != FusedDTypeOps.MODE_F32) {
+    public static FusedAsmSpecializationKind match(FusedExpressionPlan plan, FusedNumericContract numericContract) {
+        if (plan == null || numericContract == null || !numericContract.usesFloatCompute() || numericContract.writesBf16()) {
             return FusedAsmSpecializationKind.NONE;
         }
         if (plan.inputCount() != 3 || plan.nodeCount() != 2) {
@@ -65,10 +64,12 @@ public final class FusedAsmSpecializationMatcher {
         return FusedAsmSpecializationKind.NONE;
     }
 
-    public static float requireF32MaskedScaleWhereScalar(FusedExpressionPlan plan) {
-        FusedAsmSpecializationKind kind = match(plan, FusedDTypeOps.MODE_F32);
+    public static float requireF32MaskedScaleWhereScalar(FusedExpressionPlan plan, FusedAsmSpecializationKind kind) {
         if (kind != FusedAsmSpecializationKind.F32_MASKED_SCALE_WHERE
                 && kind != FusedAsmSpecializationKind.F32_MASKED_SCALE_WHERE_INVERTED) {
+            throw new IllegalArgumentException("Plan does not match F32 masked-scale-where specialization.");
+        }
+        if (plan == null || plan.nodeCount() == 0 || !(plan.nodes().get(0).attributes() instanceof ScalarDoubleAttribute)) {
             throw new IllegalArgumentException("Plan does not match F32 masked-scale-where specialization.");
         }
         return (float) ((ScalarDoubleAttribute) plan.nodes().get(0).attributes()).value();

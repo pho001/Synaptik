@@ -522,7 +522,7 @@ public class FusedExecutionModesTest {
                 fused.getNumericContract(),
                 fused.getApproximationContract(),
                 testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth(),
-                FusedAsmSpecializationMatcher.match(fused.getPlan(), fused.getPrecisionMode())
+                FusedAsmSpecializationMatcher.match(fused.getPlan(), fused.getNumericContract())
         );
         String constantPool = new String(bytecode, StandardCharsets.ISO_8859_1);
 

@@ -28,6 +28,10 @@ public record FusedNumericContract(
         return computeKind == FusedComputeKind.F64;
     }
 
+    public boolean writesBf16() {
+        return outputValueLane == FusedValueLane.BF16;
+    }
+
     public boolean usesMemorySegmentStorage() {
         return inputStorageKind == FusedStorageKind.CPU_MEMORY_SEGMENT
                 || outputStorageKind == FusedStorageKind.CPU_MEMORY_SEGMENT;
