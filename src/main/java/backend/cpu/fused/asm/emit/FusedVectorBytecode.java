@@ -1,7 +1,7 @@
 package backend.cpu.fused.asm.emit;
 
 import backend.cpu.fused.ir.FusedExpressionPlan;
-import backend.cpu.fused.runtime.FusedDTypeOps;
+import backend.cpu.fused.numeric.FusedNumericContract;
 import backend.cpu.fused.runtime.FusedVectorSpecies;
 import org.objectweb.asm.MethodVisitor;
 import tensor.DataType;
@@ -11,6 +11,8 @@ import utils.SlotManager;
 import static org.objectweb.asm.Opcodes.*;
 
 final class FusedVectorBytecode {
+    private static final int BF16_RUNTIME_MODE = 2;
+
     private FusedVectorBytecode() {}
 
     static void emitVectorWidthConstant(MethodVisitor mv, int vectorWidth) {
@@ -26,141 +28,139 @@ final class FusedVectorBytecode {
         );
     }
 
-    static void emitVectorSpeciesConstant(MethodVisitor mv, int precisionMode, int vectorWidth) {
+    static void emitVectorSpeciesConstant(MethodVisitor mv, FusedNumericContract numericContract, int vectorWidth) {
         String owner;
         String fieldName;
-        if (precisionMode == FusedDTypeOps.MODE_F32 || precisionMode == FusedDTypeOps.MODE_BF16) {
+        if (numericContract.usesFloatCompute()) {
             owner = "jdk/incubator/vector/FloatVector";
             fieldName = FusedVectorSpecies.f32FieldName(vectorWidth);
-        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
+        } else {
             owner = "jdk/incubator/vector/DoubleVector";
             fieldName = FusedVectorSpecies.f64FieldName(vectorWidth);
-        } else {
-            throw new UnsupportedOperationException("Vector species constants are supported only for F32/F64/BF16 fused modes.");
         }
         mv.visitFieldInsn(GETSTATIC, owner, fieldName, "Ljdk/incubator/vector/VectorSpecies;");
     }
 
-    static void emitVectorBinaryOpCall(MethodVisitor mv, String op, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_BF16) {
-            mv.visitLdcInsn(precisionMode);
+    static void emitVectorBinaryOpCall(MethodVisitor mv, String op, FusedNumericContract numericContract) {
+        if (numericContract.writesBf16()) {
+            mv.visitLdcInsn(BF16_RUNTIME_MODE);
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op, "(Ljava/lang/Object;Ljava/lang/Object;I)Ljava/lang/Object;", false);
             return;
         }
-        String suffix = precisionMode == FusedDTypeOps.MODE_F32 ? "F32" : "F64";
-        String vd = FusedRuntimeCalls.vectorTypeDesc(precisionMode);
+        String suffix = numericContract.usesFloatCompute() ? "F32" : "F64";
+        String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
         mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + suffix, "(" + vd + vd + ")" + vd, false);
     }
 
-    static void emitVectorCompareOpCall(MethodVisitor mv, String op, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_BF16) {
-            mv.visitLdcInsn(precisionMode);
+    static void emitVectorCompareOpCall(MethodVisitor mv, String op, FusedNumericContract numericContract) {
+        if (numericContract.writesBf16()) {
+            mv.visitLdcInsn(BF16_RUNTIME_MODE);
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op, "(Ljava/lang/Object;Ljava/lang/Object;I)Ljava/lang/Object;", false);
             return;
         }
-        String suffix = precisionMode == FusedDTypeOps.MODE_F32 ? "F32" : "F64";
-        String vd = FusedRuntimeCalls.vectorTypeDesc(precisionMode);
+        String suffix = numericContract.usesFloatCompute() ? "F32" : "F64";
+        String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
         mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + suffix, "(" + vd + vd + ")" + FusedRuntimeCalls.maskTypeDesc(), false);
     }
 
-    static void emitVectorLogicalBinaryOpCall(MethodVisitor mv, String op, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_BF16) {
-            mv.visitLdcInsn(precisionMode);
+    static void emitVectorLogicalBinaryOpCall(MethodVisitor mv, String op, FusedNumericContract numericContract) {
+        if (numericContract.writesBf16()) {
+            mv.visitLdcInsn(BF16_RUNTIME_MODE);
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op, "(Ljava/lang/Object;Ljava/lang/Object;I)Ljava/lang/Object;", false);
             return;
         }
-        String suffix = precisionMode == FusedDTypeOps.MODE_F32 ? "F32" : "F64";
+        String suffix = numericContract.usesFloatCompute() ? "F32" : "F64";
         String md = FusedRuntimeCalls.maskTypeDesc();
         mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + suffix, "(" + md + md + ")" + md, false);
     }
 
-    static void emitVectorLogicalUnaryOpCall(MethodVisitor mv, String op, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_BF16) {
-            mv.visitLdcInsn(precisionMode);
+    static void emitVectorLogicalUnaryOpCall(MethodVisitor mv, String op, FusedNumericContract numericContract) {
+        if (numericContract.writesBf16()) {
+            mv.visitLdcInsn(BF16_RUNTIME_MODE);
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op, "(Ljava/lang/Object;I)Ljava/lang/Object;", false);
             return;
         }
-        String suffix = precisionMode == FusedDTypeOps.MODE_F32 ? "F32" : "F64";
+        String suffix = numericContract.usesFloatCompute() ? "F32" : "F64";
         String md = FusedRuntimeCalls.maskTypeDesc();
         mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + suffix, "(" + md + ")" + md, false);
     }
 
-    static void emitVectorUnaryOpCall(MethodVisitor mv, String op, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_BF16) {
-            mv.visitLdcInsn(precisionMode);
+    static void emitVectorUnaryOpCall(MethodVisitor mv, String op, FusedNumericContract numericContract) {
+        if (numericContract.writesBf16()) {
+            mv.visitLdcInsn(BF16_RUNTIME_MODE);
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op, "(Ljava/lang/Object;I)Ljava/lang/Object;", false);
             return;
         }
-        String suffix = precisionMode == FusedDTypeOps.MODE_F32 ? "F32" : "F64";
-        String vd = FusedRuntimeCalls.vectorTypeDesc(precisionMode);
+        String suffix = numericContract.usesFloatCompute() ? "F32" : "F64";
+        String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
         mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + suffix, "(" + vd + ")" + vd, false);
     }
 
-    static void emitVectorConstantCall(MethodVisitor mv, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_BF16) {
-            mv.visitLdcInsn(precisionMode);
+    static void emitVectorConstantCall(MethodVisitor mv, FusedNumericContract numericContract) {
+        if (numericContract.writesBf16()) {
+            mv.visitLdcInsn(BF16_RUNTIME_MODE);
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "constant", "(DI)Ljava/lang/Object;", false);
             return;
         }
-        String vd = FusedRuntimeCalls.vectorTypeDesc(precisionMode);
-        if (precisionMode == FusedDTypeOps.MODE_F32) {
+        String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
+        if (numericContract.usesFloatCompute()) {
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "constantF32", "(F)" + vd, false);
         } else {
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "constantF64", "(D)" + vd, false);
         }
     }
 
-    static void emitVectorMulScalarCall(MethodVisitor mv, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_BF16) {
-            mv.visitLdcInsn(precisionMode);
+    static void emitVectorMulScalarCall(MethodVisitor mv, FusedNumericContract numericContract) {
+        if (numericContract.writesBf16()) {
+            mv.visitLdcInsn(BF16_RUNTIME_MODE);
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "mulScalar", "(Ljava/lang/Object;DI)Ljava/lang/Object;", false);
             return;
         }
-        String vd = FusedRuntimeCalls.vectorTypeDesc(precisionMode);
-        if (precisionMode == FusedDTypeOps.MODE_F32) {
+        String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
+        if (numericContract.usesFloatCompute()) {
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "mulScalarF32", "(" + vd + "F)" + vd, false);
         } else {
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "mulScalarF64", "(" + vd + "D)" + vd, false);
         }
     }
 
-    static void emitVectorPowCall(MethodVisitor mv, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_BF16) {
-            mv.visitLdcInsn(precisionMode);
+    static void emitVectorPowCall(MethodVisitor mv, FusedNumericContract numericContract) {
+        if (numericContract.writesBf16()) {
+            mv.visitLdcInsn(BF16_RUNTIME_MODE);
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "pow", "(Ljava/lang/Object;DI)Ljava/lang/Object;", false);
             return;
         }
-        String vd = FusedRuntimeCalls.vectorTypeDesc(precisionMode);
-        if (precisionMode == FusedDTypeOps.MODE_F32) {
+        String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
+        if (numericContract.usesFloatCompute()) {
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "powF32", "(" + vd + "F)" + vd, false);
         } else {
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "powF64", "(" + vd + "D)" + vd, false);
         }
     }
 
-    static void emitVectorClampCall(MethodVisitor mv, String op, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_BF16) {
-            mv.visitLdcInsn(precisionMode);
+    static void emitVectorClampCall(MethodVisitor mv, String op, FusedNumericContract numericContract) {
+        if (numericContract.writesBf16()) {
+            mv.visitLdcInsn(BF16_RUNTIME_MODE);
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op, "(Ljava/lang/Object;DI)Ljava/lang/Object;", false);
             return;
         }
-        String vd = FusedRuntimeCalls.vectorTypeDesc(precisionMode);
-        if (precisionMode == FusedDTypeOps.MODE_F32) {
+        String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
+        if (numericContract.usesFloatCompute()) {
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + "F32", "(" + vd + "F)" + vd, false);
         } else {
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + "F64", "(" + vd + "D)" + vd, false);
         }
     }
 
-    static void emitVectorWhereCall(MethodVisitor mv, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_BF16) {
-            mv.visitLdcInsn(precisionMode);
+    static void emitVectorWhereCall(MethodVisitor mv, FusedNumericContract numericContract) {
+        if (numericContract.writesBf16()) {
+            mv.visitLdcInsn(BF16_RUNTIME_MODE);
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "where", "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;I)Ljava/lang/Object;", false);
             return;
         }
-        String suffix = precisionMode == FusedDTypeOps.MODE_F32 ? "F32" : "F64";
+        String suffix = numericContract.usesFloatCompute() ? "F32" : "F64";
         String md = FusedRuntimeCalls.maskTypeDesc();
-        String vd = FusedRuntimeCalls.vectorTypeDesc(precisionMode);
+        String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
         mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "where" + suffix, "(" + md + vd + vd + ")" + vd, false);
     }
 
@@ -170,12 +170,12 @@ final class FusedVectorBytecode {
             FusedExpressionPlan plan,
             int[] nodeVectorSlots,
             SlotManager sm,
-            int precisionMode
+            FusedNumericContract numericContract
     ) {
         if (ref < sm.getGroup(SlotKey.CLUSTER_INTERMEDIATES_ARRAYS).size()) {
             int cachedSlot = sm.getGroup(SlotKey.CLUSTER_INTERMEDIATES_ARRAYS).get(ref);
             mv.visitVarInsn(ALOAD, cachedSlot);
-            emitVectorRefCast(mv, plan.inputs().get(ref).dataType(), precisionMode);
+            emitVectorRefCast(mv, plan.inputs().get(ref).dataType(), numericContract);
             return;
         }
 
@@ -184,16 +184,16 @@ final class FusedVectorBytecode {
             throw new IllegalArgumentException("Invalid fused vector ref " + ref);
         }
         mv.visitVarInsn(ALOAD, nodeVectorSlots[nodeIndex]);
-        emitVectorRefCast(mv, plan.nodes().get(nodeIndex).outputType(), precisionMode);
+        emitVectorRefCast(mv, plan.nodes().get(nodeIndex).outputType(), numericContract);
     }
 
-    static void emitVectorRefCast(MethodVisitor mv, DataType dataType, int precisionMode) {
-        if (precisionMode != FusedDTypeOps.MODE_F32 && precisionMode != FusedDTypeOps.MODE_F64) {
+    static void emitVectorRefCast(MethodVisitor mv, DataType dataType, FusedNumericContract numericContract) {
+        if (numericContract.writesBf16()) {
             return;
         }
         if (dataType == DataType.BOOL) {
             mv.visitTypeInsn(CHECKCAST, "jdk/incubator/vector/VectorMask");
-        } else if (precisionMode == FusedDTypeOps.MODE_F32) {
+        } else if (numericContract.usesFloatCompute()) {
             mv.visitTypeInsn(CHECKCAST, "jdk/incubator/vector/FloatVector");
         } else {
             mv.visitTypeInsn(CHECKCAST, "jdk/incubator/vector/DoubleVector");

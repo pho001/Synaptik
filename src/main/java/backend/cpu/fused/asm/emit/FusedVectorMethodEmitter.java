@@ -79,34 +79,33 @@ public final class FusedVectorMethodEmitter {
                 plan.inputCount(),
                 plan.inputs(),
                 sm,
-                context.precisionMode(),
                 context.vectorWidth()
         );
 
         for (FusedNodePlan node : plan.nodes()) {
             FusedVectorExpressionEmitter.emitNodeEvaluationBytecode(
-                    mv, plan, node, nodeVectorSlots, sm, context.precisionMode(), context.approximationContract()
+                    mv, plan, node, nodeVectorSlots, sm, context.numericContract(), context.approximationContract()
             );
             mv.visitVarInsn(ASTORE, nodeVectorSlots[node.index()]);
         }
 
         if (outputMemorySegmentStorage) {
             mv.visitVarInsn(ALOAD, nodeVectorSlots[plan.outputRef() - plan.inputCount()]);
-            FusedVectorBytecode.emitVectorRefCast(mv, plan.outputNode().outputType(), context.precisionMode());
+            FusedVectorBytecode.emitVectorRefCast(mv, plan.outputNode().outputType(), context.numericContract());
             mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
             mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
-            FusedRuntimeCalls.emitDirectStoreVectorToSegmentCall(mv, context.precisionMode());
+            FusedRuntimeCalls.emitDirectStoreVectorToSegmentCall(mv, context.numericContract());
         } else {
             mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
             mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
             mv.visitVarInsn(ALOAD, nodeVectorSlots[plan.outputRef() - plan.inputCount()]);
             if (plan.outputNode().outputType() == tensor.DataType.BOOL) {
                 FusedVectorBytecode.emitVectorWidthConstant(mv, context.vectorWidth());
-                FusedRuntimeCalls.emitStoreBoolVectorToArrayCall(mv, context.precisionMode());
+                FusedRuntimeCalls.emitStoreBoolVectorToArrayCall(mv, context.numericContract());
             } else if (!context.numericContract().writesBf16()) {
-                FusedRuntimeCalls.emitDirectStoreVectorToArrayCall(mv, context.precisionMode());
+                FusedRuntimeCalls.emitDirectStoreVectorToArrayCall(mv, context.numericContract());
             } else {
-                FusedRuntimeCalls.emitStoreVectorToArrayCall(mv, context.precisionMode());
+                FusedRuntimeCalls.emitStoreVectorToArrayCall(mv, plan.outputNode().outputType(), context.numericContract());
             }
         }
 

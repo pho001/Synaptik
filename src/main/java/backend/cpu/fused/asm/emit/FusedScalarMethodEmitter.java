@@ -62,7 +62,7 @@ public final class FusedScalarMethodEmitter {
                     nodeValueSlots,
                     nodeBoolSlots,
                     sm,
-                    context.precisionMode(),
+                    context.numericContract(),
                     context.approximationContract(),
                     plan.inputs(),
                     inputMemorySegmentStorage
@@ -70,7 +70,7 @@ public final class FusedScalarMethodEmitter {
             if (node.outputType() == tensor.DataType.BOOL) {
                 FusedScalarBytecode.emitBoolScalarStoreInsn(mv, nodeBoolSlots[node.index()]);
             } else {
-                FusedScalarBytecode.emitScalarStoreInsn(mv, nodeValueSlots[node.index()], context.precisionMode());
+                FusedScalarBytecode.emitScalarStoreInsn(mv, nodeValueSlots[node.index()], context.numericContract());
             }
         }
         FusedNodePlan outputNode = plan.outputNode();
@@ -86,10 +86,10 @@ public final class FusedScalarMethodEmitter {
                 FusedScalarBytecode.emitScalarLoadInsn(
                         mv,
                         nodeValueSlots[outputNode.index()],
-                        context.precisionMode()
+                        context.numericContract()
                 );
             }
-            FusedRuntimeCalls.emitStoreScalarToSegmentCall(mv, outputNode.outputType(), context.precisionMode());
+            FusedRuntimeCalls.emitStoreScalarToSegmentCall(mv, outputNode.outputType(), context.numericContract());
         } else {
             mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
             mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
@@ -103,9 +103,9 @@ public final class FusedScalarMethodEmitter {
                 FusedScalarBytecode.emitScalarLoadInsn(
                         mv,
                         nodeValueSlots[outputNode.index()],
-                        context.precisionMode()
+                        context.numericContract()
                 );
-                FusedScalarBytecode.emitScalarArrayStoreInsn(mv, context.precisionMode());
+                FusedScalarBytecode.emitScalarArrayStoreInsn(mv, outputNode.outputType(), context.numericContract());
             }
         }
 

@@ -163,7 +163,6 @@ public final class FusedInputBindingEmitter {
             int inputCount,
             List<FusedExternalInputPlan> inputAccess,
             SlotManager sm,
-            int precisionMode,
             int vectorWidth
     ) {
         List<Integer> inputSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS);
@@ -186,12 +185,12 @@ public final class FusedInputBindingEmitter {
                         mv.visitInsn(IADD);
                     }
                     FusedVectorBytecode.emitVectorWidthConstant(mv, vectorWidth);
-                    FusedRuntimeCalls.emitLoadBoolVectorFromArrayCall(mv, precisionMode);
+                    FusedRuntimeCalls.emitLoadBoolVectorFromArrayCall(mv, context.numericContract());
                 } else {
                     mv.visitVarInsn(ALOAD, cursorSlots.get(i));
                     mv.visitVarInsn(ALOAD, inputSlots.get(i));
                     FusedVectorBytecode.emitVectorWidthConstant(mv, vectorWidth);
-                    FusedRuntimeCalls.emitLoadBoolVectorFromCursorCall(mv, precisionMode);
+                    FusedRuntimeCalls.emitLoadBoolVectorFromCursorCall(mv, context.numericContract());
                 }
             } else {
                 Label storeLoadedVector = null;
@@ -207,12 +206,12 @@ public final class FusedInputBindingEmitter {
                             mv.visitLdcInsn(meta.storageOffset());
                             mv.visitInsn(IADD);
                         }
-                        FusedRuntimeCalls.emitDirectLinearVectorLoad(mv, precisionMode, vectorWidth);
+                        FusedRuntimeCalls.emitDirectLinearVectorLoad(mv, DataType.FLOAT32, context.numericContract(), vectorWidth);
                     } else {
                         mv.visitVarInsn(ALOAD, cursorSlots.get(i));
                         mv.visitVarInsn(ALOAD, continuationSlots.get(i));
                         FusedVectorBytecode.emitVectorWidthConstant(mv, vectorWidth);
-                        FusedRuntimeCalls.emitLoadVectorFromContinuationCursorCall(mv, precisionMode);
+                        FusedRuntimeCalls.emitLoadVectorFromContinuationCursorCall(mv, context.numericContract());
                     }
                     mv.visitJumpInsn(GOTO, storeLoadedVector);
                     mv.visitLabel(loadFromStorage);
@@ -225,12 +224,12 @@ public final class FusedInputBindingEmitter {
                         mv.visitInsn(IADD);
                     }
                     if (memorySegmentStorage) {
-                        FusedRuntimeCalls.emitDirectLinearSegmentVectorLoad(mv, precisionMode, vectorWidth);
+                        FusedRuntimeCalls.emitDirectLinearSegmentVectorLoad(mv, context.numericContract(), vectorWidth);
                     } else if (!context.numericContract().writesBf16()) {
-                        FusedRuntimeCalls.emitDirectLinearVectorLoad(mv, precisionMode, vectorWidth);
+                        FusedRuntimeCalls.emitDirectLinearVectorLoad(mv, meta.dataType(), context.numericContract(), vectorWidth);
                     } else {
                         FusedVectorBytecode.emitVectorWidthConstant(mv, vectorWidth);
-                        FusedRuntimeCalls.emitLoadVectorFromArrayCall(mv, precisionMode);
+                        FusedRuntimeCalls.emitLoadVectorFromArrayCall(mv, meta.dataType(), context.numericContract());
                     }
                 } else {
                     if (memorySegmentStorage) {
@@ -244,14 +243,14 @@ public final class FusedInputBindingEmitter {
                         FusedRuntimeCalls.emitBroadcastSegmentVectorLoad(
                                 mv,
                                 meta.dataType(),
-                                precisionMode,
+                                context.numericContract(),
                                 vectorWidth
                         );
                     } else {
                         mv.visitVarInsn(ALOAD, cursorSlots.get(i));
                         mv.visitVarInsn(ALOAD, inputSlots.get(i));
                         FusedVectorBytecode.emitVectorWidthConstant(mv, vectorWidth);
-                        FusedRuntimeCalls.emitLoadVectorFromCursorCall(mv, precisionMode);
+                        FusedRuntimeCalls.emitLoadVectorFromCursorCall(mv, meta.dataType(), context.numericContract());
                     }
                 }
                 if (storeLoadedVector != null) {

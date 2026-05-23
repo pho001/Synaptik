@@ -1,6 +1,6 @@
 package backend.cpu.fused.asm.emit;
 
-import backend.cpu.fused.runtime.FusedDTypeOps;
+import backend.cpu.fused.numeric.FusedNumericContract;
 import org.objectweb.asm.MethodVisitor;
 import tensor.DataType;
 
@@ -40,23 +40,23 @@ final class FusedRuntimeCalls {
         );
     }
 
-    static void emitLoadScalarFromSegmentCall(MethodVisitor mv, DataType dataType, int precisionMode) {
+    static void emitLoadScalarFromSegmentCall(MethodVisitor mv, DataType dataType, FusedNumericContract numericContract) {
         switch (dataType) {
             case FLOAT32 -> {
                 mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadScalarF32Segment", "(Ljava/lang/foreign/MemorySegment;I)F", false);
-                if (precisionMode != FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesDoubleCompute()) {
                     mv.visitInsn(F2D);
                 }
             }
             case FLOAT64 -> {
                 mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadScalarF64Segment", "(Ljava/lang/foreign/MemorySegment;I)D", false);
-                if (precisionMode == FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitInsn(D2F);
                 }
             }
             case BFLOAT16 -> {
                 mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadScalarBF16Segment", "(Ljava/lang/foreign/MemorySegment;I)D", false);
-                if (precisionMode == FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitInsn(D2F);
                 }
             }
@@ -69,22 +69,22 @@ final class FusedRuntimeCalls {
         mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadScalarBoolSegment", "(Ljava/lang/foreign/MemorySegment;I)I", false);
     }
 
-    static void emitStoreScalarToSegmentCall(MethodVisitor mv, DataType dataType, int precisionMode) {
+    static void emitStoreScalarToSegmentCall(MethodVisitor mv, DataType dataType, FusedNumericContract numericContract) {
         switch (dataType) {
             case FLOAT32 -> {
-                if (precisionMode != FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesDoubleCompute()) {
                     mv.visitInsn(D2F);
                 }
                 mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "storeScalarF32Segment", "(Ljava/lang/foreign/MemorySegment;IF)V", false);
             }
             case FLOAT64 -> {
-                if (precisionMode == FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitInsn(F2D);
                 }
                 mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "storeScalarF64Segment", "(Ljava/lang/foreign/MemorySegment;ID)V", false);
             }
             case BFLOAT16 -> {
-                if (precisionMode == FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitInsn(F2D);
                 }
                 mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "storeScalarBF16Segment", "(Ljava/lang/foreign/MemorySegment;ID)V", false);
@@ -94,56 +94,42 @@ final class FusedRuntimeCalls {
         }
     }
 
-    static void emitLoadVectorFromArrayCall(MethodVisitor mv, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_F32) {
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadVectorF32Array", "([FII)Ljdk/incubator/vector/FloatVector;", false);
-        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadVectorF64Array", "([DII)Ljdk/incubator/vector/DoubleVector;", false);
-        } else {
+    static void emitLoadVectorFromArrayCall(MethodVisitor mv, DataType dataType, FusedNumericContract numericContract) {
+        switch (dataType) {
+            case FLOAT32 -> mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadVectorF32Array", "([FII)Ljdk/incubator/vector/FloatVector;", false);
+            case FLOAT64 -> mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadVectorF64Array", "([DII)Ljdk/incubator/vector/DoubleVector;", false);
+            case BFLOAT16 -> mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadVectorBF16Array", "([SII)Ljava/lang/Object;", false);
+            case BOOL, INT32, INT64 -> throw new UnsupportedOperationException(
+                    dataType + " vector array load is not supported for fused numeric values."
+            );
+        }
+    }
+
+    static void emitDirectLinearVectorLoad(MethodVisitor mv, DataType dataType, FusedNumericContract numericContract, int vectorWidth) {
+        if (dataType == DataType.BFLOAT16) {
+            FusedVectorBytecode.emitVectorWidthConstant(mv, vectorWidth);
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadVectorBF16Array", "([SII)Ljava/lang/Object;", false);
+            return;
         }
-    }
-
-    static void emitDirectLinearVectorLoad(MethodVisitor mv, int precisionMode, int vectorWidth) {
-        FusedVectorBytecode.emitVectorSpeciesConstant(mv, precisionMode, vectorWidth);
+        FusedVectorBytecode.emitVectorSpeciesConstant(mv, numericContract, vectorWidth);
         mv.visitInsn(DUP_X2);
         mv.visitInsn(POP);
-        if (precisionMode == FusedDTypeOps.MODE_F32) {
-            mv.visitMethodInsn(
-                    INVOKESTATIC,
-                    "jdk/incubator/vector/FloatVector",
-                    "fromArray",
-                    "(Ljdk/incubator/vector/VectorSpecies;[FI)Ljdk/incubator/vector/FloatVector;",
-                    false
-            );
-        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
-            mv.visitMethodInsn(
-                    INVOKESTATIC,
-                    "jdk/incubator/vector/DoubleVector",
-                    "fromArray",
-                    "(Ljdk/incubator/vector/VectorSpecies;[DI)Ljdk/incubator/vector/DoubleVector;",
-                    false
-            );
-        } else if (precisionMode == FusedDTypeOps.MODE_BF16) {
-            mv.visitMethodInsn(
-                    INVOKESTATIC,
-                    "jdk/incubator/vector/FloatVector",
-                    "fromArray",
-                    "(Ljdk/incubator/vector/VectorSpecies;[FI)Ljdk/incubator/vector/FloatVector;",
-                    false
-            );
+        if (dataType == DataType.FLOAT32 && numericContract.usesFloatCompute()) {
+            mv.visitMethodInsn(INVOKESTATIC, "jdk/incubator/vector/FloatVector", "fromArray", "(Ljdk/incubator/vector/VectorSpecies;[FI)Ljdk/incubator/vector/FloatVector;", false);
+        } else if (dataType == DataType.FLOAT64 && numericContract.usesDoubleCompute()) {
+            mv.visitMethodInsn(INVOKESTATIC, "jdk/incubator/vector/DoubleVector", "fromArray", "(Ljdk/incubator/vector/VectorSpecies;[DI)Ljdk/incubator/vector/DoubleVector;", false);
         } else {
-            throw new UnsupportedOperationException("Direct linear vector loads are supported only for F32/F64 fused modes.");
+            throw new UnsupportedOperationException("Direct vector loads require storage dtype to match fused compute kind.");
         }
     }
 
-    static void emitDirectLinearSegmentVectorLoad(MethodVisitor mv, int precisionMode, int vectorWidth) {
-        FusedVectorBytecode.emitVectorSpeciesConstant(mv, precisionMode, vectorWidth);
+    static void emitDirectLinearSegmentVectorLoad(MethodVisitor mv, FusedNumericContract numericContract, int vectorWidth) {
+        FusedVectorBytecode.emitVectorSpeciesConstant(mv, numericContract, vectorWidth);
         mv.visitInsn(DUP_X2);
         mv.visitInsn(POP);
-        emitElementIndexToByteOffset(mv, precisionMode);
+        emitElementIndexToByteOffset(mv, numericContract);
         mv.visitMethodInsn(INVOKESTATIC, "java/nio/ByteOrder", "nativeOrder", "()Ljava/nio/ByteOrder;", false);
-        if (precisionMode == FusedDTypeOps.MODE_F32) {
+        if (numericContract.usesFloatCompute()) {
             mv.visitMethodInsn(
                     INVOKESTATIC,
                     "jdk/incubator/vector/FloatVector",
@@ -151,7 +137,7 @@ final class FusedRuntimeCalls {
                     "(Ljdk/incubator/vector/VectorSpecies;Ljava/lang/foreign/MemorySegment;JLjava/nio/ByteOrder;)Ljdk/incubator/vector/FloatVector;",
                     false
             );
-        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
+        } else {
             mv.visitMethodInsn(
                     INVOKESTATIC,
                     "jdk/incubator/vector/DoubleVector",
@@ -159,17 +145,15 @@ final class FusedRuntimeCalls {
                     "(Ljdk/incubator/vector/VectorSpecies;Ljava/lang/foreign/MemorySegment;JLjava/nio/ByteOrder;)Ljdk/incubator/vector/DoubleVector;",
                     false
             );
-        } else {
-            throw new UnsupportedOperationException("Direct segment vector loads are supported only for F32/F64 fused modes.");
         }
     }
 
-    static void emitBroadcastSegmentVectorLoad(MethodVisitor mv, DataType dataType, int precisionMode, int vectorWidth) {
-        FusedVectorBytecode.emitVectorSpeciesConstant(mv, precisionMode, vectorWidth);
+    static void emitBroadcastSegmentVectorLoad(MethodVisitor mv, DataType dataType, FusedNumericContract numericContract, int vectorWidth) {
+        FusedVectorBytecode.emitVectorSpeciesConstant(mv, numericContract, vectorWidth);
         mv.visitInsn(DUP_X2);
         mv.visitInsn(POP);
-        emitLoadScalarFromSegmentCall(mv, dataType, precisionMode);
-        if (precisionMode == FusedDTypeOps.MODE_F32) {
+        emitLoadScalarFromSegmentCall(mv, dataType, numericContract);
+        if (numericContract.usesFloatCompute()) {
             mv.visitMethodInsn(
                     INVOKESTATIC,
                     "jdk/incubator/vector/FloatVector",
@@ -177,7 +161,7 @@ final class FusedRuntimeCalls {
                     "(Ljdk/incubator/vector/VectorSpecies;F)Ljdk/incubator/vector/FloatVector;",
                     false
             );
-        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
+        } else {
             mv.visitMethodInsn(
                     INVOKESTATIC,
                     "jdk/incubator/vector/DoubleVector",
@@ -185,23 +169,19 @@ final class FusedRuntimeCalls {
                     "(Ljdk/incubator/vector/VectorSpecies;D)Ljdk/incubator/vector/DoubleVector;",
                     false
             );
-        } else {
-            throw new UnsupportedOperationException("Segment broadcast vector loads are supported only for F32/F64 fused modes.");
         }
     }
 
-    static void emitLoadBoolVectorFromArrayCall(MethodVisitor mv, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_F32 || precisionMode == FusedDTypeOps.MODE_BF16) {
+    static void emitLoadBoolVectorFromArrayCall(MethodVisitor mv, FusedNumericContract numericContract) {
+        if (numericContract.usesFloatCompute()) {
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadMaskF32Array", "([BII)Ljava/lang/Object;", false);
-        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadMaskF64Array", "([BII)Ljava/lang/Object;", false);
         } else {
-            throw new UnsupportedOperationException("BOOL vector loads are supported only for F32/F64 fused modes.");
+            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadMaskF64Array", "([BII)Ljava/lang/Object;", false);
         }
     }
 
-    static void emitLoadVectorFromCursorCall(MethodVisitor mv, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_F32) {
+    static void emitLoadVectorFromCursorCall(MethodVisitor mv, DataType dataType, FusedNumericContract numericContract) {
+        if (dataType == DataType.FLOAT32 && numericContract.usesFloatCompute()) {
             mv.visitMethodInsn(
                     INVOKESTATIC,
                     "backend/cpu/fused/runtime/FusedBroadcastVectorOps",
@@ -209,7 +189,7 @@ final class FusedRuntimeCalls {
                     "(Lbackend/cpu/fused/runtime/FusedBroadcastCursor;[FI)Ljdk/incubator/vector/FloatVector;",
                     false
             );
-        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
+        } else if (dataType == DataType.FLOAT64 && numericContract.usesDoubleCompute()) {
             mv.visitMethodInsn(
                     INVOKESTATIC,
                     "backend/cpu/fused/runtime/FusedBroadcastVectorOps",
@@ -217,7 +197,7 @@ final class FusedRuntimeCalls {
                     "(Lbackend/cpu/fused/runtime/FusedBroadcastCursor;[DI)Ljdk/incubator/vector/DoubleVector;",
                     false
             );
-        } else {
+        } else if (dataType == DataType.BFLOAT16) {
             mv.visitMethodInsn(
                     INVOKESTATIC,
                     "backend/cpu/fused/runtime/FusedBroadcastVectorOps",
@@ -225,11 +205,13 @@ final class FusedRuntimeCalls {
                     "(Lbackend/cpu/fused/runtime/FusedBroadcastCursor;[SI)Ljava/lang/Object;",
                     false
             );
+        } else {
+            throw new UnsupportedOperationException("Cursor vector loads require storage dtype to match fused compute kind.");
         }
     }
 
-    static void emitLoadVectorFromContinuationCursorCall(MethodVisitor mv, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_F32 || precisionMode == FusedDTypeOps.MODE_BF16) {
+    static void emitLoadVectorFromContinuationCursorCall(MethodVisitor mv, FusedNumericContract numericContract) {
+        if (numericContract.usesFloatCompute()) {
             mv.visitMethodInsn(
                     INVOKESTATIC,
                     "backend/cpu/fused/runtime/FusedBroadcastVectorOps",
@@ -239,11 +221,11 @@ final class FusedRuntimeCalls {
             );
             return;
         }
-        throw new UnsupportedOperationException("Continuation cursor vector loads are supported only for F32/BF16 fused modes.");
+        throw new UnsupportedOperationException("Continuation cursor vector loads are supported only for F32 fused compute.");
     }
 
-    static void emitLoadBoolVectorFromCursorCall(MethodVisitor mv, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_F32 || precisionMode == FusedDTypeOps.MODE_BF16) {
+    static void emitLoadBoolVectorFromCursorCall(MethodVisitor mv, FusedNumericContract numericContract) {
+        if (numericContract.usesFloatCompute()) {
             mv.visitMethodInsn(
                     INVOKESTATIC,
                     "backend/cpu/fused/runtime/FusedBroadcastVectorOps",
@@ -251,7 +233,7 @@ final class FusedRuntimeCalls {
                     "(Lbackend/cpu/fused/runtime/FusedBroadcastCursor;[BI)Ljava/lang/Object;",
                     false
             );
-        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
+        } else {
             mv.visitMethodInsn(
                     INVOKESTATIC,
                     "backend/cpu/fused/runtime/FusedBroadcastVectorOps",
@@ -259,36 +241,34 @@ final class FusedRuntimeCalls {
                     "(Lbackend/cpu/fused/runtime/FusedBroadcastCursor;[BI)Ljava/lang/Object;",
                     false
             );
-        } else {
-            throw new UnsupportedOperationException("BOOL vector cursor loads are supported only for F32/F64 fused modes.");
         }
     }
 
-    static void emitStoreVectorToArrayCall(MethodVisitor mv, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_F32) {
+    static void emitStoreVectorToArrayCall(MethodVisitor mv, DataType dataType, FusedNumericContract numericContract) {
+        if (dataType == DataType.FLOAT32 && numericContract.usesFloatCompute()) {
             mv.visitTypeInsn(CHECKCAST, "jdk/incubator/vector/FloatVector");
             mv.visitInsn(DUP_X2);
             mv.visitInsn(POP);
             mv.visitMethodInsn(INVOKEVIRTUAL, "jdk/incubator/vector/FloatVector", "intoArray", "([FI)V", false);
-        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
+        } else if (dataType == DataType.FLOAT64 && numericContract.usesDoubleCompute()) {
             mv.visitTypeInsn(CHECKCAST, "jdk/incubator/vector/DoubleVector");
             mv.visitInsn(DUP_X2);
             mv.visitInsn(POP);
             mv.visitMethodInsn(INVOKEVIRTUAL, "jdk/incubator/vector/DoubleVector", "intoArray", "([DI)V", false);
-        } else {
+        } else if (dataType == DataType.BFLOAT16) {
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "storeVectorBF16Array", "([SILjava/lang/Object;)V", false);
+        } else {
+            throw new UnsupportedOperationException(dataType + " vector array store is not supported for fused numeric values.");
         }
     }
 
-    static void emitDirectStoreVectorToArrayCall(MethodVisitor mv, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_F32) {
+    static void emitDirectStoreVectorToArrayCall(MethodVisitor mv, FusedNumericContract numericContract) {
+        if (numericContract.usesFloatCompute()) {
             emitDirectStoreF32VectorToArrayCall(mv);
-        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
+        } else {
             mv.visitInsn(DUP_X2);
             mv.visitInsn(POP);
             mv.visitMethodInsn(INVOKEVIRTUAL, "jdk/incubator/vector/DoubleVector", "intoArray", "([DI)V", false);
-        } else {
-            throw new UnsupportedOperationException("Direct vector stores are supported only for F32/F64 fused modes.");
         }
     }
 
@@ -298,10 +278,10 @@ final class FusedRuntimeCalls {
         mv.visitMethodInsn(INVOKEVIRTUAL, "jdk/incubator/vector/FloatVector", "intoArray", "([FI)V", false);
     }
 
-    static void emitDirectStoreVectorToSegmentCall(MethodVisitor mv, int precisionMode) {
-        emitElementIndexToByteOffset(mv, precisionMode);
+    static void emitDirectStoreVectorToSegmentCall(MethodVisitor mv, FusedNumericContract numericContract) {
+        emitElementIndexToByteOffset(mv, numericContract);
         mv.visitMethodInsn(INVOKESTATIC, "java/nio/ByteOrder", "nativeOrder", "()Ljava/nio/ByteOrder;", false);
-        if (precisionMode == FusedDTypeOps.MODE_F32) {
+        if (numericContract.usesFloatCompute()) {
             mv.visitMethodInsn(
                     INVOKEVIRTUAL,
                     "jdk/incubator/vector/FloatVector",
@@ -309,7 +289,7 @@ final class FusedRuntimeCalls {
                     "(Ljava/lang/foreign/MemorySegment;JLjava/nio/ByteOrder;)V",
                     false
             );
-        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
+        } else {
             mv.visitMethodInsn(
                     INVOKEVIRTUAL,
                     "jdk/incubator/vector/DoubleVector",
@@ -317,23 +297,19 @@ final class FusedRuntimeCalls {
                     "(Ljava/lang/foreign/MemorySegment;JLjava/nio/ByteOrder;)V",
                     false
             );
-        } else {
-            throw new UnsupportedOperationException("Direct segment vector stores are supported only for F32/F64 fused modes.");
         }
     }
 
-    static void emitStoreBoolVectorToArrayCall(MethodVisitor mv, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_F32 || precisionMode == FusedDTypeOps.MODE_BF16) {
+    static void emitStoreBoolVectorToArrayCall(MethodVisitor mv, FusedNumericContract numericContract) {
+        if (numericContract.usesFloatCompute()) {
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "storeMaskF32Array", "([BILjava/lang/Object;I)V", false);
-        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "storeMaskF64Array", "([BILjava/lang/Object;I)V", false);
         } else {
-            throw new UnsupportedOperationException("BOOL vector stores are supported only for F32/F64 fused modes.");
+            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "storeMaskF64Array", "([BILjava/lang/Object;I)V", false);
         }
     }
 
-    static String vectorTypeDesc(int precisionMode) {
-        return precisionMode == FusedDTypeOps.MODE_F32 || precisionMode == FusedDTypeOps.MODE_BF16
+    static String vectorTypeDesc(FusedNumericContract numericContract) {
+        return numericContract.usesFloatCompute()
                 ? "Ljdk/incubator/vector/FloatVector;"
                 : "Ljdk/incubator/vector/DoubleVector;";
     }
@@ -342,9 +318,9 @@ final class FusedRuntimeCalls {
         return "Ljdk/incubator/vector/VectorMask;";
     }
 
-    private static void emitElementIndexToByteOffset(MethodVisitor mv, int precisionMode) {
+    private static void emitElementIndexToByteOffset(MethodVisitor mv, FusedNumericContract numericContract) {
         mv.visitInsn(I2L);
-        mv.visitLdcInsn(precisionMode == FusedDTypeOps.MODE_F64 ? (long) Double.BYTES : (long) Float.BYTES);
+        mv.visitLdcInsn(numericContract.usesDoubleCompute() ? (long) Double.BYTES : (long) Float.BYTES);
         mv.visitInsn(LMUL);
     }
 }

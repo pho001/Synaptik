@@ -2,9 +2,10 @@ package backend.cpu.fused.asm.emit;
 
 import backend.cpu.fused.ir.FusedExpressionPlan;
 import backend.cpu.fused.ir.FusedExternalInputPlan;
-import backend.cpu.fused.runtime.FusedDTypeOps;
+import backend.cpu.fused.numeric.FusedNumericContract;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
+import tensor.DataType;
 import utils.SlotKey;
 import utils.SlotManager;
 
@@ -15,39 +16,71 @@ import static org.objectweb.asm.Opcodes.*;
 final class FusedScalarBytecode {
     private FusedScalarBytecode() {}
 
-    static void emitScalarLoadInsn(MethodVisitor mv, int slot, int precisionMode) {
-        mv.visitVarInsn(precisionMode == FusedDTypeOps.MODE_F32 ? FLOAD : DLOAD, slot);
+    static void emitScalarLoadInsn(MethodVisitor mv, int slot, FusedNumericContract numericContract) {
+        mv.visitVarInsn(numericContract.usesFloatCompute() ? FLOAD : DLOAD, slot);
     }
 
     static void emitBoolScalarLoadInsn(MethodVisitor mv, int slot) {
         mv.visitVarInsn(ILOAD, slot);
     }
 
-    static void emitScalarStoreInsn(MethodVisitor mv, int slot, int precisionMode) {
-        mv.visitVarInsn(precisionMode == FusedDTypeOps.MODE_F32 ? FSTORE : DSTORE, slot);
+    static void emitScalarStoreInsn(MethodVisitor mv, int slot, FusedNumericContract numericContract) {
+        mv.visitVarInsn(numericContract.usesFloatCompute() ? FSTORE : DSTORE, slot);
     }
 
     static void emitBoolScalarStoreInsn(MethodVisitor mv, int slot) {
         mv.visitVarInsn(ISTORE, slot);
     }
 
-    static void emitScalarArrayLoadInsn(MethodVisitor mv, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_F32) {
-            mv.visitInsn(FALOAD);
-        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
-            mv.visitInsn(DALOAD);
-        } else {
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadScalarBF16Array", "([SI)D", false);
+    static void emitScalarArrayLoadInsn(MethodVisitor mv, DataType dataType, FusedNumericContract numericContract) {
+        switch (dataType) {
+            case FLOAT32 -> {
+                mv.visitInsn(FALOAD);
+                if (numericContract.usesDoubleCompute()) {
+                    mv.visitInsn(F2D);
+                }
+            }
+            case FLOAT64 -> {
+                mv.visitInsn(DALOAD);
+                if (numericContract.usesFloatCompute()) {
+                    mv.visitInsn(D2F);
+                }
+            }
+            case BFLOAT16 -> {
+                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadScalarBF16Array", "([SI)D", false);
+                if (numericContract.usesFloatCompute()) {
+                    mv.visitInsn(D2F);
+                }
+            }
+            case BOOL, INT32, INT64 -> throw new UnsupportedOperationException(
+                    dataType + " scalar array load is not supported for fused numeric values."
+            );
         }
     }
 
-    static void emitScalarArrayStoreInsn(MethodVisitor mv, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_F32) {
-            mv.visitInsn(FASTORE);
-        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
-            mv.visitInsn(DASTORE);
-        } else {
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "storeScalarBF16Array", "([SID)V", false);
+    static void emitScalarArrayStoreInsn(MethodVisitor mv, DataType dataType, FusedNumericContract numericContract) {
+        switch (dataType) {
+            case FLOAT32 -> {
+                if (numericContract.usesDoubleCompute()) {
+                    mv.visitInsn(D2F);
+                }
+                mv.visitInsn(FASTORE);
+            }
+            case FLOAT64 -> {
+                if (numericContract.usesFloatCompute()) {
+                    mv.visitInsn(F2D);
+                }
+                mv.visitInsn(DASTORE);
+            }
+            case BFLOAT16 -> {
+                if (numericContract.usesFloatCompute()) {
+                    mv.visitInsn(F2D);
+                }
+                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "storeScalarBF16Array", "([SID)V", false);
+            }
+            case BOOL, INT32, INT64 -> throw new UnsupportedOperationException(
+                    dataType + " scalar array store is not supported for fused numeric values."
+            );
         }
     }
 
@@ -62,8 +95,8 @@ final class FusedScalarBytecode {
         }
     }
 
-    static void handlePow(MethodVisitor mv, double exponentValue, SlotManager sm, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_F32) {
+    static void handlePow(MethodVisitor mv, double exponentValue, SlotManager sm, FusedNumericContract numericContract) {
+        if (numericContract.usesFloatCompute()) {
             float exponent = (float) exponentValue;
 
             if (Float.compare(exponent, 0.0f) == 0) {
@@ -107,9 +140,9 @@ final class FusedScalarBytecode {
             return;
         }
         if (Double.compare(exponent, -1.0d) == 0) {
-            emitScalarStoreInsn(mv, sm.get(SlotKey.TMP_REGISTER), precisionMode);
+            emitScalarStoreInsn(mv, sm.get(SlotKey.TMP_REGISTER), numericContract);
             mv.visitInsn(DCONST_1);
-            emitScalarLoadInsn(mv, sm.get(SlotKey.TMP_REGISTER), precisionMode);
+            emitScalarLoadInsn(mv, sm.get(SlotKey.TMP_REGISTER), numericContract);
             mv.visitInsn(DDIV);
             return;
         }
@@ -133,7 +166,7 @@ final class FusedScalarBytecode {
             int[] nodeValueSlots,
             int[] nodeBoolSlots,
             SlotManager sm,
-            int precisionMode,
+            FusedNumericContract numericContract,
             java.util.List<FusedExternalInputPlan> inputPlans,
             boolean memorySegmentStorage
     ) {
@@ -162,7 +195,7 @@ final class FusedScalarBytecode {
                     mv.visitMethodInsn(INVOKEVIRTUAL, "backend/cpu/fused/runtime/FusedBroadcastCursor", "idx", "()I", false);
                 }
                 mv.visitInsn(FALOAD);
-                if (precisionMode != FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesDoubleCompute()) {
                     mv.visitInsn(F2D);
                 }
                 mv.visitJumpInsn(GOTO, done);
@@ -181,9 +214,9 @@ final class FusedScalarBytecode {
                 mv.visitMethodInsn(INVOKEVIRTUAL, "backend/cpu/fused/runtime/FusedBroadcastCursor", "idx", "()I", false);
             }
             if (memorySegmentStorage) {
-                FusedRuntimeCalls.emitLoadScalarFromSegmentCall(mv, meta.dataType(), precisionMode);
+                FusedRuntimeCalls.emitLoadScalarFromSegmentCall(mv, meta.dataType(), numericContract);
             } else {
-                emitScalarArrayLoadInsn(mv, precisionMode);
+                emitScalarArrayLoadInsn(mv, meta.dataType(), numericContract);
             }
             if (done != null) {
                 mv.visitLabel(done);
@@ -199,7 +232,7 @@ final class FusedScalarBytecode {
             emitBoolScalarLoadInsn(mv, nodeBoolSlots[nodeIndex]);
             return;
         }
-        emitScalarLoadInsn(mv, nodeValueSlots[nodeIndex], precisionMode);
+        emitScalarLoadInsn(mv, nodeValueSlots[nodeIndex], numericContract);
     }
 
     static void loadExternalBoolScalar(

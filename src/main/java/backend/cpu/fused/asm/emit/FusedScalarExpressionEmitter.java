@@ -5,6 +5,7 @@ import backend.cpu.fused.ir.FusedExternalInputPlan;
 import backend.cpu.fused.ir.FusedNodePlan;
 import backend.cpu.fused.ir.ScalarDoubleAttribute;
 import backend.cpu.fused.numeric.FusedApproximationContract;
+import backend.cpu.fused.numeric.FusedNumericContract;
 
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
@@ -26,72 +27,72 @@ public final class FusedScalarExpressionEmitter {
             int[] nodeValueSlots,
             int[] nodeBoolSlots,
             SlotManager sm,
-            int precisionMode,
+            FusedNumericContract numericContract,
             FusedApproximationContract approximationContract,
             java.util.List<FusedExternalInputPlan> inputAccess,
             boolean memorySegmentStorage
     ) {
         if (current.opType() == operations.Operation.OpType.WHERE) {
-            emitWhereNode(mv, plan, current, nodeValueSlots, nodeBoolSlots, sm, precisionMode, inputAccess, memorySegmentStorage);
+            emitWhereNode(mv, plan, current, nodeValueSlots, nodeBoolSlots, sm, numericContract, inputAccess, memorySegmentStorage);
             return;
         }
 
         for (int ref : current.inputRefs()) {
             FusedScalarBytecode.loadScalarRef(
-                    mv, ref, plan, nodeValueSlots, nodeBoolSlots, sm, precisionMode, inputAccess, memorySegmentStorage
+                    mv, ref, plan, nodeValueSlots, nodeBoolSlots, sm, numericContract, inputAccess, memorySegmentStorage
             );
         }
 
         operations.Operation.OpType opType = current.opType();
         switch (opType) {
             case ADD:
-                mv.visitInsn(precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32 ? FADD : DADD);
+                mv.visitInsn(numericContract.usesFloatCompute() ? FADD : DADD);
                 break;
             case SUB:
-                mv.visitInsn(precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32 ? FSUB : DSUB);
+                mv.visitInsn(numericContract.usesFloatCompute() ? FSUB : DSUB);
                 break;
             case MUL:
-                mv.visitInsn(precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32 ? FMUL : DMUL);
+                mv.visitInsn(numericContract.usesFloatCompute() ? FMUL : DMUL);
                 break;
             case DIV:
-                mv.visitInsn(precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32 ? FDIV : DDIV);
+                mv.visitInsn(numericContract.usesFloatCompute() ? FDIV : DDIV);
                 break;
             case MIN:
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "min", "(FF)F", false);
                 } else {
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "min", "(DD)D", false);
                 }
                 break;
             case MAX:
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "max", "(FF)F", false);
                 } else {
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "max", "(DD)D", false);
                 }
                 break;
             case NEG:
-                mv.visitInsn(precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32 ? FNEG : DNEG);
+                mv.visitInsn(numericContract.usesFloatCompute() ? FNEG : DNEG);
                 break;
             case INV:
-                FusedScalarBytecode.emitScalarStoreInsn(mv, sm.get(SlotKey.TMP_REGISTER), precisionMode);
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                FusedScalarBytecode.emitScalarStoreInsn(mv, sm.get(SlotKey.TMP_REGISTER), numericContract);
+                if (numericContract.usesFloatCompute()) {
                     mv.visitLdcInsn(1.0f);
                 } else {
                     mv.visitLdcInsn(1.0d);
                 }
-                FusedScalarBytecode.emitScalarLoadInsn(mv, sm.get(SlotKey.TMP_REGISTER), precisionMode);
-                mv.visitInsn(precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32 ? FDIV : DDIV);
+                FusedScalarBytecode.emitScalarLoadInsn(mv, sm.get(SlotKey.TMP_REGISTER), numericContract);
+                mv.visitInsn(numericContract.usesFloatCompute() ? FDIV : DDIV);
                 break;
             case LOG:
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedScalarOps", "logF32", "(F)F", false);
                 } else {
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "log", "(D)D", false);
                 }
                 break;
             case EXP:
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitMethodInsn(
                             INVOKESTATIC,
                             "backend/cpu/fused/runtime/FusedScalarOps",
@@ -110,14 +111,14 @@ public final class FusedScalarExpressionEmitter {
                 }
                 break;
             case FAST_EXP:
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedScalarOps", "fastExpF32", "(F)F", false);
                 } else {
                     mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedScalarOps", "fastExpF64", "(D)D", false);
                 }
                 break;
             case TANH:
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitMethodInsn(
                             INVOKESTATIC,
                             "backend/cpu/fused/runtime/FusedScalarOps",
@@ -136,24 +137,24 @@ public final class FusedScalarExpressionEmitter {
                 }
                 break;
             case FAST_TANH:
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedScalarOps", "fastTanhF32", "(F)F", false);
                 } else {
                     mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedScalarOps", "fastTanhF64", "(D)D", false);
                 }
                 break;
             case POW:
-                FusedScalarBytecode.handlePow(mv, ((ScalarDoubleAttribute) current.attributes()).value(), sm, precisionMode);
+                FusedScalarBytecode.handlePow(mv, ((ScalarDoubleAttribute) current.attributes()).value(), sm, numericContract);
                 break;
             case POW_TENSOR:
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedScalarOps", "powF32", "(FF)F", false);
                 } else {
                     mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedScalarOps", "powF64", "(DD)D", false);
                 }
                 break;
             case SQRT:
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitInsn(F2D);
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "sqrt", "(D)D", false);
                     mv.visitInsn(D2F);
@@ -162,7 +163,7 @@ public final class FusedScalarExpressionEmitter {
                 }
                 break;
             case ABS:
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "abs", "(F)F", false);
                 } else {
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "abs", "(D)D", false);
@@ -170,7 +171,7 @@ public final class FusedScalarExpressionEmitter {
                 break;
             case CONST_SCALAR:
                 double constant = ((ScalarDoubleAttribute) current.attributes()).value();
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitLdcInsn((float) constant);
                 } else {
                     mv.visitLdcInsn(constant);
@@ -178,7 +179,7 @@ public final class FusedScalarExpressionEmitter {
                 break;
             case MUL_SCALAR:
                 double scalar = ((ScalarDoubleAttribute) current.attributes()).value();
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitLdcInsn((float) scalar);
                     mv.visitInsn(FMUL);
                 } else {
@@ -187,7 +188,7 @@ public final class FusedScalarExpressionEmitter {
                 }
                 break;
             case RELU:
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitInsn(FCONST_0);
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "max", "(FF)F", false);
                 } else {
@@ -197,7 +198,7 @@ public final class FusedScalarExpressionEmitter {
                 break;
             case CLAMP_MIN: {
                 double minValue = ((ScalarDoubleAttribute) current.attributes()).value();
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitLdcInsn((float) minValue);
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "max", "(FF)F", false);
                 } else {
@@ -208,7 +209,7 @@ public final class FusedScalarExpressionEmitter {
             }
             case CLAMP_MAX: {
                 double maxValue = ((ScalarDoubleAttribute) current.attributes()).value();
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitLdcInsn((float) maxValue);
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "min", "(FF)F", false);
                 } else {
@@ -218,7 +219,7 @@ public final class FusedScalarExpressionEmitter {
                 break;
             }
             case SIGMOID:
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitInsn(FNEG);
                     mv.visitInsn(F2D);
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "exp", "(D)D", false);
@@ -248,7 +249,7 @@ public final class FusedScalarExpressionEmitter {
             case LE:
             case EQ:
             case NE:
-                emitCompareNode(mv, opType, precisionMode);
+                emitCompareNode(mv, opType, numericContract);
                 break;
             case LOGICAL_AND:
                 mv.visitInsn(IAND);
@@ -272,7 +273,7 @@ public final class FusedScalarExpressionEmitter {
             int[] nodeValueSlots,
             int[] nodeBoolSlots,
             SlotManager sm,
-            int precisionMode,
+            FusedNumericContract numericContract,
             java.util.List<FusedExternalInputPlan> inputAccess,
             boolean memorySegmentStorage
     ) {
@@ -288,10 +289,10 @@ public final class FusedScalarExpressionEmitter {
         Label falseBranch = new Label();
         Label done = new Label();
         mv.visitJumpInsn(IFEQ, falseBranch);
-        FusedScalarBytecode.loadScalarRef(mv, trueRef, plan, nodeValueSlots, nodeBoolSlots, sm, precisionMode, inputAccess, memorySegmentStorage);
+        FusedScalarBytecode.loadScalarRef(mv, trueRef, plan, nodeValueSlots, nodeBoolSlots, sm, numericContract, inputAccess, memorySegmentStorage);
         mv.visitJumpInsn(GOTO, done);
         mv.visitLabel(falseBranch);
-        FusedScalarBytecode.loadScalarRef(mv, falseRef, plan, nodeValueSlots, nodeBoolSlots, sm, precisionMode, inputAccess, memorySegmentStorage);
+        FusedScalarBytecode.loadScalarRef(mv, falseRef, plan, nodeValueSlots, nodeBoolSlots, sm, numericContract, inputAccess, memorySegmentStorage);
         mv.visitLabel(done);
     }
 
@@ -335,11 +336,11 @@ public final class FusedScalarExpressionEmitter {
     private static void emitCompareNode(
             MethodVisitor mv,
             operations.Operation.OpType opType,
-            int precisionMode
+            FusedNumericContract numericContract
     ) {
         Label trueLabel = new Label();
         Label endLabel = new Label();
-        if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+        if (numericContract.usesFloatCompute()) {
             mv.visitInsn(FCMPL);
         } else {
             mv.visitInsn(DCMPL);

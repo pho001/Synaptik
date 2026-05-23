@@ -4,6 +4,7 @@ import backend.cpu.fused.ir.FusedExpressionPlan;
 import backend.cpu.fused.ir.FusedNodePlan;
 import backend.cpu.fused.ir.ScalarDoubleAttribute;
 import backend.cpu.fused.numeric.FusedApproximationContract;
+import backend.cpu.fused.numeric.FusedNumericContract;
 
 import org.objectweb.asm.MethodVisitor;
 import utils.SlotManager;
@@ -20,94 +21,94 @@ public final class FusedVectorExpressionEmitter {
             FusedNodePlan current,
             int[] nodeVectorSlots,
             SlotManager sm,
-            int precisionMode,
+            FusedNumericContract numericContract,
             FusedApproximationContract approximationContract
     ) {
         for (int ref : current.inputRefs()) {
-            FusedVectorBytecode.loadVectorRef(mv, ref, plan, nodeVectorSlots, sm, precisionMode);
+            FusedVectorBytecode.loadVectorRef(mv, ref, plan, nodeVectorSlots, sm, numericContract);
         }
         operations.Operation.OpType opType = current.opType();
         switch (opType) {
-            case ADD -> FusedVectorBytecode.emitVectorBinaryOpCall(mv, "add", precisionMode);
-            case SUB -> FusedVectorBytecode.emitVectorBinaryOpCall(mv, "sub", precisionMode);
-            case MUL -> FusedVectorBytecode.emitVectorBinaryOpCall(mv, "mul", precisionMode);
-            case DIV -> FusedVectorBytecode.emitVectorBinaryOpCall(mv, "div", precisionMode);
-            case MIN -> FusedVectorBytecode.emitVectorBinaryOpCall(mv, "min", precisionMode);
-            case MAX -> FusedVectorBytecode.emitVectorBinaryOpCall(mv, "max", precisionMode);
-            case NEG -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "neg", precisionMode);
-            case INV -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "inv", precisionMode);
-            case LOG -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "log", precisionMode);
+            case ADD -> FusedVectorBytecode.emitVectorBinaryOpCall(mv, "add", numericContract);
+            case SUB -> FusedVectorBytecode.emitVectorBinaryOpCall(mv, "sub", numericContract);
+            case MUL -> FusedVectorBytecode.emitVectorBinaryOpCall(mv, "mul", numericContract);
+            case DIV -> FusedVectorBytecode.emitVectorBinaryOpCall(mv, "div", numericContract);
+            case MIN -> FusedVectorBytecode.emitVectorBinaryOpCall(mv, "min", numericContract);
+            case MAX -> FusedVectorBytecode.emitVectorBinaryOpCall(mv, "max", numericContract);
+            case NEG -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "neg", numericContract);
+            case INV -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "inv", numericContract);
+            case LOG -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "log", numericContract);
             case EXP -> FusedVectorBytecode.emitVectorUnaryOpCall(
                     mv,
                     approximationContract.useFastExp() ? "fastExp" : "exp",
-                    precisionMode
+                    numericContract
             );
-            case FAST_EXP -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "fastExp", precisionMode);
+            case FAST_EXP -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "fastExp", numericContract);
             case TANH -> FusedVectorBytecode.emitVectorUnaryOpCall(
                     mv,
                     approximationContract.useFastTanh() ? "fastTanh" : "tanh",
-                    precisionMode
+                    numericContract
             );
-            case FAST_TANH -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "fastTanh", precisionMode);
-            case SQRT -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "sqrt", precisionMode);
-            case ABS -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "abs", precisionMode);
-            case RELU -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "relu", precisionMode);
+            case FAST_TANH -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "fastTanh", numericContract);
+            case SQRT -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "sqrt", numericContract);
+            case ABS -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "abs", numericContract);
+            case RELU -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "relu", numericContract);
             case CLAMP_MIN -> {
                 double minValue = ((ScalarDoubleAttribute) current.attributes()).value();
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute() && !numericContract.writesBf16()) {
                     mv.visitLdcInsn((float) minValue);
                 } else {
                     mv.visitLdcInsn(minValue);
                 }
-                FusedVectorBytecode.emitVectorClampCall(mv, "clampMin", precisionMode);
+                FusedVectorBytecode.emitVectorClampCall(mv, "clampMin", numericContract);
             }
             case CLAMP_MAX -> {
                 double maxValue = ((ScalarDoubleAttribute) current.attributes()).value();
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute() && !numericContract.writesBf16()) {
                     mv.visitLdcInsn((float) maxValue);
                 } else {
                     mv.visitLdcInsn(maxValue);
                 }
-                FusedVectorBytecode.emitVectorClampCall(mv, "clampMax", precisionMode);
+                FusedVectorBytecode.emitVectorClampCall(mv, "clampMax", numericContract);
             }
-            case SIGMOID -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "sigmoid", precisionMode);
-            case NOOP -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "noop", precisionMode);
+            case SIGMOID -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "sigmoid", numericContract);
+            case NOOP -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "noop", numericContract);
             case CONST_SCALAR -> {
                 double constant = ((ScalarDoubleAttribute) current.attributes()).value();
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute() && !numericContract.writesBf16()) {
                     mv.visitLdcInsn((float) constant);
                 } else {
                     mv.visitLdcInsn(constant);
                 }
-                FusedVectorBytecode.emitVectorConstantCall(mv, precisionMode);
+                FusedVectorBytecode.emitVectorConstantCall(mv, numericContract);
             }
-            case GT -> FusedVectorBytecode.emitVectorCompareOpCall(mv, "gt", precisionMode);
-            case GE -> FusedVectorBytecode.emitVectorCompareOpCall(mv, "ge", precisionMode);
-            case LT -> FusedVectorBytecode.emitVectorCompareOpCall(mv, "lt", precisionMode);
-            case LE -> FusedVectorBytecode.emitVectorCompareOpCall(mv, "le", precisionMode);
-            case EQ -> FusedVectorBytecode.emitVectorCompareOpCall(mv, "eq", precisionMode);
-            case NE -> FusedVectorBytecode.emitVectorCompareOpCall(mv, "ne", precisionMode);
-            case LOGICAL_AND -> FusedVectorBytecode.emitVectorLogicalBinaryOpCall(mv, "logicalAnd", precisionMode);
-            case LOGICAL_OR -> FusedVectorBytecode.emitVectorLogicalBinaryOpCall(mv, "logicalOr", precisionMode);
-            case LOGICAL_NOT -> FusedVectorBytecode.emitVectorLogicalUnaryOpCall(mv, "logicalNot", precisionMode);
-            case WHERE -> FusedVectorBytecode.emitVectorWhereCall(mv, precisionMode);
+            case GT -> FusedVectorBytecode.emitVectorCompareOpCall(mv, "gt", numericContract);
+            case GE -> FusedVectorBytecode.emitVectorCompareOpCall(mv, "ge", numericContract);
+            case LT -> FusedVectorBytecode.emitVectorCompareOpCall(mv, "lt", numericContract);
+            case LE -> FusedVectorBytecode.emitVectorCompareOpCall(mv, "le", numericContract);
+            case EQ -> FusedVectorBytecode.emitVectorCompareOpCall(mv, "eq", numericContract);
+            case NE -> FusedVectorBytecode.emitVectorCompareOpCall(mv, "ne", numericContract);
+            case LOGICAL_AND -> FusedVectorBytecode.emitVectorLogicalBinaryOpCall(mv, "logicalAnd", numericContract);
+            case LOGICAL_OR -> FusedVectorBytecode.emitVectorLogicalBinaryOpCall(mv, "logicalOr", numericContract);
+            case LOGICAL_NOT -> FusedVectorBytecode.emitVectorLogicalUnaryOpCall(mv, "logicalNot", numericContract);
+            case WHERE -> FusedVectorBytecode.emitVectorWhereCall(mv, numericContract);
             case MUL_SCALAR -> {
                 double scalar = ((ScalarDoubleAttribute) current.attributes()).value();
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute() && !numericContract.writesBf16()) {
                     mv.visitLdcInsn((float) scalar);
                 } else {
                     mv.visitLdcInsn(scalar);
                 }
-                FusedVectorBytecode.emitVectorMulScalarCall(mv, precisionMode);
+                FusedVectorBytecode.emitVectorMulScalarCall(mv, numericContract);
             }
             case POW -> {
                 double exponent = ((ScalarDoubleAttribute) current.attributes()).value();
-                if (precisionMode == backend.cpu.fused.runtime.FusedDTypeOps.MODE_F32) {
+                if (numericContract.usesFloatCompute() && !numericContract.writesBf16()) {
                     mv.visitLdcInsn((float) exponent);
                 } else {
                     mv.visitLdcInsn(exponent);
                 }
-                FusedVectorBytecode.emitVectorPowCall(mv, precisionMode);
+                FusedVectorBytecode.emitVectorPowCall(mv, numericContract);
             }
             default -> throw new UnsupportedOperationException("Operation " + opType + " is not supported for fused vector execution.");
         }
