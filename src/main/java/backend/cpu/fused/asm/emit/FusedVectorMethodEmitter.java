@@ -46,7 +46,12 @@ public final class FusedVectorMethodEmitter {
 
         FusedInputBindingEmitter.emitVectorBindings(mv, context, sm);
         FusedOutputBindingEmitter.emitVectorBinding(mv, context, sm);
-        FusedInputBindingEmitter.emitVectorCursorBindings(mv, plan.inputs(), sm);
+        FusedInputBindingEmitter.emitVectorCursorBindings(
+                mv,
+                plan.inputs(),
+                sm,
+                context.numericContract().inputStorageKind() == FusedStorageKind.CPU_MEMORY_SEGMENT
+        );
 
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_END));
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_START));

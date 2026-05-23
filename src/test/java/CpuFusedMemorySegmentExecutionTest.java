@@ -97,6 +97,52 @@ public class CpuFusedMemorySegmentExecutionTest {
     }
 
     @Test
+    void f32ScalarBroadcastFusedSegmentUsesVectorMemorySegmentPath() {
+        int size = 140_011;
+        float[] left = new float[size];
+        for (int i = 0; i < size; i++) {
+            left[i] = (i % 29) - 14.0f;
+        }
+        Tensor a = new Tensor(left, new int[]{size}, null, "f32_broadcast_a");
+        Tensor bias = new Tensor(new float[]{2.25f}, new int[]{1}, null, "f32_broadcast_bias");
+        Tensor out = a.add(bias).relu();
+
+        PreparedExecution prepared = prepare(out, vectorNativeRuntime());
+        assertSegmentPrepared(prepared);
+        RunTrace trace = prepared.executeTraced(ExecutionMode.FORWARD);
+
+        double[] values = out.toDoubleArrayCopy();
+        assertEquals(Math.max(0.0, left[0] + 2.25f), values[0], 1e-5);
+        assertEquals(Math.max(0.0, left[997] + 2.25f), values[997], 1e-5);
+        assertEquals(Math.max(0.0, left[size - 1] + 2.25f), values[size - 1], 1e-5);
+        assertVectorSegmentTrace(trace);
+        assertGraphOutputMaterializedFromNativeFusedOutput(prepared, trace);
+    }
+
+    @Test
+    void f64ScalarBroadcastFusedSegmentUsesVectorMemorySegmentPath() {
+        int size = 140_003;
+        double[] left = new double[size];
+        for (int i = 0; i < size; i++) {
+            left[i] = (i % 31) - 15.0;
+        }
+        Tensor a = new Tensor(left, new int[]{size}, null, "f64_broadcast_a");
+        Tensor bias = new Tensor(new double[]{0.75}, new int[]{1}, null, "f64_broadcast_bias");
+        Tensor out = a.sub(bias).abs();
+
+        PreparedExecution prepared = prepare(out, vectorNativeRuntime());
+        assertSegmentPrepared(prepared);
+        RunTrace trace = prepared.executeTraced(ExecutionMode.FORWARD);
+
+        double[] values = out.toDoubleArrayCopy();
+        assertEquals(Math.abs(left[0] - 0.75), values[0], 1e-9);
+        assertEquals(Math.abs(left[331] - 0.75), values[331], 1e-9);
+        assertEquals(Math.abs(left[size - 1] - 0.75), values[size - 1], 1e-9);
+        assertVectorSegmentTrace(trace);
+        assertGraphOutputMaterializedFromNativeFusedOutput(prepared, trace);
+    }
+
+    @Test
     void generatedF32SegmentVectorKernelUsesMemorySegmentApiWithoutArrayBindings() {
         Tensor a = new Tensor(new float[128], new int[]{128}, null, "bytecode_a");
         Tensor b = new Tensor(new float[128], new int[]{128}, null, "bytecode_b");
@@ -118,6 +164,34 @@ public class CpuFusedMemorySegmentExecutionTest {
         String constantPool = new String(bytecode, StandardCharsets.ISO_8859_1);
 
         assertTrue(constantPool.contains("fromMemorySegment"));
+        assertTrue(constantPool.contains("intoMemorySegment"));
+        assertFalse(constantPool.contains("TensorInternalAccess"));
+        assertFalse(constantPool.contains("float32Data"));
+    }
+
+    @Test
+    void generatedF32SegmentBroadcastVectorKernelUsesMemorySegmentApiWithoutArrayBindings() {
+        Tensor a = new Tensor(new float[128], new int[]{128}, null, "bytecode_broadcast_a");
+        Tensor bias = new Tensor(new float[]{1.5f}, new int[]{1}, null, "bytecode_broadcast_bias");
+        Tensor out = a.add(bias).relu();
+
+        PreparedExecution prepared = prepare(out, vectorNativeRuntime());
+        var fusedStep = fusedStep(prepared);
+        FusedOperation fused = (FusedOperation) fusedStep.metadata().executionOperation();
+        int vectorWidth = testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth();
+
+        byte[] bytecode = FusedOperationGenerator.generate(
+                "debug/test/F32SegmentBroadcastVectorKernel",
+                fused.getPlan(),
+                fused.getNumericContract(),
+                fused.getApproximationContract(),
+                vectorWidth,
+                FusedAsmSpecializationKind.NONE
+        );
+        String constantPool = new String(bytecode, StandardCharsets.ISO_8859_1);
+
+        assertTrue(constantPool.contains("loadScalarF32Segment"));
+        assertTrue(constantPool.contains("broadcast"));
         assertTrue(constantPool.contains("intoMemorySegment"));
         assertFalse(constantPool.contains("TensorInternalAccess"));
         assertFalse(constantPool.contains("float32Data"));
@@ -180,25 +254,63 @@ public class CpuFusedMemorySegmentExecutionTest {
         Tensor b = new Tensor(new float[]{2.0f, 3.0f, -2.0f, 8.0f}, new int[]{4}, null, "bool_b");
         Tensor out = a.greaterThan(b).logicalNot();
 
-        PreparedExecution prepared = prepare(out);
+        PreparedExecution prepared = prepare(out, vectorNativeRuntime());
         assertSegmentPrepared(prepared);
         RunTrace trace = prepared.executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new byte[]{1, 0, 0, 1}, out.toBoolByteArrayCopy());
+        assertScalarOnlySegmentTrace(trace);
         assertGraphOutputMaterializedFromNativeFusedOutput(prepared, trace);
     }
 
     @Test
-    void segmentScalarPathHandlesOffsetInputAndBroadcast() {
-        Tensor base = new Tensor(new float[]{1.0f, -2.0f, 3.0f, 4.0f, -5.0f, 6.0f}, new int[]{2, 3}, null, "base");
-        Tensor bias = new Tensor(new float[]{0.5f}, new int[]{1}, null, "bias");
-        Tensor out = base.select(0, 1).add(bias).relu();
+    void segmentScalarPathHandlesUnsupportedInnermostBroadcastInput() {
+        int rows = 64;
+        int cols = 32;
+        float[] data = new float[rows];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (i % 17) - 8.0f;
+        }
+        Tensor rowBias = new Tensor(data, new int[]{rows, 1}, null, "innermost_broadcast_bias");
+        Tensor zeros = new Tensor(new float[rows * cols], new int[]{rows, cols}, null, "innermost_broadcast_zeros");
+        Tensor out = rowBias.add(zeros).relu();
 
         PreparedExecution prepared = prepare(out, vectorNativeRuntime());
         assertSegmentPrepared(prepared);
         RunTrace trace = prepared.executeTraced(ExecutionMode.FORWARD);
 
-        assertArrayEquals(new double[]{4.5, 0.0, 6.5}, out.toDoubleArrayCopy(), 1e-5);
+        double[] values = out.toDoubleArrayCopy();
+        assertEquals(Math.max(0.0, data[0]), values[0], 1e-5);
+        assertEquals(Math.max(0.0, data[0]), values[1], 1e-5);
+        assertEquals(Math.max(0.0, data[1]), values[cols], 1e-5);
+        assertScalarOnlySegmentTrace(trace);
+        assertGraphOutputMaterializedFromNativeFusedOutput(prepared, trace);
+    }
+
+    @Test
+    void segmentScalarPathHandlesUnsupportedWhereMaskInput() {
+        int size = 257;
+        byte[] maskData = new byte[size];
+        float[] trueData = new float[size];
+        float[] falseData = new float[size];
+        for (int i = 0; i < size; i++) {
+            maskData[i] = (byte) (i % 3 == 0 ? 1 : 0);
+            trueData[i] = i * 0.25f;
+            falseData[i] = -i * 0.5f;
+        }
+        Tensor mask = new Tensor(maskData, new int[]{size}, null, "where_mask", DataType.BOOL);
+        Tensor ifTrue = new Tensor(trueData, new int[]{size}, null, "where_true");
+        Tensor ifFalse = new Tensor(falseData, new int[]{size}, null, "where_false");
+        Tensor out = Tensor.where(mask, ifTrue, ifFalse).relu();
+
+        PreparedExecution prepared = prepare(out, vectorNativeRuntime());
+        assertSegmentPrepared(prepared);
+        RunTrace trace = prepared.executeTraced(ExecutionMode.FORWARD);
+
+        double[] values = out.toDoubleArrayCopy();
+        assertEquals(trueData[0], values[0], 1e-5);
+        assertEquals(0.0, values[1], 1e-5);
+        assertEquals(trueData[255], values[255], 1e-5);
         assertScalarOnlySegmentTrace(trace);
         assertGraphOutputMaterializedFromNativeFusedOutput(prepared, trace);
     }

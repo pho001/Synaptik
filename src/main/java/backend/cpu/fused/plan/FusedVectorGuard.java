@@ -91,13 +91,11 @@ public final class FusedVectorGuard {
         if (outputType != DataType.FLOAT32 && outputType != DataType.FLOAT64) {
             return false;
         }
-        boolean[] usedInputs = usedExternalInputs(plan);
         for (int i = 0; i < plan.inputCount(); i++) {
-            if (!usedInputs[i]) {
-                continue;
-            }
             FusedExternalInputPlan input = plan.inputs().get(i);
-            if (!isF32OrF64(input.dataType()) || !isContiguousLinear(input)) {
+            if (!isF32OrF64(input.dataType())
+                    || !matchesSegmentVectorLane(input.dataType(), numericContract)
+                    || !isSupportedMemorySegmentVectorInput(input)) {
                 return false;
             }
         }
@@ -259,18 +257,6 @@ public final class FusedVectorGuard {
         return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64;
     }
 
-    private static boolean[] usedExternalInputs(FusedExpressionPlan plan) {
-        boolean[] used = new boolean[plan.inputCount()];
-        for (FusedNodePlan node : plan.nodes()) {
-            for (int ref : node.inputRefs()) {
-                if (ref >= 0 && ref < used.length) {
-                    used[ref] = true;
-                }
-            }
-        }
-        return used;
-    }
-
     private static boolean isAllocationFreeNumericVectorOp(Operation.OpType opType) {
         if (opType == null) {
             return false;
@@ -285,6 +271,23 @@ public final class FusedVectorGuard {
     private static boolean isContiguousLinear(FusedExternalInputPlan input) {
         return input.accessKind() == FusedAccessKind.DIRECT_CONTIGUOUS
                 || input.accessKind() == FusedAccessKind.OFFSET_CONTIGUOUS;
+    }
+
+    private static boolean isSupportedMemorySegmentVectorInput(FusedExternalInputPlan input) {
+        return isContiguousLinear(input) || isZeroStrideBroadcast(input);
+    }
+
+    private static boolean matchesSegmentVectorLane(
+            DataType dataType,
+            FusedNumericContract numericContract
+    ) {
+        if (numericContract.computeKind() == FusedComputeKind.F32) {
+            return dataType == DataType.FLOAT32;
+        }
+        if (numericContract.computeKind() == FusedComputeKind.F64) {
+            return dataType == DataType.FLOAT64;
+        }
+        return false;
     }
 
     private static boolean isZeroStrideBroadcast(FusedExternalInputPlan input) {

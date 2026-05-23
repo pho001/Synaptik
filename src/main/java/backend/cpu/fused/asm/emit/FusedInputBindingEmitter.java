@@ -130,12 +130,16 @@ public final class FusedInputBindingEmitter {
     public static void emitVectorCursorBindings(
             MethodVisitor mv,
             List<FusedExternalInputPlan> inputAccess,
-            SlotManager sm
+            SlotManager sm,
+            boolean memorySegmentStorage
     ) {
         List<Integer> cursorSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS);
         for (int i = 0; i < inputAccess.size(); i++) {
             FusedExternalInputPlan meta = inputAccess.get(i);
             if (!meta.usesCursor()) {
+                continue;
+            }
+            if (memorySegmentStorage && isZeroStrideBroadcast(meta)) {
                 continue;
             }
             mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_START));
@@ -231,12 +235,25 @@ public final class FusedInputBindingEmitter {
                     }
                 } else {
                     if (memorySegmentStorage) {
-                        throw new UnsupportedOperationException("Non-linear MemorySegment vector loads are not supported for fused execution.");
+                        if (!isZeroStrideBroadcast(meta)) {
+                            throw new UnsupportedOperationException(
+                                    "Non-linear MemorySegment vector loads are not supported for fused execution."
+                            );
+                        }
+                        mv.visitVarInsn(ALOAD, inputSlots.get(i));
+                        mv.visitLdcInsn(meta.storageOffset());
+                        FusedRuntimeCalls.emitBroadcastSegmentVectorLoad(
+                                mv,
+                                meta.dataType(),
+                                precisionMode,
+                                vectorWidth
+                        );
+                    } else {
+                        mv.visitVarInsn(ALOAD, cursorSlots.get(i));
+                        mv.visitVarInsn(ALOAD, inputSlots.get(i));
+                        FusedVectorBytecode.emitVectorWidthConstant(mv, vectorWidth);
+                        FusedRuntimeCalls.emitLoadVectorFromCursorCall(mv, precisionMode);
                     }
-                    mv.visitVarInsn(ALOAD, cursorSlots.get(i));
-                    mv.visitVarInsn(ALOAD, inputSlots.get(i));
-                    FusedVectorBytecode.emitVectorWidthConstant(mv, vectorWidth);
-                    FusedRuntimeCalls.emitLoadVectorFromCursorCall(mv, precisionMode);
                 }
                 if (storeLoadedVector != null) {
                     mv.visitLabel(storeLoadedVector);
@@ -244,5 +261,14 @@ public final class FusedInputBindingEmitter {
             }
             mv.visitVarInsn(ASTORE, cachedInputVectorSlots.get(i));
         }
+    }
+
+    private static boolean isZeroStrideBroadcast(FusedExternalInputPlan input) {
+        for (int stride : input.effectiveStrides()) {
+            if (stride != 0) {
+                return false;
+            }
+        }
+        return true;
     }
 }

@@ -164,6 +164,32 @@ final class FusedRuntimeCalls {
         }
     }
 
+    static void emitBroadcastSegmentVectorLoad(MethodVisitor mv, DataType dataType, int precisionMode, int vectorWidth) {
+        FusedVectorBytecode.emitVectorSpeciesConstant(mv, precisionMode, vectorWidth);
+        mv.visitInsn(DUP_X2);
+        mv.visitInsn(POP);
+        emitLoadScalarFromSegmentCall(mv, dataType, precisionMode);
+        if (precisionMode == FusedDTypeOps.MODE_F32) {
+            mv.visitMethodInsn(
+                    INVOKESTATIC,
+                    "jdk/incubator/vector/FloatVector",
+                    "broadcast",
+                    "(Ljdk/incubator/vector/VectorSpecies;F)Ljdk/incubator/vector/FloatVector;",
+                    false
+            );
+        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
+            mv.visitMethodInsn(
+                    INVOKESTATIC,
+                    "jdk/incubator/vector/DoubleVector",
+                    "broadcast",
+                    "(Ljdk/incubator/vector/VectorSpecies;D)Ljdk/incubator/vector/DoubleVector;",
+                    false
+            );
+        } else {
+            throw new UnsupportedOperationException("Segment broadcast vector loads are supported only for F32/F64 fused modes.");
+        }
+    }
+
     static void emitLoadBoolVectorFromArrayCall(MethodVisitor mv, int precisionMode) {
         if (precisionMode == FusedDTypeOps.MODE_F32 || precisionMode == FusedDTypeOps.MODE_BF16) {
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadMaskF32Array", "([BII)Ljava/lang/Object;", false);
