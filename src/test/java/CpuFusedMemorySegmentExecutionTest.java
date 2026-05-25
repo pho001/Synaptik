@@ -300,9 +300,9 @@ public class CpuFusedMemorySegmentExecutionTest {
     }
 
     @Test
-    void generatedF32SegmentScalarKernelUsesMemorySegmentApiWithoutArrayBindings() {
+    void generatedF32UnsupportedFastSegmentKernelUsesScalarMemorySegmentApiWithoutArrayBindings() {
         Tensor a = new Tensor(new float[]{1.0f, 2.0f, 3.0f, 4.0f}, new int[]{4}, null, "bytecode_scalar_a");
-        Tensor out = a.exp().relu();
+        Tensor out = a.fastExp().relu();
 
         PreparedExecution prepared = prepare(out, vectorNativeRuntime());
         var fusedStep = fusedStep(prepared);

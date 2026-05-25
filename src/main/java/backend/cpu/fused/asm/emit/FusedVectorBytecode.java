@@ -128,7 +128,9 @@ final class FusedVectorBytecode {
                 mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "sqrt" + suffix, "(" + vd + ")" + vd, false);
                 return;
             }
-            throw new UnsupportedOperationException("Generic F32 vector POW must fall back before vector bytecode generation.");
+            mv.visitLdcInsn(exponent);
+            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "powF32", "(" + vd + "F)" + vd, false);
+            return;
         }
         double exponent = exponentValue;
         if (Double.compare(exponent, -2.0d) == 0) {
@@ -155,7 +157,31 @@ final class FusedVectorBytecode {
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "sqrt" + suffix, "(" + vd + ")" + vd, false);
             return;
         }
-        throw new UnsupportedOperationException("Generic F64 vector POW must fall back before vector bytecode generation.");
+        mv.visitLdcInsn(exponent);
+        mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "powF64", "(" + vd + "D)" + vd, false);
+    }
+
+    static void emitVectorPowTensorCall(MethodVisitor mv, FusedNumericContract numericContract) {
+        String suffix = numericContract.usesFloatCompute() ? "F32" : "F64";
+        String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
+        mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "pow" + suffix, "(" + vd + vd + ")" + vd, false);
+    }
+
+    static void emitVectorSigmoidComposite(
+            MethodVisitor mv,
+            FusedNumericContract numericContract,
+            int vectorWidth,
+            int tmpVectorSlot
+    ) {
+        emitVectorUnaryOpCall(mv, "neg", numericContract);
+        emitVectorUnaryOpCall(mv, "exp", numericContract);
+        emitVectorConstantCall(mv, 1.0d, numericContract, vectorWidth);
+        emitVectorBinaryOpCall(mv, "add", numericContract);
+        mv.visitVarInsn(ASTORE, tmpVectorSlot);
+
+        emitVectorConstantCall(mv, 1.0d, numericContract, vectorWidth);
+        mv.visitVarInsn(ALOAD, tmpVectorSlot);
+        emitVectorBinaryOpCall(mv, "div", numericContract);
     }
 
     static void emitVectorClampCall(MethodVisitor mv, String op, FusedNumericContract numericContract) {

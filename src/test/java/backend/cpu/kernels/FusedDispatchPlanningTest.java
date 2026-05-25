@@ -10,6 +10,7 @@ import backend.cpu.fused.ir.FusedExpressionPlan;
 import backend.cpu.fused.ir.FusedExternalInputPlan;
 import backend.cpu.fused.ir.FusedNodePlan;
 import backend.cpu.fused.ir.NoAttributes;
+import backend.cpu.fused.ir.ScalarDoubleAttribute;
 import backend.cpu.fused.numeric.FusedComputeKind;
 import backend.cpu.fused.numeric.FusedApproximationContract;
 import backend.cpu.fused.numeric.FusedNumericContract;
@@ -17,6 +18,7 @@ import backend.cpu.fused.numeric.FusedStorageKind;
 import backend.cpu.fused.numeric.FusedValueLane;
 import backend.cpu.fused.plan.FusedDispatchFamily;
 import backend.cpu.fused.plan.FusedVectorFallbackReason;
+import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import backend.cpu.fused.plan.FusedOperation;
 import operations.Operation;
@@ -63,7 +65,7 @@ class FusedDispatchPlanningTest {
     }
 
     @Test
-    void blocksNonAllocationFreeStridedTranscendentalVectorPath() {
+    void stridedTranscendentalPlanKeepsVectorAsmWidthWhenOpIsVectorApiSupported() {
         CpuExecutionPlanner planner = CpuExecutionPlanner.from(testKernelConfig());
         FusedOperation fused = fusedUnary(
                 Operation.OpType.LOG,
@@ -72,7 +74,7 @@ class FusedDispatchPlanningTest {
                 FusedAccessKind.DIRECT_STRIDED,
                 DataType.FLOAT32
         );
-        Tensor out = new Tensor(new int[]{64}, null, "fused_out", DataType.FLOAT32);
+        Tensor out = new Tensor(new int[]{2_048}, null, "fused_out", DataType.FLOAT32);
         ResolvedCpuComputeContract contract = new ResolvedCpuComputeContract(
                 DataType.FLOAT32,
                 CpuComputeDType.F32,
@@ -84,14 +86,14 @@ class FusedDispatchPlanningTest {
 
         int expectedVectorMinSize = planner.fusedDirectVectorMinSize(fused);
         assertEquals(expectedVectorMinSize, prepared.cpuVectorMinSize());
-        assertEquals(1, prepared.asmVectorWidth());
-        assertEquals(1, prepared.dispatchHints().vectorWidth());
-        assertEquals(FusedVectorFallbackReason.VECTOR_PATH_UNSUPPORTED, prepared.vectorFallbackReason());
-        assertEquals(CpuExecutionMode.SCALAR, prepared.dispatchHints().mode());
+        int expectedWidth = Math.min(4, FloatVector.SPECIES_PREFERRED.length());
+        assertEquals(expectedWidth, prepared.asmVectorWidth());
+        assertEquals(expectedWidth, prepared.dispatchHints().vectorWidth());
+        assertEquals(FusedVectorFallbackReason.NONE, prepared.vectorFallbackReason());
     }
 
     @Test
-    void genericTranscendentalFusedAsmWidthStaysScalar() {
+    void genericTranscendentalFusedAsmWidthUsesVectorApiWhenContiguous() {
         CpuExecutionPlanner planner = CpuExecutionPlanner.from(CpuKernelConfig.defaultsInference());
         FusedOperation fused = fusedUnary(
                 Operation.OpType.LOG,
@@ -110,9 +112,69 @@ class FusedDispatchPlanningTest {
 
         PreparedFusedDispatch prepared = planner.resolveFusedDispatch(fused, out, contract);
 
-        assertEquals(1, prepared.asmVectorWidth());
-        assertEquals(1, prepared.dispatchHints().vectorWidth());
-        assertEquals(FusedVectorFallbackReason.VECTOR_PATH_UNSUPPORTED, prepared.vectorFallbackReason());
+        assertEquals(Math.min(4, FloatVector.SPECIES_PREFERRED.length()), prepared.asmVectorWidth());
+        assertEquals(prepared.asmVectorWidth(), prepared.dispatchHints().vectorWidth());
+        assertEquals(FusedVectorFallbackReason.NONE, prepared.vectorFallbackReason());
+    }
+
+    @Test
+    void f32AndF64VectorApiMathOpsAreVectorEligible() {
+        CpuExecutionPlanner planner = CpuExecutionPlanner.from(testKernelConfig());
+        for (DataType dataType : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            CpuComputeDType computeType = dataType == DataType.FLOAT64 ? CpuComputeDType.F64 : CpuComputeDType.F32;
+            for (Operation.OpType opType : List.of(
+                    Operation.OpType.EXP,
+                    Operation.OpType.LOG,
+                    Operation.OpType.TANH,
+                    Operation.OpType.SIGMOID
+            )) {
+                PreparedFusedDispatch prepared = planner.resolveFusedDispatch(
+                        fusedUnary(opType, false, FusedDispatchFamily.NON_CHEAP_CONTIGUOUS, FusedAccessKind.DIRECT_CONTIGUOUS, dataType),
+                        new Tensor(new int[]{2_048}, null, "fused_out", dataType),
+                        new ResolvedCpuComputeContract(dataType, computeType, CpuExecutionBackend.CPU_FUSED, CpuAccumulateDType.NONE)
+                );
+
+                assertEquals(expectedVectorWidth(dataType), prepared.asmVectorWidth(), opType + " " + dataType);
+                assertEquals(FusedVectorFallbackReason.NONE, prepared.vectorFallbackReason(), opType + " " + dataType);
+            }
+        }
+    }
+
+    @Test
+    void genericScalarPowAndTensorPowAreVectorEligible() {
+        CpuExecutionPlanner planner = CpuExecutionPlanner.from(testKernelConfig());
+        for (DataType dataType : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            CpuComputeDType computeType = dataType == DataType.FLOAT64 ? CpuComputeDType.F64 : CpuComputeDType.F32;
+            for (FusedOperation fused : List.of(
+                    fusedScalarPow(dataType, 3.7d),
+                    fusedBinary(Operation.OpType.POW_TENSOR, dataType)
+            )) {
+                PreparedFusedDispatch prepared = planner.resolveFusedDispatch(
+                        fused,
+                        new Tensor(new int[]{2_048}, null, "fused_out", dataType),
+                        new ResolvedCpuComputeContract(dataType, computeType, CpuExecutionBackend.CPU_FUSED, CpuAccumulateDType.NONE)
+                );
+
+                assertEquals(expectedVectorWidth(dataType), prepared.asmVectorWidth(), fused.getPlan().outputNode().opType() + " " + dataType);
+                assertEquals(FusedVectorFallbackReason.NONE, prepared.vectorFallbackReason(), fused.getPlan().outputNode().opType() + " " + dataType);
+            }
+        }
+    }
+
+    @Test
+    void fastApproximationOpsRemainVectorUnsupported() {
+        CpuExecutionPlanner planner = CpuExecutionPlanner.from(testKernelConfig());
+        for (Operation.OpType opType : List.of(Operation.OpType.FAST_EXP, Operation.OpType.FAST_TANH)) {
+            PreparedFusedDispatch prepared = planner.resolveFusedDispatch(
+                    fusedUnary(opType, false, FusedDispatchFamily.NON_CHEAP_CONTIGUOUS, FusedAccessKind.DIRECT_CONTIGUOUS, DataType.FLOAT32),
+                    new Tensor(new int[]{2_048}, null, "fused_out", DataType.FLOAT32),
+                    new ResolvedCpuComputeContract(DataType.FLOAT32, CpuComputeDType.F32, CpuExecutionBackend.CPU_FUSED, CpuAccumulateDType.NONE)
+            );
+
+            assertEquals(1, prepared.asmVectorWidth(), opType.name());
+            assertEquals(1, prepared.dispatchHints().vectorWidth(), opType.name());
+            assertEquals(FusedVectorFallbackReason.VECTOR_PATH_UNSUPPORTED, prepared.vectorFallbackReason(), opType.name());
+        }
     }
 
     @Test
@@ -434,6 +496,43 @@ class FusedDispatchPlanningTest {
         );
     }
 
+    private static FusedOperation fusedScalarPow(DataType dataType, double exponent) {
+        FusedExpressionPlan plan = new FusedExpressionPlan(
+                List.of(new FusedNodePlan(0, Operation.OpType.POW, List.of(0), 1, dataType, new ScalarDoubleAttribute(exponent))),
+                List.of(new FusedExternalInputPlan(0, dataType, new int[]{2_048}, new int[]{1}, 0, new int[]{1}, FusedAccessKind.DIRECT_CONTIGUOUS)),
+                1
+        );
+        return new FusedOperation(
+                "fused-pow-test",
+                numeric(FusedValueLane.fromDataType(dataType)),
+                FusedApproximationContract.STRICT,
+                false,
+                FusedDispatchFamily.NON_CHEAP_CONTIGUOUS,
+                "fused-pow-test-sig",
+                plan
+        );
+    }
+
+    private static FusedOperation fusedBinary(Operation.OpType opType, DataType dataType) {
+        FusedExpressionPlan plan = new FusedExpressionPlan(
+                List.of(new FusedNodePlan(0, opType, List.of(0, 1), 2, dataType, NoAttributes.INSTANCE)),
+                List.of(
+                        new FusedExternalInputPlan(0, dataType, new int[]{2_048}, new int[]{1}, 0, new int[]{1}, FusedAccessKind.DIRECT_CONTIGUOUS),
+                        new FusedExternalInputPlan(1, dataType, new int[]{2_048}, new int[]{1}, 0, new int[]{1}, FusedAccessKind.DIRECT_CONTIGUOUS)
+                ),
+                2
+        );
+        return new FusedOperation(
+                "fused-binary-test",
+                numeric(FusedValueLane.fromDataType(dataType)),
+                FusedApproximationContract.STRICT,
+                false,
+                FusedDispatchFamily.NON_CHEAP_CONTIGUOUS,
+                "fused-binary-test-sig",
+                plan
+        );
+    }
+
     private static FusedNumericContract numeric(FusedValueLane lane) {
         return new FusedNumericContract(
                 FusedStorageKind.CPU_JAVA_ARRAY,
@@ -442,6 +541,12 @@ class FusedDispatchPlanningTest {
                 lane == FusedValueLane.F64 ? FusedComputeKind.F64 : FusedComputeKind.F32,
                 lane
         );
+    }
+
+    private static int expectedVectorWidth(DataType dataType) {
+        return dataType == DataType.FLOAT64
+                ? Math.min(4, DoubleVector.SPECIES_PREFERRED.length())
+                : Math.min(4, FloatVector.SPECIES_PREFERRED.length());
     }
 
     private static FusedNumericContract numericSegment(FusedValueLane lane) {

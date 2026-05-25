@@ -384,7 +384,7 @@ public final class CpuPlanningPolicy {
             return fusedContainsTranscendental(fused) ? fusedTranscendentalParallelMinSize : fusedCheapParallelMinSize;
         }
         return switch (op.opType()) {
-            case EXP, FAST_EXP, TANH, FAST_TANH, LOG, SIGMOID, POW -> transcendentalParallelMinSize;
+            case EXP, FAST_EXP, TANH, FAST_TANH, LOG, SIGMOID, POW, POW_TENSOR -> transcendentalParallelMinSize;
             default -> cheapParallelMinSize;
         };
     }
@@ -397,7 +397,7 @@ public final class CpuPlanningPolicy {
             return fusedContainsTranscendental(fused) ? fusedTranscendentalVectorMinSize : fusedCheapVectorMinSize;
         }
         return switch (op.opType()) {
-            case EXP, FAST_EXP, TANH, FAST_TANH, LOG, SIGMOID, POW -> transcendentalVectorMinSize;
+            case EXP, FAST_EXP, TANH, FAST_TANH, LOG, SIGMOID, POW, POW_TENSOR -> transcendentalVectorMinSize;
             default -> cheapVectorMinSize;
         };
     }
@@ -417,7 +417,7 @@ public final class CpuPlanningPolicy {
             return false;
         }
         return fused.getPlan().nodes().stream().anyMatch(node -> switch (node.opType()) {
-            case EXP, FAST_EXP, TANH, FAST_TANH, LOG, SIGMOID, POW -> true;
+            case EXP, FAST_EXP, TANH, FAST_TANH, LOG, SIGMOID, POW, POW_TENSOR -> true;
             default -> false;
         });
     }

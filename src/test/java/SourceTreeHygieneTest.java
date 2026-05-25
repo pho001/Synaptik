@@ -627,12 +627,7 @@ public class SourceTreeHygieneTest {
                 "Math.log",
                 "Math.tanh",
                 "quantizeBF16",
-                "powF32",
-                "powF64",
                 "powBF16",
-                "expF32",
-                "logF32",
-                "tanhF32",
                 "sigmoidF32",
                 "BF16"
         );

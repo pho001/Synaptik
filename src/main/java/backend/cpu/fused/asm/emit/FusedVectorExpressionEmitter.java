@@ -7,6 +7,7 @@ import backend.cpu.fused.numeric.FusedApproximationContract;
 import backend.cpu.fused.numeric.FusedNumericContract;
 
 import org.objectweb.asm.MethodVisitor;
+import utils.SlotKey;
 import utils.SlotManager;
 
 /**
@@ -39,18 +40,10 @@ public final class FusedVectorExpressionEmitter {
             case NEG -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "neg", numericContract);
             case INV -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "inv", numericContract);
             case LOG -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "log", numericContract);
-            case EXP -> FusedVectorBytecode.emitVectorUnaryOpCall(
-                    mv,
-                    approximationContract.useFastExp() ? "fastExp" : "exp",
-                    numericContract
-            );
-            case FAST_EXP -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "fastExp", numericContract);
-            case TANH -> FusedVectorBytecode.emitVectorUnaryOpCall(
-                    mv,
-                    approximationContract.useFastTanh() ? "fastTanh" : "tanh",
-                    numericContract
-            );
-            case FAST_TANH -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "fastTanh", numericContract);
+            case EXP -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "exp", numericContract);
+            case FAST_EXP -> throw new UnsupportedOperationException("FAST_EXP does not have a Vector API fast-approximation contract.");
+            case TANH -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "tanh", numericContract);
+            case FAST_TANH -> throw new UnsupportedOperationException("FAST_TANH does not have a Vector API fast-approximation contract.");
             case SQRT -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "sqrt", numericContract);
             case ABS -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "abs", numericContract);
             case RELU -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "relu", numericContract);
@@ -72,7 +65,12 @@ public final class FusedVectorExpressionEmitter {
                 }
                 FusedVectorBytecode.emitVectorClampCall(mv, "clampMax", numericContract);
             }
-            case SIGMOID -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "sigmoid", numericContract);
+            case SIGMOID -> FusedVectorBytecode.emitVectorSigmoidComposite(
+                    mv,
+                    numericContract,
+                    vectorWidth,
+                    sm.get(SlotKey.FUSED_VECTOR_TEMP)
+            );
             case NOOP -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "noop", numericContract);
             case CONST_SCALAR -> {
                 double constant = ((ScalarDoubleAttribute) current.attributes()).value();
@@ -101,6 +99,7 @@ public final class FusedVectorExpressionEmitter {
                 double exponent = ((ScalarDoubleAttribute) current.attributes()).value();
                 FusedVectorBytecode.emitVectorPowSpecializedCall(mv, exponent, numericContract, vectorWidth);
             }
+            case POW_TENSOR -> FusedVectorBytecode.emitVectorPowTensorCall(mv, numericContract);
             default -> throw new UnsupportedOperationException("Operation " + opType + " is not supported for fused vector execution.");
         }
     }

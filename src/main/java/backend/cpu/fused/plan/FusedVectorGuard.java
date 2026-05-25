@@ -273,7 +273,7 @@ public final class FusedVectorGuard {
             return false;
         }
         return fused.getPlan().nodes().stream().anyMatch(node -> switch (node.opType()) {
-            case EXP, FAST_EXP, TANH, FAST_TANH, LOG, SIGMOID, POW -> true;
+            case EXP, FAST_EXP, TANH, FAST_TANH, LOG, SIGMOID, POW, POW_TENSOR -> true;
             default -> false;
         });
     }
@@ -306,12 +306,14 @@ public final class FusedVectorGuard {
         return switch (opType) {
             case ADD, SUB, MUL, DIV, MIN, MAX,
                     NEG, INV, ABS, SQRT,
+                    EXP, LOG, TANH, SIGMOID,
                     CONST_SCALAR, MUL_SCALAR,
                     RELU, CLAMP_MIN, CLAMP_MAX,
                     NOOP,
                     GT, GE, LT, LE, EQ, NE,
                     LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT,
-                    WHERE -> true;
+                    WHERE,
+                    POW_TENSOR -> true;
             case POW -> false;
             default -> false;
         };
@@ -335,26 +337,13 @@ public final class FusedVectorGuard {
             return false;
         }
         if (node.opType() == Operation.OpType.POW) {
-            return isDirectVectorPowSpecialCase(node);
+            return node.attributes() instanceof ScalarDoubleAttribute && supportsNodeOutputType(node);
         }
         return isAllocationFreeNumericVectorOp(node.opType()) && supportsNodeOutputType(node);
     }
 
     private static boolean supportsNodeOutputType(FusedNodePlan node) {
         return node.outputType() == DataType.BOOL || isF32OrF64(node.outputType());
-    }
-
-    private static boolean isDirectVectorPowSpecialCase(FusedNodePlan node) {
-        if (!(node.attributes() instanceof ScalarDoubleAttribute attribute)) {
-            return false;
-        }
-        double exponent = attribute.value();
-        return Double.compare(exponent, -2.0d) == 0
-                || Double.compare(exponent, -1.0d) == 0
-                || Double.compare(exponent, 0.0d) == 0
-                || Double.compare(exponent, 1.0d) == 0
-                || Double.compare(exponent, 2.0d) == 0
-                || Double.compare(exponent, 0.5d) == 0;
     }
 
     private static boolean isContiguousLinear(FusedExternalInputPlan input) {

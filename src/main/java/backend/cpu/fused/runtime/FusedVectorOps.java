@@ -81,6 +81,21 @@ public final class FusedVectorOps {
     public static DoubleVector sqrtF64(DoubleVector a) { return a.lanewise(VectorOperators.SQRT); }
     public static FloatVector sqrtF32(FloatVector a) { return a.lanewise(VectorOperators.SQRT); }
 
+    public static DoubleVector expF64(DoubleVector a) { return a.lanewise(VectorOperators.EXP); }
+    public static FloatVector expF32(FloatVector a) { return a.lanewise(VectorOperators.EXP); }
+
+    public static DoubleVector logF64(DoubleVector a) { return a.lanewise(VectorOperators.LOG); }
+    public static FloatVector logF32(FloatVector a) { return a.lanewise(VectorOperators.LOG); }
+
+    public static DoubleVector tanhF64(DoubleVector a) { return a.lanewise(VectorOperators.TANH); }
+    public static FloatVector tanhF32(FloatVector a) { return a.lanewise(VectorOperators.TANH); }
+
+    public static DoubleVector powF64(DoubleVector a, double exponent) { return a.pow(exponent); }
+    public static FloatVector powF32(FloatVector a, float exponent) { return a.pow(exponent); }
+
+    public static DoubleVector powF64(DoubleVector a, DoubleVector exponent) { return a.pow(exponent); }
+    public static FloatVector powF32(FloatVector a, FloatVector exponent) { return a.pow(exponent); }
+
     public static VectorMask<Double> gtF64(DoubleVector a, DoubleVector b) { return a.compare(VectorOperators.GT, b); }
     public static VectorMask<Float> gtF32(FloatVector a, FloatVector b) { return a.compare(VectorOperators.GT, b); }
 

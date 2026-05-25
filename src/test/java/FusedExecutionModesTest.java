@@ -336,24 +336,36 @@ public class FusedExecutionModesTest {
     }
 
     @Test
-    void fusedTensorPowExecutesThroughScalarPathWhenVectorRequested() {
-        Tensor baseBaseline = new Tensor(new float[]{2f, 4f, 9f, 16f}, new int[]{4}, null, "baseBaseline", DataType.FLOAT32);
-        Tensor exponentBaseline = new Tensor(new float[]{3f, 0.5f, 2f, -1f}, new int[]{4}, null, "exponentBaseline", DataType.FLOAT32);
+    void fusedTensorPowExecutesThroughVectorPathWhenVectorRequested() {
+        int size = 4096;
+        float[] baseValues = new float[size];
+        float[] exponentValues = new float[size];
+        for (int i = 0; i < size; i++) {
+            baseValues[i] = 1.0f + (i % 31) * 0.05f;
+            exponentValues[i] = -1.5f + (i % 17) * 0.2f;
+        }
+        Tensor baseBaseline = new Tensor(baseValues.clone(), new int[]{size}, null, "baseBaseline", DataType.FLOAT32);
+        Tensor exponentBaseline = new Tensor(exponentValues.clone(), new int[]{size}, null, "exponentBaseline", DataType.FLOAT32);
         Tensor baseline = baseBaseline.pow(exponentBaseline).add(baseBaseline);
         CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
                 .prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, 1))).execute(ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
-        Tensor base = new Tensor(new float[]{2f, 4f, 9f, 16f}, new int[]{4}, null, "base", DataType.FLOAT32);
-        Tensor exponent = new Tensor(new float[]{3f, 0.5f, 2f, -1f}, new int[]{4}, null, "exponent", DataType.FLOAT32);
+        Tensor base = new Tensor(baseValues.clone(), new int[]{size}, null, "base", DataType.FLOAT32);
+        Tensor exponent = new Tensor(exponentValues.clone(), new int[]{size}, null, "exponent", DataType.FLOAT32);
         Tensor out = base.pow(exponent).add(base);
         PreparedExecution prepared = CompiledGraph.compile(out, fuseOnlyInferenceConfig())
                 .prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, 1)));
 
-        assertHasPreparedFusedStep(prepared);
+        var fusedStep = findPreparedFusedStep(prepared);
+        assertTrue(testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth() > 1);
+        assertEquals(
+                FusedVectorFallbackReason.NONE,
+                ((CpuFusedExecutionArtifact) fusedStep.metadata().artifact()).vectorFallbackReason()
+        );
         prepared.execute(ExecutionMode.FORWARD);
 
-        assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-5);
     }
 
     @Test
@@ -736,6 +748,18 @@ public class FusedExecutionModesTest {
         assertFalse(constantPool.contains("java/lang/Math"));
     }
 
+    @Test
+    void vectorApiTranscendentalsAndSigmoidExecuteForF32AndF64() {
+        assertVectorizedMathChain(DataType.FLOAT32, 1e-5);
+        assertVectorizedMathChain(DataType.FLOAT64, 1e-9);
+    }
+
+    @Test
+    void genericScalarPowExecutesThroughVectorApiForF32AndF64() {
+        assertVectorizedScalarPow(DataType.FLOAT32, 1e-5);
+        assertVectorizedScalarPow(DataType.FLOAT64, 1e-9);
+    }
+
     private static void assertModeMatches(
             double[] expected,
             double[] aVals,
@@ -847,6 +871,64 @@ public class FusedExecutionModesTest {
             expected[i] = add(add(add(pow0, mul0, dataType), inv, dataType), invSquare, dataType);
         }
         assertArrayEquals(expected, out.toDoubleArrayCopy(), tolerance);
+    }
+
+    private static void assertVectorizedMathChain(DataType dataType, double tolerance) {
+        int size = 4096;
+        double[] inputValues = positiveInput(size);
+        Tensor baselineInput = new Tensor(inputValues.clone(), new int[]{size}, null, "math_base", dataType);
+        Tensor baseline = baselineInput.exp().log().tanh().sigmoid();
+        CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
+                .prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE))).execute(ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor input = new Tensor(inputValues.clone(), new int[]{size}, null, "math_vector", dataType);
+        Tensor out = input.exp().log().tanh().sigmoid();
+        PreparedExecution prepared = CompiledGraph.compile(out, fuseOnlyInferenceConfig())
+                .prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)));
+        assertVectorFusedStep(prepared);
+        prepared.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), tolerance);
+    }
+
+    private static void assertVectorizedScalarPow(DataType dataType, double tolerance) {
+        int size = 4096;
+        double[] inputValues = positiveInput(size);
+        Tensor baselineInput = new Tensor(inputValues.clone(), new int[]{size}, null, "pow_base", dataType);
+        Tensor baseline = baselineInput.pow(3.7).add(baselineInput.mul(0.25));
+        CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
+                .prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE))).execute(ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor input = new Tensor(inputValues.clone(), new int[]{size}, null, "pow_vector", dataType);
+        Tensor out = input.pow(3.7).add(input.mul(0.25));
+        PreparedExecution prepared = CompiledGraph.compile(out, fuseOnlyInferenceConfig())
+                .prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)));
+        PreparedExecutionStep fusedStep = assertVectorFusedStep(prepared);
+        String constantPool = generatedConstantPool("debug/test/GenericPowVectorKernel" + dataType.name(), fusedStep);
+        assertTrue(constantPool.contains(dataType == DataType.FLOAT64 ? "powF64" : "powF32"));
+        prepared.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), tolerance);
+    }
+
+    private static PreparedExecutionStep assertVectorFusedStep(PreparedExecution prepared) {
+        PreparedExecutionStep fusedStep = findPreparedFusedStep(prepared);
+        assertTrue(testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth() > 1);
+        assertEquals(
+                FusedVectorFallbackReason.NONE,
+                ((CpuFusedExecutionArtifact) fusedStep.metadata().artifact()).vectorFallbackReason()
+        );
+        return fusedStep;
+    }
+
+    private static double[] positiveInput(int size) {
+        double[] out = new double[size];
+        for (int i = 0; i < size; i++) {
+            out[i] = 0.25 + (i % 29) * 0.03 + Math.sin(i * 0.07) * 0.01;
+        }
+        return out;
     }
 
     private static RuntimeConfig runtimeConfig(CpuKernelConfig cpuKernelConfig) {

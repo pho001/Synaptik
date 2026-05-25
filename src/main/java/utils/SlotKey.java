@@ -34,6 +34,8 @@ public enum SlotKey {
     FUSED_NODE_BOOL_VALUES (Type.INT),
     /** Local slot for fused vector node values. */
     FUSED_NODE_VECTOR_VALUES (Type.LIST),
+    /** Temporary object slot for generated fused vector expressions. */
+    FUSED_VECTOR_TEMP (Type.LIST),
     /** Grouped local slots for generated vector gather index maps. */
     FUSED_VECTOR_INDEX_MAPS (Type.LIST),
     /** Grouped local slots for generated segment gather lane scratch arrays. */
