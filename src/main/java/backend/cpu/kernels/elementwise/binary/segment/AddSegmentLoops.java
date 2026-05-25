@@ -1,14 +1,11 @@
-package backend.cpu.kernels.elementwise.binary;
+package backend.cpu.kernels.elementwise.binary.segment;
 
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.CpuNativeTraceSupport;
 import backend.cpu.kernels.elementwise.ElementwiseLoops;
 import backend.cpu.kernels.elementwise.ElementwiseNativeSupport;
-import backend.cpu.kernels.elementwise.binary.array.AddBF16;
-import backend.cpu.kernels.elementwise.binary.array.AddF32;
-import backend.cpu.kernels.elementwise.binary.array.AddF64;
-import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
+import backend.cpu.kernels.elementwise.binary.CpuAddKernel;
 import backend.cpu.kernels.layout.plan.ResolvedBroadcastPlan;
 import backend.cpu.kernels.storage.CpuStorageBindings;
 import backend.cpu.kernels.storage.CpuStorageView;
@@ -25,11 +22,11 @@ import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
-final class AddStorageLoops {
-    private AddStorageLoops() {
+public final class AddSegmentLoops {
+    private AddSegmentLoops() {
     }
 
-    static void execute(CpuAddKernel kernel, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public static void execute(CpuAddKernel kernel, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!ElementwiseNativeSupport.nativeRequested(context)) {
             ElementwiseLoops.runBinary(kernel, inputs.get(0), inputs.get(1), node, context);
             return;
@@ -48,7 +45,7 @@ final class AddStorageLoops {
         try {
             NativeTensorStorage leftStorage = ElementwiseNativeSupport.requireNativeInput(context, 0, node.getDataType(), "ADD");
             NativeTensorStorage rightStorage = ElementwiseNativeSupport.requireNativeInput(context, 1, node.getDataType(), "ADD");
-            NativeTensorStorage outputStorage = ElementwiseNativeSupport.allocateNativeOutput(node, context, "add-storage-loop");
+            NativeTensorStorage outputStorage = ElementwiseNativeSupport.allocateNativeOutput(node, context, "add-segment-loop");
             if (biasSpec == null) {
                 CpuStorageBindings bindings = new CpuStorageBindings(
                         List.of(
@@ -65,38 +62,12 @@ final class AddStorageLoops {
             context.executionContext().attachNativeStorage(
                     context.nodeId(),
                     outputStorage,
-                    "ADD storage loop wrote " + node.getDataType() + " native output"
+                    "ADD segment loop wrote " + node.getDataType() + " native output"
             );
             CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_NATIVE, "");
         } catch (Throwable t) {
             fallbackToArray(kernel, inputs, node, context,
                     "native-kernel-failed:add:" + ElementwiseNativeSupport.safeMessage(t));
-        }
-    }
-
-    static void runArrayDense(
-            CpuStorageBindings bindings,
-            ResolvedDispatchHints hints,
-            float[] leftContinuation,
-            float[] rightContinuation
-    ) {
-        validateDenseAdd(bindings);
-        DataType dtype = bindings.output().dtype();
-        switch (dtype) {
-            case FLOAT64 -> AddF64.run(
-                    bindings.input(0).requireF64Array(),
-                    bindings.input(1).requireF64Array(),
-                    bindings.output().requireF64Array(),
-                    hints
-            );
-            case FLOAT32 -> AddF32.run(
-                    bindings.input(0).requireF32Array(),
-                    bindings.input(1).requireF32Array(),
-                    bindings.output().requireF32Array(),
-                    hints
-            );
-            case BFLOAT16 -> runArrayDenseBF16(bindings, hints, leftContinuation, rightContinuation);
-            case INT32, INT64, BOOL -> throw new UnsupportedOperationException("ADD storage loop does not support dtype: " + dtype);
         }
     }
 
@@ -122,27 +93,7 @@ final class AddStorageLoops {
                     bindings.output().requireSegment(),
                     bindings.output().logicalSize()
             );
-            case INT32, INT64, BOOL -> throw new UnsupportedOperationException("ADD storage loop does not support dtype: " + dtype);
-        }
-    }
-
-    private static void runArrayDenseBF16(
-            CpuStorageBindings bindings,
-            ResolvedDispatchHints hints,
-            float[] leftContinuation,
-            float[] rightContinuation
-    ) {
-        short[] left = bindings.input(0).requireBF16Array();
-        short[] right = bindings.input(1).requireBF16Array();
-        short[] output = bindings.output().requireBF16Array();
-        if (leftContinuation != null && rightContinuation != null) {
-            AddBF16.run(leftContinuation, rightContinuation, output, hints);
-        } else if (leftContinuation != null) {
-            AddBF16.run(leftContinuation, right, output, hints);
-        } else if (rightContinuation != null) {
-            AddBF16.run(left, rightContinuation, output, hints);
-        } else {
-            AddBF16.run(left, right, output, hints);
+            case INT32, INT64, BOOL -> throw new UnsupportedOperationException("ADD segment loop does not support dtype: " + dtype);
         }
     }
 
@@ -240,24 +191,24 @@ final class AddStorageLoops {
 
     private static void validateDenseAdd(CpuStorageBindings bindings) {
         if (bindings.inputs().size() != 2) {
-            throw new IllegalArgumentException("ADD storage loop requires exactly 2 inputs.");
+            throw new IllegalArgumentException("ADD segment loop requires exactly 2 inputs.");
         }
         CpuStorageView left = bindings.input(0);
         CpuStorageView right = bindings.input(1);
         CpuStorageView output = bindings.output();
         if (left.dtype() != output.dtype() || right.dtype() != output.dtype()) {
-            throw new IllegalArgumentException("ADD storage loop dtype mismatch.");
+            throw new IllegalArgumentException("ADD segment loop dtype mismatch.");
         }
         if (left.kind() != output.kind() || right.kind() != output.kind()) {
-            throw new IllegalArgumentException("ADD storage loop requires matching storage kinds.");
+            throw new IllegalArgumentException("ADD segment loop requires matching storage kinds.");
         }
         if (left.logicalSize() != output.logicalSize() || right.logicalSize() != output.logicalSize()) {
-            throw new IllegalArgumentException("ADD storage loop requires same-shape dense inputs.");
+            throw new IllegalArgumentException("ADD segment loop requires same-shape dense inputs.");
         }
         if (!ElementwiseNativeSupport.isDenseView(left)
                 || !ElementwiseNativeSupport.isDenseView(right)
                 || !ElementwiseNativeSupport.isDenseView(output)) {
-            throw new IllegalArgumentException("ADD storage loop requires dense zero-offset views.");
+            throw new IllegalArgumentException("ADD segment loop requires dense zero-offset views.");
         }
     }
 

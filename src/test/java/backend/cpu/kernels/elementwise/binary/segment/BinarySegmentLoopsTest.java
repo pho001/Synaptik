@@ -1,6 +1,9 @@
-package backend.cpu.kernels.elementwise.binary;
+package backend.cpu.kernels.elementwise.binary.segment;
 
 import backend.cpu.kernels.CpuDTypeOps;
+import backend.cpu.kernels.elementwise.binary.CpuMulKernel;
+import backend.cpu.kernels.elementwise.binary.CpuPowTensorKernel;
+import backend.cpu.kernels.elementwise.binary.CpuSubKernel;
 import backend.cpu.kernels.storage.CpuStorageBindings;
 import backend.cpu.kernels.storage.CpuStorageView;
 import org.junit.jupiter.api.Test;
@@ -11,14 +14,14 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
-class BinaryStorageLoopsTest {
+class BinarySegmentLoopsTest {
     @Test
     void denseMemorySegmentLoopRunsBinaryKernelsByDtype() {
         float[] leftF32 = {1.0f, -2.0f, 3.5f};
         float[] rightF32 = {4.0f, 5.0f, -1.5f};
         float[] outF32 = new float[3];
 
-        BinaryStorageLoops.runSegmentDense(new CpuSubKernel(), bindings(
+        BinarySegmentLoops.runSegmentDense(new CpuSubKernel(), bindings(
                 DataType.FLOAT32,
                 MemorySegment.ofArray(leftF32),
                 MemorySegment.ofArray(rightF32),
@@ -32,7 +35,7 @@ class BinaryStorageLoopsTest {
         double[] rightF64 = {2.0d, 0.5d, -1.0d};
         double[] outF64 = new double[3];
 
-        BinaryStorageLoops.runSegmentDense(new CpuPowTensorKernel(), bindings(
+        BinarySegmentLoops.runSegmentDense(new CpuPowTensorKernel(), bindings(
                 DataType.FLOAT64,
                 MemorySegment.ofArray(leftF64),
                 MemorySegment.ofArray(rightF64),
@@ -46,7 +49,7 @@ class BinaryStorageLoopsTest {
         short[] rightBF16 = bf16(4.0f, 5.0f, -1.5f);
         short[] outBF16 = new short[3];
 
-        BinaryStorageLoops.runSegmentDense(new CpuMulKernel(), bindings(
+        BinarySegmentLoops.runSegmentDense(new CpuMulKernel(), bindings(
                 DataType.BFLOAT16,
                 MemorySegment.ofArray(leftBF16),
                 MemorySegment.ofArray(rightBF16),

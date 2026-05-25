@@ -1,10 +1,11 @@
-package backend.cpu.kernels.elementwise.binary;
+package backend.cpu.kernels.elementwise.binary.segment;
 
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.CpuNativeTraceSupport;
 import backend.cpu.kernels.elementwise.ElementwiseLoops;
 import backend.cpu.kernels.elementwise.ElementwiseNativeSupport;
+import backend.cpu.kernels.elementwise.binary.BinaryElementwiseKernel;
 import backend.cpu.kernels.storage.CpuStorageBindings;
 import backend.cpu.kernels.storage.CpuStorageView;
 import operations.Operation;
@@ -19,11 +20,11 @@ import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
-final class BinaryStorageLoops {
-    private BinaryStorageLoops() {
+public final class BinarySegmentLoops {
+    private BinarySegmentLoops() {
     }
 
-    static void execute(BinaryElementwiseKernel kernel, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public static void execute(BinaryElementwiseKernel kernel, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!ElementwiseNativeSupport.nativeRequested(context)) {
             ElementwiseLoops.runBinary(kernel, inputs.get(0), inputs.get(1), node, context);
             return;
@@ -39,7 +40,7 @@ final class BinaryStorageLoops {
             String label = opLabel(opType);
             NativeTensorStorage leftStorage = ElementwiseNativeSupport.requireNativeInput(context, 0, node.getDataType(), label.toUpperCase());
             NativeTensorStorage rightStorage = ElementwiseNativeSupport.requireNativeInput(context, 1, node.getDataType(), label.toUpperCase());
-            NativeTensorStorage outputStorage = ElementwiseNativeSupport.allocateNativeOutput(node, context, "binary-storage-loop-" + label);
+            NativeTensorStorage outputStorage = ElementwiseNativeSupport.allocateNativeOutput(node, context, "binary-segment-loop-" + label);
             CpuStorageBindings bindings = new CpuStorageBindings(
                     List.of(
                             ElementwiseNativeSupport.segmentView(inputs.get(0), leftStorage),
@@ -52,7 +53,7 @@ final class BinaryStorageLoops {
             context.executionContext().attachNativeStorage(
                     context.nodeId(),
                     outputStorage,
-                    "binary storage loop " + label.toUpperCase() + " wrote " + node.getDataType() + " native output"
+                    "binary segment loop " + label.toUpperCase() + " wrote " + node.getDataType() + " native output"
             );
             CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_NATIVE, "");
         } catch (Throwable t) {
@@ -86,7 +87,7 @@ final class BinaryStorageLoops {
                     bindings.output().requireSegment(),
                     bindings.output().logicalSize()
             );
-            case INT32, INT64, BOOL -> throw new UnsupportedOperationException("Binary storage loop does not support dtype: " + dtype);
+            case INT32, INT64, BOOL -> throw new UnsupportedOperationException("Binary segment loop does not support dtype: " + dtype);
         }
     }
 
@@ -185,24 +186,24 @@ final class BinaryStorageLoops {
 
     private static void validateDenseBinary(CpuStorageBindings bindings) {
         if (bindings.inputs().size() != 2) {
-            throw new IllegalArgumentException("Binary storage loop requires exactly 2 inputs.");
+            throw new IllegalArgumentException("Binary segment loop requires exactly 2 inputs.");
         }
         CpuStorageView left = bindings.input(0);
         CpuStorageView right = bindings.input(1);
         CpuStorageView output = bindings.output();
         if (left.dtype() != output.dtype() || right.dtype() != output.dtype()) {
-            throw new IllegalArgumentException("Binary storage loop dtype mismatch.");
+            throw new IllegalArgumentException("Binary segment loop dtype mismatch.");
         }
         if (left.kind() != output.kind() || right.kind() != output.kind()) {
-            throw new IllegalArgumentException("Binary storage loop requires matching storage kinds.");
+            throw new IllegalArgumentException("Binary segment loop requires matching storage kinds.");
         }
         if (left.logicalSize() != output.logicalSize() || right.logicalSize() != output.logicalSize()) {
-            throw new IllegalArgumentException("Binary storage loop requires same-shape dense inputs.");
+            throw new IllegalArgumentException("Binary segment loop requires same-shape dense inputs.");
         }
         if (!ElementwiseNativeSupport.isDenseView(left)
                 || !ElementwiseNativeSupport.isDenseView(right)
                 || !ElementwiseNativeSupport.isDenseView(output)) {
-            throw new IllegalArgumentException("Binary storage loop requires dense zero-offset views.");
+            throw new IllegalArgumentException("Binary segment loop requires dense zero-offset views.");
         }
     }
 

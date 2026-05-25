@@ -108,6 +108,7 @@ public class CpuKernelFamilyArchitectureTest {
                 "src/main/java/backend/cpu/kernels/elementwise/binary/CpuAddKernel.java",
                 "src/main/java/backend/cpu/kernels/elementwise/binary/ElementwiseBinaryExecutor.java",
                 "src/main/java/backend/cpu/kernels/elementwise/ElementwiseLoops.java",
+                "src/main/java/backend/cpu/kernels/elementwise/binary/array/AddArrayLoops.java",
                 "src/main/java/backend/cpu/kernels/elementwise/binary/array/AddF32.java",
                 "src/main/java/backend/cpu/kernels/elementwise/binary/array/AddF64.java",
                 "src/main/java/backend/cpu/kernels/elementwise/binary/array/AddBF16.java",
@@ -126,8 +127,9 @@ public class CpuKernelFamilyArchitectureTest {
                 "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32BlasMatMulExecutable.java",
                 "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32NativeBlasMatMulExecutable.java",
                 "src/main/java/backend/cpu/kernels/elementwise/ElementwiseNativeSupport.java",
-                "src/main/java/backend/cpu/kernels/elementwise/binary/BinaryStorageLoops.java",
-                "src/main/java/backend/cpu/kernels/elementwise/unary/UnaryStorageLoops.java",
+                "src/main/java/backend/cpu/kernels/elementwise/binary/segment/AddSegmentLoops.java",
+                "src/main/java/backend/cpu/kernels/elementwise/binary/segment/BinarySegmentLoops.java",
+                "src/main/java/backend/cpu/kernels/elementwise/unary/segment/UnarySegmentLoops.java",
                 "src/main/java/backend/cpu/kernels/elementwise/where/WhereStorageLoops.java",
                 "src/main/java/backend/cpu/kernels/elementwise/compare/CompareStorageLoops.java",
                 "src/main/java/backend/cpu/kernels/elementwise/logical/LogicalBoolStorageLoops.java",
@@ -204,18 +206,18 @@ public class CpuKernelFamilyArchitectureTest {
     }
 
     @Test
-    void waveThreeElementwiseRuntimeOwnershipMovedToStorageLoops() throws IOException {
+    void waveThreeElementwiseRuntimeOwnershipMovedToSegmentLoops() throws IOException {
         assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/nativecpu/NativeCpuElementwiseExecutor.java")),
-                "Elementwise CPU_NATIVE runtime ownership belongs to storage loops, not a standalone native executor.");
+                "Elementwise CPU_NATIVE runtime ownership belongs to segment loops, not a standalone native executor.");
         assertTrue(Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/ElementwiseBinaryExecutor.java"))
-                        .contains("AddStorageLoops.execute"),
-                "Binary executor must route ADD through the ADD storage loop before the generic native elementwise executor.");
+                        .contains("AddSegmentLoops.execute"),
+                "Binary executor must route ADD through the ADD segment loop before the generic native elementwise executor.");
         assertTrue(Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/ElementwiseBinaryExecutor.java"))
-                        .contains("BinaryStorageLoops.execute"),
-                "Non-ADD binary elementwise runtime ownership must live in BinaryStorageLoops.");
+                        .contains("BinarySegmentLoops.execute"),
+                "Non-ADD binary elementwise runtime ownership must live in BinarySegmentLoops.");
         assertTrue(Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary/ElementwiseUnaryExecutor.java"))
-                        .contains("UnaryStorageLoops.execute"),
-                "Unary elementwise runtime ownership must live in UnaryStorageLoops.");
+                        .contains("UnarySegmentLoops.execute"),
+                "Unary elementwise runtime ownership must live in UnarySegmentLoops.");
         assertTrue(Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/where/WhereExecutor.java"))
                         .contains("WhereStorageLoops.execute"),
                 "WHERE runtime ownership must live in WhereStorageLoops.");

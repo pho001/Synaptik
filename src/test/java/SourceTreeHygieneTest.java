@@ -1391,6 +1391,31 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void elementwiseBinaryAndUnaryRootsDoNotOwnStorageSpecificLoops() throws IOException {
+        List<String> rootLoopFiles = javaFilesUnderRoots(List.of(
+                        Path.of("src/main/java/backend/cpu/kernels/elementwise/binary"),
+                        Path.of("src/main/java/backend/cpu/kernels/elementwise/unary")
+                )).stream()
+                .filter(path -> !path.contains("/array/"))
+                .filter(path -> !path.contains("/segment/"))
+                .filter(path -> path.endsWith("Loops.java"))
+                .sorted()
+                .toList();
+        assertTrue(rootLoopFiles.isEmpty(),
+                () -> "Binary/unary root packages must own kernels and dispatch only; array/segment loops belong in route packages: "
+                        + rootLoopFiles);
+
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/array/AddArrayLoops.java")),
+                "ADD Java-array route must be explicit under binary.array.");
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/segment/AddSegmentLoops.java")),
+                "ADD MemorySegment route must be explicit under binary.segment.");
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/segment/BinarySegmentLoops.java")),
+                "Generic binary MemorySegment route must be explicit under binary.segment.");
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary/segment/UnarySegmentLoops.java")),
+                "Unary MemorySegment route must be explicit under unary.segment.");
+    }
+
+    @Test
     void cpuNativeRuntimeExecutorStackDoesNotReturn() throws IOException {
         List<String> deletedNativeStack = List.of(
                 "NativeCpuPlanResolver",

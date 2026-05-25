@@ -1,10 +1,12 @@
-package backend.cpu.kernels.elementwise.unary;
+package backend.cpu.kernels.elementwise.unary.segment;
 
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.CpuNativeTraceSupport;
 import backend.cpu.kernels.elementwise.ElementwiseLoops;
 import backend.cpu.kernels.elementwise.ElementwiseNativeSupport;
+import backend.cpu.kernels.elementwise.unary.ScalarUnaryElementwiseKernel;
+import backend.cpu.kernels.elementwise.unary.UnaryElementwiseKernel;
 import backend.cpu.kernels.storage.CpuStorageBindings;
 import backend.cpu.kernels.storage.CpuStorageView;
 import operations.Operation;
@@ -19,11 +21,11 @@ import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
-final class UnaryStorageLoops {
-    private UnaryStorageLoops() {
+public final class UnarySegmentLoops {
+    private UnarySegmentLoops() {
     }
 
-    static void execute(UnaryElementwiseKernel kernel, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public static void execute(UnaryElementwiseKernel kernel, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!ElementwiseNativeSupport.nativeRequested(context)) {
             ElementwiseLoops.runUnary(kernel, inputs.get(0), node, context);
             return;
@@ -38,7 +40,7 @@ final class UnaryStorageLoops {
         try {
             String label = opLabel(opType);
             NativeTensorStorage inputStorage = ElementwiseNativeSupport.requireNativeInput(context, 0, node.getDataType(), label.toUpperCase());
-            NativeTensorStorage outputStorage = ElementwiseNativeSupport.allocateNativeOutput(node, context, "unary-storage-loop-" + label);
+            NativeTensorStorage outputStorage = ElementwiseNativeSupport.allocateNativeOutput(node, context, "unary-segment-loop-" + label);
             CpuStorageBindings bindings = new CpuStorageBindings(
                     List.of(ElementwiseNativeSupport.segmentView(inputs.get(0), inputStorage)),
                     ElementwiseNativeSupport.segmentView(node, outputStorage)
@@ -52,7 +54,7 @@ final class UnaryStorageLoops {
         }
     }
 
-    static void execute(
+    public static void execute(
             ScalarUnaryElementwiseKernel kernel,
             double parameterF64,
             float parameterF32,
@@ -74,7 +76,7 @@ final class UnaryStorageLoops {
         try {
             String label = opLabel(opType);
             NativeTensorStorage inputStorage = ElementwiseNativeSupport.requireNativeInput(context, 0, node.getDataType(), label.toUpperCase());
-            NativeTensorStorage outputStorage = ElementwiseNativeSupport.allocateNativeOutput(node, context, "scalar-unary-storage-loop-" + label);
+            NativeTensorStorage outputStorage = ElementwiseNativeSupport.allocateNativeOutput(node, context, "scalar-unary-segment-loop-" + label);
             CpuStorageBindings bindings = new CpuStorageBindings(
                     List.of(ElementwiseNativeSupport.segmentView(inputs.get(0), inputStorage)),
                     ElementwiseNativeSupport.segmentView(node, outputStorage)
@@ -110,7 +112,7 @@ final class UnaryStorageLoops {
                     bindings.output().requireSegment(),
                     bindings.output().logicalSize()
             );
-            case INT32, INT64, BOOL -> throw new UnsupportedOperationException("Unary storage loop does not support dtype: " + dtype);
+            case INT32, INT64, BOOL -> throw new UnsupportedOperationException("Unary segment loop does not support dtype: " + dtype);
         }
     }
 
@@ -144,7 +146,7 @@ final class UnaryStorageLoops {
                     bindings.output().requireSegment(),
                     bindings.output().logicalSize()
             );
-            case INT32, INT64, BOOL -> throw new UnsupportedOperationException("Scalar unary storage loop does not support dtype: " + dtype);
+            case INT32, INT64, BOOL -> throw new UnsupportedOperationException("Scalar unary segment loop does not support dtype: " + dtype);
         }
     }
 
@@ -283,21 +285,21 @@ final class UnaryStorageLoops {
 
     private static void validateDenseUnary(CpuStorageBindings bindings) {
         if (bindings.inputs().size() != 1) {
-            throw new IllegalArgumentException("Unary storage loop requires exactly 1 input.");
+            throw new IllegalArgumentException("Unary segment loop requires exactly 1 input.");
         }
         CpuStorageView input = bindings.input(0);
         CpuStorageView output = bindings.output();
         if (input.dtype() != output.dtype()) {
-            throw new IllegalArgumentException("Unary storage loop dtype mismatch.");
+            throw new IllegalArgumentException("Unary segment loop dtype mismatch.");
         }
         if (input.kind() != output.kind()) {
-            throw new IllegalArgumentException("Unary storage loop requires matching storage kinds.");
+            throw new IllegalArgumentException("Unary segment loop requires matching storage kinds.");
         }
         if (input.logicalSize() != output.logicalSize()) {
-            throw new IllegalArgumentException("Unary storage loop requires same-shape dense input.");
+            throw new IllegalArgumentException("Unary segment loop requires same-shape dense input.");
         }
         if (!ElementwiseNativeSupport.isDenseView(input) || !ElementwiseNativeSupport.isDenseView(output)) {
-            throw new IllegalArgumentException("Unary storage loop requires dense zero-offset views.");
+            throw new IllegalArgumentException("Unary segment loop requires dense zero-offset views.");
         }
     }
 
@@ -311,7 +313,7 @@ final class UnaryStorageLoops {
         context.executionContext().attachNativeStorage(
                 context.nodeId(),
                 outputStorage,
-                "unary storage loop " + label.toUpperCase() + " wrote " + node.getDataType() + " native output"
+                "unary segment loop " + label.toUpperCase() + " wrote " + node.getDataType() + " native output"
         );
     }
 

@@ -1,6 +1,11 @@
-package backend.cpu.kernels.elementwise.unary;
+package backend.cpu.kernels.elementwise.unary.segment;
 
 import backend.cpu.kernels.CpuDTypeOps;
+import backend.cpu.kernels.elementwise.unary.CpuClampMinKernel;
+import backend.cpu.kernels.elementwise.unary.CpuInvKernel;
+import backend.cpu.kernels.elementwise.unary.CpuMulScalarKernel;
+import backend.cpu.kernels.elementwise.unary.CpuNegKernel;
+import backend.cpu.kernels.elementwise.unary.CpuReluKernel;
 import backend.cpu.kernels.storage.CpuStorageBindings;
 import backend.cpu.kernels.storage.CpuStorageView;
 import org.junit.jupiter.api.Test;
@@ -11,13 +16,13 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
-class UnaryStorageLoopsTest {
+class UnarySegmentLoopsTest {
     @Test
     void denseMemorySegmentLoopRunsUnaryKernelsByDtype() {
         float[] inputF32 = {1.0f, -2.0f, 3.5f};
         float[] outF32 = new float[3];
 
-        UnaryStorageLoops.runSegmentDense(new CpuNegKernel(), bindings(
+        UnarySegmentLoops.runSegmentDense(new CpuNegKernel(), bindings(
                 DataType.FLOAT32,
                 MemorySegment.ofArray(inputF32),
                 MemorySegment.ofArray(outF32),
@@ -29,7 +34,7 @@ class UnaryStorageLoopsTest {
         double[] inputF64 = {2.0d, -4.0d, 0.5d};
         double[] outF64 = new double[3];
 
-        UnaryStorageLoops.runSegmentDense(new CpuInvKernel(), bindings(
+        UnarySegmentLoops.runSegmentDense(new CpuInvKernel(), bindings(
                 DataType.FLOAT64,
                 MemorySegment.ofArray(inputF64),
                 MemorySegment.ofArray(outF64),
@@ -41,7 +46,7 @@ class UnaryStorageLoopsTest {
         short[] inputBF16 = bf16(1.0f, -2.0f, 3.5f);
         short[] outBF16 = new short[3];
 
-        UnaryStorageLoops.runSegmentDense(new CpuReluKernel(), bindings(
+        UnarySegmentLoops.runSegmentDense(new CpuReluKernel(), bindings(
                 DataType.BFLOAT16,
                 MemorySegment.ofArray(inputBF16),
                 MemorySegment.ofArray(outBF16),
@@ -56,7 +61,7 @@ class UnaryStorageLoopsTest {
         float[] inputF32 = {1.0f, -2.0f, 3.5f};
         float[] outF32 = new float[3];
 
-        UnaryStorageLoops.runSegmentDense(new CpuMulScalarKernel(), 0.25d, 0.25f, bindings(
+        UnarySegmentLoops.runSegmentDense(new CpuMulScalarKernel(), 0.25d, 0.25f, bindings(
                 DataType.FLOAT32,
                 MemorySegment.ofArray(inputF32),
                 MemorySegment.ofArray(outF32),
@@ -68,7 +73,7 @@ class UnaryStorageLoopsTest {
         short[] inputBF16 = bf16(1.0f, -2.0f, 3.5f);
         short[] outBF16 = new short[3];
 
-        UnaryStorageLoops.runSegmentDense(new CpuClampMinKernel(), 0.0d, 0.0f, bindings(
+        UnarySegmentLoops.runSegmentDense(new CpuClampMinKernel(), 0.0d, 0.0f, bindings(
                 DataType.BFLOAT16,
                 MemorySegment.ofArray(inputBF16),
                 MemorySegment.ofArray(outBF16),

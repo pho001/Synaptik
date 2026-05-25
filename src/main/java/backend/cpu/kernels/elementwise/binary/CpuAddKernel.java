@@ -3,9 +3,7 @@ package backend.cpu.kernels.elementwise.binary;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
-import backend.cpu.kernels.elementwise.binary.array.AddBF16;
-import backend.cpu.kernels.elementwise.binary.array.AddF32;
-import backend.cpu.kernels.elementwise.binary.array.AddF64;
+import backend.cpu.kernels.elementwise.binary.array.AddArrayLoops;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import operations.Operation;
@@ -71,7 +69,7 @@ public final class CpuAddKernel implements CpuKernel, BinaryElementwiseKernel {
 
     @Override
     public void runDirectF64(double[] left, double[] right, double[] out, ResolvedDispatchHints hints) {
-        AddF64.run(left, right, out, hints);
+        AddArrayLoops.runF64(left, right, out, hints);
     }
 
     @Override
@@ -81,7 +79,7 @@ public final class CpuAddKernel implements CpuKernel, BinaryElementwiseKernel {
 
     @Override
     public void runDirectF32(float[] left, float[] right, float[] out, ResolvedDispatchHints hints) {
-        AddF32.run(left, right, out, hints);
+        AddArrayLoops.runF32(left, right, out, hints);
     }
 
     @Override
@@ -98,14 +96,6 @@ public final class CpuAddKernel implements CpuKernel, BinaryElementwiseKernel {
             short[] out,
             ResolvedDispatchHints hints
     ) {
-        if (leftContinuation != null && rightContinuation != null) {
-            AddBF16.run(leftContinuation, rightContinuation, out, hints);
-        } else if (leftContinuation != null) {
-            AddBF16.run(leftContinuation, rightStorage, out, hints);
-        } else if (rightContinuation != null) {
-            AddBF16.run(leftStorage, rightContinuation, out, hints);
-        } else {
-            AddBF16.run(leftStorage, rightStorage, out, hints);
-        }
+        AddArrayLoops.runBF16(leftStorage, rightStorage, leftContinuation, rightContinuation, out, hints);
     }
 }
