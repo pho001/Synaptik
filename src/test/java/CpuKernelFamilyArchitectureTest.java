@@ -116,7 +116,7 @@ public class CpuKernelFamilyArchitectureTest {
                 "src/main/java/backend/cpu/kernels/layout/LayoutExecutor.java",
                 "src/main/java/backend/cpu/kernels/linalg/CpuMatMulKernel.java",
                 "src/main/java/backend/cpu/kernels/linalg/matmul/plan/MatMulPlanner.java",
-                "src/main/java/backend/cpu/kernels/linalg/matmul/exec/PreparedMatMulExecutableFactory.java",
+                "src/main/java/backend/cpu/kernels/linalg/matmul/provider/MatMulProviderExecutableFactory.java",
                 "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32JavaMatMulExecutable.java",
                 "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32BlasMatMulExecutable.java",
                 "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32NativeBlasMatMulExecutable.java",
@@ -189,6 +189,26 @@ public class CpuKernelFamilyArchitectureTest {
                 .filter(marker -> !doc.contains(marker))
                 .toList();
         assertTrue(missing.isEmpty(), () -> "Wave 0 baseline document is missing required markers: " + missing);
+    }
+
+    @Test
+    void waveFiveMatmulOpenBlasRoutingIsProviderOwned() throws IOException {
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/linalg/matmul/provider/MatMulProviderExecutableFactory.java")),
+                "Matmul provider routing must live under the linalg matmul provider package.");
+        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/linalg/matmul/exec/PreparedMatMulExecutableFactory.java")),
+                "The old generic prepared factory should not remain as a compatibility facade.");
+
+        String providerFactory = Files.readString(Path.of("src/main/java/backend/cpu/kernels/linalg/matmul/provider/MatMulProviderExecutableFactory.java"));
+        assertTrue(providerFactory.contains("case OPENBLAS_NATIVE_SEGMENT"),
+                "OpenBLAS memory-segment routing must stay explicit in the matmul provider factory.");
+        assertTrue(providerFactory.contains("case OPENBLAS_ARRAY_COPYING"),
+                "OpenBLAS array-copy routing must stay explicit in the matmul provider factory.");
+        assertTrue(providerFactory.contains("case JAVA_DIRECT"),
+                "Java matmul must remain an explicit array route.");
+
+        String nativePlanner = Files.readString(Path.of("src/main/java/backend/cpu/nativecpu/NativeCpuPlanResolver.java"));
+        assertTrue(!nativePlanner.contains("PreparedMatMulExecutable"),
+                "NativeCpuPlanResolver must not decide matmul provider ownership from executable classes.");
     }
 
     @Test

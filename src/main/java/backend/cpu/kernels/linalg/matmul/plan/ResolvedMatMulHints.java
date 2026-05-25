@@ -50,4 +50,16 @@ public record ResolvedMatMulHints(
         work = Math.max(0L, work);
         microKernel = microKernel == null ? CpuMatMulMicroKernel.AUTO : microKernel;
     }
+
+    public boolean usesOpenBlasMemorySegment() {
+        return route == MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT;
+    }
+
+    public boolean usesOpenBlasArrayCopying() {
+        return route == MatMulExecutionRoute.OPENBLAS_ARRAY_COPYING;
+    }
+
+    public boolean usesJavaArrays() {
+        return route == MatMulExecutionRoute.JAVA_DIRECT;
+    }
 }

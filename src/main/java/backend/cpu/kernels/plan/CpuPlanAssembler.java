@@ -11,7 +11,7 @@ import backend.cpu.kernels.layout.BroadcastPlanResolver;
 import backend.cpu.kernels.layout.PreparedInputPlanner;
 import backend.cpu.kernels.layout.PreparedInputsResult;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
-import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutableFactory;
+import backend.cpu.kernels.linalg.matmul.provider.MatMulProviderExecutableFactory;
 import backend.cpu.nativecpu.NativeCpuPlanResolver;
 import backend.cpu.nativecpu.PreparedNativeCpuPlan;
 import config.runtime.BlasConfig;
@@ -77,7 +77,7 @@ public final class CpuPlanAssembler {
                 publishFloatContinuation,
                 dispatchHintsOverride
         );
-        PreparedMatMulExecutable matMulExecutable = PreparedMatMulExecutableFactory.create(
+        PreparedMatMulExecutable matMulExecutable = MatMulProviderExecutableFactory.create(
                 op,
                 safeNodeDescriptor,
                 operationPlans.matMulHints(),
@@ -101,7 +101,6 @@ public final class CpuPlanAssembler {
                 prepared.runtimeInputDescriptors(),
                 safeNodeDescriptor.dataType(),
                 basePlan,
-                matMulExecutable,
                 cpuStorageProfile
         );
         return new CpuNodeExecutionPlan(

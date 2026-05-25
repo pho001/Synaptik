@@ -3,7 +3,6 @@ package backend.cpu.nativecpu;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.layout.plan.ResolvedBroadcastPlan;
 import backend.cpu.kernels.layout.plan.ResolvedWhereBroadcastPlan;
-import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import config.runtime.CpuStorageProfile;
 import operations.Operation;
 import operations.reduction.mean;
@@ -30,7 +29,6 @@ public final class NativeCpuPlanResolver {
             List<CompiledTensorDescriptor> inputs,
             DataType dataType,
             CpuNodeExecutionPlan plan,
-            PreparedMatMulExecutable matMulExecutable,
             CpuStorageProfile cpuStorageProfile
     ) {
         CpuStorageProfile requestedStorage = cpuStorageProfile == null ? CpuStorageProfile.CPU_ARRAY : cpuStorageProfile;
@@ -42,11 +40,11 @@ public final class NativeCpuPlanResolver {
             return PreparedNativeCpuPlan.none(requestedStorage,
                     "cpu-storage-profile-not-native:" + requestedStorage.name().toLowerCase());
         }
-        if (matMulExecutable != null && matMulExecutable.acceptsNativeInputs()) {
-            return PreparedNativeCpuPlan.nativeExecutable(coverage, requestedStorage);
-        }
         if (plan == null) {
             return PreparedNativeCpuPlan.fallbackOnly(coverage, requestedStorage, ineligible(opType, "plan"));
+        }
+        if (usesMatMulProviderMemorySegment(opType, plan)) {
+            return PreparedNativeCpuPlan.nativeExecutable(coverage, requestedStorage);
         }
         if (opType == Operation.OpType.CAST) {
             if (!supportedCast(inputs, dataType)) {
@@ -111,6 +109,13 @@ public final class NativeCpuPlanResolver {
             return PreparedNativeCpuPlan.nativeExecutable(coverage, requestedStorage);
         }
         return PreparedNativeCpuPlan.fallbackOnly(coverage, requestedStorage, fallbackReason(coverage, opType, plan));
+    }
+
+    private static boolean usesMatMulProviderMemorySegment(Operation.OpType opType, CpuNodeExecutionPlan plan) {
+        return (opType == Operation.OpType.MATMUL || opType == Operation.OpType.LINEAR)
+                && plan != null
+                && plan.matMulHints() != null
+                && plan.matMulHints().usesOpenBlasMemorySegment();
     }
 
     private static boolean supportsNativeElementwise(Operation.OpType opType, DataType dataType, CpuNodeExecutionPlan plan) {
