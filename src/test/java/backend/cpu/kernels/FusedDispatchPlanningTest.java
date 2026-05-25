@@ -63,7 +63,7 @@ class FusedDispatchPlanningTest {
     }
 
     @Test
-    void resolvesNonCheapStridedDispatchWithCanonicalAsmWidth() {
+    void blocksNonAllocationFreeStridedTranscendentalVectorPath() {
         CpuExecutionPlanner planner = CpuExecutionPlanner.from(testKernelConfig());
         FusedOperation fused = fusedUnary(
                 Operation.OpType.LOG,
@@ -82,20 +82,16 @@ class FusedDispatchPlanningTest {
 
         PreparedFusedDispatch prepared = planner.resolveFusedDispatch(fused, out, contract);
 
-        int expectedWidth = Math.min(4, FloatVector.SPECIES_PREFERRED.length());
         int expectedVectorMinSize = planner.fusedDirectVectorMinSize(fused);
         assertEquals(expectedVectorMinSize, prepared.cpuVectorMinSize());
-        assertEquals(expectedWidth, prepared.asmVectorWidth());
-        assertEquals(expectedWidth, prepared.dispatchHints().vectorWidth());
-        assertEquals(FusedVectorBlockReason.BELOW_VECTOR_THRESHOLD, prepared.vectorBlockReason());
-        assertEquals(
-                expectedWidth > 1 && out.getFlatDataSize() >= expectedVectorMinSize ? CpuExecutionMode.VECTOR : CpuExecutionMode.SCALAR,
-                prepared.dispatchHints().mode()
-        );
+        assertEquals(1, prepared.asmVectorWidth());
+        assertEquals(1, prepared.dispatchHints().vectorWidth());
+        assertEquals(FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH, prepared.vectorBlockReason());
+        assertEquals(CpuExecutionMode.SCALAR, prepared.dispatchHints().mode());
     }
 
     @Test
-    void defaultFusedAsmWidthUsesPreferredSpecies() {
+    void genericTranscendentalFusedAsmWidthStaysScalar() {
         CpuExecutionPlanner planner = CpuExecutionPlanner.from(CpuKernelConfig.defaultsInference());
         FusedOperation fused = fusedUnary(
                 Operation.OpType.LOG,
@@ -114,10 +110,9 @@ class FusedDispatchPlanningTest {
 
         PreparedFusedDispatch prepared = planner.resolveFusedDispatch(fused, out, contract);
 
-        int expectedWidth = FloatVector.SPECIES_PREFERRED.length();
-        assertEquals(expectedWidth, prepared.asmVectorWidth());
-        assertEquals(expectedWidth, prepared.dispatchHints().vectorWidth());
-        assertEquals(FusedVectorBlockReason.NONE, prepared.vectorBlockReason());
+        assertEquals(1, prepared.asmVectorWidth());
+        assertEquals(1, prepared.dispatchHints().vectorWidth());
+        assertEquals(FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH, prepared.vectorBlockReason());
     }
 
     @Test
@@ -214,7 +209,7 @@ class FusedDispatchPlanningTest {
 
         assertEquals(1, prepared.asmVectorWidth());
         assertEquals(1, prepared.dispatchHints().vectorWidth());
-        assertEquals(FusedVectorBlockReason.MEMORY_SEGMENT_SCALAR_ONLY, prepared.vectorBlockReason());
+        assertEquals(FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH, prepared.vectorBlockReason());
     }
 
     @Test
@@ -247,9 +242,9 @@ class FusedDispatchPlanningTest {
         );
 
         assertEquals(1, bf16Prepared.asmVectorWidth());
-        assertEquals(FusedVectorBlockReason.MEMORY_SEGMENT_SCALAR_ONLY, bf16Prepared.vectorBlockReason());
+        assertEquals(FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH, bf16Prepared.vectorBlockReason());
         assertEquals(1, stridedPrepared.asmVectorWidth());
-        assertEquals(FusedVectorBlockReason.MEMORY_SEGMENT_SCALAR_ONLY, stridedPrepared.vectorBlockReason());
+        assertEquals(FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH, stridedPrepared.vectorBlockReason());
     }
 
     @Test
@@ -332,10 +327,10 @@ class FusedDispatchPlanningTest {
 
         assertEquals(1, comparePrepared.asmVectorWidth());
         assertEquals(1, comparePrepared.dispatchHints().vectorWidth());
-        assertEquals(FusedVectorBlockReason.MEMORY_SEGMENT_SCALAR_ONLY, comparePrepared.vectorBlockReason());
+        assertEquals(FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH, comparePrepared.vectorBlockReason());
         assertEquals(1, wherePrepared.asmVectorWidth());
         assertEquals(1, wherePrepared.dispatchHints().vectorWidth());
-        assertEquals(FusedVectorBlockReason.MEMORY_SEGMENT_SCALAR_ONLY, wherePrepared.vectorBlockReason());
+        assertEquals(FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH, wherePrepared.vectorBlockReason());
     }
 
     @Test
@@ -380,7 +375,7 @@ class FusedDispatchPlanningTest {
 
         assertEquals(1, prepared.asmVectorWidth());
         assertEquals(1, prepared.dispatchHints().vectorWidth());
-        assertEquals(FusedVectorBlockReason.BF16_STRIDED_RATIONAL_SCALAR_ONLY, prepared.vectorBlockReason());
+        assertEquals(FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH, prepared.vectorBlockReason());
     }
 
     private static CpuKernelConfig testKernelConfig() {

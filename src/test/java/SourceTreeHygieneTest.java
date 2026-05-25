@@ -574,6 +574,68 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void cpuFusedRuntimeOpsDoNotOwnGeneratedHotPathSemantics() throws IOException {
+        String scalarOps = "Fused" + "Scalar" + "Ops";
+        String broadcastOps = "Fused" + "Broadcast" + "Vector" + "Ops";
+        String storageOps = "Fused" + "Storage" + "Ops";
+        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/fused/runtime/" + scalarOps + ".java")),
+                scalarOps + " must not be restored as a scalar math helper layer");
+        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/fused/runtime/" + broadcastOps + ".java")),
+                broadcastOps + " must not hide broadcast/gather vector helper loops");
+        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/fused/runtime/" + storageOps + ".java")),
+                storageOps + " must not hide storage/vector helper loops");
+
+        List<String> hotPathOffenders = sourceLinesContaining(
+                List.of(Path.of("src/main/java/backend/cpu/fused/asm"), Path.of("src/main/java/backend/cpu/fused/plan")),
+                List.of(
+                        "backend/cpu/fused/runtime/" + scalarOps,
+                        "backend/cpu/fused/runtime/" + broadcastOps,
+                        "backend/cpu/fused/runtime/" + storageOps,
+                        "loadVectorBF16Array",
+                        "storeVectorBF16Array",
+                        "loadMaskF32Array",
+                        "loadMaskF64Array",
+                        "storeMaskF32Array",
+                        "storeMaskF64Array"
+                )
+        );
+        assertTrue(hotPathOffenders.isEmpty(),
+                () -> "Generated CPU fused hot path must not call removed runtime operation helpers: " + hotPathOffenders);
+    }
+
+    @Test
+    void cpuFusedVectorOpsRemainAllocationFreePrimitives() throws IOException {
+        Path vectorOps = Path.of("src/main/java/backend/cpu/fused/runtime/FusedVectorOps.java");
+        String source = Files.readString(vectorOps);
+        List<String> forbidden = List.of(
+                "new float[",
+                "new double[",
+                "intoArray(lanes",
+                "fromArray(species, lanes",
+                "mapUnary",
+                "mapBinary",
+                "Math.pow",
+                "Math.exp",
+                "Math.log",
+                "Math.tanh",
+                "quantizeBF16",
+                "powF32",
+                "powF64",
+                "powBF16",
+                "expF32",
+                "logF32",
+                "tanhF32",
+                "sigmoidF32",
+                "BF16"
+        );
+        List<String> offenders = forbidden.stream()
+                .filter(source::contains)
+                .toList();
+        assertTrue(offenders.isEmpty(),
+                () -> "FusedVectorOps must stay a small allocation-free Vector API primitive library: " + offenders);
+    }
+
+    @Test
     void cpuFusedVectorSpeciesSelectionHasSingleOwner() throws IOException {
         List<String> speciesConstants = List.of("SPECIES_64", "SPECIES_128", "SPECIES_256", "SPECIES_512");
         List<String> offenders = javaFilesUnder(Path.of("src/main/java/backend/cpu/fused")).stream()
@@ -615,10 +677,8 @@ public class SourceTreeHygieneTest {
                 "segment fused input binding must bind MemorySegment inputs through CpuKernelContext");
         assertTrue(outputEmitter.contains("emitGetNativeOutputSegmentCall"),
                 "segment fused output binding must bind MemorySegment output through CpuKernelContext");
-        assertTrue(vectorEmitter.contains("usesMemorySegmentStorage()"),
-                "segment fused vector execution must delegate away from array-only vector bytecode");
-        assertTrue(vectorEmitter.contains("FusedVectorGuard.supportsMemorySegmentVectorAsm(context.numericContract(), plan)"),
-                "segment fused vector support must use the same guard as dispatch planning");
+        assertTrue(vectorEmitter.contains("FusedVectorGuard.supportsAllocationFreeVectorPath(context.numericContract(), plan)"),
+                "segment fused vector support must use the allocation-free vector guard shared with dispatch planning");
         assertTrue(preparer.contains("refusing Java-array interpreter fallback"),
                 "segment fused ASM failures must not use the array-bound interpreted fallback");
     }

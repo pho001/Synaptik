@@ -39,14 +39,17 @@ public final class FusedVectorGuard {
             ResolvedCpuComputeContract contract,
             FusedOperation fused
     ) {
+        FusedVectorBlockReason dispatchReason = dispatchBlockReason(fused);
+        if (dispatchReason.forceScalarAsmWidth()) {
+            return dispatchReason;
+        }
+        if (fused != null && !supportsAllocationFreeVectorPath(fused.getNumericContract(), fused.getPlan())) {
+            return FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH;
+        }
         if (fused != null
                 && fused.getNumericContract().usesMemorySegmentStorage()
                 && !supportsMemorySegmentVectorAsm(fused.getNumericContract(), fused.getPlan())) {
             return FusedVectorBlockReason.MEMORY_SEGMENT_SCALAR_ONLY;
-        }
-        FusedVectorBlockReason dispatchReason = dispatchBlockReason(fused);
-        if (dispatchReason.forceScalarAsmWidth()) {
-            return dispatchReason;
         }
         return isBf16AffineRationalStridedPlan(contract, fused)
                 ? FusedVectorBlockReason.BF16_STRIDED_RATIONAL_SCALAR_ONLY
@@ -99,7 +102,37 @@ public final class FusedVectorGuard {
             }
         }
         for (FusedNodePlan node : plan.nodes()) {
-            if (!isF32OrF64(node.outputType()) || !isAllocationFreeNumericVectorOp(node.opType())) {
+            if (!supportsDirectVectorNode(node)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static boolean supportsAllocationFreeVectorPath(
+            FusedNumericContract numericContract,
+            FusedExpressionPlan plan
+    ) {
+        if (numericContract == null || plan == null) {
+            return false;
+        }
+        if (numericContract.writesBf16()) {
+            return false;
+        }
+        if (numericContract.computeKind() != FusedComputeKind.F32
+                && numericContract.computeKind() != FusedComputeKind.F64) {
+            return false;
+        }
+        if (!isF32OrF64(plan.outputNode().outputType())) {
+            return false;
+        }
+        for (FusedExternalInputPlan input : plan.inputs()) {
+            if (!supportsDirectVectorInput(input, numericContract)) {
+                return false;
+            }
+        }
+        for (FusedNodePlan node : plan.nodes()) {
+            if (!supportsDirectVectorNode(node)) {
                 return false;
             }
         }
@@ -271,10 +304,57 @@ public final class FusedVectorGuard {
             return false;
         }
         return switch (opType) {
-            case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, ABS, CONST_SCALAR, MUL_SCALAR,
-                    RELU, CLAMP_MIN, CLAMP_MAX, NOOP -> true;
+            case ADD, SUB, MUL, DIV, MIN, MAX,
+                    NEG, INV, ABS, SQRT,
+                    CONST_SCALAR, MUL_SCALAR,
+                    RELU, CLAMP_MIN, CLAMP_MAX,
+                    NOOP,
+                    GT, GE, LT, LE, EQ, NE,
+                    LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT,
+                    WHERE -> true;
+            case POW -> false;
             default -> false;
         };
+    }
+
+    private static boolean supportsDirectVectorInput(
+            FusedExternalInputPlan input,
+            FusedNumericContract numericContract
+    ) {
+        if (input == null || input.dataType() == DataType.BOOL) {
+            return false;
+        }
+        if (!isF32OrF64(input.dataType()) || !matchesSegmentVectorLane(input.dataType(), numericContract)) {
+            return false;
+        }
+        return isContiguousLinear(input) || isZeroStrideBroadcast(input);
+    }
+
+    private static boolean supportsDirectVectorNode(FusedNodePlan node) {
+        if (node == null) {
+            return false;
+        }
+        if (node.opType() == Operation.OpType.POW) {
+            return isDirectVectorPowSpecialCase(node);
+        }
+        return isAllocationFreeNumericVectorOp(node.opType()) && supportsNodeOutputType(node);
+    }
+
+    private static boolean supportsNodeOutputType(FusedNodePlan node) {
+        return node.outputType() == DataType.BOOL || isF32OrF64(node.outputType());
+    }
+
+    private static boolean isDirectVectorPowSpecialCase(FusedNodePlan node) {
+        if (!(node.attributes() instanceof ScalarDoubleAttribute attribute)) {
+            return false;
+        }
+        double exponent = attribute.value();
+        return Double.compare(exponent, -2.0d) == 0
+                || Double.compare(exponent, -1.0d) == 0
+                || Double.compare(exponent, 0.0d) == 0
+                || Double.compare(exponent, 1.0d) == 0
+                || Double.compare(exponent, 2.0d) == 0
+                || Double.compare(exponent, 0.5d) == 0;
     }
 
     private static boolean isContiguousLinear(FusedExternalInputPlan input) {

@@ -7,7 +7,6 @@ import backend.cpu.fused.numeric.FusedStorageKind;
 import backend.cpu.fused.ir.FusedExternalInputPlan;
 
 import org.objectweb.asm.MethodVisitor;
-import org.objectweb.asm.Label;
 import tensor.DataType;
 import tensor.Tensor;
 import utils.SlotKey;
@@ -138,7 +137,7 @@ public final class FusedInputBindingEmitter {
             if (!meta.usesCursor()) {
                 continue;
             }
-            if (memorySegmentStorage && isZeroStrideBroadcast(meta)) {
+            if (isZeroStrideBroadcast(meta)) {
                 continue;
             }
             mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_START));
@@ -166,56 +165,14 @@ public final class FusedInputBindingEmitter {
             int vectorWidth
     ) {
         List<Integer> inputSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS);
-        List<Integer> continuationSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_CONTINUATION_ARRAYS);
         List<Integer> cachedInputVectorSlots = sm.getGroup(SlotKey.CLUSTER_INTERMEDIATES_ARRAYS);
-        List<Integer> cursorSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS);
         boolean memorySegmentStorage = context.numericContract().inputStorageKind() == FusedStorageKind.CPU_MEMORY_SEGMENT;
 
         for (int i = 0; i < inputCount; i++) {
             FusedExternalInputPlan meta = inputAccess.get(i);
             if (meta.dataType() == DataType.BOOL) {
-                if (memorySegmentStorage) {
-                    throw new UnsupportedOperationException("BOOL MemorySegment vector loads are not supported for fused execution.");
-                }
-                if (meta.isLinearAccess()) {
-                    mv.visitVarInsn(ALOAD, inputSlots.get(i));
-                    mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
-                    if (meta.storageOffset() != 0) {
-                        mv.visitLdcInsn(meta.storageOffset());
-                        mv.visitInsn(IADD);
-                    }
-                    FusedVectorBytecode.emitVectorWidthConstant(mv, vectorWidth);
-                    FusedRuntimeCalls.emitLoadBoolVectorFromArrayCall(mv, context.numericContract());
-                } else {
-                    mv.visitVarInsn(ALOAD, cursorSlots.get(i));
-                    mv.visitVarInsn(ALOAD, inputSlots.get(i));
-                    FusedVectorBytecode.emitVectorWidthConstant(mv, vectorWidth);
-                    FusedRuntimeCalls.emitLoadBoolVectorFromCursorCall(mv, context.numericContract());
-                }
+                FusedRuntimeCalls.emitLoadBoolVectorFromArrayCall(mv, context.numericContract());
             } else {
-                Label storeLoadedVector = null;
-                if (meta.dataType() == DataType.BFLOAT16 && !context.numericContract().usesDoubleCompute()) {
-                    Label loadFromStorage = new Label();
-                    storeLoadedVector = new Label();
-                    mv.visitVarInsn(ALOAD, continuationSlots.get(i));
-                    mv.visitJumpInsn(IFNULL, loadFromStorage);
-                    if (meta.isLinearAccess()) {
-                        mv.visitVarInsn(ALOAD, continuationSlots.get(i));
-                        mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
-                        if (meta.storageOffset() != 0) {
-                            mv.visitLdcInsn(meta.storageOffset());
-                            mv.visitInsn(IADD);
-                        }
-                        FusedRuntimeCalls.emitDirectLinearVectorLoad(mv, DataType.FLOAT32, context.numericContract(), vectorWidth);
-                    } else {
-                        mv.visitVarInsn(ALOAD, cursorSlots.get(i));
-                        mv.visitVarInsn(ALOAD, continuationSlots.get(i));
-                        FusedVectorBytecode.emitVectorWidthConstant(mv, vectorWidth);
-                        FusedRuntimeCalls.emitLoadVectorFromContinuationCursorCall(mv, context.numericContract());
-                    }
-                    mv.visitJumpInsn(GOTO, storeLoadedVector);
-                    mv.visitLabel(loadFromStorage);
-                }
                 if (meta.isLinearAccess()) {
                     mv.visitVarInsn(ALOAD, inputSlots.get(i));
                     mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
@@ -225,11 +182,8 @@ public final class FusedInputBindingEmitter {
                     }
                     if (memorySegmentStorage) {
                         FusedRuntimeCalls.emitDirectLinearSegmentVectorLoad(mv, context.numericContract(), vectorWidth);
-                    } else if (!context.numericContract().writesBf16()) {
-                        FusedRuntimeCalls.emitDirectLinearVectorLoad(mv, meta.dataType(), context.numericContract(), vectorWidth);
                     } else {
-                        FusedVectorBytecode.emitVectorWidthConstant(mv, vectorWidth);
-                        FusedRuntimeCalls.emitLoadVectorFromArrayCall(mv, meta.dataType(), context.numericContract());
+                        FusedRuntimeCalls.emitDirectLinearVectorLoad(mv, meta.dataType(), context.numericContract(), vectorWidth);
                     }
                 } else {
                     if (memorySegmentStorage) {
@@ -247,14 +201,15 @@ public final class FusedInputBindingEmitter {
                                 vectorWidth
                         );
                     } else {
-                        mv.visitVarInsn(ALOAD, cursorSlots.get(i));
                         mv.visitVarInsn(ALOAD, inputSlots.get(i));
-                        FusedVectorBytecode.emitVectorWidthConstant(mv, vectorWidth);
-                        FusedRuntimeCalls.emitLoadVectorFromCursorCall(mv, meta.dataType(), context.numericContract());
+                        mv.visitLdcInsn(meta.storageOffset());
+                        FusedRuntimeCalls.emitBroadcastArrayVectorLoad(
+                                mv,
+                                meta.dataType(),
+                                context.numericContract(),
+                                vectorWidth
+                        );
                     }
-                }
-                if (storeLoadedVector != null) {
-                    mv.visitLabel(storeLoadedVector);
                 }
             }
             mv.visitVarInsn(ASTORE, cachedInputVectorSlots.get(i));

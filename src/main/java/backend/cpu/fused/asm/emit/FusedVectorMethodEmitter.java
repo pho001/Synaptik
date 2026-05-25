@@ -84,7 +84,14 @@ public final class FusedVectorMethodEmitter {
 
         for (FusedNodePlan node : plan.nodes()) {
             FusedVectorExpressionEmitter.emitNodeEvaluationBytecode(
-                    mv, plan, node, nodeVectorSlots, sm, context.numericContract(), context.approximationContract()
+                    mv,
+                    plan,
+                    node,
+                    nodeVectorSlots,
+                    sm,
+                    context.numericContract(),
+                    context.approximationContract(),
+                    context.vectorWidth()
             );
             mv.visitVarInsn(ASTORE, nodeVectorSlots[node.index()]);
         }
@@ -100,8 +107,7 @@ public final class FusedVectorMethodEmitter {
             mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
             mv.visitVarInsn(ALOAD, nodeVectorSlots[plan.outputRef() - plan.inputCount()]);
             if (plan.outputNode().outputType() == tensor.DataType.BOOL) {
-                FusedVectorBytecode.emitVectorWidthConstant(mv, context.vectorWidth());
-                FusedRuntimeCalls.emitStoreBoolVectorToArrayCall(mv, context.numericContract());
+                throw new UnsupportedOperationException("BOOL vector outputs must be scalar-blocked before bytecode generation.");
             } else if (!context.numericContract().writesBf16()) {
                 FusedRuntimeCalls.emitDirectStoreVectorToArrayCall(mv, context.numericContract());
             } else {
@@ -142,15 +148,7 @@ public final class FusedVectorMethodEmitter {
     }
 
     private static boolean supportsVector(FusedGenerationContext context, FusedExpressionPlan plan) {
-        if (context.numericContract().usesMemorySegmentStorage()) {
-            return FusedVectorGuard.supportsMemorySegmentVectorAsm(context.numericContract(), plan);
-        }
-        for (FusedNodePlan node : plan.nodes()) {
-            if (node.opType() == operations.Operation.OpType.POW_TENSOR) {
-                return false;
-            }
-        }
-        return true;
+        return FusedVectorGuard.supportsAllocationFreeVectorPath(context.numericContract(), plan);
     }
 
     private static void emitScalarDelegate(MethodVisitor mv, FusedGenerationContext context) {

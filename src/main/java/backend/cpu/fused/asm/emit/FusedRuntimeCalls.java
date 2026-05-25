@@ -1,8 +1,11 @@
 package backend.cpu.fused.asm.emit;
 
 import backend.cpu.fused.numeric.FusedNumericContract;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import tensor.DataType;
+import utils.SlotKey;
+import utils.SlotManager;
 
 import static org.objectweb.asm.Opcodes.*;
 
@@ -43,21 +46,25 @@ final class FusedRuntimeCalls {
     static void emitLoadScalarFromSegmentCall(MethodVisitor mv, DataType dataType, FusedNumericContract numericContract) {
         switch (dataType) {
             case FLOAT32 -> {
-                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadScalarF32Segment", "(Ljava/lang/foreign/MemorySegment;I)F", false);
+                emitElementIndexToByteOffset(mv, Float.BYTES);
+                emitSegmentGet(mv, "JAVA_FLOAT", "Ljava/lang/foreign/ValueLayout$OfFloat;", "F");
                 if (numericContract.usesDoubleCompute()) {
                     mv.visitInsn(F2D);
                 }
             }
             case FLOAT64 -> {
-                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadScalarF64Segment", "(Ljava/lang/foreign/MemorySegment;I)D", false);
+                emitElementIndexToByteOffset(mv, Double.BYTES);
+                emitSegmentGet(mv, "JAVA_DOUBLE", "Ljava/lang/foreign/ValueLayout$OfDouble;", "D");
                 if (numericContract.usesFloatCompute()) {
                     mv.visitInsn(D2F);
                 }
             }
             case BFLOAT16 -> {
-                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadScalarBF16Segment", "(Ljava/lang/foreign/MemorySegment;I)D", false);
-                if (numericContract.usesFloatCompute()) {
-                    mv.visitInsn(D2F);
+                emitElementIndexToByteOffset(mv, Short.BYTES);
+                emitSegmentGet(mv, "JAVA_SHORT", "Ljava/lang/foreign/ValueLayout$OfShort;", "S");
+                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/kernels/CpuDTypeOps", "fromBFloat16Bits", "(S)F", false);
+                if (numericContract.usesDoubleCompute()) {
+                    mv.visitInsn(F2D);
                 }
             }
             case BOOL -> emitLoadBoolFromSegmentCall(mv);
@@ -66,51 +73,69 @@ final class FusedRuntimeCalls {
     }
 
     static void emitLoadBoolFromSegmentCall(MethodVisitor mv) {
-        mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadScalarBoolSegment", "(Ljava/lang/foreign/MemorySegment;I)I", false);
+        emitElementIndexToByteOffset(mv, Byte.BYTES);
+        emitSegmentGet(mv, "JAVA_BYTE", "Ljava/lang/foreign/ValueLayout$OfByte;", "B");
+        Label zero = new Label();
+        Label done = new Label();
+        mv.visitJumpInsn(IFEQ, zero);
+        mv.visitInsn(ICONST_1);
+        mv.visitJumpInsn(GOTO, done);
+        mv.visitLabel(zero);
+        mv.visitInsn(ICONST_0);
+        mv.visitLabel(done);
     }
 
-    static void emitStoreScalarToSegmentCall(MethodVisitor mv, DataType dataType, FusedNumericContract numericContract) {
+    static void emitStoreScalarToSegmentCall(
+            MethodVisitor mv,
+            DataType dataType,
+            FusedNumericContract numericContract,
+            SlotManager sm
+    ) {
+        int tmp = sm.get(SlotKey.TMP_REGISTER);
         switch (dataType) {
             case FLOAT32 -> {
                 if (numericContract.usesDoubleCompute()) {
                     mv.visitInsn(D2F);
                 }
-                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "storeScalarF32Segment", "(Ljava/lang/foreign/MemorySegment;IF)V", false);
+                mv.visitVarInsn(FSTORE, tmp);
+                emitElementIndexToByteOffset(mv, Float.BYTES);
+                emitSegmentSetPrefix(mv, "JAVA_FLOAT", "Ljava/lang/foreign/ValueLayout$OfFloat;");
+                mv.visitVarInsn(FLOAD, tmp);
+                emitSegmentSet(mv, "Ljava/lang/foreign/ValueLayout$OfFloat;", "F");
             }
             case FLOAT64 -> {
                 if (numericContract.usesFloatCompute()) {
                     mv.visitInsn(F2D);
                 }
-                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "storeScalarF64Segment", "(Ljava/lang/foreign/MemorySegment;ID)V", false);
+                mv.visitVarInsn(DSTORE, tmp);
+                emitElementIndexToByteOffset(mv, Double.BYTES);
+                emitSegmentSetPrefix(mv, "JAVA_DOUBLE", "Ljava/lang/foreign/ValueLayout$OfDouble;");
+                mv.visitVarInsn(DLOAD, tmp);
+                emitSegmentSet(mv, "Ljava/lang/foreign/ValueLayout$OfDouble;", "D");
             }
             case BFLOAT16 -> {
-                if (numericContract.usesFloatCompute()) {
-                    mv.visitInsn(F2D);
+                if (numericContract.usesDoubleCompute()) {
+                    mv.visitInsn(D2F);
                 }
-                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "storeScalarBF16Segment", "(Ljava/lang/foreign/MemorySegment;ID)V", false);
+                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/kernels/CpuDTypeOps", "toBFloat16Bits", "(F)S", false);
+                mv.visitVarInsn(ISTORE, tmp);
+                emitElementIndexToByteOffset(mv, Short.BYTES);
+                emitSegmentSetPrefix(mv, "JAVA_SHORT", "Ljava/lang/foreign/ValueLayout$OfShort;");
+                mv.visitVarInsn(ILOAD, tmp);
+                emitSegmentSet(mv, "Ljava/lang/foreign/ValueLayout$OfShort;", "S");
             }
-            case BOOL -> mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "storeScalarBoolSegment", "(Ljava/lang/foreign/MemorySegment;II)V", false);
+            case BOOL -> {
+                mv.visitVarInsn(ISTORE, tmp);
+                emitElementIndexToByteOffset(mv, Byte.BYTES);
+                emitSegmentSetPrefix(mv, "JAVA_BYTE", "Ljava/lang/foreign/ValueLayout$OfByte;");
+                mv.visitVarInsn(ILOAD, tmp);
+                emitSegmentSet(mv, "Ljava/lang/foreign/ValueLayout$OfByte;", "B");
+            }
             case INT32, INT64 -> throw new UnsupportedOperationException("INT32/INT64 segment scalar stores are not supported for fused execution.");
         }
     }
 
-    static void emitLoadVectorFromArrayCall(MethodVisitor mv, DataType dataType, FusedNumericContract numericContract) {
-        switch (dataType) {
-            case FLOAT32 -> mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadVectorF32Array", "([FII)Ljdk/incubator/vector/FloatVector;", false);
-            case FLOAT64 -> mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadVectorF64Array", "([DII)Ljdk/incubator/vector/DoubleVector;", false);
-            case BFLOAT16 -> mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadVectorBF16Array", "([SII)Ljava/lang/Object;", false);
-            case BOOL, INT32, INT64 -> throw new UnsupportedOperationException(
-                    dataType + " vector array load is not supported for fused numeric values."
-            );
-        }
-    }
-
     static void emitDirectLinearVectorLoad(MethodVisitor mv, DataType dataType, FusedNumericContract numericContract, int vectorWidth) {
-        if (dataType == DataType.BFLOAT16) {
-            FusedVectorBytecode.emitVectorWidthConstant(mv, vectorWidth);
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadVectorBF16Array", "([SII)Ljava/lang/Object;", false);
-            return;
-        }
         FusedVectorBytecode.emitVectorSpeciesConstant(mv, numericContract, vectorWidth);
         mv.visitInsn(DUP_X2);
         mv.visitInsn(POP);
@@ -120,6 +145,38 @@ final class FusedRuntimeCalls {
             mv.visitMethodInsn(INVOKESTATIC, "jdk/incubator/vector/DoubleVector", "fromArray", "(Ljdk/incubator/vector/VectorSpecies;[DI)Ljdk/incubator/vector/DoubleVector;", false);
         } else {
             throw new UnsupportedOperationException("Direct vector loads require storage dtype to match fused compute kind.");
+        }
+    }
+
+    static void emitBroadcastArrayVectorLoad(
+            MethodVisitor mv,
+            DataType dataType,
+            FusedNumericContract numericContract,
+            int vectorWidth
+    ) {
+        FusedVectorBytecode.emitVectorSpeciesConstant(mv, numericContract, vectorWidth);
+        mv.visitInsn(DUP_X2);
+        mv.visitInsn(POP);
+        if (dataType == DataType.FLOAT32 && numericContract.usesFloatCompute()) {
+            mv.visitInsn(FALOAD);
+            mv.visitMethodInsn(
+                    INVOKESTATIC,
+                    "jdk/incubator/vector/FloatVector",
+                    "broadcast",
+                    "(Ljdk/incubator/vector/VectorSpecies;F)Ljdk/incubator/vector/FloatVector;",
+                    false
+            );
+        } else if (dataType == DataType.FLOAT64 && numericContract.usesDoubleCompute()) {
+            mv.visitInsn(DALOAD);
+            mv.visitMethodInsn(
+                    INVOKESTATIC,
+                    "jdk/incubator/vector/DoubleVector",
+                    "broadcast",
+                    "(Ljdk/incubator/vector/VectorSpecies;D)Ljdk/incubator/vector/DoubleVector;",
+                    false
+            );
+        } else {
+            throw new UnsupportedOperationException("Broadcast vector loads require storage dtype to match fused compute kind.");
         }
     }
 
@@ -173,75 +230,7 @@ final class FusedRuntimeCalls {
     }
 
     static void emitLoadBoolVectorFromArrayCall(MethodVisitor mv, FusedNumericContract numericContract) {
-        if (numericContract.usesFloatCompute()) {
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadMaskF32Array", "([BII)Ljava/lang/Object;", false);
-        } else {
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadMaskF64Array", "([BII)Ljava/lang/Object;", false);
-        }
-    }
-
-    static void emitLoadVectorFromCursorCall(MethodVisitor mv, DataType dataType, FusedNumericContract numericContract) {
-        if (dataType == DataType.FLOAT32 && numericContract.usesFloatCompute()) {
-            mv.visitMethodInsn(
-                    INVOKESTATIC,
-                    "backend/cpu/fused/runtime/FusedBroadcastVectorOps",
-                    "loadVectorF32",
-                    "(Lbackend/cpu/fused/runtime/FusedBroadcastCursor;[FI)Ljdk/incubator/vector/FloatVector;",
-                    false
-            );
-        } else if (dataType == DataType.FLOAT64 && numericContract.usesDoubleCompute()) {
-            mv.visitMethodInsn(
-                    INVOKESTATIC,
-                    "backend/cpu/fused/runtime/FusedBroadcastVectorOps",
-                    "loadVectorF64",
-                    "(Lbackend/cpu/fused/runtime/FusedBroadcastCursor;[DI)Ljdk/incubator/vector/DoubleVector;",
-                    false
-            );
-        } else if (dataType == DataType.BFLOAT16) {
-            mv.visitMethodInsn(
-                    INVOKESTATIC,
-                    "backend/cpu/fused/runtime/FusedBroadcastVectorOps",
-                    "loadVectorBF16",
-                    "(Lbackend/cpu/fused/runtime/FusedBroadcastCursor;[SI)Ljava/lang/Object;",
-                    false
-            );
-        } else {
-            throw new UnsupportedOperationException("Cursor vector loads require storage dtype to match fused compute kind.");
-        }
-    }
-
-    static void emitLoadVectorFromContinuationCursorCall(MethodVisitor mv, FusedNumericContract numericContract) {
-        if (numericContract.usesFloatCompute()) {
-            mv.visitMethodInsn(
-                    INVOKESTATIC,
-                    "backend/cpu/fused/runtime/FusedBroadcastVectorOps",
-                    "loadVectorF32",
-                    "(Lbackend/cpu/fused/runtime/FusedBroadcastCursor;[FI)Ljdk/incubator/vector/FloatVector;",
-                    false
-            );
-            return;
-        }
-        throw new UnsupportedOperationException("Continuation cursor vector loads are supported only for F32 fused compute.");
-    }
-
-    static void emitLoadBoolVectorFromCursorCall(MethodVisitor mv, FusedNumericContract numericContract) {
-        if (numericContract.usesFloatCompute()) {
-            mv.visitMethodInsn(
-                    INVOKESTATIC,
-                    "backend/cpu/fused/runtime/FusedBroadcastVectorOps",
-                    "loadMaskF32",
-                    "(Lbackend/cpu/fused/runtime/FusedBroadcastCursor;[BI)Ljava/lang/Object;",
-                    false
-            );
-        } else {
-            mv.visitMethodInsn(
-                    INVOKESTATIC,
-                    "backend/cpu/fused/runtime/FusedBroadcastVectorOps",
-                    "loadMaskF64",
-                    "(Lbackend/cpu/fused/runtime/FusedBroadcastCursor;[BI)Ljava/lang/Object;",
-                    false
-            );
-        }
+        throw new UnsupportedOperationException("BOOL vector loads must be scalar-blocked before bytecode generation.");
     }
 
     static void emitStoreVectorToArrayCall(MethodVisitor mv, DataType dataType, FusedNumericContract numericContract) {
@@ -255,8 +244,6 @@ final class FusedRuntimeCalls {
             mv.visitInsn(DUP_X2);
             mv.visitInsn(POP);
             mv.visitMethodInsn(INVOKEVIRTUAL, "jdk/incubator/vector/DoubleVector", "intoArray", "([DI)V", false);
-        } else if (dataType == DataType.BFLOAT16) {
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "storeVectorBF16Array", "([SILjava/lang/Object;)V", false);
         } else {
             throw new UnsupportedOperationException(dataType + " vector array store is not supported for fused numeric values.");
         }
@@ -301,11 +288,7 @@ final class FusedRuntimeCalls {
     }
 
     static void emitStoreBoolVectorToArrayCall(MethodVisitor mv, FusedNumericContract numericContract) {
-        if (numericContract.usesFloatCompute()) {
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "storeMaskF32Array", "([BILjava/lang/Object;I)V", false);
-        } else {
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "storeMaskF64Array", "([BILjava/lang/Object;I)V", false);
-        }
+        throw new UnsupportedOperationException("BOOL vector stores must be scalar-blocked before bytecode generation.");
     }
 
     static String vectorTypeDesc(FusedNumericContract numericContract) {
@@ -319,8 +302,41 @@ final class FusedRuntimeCalls {
     }
 
     private static void emitElementIndexToByteOffset(MethodVisitor mv, FusedNumericContract numericContract) {
+        emitElementIndexToByteOffset(mv, numericContract.usesDoubleCompute() ? Double.BYTES : Float.BYTES);
+    }
+
+    private static void emitElementIndexToByteOffset(MethodVisitor mv, int bytesPerElement) {
         mv.visitInsn(I2L);
-        mv.visitLdcInsn(numericContract.usesDoubleCompute() ? (long) Double.BYTES : (long) Float.BYTES);
+        mv.visitLdcInsn((long) bytesPerElement);
         mv.visitInsn(LMUL);
+    }
+
+    private static void emitSegmentGet(MethodVisitor mv, String layoutField, String layoutDesc, String valueDesc) {
+        mv.visitFieldInsn(GETSTATIC, "java/lang/foreign/ValueLayout", layoutField, layoutDesc);
+        mv.visitInsn(DUP_X2);
+        mv.visitInsn(POP);
+        mv.visitMethodInsn(
+                INVOKEINTERFACE,
+                "java/lang/foreign/MemorySegment",
+                "get",
+                "(" + layoutDesc + "J)" + valueDesc,
+                true
+        );
+    }
+
+    private static void emitSegmentSetPrefix(MethodVisitor mv, String layoutField, String layoutDesc) {
+        mv.visitFieldInsn(GETSTATIC, "java/lang/foreign/ValueLayout", layoutField, layoutDesc);
+        mv.visitInsn(DUP_X2);
+        mv.visitInsn(POP);
+    }
+
+    private static void emitSegmentSet(MethodVisitor mv, String layoutDesc, String valueDesc) {
+        mv.visitMethodInsn(
+                INVOKEINTERFACE,
+                "java/lang/foreign/MemorySegment",
+                "set",
+                "(" + layoutDesc + "J" + valueDesc + ")V",
+                true
+        );
     }
 }

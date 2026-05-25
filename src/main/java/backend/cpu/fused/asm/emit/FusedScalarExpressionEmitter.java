@@ -86,72 +86,62 @@ public final class FusedScalarExpressionEmitter {
                 break;
             case LOG:
                 if (numericContract.usesFloatCompute()) {
-                    mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedScalarOps", "logF32", "(F)F", false);
+                    mv.visitInsn(F2D);
+                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "log", "(D)D", false);
+                    mv.visitInsn(D2F);
                 } else {
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "log", "(D)D", false);
                 }
                 break;
             case EXP:
-                if (numericContract.usesFloatCompute()) {
-                    mv.visitMethodInsn(
-                            INVOKESTATIC,
-                            "backend/cpu/fused/runtime/FusedScalarOps",
-                            approximationContract.useFastExp() ? "fastExpF32" : "expF32",
-                            "(F)F",
-                            false
-                    );
+                if (approximationContract.useFastExp()) {
+                    if (numericContract.usesFloatCompute()) {
+                        mv.visitMethodInsn(INVOKESTATIC, "utils/FastTranscendentals", "fastExpF32", "(F)F", false);
+                    } else {
+                        mv.visitMethodInsn(INVOKESTATIC, "utils/FastTranscendentals", "fastExpF64", "(D)D", false);
+                    }
+                } else if (numericContract.usesFloatCompute()) {
+                    mv.visitInsn(F2D);
+                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "exp", "(D)D", false);
+                    mv.visitInsn(D2F);
                 } else {
-                    mv.visitMethodInsn(
-                            INVOKESTATIC,
-                            "backend/cpu/fused/runtime/FusedScalarOps",
-                            approximationContract.useFastExp() ? "fastExpF64" : "expF64",
-                            "(D)D",
-                            false
-                    );
+                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "exp", "(D)D", false);
                 }
                 break;
             case FAST_EXP:
                 if (numericContract.usesFloatCompute()) {
-                    mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedScalarOps", "fastExpF32", "(F)F", false);
+                    mv.visitMethodInsn(INVOKESTATIC, "utils/FastTranscendentals", "fastExpF32", "(F)F", false);
                 } else {
-                    mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedScalarOps", "fastExpF64", "(D)D", false);
+                    mv.visitMethodInsn(INVOKESTATIC, "utils/FastTranscendentals", "fastExpF64", "(D)D", false);
                 }
                 break;
             case TANH:
-                if (numericContract.usesFloatCompute()) {
-                    mv.visitMethodInsn(
-                            INVOKESTATIC,
-                            "backend/cpu/fused/runtime/FusedScalarOps",
-                            approximationContract.useFastTanh() ? "fastTanhF32" : "tanhF32",
-                            "(F)F",
-                            false
-                    );
+                if (approximationContract.useFastTanh()) {
+                    if (numericContract.usesFloatCompute()) {
+                        mv.visitMethodInsn(INVOKESTATIC, "utils/FastTranscendentals", "fastTanhF32", "(F)F", false);
+                    } else {
+                        mv.visitMethodInsn(INVOKESTATIC, "utils/FastTranscendentals", "fastTanhF64", "(D)D", false);
+                    }
+                } else if (numericContract.usesFloatCompute()) {
+                    mv.visitInsn(F2D);
+                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "tanh", "(D)D", false);
+                    mv.visitInsn(D2F);
                 } else {
-                    mv.visitMethodInsn(
-                            INVOKESTATIC,
-                            "backend/cpu/fused/runtime/FusedScalarOps",
-                            approximationContract.useFastTanh() ? "fastTanhF64" : "tanhF64",
-                            "(D)D",
-                            false
-                    );
+                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "tanh", "(D)D", false);
                 }
                 break;
             case FAST_TANH:
                 if (numericContract.usesFloatCompute()) {
-                    mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedScalarOps", "fastTanhF32", "(F)F", false);
+                    mv.visitMethodInsn(INVOKESTATIC, "utils/FastTranscendentals", "fastTanhF32", "(F)F", false);
                 } else {
-                    mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedScalarOps", "fastTanhF64", "(D)D", false);
+                    mv.visitMethodInsn(INVOKESTATIC, "utils/FastTranscendentals", "fastTanhF64", "(D)D", false);
                 }
                 break;
             case POW:
                 FusedScalarBytecode.handlePow(mv, ((ScalarDoubleAttribute) current.attributes()).value(), sm, numericContract);
                 break;
             case POW_TENSOR:
-                if (numericContract.usesFloatCompute()) {
-                    mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedScalarOps", "powF32", "(FF)F", false);
-                } else {
-                    mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedScalarOps", "powF64", "(DD)D", false);
-                }
+                FusedScalarBytecode.handlePowTensor(mv, sm, numericContract);
                 break;
             case SQRT:
                 if (numericContract.usesFloatCompute()) {

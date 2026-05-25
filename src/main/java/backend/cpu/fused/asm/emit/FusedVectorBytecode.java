@@ -40,80 +40,52 @@ final class FusedVectorBytecode {
     }
 
     static void emitVectorBinaryOpCall(MethodVisitor mv, String op, FusedNumericContract numericContract) {
-        if (numericContract.writesBf16()) {
-            String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + "BF16", "(" + vd + vd + ")" + vd, false);
-            return;
-        }
         String suffix = numericContract.usesFloatCompute() ? "F32" : "F64";
         String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
         mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + suffix, "(" + vd + vd + ")" + vd, false);
     }
 
     static void emitVectorCompareOpCall(MethodVisitor mv, String op, FusedNumericContract numericContract) {
-        if (numericContract.writesBf16()) {
-            String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + "BF16", "(" + vd + vd + ")" + FusedRuntimeCalls.maskTypeDesc(), false);
-            return;
-        }
         String suffix = numericContract.usesFloatCompute() ? "F32" : "F64";
         String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
         mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + suffix, "(" + vd + vd + ")" + FusedRuntimeCalls.maskTypeDesc(), false);
     }
 
     static void emitVectorLogicalBinaryOpCall(MethodVisitor mv, String op, FusedNumericContract numericContract) {
-        if (numericContract.writesBf16()) {
-            String md = FusedRuntimeCalls.maskTypeDesc();
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + "BF16", "(" + md + md + ")" + md, false);
-            return;
-        }
         String suffix = numericContract.usesFloatCompute() ? "F32" : "F64";
         String md = FusedRuntimeCalls.maskTypeDesc();
         mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + suffix, "(" + md + md + ")" + md, false);
     }
 
     static void emitVectorLogicalUnaryOpCall(MethodVisitor mv, String op, FusedNumericContract numericContract) {
-        if (numericContract.writesBf16()) {
-            String md = FusedRuntimeCalls.maskTypeDesc();
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + "BF16", "(" + md + ")" + md, false);
-            return;
-        }
         String suffix = numericContract.usesFloatCompute() ? "F32" : "F64";
         String md = FusedRuntimeCalls.maskTypeDesc();
         mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + suffix, "(" + md + ")" + md, false);
     }
 
     static void emitVectorUnaryOpCall(MethodVisitor mv, String op, FusedNumericContract numericContract) {
-        if (numericContract.writesBf16()) {
-            String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + "BF16", "(" + vd + ")" + vd, false);
-            return;
+        if ("inv".equals(op)) {
+            op = "reciprocal";
         }
         String suffix = numericContract.usesFloatCompute() ? "F32" : "F64";
         String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
         mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + suffix, "(" + vd + ")" + vd, false);
     }
 
-    static void emitVectorConstantCall(MethodVisitor mv, FusedNumericContract numericContract) {
-        if (numericContract.writesBf16()) {
-            String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "constantBF16", "(D)" + vd, false);
-            return;
-        }
+    static void emitVectorConstantCall(MethodVisitor mv, double value, FusedNumericContract numericContract, int vectorWidth) {
         String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
         if (numericContract.usesFloatCompute()) {
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "constantF32", "(F)" + vd, false);
+            emitVectorWidthConstant(mv, vectorWidth);
+            mv.visitLdcInsn((float) value);
+            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "constantF32", "(IF)" + vd, false);
         } else {
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "constantF64", "(D)" + vd, false);
+            emitVectorWidthConstant(mv, vectorWidth);
+            mv.visitLdcInsn(value);
+            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "constantF64", "(ID)" + vd, false);
         }
     }
 
     static void emitVectorMulScalarCall(MethodVisitor mv, FusedNumericContract numericContract) {
-        if (numericContract.writesBf16()) {
-            String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "mulScalarBF16", "(" + vd + "D)" + vd, false);
-            return;
-        }
         String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
         if (numericContract.usesFloatCompute()) {
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "mulScalarF32", "(" + vd + "F)" + vd, false);
@@ -122,26 +94,71 @@ final class FusedVectorBytecode {
         }
     }
 
-    static void emitVectorPowCall(MethodVisitor mv, FusedNumericContract numericContract) {
-        if (numericContract.writesBf16()) {
-            String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "powBF16", "(" + vd + "D)" + vd, false);
+    static void emitVectorPowSpecializedCall(
+            MethodVisitor mv,
+            double exponentValue,
+            FusedNumericContract numericContract,
+            int vectorWidth
+    ) {
+        String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
+        String suffix = numericContract.usesFloatCompute() ? "F32" : "F64";
+        if (numericContract.usesFloatCompute()) {
+            float exponent = (float) exponentValue;
+            if (Float.compare(exponent, -2.0f) == 0) {
+                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "reciprocalSquare" + suffix, "(" + vd + ")" + vd, false);
+                return;
+            }
+            if (Float.compare(exponent, -1.0f) == 0) {
+                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "reciprocal" + suffix, "(" + vd + ")" + vd, false);
+                return;
+            }
+            if (Float.compare(exponent, 0.0f) == 0) {
+                mv.visitInsn(POP);
+                emitVectorConstantCall(mv, 1.0d, numericContract, vectorWidth);
+                return;
+            }
+            if (Float.compare(exponent, 1.0f) == 0) {
+                return;
+            }
+            if (Float.compare(exponent, 2.0f) == 0) {
+                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "square" + suffix, "(" + vd + ")" + vd, false);
+                return;
+            }
+            if (Float.compare(exponent, 0.5f) == 0) {
+                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "sqrt" + suffix, "(" + vd + ")" + vd, false);
+                return;
+            }
+            throw new UnsupportedOperationException("Generic F32 vector POW must be blocked before bytecode generation.");
+        }
+        double exponent = exponentValue;
+        if (Double.compare(exponent, -2.0d) == 0) {
+            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "reciprocalSquare" + suffix, "(" + vd + ")" + vd, false);
             return;
         }
-        String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
-        if (numericContract.usesFloatCompute()) {
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "powF32", "(" + vd + "F)" + vd, false);
-        } else {
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "powF64", "(" + vd + "D)" + vd, false);
+        if (Double.compare(exponent, -1.0d) == 0) {
+            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "reciprocal" + suffix, "(" + vd + ")" + vd, false);
+            return;
         }
+        if (Double.compare(exponent, 0.0d) == 0) {
+            mv.visitInsn(POP);
+            emitVectorConstantCall(mv, 1.0d, numericContract, vectorWidth);
+            return;
+        }
+        if (Double.compare(exponent, 1.0d) == 0) {
+            return;
+        }
+        if (Double.compare(exponent, 2.0d) == 0) {
+            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "square" + suffix, "(" + vd + ")" + vd, false);
+            return;
+        }
+        if (Double.compare(exponent, 0.5d) == 0) {
+            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "sqrt" + suffix, "(" + vd + ")" + vd, false);
+            return;
+        }
+        throw new UnsupportedOperationException("Generic F64 vector POW must be blocked before bytecode generation.");
     }
 
     static void emitVectorClampCall(MethodVisitor mv, String op, FusedNumericContract numericContract) {
-        if (numericContract.writesBf16()) {
-            String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + "BF16", "(" + vd + "D)" + vd, false);
-            return;
-        }
         String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
         if (numericContract.usesFloatCompute()) {
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", op + "F32", "(" + vd + "F)" + vd, false);
@@ -151,12 +168,6 @@ final class FusedVectorBytecode {
     }
 
     static void emitVectorWhereCall(MethodVisitor mv, FusedNumericContract numericContract) {
-        if (numericContract.writesBf16()) {
-            String md = FusedRuntimeCalls.maskTypeDesc();
-            String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "whereBF16", "(" + md + vd + vd + ")" + vd, false);
-            return;
-        }
         String suffix = numericContract.usesFloatCompute() ? "F32" : "F64";
         String md = FusedRuntimeCalls.maskTypeDesc();
         String vd = FusedRuntimeCalls.vectorTypeDesc(numericContract);

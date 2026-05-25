@@ -22,7 +22,8 @@ public final class FusedVectorExpressionEmitter {
             int[] nodeVectorSlots,
             SlotManager sm,
             FusedNumericContract numericContract,
-            FusedApproximationContract approximationContract
+            FusedApproximationContract approximationContract,
+            int vectorWidth
     ) {
         for (int ref : current.inputRefs()) {
             FusedVectorBytecode.loadVectorRef(mv, ref, plan, nodeVectorSlots, sm, numericContract);
@@ -55,7 +56,7 @@ public final class FusedVectorExpressionEmitter {
             case RELU -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "relu", numericContract);
             case CLAMP_MIN -> {
                 double minValue = ((ScalarDoubleAttribute) current.attributes()).value();
-                if (numericContract.usesFloatCompute() && !numericContract.writesBf16()) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitLdcInsn((float) minValue);
                 } else {
                     mv.visitLdcInsn(minValue);
@@ -64,7 +65,7 @@ public final class FusedVectorExpressionEmitter {
             }
             case CLAMP_MAX -> {
                 double maxValue = ((ScalarDoubleAttribute) current.attributes()).value();
-                if (numericContract.usesFloatCompute() && !numericContract.writesBf16()) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitLdcInsn((float) maxValue);
                 } else {
                     mv.visitLdcInsn(maxValue);
@@ -75,12 +76,7 @@ public final class FusedVectorExpressionEmitter {
             case NOOP -> FusedVectorBytecode.emitVectorUnaryOpCall(mv, "noop", numericContract);
             case CONST_SCALAR -> {
                 double constant = ((ScalarDoubleAttribute) current.attributes()).value();
-                if (numericContract.usesFloatCompute() && !numericContract.writesBf16()) {
-                    mv.visitLdcInsn((float) constant);
-                } else {
-                    mv.visitLdcInsn(constant);
-                }
-                FusedVectorBytecode.emitVectorConstantCall(mv, numericContract);
+                FusedVectorBytecode.emitVectorConstantCall(mv, constant, numericContract, vectorWidth);
             }
             case GT -> FusedVectorBytecode.emitVectorCompareOpCall(mv, "gt", numericContract);
             case GE -> FusedVectorBytecode.emitVectorCompareOpCall(mv, "ge", numericContract);
@@ -94,7 +90,7 @@ public final class FusedVectorExpressionEmitter {
             case WHERE -> FusedVectorBytecode.emitVectorWhereCall(mv, numericContract);
             case MUL_SCALAR -> {
                 double scalar = ((ScalarDoubleAttribute) current.attributes()).value();
-                if (numericContract.usesFloatCompute() && !numericContract.writesBf16()) {
+                if (numericContract.usesFloatCompute()) {
                     mv.visitLdcInsn((float) scalar);
                 } else {
                     mv.visitLdcInsn(scalar);
@@ -103,12 +99,7 @@ public final class FusedVectorExpressionEmitter {
             }
             case POW -> {
                 double exponent = ((ScalarDoubleAttribute) current.attributes()).value();
-                if (numericContract.usesFloatCompute() && !numericContract.writesBf16()) {
-                    mv.visitLdcInsn((float) exponent);
-                } else {
-                    mv.visitLdcInsn(exponent);
-                }
-                FusedVectorBytecode.emitVectorPowCall(mv, numericContract);
+                FusedVectorBytecode.emitVectorPowSpecializedCall(mv, exponent, numericContract, vectorWidth);
             }
             default -> throw new UnsupportedOperationException("Operation " + opType + " is not supported for fused vector execution.");
         }

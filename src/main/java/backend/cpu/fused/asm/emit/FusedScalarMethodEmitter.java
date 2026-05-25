@@ -89,7 +89,7 @@ public final class FusedScalarMethodEmitter {
                         context.numericContract()
                 );
             }
-            FusedRuntimeCalls.emitStoreScalarToSegmentCall(mv, outputNode.outputType(), context.numericContract());
+            FusedRuntimeCalls.emitStoreScalarToSegmentCall(mv, outputNode.outputType(), context.numericContract(), sm);
         } else {
             mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
             mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));

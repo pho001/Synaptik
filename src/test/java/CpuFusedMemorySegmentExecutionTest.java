@@ -262,8 +262,10 @@ public class CpuFusedMemorySegmentExecutionTest {
         String constantPool = new String(bytecode, StandardCharsets.ISO_8859_1);
 
         assertEquals(1, vectorWidth);
-        assertTrue(constantPool.contains("loadScalarF32Segment"));
-        assertTrue(constantPool.contains("storeScalarF32Segment"));
+        assertTrue(constantPool.contains("java/lang/foreign/MemorySegment"));
+        assertTrue(constantPool.contains("JAVA_FLOAT"));
+        assertTrue(constantPool.contains("get"));
+        assertTrue(constantPool.contains("set"));
         assertFalse(constantPool.contains("fromMemorySegment"));
         assertFalse(constantPool.contains("intoMemorySegment"));
         assertNoArrayBackedSegmentBytecode(constantPool);
@@ -290,7 +292,8 @@ public class CpuFusedMemorySegmentExecutionTest {
         );
         String constantPool = new String(bytecode, StandardCharsets.ISO_8859_1);
 
-        assertTrue(constantPool.contains("loadScalarF32Segment"));
+        assertTrue(constantPool.contains("java/lang/foreign/MemorySegment"));
+        assertTrue(constantPool.contains("JAVA_FLOAT"));
         assertTrue(constantPool.contains("broadcast"));
         assertTrue(constantPool.contains("intoMemorySegment"));
         assertNoArrayBackedSegmentBytecode(constantPool);
@@ -374,8 +377,9 @@ public class CpuFusedMemorySegmentExecutionTest {
         String constantPool = new String(bytecode, StandardCharsets.ISO_8859_1);
 
         assertEquals(1, vectorWidth);
-        assertTrue(constantPool.contains("loadScalarBF16Segment"));
-        assertTrue(constantPool.contains("storeScalarBF16Segment"));
+        assertTrue(constantPool.contains("fromBFloat16Bits"));
+        assertTrue(constantPool.contains("toBFloat16Bits"));
+        assertTrue(constantPool.contains("JAVA_SHORT"));
         assertFalse(constantPool.contains("fromMemorySegment"));
         assertFalse(constantPool.contains("intoMemorySegment"));
         assertNoArrayBackedSegmentBytecode(constantPool);
@@ -435,8 +439,9 @@ public class CpuFusedMemorySegmentExecutionTest {
         String constantPool = new String(bytecode, StandardCharsets.ISO_8859_1);
 
         assertEquals(1, vectorWidth);
-        assertTrue(constantPool.contains("loadScalarF32Segment"));
-        assertTrue(constantPool.contains("storeScalarBoolSegment"));
+        assertTrue(constantPool.contains("java/lang/foreign/MemorySegment"));
+        assertTrue(constantPool.contains("JAVA_FLOAT"));
+        assertTrue(constantPool.contains("JAVA_BYTE"));
         assertFalse(constantPool.contains("storeMaskF32Array"));
         assertNoArrayBackedSegmentBytecode(constantPool);
     }
@@ -525,9 +530,9 @@ public class CpuFusedMemorySegmentExecutionTest {
         String constantPool = new String(bytecode, StandardCharsets.ISO_8859_1);
 
         assertEquals(1, vectorWidth);
-        assertTrue(constantPool.contains("loadScalarBoolSegment"));
-        assertTrue(constantPool.contains("loadScalarF32Segment"));
-        assertTrue(constantPool.contains("storeScalarF32Segment"));
+        assertTrue(constantPool.contains("java/lang/foreign/MemorySegment"));
+        assertTrue(constantPool.contains("JAVA_BYTE"));
+        assertTrue(constantPool.contains("JAVA_FLOAT"));
         assertFalse(constantPool.contains("loadMaskF32Array"));
         assertNoArrayBackedSegmentBytecode(constantPool);
     }
@@ -869,12 +874,12 @@ public class CpuFusedMemorySegmentExecutionTest {
     private static void assertScalarOnlySegmentTrace(RunTrace trace) {
         var fusedTrace = fusedTrace(trace);
         assertEquals(1, fusedTrace.metadata().dispatch().vectorWidth());
-        assertEquals("MEMORY_SEGMENT_SCALAR_ONLY", fusedTrace.metadata().fused().vectorBlockReason());
+        assertEquals("UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH", fusedTrace.metadata().fused().vectorBlockReason());
         assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedInputStorageKind"));
         assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedOutputStorageKind"));
         assertEquals(fusedTrace.metadata().fused().executionBackend(),
                 fusedTrace.metadata().attributes().get("fusedExecutionClass"));
-        assertEquals("MEMORY_SEGMENT_SCALAR_ONLY", fusedTrace.metadata().attributes().get("fusedVectorBlockReason"));
+        assertEquals("UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH", fusedTrace.metadata().attributes().get("fusedVectorBlockReason"));
         assertEquals(false, fusedTrace.metadata().attributes().get("fusedVectorEligible"));
         assertNativeOutputWriteTrace(fusedTrace);
     }

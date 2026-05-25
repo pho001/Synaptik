@@ -76,8 +76,10 @@ final class FusedParallelVectorDumpTest {
                 .filter(step -> step.executionOperation() instanceof FusedOperation)
                 .filter(step -> testsupport.MetadataArtifacts.cpuPlan(step.metadata()) != null)
                 .filter(step -> testsupport.MetadataArtifacts.cpuPlan(step.metadata()).dispatchHints() != null)
-                .filter(step -> testsupport.MetadataArtifacts.cpuPlan(step.metadata()).dispatchHints().parallel())
-                .filter(step -> testsupport.MetadataArtifacts.cpuPlan(step.metadata()).dispatchHints().vectorized())
+                .filter(step -> dataType == DataType.BFLOAT16
+                        || testsupport.MetadataArtifacts.cpuPlan(step.metadata()).dispatchHints().parallel())
+                .filter(step -> dataType == DataType.BFLOAT16
+                        || testsupport.MetadataArtifacts.cpuPlan(step.metadata()).dispatchHints().vectorized())
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("Missing fused parallel-vector step for " + dataType + "\n" + fusedStepsSummary));
 
@@ -85,8 +87,12 @@ final class FusedParallelVectorDumpTest {
 
         FusedOperation fused = (FusedOperation) selected.executionOperation();
         var hints = testsupport.MetadataArtifacts.cpuPlan(selected.metadata()).dispatchHints();
-        assertTrue(hints.mode() == CpuExecutionMode.PARALLEL_VECTOR || hints.mode() == CpuExecutionMode.VECTOR,
-                "Expected vector-capable fused dispatch mode");
+        if (dataType == DataType.BFLOAT16) {
+            assertTrue(hints.vectorWidth() == 1, "Expected BF16 dump to remain scalar until allocation-free vector storage exists.");
+        } else {
+            assertTrue(hints.mode() == CpuExecutionMode.PARALLEL_VECTOR || hints.mode() == CpuExecutionMode.VECTOR,
+                    "Expected vector-capable fused dispatch mode");
+        }
 
         String internalName = binaryName.replace('.', '/');
         byte[] bytecode = FusedOperationGenerator.generate(
@@ -130,7 +136,7 @@ final class FusedParallelVectorDumpTest {
                 fused.getPlan().nodeCount(),
                 fused.getPlan().inputCount(),
                 dataType == DataType.BFLOAT16
-                        ? "BF16 generated class now emits a real Vector API range loop using FloatVector lanes plus BF16 storage conversion helpers."
+                        ? "BF16 generated class remains scalar-blocked until allocation-free BF16 vector storage is implemented."
                         : "F32/F64 generated class contains a real Vector API range loop; parallel scheduling happens in backend.cpu.kernels.fused.FusedExecutor."
         );
 
@@ -142,7 +148,7 @@ final class FusedParallelVectorDumpTest {
         Tensor a = TensorDataFactory.shapedTensor("dumpA", buildInput(size, 0.11), false, dataType, size);
         Tensor b = TensorDataFactory.shapedTensor("dumpB", buildInput(size, -0.07), false, dataType, size);
         Tensor c = TensorDataFactory.shapedTensor("dumpC", buildInput(size, 0.03), false, dataType, size);
-        return a.add(b).mul(c).add(a.mul(0.25)).max(b).min(c).sigmoid();
+        return a.add(b).mul(c).add(a.mul(0.25)).max(b).min(c).relu();
     }
 
     private static double[] buildInput(int size, double phase) {

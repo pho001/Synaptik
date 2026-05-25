@@ -47,9 +47,10 @@ final class FusedScalarBytecode {
                 }
             }
             case BFLOAT16 -> {
-                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "loadScalarBF16Array", "([SI)D", false);
-                if (numericContract.usesFloatCompute()) {
-                    mv.visitInsn(D2F);
+                mv.visitInsn(SALOAD);
+                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/kernels/CpuDTypeOps", "fromBFloat16Bits", "(S)F", false);
+                if (numericContract.usesDoubleCompute()) {
+                    mv.visitInsn(F2D);
                 }
             }
             case BOOL, INT32, INT64 -> throw new UnsupportedOperationException(
@@ -73,10 +74,11 @@ final class FusedScalarBytecode {
                 mv.visitInsn(DASTORE);
             }
             case BFLOAT16 -> {
-                if (numericContract.usesFloatCompute()) {
-                    mv.visitInsn(F2D);
+                if (numericContract.usesDoubleCompute()) {
+                    mv.visitInsn(D2F);
                 }
-                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedStorageOps", "storeScalarBF16Array", "([SID)V", false);
+                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/kernels/CpuDTypeOps", "toBFloat16Bits", "(F)S", false);
+                mv.visitInsn(SASTORE);
             }
             case BOOL, INT32, INT64 -> throw new UnsupportedOperationException(
                     dataType + " scalar array store is not supported for fused numeric values."
@@ -107,6 +109,14 @@ final class FusedScalarBytecode {
             if (Float.compare(exponent, 1.0f) == 0) {
                 return;
             }
+            if (Float.compare(exponent, -2.0f) == 0) {
+                mv.visitInsn(DUP);
+                mv.visitInsn(FMUL);
+                mv.visitInsn(FCONST_1);
+                mv.visitInsn(SWAP);
+                mv.visitInsn(FDIV);
+                return;
+            }
             if (Float.compare(exponent, -1.0f) == 0) {
                 mv.visitInsn(FCONST_1);
                 mv.visitInsn(SWAP);
@@ -125,8 +135,10 @@ final class FusedScalarBytecode {
                 return;
             }
 
-            mv.visitLdcInsn(exponent);
-            mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedScalarOps", "powF32", "(FF)F", false);
+            mv.visitInsn(F2D);
+            mv.visitLdcInsn((double) exponent);
+            mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "pow", "(DD)D", false);
+            mv.visitInsn(D2F);
             return;
         }
 
@@ -137,6 +149,15 @@ final class FusedScalarBytecode {
             return;
         }
         if (Double.compare(exponent, 1.0d) == 0) {
+            return;
+        }
+        if (Double.compare(exponent, -2.0d) == 0) {
+            mv.visitInsn(DUP2);
+            mv.visitInsn(DMUL);
+            emitScalarStoreInsn(mv, sm.get(SlotKey.TMP_REGISTER), numericContract);
+            mv.visitInsn(DCONST_1);
+            emitScalarLoadInsn(mv, sm.get(SlotKey.TMP_REGISTER), numericContract);
+            mv.visitInsn(DDIV);
             return;
         }
         if (Double.compare(exponent, -1.0d) == 0) {
@@ -156,6 +177,20 @@ final class FusedScalarBytecode {
             return;
         }
         mv.visitLdcInsn(exponent);
+        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "pow", "(DD)D", false);
+    }
+
+    static void handlePowTensor(MethodVisitor mv, SlotManager sm, FusedNumericContract numericContract) {
+        if (numericContract.usesFloatCompute()) {
+            int exponentSlot = sm.get(SlotKey.TMP_REGISTER);
+            mv.visitVarInsn(FSTORE, exponentSlot);
+            mv.visitInsn(F2D);
+            mv.visitVarInsn(FLOAD, exponentSlot);
+            mv.visitInsn(F2D);
+            mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "pow", "(DD)D", false);
+            mv.visitInsn(D2F);
+            return;
+        }
         mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "pow", "(DD)D", false);
     }
 
