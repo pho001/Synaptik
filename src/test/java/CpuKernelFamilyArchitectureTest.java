@@ -14,6 +14,7 @@ import java.util.TreeSet;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CpuKernelFamilyArchitectureTest {
@@ -295,6 +296,31 @@ public class CpuKernelFamilyArchitectureTest {
                     .toList();
             assertTrue(offenders.isEmpty(), () -> "Wave 6 facts/parity stack leaked into runtime path " + root + ": " + offenders);
         }
+    }
+
+    @Test
+    void waveSevenFusedMemorySegmentBindingIsNotOwnedByCpuKernelContext() throws IOException {
+        String context = Files.readString(Path.of("src/main/java/backend/cpu/kernels/CpuKernelContext.java"));
+        assertFalse(context.contains("java.lang.foreign.MemorySegment"),
+                "CpuKernelContext must not import or expose MemorySegment for fused special cases.");
+        assertFalse(context.contains("bindFusedNativeSegments"),
+                "Fused MemorySegment binding lifecycle belongs under backend.cpu.fused.exec.");
+        assertFalse(context.contains("fusedNativeInputSegment"),
+                "Fused MemorySegment input access belongs under backend.cpu.fused.exec.");
+        assertFalse(context.contains("fusedNativeOutputSegment"),
+                "Fused MemorySegment output access belongs under backend.cpu.fused.exec.");
+        assertFalse(context.contains("fusedNativeOutputStorage"),
+                "Fused MemorySegment output storage access belongs under backend.cpu.fused.exec.");
+        assertFalse(context.contains("publishFusedNativeOutput"),
+                "Fused MemorySegment output publication belongs under backend.cpu.fused.exec.");
+        assertFalse(context.contains("clearFusedNativeBindings"),
+                "Fused MemorySegment binding cleanup belongs under backend.cpu.fused.exec.");
+
+        String bindings = Files.readString(Path.of("src/main/java/backend/cpu/fused/exec/FusedNativeSegmentBindings.java"));
+        assertTrue(bindings.contains("java.lang.foreign.MemorySegment"),
+                "Fused MemorySegment ownership must stay explicit in backend.cpu.fused.exec.");
+        assertTrue(bindings.contains("static FusedNativeSegmentBindings bind"),
+                "Fused MemorySegment binding lifecycle must have a fused-owned entrypoint.");
     }
 
     private static void assertPackage(Operation.OpType opType, String expectedPackage) {

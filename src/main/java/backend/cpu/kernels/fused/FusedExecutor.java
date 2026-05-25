@@ -1,6 +1,7 @@
 package backend.cpu.kernels.fused;
 
 import backend.cpu.kernels.CpuExecutionMode;
+import backend.cpu.fused.exec.FusedNativeSegmentBindings;
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.CpuKernelCostClass;
 import backend.cpu.kernels.CpuThreadPool;
@@ -39,7 +40,7 @@ final class FusedExecutor {
         long t0 = FusedExecutionProfiler.enabled() ? System.nanoTime() : 0L;
         boolean nativeSegments = fused.getNumericContract().usesMemorySegmentStorage();
         if (nativeSegments) {
-            context.bindFusedNativeSegments(inputs, node);
+            FusedNativeSegmentBindings.bind(context, inputs, node);
         }
         try {
             switch (mode) {
@@ -60,11 +61,11 @@ final class FusedExecutor {
                 case PARALLEL_VECTOR -> runParallel(executable, inputs, node, context, hints, recommendVector, fused, mode, costClass);
             }
             if (nativeSegments) {
-                context.publishFusedNativeOutput(node, "CPU fused MemorySegment wrote output");
+                FusedNativeSegmentBindings.publish(context);
             }
         } finally {
             if (nativeSegments) {
-                context.clearFusedNativeBindings(node);
+                FusedNativeSegmentBindings.clear(context, node);
             }
         }
     }

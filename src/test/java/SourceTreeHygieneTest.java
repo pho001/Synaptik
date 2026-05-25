@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class SourceTreeHygieneTest {
@@ -674,12 +675,19 @@ public class SourceTreeHygieneTest {
         String inputEmitter = Files.readString(Path.of("src/main/java/backend/cpu/fused/asm/emit/FusedInputBindingEmitter.java"));
         String outputEmitter = Files.readString(Path.of("src/main/java/backend/cpu/fused/asm/emit/FusedOutputBindingEmitter.java"));
         String vectorEmitter = Files.readString(Path.of("src/main/java/backend/cpu/fused/asm/emit/FusedVectorMethodEmitter.java"));
+        String runtimeCalls = Files.readString(Path.of("src/main/java/backend/cpu/fused/asm/emit/FusedRuntimeCalls.java"));
         String preparer = Files.readString(Path.of("src/main/java/backend/cpu/fused/exec/FusedExecutablePreparer.java"));
 
         assertTrue(inputEmitter.contains("emitGetNativeInputSegmentCall"),
-                "segment fused input binding must bind MemorySegment inputs through CpuKernelContext");
+                "segment fused input binding must use the explicit MemorySegment runtime call");
         assertTrue(outputEmitter.contains("emitGetNativeOutputSegmentCall"),
-                "segment fused output binding must bind MemorySegment output through CpuKernelContext");
+                "segment fused output binding must use the explicit MemorySegment runtime call");
+        assertTrue(runtimeCalls.contains("backend/cpu/fused/exec/FusedNativeSegmentBindings"),
+                "generated segment kernels must call the fused-owned MemorySegment binding boundary");
+        assertFalse(runtimeCalls.contains("fusedNativeInputSegment"),
+                "generated segment kernels must not call MemorySegment accessors on CpuKernelContext");
+        assertFalse(runtimeCalls.contains("fusedNativeOutputSegment"),
+                "generated segment kernels must not call MemorySegment accessors on CpuKernelContext");
         assertTrue(vectorEmitter.contains("FusedVectorGuard.supportsAllocationFreeVectorPath(context.numericContract(), plan)"),
                 "segment fused vector support must use the allocation-free vector guard shared with dispatch planning");
         assertTrue(preparer.contains("refusing Java-array interpreter fallback"),

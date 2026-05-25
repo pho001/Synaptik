@@ -2,6 +2,7 @@ import backend.ComputeBackend;
 import backend.cpu.CpuFusedExecutionArtifact;
 import backend.cpu.fused.asm.FusedAsmSpecializationKind;
 import backend.cpu.fused.asm.emit.FusedOperationGenerator;
+import backend.cpu.fused.exec.FusedNativeSegmentBindings;
 import backend.cpu.fused.exec.PreparedFusedExecutable;
 import backend.cpu.fused.plan.FusedOperation;
 import backend.cpu.fused.numeric.FusedStorageKind;
@@ -1100,7 +1101,7 @@ public class CpuFusedMemorySegmentExecutionTest {
     }
 
     private static void writePartialNativeOutput(backend.cpu.kernels.CpuKernelContext context) {
-        NativeTensorStorage output = context.fusedNativeOutputStorage();
+        NativeTensorStorage output = FusedNativeSegmentBindings.outputStorage(context);
         if (output instanceof NativeFloat32Storage f32 && output.getSize() > 0) {
             f32.setFloat32At(0, 123.0f);
         }

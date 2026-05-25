@@ -2,7 +2,6 @@ package backend.cpu.kernels;
 
 import backend.cpu.plan.CpuLayoutPlan;
 import backend.cpu.CpuFusedExecutionArtifact;
-import backend.cpu.fused.exec.FusedNativeSegmentBindings;
 import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
 import backend.cpu.kernels.layout.plan.ResolvedBroadcastPlan;
 import backend.cpu.kernels.layout.plan.ResolvedWhereBroadcastPlan;
@@ -17,9 +16,7 @@ import graph.execution.trace.ConvTraceMetadata;
 import backend.cpu.fused.exec.PreparedFusedExecutable;
 import operations.Operation;
 import tensor.Tensor;
-import tensor.storage.NativeTensorStorage;
 
-import java.lang.foreign.MemorySegment;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -160,91 +157,6 @@ public final class CpuKernelContext {
         return executionMetadata.artifact() instanceof CpuFusedExecutionArtifact artifact
                 ? artifact.fusedExecutable()
                 : null;
-    }
-
-    public FusedNativeSegmentBindings bindFusedNativeSegments(List<Tensor> inputs, Tensor output) {
-        Objects.requireNonNull(inputs, "inputs cannot be null");
-        Objects.requireNonNull(output, "output cannot be null");
-        if (inputs.size() != inputNodeIds.size()) {
-            throw new IllegalStateException("Fused native input count mismatch. tensors=" + inputs.size()
-                    + ", nodeIds=" + inputNodeIds.size());
-        }
-        ArrayList<NativeTensorStorage> inputStorages = new ArrayList<>(inputs.size());
-        for (int i = 0; i < inputs.size(); i++) {
-            NativeTensorStorage storage = executionContext.requireNativeReadable(
-                    inputNodeIds.get(i),
-                    backend.memory.CpuMaterializationReason.CPU_CONSUMER
-            );
-            Tensor input = inputs.get(i);
-            if (storage.getType() != input.getDataType()) {
-                throw new IllegalStateException("Fused native input dtype mismatch at index=" + i
-                        + ". tensorType=" + input.getDataType() + ", storageType=" + storage.getType());
-            }
-            inputStorages.add(storage);
-        }
-        NativeTensorStorage outputStorage = reusableFusedNativeOutputStorage(output);
-        if (outputStorage == null) {
-            outputStorage = executionContext.allocateNativeStorage(
-                    output.getDataType(),
-                    output.getFlatDataSize(),
-                    "fused-node-" + nodeId + ":" + output.getLabel()
-            );
-        }
-        executionContext.reserveNativeOutputStorage(nodeId, outputStorage);
-        FusedNativeSegmentBindings bindings = new FusedNativeSegmentBindings(inputStorages, outputStorage);
-        putRuntimeState(output, bindings);
-        return bindings;
-    }
-
-    private NativeTensorStorage reusableFusedNativeOutputStorage(Tensor output) {
-        NativeTensorStorage storage = executionContext.nativeStorageForNodeId(nodeId);
-        if (storage == null || storage.closed()) {
-            return null;
-        }
-        if (storage.getType() != output.getDataType() || storage.getSize() != output.getFlatDataSize()) {
-            return null;
-        }
-        if (!output.isContiguous() || output.getStorageOffsetUnsafe() != 0) {
-            return null;
-        }
-        storage.ensureOpen();
-        return storage;
-    }
-
-    public MemorySegment fusedNativeInputSegment(int inputIndex) {
-        return requireFusedNativeBindings().inputSegment(inputIndex);
-    }
-
-    public MemorySegment fusedNativeOutputSegment() {
-        return requireFusedNativeBindings().outputSegment();
-    }
-
-    public NativeTensorStorage fusedNativeOutputStorage() {
-        return requireFusedNativeBindings().output();
-    }
-
-    public void publishFusedNativeOutput(Tensor output, String reason) {
-        Objects.requireNonNull(output, "output cannot be null");
-        NativeTensorStorage storage = fusedNativeOutputStorage();
-        storage.markModified();
-        executionContext.attachNativeStorage(nodeId, storage, reason);
-    }
-
-    public void clearFusedNativeBindings(Tensor output) {
-        if (output != null) {
-            clearRuntimeState(output);
-        }
-    }
-
-    private FusedNativeSegmentBindings requireFusedNativeBindings() {
-        FusedNativeSegmentBindings bindings = runtimeStateFor(
-                executionContext.runtimeTensorForNodeId(nodeId),
-                FusedNativeSegmentBindings.class
-        );
-        if (bindings == null) {
-            throw new IllegalStateException("Missing fused native segment bindings for nodeId=" + nodeId);
-        }
-        return bindings;
     }
 
     public CpuNodeWorkspace cpuWorkspace() {

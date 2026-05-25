@@ -25,20 +25,20 @@ final class FusedRuntimeCalls {
 
     static void emitGetNativeInputSegmentCall(MethodVisitor mv) {
         mv.visitMethodInsn(
-                INVOKEVIRTUAL,
-                "backend/cpu/kernels/CpuKernelContext",
-                "fusedNativeInputSegment",
-                "(I)Ljava/lang/foreign/MemorySegment;",
+                INVOKESTATIC,
+                "backend/cpu/fused/exec/FusedNativeSegmentBindings",
+                "inputSegment",
+                "(Lbackend/cpu/kernels/CpuKernelContext;I)Ljava/lang/foreign/MemorySegment;",
                 false
         );
     }
 
     static void emitGetNativeOutputSegmentCall(MethodVisitor mv) {
         mv.visitMethodInsn(
-                INVOKEVIRTUAL,
-                "backend/cpu/kernels/CpuKernelContext",
-                "fusedNativeOutputSegment",
-                "()Ljava/lang/foreign/MemorySegment;",
+                INVOKESTATIC,
+                "backend/cpu/fused/exec/FusedNativeSegmentBindings",
+                "outputSegment",
+                "(Lbackend/cpu/kernels/CpuKernelContext;)Ljava/lang/foreign/MemorySegment;",
                 false
         );
     }
