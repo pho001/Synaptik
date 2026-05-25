@@ -1358,6 +1358,39 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void elementwiseArrayKernelsDoNotRestoreDtypePackages() throws IOException {
+        List<String> legacyPackageSuffixes = List.of(
+                "binary.f32",
+                "binary.f64",
+                "binary.bf16",
+                "unary.f32",
+                "unary.f64",
+                "unary.bf16"
+        );
+        List<String> restoredDirs = List.of(Path.of("src/main/java"), Path.of("src/test/java")).stream()
+                .flatMap(root -> legacyPackageSuffixes.stream()
+                        .map(suffix -> root.resolve("backend/cpu/kernels/elementwise/" + suffix.replace('.', '/'))))
+                .filter(Files::exists)
+                .map(Path::toString)
+                .sorted()
+                .toList();
+        assertTrue(restoredDirs.isEmpty(),
+                () -> "Elementwise array kernels must not restore dtype package directories: " + restoredDirs);
+
+        List<String> legacyPackageReferences = legacyPackageSuffixes.stream()
+                .flatMap(suffix -> Stream.of(
+                        "backend.cpu.kernels.elementwise." + suffix,
+                        "backend/cpu/kernels/elementwise/" + suffix.replace('.', '/')))
+                .toList();
+        List<String> offenders = linesContainingAny(
+                List.of(Path.of("src/main/java"), Path.of("src/test/java")),
+                legacyPackageReferences
+        );
+        assertTrue(offenders.isEmpty(),
+                () -> "Elementwise array kernels must not reference old dtype packages: " + offenders);
+    }
+
+    @Test
     void cpuNativeRuntimeExecutorStackDoesNotReturn() throws IOException {
         List<String> deletedNativeStack = List.of(
                 "NativeCpuPlanResolver",

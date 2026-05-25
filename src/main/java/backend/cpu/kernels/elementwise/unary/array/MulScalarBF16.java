@@ -1,4 +1,4 @@
-package backend.cpu.kernels.elementwise.unary.bf16;
+package backend.cpu.kernels.elementwise.unary.array;
 
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuExecutionMode;

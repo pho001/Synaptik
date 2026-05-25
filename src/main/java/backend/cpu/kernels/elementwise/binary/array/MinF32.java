@@ -1,4 +1,4 @@
-package backend.cpu.kernels.elementwise.binary.f32;
+package backend.cpu.kernels.elementwise.binary.array;
 
 import backend.cpu.kernels.CpuExecutionMode;
 import backend.cpu.kernels.CpuThreadPool;
@@ -6,10 +6,10 @@ import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorSpecies;
 
-public final class SubF32 {
+public final class MinF32 {
     private static final VectorSpecies<Float> SPECIES = FloatVector.SPECIES_PREFERRED;
 
-    private SubF32() {}
+    private MinF32() {}
 
     public static void run(float[] a, float[] b, float[] out, ResolvedDispatchHints hints) {
         CpuExecutionMode mode = hints.mode();
@@ -22,14 +22,14 @@ public final class SubF32 {
     }
 
     private static void scalar(float[] a, float[] b, float[] out, int start, int end) {
-        for (int i = start; i < end; i++) out[i] = a[i] - b[i];
+        for (int i = start; i < end; i++) out[i] = Math.min(a[i], b[i]);
     }
 
     private static void vector(float[] a, float[] b, float[] out) {
         int i = 0;
         int upper = SPECIES.loopBound(out.length);
         for (; i < upper; i += SPECIES.length()) {
-            FloatVector.fromArray(SPECIES, a, i).sub(FloatVector.fromArray(SPECIES, b, i)).intoArray(out, i);
+            FloatVector.fromArray(SPECIES, a, i).min(FloatVector.fromArray(SPECIES, b, i)).intoArray(out, i);
         }
         scalar(a, b, out, i, out.length);
     }
@@ -54,7 +54,7 @@ public final class SubF32 {
             int i = start;
             int upper = end - ((end - start) % width);
             for (; i < upper; i += width) {
-                FloatVector.fromArray(SPECIES, a, i).sub(FloatVector.fromArray(SPECIES, b, i)).intoArray(out, i);
+                FloatVector.fromArray(SPECIES, a, i).min(FloatVector.fromArray(SPECIES, b, i)).intoArray(out, i);
             }
             scalar(a, b, out, i, end);
         });

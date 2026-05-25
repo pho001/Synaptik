@@ -1,12 +1,12 @@
-package backend.cpu.kernels.elementwise.binary.bf16;
+package backend.cpu.kernels.elementwise.binary.array;
 
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuExecutionMode;
 import backend.cpu.kernels.CpuThreadPool;
 import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
 
-public final class MinBF16 {
-    private MinBF16() {}
+public final class MaxBF16 {
+    private MaxBF16() {}
 
     public static void run(short[] a, short[] b, short[] out, ResolvedDispatchHints hints) {
         CpuExecutionMode mode = hints.mode();
@@ -36,7 +36,7 @@ public final class MinBF16 {
 
     private static void scalar(short[] a, short[] b, short[] out, int start, int end) {
         for (int i = start; i < end; i++) {
-            out[i] = CpuDTypeOps.toBFloat16Bits(Math.min(CpuDTypeOps.fromBFloat16Bits(a[i]), CpuDTypeOps.fromBFloat16Bits(b[i])));
+            out[i] = CpuDTypeOps.toBFloat16Bits(Math.max(CpuDTypeOps.fromBFloat16Bits(a[i]), CpuDTypeOps.fromBFloat16Bits(b[i])));
         }
     }
 
@@ -52,7 +52,7 @@ public final class MinBF16 {
 
     private static void scalar(float[] a, float[] b, short[] out, int start, int end) {
         for (int i = start; i < end; i++) {
-            out[i] = CpuDTypeOps.toBFloat16Bits(Math.min(a[i], b[i]));
+            out[i] = CpuDTypeOps.toBFloat16Bits(Math.max(a[i], b[i]));
         }
     }
 
@@ -80,7 +80,7 @@ public final class MinBF16 {
         for (int i = start; i < end; i++) {
             float left = firstIsFloat ? fa[i] : CpuDTypeOps.fromBFloat16Bits(sa[i]);
             float right = firstIsFloat ? CpuDTypeOps.fromBFloat16Bits(sb[i]) : fb[i];
-            out[i] = CpuDTypeOps.toBFloat16Bits(Math.min(left, right));
+            out[i] = CpuDTypeOps.toBFloat16Bits(Math.max(left, right));
         }
     }
 }

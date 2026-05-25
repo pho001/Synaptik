@@ -1,4 +1,4 @@
-package backend.cpu.kernels.elementwise.binary.bf16;
+package backend.cpu.kernels.elementwise.binary.array;
 
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuExecutionMode;
@@ -7,10 +7,10 @@ import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorSpecies;
 
-public final class DivBF16 {
+public final class AddBF16 {
     private static final VectorSpecies<Float> SPECIES = FloatVector.SPECIES_PREFERRED;
 
-    private DivBF16() {}
+    private AddBF16() {}
 
     public static void run(short[] a, short[] b, short[] out, ResolvedDispatchHints hints) {
         CpuExecutionMode mode = hints.mode();
@@ -20,8 +20,14 @@ public final class DivBF16 {
         }
     }
 
-    public static void run(float[] a, short[] b, short[] out, ResolvedDispatchHints hints) { runMixed(a, b, out, hints, true); }
-    public static void run(short[] a, float[] b, short[] out, ResolvedDispatchHints hints) { runMixed(a, b, out, hints, false); }
+    public static void run(float[] a, short[] b, short[] out, ResolvedDispatchHints hints) {
+        runMixed(a, b, out, hints, true);
+    }
+
+    public static void run(short[] a, float[] b, short[] out, ResolvedDispatchHints hints) {
+        runMixed(a, b, out, hints, false);
+    }
+
     public static void run(float[] a, float[] b, short[] out, ResolvedDispatchHints hints) {
         CpuExecutionMode mode = hints.mode();
         switch (mode) {
@@ -36,13 +42,13 @@ public final class DivBF16 {
         int i = start;
         int upper = end - ((end - start) & 3);
         for (; i < upper; i += 4) {
-            out[i] = CpuDTypeOps.toBFloat16Bits(CpuDTypeOps.fromBFloat16Bits(a[i]) / CpuDTypeOps.fromBFloat16Bits(b[i]));
-            out[i + 1] = CpuDTypeOps.toBFloat16Bits(CpuDTypeOps.fromBFloat16Bits(a[i + 1]) / CpuDTypeOps.fromBFloat16Bits(b[i + 1]));
-            out[i + 2] = CpuDTypeOps.toBFloat16Bits(CpuDTypeOps.fromBFloat16Bits(a[i + 2]) / CpuDTypeOps.fromBFloat16Bits(b[i + 2]));
-            out[i + 3] = CpuDTypeOps.toBFloat16Bits(CpuDTypeOps.fromBFloat16Bits(a[i + 3]) / CpuDTypeOps.fromBFloat16Bits(b[i + 3]));
+            out[i] = CpuDTypeOps.toBFloat16Bits(CpuDTypeOps.fromBFloat16Bits(a[i]) + CpuDTypeOps.fromBFloat16Bits(b[i]));
+            out[i + 1] = CpuDTypeOps.toBFloat16Bits(CpuDTypeOps.fromBFloat16Bits(a[i + 1]) + CpuDTypeOps.fromBFloat16Bits(b[i + 1]));
+            out[i + 2] = CpuDTypeOps.toBFloat16Bits(CpuDTypeOps.fromBFloat16Bits(a[i + 2]) + CpuDTypeOps.fromBFloat16Bits(b[i + 2]));
+            out[i + 3] = CpuDTypeOps.toBFloat16Bits(CpuDTypeOps.fromBFloat16Bits(a[i + 3]) + CpuDTypeOps.fromBFloat16Bits(b[i + 3]));
         }
         for (; i < end; i++) {
-            out[i] = CpuDTypeOps.toBFloat16Bits(CpuDTypeOps.fromBFloat16Bits(a[i]) / CpuDTypeOps.fromBFloat16Bits(b[i]));
+            out[i] = CpuDTypeOps.toBFloat16Bits(CpuDTypeOps.fromBFloat16Bits(a[i]) + CpuDTypeOps.fromBFloat16Bits(b[i]));
         }
     }
 
@@ -58,7 +64,7 @@ public final class DivBF16 {
 
     private static void scalar(float[] a, float[] b, short[] out, int start, int end) {
         for (int i = start; i < end; i++) {
-            out[i] = CpuDTypeOps.toBFloat16Bits(a[i] / b[i]);
+            out[i] = CpuDTypeOps.toBFloat16Bits(a[i] + b[i]);
         }
     }
 
@@ -69,7 +75,7 @@ public final class DivBF16 {
         int upper = start + SPECIES.loopBound(end - start);
         for (; i < upper; i += width) {
             FloatVector.fromArray(SPECIES, a, i)
-                    .div(FloatVector.fromArray(SPECIES, b, i))
+                    .add(FloatVector.fromArray(SPECIES, b, i))
                     .intoArray(lanes, 0);
             for (int lane = 0; lane < width; lane++) {
                 out[i + lane] = CpuDTypeOps.toBFloat16Bits(lanes[lane]);
@@ -124,21 +130,21 @@ public final class DivBF16 {
         for (; i < upper; i += 4) {
             float left0 = firstIsFloat ? fa[i] : CpuDTypeOps.fromBFloat16Bits(sa[i]);
             float right0 = firstIsFloat ? CpuDTypeOps.fromBFloat16Bits(sb[i]) : fb[i];
-            out[i] = CpuDTypeOps.toBFloat16Bits(left0 / right0);
+            out[i] = CpuDTypeOps.toBFloat16Bits(left0 + right0);
             float left1 = firstIsFloat ? fa[i + 1] : CpuDTypeOps.fromBFloat16Bits(sa[i + 1]);
             float right1 = firstIsFloat ? CpuDTypeOps.fromBFloat16Bits(sb[i + 1]) : fb[i + 1];
-            out[i + 1] = CpuDTypeOps.toBFloat16Bits(left1 / right1);
+            out[i + 1] = CpuDTypeOps.toBFloat16Bits(left1 + right1);
             float left2 = firstIsFloat ? fa[i + 2] : CpuDTypeOps.fromBFloat16Bits(sa[i + 2]);
             float right2 = firstIsFloat ? CpuDTypeOps.fromBFloat16Bits(sb[i + 2]) : fb[i + 2];
-            out[i + 2] = CpuDTypeOps.toBFloat16Bits(left2 / right2);
+            out[i + 2] = CpuDTypeOps.toBFloat16Bits(left2 + right2);
             float left3 = firstIsFloat ? fa[i + 3] : CpuDTypeOps.fromBFloat16Bits(sa[i + 3]);
             float right3 = firstIsFloat ? CpuDTypeOps.fromBFloat16Bits(sb[i + 3]) : fb[i + 3];
-            out[i + 3] = CpuDTypeOps.toBFloat16Bits(left3 / right3);
+            out[i + 3] = CpuDTypeOps.toBFloat16Bits(left3 + right3);
         }
         for (; i < end; i++) {
             float left = firstIsFloat ? fa[i] : CpuDTypeOps.fromBFloat16Bits(sa[i]);
             float right = firstIsFloat ? CpuDTypeOps.fromBFloat16Bits(sb[i]) : fb[i];
-            out[i] = CpuDTypeOps.toBFloat16Bits(left / right);
+            out[i] = CpuDTypeOps.toBFloat16Bits(left + right);
         }
     }
 }

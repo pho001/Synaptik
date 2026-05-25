@@ -1,17 +1,17 @@
-package backend.cpu.kernels.elementwise.binary.f32;
+package backend.cpu.kernels.elementwise.binary.array;
 
 import backend.cpu.kernels.CpuExecutionMode;
 import backend.cpu.kernels.CpuThreadPool;
 import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
-import jdk.incubator.vector.FloatVector;
+import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.VectorSpecies;
 
-public final class MulF32 {
-    private static final VectorSpecies<Float> SPECIES = FloatVector.SPECIES_PREFERRED;
+public final class SubF64 {
+    private static final VectorSpecies<Double> SPECIES = DoubleVector.SPECIES_PREFERRED;
 
-    private MulF32() {}
+    private SubF64() {}
 
-    public static void run(float[] a, float[] b, float[] out, ResolvedDispatchHints hints) {
+    public static void run(double[] a, double[] b, double[] out, ResolvedDispatchHints hints) {
         CpuExecutionMode mode = hints.mode();
         switch (mode) {
             case VECTOR -> vector(a, b, out);
@@ -21,20 +21,20 @@ public final class MulF32 {
         }
     }
 
-    private static void scalar(float[] a, float[] b, float[] out, int start, int end) {
-        for (int i = start; i < end; i++) out[i] = a[i] * b[i];
+    private static void scalar(double[] a, double[] b, double[] out, int start, int end) {
+        for (int i = start; i < end; i++) out[i] = a[i] - b[i];
     }
 
-    private static void vector(float[] a, float[] b, float[] out) {
+    private static void vector(double[] a, double[] b, double[] out) {
         int i = 0;
         int upper = SPECIES.loopBound(out.length);
         for (; i < upper; i += SPECIES.length()) {
-            FloatVector.fromArray(SPECIES, a, i).mul(FloatVector.fromArray(SPECIES, b, i)).intoArray(out, i);
+            DoubleVector.fromArray(SPECIES, a, i).sub(DoubleVector.fromArray(SPECIES, b, i)).intoArray(out, i);
         }
         scalar(a, b, out, i, out.length);
     }
 
-    private static void parallel(float[] a, float[] b, float[] out, ResolvedDispatchHints hints) {
+    private static void parallel(double[] a, double[] b, double[] out, ResolvedDispatchHints hints) {
         int chunkSize = hints.scalarChunkSize();
         int chunks = (out.length + chunkSize - 1) / chunkSize;
         CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
@@ -44,7 +44,7 @@ public final class MulF32 {
         });
     }
 
-    private static void parallelVector(float[] a, float[] b, float[] out, ResolvedDispatchHints hints) {
+    private static void parallelVector(double[] a, double[] b, double[] out, ResolvedDispatchHints hints) {
         int width = SPECIES.length();
         int chunkSize = hints.vectorChunkSize();
         int chunks = (out.length + chunkSize - 1) / chunkSize;
@@ -54,7 +54,7 @@ public final class MulF32 {
             int i = start;
             int upper = end - ((end - start) % width);
             for (; i < upper; i += width) {
-                FloatVector.fromArray(SPECIES, a, i).mul(FloatVector.fromArray(SPECIES, b, i)).intoArray(out, i);
+                DoubleVector.fromArray(SPECIES, a, i).sub(DoubleVector.fromArray(SPECIES, b, i)).intoArray(out, i);
             }
             scalar(a, b, out, i, end);
         });

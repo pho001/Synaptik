@@ -1,4 +1,4 @@
-package backend.cpu.kernels.elementwise.binary.f64;
+package backend.cpu.kernels.elementwise.binary.array;
 
 import backend.cpu.kernels.CpuExecutionMode;
 import backend.cpu.kernels.CpuThreadPool;
@@ -6,10 +6,10 @@ import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.VectorSpecies;
 
-public final class AddF64 {
+public final class MulF64 {
     private static final VectorSpecies<Double> SPECIES = DoubleVector.SPECIES_PREFERRED;
 
-    private AddF64() {}
+    private MulF64() {}
 
     public static void run(double[] a, double[] b, double[] out, ResolvedDispatchHints hints) {
         CpuExecutionMode mode = hints.mode();
@@ -22,14 +22,14 @@ public final class AddF64 {
     }
 
     private static void scalar(double[] a, double[] b, double[] out, int start, int end) {
-        for (int i = start; i < end; i++) out[i] = a[i] + b[i];
+        for (int i = start; i < end; i++) out[i] = a[i] * b[i];
     }
 
     private static void vector(double[] a, double[] b, double[] out) {
         int i = 0;
         int upper = SPECIES.loopBound(out.length);
         for (; i < upper; i += SPECIES.length()) {
-            DoubleVector.fromArray(SPECIES, a, i).add(DoubleVector.fromArray(SPECIES, b, i)).intoArray(out, i);
+            DoubleVector.fromArray(SPECIES, a, i).mul(DoubleVector.fromArray(SPECIES, b, i)).intoArray(out, i);
         }
         scalar(a, b, out, i, out.length);
     }
@@ -54,7 +54,7 @@ public final class AddF64 {
             int i = start;
             int upper = end - ((end - start) % width);
             for (; i < upper; i += width) {
-                DoubleVector.fromArray(SPECIES, a, i).add(DoubleVector.fromArray(SPECIES, b, i)).intoArray(out, i);
+                DoubleVector.fromArray(SPECIES, a, i).mul(DoubleVector.fromArray(SPECIES, b, i)).intoArray(out, i);
             }
             scalar(a, b, out, i, end);
         });
