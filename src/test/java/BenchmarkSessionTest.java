@@ -1338,7 +1338,7 @@ public class BenchmarkSessionTest {
                 List.of(2, 2),
                 DataType.BFLOAT16,
                 "CPU",
-                "AddSegmentLoops",
+                "BinarySegmentLoops",
                 100L,
                 new graph.execution.trace.StepExecutionMetadata(
                         "node",

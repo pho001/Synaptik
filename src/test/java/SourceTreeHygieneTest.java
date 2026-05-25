@@ -1405,14 +1405,14 @@ public class SourceTreeHygieneTest {
                 () -> "Binary/unary root packages must own kernels and dispatch only; array/segment loops belong in route packages: "
                         + rootLoopFiles);
 
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/array/AddArrayLoops.java")),
-                "ADD Java-array route must be explicit under binary.array.");
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/segment/AddSegmentLoops.java")),
-                "ADD MemorySegment route must be explicit under binary.segment.");
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/segment/BinarySegmentLoops.java")),
                 "Generic binary MemorySegment route must be explicit under binary.segment.");
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary/segment/UnarySegmentLoops.java")),
                 "Unary MemorySegment route must be explicit under unary.segment.");
+        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/array/AddArrayLoops.java")),
+                "ADD must not have a one-off array wrapper that other binary/unary ops do not have.");
+        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/segment/AddSegmentLoops.java")),
+                "ADD segment behavior belongs inside BinarySegmentLoops, not a one-off route class.");
     }
 
     @Test

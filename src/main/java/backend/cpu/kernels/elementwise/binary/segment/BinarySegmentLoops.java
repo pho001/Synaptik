@@ -14,6 +14,7 @@ import tensor.Tensor;
 import tensor.storage.NativeTensorStorage;
 
 import java.lang.foreign.MemorySegment;
+import java.util.Arrays;
 import java.util.List;
 
 import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
@@ -31,7 +32,8 @@ public final class BinarySegmentLoops {
         }
         Operation op = context.executionOperation();
         Operation.OpType opType = opType(op);
-        String ineligibleReason = nativeIneligibleReason(opType, inputs, node, context);
+        BiasBroadcastSpec biasSpec = biasBroadcastSpec(opType, context, inputs, node);
+        String ineligibleReason = nativeIneligibleReason(opType, inputs, node, context, biasSpec);
         if (!ineligibleReason.isBlank()) {
             fallbackToArray(kernel, inputs, node, context, ineligibleReason);
             return;
@@ -48,7 +50,13 @@ public final class BinarySegmentLoops {
                     ),
                     ElementwiseNativeSupport.segmentView(node, outputStorage)
             );
-            runSegmentDense(kernel, bindings);
+            if (biasSpec != null) {
+                runLastDimBiasAddF32(leftStorage.segment(), rightStorage.segment(), outputStorage.segment(), node.getFlatDataSize(), biasSpec);
+            } else if (opType == Operation.OpType.ADD) {
+                runAddSegmentDense(bindings);
+            } else {
+                runSegmentDense(kernel, bindings);
+            }
             outputStorage.markModified();
             context.executionContext().attachNativeStorage(
                     context.nodeId(),
@@ -59,6 +67,32 @@ public final class BinarySegmentLoops {
         } catch (Throwable t) {
             fallbackToArray(kernel, inputs, node, context,
                     "native-kernel-failed:" + opLabel(opType) + ":" + ElementwiseNativeSupport.safeMessage(t));
+        }
+    }
+
+    static void runAddSegmentDense(CpuStorageBindings bindings) {
+        validateDenseBinary(bindings);
+        DataType dtype = bindings.output().dtype();
+        switch (dtype) {
+            case FLOAT64 -> runAddSegmentDenseF64(
+                    bindings.input(0).requireSegment(),
+                    bindings.input(1).requireSegment(),
+                    bindings.output().requireSegment(),
+                    bindings.output().logicalSize()
+            );
+            case FLOAT32 -> runAddSegmentDenseF32(
+                    bindings.input(0).requireSegment(),
+                    bindings.input(1).requireSegment(),
+                    bindings.output().requireSegment(),
+                    bindings.output().logicalSize()
+            );
+            case BFLOAT16 -> runAddSegmentDenseBF16(
+                    bindings.input(0).requireSegment(),
+                    bindings.input(1).requireSegment(),
+                    bindings.output().requireSegment(),
+                    bindings.output().logicalSize()
+            );
+            case INT32, INT64, BOOL -> throw new UnsupportedOperationException("Binary segment loop does not support ADD dtype: " + dtype);
         }
     }
 
@@ -88,6 +122,60 @@ public final class BinarySegmentLoops {
                     bindings.output().logicalSize()
             );
             case INT32, INT64, BOOL -> throw new UnsupportedOperationException("Binary segment loop does not support dtype: " + dtype);
+        }
+    }
+
+    private static void runAddSegmentDenseF32(
+            MemorySegment left,
+            MemorySegment right,
+            MemorySegment output,
+            int size
+    ) {
+        for (int i = 0; i < size; i++) {
+            long offset = (long) i * Float.BYTES;
+            output.set(JAVA_FLOAT, offset, left.get(JAVA_FLOAT, offset) + right.get(JAVA_FLOAT, offset));
+        }
+    }
+
+    private static void runAddSegmentDenseF64(
+            MemorySegment left,
+            MemorySegment right,
+            MemorySegment output,
+            int size
+    ) {
+        for (int i = 0; i < size; i++) {
+            long offset = (long) i * Double.BYTES;
+            output.set(JAVA_DOUBLE, offset, left.get(JAVA_DOUBLE, offset) + right.get(JAVA_DOUBLE, offset));
+        }
+    }
+
+    private static void runAddSegmentDenseBF16(
+            MemorySegment left,
+            MemorySegment right,
+            MemorySegment output,
+            int size
+    ) {
+        for (int i = 0; i < size; i++) {
+            long offset = (long) i * Short.BYTES;
+            float leftValue = CpuDTypeOps.fromBFloat16Bits(left.get(JAVA_SHORT, offset));
+            float rightValue = CpuDTypeOps.fromBFloat16Bits(right.get(JAVA_SHORT, offset));
+            output.set(JAVA_SHORT, offset, CpuDTypeOps.toBFloat16Bits(leftValue + rightValue));
+        }
+    }
+
+    private static void runLastDimBiasAddF32(
+            MemorySegment left,
+            MemorySegment right,
+            MemorySegment output,
+            int size,
+            BiasBroadcastSpec spec
+    ) {
+        for (int i = 0; i < size; i++) {
+            long outputOffset = (long) i * Float.BYTES;
+            long biasOffset = (long) (i % spec.lastDim()) * Float.BYTES;
+            float leftValue = left.get(JAVA_FLOAT, spec.leftBias() ? biasOffset : outputOffset);
+            float rightValue = right.get(JAVA_FLOAT, spec.leftBias() ? outputOffset : biasOffset);
+            output.set(JAVA_FLOAT, outputOffset, leftValue + rightValue);
         }
     }
 
@@ -149,7 +237,8 @@ public final class BinarySegmentLoops {
             Operation.OpType opType,
             List<Tensor> inputs,
             Tensor node,
-            CpuKernelContext context
+            CpuKernelContext context,
+            BiasBroadcastSpec biasSpec
     ) {
         String label = opLabel(opType);
         if (context == null || context.nodePlan() == null) {
@@ -164,24 +253,84 @@ public final class BinarySegmentLoops {
         if (context.nodePlan().stridedPath()) {
             return "native-kernel-ineligible:" + label + "-strided";
         }
-        if (context.broadcastPlan() != null && !context.broadcastPlan().isNoBroadcast()) {
-            return "native-kernel-ineligible:" + label + "-broadcast";
-        }
         if (inputs == null || inputs.size() != 2
                 || inputs.get(0).getDataType() != node.getDataType()
                 || inputs.get(1).getDataType() != node.getDataType()) {
             return "native-kernel-ineligible:" + label + "-dtype";
-        }
-        int size = node.getFlatDataSize();
-        if (inputs.get(0).getFlatDataSize() != size || inputs.get(1).getFlatDataSize() != size) {
-            return "native-kernel-ineligible:" + label + "-shape";
         }
         if (!ElementwiseNativeSupport.isDenseView(inputs.get(0))
                 || !ElementwiseNativeSupport.isDenseView(inputs.get(1))
                 || !ElementwiseNativeSupport.isDenseView(node)) {
             return "native-kernel-ineligible:" + label + "-layout";
         }
+        if (context.broadcastPlan() != null && !context.broadcastPlan().isNoBroadcast()) {
+            if (biasSpec != null) {
+                return "";
+            }
+            return "native-kernel-ineligible:" + label + "-broadcast";
+        }
+        int size = node.getFlatDataSize();
+        if (inputs.get(0).getFlatDataSize() != size || inputs.get(1).getFlatDataSize() != size) {
+            return "native-kernel-ineligible:" + label + "-shape";
+        }
         return "";
+    }
+
+    private static BiasBroadcastSpec biasBroadcastSpec(
+            Operation.OpType opType,
+            CpuKernelContext context,
+            List<Tensor> inputs,
+            Tensor node
+    ) {
+        if (opType != Operation.OpType.ADD || context == null || inputs == null || inputs.size() != 2) {
+            return null;
+        }
+        var plan = context.broadcastPlan();
+        if (node.getDataType() != DataType.FLOAT32
+                || plan == null
+                || plan.isNoBroadcast()
+                || product(plan.outShape()) != node.getFlatDataSize()) {
+            return null;
+        }
+        int[] shape = plan.outShape();
+        int lastDim = shape[shape.length - 1];
+        boolean leftFull = Arrays.equals(plan.aEffStrides(), plan.outStrides());
+        boolean rightFull = Arrays.equals(plan.bEffStrides(), plan.outStrides());
+        boolean leftBias = isLastDimBiasSide(plan.aEffStrides(), shape)
+                && inputs.get(0).getFlatDataSize() == lastDim;
+        boolean rightBias = isLastDimBiasSide(plan.bEffStrides(), shape)
+                && inputs.get(1).getFlatDataSize() == lastDim;
+        if (leftFull && inputs.get(0).getFlatDataSize() == node.getFlatDataSize() && rightBias) {
+            return new BiasBroadcastSpec(false, lastDim);
+        }
+        if (leftBias && rightFull && inputs.get(1).getFlatDataSize() == node.getFlatDataSize()) {
+            return new BiasBroadcastSpec(true, lastDim);
+        }
+        return null;
+    }
+
+    private static boolean isLastDimBiasSide(int[] effectiveStrides, int[] outputShape) {
+        if (effectiveStrides == null || outputShape == null || effectiveStrides.length != outputShape.length || outputShape.length < 2) {
+            return false;
+        }
+        int last = effectiveStrides.length - 1;
+        if (outputShape[last] <= 0 || effectiveStrides[last] != 1) {
+            return false;
+        }
+        for (int dim = 0; dim < last; dim++) {
+            if (effectiveStrides[dim] != 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static int product(int[] values) {
+        int product = 1;
+        for (int value : values) {
+            product *= value;
+        }
+        return product;
     }
 
     private static void validateDenseBinary(CpuStorageBindings bindings) {
@@ -216,7 +365,8 @@ public final class BinarySegmentLoops {
             return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64;
         }
         return (dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64 || dataType == DataType.BFLOAT16)
-                && (opType == Operation.OpType.SUB
+                && (opType == Operation.OpType.ADD
+                || opType == Operation.OpType.SUB
                 || opType == Operation.OpType.MUL
                 || opType == Operation.OpType.DIV
                 || opType == Operation.OpType.MIN
@@ -229,5 +379,8 @@ public final class BinarySegmentLoops {
 
     private static String opLabel(Operation.OpType opType) {
         return opType.name().toLowerCase();
+    }
+
+    private record BiasBroadcastSpec(boolean leftBias, int lastDim) {
     }
 }
