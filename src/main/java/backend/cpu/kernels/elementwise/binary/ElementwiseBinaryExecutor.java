@@ -1,7 +1,7 @@
 package backend.cpu.kernels.elementwise.binary;
 
 import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.elementwise.binary.segment.BinarySegmentLoops;
+import backend.cpu.kernels.elementwise.binary.memorysegmentloops.BinaryMemorySegmentLoops;
 import tensor.Tensor;
 
 import java.util.List;
@@ -13,6 +13,6 @@ public final class ElementwiseBinaryExecutor {
         if (inputs == null || inputs.size() != 2) {
             throw new IllegalArgumentException("Binary elementwise executor requires exactly 2 inputs.");
         }
-        BinarySegmentLoops.execute(kernel, inputs, node, context);
+        BinaryMemorySegmentLoops.execute(kernel, inputs, node, context);
     }
 }

@@ -986,7 +986,7 @@ public class BenchmarkSessionTest {
                 List.of(32, 32),
                 DataType.BFLOAT16,
                 "CPU",
-                "UnarySegmentLoops",
+                "UnaryMemorySegmentLoops",
                 20L,
                 new graph.execution.trace.StepExecutionMetadata(
                         "node",
@@ -1265,7 +1265,7 @@ public class BenchmarkSessionTest {
                 List.of(2, 2),
                 DataType.BFLOAT16,
                 "CPU",
-                "UnarySegmentLoops",
+                "UnaryMemorySegmentLoops",
                 100L,
                 new graph.execution.trace.StepExecutionMetadata(
                         "node",
@@ -1338,7 +1338,7 @@ public class BenchmarkSessionTest {
                 List.of(2, 2),
                 DataType.BFLOAT16,
                 "CPU",
-                "BinarySegmentLoops",
+                "BinaryMemorySegmentLoops",
                 100L,
                 new graph.execution.trace.StepExecutionMetadata(
                         "node",

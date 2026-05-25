@@ -108,9 +108,9 @@ public class CpuKernelFamilyArchitectureTest {
                 "src/main/java/backend/cpu/kernels/elementwise/binary/CpuAddKernel.java",
                 "src/main/java/backend/cpu/kernels/elementwise/binary/ElementwiseBinaryExecutor.java",
                 "src/main/java/backend/cpu/kernels/elementwise/ElementwiseLoops.java",
-                "src/main/java/backend/cpu/kernels/elementwise/binary/array/AddF32.java",
-                "src/main/java/backend/cpu/kernels/elementwise/binary/array/AddF64.java",
-                "src/main/java/backend/cpu/kernels/elementwise/binary/array/AddBF16.java",
+                "src/main/java/backend/cpu/kernels/elementwise/binary/arrayloops/AddF32.java",
+                "src/main/java/backend/cpu/kernels/elementwise/binary/arrayloops/AddF64.java",
+                "src/main/java/backend/cpu/kernels/elementwise/binary/arrayloops/AddBF16.java",
                 "src/main/java/backend/cpu/kernels/elementwise/where/CpuWhereKernel.java",
                 "src/main/java/backend/cpu/kernels/elementwise/where/WhereExecutor.java",
                 "src/main/java/backend/cpu/kernels/reduction/CpuSumKernel.java",
@@ -126,8 +126,8 @@ public class CpuKernelFamilyArchitectureTest {
                 "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32BlasMatMulExecutable.java",
                 "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32NativeBlasMatMulExecutable.java",
                 "src/main/java/backend/cpu/kernels/elementwise/ElementwiseNativeSupport.java",
-                "src/main/java/backend/cpu/kernels/elementwise/binary/segment/BinarySegmentLoops.java",
-                "src/main/java/backend/cpu/kernels/elementwise/unary/segment/UnarySegmentLoops.java",
+                "src/main/java/backend/cpu/kernels/elementwise/binary/memorysegmentloops/BinaryMemorySegmentLoops.java",
+                "src/main/java/backend/cpu/kernels/elementwise/unary/memorysegmentloops/UnaryMemorySegmentLoops.java",
                 "src/main/java/backend/cpu/kernels/elementwise/where/WhereStorageLoops.java",
                 "src/main/java/backend/cpu/kernels/elementwise/compare/CompareStorageLoops.java",
                 "src/main/java/backend/cpu/kernels/elementwise/logical/LogicalBoolStorageLoops.java",
@@ -208,11 +208,11 @@ public class CpuKernelFamilyArchitectureTest {
         assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/nativecpu/NativeCpuElementwiseExecutor.java")),
                 "Elementwise CPU_NATIVE runtime ownership belongs to segment loops, not a standalone native executor.");
         assertTrue(Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/ElementwiseBinaryExecutor.java"))
-                        .contains("BinarySegmentLoops.execute"),
-                "Binary elementwise runtime ownership must live in BinarySegmentLoops.");
+                        .contains("BinaryMemorySegmentLoops.execute"),
+                "Binary elementwise runtime ownership must live in BinaryMemorySegmentLoops.");
         assertTrue(Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary/ElementwiseUnaryExecutor.java"))
-                        .contains("UnarySegmentLoops.execute"),
-                "Unary elementwise runtime ownership must live in UnarySegmentLoops.");
+                        .contains("UnaryMemorySegmentLoops.execute"),
+                "Unary elementwise runtime ownership must live in UnaryMemorySegmentLoops.");
         assertTrue(Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/where/WhereExecutor.java"))
                         .contains("WhereStorageLoops.execute"),
                 "WHERE runtime ownership must live in WhereStorageLoops.");
