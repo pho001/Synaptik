@@ -1358,6 +1358,44 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void cpuNativeRuntimeExecutorStackDoesNotReturn() throws IOException {
+        List<String> deletedNativeStack = List.of(
+                "NativeCpuPlanResolver",
+                "PreparedNativeCpuPlan",
+                "PreparedNativeCpuRoute",
+                "PreparedNativeCpuInputPolicy",
+                "NativeCpuElementwiseExecutor",
+                "NativeCpuReductionExecutor",
+                "NativeCpuCompareExecutor",
+                "NativeCpuBoolMaskExecutor",
+                "NativeCpuCastExecutor",
+                "NativeCpuContiguousExecutor",
+                "NativeCpuViewExecutor",
+                "NativeCpuKernelFacts",
+                "NativeCpuKernelFact",
+                "NativeCpuCoverageMatrix",
+                "NativeCpuParityMatrix",
+                "NativeCpuCoverageEntry",
+                "NativeCpuParityEntry"
+        );
+        List<String> restoredFiles = deletedNativeStack.stream()
+                .map(className -> Path.of("src/main/java/backend/cpu/nativecpu/" + className + ".java"))
+                .filter(Files::exists)
+                .map(Path::toString)
+                .sorted()
+                .toList();
+        assertTrue(restoredFiles.isEmpty(),
+                () -> "Removed native CPU planner/executor/facts classes must not be restored: " + restoredFiles);
+
+        List<String> sourceReferences = sourceLinesContaining(
+                List.of(Path.of("src/main/java")),
+                deletedNativeStack
+        );
+        assertTrue(sourceReferences.isEmpty(),
+                () -> "Runtime code must not depend on the removed native CPU executor stack: " + sourceReferences);
+    }
+
+    @Test
     void genericBackendSelectionDoesNotLiveUnderAcceleratorPackage() throws IOException {
         List<String> offenders = javaFilesUnder(Path.of("src/main/java/backend/accelerator/select")).stream()
                 .map(path -> Path.of(path).getFileName().toString())

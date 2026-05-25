@@ -314,6 +314,11 @@ The CPU kernel tree is organized by operation family:
 
 `backend.cpu.registry.CpuKernelResolver` is the central mapping from `Operation.OpType` to concrete kernel singleton. If a new operation descriptor is added, the CPU resolver is one of the places that must be updated for CPU execution.
 
+CPU native storage is not a separate kernel tree. `MemorySegment` execution for non-BLAS operations is implemented
+inside the same family packages through storage-specialized loops. `CpuNativeStorageSupport` records the support,
+family, and AUTO eligibility vocabulary used by lowering and trace, but it must not become a second dispatcher.
+The removed native CPU executor/planner/facts stack should not be restored.
+
 The `linalg.matmul` subtree has both Java and BLAS execution paths. BLAS eligibility is prepared by
 `MatMulPlanner`, while `MatMulBlasBackend` calls `OpenBlasRuntime` plus `OpenBlasArrayGemm` or `OpenBlasSegmentGemm` for `sgemm`, `dgemm`, optional `sbgemm`
 for BF16-to-F32 continuation, or optional `bgemm` for BF16-output GEMM.

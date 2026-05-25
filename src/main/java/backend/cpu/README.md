@@ -11,6 +11,29 @@ Target layout:
 - `backend.cpu.kernels` owns CPU runtime kernels.
 - `backend.cpu.fused` owns fused planning, codegen, generated executable preparation, and generated ASM support.
 
+CPU execution flow:
+
+1. `backend.cpu.prepare.CpuNodePreparer` resolves the `CpuKernel`, `CpuNodeExecutionPlan`, dispatch hints, storage
+   policy, fused executable, and provider-specific prepared executables.
+2. `backend.cpu.CpuBackend` resolves runtime tensors and applies the prepared input/layout policy.
+3. The selected operation-family kernel executes directly over Java arrays, CPU-native `MemorySegment` storage, or a
+   provider route such as OpenBLAS.
+4. Runtime residency/materialization publishes whether Java array storage, native CPU storage, or device storage is
+   current.
+
+`MemorySegment` is a CPU storage kind, not a second CPU backend. Non-BLAS native segment execution belongs in the
+same family packages as the Java-array kernels:
+
+- `backend.cpu.kernels.elementwise` for unary/binary/where/compare/logical storage loops.
+- `backend.cpu.kernels.reduction` for reductions.
+- `backend.cpu.kernels.layout` for casts, contiguous materialization, and view aliases.
+- `backend.cpu.kernels.fused` plus `backend.cpu.fused.exec` for fused segment execution and binding lifecycle.
+
+Do not add transitional native CPU facades, generic native executor registries, or plan/facts/parity stacks beside the
+family kernels. `CpuNativeStorageSupport` is a small support/trace vocabulary; it is not a dispatcher. `AUTO` native
+storage must remain performance-gated: provider routes and metadata-only views are eligible by default, while
+non-BLAS segment scalar kernels require explicit benchmark proof before promotion.
+
 `backend.cpu.fused` intentionally remains separate from `backend.cpu.kernels.fused`:
 
 - `backend.cpu.fused` prepares generated or planned fused execution artifacts.

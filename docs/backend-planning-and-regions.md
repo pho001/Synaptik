@@ -19,6 +19,7 @@ This document explains compile-time backend ownership planning, execution region
 | Execution unit | A concrete unit inside a region, for example one CPU matmul kernel or one fused elementwise chain. |
 | Memory planning | Compile-time lifetime and reusable-buffer planning across graph and regions. |
 | Runtime selection | Prepare-time choice of the executable backend path using `RuntimeConfig` and availability checks. |
+| CPU native storage region | CPU execution region that keeps selected values in `MemorySegment` storage for provider-backed routes or explicit native diagnostics. |
 
 The distinction between ownership region and execution unit is critical:
 
@@ -33,6 +34,24 @@ execution units inside that region:
 ```
 
 One region does not imply one runtime kernel.
+
+## CPU Native Storage Regions
+
+CPU native storage is planned as a storage route inside the CPU backend, not as another backend family.
+`CpuRegionLowerer` may lower a CPU-owned subregion to a native-storage region when runtime policy allows it.
+That region still executes through CPU-owned prepared artifacts and existing operation-family kernels.
+
+The current selection policy is intentionally conservative:
+
+| Runtime policy | Native-storage behavior |
+|---|---|
+| `CPU_ARRAY` | No native CPU storage region is selected for compute. |
+| `CPU_NATIVE` | Supported native-storage routes may be selected for explicit diagnostics/correctness, with fallback controlled by `NativeCpuFailurePolicy`. |
+| `AUTO` | Only provider-backed routes, currently OpenBLAS `MemorySegment` GEMM, and metadata-only native view aliases are eligible by default. Slow segment scalar non-BLAS kernels remain rejected unless measured proof promotes that family. |
+
+The native region trace exposes selected/rejected decisions, provider/local/view nodes, storage contracts, physical
+kernel families, layout materialization reasons, and `nativeCpuRegionAutoEligible`. This evidence is the replacement
+for the removed native CPU plan/facts/parity runtime stack.
 
 ## Current Compile Layers
 

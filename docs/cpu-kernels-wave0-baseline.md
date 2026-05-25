@@ -2,6 +2,11 @@
 
 This document freezes the pre-rewrite state of `backend.cpu.kernels` before removing native CPU transition layers. It is intentionally descriptive, not a target architecture.
 
+Wave 104 closure note: this is now historical baseline evidence. The listed native CPU plan/facts/per-op executor
+classes were removed from runtime ownership. Current non-BLAS `MemorySegment` execution lives in storage-specialized
+loops under the existing CPU kernel families, while OpenBLAS `MemorySegment` matmul remains a provider route under
+`linalg.matmul`.
+
 ## Scope
 
 Wave 0 covers six representative operations:

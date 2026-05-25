@@ -245,7 +245,7 @@ Preset methods:
 |---|---|
 | `CPU_ARRAY` | Keep CPU compute on the existing Java-array storage path. This is the compatibility default. |
 | `CPU_NATIVE` | Prefer `MemorySegment`-backed native CPU storage for supported operations. Unsupported operation handling is governed by `NativeCpuFailurePolicy`. |
-| `AUTO` | Let the runtime planner choose between Java-array and native CPU storage. |
+| `AUTO` | Let the runtime planner choose between Java-array and native CPU storage. AUTO is performance-gated: provider-backed native segment routes and metadata-only native view aliases are eligible by default; slow non-BLAS segment scalar kernels require measured proof before promotion. |
 
 `NativeCpuFailurePolicy` says what should happen when native CPU execution was requested but the current operation or shape is unsupported:
 

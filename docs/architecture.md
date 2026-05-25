@@ -291,6 +291,26 @@ Important specialized subareas include:
 - fused runtime kernels in `backend.cpu.kernels.fused`
 - generated/ASM fused preparation in `backend.cpu.fused`
 
+CPU storage has two concrete runtime representations:
+
+| Storage route | Owner | Use |
+|---|---|---|
+| Java array | Existing typed tensor arrays and array-specialized CPU loops | Compatibility default and primary hot path for non-BLAS scalar/vector/parallel kernels. |
+| CPU native `MemorySegment` | `NativeTensorStorage`, runtime residency/materialization, and family storage loops | Explicit `CPU_NATIVE` diagnostics/correctness paths, OpenBLAS native segment provider routes, native/device bridge transfer sources, and future measured segment-vector/fused targets. |
+
+`MemorySegment` is a storage kind, not a second CPU backend. Non-BLAS native segment execution is owned by the
+same operation-family packages as Java-array execution: elementwise storage loops live under `elementwise`, reductions
+under `reduction`, layout materialization under `layout`, and fused segment binding/access under `backend.cpu.fused.exec`.
+`CpuKernelContext` stays a general execution context and does not expose fused `MemorySegment` accessors. The old
+transitional native executor/planner/facts stack is intentionally gone; `CpuNativeStorageSupport` is only a small
+support/trace vocabulary and must not grow into a parallel dispatcher.
+
+`CpuStorageProfile` controls runtime storage policy. `CPU_ARRAY` keeps compute on Java arrays. `CPU_NATIVE` allows
+supported native segment storage paths and uses `NativeCpuFailurePolicy` for required-native diagnostics. `AUTO` is
+conservative: it may select provider-backed native segment routes such as OpenBLAS GEMM and metadata-only native
+view aliases, but it must not select slow non-BLAS segment scalar kernels unless benchmark evidence promotes that
+family.
+
 The Gradle build adds `jdk.incubator.vector` for compile, test, and run tasks in `build.gradle`, so CPU vectorized code can rely on the Vector API module being available when run through the Gradle wrapper.
 
 The BLAS path is an optional CPU acceleration path, not a separate backend. `BlasConfig` selects `NONE` or
