@@ -64,9 +64,8 @@ class NativeCpuRegionSelectionTest {
         assertEquals("native-cpu-region-provider-unavailable:matmul", matmulAttrs.get("nativeCpuRegionFallbackReason"));
         assertEquals(1, matmulAttrs.get("nativeCpuRegionNodeCount"));
         assertEquals("MATMUL", matmulAttrs.get("nativeCpuRegionRejectedOp"));
-        assertEquals(List.of(true), matmulAttrs.get("nativeCpuParityAutoEligible"));
-        assertNestedContains(matmulAttrs, "nativeCpuParityStoragePaths", "CPU_NATIVE_REGION_PROVIDER");
-        assertNestedContains(matmulAttrs, "nativeCpuParityResultResidencies", "CPU_NATIVE");
+        assertEquals(List.of(true), matmulAttrs.get("nativeCpuRegionAutoEligible"));
+        assertNestedContains(matmulAttrs, "nativeCpuRegionResultResidencies", "CPU_NATIVE");
         assertTrue(trace.steps().stream()
                 .noneMatch(step -> "SELECTED".equals(step.metadata().attributes().get("nativeCpuRegionDecision"))));
     }
@@ -95,9 +94,8 @@ class NativeCpuRegionSelectionTest {
         assertEquals(1, matmulAttrs.get("nativeCpuStridedMaterializationCount"));
         assertEquals(List.of("native-layout-materialization-required:provider-dense-input"),
                 matmulAttrs.get("nativeCpuStridedFallbackReasons"));
-        assertEquals(List.of(true), matmulAttrs.get("nativeCpuParityAutoEligible"));
-        assertNestedContains(matmulAttrs, "nativeCpuParityStoragePaths", "CPU_NATIVE_REGION_PROVIDER");
-        assertNestedContains(matmulAttrs, "nativeCpuParityLayoutCapabilities", "DENSE");
+        assertEquals(List.of(true), matmulAttrs.get("nativeCpuRegionAutoEligible"));
+        assertNestedContains(matmulAttrs, "nativeCpuRegionResultResidencies", "CPU_NATIVE");
         @SuppressWarnings("unchecked")
         Map<String, Integer> layoutClassCounts =
                 (Map<String, Integer>) matmulAttrs.get("nativeCpuLayoutClassCounts");

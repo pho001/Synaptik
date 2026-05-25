@@ -1,10 +1,8 @@
 package backend.cpu.kernels.elementwise.logical;
 
 import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.kernels.CpuNativeTraceSupport;
 import backend.cpu.kernels.elementwise.ElementwiseLoops;
-import backend.cpu.nativecpu.NativeCpuKernelFact;
-import backend.cpu.nativecpu.NativeCpuKernelFacts;
-import backend.cpu.nativecpu.NativeCpuTraceState;
 import backend.memory.CpuMaterializationReason;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
@@ -34,10 +32,9 @@ final class LogicalBoolStorageLoops {
         }
         Operation op = context.executionOperation();
         Operation.OpType opType = opType(op);
-        NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(opType, DataType.BOOL);
         String reason = nativeBinaryIneligibleReason(opType, inputs, node, context);
         if (!reason.isBlank()) {
-            fallbackBinary(kernel, inputs, node, context, fact, reason);
+            fallbackBinary(kernel, inputs, node, context, reason);
             return;
         }
         try {
@@ -51,9 +48,9 @@ final class LogicalBoolStorageLoops {
                     outputStorage,
                     "logical storage loop " + opLabel(opType).toUpperCase() + " wrote BOOL native output"
             );
-            publishTrace(context, fact, "CPU_NATIVE", "");
+            CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_NATIVE, "");
         } catch (Throwable t) {
-            fallbackBinary(kernel, inputs, node, context, fact,
+            fallbackBinary(kernel, inputs, node, context,
                     "native-kernel-failed:" + opLabel(opType) + ":" + safeMessage(t));
         }
     }
@@ -70,10 +67,9 @@ final class LogicalBoolStorageLoops {
         }
         Operation op = context.executionOperation();
         Operation.OpType opType = opType(op);
-        NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(opType, DataType.BOOL);
         String reason = nativeUnaryIneligibleReason(opType, inputs, node, context);
         if (!reason.isBlank()) {
-            fallbackUnary(kernel, inputs, node, context, fact, reason);
+            fallbackUnary(kernel, inputs, node, context, reason);
             return;
         }
         try {
@@ -86,9 +82,9 @@ final class LogicalBoolStorageLoops {
                     outputStorage,
                     "logical storage loop LOGICAL_NOT wrote BOOL native output"
             );
-            publishTrace(context, fact, "CPU_NATIVE", "");
+            CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_NATIVE, "");
         } catch (Throwable t) {
-            fallbackUnary(kernel, inputs, node, context, fact,
+            fallbackUnary(kernel, inputs, node, context,
                     "native-kernel-failed:logical_not:" + safeMessage(t));
         }
     }
@@ -122,12 +118,11 @@ final class LogicalBoolStorageLoops {
             List<Tensor> inputs,
             Tensor node,
             CpuKernelContext context,
-            NativeCpuKernelFact fact,
             String reason
     ) {
         requireFallbackAllowed(context, "BOOL logical binary", reason);
         requireCpuReadableInputs(context);
-        publishTrace(context, fact, "CPU_ARRAY", reason);
+        CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_ARRAY, reason);
         ElementwiseLoops.runLogicalBinary(kernel, inputs.get(0), inputs.get(1), node, context);
     }
 
@@ -136,12 +131,11 @@ final class LogicalBoolStorageLoops {
             List<Tensor> inputs,
             Tensor node,
             CpuKernelContext context,
-            NativeCpuKernelFact fact,
             String reason
     ) {
         requireFallbackAllowed(context, "BOOL logical unary", reason);
         requireCpuReadableInputs(context);
-        publishTrace(context, fact, "CPU_ARRAY", reason);
+        CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_ARRAY, reason);
         ElementwiseLoops.runLogicalUnary(kernel, inputs.get(0), node, context);
     }
 
@@ -239,27 +233,6 @@ final class LogicalBoolStorageLoops {
         for (int inputNodeId : context.inputNodeIds()) {
             context.executionContext().requireCpuReadable(inputNodeId, CpuMaterializationReason.CPU_CONSUMER);
         }
-    }
-
-    private static void publishTrace(
-            CpuKernelContext context,
-            NativeCpuKernelFact fact,
-            String actualCpuStorage,
-            String fallbackReason
-    ) {
-        var runtime = context.executionContext().runtimeConfig();
-        context.putRuntimeState(
-                context.executionContext().runtimeTensorForNodeId(context.nodeId()),
-                new NativeCpuTraceState(
-                        runtime.cpuStorageProfile().name(),
-                        runtime.nativeCpuFailurePolicy().name(),
-                        "CPU_NATIVE",
-                        actualCpuStorage,
-                        fact.status().name(),
-                        fact.family().name(),
-                        fallbackReason
-                )
-        );
     }
 
     private static boolean nativeRequested(CpuKernelContext context) {

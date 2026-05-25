@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Fail-fast evaluator for native CPU non-BLAS performance parity evidence.
+ * Fail-fast evaluator for native CPU non-BLAS performance evidence.
  *
  * <p>{@code CPU_NATIVE} remains an explicit diagnostic/forced storage mode and may use
  * correctness-first segment scalar kernels. {@code AUTO} must not select those slow native
@@ -53,13 +53,13 @@ public final class NativeCpuNonBlasBenchmarkGate {
                             + " nodes=" + evidence(attrs, "nativeCpuRegionSegmentScalarNodes")
                             + " measuredWinProof=" + NativeCpuRegionMeasuredWinEvidence.describe(attrs));
                 }
-                int nonEligibleNodes = parityNonAutoEligibleNodeCount(attrs);
+                int nonEligibleNodes = regionNonAutoEligibleNodeCount(attrs);
                 if (nonEligibleNodes > 0 && !measuredWinProof) {
-                    failures.add("AUTO native CPU region selected parity non-eligible nodes for "
+                    failures.add("AUTO native CPU region selected non-auto-eligible nodes for "
                             + candidate.entry().name() + " count=" + nonEligibleNodes
-                            + " parityAutoEligible=" + evidence(attrs, "nativeCpuParityAutoEligible")
+                            + " autoEligible=" + evidence(attrs, "nativeCpuRegionAutoEligible")
                             + " layouts=" + evidence(attrs, "nativeCpuLayoutClassCounts")
-                            + " resultResidencies=" + evidence(attrs, "nativeCpuParityResultResidencies")
+                            + " resultResidencies=" + evidence(attrs, "nativeCpuRegionResultResidencies")
                             + " measuredWinProof=" + NativeCpuRegionMeasuredWinEvidence.describe(attrs));
                 }
             }
@@ -110,8 +110,8 @@ public final class NativeCpuNonBlasBenchmarkGate {
         return value instanceof Collection<?> collection ? collection.size() : 0;
     }
 
-    private static int parityNonAutoEligibleNodeCount(Map<String, Object> attrs) {
-        Object values = attrs.get("nativeCpuParityAutoEligible");
+    private static int regionNonAutoEligibleNodeCount(Map<String, Object> attrs) {
+        Object values = attrs.get("nativeCpuRegionAutoEligible");
         if (!(values instanceof Collection<?> collection)) {
             return 0;
         }

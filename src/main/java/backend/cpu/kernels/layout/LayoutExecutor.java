@@ -2,9 +2,7 @@ package backend.cpu.kernels.layout;
 
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.nativecpu.NativeCpuKernelFact;
-import backend.cpu.nativecpu.NativeCpuKernelFacts;
-import backend.cpu.nativecpu.NativeCpuTraceState;
+import backend.cpu.kernels.CpuNativeTraceSupport;
 import backend.memory.CpuMaterializationReason;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
@@ -61,10 +59,9 @@ final class LayoutExecutor {
         }
         Operation op = context.executionOperation();
         Operation.OpType opType = opType(op);
-        NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(opType, node.getDataType());
         String reason = nativeCastIneligibleReason(opType, inputs, node, context);
         if (!reason.isBlank()) {
-            return fallback(context, fact, "cast", reason);
+            return fallbackSegmentScalar(context, "cast", reason);
         }
         try {
             Tensor input = inputs.getFirst();
@@ -76,10 +73,10 @@ final class LayoutExecutor {
                     outputStorage,
                     "layout storage loop CAST wrote " + node.getDataType() + " native output"
             );
-            publishTrace(context, fact, "CPU_NATIVE", "");
+            CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_NATIVE, "");
             return true;
         } catch (Throwable t) {
-            return fallback(context, fact, "cast", "native-kernel-failed:cast:" + safeMessage(t));
+            return fallbackSegmentScalar(context, "cast", "native-kernel-failed:cast:" + safeMessage(t));
         }
     }
 
@@ -89,10 +86,9 @@ final class LayoutExecutor {
         }
         Operation op = context.executionOperation();
         Operation.OpType opType = opType(op);
-        NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(opType, node.getDataType());
         String reason = nativeContiguousIneligibleReason(opType, inputs, node, context);
         if (!reason.isBlank()) {
-            return fallback(context, fact, "contiguous", reason);
+            return fallbackNativeMicrokernel(context, "contiguous", reason);
         }
         try {
             Tensor input = inputs.getFirst();
@@ -104,10 +100,10 @@ final class LayoutExecutor {
                     outputStorage,
                     "layout storage loop CONTIGUOUS wrote " + node.getDataType() + " native output"
             );
-            publishTrace(context, fact, "CPU_NATIVE", "");
+            CpuNativeTraceSupport.publishNativeMicrokernel(context, CpuNativeTraceSupport.CPU_NATIVE, "");
             return true;
         } catch (Throwable t) {
-            return fallback(context, fact, "contiguous", "native-kernel-failed:contiguous:" + safeMessage(t));
+            return fallbackNativeMicrokernel(context, "contiguous", "native-kernel-failed:contiguous:" + safeMessage(t));
         }
     }
 
@@ -119,13 +115,12 @@ final class LayoutExecutor {
         if (!supportsViewOp(opType) || !supportsViewDType(node.getDataType())) {
             return false;
         }
-        NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(opType, node.getDataType());
         if (inputs == null || inputs.size() != 1 || context.inputNodeIds().size() != 1) {
-            return fallback(context, fact, "view-only layout", "native-kernel-ineligible:" + opLabel(opType) + "-input-count");
+            return fallbackViewOnly(context, "view-only layout", "native-kernel-ineligible:" + opLabel(opType) + "-input-count");
         }
         Tensor input = inputs.getFirst();
         if (input.getDataType() != node.getDataType()) {
-            return fallback(context, fact, "view-only layout", "native-kernel-ineligible:" + opLabel(opType) + "-dtype");
+            return fallbackViewOnly(context, "view-only layout", "native-kernel-ineligible:" + opLabel(opType) + "-dtype");
         }
         try {
             int sourceNodeId = context.inputNodeIds().getFirst();
@@ -134,10 +129,10 @@ final class LayoutExecutor {
                     sourceNodeId,
                     "layout storage loop " + opLabel(opType).toUpperCase() + " view aliases node-" + sourceNodeId
             );
-            publishTrace(context, fact, "CPU_NATIVE", "");
+            CpuNativeTraceSupport.publishViewOnly(context, CpuNativeTraceSupport.CPU_NATIVE, "");
             return true;
         } catch (Throwable t) {
-            return fallback(context, fact, "view-only layout",
+            return fallbackViewOnly(context, "view-only layout",
                     "native-kernel-failed:" + opLabel(opType) + ":" + safeMessage(t));
         }
     }
@@ -246,10 +241,24 @@ final class LayoutExecutor {
                 + input.getType() + ", output=" + output.getType());
     }
 
-    private static boolean fallback(CpuKernelContext context, NativeCpuKernelFact fact, String family, String reason) {
+    private static boolean fallbackSegmentScalar(CpuKernelContext context, String family, String reason) {
         requireFallbackAllowed(context, family, reason);
         requireCpuReadableInputs(context);
-        publishTrace(context, fact, "CPU_ARRAY", reason);
+        CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_ARRAY, reason);
+        return false;
+    }
+
+    private static boolean fallbackNativeMicrokernel(CpuKernelContext context, String family, String reason) {
+        requireFallbackAllowed(context, family, reason);
+        requireCpuReadableInputs(context);
+        CpuNativeTraceSupport.publishNativeMicrokernel(context, CpuNativeTraceSupport.CPU_ARRAY, reason);
+        return false;
+    }
+
+    private static boolean fallbackViewOnly(CpuKernelContext context, String family, String reason) {
+        requireFallbackAllowed(context, family, reason);
+        requireCpuReadableInputs(context);
+        CpuNativeTraceSupport.publishViewOnly(context, CpuNativeTraceSupport.CPU_ARRAY, reason);
         return false;
     }
 
@@ -283,27 +292,6 @@ final class LayoutExecutor {
         for (int inputNodeId : context.inputNodeIds()) {
             context.executionContext().requireCpuReadable(inputNodeId, CpuMaterializationReason.CPU_CONSUMER);
         }
-    }
-
-    private static void publishTrace(
-            CpuKernelContext context,
-            NativeCpuKernelFact fact,
-            String actualCpuStorage,
-            String fallbackReason
-    ) {
-        var runtime = context.executionContext().runtimeConfig();
-        context.putRuntimeState(
-                context.executionContext().runtimeTensorForNodeId(context.nodeId()),
-                new NativeCpuTraceState(
-                        runtime.cpuStorageProfile().name(),
-                        runtime.nativeCpuFailurePolicy().name(),
-                        "CPU_NATIVE",
-                        actualCpuStorage,
-                        fact.status().name(),
-                        fact.family().name(),
-                        fallbackReason
-                )
-        );
     }
 
     private static boolean supportedCast(DataType input, DataType output) {

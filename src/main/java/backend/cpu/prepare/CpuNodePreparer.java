@@ -7,6 +7,7 @@ import backend.cpu.CpuFusedExecutionArtifact;
 import backend.cpu.CpuNodeExecutionArtifact;
 import backend.cpu.CpuRegionExecutionArtifact;
 import backend.cpu.kernels.CpuKernel;
+import backend.cpu.kernels.CpuNativeStorageSupport;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.CpuNodeWorkspace;
 import backend.cpu.kernels.ResolvedCpuComputeContract;
@@ -181,7 +182,7 @@ public final class CpuNodePreparer {
                         cpuWorkspace,
                         preparedFusedDispatch.vectorFallbackReason()
                 ),
-                inputResidencyRequirement(cpuPlan, operation),
+                inputResidencyRequirement(cpuPlan, operation, runtimeConfig.cpuStorageProfile()),
                 outputResidencyEffect(operation)
         );
     }
@@ -284,24 +285,43 @@ public final class CpuNodePreparer {
                 null,
                 List.of(),
                 artifact,
-                inputResidencyRequirement(cpuPlan, operation),
+                inputResidencyRequirement(cpuPlan, operation, runtimeConfig.cpuStorageProfile()),
                 outputResidencyEffect(operation)
         );
     }
 
-    private static InputResidencyRequirement inputResidencyRequirement(CpuNodeExecutionPlan cpuPlan, Operation operation) {
+    private static InputResidencyRequirement inputResidencyRequirement(
+            CpuNodeExecutionPlan cpuPlan,
+            Operation operation,
+            CpuStorageProfile cpuStorageProfile
+    ) {
         if (operation instanceof FusedOperation fused
                 && fused.getNumericContract().usesMemorySegmentStorage()) {
             return InputResidencyRequirement.none();
         }
-        if (cpuPlan == null || cpuPlan.nativeCpuPlan() == null) {
+        if (cpuPlan == null || operation == null) {
             return InputResidencyRequirement.cpuReadableAll();
         }
-        return switch (cpuPlan.nativeCpuPlan().inputPolicy()) {
-            case ALL_NATIVE -> InputResidencyRequirement.none();
-            case CONDITION_CPU_VALUES_NATIVE -> InputResidencyRequirement.cpuReadableFirst();
-            default -> InputResidencyRequirement.cpuReadableAll();
-        };
+        Operation.OpType opType = operation.opType();
+        if (usesMatMulMemorySegmentProvider(opType, cpuPlan)) {
+            return InputResidencyRequirement.none();
+        }
+        if (cpuStorageProfile != CpuStorageProfile.CPU_NATIVE) {
+            return InputResidencyRequirement.cpuReadableAll();
+        }
+        if (CpuNativeStorageSupport.supportsNativeWhere(opType, cpuPlan.targetType())) {
+            return InputResidencyRequirement.cpuReadableFirst();
+        }
+        if (CpuNativeStorageSupport.consumesNativeInputs(opType, cpuPlan.targetType())) {
+            return InputResidencyRequirement.none();
+        }
+        return InputResidencyRequirement.cpuReadableAll();
+    }
+
+    private static boolean usesMatMulMemorySegmentProvider(Operation.OpType opType, CpuNodeExecutionPlan cpuPlan) {
+        return (opType == Operation.OpType.MATMUL || opType == Operation.OpType.LINEAR)
+                && cpuPlan.matMulHints() != null
+                && cpuPlan.matMulHints().usesOpenBlasMemorySegment();
     }
 
     private static OutputResidencyEffect outputResidencyEffect(Operation operation) {

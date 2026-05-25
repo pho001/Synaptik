@@ -85,22 +85,12 @@ class NativeCpuRegionExecutionTest {
         assertEquals(List.of(), step.metadata().attributes().get("nativeCpuStridedFallbackReasons"));
         assertEquals(List.of("PROVIDER", "SEGMENT_DENSE_SCALAR"),
                 step.metadata().attributes().get("nativeCpuRegionSegmentKernelFamilies"));
-        assertEquals(List.of(true, false), step.metadata().attributes().get("nativeCpuParityAutoEligible"));
+        assertEquals(List.of(true, false), step.metadata().attributes().get("nativeCpuRegionAutoEligible"));
         @SuppressWarnings("unchecked")
-        List<List<String>> parityStoragePaths =
-                (List<List<String>>) step.metadata().attributes().get("nativeCpuParityStoragePaths");
-        assertTrue(parityStoragePaths.get(0).contains("CPU_NATIVE_REGION_PROVIDER"));
-        assertTrue(parityStoragePaths.get(1).contains("CPU_NATIVE_REGION_DENSE"));
-        @SuppressWarnings("unchecked")
-        List<List<String>> parityLayoutCapabilities =
-                (List<List<String>>) step.metadata().attributes().get("nativeCpuParityLayoutCapabilities");
-        assertTrue(parityLayoutCapabilities.get(1).contains("DENSE"));
-        assertTrue(parityLayoutCapabilities.get(1).contains("OFFSET_CONTIGUOUS"));
-        @SuppressWarnings("unchecked")
-        List<List<String>> parityResultResidencies =
-                (List<List<String>>) step.metadata().attributes().get("nativeCpuParityResultResidencies");
-        assertEquals(List.of("CPU_NATIVE"), parityResultResidencies.get(0));
-        assertEquals(List.of("CPU_NATIVE"), parityResultResidencies.get(1));
+        List<List<String>> resultResidencies =
+                (List<List<String>>) step.metadata().attributes().get("nativeCpuRegionResultResidencies");
+        assertEquals(List.of("CPU_NATIVE"), resultResidencies.get(0));
+        assertEquals(List.of("CPU_NATIVE"), resultResidencies.get(1));
         @SuppressWarnings("unchecked")
         Map<String, Integer> layoutClassCounts =
                 (Map<String, Integer>) step.metadata().attributes().get("nativeCpuLayoutClassCounts");
@@ -557,7 +547,7 @@ class NativeCpuRegionExecutionTest {
 
         assertEquals("NATIVE", step.metadata().attributes().get("nativeCpuRegionRoute"));
         assertEquals("", step.metadata().attributes().get("nativeCpuRegionFallbackReason"));
-        assertTrue(((List<?>) step.metadata().attributes().get("nativeCpuParityResultResidencies")).stream()
+        assertTrue(((List<?>) step.metadata().attributes().get("nativeCpuRegionResultResidencies")).stream()
                 .anyMatch(row -> row instanceof List<?> values && values.contains("BOOL_MASK_NATIVE")));
         assertFalse(trace.cpuMaterializations().stream()
                 .anyMatch(materialization -> materialization.detail().contains("bool_mask_published")));
@@ -599,7 +589,7 @@ class NativeCpuRegionExecutionTest {
 
         assertEquals("NATIVE", step.metadata().attributes().get("nativeCpuRegionRoute"));
         assertEquals("", step.metadata().attributes().get("nativeCpuRegionFallbackReason"));
-        assertTrue(((List<?>) step.metadata().attributes().get("nativeCpuParityResultResidencies")).stream()
+        assertTrue(((List<?>) step.metadata().attributes().get("nativeCpuRegionResultResidencies")).stream()
                 .anyMatch(row -> row instanceof List<?> values && values.contains("BOOL_MASK_NATIVE")));
         assertFalse(trace.cpuMaterializations().stream()
                 .anyMatch(materialization -> materialization.detail().contains("bool_mask_published")));
@@ -639,7 +629,7 @@ class NativeCpuRegionExecutionTest {
         assertEquals("NATIVE", step.metadata().attributes().get("nativeCpuRegionRoute"));
         assertEquals("", step.metadata().attributes().get("nativeCpuRegionFallbackReason"));
         assertEquals(5, step.metadata().attributes().get("nativeCpuRegionLocalKernelCount"));
-        assertTrue(((List<?>) step.metadata().attributes().get("nativeCpuParityResultResidencies")).stream()
+        assertTrue(((List<?>) step.metadata().attributes().get("nativeCpuRegionResultResidencies")).stream()
                 .anyMatch(row -> row instanceof List<?> values && values.contains("BOOL_MASK_NATIVE")));
         assertFalse(trace.cpuMaterializations().stream()
                 .anyMatch(materialization -> materialization.detail().contains("bool_mask_published")));

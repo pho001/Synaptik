@@ -2,9 +2,7 @@ package backend.cpu.kernels.reduction;
 
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.nativecpu.NativeCpuKernelFact;
-import backend.cpu.nativecpu.NativeCpuKernelFacts;
-import backend.cpu.nativecpu.NativeCpuTraceState;
+import backend.cpu.kernels.CpuNativeTraceSupport;
 import backend.cpu.nativecpu.layout.NativeCpuStorageFamily;
 import backend.cpu.nativecpu.layout.NativeSegmentStridedKernels;
 import backend.cpu.nativecpu.layout.NativeSegmentView;
@@ -68,10 +66,9 @@ final class ReductionStorageLoops {
             CpuKernelContext context
     ) {
         Operation.OpType safeOpType = opTypeOrUnknown(opType);
-        NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(safeOpType, node.getDataType());
         String reason = nativeIneligibleReason(safeOpType, input, node, dimension, context);
         if (!reason.isBlank()) {
-            return fallback(context, fact, safeOpType, reason);
+            return fallback(context, safeOpType, reason);
         }
         try {
             NativeTensorStorage inputStorage = requireNativeInput(context, input.getDataType(), opLabel(safeOpType).toUpperCase());
@@ -87,12 +84,11 @@ final class ReductionStorageLoops {
                     outputStorage,
                     "reduction storage loop " + opLabel(safeOpType).toUpperCase() + " wrote " + node.getDataType() + " native output"
             );
-            publishTrace(context, fact, "CPU_NATIVE", "");
+            CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_NATIVE, "");
             return true;
         } catch (Throwable t) {
             return fallback(
                     context,
-                    fact,
                     safeOpType,
                     "native-kernel-failed:" + opLabel(safeOpType) + ":" + safeMessage(t)
             );
@@ -142,10 +138,10 @@ final class ReductionStorageLoops {
         return "native-kernel-unsupported:" + opLabel(opType);
     }
 
-    private static boolean fallback(CpuKernelContext context, NativeCpuKernelFact fact, Operation.OpType opType, String reason) {
+    private static boolean fallback(CpuKernelContext context, Operation.OpType opType, String reason) {
         requireFallbackAllowed(context, opLabel(opType) + " reduction", reason);
         requireCpuReadableInputs(context);
-        publishTrace(context, fact, "CPU_ARRAY", reason);
+        CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_ARRAY, reason);
         return false;
     }
 
@@ -209,33 +205,6 @@ final class ReductionStorageLoops {
         for (int inputNodeId : context.inputNodeIds()) {
             context.executionContext().requireCpuReadable(inputNodeId, CpuMaterializationReason.CPU_CONSUMER);
         }
-    }
-
-    private static void publishTrace(
-            CpuKernelContext context,
-            NativeCpuKernelFact fact,
-            String actualCpuStorage,
-            String fallbackReason
-    ) {
-        var runtime = context.executionContext().runtimeConfig();
-        Tensor runtimeTensor = context.executionContext().runtimeTensorForNodeId(context.nodeId());
-        boolean bf16Promoted = runtimeTensor.getDataType() == DataType.BFLOAT16
-                && "CPU_NATIVE".equals(actualCpuStorage)
-                && (fallbackReason == null || fallbackReason.isBlank());
-        context.putRuntimeState(
-                runtimeTensor,
-                new NativeCpuTraceState(
-                        runtime.cpuStorageProfile().name(),
-                        runtime.nativeCpuFailurePolicy().name(),
-                        "CPU_NATIVE",
-                        actualCpuStorage,
-                        fact.status().name(),
-                        fact.family().name(),
-                        fallbackReason,
-                        bf16Promoted ? "BF16" : "",
-                        bf16Promoted ? "F32_PROMOTED" : ""
-                )
-        );
     }
 
     private static boolean nativeRequested(CpuKernelContext context) {

@@ -198,10 +198,8 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"stridedMaterializationCount\": " + summary.stridedMaterializationCount() + ", "
                 + "\"benchmarkRowCounts\": " + intMapJson(summary.benchmarkRowCounts()) + ", "
                 + "\"layoutClassCounts\": " + intMapJson(summary.layoutClassCounts()) + ", "
-                + "\"parityStoragePathCounts\": " + intMapJson(summary.parityStoragePathCounts()) + ", "
-                + "\"parityLayoutCapabilityCounts\": " + intMapJson(summary.parityLayoutCapabilityCounts()) + ", "
-                + "\"parityResultResidencyCounts\": " + intMapJson(summary.parityResultResidencyCounts()) + ", "
-                + "\"parityAutoEligibleNodeCount\": " + summary.parityAutoEligibleNodeCount() + ", "
+                + "\"regionResultResidencyCounts\": " + intMapJson(summary.regionResultResidencyCounts()) + ", "
+                + "\"regionAutoEligibleNodeCount\": " + summary.regionAutoEligibleNodeCount() + ", "
                 + "\"boundaryOutputCount\": " + summary.boundaryOutputCount() + ", "
                 + "\"fallbackReasons\": " + stringListJson(summary.fallbackReasons()) + ", "
                 + "\"stridedFallbackReasons\": " + stringListJson(summary.stridedFallbackReasons()) + ", "
@@ -380,10 +378,8 @@ public final class JsonBenchmarkReportRenderer {
             int stridedMaterializationCount,
             java.util.Map<String, Integer> benchmarkRowCounts,
             java.util.Map<String, Integer> layoutClassCounts,
-            java.util.Map<String, Integer> parityStoragePathCounts,
-            java.util.Map<String, Integer> parityLayoutCapabilityCounts,
-            java.util.Map<String, Integer> parityResultResidencyCounts,
-            int parityAutoEligibleNodeCount,
+            java.util.Map<String, Integer> regionResultResidencyCounts,
+            int regionAutoEligibleNodeCount,
             int boundaryOutputCount,
             java.util.List<String> fallbackReasons,
             java.util.List<String> stridedFallbackReasons,
@@ -408,10 +404,8 @@ public final class JsonBenchmarkReportRenderer {
             int boundaries = 0;
             java.util.LinkedHashMap<String, Integer> benchmarkRowCounts = new java.util.LinkedHashMap<>();
             java.util.LinkedHashMap<String, Integer> layoutClassCounts = new java.util.LinkedHashMap<>();
-            java.util.LinkedHashMap<String, Integer> parityStoragePathCounts = new java.util.LinkedHashMap<>();
-            java.util.LinkedHashMap<String, Integer> parityLayoutCapabilityCounts = new java.util.LinkedHashMap<>();
-            java.util.LinkedHashMap<String, Integer> parityResultResidencyCounts = new java.util.LinkedHashMap<>();
-            int parityAutoEligibleNodes = 0;
+            java.util.LinkedHashMap<String, Integer> regionResultResidencyCounts = new java.util.LinkedHashMap<>();
+            int regionAutoEligibleNodes = 0;
             java.util.LinkedHashSet<String> fallbackReasons = new java.util.LinkedHashSet<>();
             java.util.LinkedHashSet<String> stridedFallbackReasons = new java.util.LinkedHashSet<>();
             java.util.LinkedHashSet<String> rejectionReasons = new java.util.LinkedHashSet<>();
@@ -456,10 +450,8 @@ public final class JsonBenchmarkReportRenderer {
                 stridedNodes += intAttr(attrs.get("nativeCpuStridedNodeCount"));
                 stridedMaterializations += intAttr(attrs.get("nativeCpuStridedMaterializationCount"));
                 mergeStringCounts(layoutClassCounts, attrs.get("nativeCpuLayoutClassCounts"));
-                mergeNestedStringCounts(parityStoragePathCounts, attrs.get("nativeCpuParityStoragePaths"));
-                mergeNestedStringCounts(parityLayoutCapabilityCounts, attrs.get("nativeCpuParityLayoutCapabilities"));
-                mergeNestedStringCounts(parityResultResidencyCounts, attrs.get("nativeCpuParityResultResidencies"));
-                parityAutoEligibleNodes += trueCount(attrs.get("nativeCpuParityAutoEligible"));
+                mergeNestedStringCounts(regionResultResidencyCounts, attrs.get("nativeCpuRegionResultResidencies"));
+                regionAutoEligibleNodes += trueCount(attrs.get("nativeCpuRegionAutoEligible"));
                 addStrings(stridedFallbackReasons, attrs.get("nativeCpuStridedFallbackReasons"));
                 boundaries += listSize(attrs.get("nativeCpuRegionOutputs"));
                 increment(benchmarkRowCounts, nativeCpuRegionBenchmarkRow(attrs));
@@ -478,10 +470,8 @@ public final class JsonBenchmarkReportRenderer {
                     stridedMaterializations,
                     orderedMap(benchmarkRowCounts),
                     orderedMap(layoutClassCounts),
-                    orderedMap(parityStoragePathCounts),
-                    orderedMap(parityLayoutCapabilityCounts),
-                    orderedMap(parityResultResidencyCounts),
-                    parityAutoEligibleNodes,
+                    orderedMap(regionResultResidencyCounts),
+                    regionAutoEligibleNodes,
                     boundaries,
                     java.util.List.copyOf(fallbackReasons),
                     java.util.List.copyOf(stridedFallbackReasons),
@@ -492,8 +482,7 @@ public final class JsonBenchmarkReportRenderer {
 
         private static NativeCpuRegionTraceSummary empty(boolean present) {
             return new NativeCpuRegionTraceSummary(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(),
-                    java.util.Map.of(), 0,
+                    java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), 0,
                     0, java.util.List.of(), java.util.List.of(), java.util.List.of(), present);
         }
     }

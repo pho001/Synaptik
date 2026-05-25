@@ -6,14 +6,12 @@ import backend.blas.OpenBlasRuntime;
 import backend.cpu.fused.plan.FusedOperation;
 import backend.cpu.fused.plan.FusedVectorFallbackReason;
 import backend.cpu.kernels.CpuKernel;
+import backend.cpu.kernels.CpuNativeStorageSupport;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
 import backend.memory.TensorResidencyState;
-import backend.cpu.nativecpu.NativeCpuParityMatrix;
 import backend.cpu.nativecpu.NativeCpuTraceState;
-import backend.cpu.nativecpu.PreparedNativeCpuPlan;
-import backend.cpu.nativecpu.PreparedNativeCpuRoute;
 import backend.cpu.nativecpu.layout.NativeCpuLayoutClass;
 import backend.cpu.nativecpu.layout.NativeCpuStorageFamily;
 import backend.cpu.nativecpu.layout.TensorPhysicalView;
@@ -284,17 +282,11 @@ public final class CpuStepTraceContributor {
             attrs.put("nativeCpuRegionSegmentKernelFamilies", regionPlan.nodePlans().stream()
                     .map(RegionNodePlan::segmentKernelFamily)
                     .toList());
-            attrs.put("nativeCpuParityStoragePaths", regionPlan.nodePlans().stream()
-                    .map(CpuStepTraceContributor::nativeCpuParityStoragePaths)
+            attrs.put("nativeCpuRegionAutoEligible", regionPlan.nodePlans().stream()
+                    .map(nodePlan -> CpuNativeStorageSupport.autoEligible(nodePlan.opType(), nodePlan.dataType()))
                     .toList());
-            attrs.put("nativeCpuParityLayoutCapabilities", regionPlan.nodePlans().stream()
-                    .map(CpuStepTraceContributor::nativeCpuParityLayoutCapabilities)
-                    .toList());
-            attrs.put("nativeCpuParityResultResidencies", regionPlan.nodePlans().stream()
-                    .map(CpuStepTraceContributor::nativeCpuParityResultResidencies)
-                    .toList());
-            attrs.put("nativeCpuParityAutoEligible", regionPlan.nodePlans().stream()
-                    .map(nodePlan -> NativeCpuParityMatrix.isAutoEligible(nodePlan.opType(), nodePlan.dataType()))
+            attrs.put("nativeCpuRegionResultResidencies", regionPlan.nodePlans().stream()
+                    .map(CpuStepTraceContributor::nativeCpuRegionResultResidency)
                     .toList());
             attrs.put("nativeCpuRegionLayoutClasses", regionPlan.nodePlans().stream()
                     .map(RegionNodePlan::layoutClass)
@@ -365,11 +357,10 @@ public final class CpuStepTraceContributor {
                 || cpuPlan == null) {
             return;
         }
-        PreparedNativeCpuPlan nativePlan = cpuPlan.nativeCpuPlan();
-        if (nativePlan != null && nativePlan.route() == PreparedNativeCpuRoute.NATIVE_EXECUTABLE) {
+        if (usesDirectNativeStorage(node, cpuPlan, runtimeConfig)) {
             return;
         }
-        String reason = nativeRegionRejectionReason(node, nativePlan, runtimeConfig, context);
+        String reason = nativeRegionRejectionReason(node, runtimeConfig, context);
         attrs.put("nativeCpuRegionDecision", "REJECTED");
         attrs.put("nativeCpuRegionReason", reason);
         attrs.put("nativeCpuRegionRoute", "CPU_ARRAY");
@@ -381,23 +372,9 @@ public final class CpuStepTraceContributor {
         attrs.put("nativeCpuRegionRejectedOp", node.operation() == null
                 ? "UNKNOWN"
                 : node.operation().opType().name());
-        var parity = NativeCpuParityMatrix.entryFor(
-                node.operation() == null ? Operation.OpType.UNKNOWN : node.operation().opType(),
-                node.dataType()
-        );
-        attrs.put("nativeCpuParityStoragePaths", List.of(parity.storagePaths().stream()
-                .map(Enum::name)
-                .sorted()
-                .toList()));
-        attrs.put("nativeCpuParityLayoutCapabilities", List.of(parity.layoutCapabilities().stream()
-                .map(Enum::name)
-                .sorted()
-                .toList()));
-        attrs.put("nativeCpuParityResultResidencies", List.of(parity.resultResidencies().stream()
-                .map(Enum::name)
-                .sorted()
-                .toList()));
-        attrs.put("nativeCpuParityAutoEligible", List.of(parity.autoEligible()));
+        attrs.put("nativeCpuRegionAutoEligible", List.of(node.operation() != null
+                && CpuNativeStorageSupport.autoEligible(node.operation().opType(), node.dataType())));
+        attrs.put("nativeCpuRegionResultResidencies", List.of(nativeCpuSingleNodeResultResidency(node)));
         String layoutClass = nodeLayoutClassName(node);
         List<String> inputLayoutClasses = node.inputIds().stream()
                 .map(inputNodeId -> safeRuntimeTensor(context, inputNodeId))
@@ -417,7 +394,6 @@ public final class CpuStepTraceContributor {
 
     private static String nativeRegionRejectionReason(
             CompiledNode node,
-            PreparedNativeCpuPlan nativePlan,
             RuntimeConfig runtimeConfig,
             ExecutionContext executionContext
     ) {
@@ -435,17 +411,57 @@ public final class CpuStepTraceContributor {
         if (providerOp && runtimeConfig.blas().provider() == backend.blas.BlasProvider.NONE) {
             return "native-cpu-region-provider-unavailable:" + opLabel;
         }
-        String planReason = nativePlan == null ? "" : nativePlan.fallbackReason();
+        String opReason = nativeRegionUnsupportedReason(node);
         if (runtimeConfig.cpuStorageProfile() == CpuStorageProfile.AUTO
-                && (planReason.isBlank() || planReason.startsWith("cpu-storage-profile-not-native"))) {
+                && nativeRegionAutoRejectsSlowOp(node)) {
+            return "native-cpu-region-auto-rejected-slow-op:" + opLabel;
+        }
+        if (runtimeConfig.cpuStorageProfile() == CpuStorageProfile.AUTO && opReason.isBlank()) {
             return "native-cpu-region-auto-rejected:no-region-selected";
         }
-        if (!planReason.isBlank()) {
-            return planReason.startsWith("native-cpu-region-")
-                    ? planReason
-                    : "native-cpu-region-rejected:" + planReason;
+        if (!opReason.isBlank()) {
+            return opReason.startsWith("native-cpu-region-")
+                    ? opReason
+                    : "native-cpu-region-rejected:" + opReason;
         }
         return "native-cpu-region-rejected:no-region-selected";
+    }
+
+    private static boolean usesDirectNativeStorage(
+            CompiledNode node,
+            CpuNodeExecutionPlan cpuPlan,
+            RuntimeConfig runtimeConfig
+    ) {
+        if (node == null || node.operation() == null || cpuPlan == null) {
+            return false;
+        }
+        Operation.OpType opType = node.operation().opType();
+        if ((opType == Operation.OpType.MATMUL || opType == Operation.OpType.LINEAR)
+                && cpuPlan.matMulHints() != null
+                && cpuPlan.matMulHints().usesOpenBlasMemorySegment()) {
+            return true;
+        }
+        return runtimeConfig != null
+                && runtimeConfig.cpuStorageProfile() == CpuStorageProfile.CPU_NATIVE
+                && CpuNativeStorageSupport.writesNativeOutput(opType, node.dataType());
+    }
+
+    private static String nativeRegionUnsupportedReason(CompiledNode node) {
+        if (node == null || node.operation() == null) {
+            return "native-kernel-unknown-op";
+        }
+        Operation.OpType opType = node.operation().opType();
+        if (opType == Operation.OpType.MATMUL || opType == Operation.OpType.LINEAR) {
+            return "native-cpu-region-provider-fallback:" + opType.name().toLowerCase(Locale.ROOT);
+        }
+        return CpuNativeStorageSupport.unsupportedReason(opType, node.dataType());
+    }
+
+    private static boolean nativeRegionAutoRejectsSlowOp(CompiledNode node) {
+        return node != null
+                && node.operation() != null
+                && CpuNativeStorageSupport.nativeRegionSupported(node.operation().opType(), node.dataType())
+                && !CpuNativeStorageSupport.autoEligible(node.operation().opType(), node.dataType());
     }
 
     private static String nativeLayoutRejectionReason(
@@ -800,34 +816,43 @@ public final class CpuStepTraceContributor {
                 || "SEGMENT_STRIDED_SCALAR".equals(segmentKernelFamily);
     }
 
-    private static List<String> nativeCpuParityStoragePaths(RegionNodePlan nodePlan) {
+    private static List<String> nativeCpuRegionResultResidency(RegionNodePlan nodePlan) {
         if (nodePlan == null) {
             return List.of();
         }
-        return NativeCpuParityMatrix.entryFor(nodePlan.opType(), nodePlan.dataType()).storagePaths().stream()
-                .map(Enum::name)
-                .sorted()
-                .toList();
+        if (isBoolMaskNode(nodePlan.opType(), nodePlan.dataType())) {
+            return List.of("BOOL_MASK_NATIVE");
+        }
+        return switch (nodePlan.storageContract()) {
+            case CPU_NATIVE -> List.of("CPU_NATIVE");
+            case VIEW_ALIAS -> List.of("VIEW_ALIAS");
+            default -> List.of("CPU_ARRAY");
+        };
     }
 
-    private static List<String> nativeCpuParityLayoutCapabilities(RegionNodePlan nodePlan) {
-        if (nodePlan == null) {
-            return List.of();
+    private static List<String> nativeCpuSingleNodeResultResidency(CompiledNode node) {
+        if (node == null || node.operation() == null) {
+            return List.of("CPU_ARRAY");
         }
-        return NativeCpuParityMatrix.entryFor(nodePlan.opType(), nodePlan.dataType()).layoutCapabilities().stream()
-                .map(Enum::name)
-                .sorted()
-                .toList();
+        if (isBoolMaskNode(node.operation().opType(), node.dataType())) {
+            return List.of("BOOL_MASK_ARRAY", "BOOL_MASK_NATIVE");
+        }
+        if (CpuNativeStorageSupport.providerRoute(node.operation().opType(), node.dataType())) {
+            return List.of("CPU_NATIVE");
+        }
+        if (CpuNativeStorageSupport.viewAlias(node.operation().opType(), node.dataType())) {
+            return List.of("VIEW_ALIAS");
+        }
+        return CpuNativeStorageSupport.writesNativeOutput(node.operation().opType(), node.dataType())
+                ? List.of("CPU_NATIVE")
+                : List.of("CPU_ARRAY");
     }
 
-    private static List<String> nativeCpuParityResultResidencies(RegionNodePlan nodePlan) {
-        if (nodePlan == null) {
-            return List.of();
-        }
-        return NativeCpuParityMatrix.entryFor(nodePlan.opType(), nodePlan.dataType()).resultResidencies().stream()
-                .map(Enum::name)
-                .sorted()
-                .toList();
+    private static boolean isBoolMaskNode(Operation.OpType opType, tensor.DataType dataType) {
+        return dataType == tensor.DataType.BOOL
+                && (CpuNativeStorageSupport.supportsNativeCompare(opType)
+                || CpuNativeStorageSupport.supportsNativeBoolLogical(opType, dataType)
+                || CpuNativeStorageSupport.supportsNativeReduction(opType, dataType));
     }
 
     private static boolean isBf16PromotedRegionNodePlan(RegionNodePlan nodePlan) {

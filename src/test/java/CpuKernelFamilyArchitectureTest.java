@@ -41,6 +41,8 @@ public class CpuKernelFamilyArchitectureTest {
                 "CpuKernel.java",
                 "CpuKernelContext.java",
                 "CpuKernelCostClass.java",
+                "CpuNativeStorageSupport.java",
+                "CpuNativeTraceSupport.java",
                 "CpuNodeExecutionPlan.java",
                 "CpuNodeWorkspace.java",
                 "CpuThreadPool.java",
@@ -140,25 +142,13 @@ public class CpuKernelFamilyArchitectureTest {
     @Test
     void waveZeroNativeCpuImportsFromKernelPackageRemainExplicitlyAllowlisted() throws IOException {
         Map<String, Set<String>> expected = Map.ofEntries(
-                Map.entry("CpuNodeExecutionPlan.java", Set.of("PreparedNativeCpuPlan")),
-                Map.entry("plan/CpuPlanAssembler.java", Set.of("NativeCpuPlanResolver", "PreparedNativeCpuPlan")),
-                Map.entry("elementwise/ElementwiseNativeSupport.java", Set.of("NativeCpuKernelFact", "NativeCpuTraceState")),
-                Map.entry("elementwise/binary/AddStorageLoops.java", Set.of("NativeCpuKernelFact", "NativeCpuKernelFacts")),
-                Map.entry("elementwise/binary/BinaryStorageLoops.java", Set.of("NativeCpuKernelFact", "NativeCpuKernelFacts")),
-                Map.entry("elementwise/unary/UnaryStorageLoops.java", Set.of("NativeCpuKernelFact", "NativeCpuKernelFacts")),
-                Map.entry("elementwise/where/WhereStorageLoops.java", Set.of("NativeCpuKernelFact", "NativeCpuKernelFacts")),
-                Map.entry("elementwise/compare/CompareStorageLoops.java", Set.of("NativeCpuKernelFact", "NativeCpuKernelFacts", "NativeCpuTraceState")),
-                Map.entry("elementwise/logical/LogicalBoolStorageLoops.java", Set.of("NativeCpuKernelFact", "NativeCpuKernelFacts", "NativeCpuTraceState")),
+                Map.entry("CpuNativeTraceSupport.java", Set.of("NativeCpuTraceState")),
                 Map.entry("reduction/ReductionStorageLoops.java", Set.of(
-                        "NativeCpuKernelFact",
-                        "NativeCpuKernelFacts",
-                        "NativeCpuTraceState",
                         "layout.NativeCpuStorageFamily",
                         "layout.NativeSegmentStridedKernels",
                         "layout.NativeSegmentView",
                         "layout.TensorPhysicalView"
-                )),
-                Map.entry("layout/LayoutExecutor.java", Set.of("NativeCpuKernelFact", "NativeCpuKernelFacts", "NativeCpuTraceState"))
+                ))
         );
 
         assertEquals(expected, nativeCpuImportsUnder(Path.of("src/main/java/backend/cpu/kernels")),
@@ -206,9 +196,8 @@ public class CpuKernelFamilyArchitectureTest {
         assertTrue(providerFactory.contains("case JAVA_DIRECT"),
                 "Java matmul must remain an explicit array route.");
 
-        String nativePlanner = Files.readString(Path.of("src/main/java/backend/cpu/nativecpu/NativeCpuPlanResolver.java"));
-        assertTrue(!nativePlanner.contains("PreparedMatMulExecutable"),
-                "NativeCpuPlanResolver must not decide matmul provider ownership from executable classes.");
+        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/nativecpu/NativeCpuPlanResolver.java")),
+                "Matmul provider ownership must not keep the generic NativeCpuPlanResolver alive.");
     }
 
     @Test
@@ -261,6 +250,53 @@ public class CpuKernelFamilyArchitectureTest {
         }
     }
 
+    @Test
+    void waveSixNativePlanStackIsNotInPrepareOrRuntimePath() throws IOException {
+        List<String> deletedPlanClasses = List.of(
+                "NativeCpuPlanResolver",
+                "PreparedNativeCpuPlan",
+                "PreparedNativeCpuRoute",
+                "PreparedNativeCpuInputPolicy"
+        );
+        for (String className : deletedPlanClasses) {
+            assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/nativecpu/" + className + ".java")),
+                    className + " must not exist after Wave 6.");
+        }
+
+        List<Path> runtimeRoots = List.of(
+                Path.of("src/main/java/backend/cpu/kernels"),
+                Path.of("src/main/java/backend/cpu/lowering"),
+                Path.of("src/main/java/backend/cpu/prepare"),
+                Path.of("src/main/java/backend/cpu/CpuStepTraceContributor.java"),
+                Path.of("src/main/java/backend/cpu/nativecpu/PreparedNativeCpuRegionExecutable.java")
+        );
+        for (Path root : runtimeRoots) {
+            List<Path> offenders = javaSourceFiles(root).stream()
+                    .filter(path -> deletedPlanClasses.stream().anyMatch(className -> contains(path, className)))
+                    .toList();
+            assertTrue(offenders.isEmpty(), () -> "Wave 6 plan stack leaked into runtime path " + root + ": " + offenders);
+        }
+
+        List<String> deletedFactsRuntimeImports = List.of(
+                "NativeCpuKernelFacts",
+                "NativeCpuKernelFact",
+                "NativeCpuCoverageMatrix",
+                "NativeCpuParityMatrix",
+                "NativeCpuCoverageEntry",
+                "NativeCpuParityEntry"
+        );
+        for (String className : deletedFactsRuntimeImports) {
+            assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/nativecpu/" + className + ".java")),
+                    className + " must not exist after Wave 6.");
+        }
+        for (Path root : runtimeRoots) {
+            List<Path> offenders = javaSourceFiles(root).stream()
+                    .filter(path -> deletedFactsRuntimeImports.stream().anyMatch(className -> contains(path, className)))
+                    .toList();
+            assertTrue(offenders.isEmpty(), () -> "Wave 6 facts/parity stack leaked into runtime path " + root + ": " + offenders);
+        }
+    }
+
     private static void assertPackage(Operation.OpType opType, String expectedPackage) {
         CpuKernel kernel = CpuKernelResolver.resolve(opType);
         assertEquals(expectedPackage, kernel.getClass().getPackageName(), () ->
@@ -300,6 +336,18 @@ public class CpuKernelFamilyArchitectureTest {
             return Files.readString(path).contains(needle);
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private static List<Path> javaSourceFiles(Path root) throws IOException {
+        if (Files.isRegularFile(root)) {
+            return root.toString().endsWith(".java") ? List.of(root) : List.of();
+        }
+        try (Stream<Path> paths = Files.walk(root)) {
+            return paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .toList();
         }
     }
 }

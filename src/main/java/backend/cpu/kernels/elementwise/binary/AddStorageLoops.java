@@ -2,6 +2,7 @@ package backend.cpu.kernels.elementwise.binary;
 
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.kernels.CpuNativeTraceSupport;
 import backend.cpu.kernels.elementwise.ElementwiseLoops;
 import backend.cpu.kernels.elementwise.ElementwiseNativeSupport;
 import backend.cpu.kernels.elementwise.binary.bf16.AddBF16;
@@ -11,8 +12,6 @@ import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
 import backend.cpu.kernels.layout.plan.ResolvedBroadcastPlan;
 import backend.cpu.kernels.storage.CpuStorageBindings;
 import backend.cpu.kernels.storage.CpuStorageView;
-import backend.cpu.nativecpu.NativeCpuKernelFact;
-import backend.cpu.nativecpu.NativeCpuKernelFacts;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -35,7 +34,6 @@ final class AddStorageLoops {
             ElementwiseLoops.runBinary(kernel, inputs.get(0), inputs.get(1), node, context);
             return;
         }
-        NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(Operation.OpType.ADD, node.getDataType());
         BiasBroadcastSpec biasSpec = biasBroadcastSpec(
                 context.broadcastPlan(),
                 inputs.get(0).getFlatDataSize(),
@@ -44,7 +42,7 @@ final class AddStorageLoops {
         );
         String ineligibleReason = nativeIneligibleReason(inputs, node, context, biasSpec);
         if (!ineligibleReason.isBlank()) {
-            fallbackToArray(kernel, inputs, node, context, fact, ineligibleReason);
+            fallbackToArray(kernel, inputs, node, context, ineligibleReason);
             return;
         }
         try {
@@ -69,9 +67,9 @@ final class AddStorageLoops {
                     outputStorage,
                     "ADD storage loop wrote " + node.getDataType() + " native output"
             );
-            ElementwiseNativeSupport.publishTrace(context, fact, "CPU_NATIVE", "");
+            CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_NATIVE, "");
         } catch (Throwable t) {
-            fallbackToArray(kernel, inputs, node, context, fact,
+            fallbackToArray(kernel, inputs, node, context,
                     "native-kernel-failed:add:" + ElementwiseNativeSupport.safeMessage(t));
         }
     }
@@ -192,12 +190,11 @@ final class AddStorageLoops {
             List<Tensor> inputs,
             Tensor node,
             CpuKernelContext context,
-            NativeCpuKernelFact fact,
             String reason
     ) {
         ElementwiseNativeSupport.requireFallbackAllowed(context, "ADD", reason);
         ElementwiseNativeSupport.requireCpuReadableInputs(context);
-        ElementwiseNativeSupport.publishTrace(context, fact, "CPU_ARRAY", reason);
+        CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_ARRAY, reason);
         ElementwiseLoops.runBinary(kernel, inputs.get(0), inputs.get(1), node, context);
     }
 

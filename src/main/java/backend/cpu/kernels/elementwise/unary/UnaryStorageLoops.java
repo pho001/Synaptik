@@ -2,12 +2,11 @@ package backend.cpu.kernels.elementwise.unary;
 
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.kernels.CpuNativeTraceSupport;
 import backend.cpu.kernels.elementwise.ElementwiseLoops;
 import backend.cpu.kernels.elementwise.ElementwiseNativeSupport;
 import backend.cpu.kernels.storage.CpuStorageBindings;
 import backend.cpu.kernels.storage.CpuStorageView;
-import backend.cpu.nativecpu.NativeCpuKernelFact;
-import backend.cpu.nativecpu.NativeCpuKernelFacts;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -31,10 +30,9 @@ final class UnaryStorageLoops {
         }
         Operation op = context.executionOperation();
         Operation.OpType opType = opType(op);
-        NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(opType, node.getDataType());
         String ineligibleReason = nativeIneligibleReason(opType, inputs, node, context);
         if (!ineligibleReason.isBlank()) {
-            fallbackUnary(kernel, inputs, node, context, fact, ineligibleReason);
+            fallbackUnary(kernel, inputs, node, context, ineligibleReason);
             return;
         }
         try {
@@ -47,9 +45,9 @@ final class UnaryStorageLoops {
             );
             runSegmentDense(kernel, bindings);
             attachNativeOutput(node, context, label, outputStorage);
-            ElementwiseNativeSupport.publishTrace(context, fact, "CPU_NATIVE", "");
+            CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_NATIVE, "");
         } catch (Throwable t) {
-            fallbackUnary(kernel, inputs, node, context, fact,
+            fallbackUnary(kernel, inputs, node, context,
                     "native-kernel-failed:" + opLabel(opType) + ":" + ElementwiseNativeSupport.safeMessage(t));
         }
     }
@@ -68,10 +66,9 @@ final class UnaryStorageLoops {
         }
         Operation op = context.executionOperation();
         Operation.OpType opType = opType(op);
-        NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(opType, node.getDataType());
         String ineligibleReason = nativeScalarIneligibleReason(opType, inputs, node, context);
         if (!ineligibleReason.isBlank()) {
-            fallbackScalarUnary(kernel, parameterF64, parameterF32, inputs, node, context, fact, ineligibleReason);
+            fallbackScalarUnary(kernel, parameterF64, parameterF32, inputs, node, context, ineligibleReason);
             return;
         }
         try {
@@ -84,9 +81,9 @@ final class UnaryStorageLoops {
             );
             runSegmentDense(kernel, parameterF64, parameterF32, bindings);
             attachNativeOutput(node, context, label, outputStorage);
-            ElementwiseNativeSupport.publishTrace(context, fact, "CPU_NATIVE", "");
+            CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_NATIVE, "");
         } catch (Throwable t) {
-            fallbackScalarUnary(kernel, parameterF64, parameterF32, inputs, node, context, fact,
+            fallbackScalarUnary(kernel, parameterF64, parameterF32, inputs, node, context,
                     "native-kernel-failed:" + opLabel(opType) + ":" + ElementwiseNativeSupport.safeMessage(t));
         }
     }
@@ -218,12 +215,11 @@ final class UnaryStorageLoops {
             List<Tensor> inputs,
             Tensor node,
             CpuKernelContext context,
-            NativeCpuKernelFact fact,
             String reason
     ) {
         ElementwiseNativeSupport.requireFallbackAllowed(context, "unary elementwise", reason);
         ElementwiseNativeSupport.requireCpuReadableInputs(context);
-        ElementwiseNativeSupport.publishTrace(context, fact, "CPU_ARRAY", reason);
+        CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_ARRAY, reason);
         ElementwiseLoops.runUnary(kernel, inputs.get(0), node, context);
     }
 
@@ -234,12 +230,11 @@ final class UnaryStorageLoops {
             List<Tensor> inputs,
             Tensor node,
             CpuKernelContext context,
-            NativeCpuKernelFact fact,
             String reason
     ) {
         ElementwiseNativeSupport.requireFallbackAllowed(context, "scalar unary elementwise", reason);
         ElementwiseNativeSupport.requireCpuReadableInputs(context);
-        ElementwiseNativeSupport.publishTrace(context, fact, "CPU_ARRAY", reason);
+        CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_ARRAY, reason);
         ElementwiseLoops.runScalarUnary(kernel, parameterF64, parameterF32, inputs.get(0), node, context);
     }
 

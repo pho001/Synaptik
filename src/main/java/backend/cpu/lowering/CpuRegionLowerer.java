@@ -3,13 +3,10 @@ package backend.cpu.lowering;
 import backend.ComputeBackend;
 import backend.blas.BlasProvider;
 import backend.cpu.fused.plan.FusedOperationBuilder;
+import backend.cpu.kernels.CpuNativeStorageSupport;
 import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
 import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
 import backend.cpu.kernels.plan.CpuExecutionPlanner;
-import backend.cpu.nativecpu.NativeCpuCoverageEntry;
-import backend.cpu.nativecpu.NativeCpuCoverageMatrix;
-import backend.cpu.nativecpu.NativeCpuKernelPerformanceStatus;
-import backend.cpu.nativecpu.NativeCpuParityMatrix;
 import backend.cpu.nativecpu.layout.NativeCpuLayoutClass;
 import backend.cpu.nativecpu.layout.NativeCpuStorageFamily;
 import backend.cpu.nativecpu.layout.NativeSegmentKernelFamily;
@@ -329,25 +326,26 @@ public final class CpuRegionLowerer implements RegionLowerer {
             if (node == null || node.operation() == null) {
                 return NativeRegionLegality.rejected("native-cpu-region-unsupported:missing-node");
             }
-            NativeCpuCoverageEntry coverage = NativeCpuCoverageMatrix.entryFor(node.operation().opType(), node.dataType());
-            if (!coverage.nativeSupported()) {
+            Operation.OpType opType = node.operation().opType();
+            DataType dataType = node.dataType();
+            if (!CpuNativeStorageSupport.nativeRegionSupported(opType, dataType)) {
                 return NativeRegionLegality.rejected(nonBlank(
-                        coverage.fallbackReason(),
-                        "native-cpu-region-unsupported:" + node.operation().opType().name().toLowerCase()
+                        CpuNativeStorageSupport.unsupportedReason(opType, dataType),
+                        "native-cpu-region-unsupported:" + opType.name().toLowerCase()
                 ));
             }
-            NativeNodeLayoutPlan layoutPlan = nativeNodeLayoutPlan(nodeId, request, coverage);
+            NativeNodeLayoutPlan layoutPlan = nativeNodeLayoutPlan(nodeId, request);
             if (!layoutPlan.selected()) {
                 return NativeRegionLegality.rejected(layoutPlan.rejectionReason());
             }
             if (runtimeConfig.cpuStorageProfile() == CpuStorageProfile.AUTO
-                    && !NativeCpuParityMatrix.isAutoEligible(node.operation().opType(), node.dataType())) {
+                    && !CpuNativeStorageSupport.autoEligible(opType, dataType)) {
                 return NativeRegionLegality.rejected("native-cpu-region-auto-rejected-slow-op:"
-                        + node.operation().opType().name().toLowerCase());
+                        + opType.name().toLowerCase());
             }
-            if (coverage.status() == NativeCpuKernelPerformanceStatus.LIBRARY_PROVIDER) {
+            if (CpuNativeStorageSupport.providerRoute(opType, dataType)) {
                 if (!nativeProviderEligible(node, request, runtimeConfig)) {
-                    rejection = "native-cpu-region-provider-unavailable:" + node.operation().opType().name().toLowerCase();
+                    rejection = "native-cpu-region-provider-unavailable:" + opType.name().toLowerCase();
                     return NativeRegionLegality.rejected(rejection);
                 }
                 provider = true;
@@ -549,11 +547,9 @@ public final class CpuRegionLowerer implements RegionLowerer {
                 .map(nodeId -> request.context().compiledNode(nodeId))
                 .anyMatch(node -> {
                     Operation op = node == null ? null : node.operation();
-                    NativeCpuCoverageEntry coverage = NativeCpuCoverageMatrix.entryFor(
-                            op == null ? Operation.OpType.UNKNOWN : op.opType(),
-                            node == null ? tensor.DataType.FLOAT64 : node.dataType()
-                    );
-                    return !coverage.preservesNativeStorage();
+                    Operation.OpType opType = op == null ? Operation.OpType.UNKNOWN : op.opType();
+                    DataType dataType = node == null ? DataType.FLOAT64 : node.dataType();
+                    return !CpuNativeStorageSupport.preservesNativeStorage(opType, dataType);
                 });
         return hasCpuArrayOutput ? RegionStorageContract.MIXED_BOUNDARY : RegionStorageContract.CPU_NATIVE;
     }
@@ -561,25 +557,22 @@ public final class CpuRegionLowerer implements RegionLowerer {
     private RegionExecutionKind nativeExecutionKind(int nodeId, LoweringRequest request) {
         CompiledNode node = request.context().compiledNode(nodeId);
         Operation op = node == null ? null : node.operation();
-        NativeCpuCoverageEntry coverage = NativeCpuCoverageMatrix.entryFor(
-                op == null ? Operation.OpType.UNKNOWN : op.opType(),
-                node == null ? tensor.DataType.FLOAT64 : node.dataType()
-        );
-        return switch (coverage.status()) {
-            case LIBRARY_PROVIDER -> RegionExecutionKind.PROVIDER_CALL;
-            case VIEW_ONLY -> RegionExecutionKind.VIEW;
-            default -> RegionExecutionKind.DIRECT_KERNEL;
-        };
+        Operation.OpType opType = op == null ? Operation.OpType.UNKNOWN : op.opType();
+        DataType dataType = node == null ? DataType.FLOAT64 : node.dataType();
+        if (CpuNativeStorageSupport.providerRoute(opType, dataType)) {
+            return RegionExecutionKind.PROVIDER_CALL;
+        }
+        return CpuNativeStorageSupport.viewAlias(opType, dataType)
+                ? RegionExecutionKind.VIEW
+                : RegionExecutionKind.DIRECT_KERNEL;
     }
 
     private String nativePhysicalKernel(int nodeId, LoweringRequest request) {
         CompiledNode node = request.context().compiledNode(nodeId);
         Operation op = node == null ? null : node.operation();
-        NativeCpuCoverageEntry coverage = NativeCpuCoverageMatrix.entryFor(
-                op == null ? Operation.OpType.UNKNOWN : op.opType(),
-                node == null ? tensor.DataType.FLOAT64 : node.dataType()
-        );
-        return coverage.family().name();
+        Operation.OpType opType = op == null ? Operation.OpType.UNKNOWN : op.opType();
+        DataType dataType = node == null ? DataType.FLOAT64 : node.dataType();
+        return CpuNativeStorageSupport.family(opType, dataType).name();
     }
 
     private RegionNodePlan nativeNodePlan(
@@ -589,37 +582,36 @@ public final class CpuRegionLowerer implements RegionLowerer {
     ) {
         CompiledNode node = request.context().compiledNode(nodeId);
         Operation op = node == null ? null : node.operation();
-        NativeCpuCoverageEntry coverage = NativeCpuCoverageMatrix.entryFor(
-                op == null ? Operation.OpType.UNKNOWN : op.opType(),
-                node == null ? tensor.DataType.FLOAT64 : node.dataType()
-        );
-        NativeNodeLayoutPlan layoutPlan = nativeNodeLayoutPlan(nodeId, request, coverage);
-        RegionExecutionKind executionKind = switch (coverage.status()) {
-            case LIBRARY_PROVIDER -> RegionExecutionKind.PROVIDER_CALL;
-            case VIEW_ONLY -> RegionExecutionKind.VIEW;
-            default -> RegionExecutionKind.DIRECT_KERNEL;
-        };
+        Operation.OpType opType = op == null ? Operation.OpType.UNKNOWN : op.opType();
+        DataType dataType = node == null ? DataType.FLOAT64 : node.dataType();
+        NativeNodeLayoutPlan layoutPlan = nativeNodeLayoutPlan(nodeId, request);
+        boolean provider = CpuNativeStorageSupport.providerRoute(opType, dataType);
+        boolean view = CpuNativeStorageSupport.viewAlias(opType, dataType);
+        boolean preservesNativeStorage = CpuNativeStorageSupport.preservesNativeStorage(opType, dataType);
+        RegionExecutionKind executionKind = provider
+                ? RegionExecutionKind.PROVIDER_CALL
+                : view ? RegionExecutionKind.VIEW : RegionExecutionKind.DIRECT_KERNEL;
         RegionRole role = boundaryOutputNodeIds.contains(nodeId)
                 ? RegionRole.BOUNDARY_OUTPUT
-                : coverage.status() == NativeCpuKernelPerformanceStatus.LIBRARY_PROVIDER
+                : provider
                         ? RegionRole.PROVIDER
-                        : !coverage.preservesNativeStorage()
+                        : !preservesNativeStorage
                                 ? RegionRole.CONTROL
-                                : coverage.status() == NativeCpuKernelPerformanceStatus.VIEW_ONLY
+                                : view
                                 ? RegionRole.VIEW_ALIAS
                                 : RegionRole.LOCAL_KERNEL;
-        RegionStorageContract storageContract = !coverage.preservesNativeStorage()
+        RegionStorageContract storageContract = !preservesNativeStorage
                 ? RegionStorageContract.CPU_ARRAY
-                : coverage.status() == NativeCpuKernelPerformanceStatus.VIEW_ONLY
+                : view
                         ? RegionStorageContract.VIEW_ALIAS
                         : RegionStorageContract.CPU_NATIVE;
         return new RegionNodePlan(
                 nodeId,
-                op == null ? Operation.OpType.UNKNOWN : op.opType(),
-                node == null ? tensor.DataType.FLOAT64 : node.dataType(),
+                opType,
+                dataType,
                 role,
                 executionKind,
-                coverage.family().name(),
+                CpuNativeStorageSupport.family(opType, dataType).name(),
                 layoutPlan.segmentKernelFamily(),
                 layoutPlan.layoutClass(),
                 layoutPlan.inputLayoutClasses(),
@@ -629,17 +621,15 @@ public final class CpuRegionLowerer implements RegionLowerer {
                 node == null ? List.of() : node.inputIds(),
                 List.of(nodeId),
                 RegionLegalityStatus.SELECTED,
-                coverage.status().name().toLowerCase()
+                CpuNativeStorageSupport.status(opType, dataType).name().toLowerCase()
         );
     }
 
-    private NativeNodeLayoutPlan nativeNodeLayoutPlan(
-            int nodeId,
-            LoweringRequest request,
-            NativeCpuCoverageEntry coverage
-    ) {
+    private NativeNodeLayoutPlan nativeNodeLayoutPlan(int nodeId, LoweringRequest request) {
         CompiledNode node = request.context().compiledNode(nodeId);
         Operation op = node == null ? null : node.operation();
+        Operation.OpType opType = op == null ? Operation.OpType.UNKNOWN : op.opType();
+        DataType dataType = node == null ? DataType.FLOAT64 : node.dataType();
         List<Integer> inputNodeIds = node == null ? List.of() : node.inputIds();
         ArrayList<String> inputLayoutClasses = new ArrayList<>();
         ArrayList<NativeCpuLayoutClass> inputLayouts = new ArrayList<>();
@@ -667,8 +657,8 @@ public final class CpuRegionLowerer implements RegionLowerer {
                     "native-layout-unsupported:node-" + nodeId
             );
         }
-        NativeCpuLayoutClass accessLayout = nativeAccessLayout(op, coverage, inputLayouts, outputLayout);
-        String materializationReason = nativeLayoutMaterializationReason(request, node, op, coverage, inputLayouts, outputLayout);
+        NativeCpuLayoutClass accessLayout = nativeAccessLayout(op, dataType, inputLayouts, outputLayout);
+        String materializationReason = nativeLayoutMaterializationReason(request, node, op, dataType, inputLayouts, outputLayout);
         if (!materializationReason.isBlank()) {
             return NativeNodeLayoutPlan.rejected(
                     accessLayout.name(),
@@ -683,7 +673,7 @@ public final class CpuRegionLowerer implements RegionLowerer {
                 inputLayoutClasses,
                 outputLayout.name(),
                 "",
-                nativeSegmentKernelFamily(coverage, accessLayout).name()
+                nativeSegmentKernelFamily(opType, dataType, accessLayout).name()
         );
     }
 
@@ -698,11 +688,12 @@ public final class CpuRegionLowerer implements RegionLowerer {
 
     private NativeCpuLayoutClass nativeAccessLayout(
             Operation op,
-            NativeCpuCoverageEntry coverage,
+            DataType dataType,
             List<NativeCpuLayoutClass> inputLayouts,
             NativeCpuLayoutClass outputLayout
     ) {
-        if (coverage.status() == NativeCpuKernelPerformanceStatus.VIEW_ONLY) {
+        Operation.OpType opType = op == null ? Operation.OpType.UNKNOWN : op.opType();
+        if (CpuNativeStorageSupport.viewAlias(opType, dataType)) {
             return NativeCpuLayoutClass.VIEW_ALIAS_ONLY;
         }
         for (NativeCpuLayoutClass candidate : List.of(
@@ -727,22 +718,22 @@ public final class CpuRegionLowerer implements RegionLowerer {
             LoweringRequest request,
             CompiledNode node,
             Operation op,
-            NativeCpuCoverageEntry coverage,
+            DataType dataType,
             List<NativeCpuLayoutClass> inputLayouts,
             NativeCpuLayoutClass outputLayout
     ) {
-        if (coverage.status() == NativeCpuKernelPerformanceStatus.VIEW_ONLY) {
+        Operation.OpType opType = op == null ? Operation.OpType.UNKNOWN : op.opType();
+        if (CpuNativeStorageSupport.viewAlias(opType, dataType)) {
             return "";
         }
-        Operation.OpType opType = op == null ? Operation.OpType.UNKNOWN : op.opType();
         for (NativeCpuLayoutClass inputLayout : inputLayouts) {
             if (inputLayout == NativeCpuLayoutClass.DENSE_CONTIGUOUS) {
                 continue;
             }
-            if (coverage.status() == NativeCpuKernelPerformanceStatus.LIBRARY_PROVIDER) {
+            if (CpuNativeStorageSupport.providerRoute(opType, dataType)) {
                 return "native-layout-materialization-required:provider-dense-input";
             }
-            if (nativeSegmentLayoutEligible(node, request, op, coverage)) {
+            if (nativeSegmentLayoutEligible(node, request, op, dataType)) {
                 continue;
             }
             if (inputLayout == NativeCpuLayoutClass.OFFSET_CONTIGUOUS) {
@@ -754,8 +745,7 @@ public final class CpuRegionLowerer implements RegionLowerer {
             }
             return "native-layout-unsupported:strided-input:" + opType.name().toLowerCase();
         }
-        if (outputLayout != NativeCpuLayoutClass.DENSE_CONTIGUOUS
-                && coverage.status() != NativeCpuKernelPerformanceStatus.VIEW_ONLY) {
+        if (outputLayout != NativeCpuLayoutClass.DENSE_CONTIGUOUS) {
             return "native-layout-unsupported:strided-output:" + opType.name().toLowerCase();
         }
         return "";
@@ -765,12 +755,11 @@ public final class CpuRegionLowerer implements RegionLowerer {
             CompiledNode node,
             LoweringRequest request,
             Operation op,
-            NativeCpuCoverageEntry coverage
+            DataType dataType
     ) {
-        if (op == null || coverage == null) {
+        if (op == null) {
             return false;
         }
-        DataType dataType = coverage.dataType();
         Operation.OpType opType = op.opType();
         if (NativeSegmentStridedKernels.supportsUnary(op, dataType)) {
             return true;
@@ -800,13 +789,14 @@ public final class CpuRegionLowerer implements RegionLowerer {
     }
 
     private NativeSegmentKernelFamily nativeSegmentKernelFamily(
-            NativeCpuCoverageEntry coverage,
+            Operation.OpType opType,
+            DataType dataType,
             NativeCpuLayoutClass accessLayout
     ) {
-        if (coverage.status() == NativeCpuKernelPerformanceStatus.LIBRARY_PROVIDER) {
+        if (CpuNativeStorageSupport.providerRoute(opType, dataType)) {
             return NativeSegmentKernelFamily.PROVIDER;
         }
-        if (coverage.status() == NativeCpuKernelPerformanceStatus.VIEW_ONLY) {
+        if (CpuNativeStorageSupport.viewAlias(opType, dataType)) {
             return NativeSegmentKernelFamily.VIEW_ALIAS;
         }
         if (accessLayout == NativeCpuLayoutClass.DENSE_CONTIGUOUS) {

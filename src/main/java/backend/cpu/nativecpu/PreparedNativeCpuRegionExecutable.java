@@ -8,6 +8,7 @@ import backend.cpu.CpuFusedExecutionArtifact;
 import backend.cpu.CpuNodeExecutionArtifact;
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.kernels.CpuNativeStorageSupport;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.elementwise.unary.support.CpuPowSupport;
 import backend.cpu.kernels.elementwise.where.WhereElementwiseKernel;
@@ -1719,8 +1720,13 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         if (step == null || step.metadata().backend() != ComputeBackend.CPU || cpuPlan == null) {
             return false;
         }
-        PreparedNativeCpuPlan plan = cpuPlan.nativeCpuPlan();
-        return plan != null && plan.allowsNativeInputs();
+        Operation op = step.executionOperation();
+        Operation.OpType opType = op == null ? Operation.OpType.UNKNOWN : op.opType();
+        if ((opType == Operation.OpType.MATMUL || opType == Operation.OpType.LINEAR)
+                && cpuPlan.matMulExecutable() != null) {
+            return cpuPlan.matMulExecutable().acceptsNativeInputs();
+        }
+        return CpuNativeStorageSupport.writesNativeOutput(opType, step.compiledNode().dataType());
     }
 
     private static CpuNodeExecutionPlan cpuPlan(CompiledNodeExecutionMetadata metadata) {

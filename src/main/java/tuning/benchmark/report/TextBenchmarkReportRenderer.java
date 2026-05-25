@@ -160,10 +160,8 @@ public final class TextBenchmarkReportRenderer {
                 .append(" stridedMaterializationCount=").append(summary.stridedMaterializationCount())
                 .append(" benchmarkRowCounts=").append(summary.benchmarkRowCounts())
                 .append(" layoutClassCounts=").append(summary.layoutClassCounts())
-                .append(" parityStoragePathCounts=").append(summary.parityStoragePathCounts())
-                .append(" parityLayoutCapabilityCounts=").append(summary.parityLayoutCapabilityCounts())
-                .append(" parityResultResidencyCounts=").append(summary.parityResultResidencyCounts())
-                .append(" parityAutoEligibleNodeCount=").append(summary.parityAutoEligibleNodeCount())
+                .append(" regionResultResidencyCounts=").append(summary.regionResultResidencyCounts())
+                .append(" regionAutoEligibleNodeCount=").append(summary.regionAutoEligibleNodeCount())
                 .append(" boundaryOutputCount=").append(summary.boundaryOutputCount())
                 .append(" fallbackReasons=").append(summary.fallbackReasons())
                 .append(" stridedFallbackReasons=").append(summary.stridedFallbackReasons())
@@ -360,10 +358,8 @@ public final class TextBenchmarkReportRenderer {
             int stridedMaterializationCount,
             java.util.Map<String, Integer> benchmarkRowCounts,
             java.util.Map<String, Integer> layoutClassCounts,
-            java.util.Map<String, Integer> parityStoragePathCounts,
-            java.util.Map<String, Integer> parityLayoutCapabilityCounts,
-            java.util.Map<String, Integer> parityResultResidencyCounts,
-            int parityAutoEligibleNodeCount,
+            java.util.Map<String, Integer> regionResultResidencyCounts,
+            int regionAutoEligibleNodeCount,
             int boundaryOutputCount,
             java.util.List<String> fallbackReasons,
             java.util.List<String> stridedFallbackReasons,
@@ -388,10 +384,8 @@ public final class TextBenchmarkReportRenderer {
             int boundaries = 0;
             java.util.LinkedHashMap<String, Integer> benchmarkRowCounts = new java.util.LinkedHashMap<>();
             java.util.LinkedHashMap<String, Integer> layoutClassCounts = new java.util.LinkedHashMap<>();
-            java.util.LinkedHashMap<String, Integer> parityStoragePathCounts = new java.util.LinkedHashMap<>();
-            java.util.LinkedHashMap<String, Integer> parityLayoutCapabilityCounts = new java.util.LinkedHashMap<>();
-            java.util.LinkedHashMap<String, Integer> parityResultResidencyCounts = new java.util.LinkedHashMap<>();
-            int parityAutoEligibleNodes = 0;
+            java.util.LinkedHashMap<String, Integer> regionResultResidencyCounts = new java.util.LinkedHashMap<>();
+            int regionAutoEligibleNodes = 0;
             java.util.LinkedHashSet<String> fallbackReasons = new java.util.LinkedHashSet<>();
             java.util.LinkedHashSet<String> stridedFallbackReasons = new java.util.LinkedHashSet<>();
             java.util.LinkedHashSet<String> rejectionReasons = new java.util.LinkedHashSet<>();
@@ -436,10 +430,8 @@ public final class TextBenchmarkReportRenderer {
                 stridedNodes += intAttr(attrs.get("nativeCpuStridedNodeCount"));
                 stridedMaterializations += intAttr(attrs.get("nativeCpuStridedMaterializationCount"));
                 mergeStringCounts(layoutClassCounts, attrs.get("nativeCpuLayoutClassCounts"));
-                mergeNestedStringCounts(parityStoragePathCounts, attrs.get("nativeCpuParityStoragePaths"));
-                mergeNestedStringCounts(parityLayoutCapabilityCounts, attrs.get("nativeCpuParityLayoutCapabilities"));
-                mergeNestedStringCounts(parityResultResidencyCounts, attrs.get("nativeCpuParityResultResidencies"));
-                parityAutoEligibleNodes += trueCount(attrs.get("nativeCpuParityAutoEligible"));
+                mergeNestedStringCounts(regionResultResidencyCounts, attrs.get("nativeCpuRegionResultResidencies"));
+                regionAutoEligibleNodes += trueCount(attrs.get("nativeCpuRegionAutoEligible"));
                 addStrings(stridedFallbackReasons, attrs.get("nativeCpuStridedFallbackReasons"));
                 boundaries += listSize(attrs.get("nativeCpuRegionOutputs"));
                 increment(benchmarkRowCounts, nativeCpuRegionBenchmarkRow(attrs));
@@ -458,10 +450,8 @@ public final class TextBenchmarkReportRenderer {
                     stridedMaterializations,
                     orderedMap(benchmarkRowCounts),
                     orderedMap(layoutClassCounts),
-                    orderedMap(parityStoragePathCounts),
-                    orderedMap(parityLayoutCapabilityCounts),
-                    orderedMap(parityResultResidencyCounts),
-                    parityAutoEligibleNodes,
+                    orderedMap(regionResultResidencyCounts),
+                    regionAutoEligibleNodes,
                     boundaries,
                     java.util.List.copyOf(fallbackReasons),
                     java.util.List.copyOf(stridedFallbackReasons),
@@ -472,8 +462,7 @@ public final class TextBenchmarkReportRenderer {
 
         private static NativeCpuRegionTraceSummary empty(boolean present) {
             return new NativeCpuRegionTraceSummary(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(),
-                    java.util.Map.of(), 0,
+                    java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), 0,
                     0, java.util.List.of(), java.util.List.of(), java.util.List.of(), present);
         }
     }

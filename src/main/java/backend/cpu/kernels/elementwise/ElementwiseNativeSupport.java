@@ -2,8 +2,6 @@ package backend.cpu.kernels.elementwise;
 
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.storage.CpuStorageView;
-import backend.cpu.nativecpu.NativeCpuKernelFact;
-import backend.cpu.nativecpu.NativeCpuTraceState;
 import backend.memory.CpuMaterializationReason;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
@@ -81,33 +79,6 @@ public final class ElementwiseNativeSupport {
             expected = Math.multiplyExact(expected, shape[i]);
         }
         return true;
-    }
-
-    public static void publishTrace(
-            CpuKernelContext context,
-            NativeCpuKernelFact fact,
-            String actualCpuStorage,
-            String fallbackReason
-    ) {
-        var runtime = context.executionContext().runtimeConfig();
-        Tensor runtimeTensor = context.executionContext().runtimeTensorForNodeId(context.nodeId());
-        boolean bf16Promoted = runtimeTensor.getDataType() == DataType.BFLOAT16
-                && "CPU_NATIVE".equals(actualCpuStorage)
-                && (fallbackReason == null || fallbackReason.isBlank());
-        context.putRuntimeState(
-                runtimeTensor,
-                new NativeCpuTraceState(
-                        runtime.cpuStorageProfile().name(),
-                        runtime.nativeCpuFailurePolicy().name(),
-                        "CPU_NATIVE",
-                        actualCpuStorage,
-                        fact.status().name(),
-                        fact.family().name(),
-                        fallbackReason,
-                        bf16Promoted ? "BF16" : "",
-                        bf16Promoted ? "F32_PROMOTED" : ""
-                )
-        );
     }
 
     public static String safeMessage(Throwable t) {

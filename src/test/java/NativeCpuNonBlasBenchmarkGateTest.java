@@ -77,18 +77,18 @@ class NativeCpuNonBlasBenchmarkGateTest {
     }
 
     @Test
-    void rejectsAutoNativeRegionWithParityNonEligibleNodeEvenWithoutScalarFamily() {
+    void rejectsAutoNativeRegionWithNonEligibleNodeEvenWithoutScalarFamily() {
         BenchmarkReport report = report(
-                "auto-native-parity-non-eligible",
+                "auto-native-non-eligible",
                 CpuStorageProfile.AUTO,
                 Map.ofEntries(
                         Map.entry("nativeCpuRegionDecision", "SELECTED"),
                         Map.entry("nativeCpuRegionRoute", "NATIVE"),
                         Map.entry("nativeCpuRegionProviderNodes", List.of(1)),
                         Map.entry("nativeCpuRegionLocalKernelNodes", List.of(2)),
-                        Map.entry("nativeCpuParityAutoEligible", List.of(true, false)),
+                        Map.entry("nativeCpuRegionAutoEligible", List.of(true, false)),
                         Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 1, "OFFSET_CONTIGUOUS", 1)),
-                        Map.entry("nativeCpuParityResultResidencies", List.of(List.of("CPU_NATIVE"), List.of("CPU_NATIVE"))),
+                        Map.entry("nativeCpuRegionResultResidencies", List.of(List.of("CPU_NATIVE"), List.of("CPU_NATIVE"))),
                         Map.entry("nativeCpuRegionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT", "CUSTOM_NATIVE"))
                 )
         );
@@ -98,9 +98,9 @@ class NativeCpuNonBlasBenchmarkGateTest {
                 () -> NativeCpuNonBlasBenchmarkGate.requirePass(report)
         );
 
-        assertTrue(failure.getMessage().contains("AUTO native CPU region selected parity non-eligible nodes"));
-        assertTrue(failure.getMessage().contains("auto-native-parity-non-eligible"));
-        assertTrue(failure.getMessage().contains("parityAutoEligible=[true, false]"));
+        assertTrue(failure.getMessage().contains("AUTO native CPU region selected non-auto-eligible nodes"));
+        assertTrue(failure.getMessage().contains("auto-native-non-eligible"));
+        assertTrue(failure.getMessage().contains("autoEligible=[true, false]"));
         assertTrue(failure.getMessage().contains("OFFSET_CONTIGUOUS"));
     }
 
@@ -115,7 +115,7 @@ class NativeCpuNonBlasBenchmarkGateTest {
                         Map.entry("nativeCpuRegionProviderNodes", List.of(1)),
                         Map.entry("nativeCpuRegionLocalKernelNodes", List.of(2)),
                         Map.entry("nativeCpuRegionSegmentScalarNodes", List.of(2)),
-                        Map.entry("nativeCpuParityAutoEligible", List.of(true, false)),
+                        Map.entry("nativeCpuRegionAutoEligible", List.of(true, false)),
                         Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("PROVIDER", "SEGMENT_DENSE_SCALAR")),
                         Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 2)),
                         Map.entry("nativeCpuRegionMeasuredWin", true),
@@ -215,7 +215,7 @@ class NativeCpuNonBlasBenchmarkGateTest {
                         Map.entry("nativeCpuRegionRoute", "NATIVE"),
                         Map.entry("nativeCpuRegionProviderNodes", List.of(1)),
                         Map.entry("nativeCpuRegionLocalKernelNodes", List.of()),
-                        Map.entry("nativeCpuParityAutoEligible", List.of(true)),
+                        Map.entry("nativeCpuRegionAutoEligible", List.of(true)),
                         Map.entry("nativeCpuRegionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT"))
                 )
         );

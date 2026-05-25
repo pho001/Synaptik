@@ -12,8 +12,6 @@ import backend.cpu.kernels.layout.PreparedInputPlanner;
 import backend.cpu.kernels.layout.PreparedInputsResult;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.provider.MatMulProviderExecutableFactory;
-import backend.cpu.nativecpu.NativeCpuPlanResolver;
-import backend.cpu.nativecpu.PreparedNativeCpuPlan;
 import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
 import config.runtime.CpuStorageProfile;
@@ -83,26 +81,6 @@ public final class CpuPlanAssembler {
                 operationPlans.matMulHints(),
                 publishFloatContinuation
         );
-        CpuNodeExecutionPlan basePlan = new CpuNodeExecutionPlan(
-                layoutPlan,
-                operationPlans.computeContract(),
-                publishFloatContinuation,
-                planner.plannedWorkers(),
-                planner.contiguousMaterializeThreshold(),
-                operationPlans.dispatchHints(),
-                operationPlans.reductionHints(),
-                operationPlans.matMulHints(),
-                matMulExecutable,
-                operationPlans.conv2dHints(),
-                operationPlans.attentionPlan()
-        );
-        PreparedNativeCpuPlan nativeCpuPlan = NativeCpuPlanResolver.resolve(
-                op,
-                prepared.runtimeInputDescriptors(),
-                safeNodeDescriptor.dataType(),
-                basePlan,
-                cpuStorageProfile
-        );
         return new CpuNodeExecutionPlan(
                 layoutPlan,
                 operationPlans.computeContract(),
@@ -114,8 +92,7 @@ public final class CpuPlanAssembler {
                 operationPlans.matMulHints(),
                 matMulExecutable,
                 operationPlans.conv2dHints(),
-                operationPlans.attentionPlan(),
-                nativeCpuPlan
+                operationPlans.attentionPlan()
         );
     }
 }

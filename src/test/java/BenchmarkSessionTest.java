@@ -1438,19 +1438,11 @@ public class BenchmarkSessionTest {
                 Map.entry("nativeCpuRegionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT", "SEGMENT_SCALAR")),
                 Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("PROVIDER", "SEGMENT_DENSE_SCALAR")),
                 Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 2)),
-                Map.entry("nativeCpuParityStoragePaths", List.of(
-                        List.of("CPU_ARRAY_DENSE", "CPU_ARRAY_STRIDED", "CPU_NATIVE_REGION_PROVIDER"),
-                        List.of("CPU_ARRAY_DENSE", "CPU_ARRAY_STRIDED", "CPU_NATIVE_REGION_DENSE")
-                )),
-                Map.entry("nativeCpuParityLayoutCapabilities", List.of(
-                        List.of("DENSE"),
-                        List.of("DENSE", "OFFSET_CONTIGUOUS")
-                )),
-                Map.entry("nativeCpuParityResultResidencies", List.of(
+                Map.entry("nativeCpuRegionResultResidencies", List.of(
                         List.of("CPU_NATIVE"),
                         List.of("CPU_NATIVE")
                 )),
-                Map.entry("nativeCpuParityAutoEligible", List.of(true, false)),
+                Map.entry("nativeCpuRegionAutoEligible", List.of(true, false)),
                 Map.entry("nativeCpuRegionMeasuredWin", true),
                 Map.entry("nativeCpuRegionNativeMedianMs", 0.90d),
                 Map.entry("nativeCpuRegionArrayMedianMs", 1.00d),
@@ -1471,7 +1463,7 @@ public class BenchmarkSessionTest {
                 Map.entry("nativeCpuRegionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT")),
                 Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("PROVIDER")),
                 Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 1)),
-                Map.entry("nativeCpuParityAutoEligible", List.of(true)),
+                Map.entry("nativeCpuRegionAutoEligible", List.of(true)),
                 Map.entry("nativeCpuStridedNodeCount", 0),
                 Map.entry("nativeCpuStridedMaterializationCount", 0),
                 Map.entry("nativeCpuStridedFallbackReasons", List.of()),
@@ -1488,7 +1480,7 @@ public class BenchmarkSessionTest {
                 Map.entry("nativeCpuRegionPhysicalKernels", List.of("SEGMENT_SCALAR")),
                 Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("SEGMENT_STRIDED_SCALAR")),
                 Map.entry("nativeCpuLayoutClassCounts", Map.of("STRIDED_VIEW", 1)),
-                Map.entry("nativeCpuParityAutoEligible", List.of(false)),
+                Map.entry("nativeCpuRegionAutoEligible", List.of(false)),
                 Map.entry("nativeCpuStridedNodeCount", 1),
                 Map.entry("nativeCpuStridedMaterializationCount", 0),
                 Map.entry("nativeCpuStridedFallbackReasons", List.of()),
@@ -1505,7 +1497,7 @@ public class BenchmarkSessionTest {
                 Map.entry("nativeCpuRegionPhysicalKernels", List.of("SEGMENT_PARALLEL")),
                 Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("SEGMENT_PARALLEL")),
                 Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 1)),
-                Map.entry("nativeCpuParityAutoEligible", List.of(true)),
+                Map.entry("nativeCpuRegionAutoEligible", List.of(true)),
                 Map.entry("nativeCpuStridedNodeCount", 0),
                 Map.entry("nativeCpuStridedMaterializationCount", 0),
                 Map.entry("nativeCpuStridedFallbackReasons", List.of()),
@@ -1522,7 +1514,7 @@ public class BenchmarkSessionTest {
                 Map.entry("nativeCpuRegionPhysicalKernels", List.of("SEGMENT_FUSED")),
                 Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("SEGMENT_FUSED")),
                 Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 1)),
-                Map.entry("nativeCpuParityAutoEligible", List.of(true)),
+                Map.entry("nativeCpuRegionAutoEligible", List.of(true)),
                 Map.entry("nativeCpuStridedNodeCount", 0),
                 Map.entry("nativeCpuStridedMaterializationCount", 0),
                 Map.entry("nativeCpuStridedFallbackReasons", List.of()),
@@ -1614,13 +1606,8 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("STRIDED_VIEW=1"));
         assertTrue(text.contains("NEGATIVE_STRIDE=1"));
         assertTrue(text.contains("boundaryOutputCount=8"));
-        assertTrue(text.contains("parityStoragePathCounts="));
-        assertTrue(text.contains("CPU_NATIVE_REGION_PROVIDER=1"));
-        assertTrue(text.contains("CPU_NATIVE_REGION_DENSE=1"));
-        assertTrue(text.contains("parityLayoutCapabilityCounts="));
-        assertTrue(text.contains("OFFSET_CONTIGUOUS=1"));
-        assertTrue(text.contains("parityResultResidencyCounts={CPU_NATIVE=2}"));
-        assertTrue(text.contains("parityAutoEligibleNodeCount=4"));
+        assertTrue(text.contains("regionResultResidencyCounts={CPU_NATIVE=2}"));
+        assertTrue(text.contains("regionAutoEligibleNodeCount=4"));
         assertTrue(text.contains("fallbackReasons=[native-cpu-region-provider-fallback:matmul, native-layout-unsupported:negative-stride, native-cpu-region-provider-unavailable:matmul]"));
         assertTrue(text.contains("stridedFallbackReasons=[native-layout-unsupported:negative-stride]"));
         assertTrue(text.contains("rejectionReasons=[native-cpu-region-provider-fallback:matmul, native-layout-unsupported:negative-stride, native-cpu-region-provider-unavailable:matmul]"));
@@ -1646,13 +1633,8 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"DENSE_CONTIGUOUS\": 7"));
         assertTrue(json.contains("\"STRIDED_VIEW\": 1"));
         assertTrue(json.contains("\"NEGATIVE_STRIDE\": 1"));
-        assertTrue(json.contains("\"parityStoragePathCounts\": {"));
-        assertTrue(json.contains("\"CPU_NATIVE_REGION_PROVIDER\": 1"));
-        assertTrue(json.contains("\"CPU_NATIVE_REGION_DENSE\": 1"));
-        assertTrue(json.contains("\"parityLayoutCapabilityCounts\": {"));
-        assertTrue(json.contains("\"OFFSET_CONTIGUOUS\": 1"));
-        assertTrue(json.contains("\"parityResultResidencyCounts\": {\"CPU_NATIVE\": 2}"));
-        assertTrue(json.contains("\"parityAutoEligibleNodeCount\": 4"));
+        assertTrue(json.contains("\"regionResultResidencyCounts\": {\"CPU_NATIVE\": 2}"));
+        assertTrue(json.contains("\"regionAutoEligibleNodeCount\": 4"));
         assertTrue(json.contains("\"boundaryOutputCount\": 8"));
         assertTrue(json.contains("\"stridedFallbackReasons\": [\"native-layout-unsupported:negative-stride\"]"));
         assertTrue(json.contains("\"rejectionReasons\": [\"native-cpu-region-provider-fallback:matmul\", \"native-layout-unsupported:negative-stride\", \"native-cpu-region-provider-unavailable:matmul\"]"));

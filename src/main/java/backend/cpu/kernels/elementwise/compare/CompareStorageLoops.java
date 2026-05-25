@@ -2,10 +2,8 @@ package backend.cpu.kernels.elementwise.compare;
 
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.kernels.CpuNativeTraceSupport;
 import backend.cpu.kernels.elementwise.ElementwiseLoops;
-import backend.cpu.nativecpu.NativeCpuKernelFact;
-import backend.cpu.nativecpu.NativeCpuKernelFacts;
-import backend.cpu.nativecpu.NativeCpuTraceState;
 import backend.memory.CpuMaterializationReason;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
@@ -33,10 +31,9 @@ final class CompareStorageLoops {
         }
         Operation op = context.executionOperation();
         Operation.OpType opType = opType(op);
-        NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(opType, node.getDataType());
         String reason = nativeIneligibleReason(opType, inputs, node, context);
         if (!reason.isBlank()) {
-            fallbackToArray(kernel, inputs, node, context, fact, reason);
+            fallbackToArray(kernel, inputs, node, context, reason);
             return;
         }
         try {
@@ -47,9 +44,9 @@ final class CompareStorageLoops {
             byte[] out = TensorInternalAccess.boolData(node);
             runDense(kernel, left.getDataType(), leftStorage.segment(), rightStorage.segment(), out, node.getFlatDataSize());
             TensorInternalAccess.markStorageModified(node);
-            publishTrace(context, fact, "CPU_ARRAY", "");
+            CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_ARRAY, "");
         } catch (Throwable t) {
-            fallbackToArray(kernel, inputs, node, context, fact,
+            fallbackToArray(kernel, inputs, node, context,
                     "native-kernel-failed:" + opLabel(opType) + ":" + safeMessage(t));
         }
     }
@@ -120,12 +117,11 @@ final class CompareStorageLoops {
             List<Tensor> inputs,
             Tensor node,
             CpuKernelContext context,
-            NativeCpuKernelFact fact,
             String reason
     ) {
         requireFallbackAllowed(context, "compare elementwise", reason);
         requireCpuReadableInputs(context);
-        publishTrace(context, fact, "CPU_ARRAY", reason);
+        CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_ARRAY, reason);
         ElementwiseLoops.runCompare(kernel, inputs.get(0), inputs.get(1), node, context);
     }
 
@@ -189,27 +185,6 @@ final class CompareStorageLoops {
         for (int inputNodeId : context.inputNodeIds()) {
             context.executionContext().requireCpuReadable(inputNodeId, CpuMaterializationReason.CPU_CONSUMER);
         }
-    }
-
-    private static void publishTrace(
-            CpuKernelContext context,
-            NativeCpuKernelFact fact,
-            String actualCpuStorage,
-            String fallbackReason
-    ) {
-        var runtime = context.executionContext().runtimeConfig();
-        context.putRuntimeState(
-                context.executionContext().runtimeTensorForNodeId(context.nodeId()),
-                new NativeCpuTraceState(
-                        runtime.cpuStorageProfile().name(),
-                        runtime.nativeCpuFailurePolicy().name(),
-                        "CPU_NATIVE",
-                        actualCpuStorage,
-                        fact.status().name(),
-                        fact.family().name(),
-                        fallbackReason
-                )
-        );
     }
 
     private static boolean nativeRequested(CpuKernelContext context) {

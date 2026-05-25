@@ -4,12 +4,11 @@ import tensor.TensorInternalAccess;
 
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.kernels.CpuNativeTraceSupport;
 import backend.cpu.kernels.elementwise.ElementwiseLoops;
 import backend.cpu.kernels.elementwise.ElementwiseNativeSupport;
 import backend.cpu.kernels.storage.CpuStorageBindings;
 import backend.cpu.kernels.storage.CpuStorageView;
-import backend.cpu.nativecpu.NativeCpuKernelFact;
-import backend.cpu.nativecpu.NativeCpuKernelFacts;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -33,10 +32,9 @@ final class WhereStorageLoops {
         }
         Operation op = context.executionOperation();
         Operation.OpType opType = opType(op);
-        NativeCpuKernelFact fact = NativeCpuKernelFacts.factFor(opType, node.getDataType());
         String ineligibleReason = nativeIneligibleReason(opType, inputs, node, context);
         if (!ineligibleReason.isBlank()) {
-            fallbackToArray(kernel, inputs, node, context, fact, ineligibleReason);
+            fallbackToArray(kernel, inputs, node, context, ineligibleReason);
             return;
         }
         try {
@@ -58,9 +56,9 @@ final class WhereStorageLoops {
                     outputStorage,
                     "WHERE storage loop wrote " + node.getDataType() + " native output"
             );
-            ElementwiseNativeSupport.publishTrace(context, fact, "CPU_NATIVE", "");
+            CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_NATIVE, "");
         } catch (Throwable t) {
-            fallbackToArray(kernel, inputs, node, context, fact,
+            fallbackToArray(kernel, inputs, node, context,
                     "native-kernel-failed:where:" + ElementwiseNativeSupport.safeMessage(t));
         }
     }
@@ -154,12 +152,11 @@ final class WhereStorageLoops {
             List<Tensor> inputs,
             Tensor node,
             CpuKernelContext context,
-            NativeCpuKernelFact fact,
             String reason
     ) {
         ElementwiseNativeSupport.requireFallbackAllowed(context, "where elementwise", reason);
         ElementwiseNativeSupport.requireCpuReadableInputs(context);
-        ElementwiseNativeSupport.publishTrace(context, fact, "CPU_ARRAY", reason);
+        CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_ARRAY, reason);
         runArray(kernel, inputs, node, context);
     }
 
