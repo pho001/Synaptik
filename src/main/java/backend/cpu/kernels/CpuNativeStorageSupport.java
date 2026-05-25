@@ -55,7 +55,11 @@ public final class CpuNativeStorageSupport {
         return dataType != DataType.BOOL && nativeRegionSupported(opType, dataType);
     }
 
-    public static boolean autoEligible(Operation.OpType opType, DataType dataType) {
+    /**
+     * AUTO may keep native storage only for provider-backed kernels or metadata-only views.
+     * Segment scalar kernels are CPU_NATIVE-only until a benchmark-backed promotion is added here.
+     */
+    public static boolean autoNativeRegionEligible(Operation.OpType opType, DataType dataType) {
         return providerRoute(opType, dataType) || viewAlias(opType, dataType);
     }
 

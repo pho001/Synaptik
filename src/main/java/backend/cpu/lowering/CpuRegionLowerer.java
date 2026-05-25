@@ -339,7 +339,7 @@ public final class CpuRegionLowerer implements RegionLowerer {
                 return NativeRegionLegality.rejected(layoutPlan.rejectionReason());
             }
             if (runtimeConfig.cpuStorageProfile() == CpuStorageProfile.AUTO
-                    && !CpuNativeStorageSupport.autoEligible(opType, dataType)) {
+                    && !CpuNativeStorageSupport.autoNativeRegionEligible(opType, dataType)) {
                 return NativeRegionLegality.rejected("native-cpu-region-auto-rejected-slow-op:"
                         + opType.name().toLowerCase());
             }

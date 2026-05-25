@@ -283,7 +283,7 @@ public final class CpuStepTraceContributor {
                     .map(RegionNodePlan::segmentKernelFamily)
                     .toList());
             attrs.put("nativeCpuRegionAutoEligible", regionPlan.nodePlans().stream()
-                    .map(nodePlan -> CpuNativeStorageSupport.autoEligible(nodePlan.opType(), nodePlan.dataType()))
+                    .map(nodePlan -> CpuNativeStorageSupport.autoNativeRegionEligible(nodePlan.opType(), nodePlan.dataType()))
                     .toList());
             attrs.put("nativeCpuRegionResultResidencies", regionPlan.nodePlans().stream()
                     .map(CpuStepTraceContributor::nativeCpuRegionResultResidency)
@@ -373,7 +373,7 @@ public final class CpuStepTraceContributor {
                 ? "UNKNOWN"
                 : node.operation().opType().name());
         attrs.put("nativeCpuRegionAutoEligible", List.of(node.operation() != null
-                && CpuNativeStorageSupport.autoEligible(node.operation().opType(), node.dataType())));
+                && CpuNativeStorageSupport.autoNativeRegionEligible(node.operation().opType(), node.dataType())));
         attrs.put("nativeCpuRegionResultResidencies", List.of(nativeCpuSingleNodeResultResidency(node)));
         String layoutClass = nodeLayoutClassName(node);
         List<String> inputLayoutClasses = node.inputIds().stream()
@@ -461,7 +461,7 @@ public final class CpuStepTraceContributor {
         return node != null
                 && node.operation() != null
                 && CpuNativeStorageSupport.nativeRegionSupported(node.operation().opType(), node.dataType())
-                && !CpuNativeStorageSupport.autoEligible(node.operation().opType(), node.dataType());
+                && !CpuNativeStorageSupport.autoNativeRegionEligible(node.operation().opType(), node.dataType());
     }
 
     private static String nativeLayoutRejectionReason(

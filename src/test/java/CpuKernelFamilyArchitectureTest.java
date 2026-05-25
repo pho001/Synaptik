@@ -1,7 +1,9 @@
 import backend.cpu.kernels.CpuKernel;
+import backend.cpu.kernels.CpuNativeStorageSupport;
 import backend.cpu.registry.CpuKernelResolver;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
+import tensor.DataType;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -321,6 +323,23 @@ public class CpuKernelFamilyArchitectureTest {
                 "Fused MemorySegment ownership must stay explicit in backend.cpu.fused.exec.");
         assertTrue(bindings.contains("static FusedNativeSegmentBindings bind"),
                 "Fused MemorySegment binding lifecycle must have a fused-owned entrypoint.");
+    }
+
+    @Test
+    void waveEightAutoNativePolicyExcludesSegmentScalarKernelsWithoutProof() {
+        assertTrue(CpuNativeStorageSupport.nativeRegionSupported(Operation.OpType.ADD, DataType.FLOAT32),
+                "ADD has a correct native segment implementation for explicit CPU_NATIVE runs.");
+        assertFalse(CpuNativeStorageSupport.autoNativeRegionEligible(Operation.OpType.ADD, DataType.FLOAT32),
+                "AUTO must not select segment scalar elementwise kernels without benchmark promotion.");
+        assertFalse(CpuNativeStorageSupport.autoNativeRegionEligible(Operation.OpType.SUM, DataType.FLOAT32),
+                "AUTO must not select segment scalar reductions without benchmark promotion.");
+        assertFalse(CpuNativeStorageSupport.autoNativeRegionEligible(Operation.OpType.CAST, DataType.BFLOAT16),
+                "AUTO must not select segment scalar layout/materialization kernels without benchmark promotion.");
+
+        assertTrue(CpuNativeStorageSupport.autoNativeRegionEligible(Operation.OpType.MATMUL, DataType.FLOAT32),
+                "AUTO may select measured provider-backed MemorySegment matmul routes.");
+        assertTrue(CpuNativeStorageSupport.autoNativeRegionEligible(Operation.OpType.RESHAPE, DataType.FLOAT32),
+                "AUTO may preserve native storage through metadata-only view aliases.");
     }
 
     private static void assertPackage(Operation.OpType opType, String expectedPackage) {
