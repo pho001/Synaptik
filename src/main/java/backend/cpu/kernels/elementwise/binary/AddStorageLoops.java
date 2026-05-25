@@ -3,6 +3,7 @@ package backend.cpu.kernels.elementwise.binary;
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernelContext;
 import backend.cpu.kernels.elementwise.ElementwiseLoops;
+import backend.cpu.kernels.elementwise.ElementwiseNativeSupport;
 import backend.cpu.kernels.elementwise.binary.bf16.AddBF16;
 import backend.cpu.kernels.elementwise.binary.f32.AddF32;
 import backend.cpu.kernels.elementwise.binary.f64.AddF64;
@@ -10,12 +11,8 @@ import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
 import backend.cpu.kernels.layout.plan.ResolvedBroadcastPlan;
 import backend.cpu.kernels.storage.CpuStorageBindings;
 import backend.cpu.kernels.storage.CpuStorageView;
-import backend.memory.CpuMaterializationReason;
 import backend.cpu.nativecpu.NativeCpuKernelFact;
 import backend.cpu.nativecpu.NativeCpuKernelFacts;
-import backend.cpu.nativecpu.NativeCpuTraceState;
-import config.runtime.CpuStorageProfile;
-import config.runtime.NativeCpuFailurePolicy;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -34,7 +31,7 @@ final class AddStorageLoops {
     }
 
     static void execute(CpuAddKernel kernel, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        if (!nativeRequested(context)) {
+        if (!ElementwiseNativeSupport.nativeRequested(context)) {
             ElementwiseLoops.runBinary(kernel, inputs.get(0), inputs.get(1), node, context);
             return;
         }
@@ -51,17 +48,16 @@ final class AddStorageLoops {
             return;
         }
         try {
-            NativeTensorStorage leftStorage = requireNativeInput(context, 0, node.getDataType());
-            NativeTensorStorage rightStorage = requireNativeInput(context, 1, node.getDataType());
-            NativeTensorStorage outputStorage = context.executionContext().allocateNativeStorage(
-                    node.getDataType(),
-                    node.getFlatDataSize(),
-                    "node-" + context.nodeId() + ":" + node.getLabel() + ":add-storage-loop"
-            );
+            NativeTensorStorage leftStorage = ElementwiseNativeSupport.requireNativeInput(context, 0, node.getDataType(), "ADD");
+            NativeTensorStorage rightStorage = ElementwiseNativeSupport.requireNativeInput(context, 1, node.getDataType(), "ADD");
+            NativeTensorStorage outputStorage = ElementwiseNativeSupport.allocateNativeOutput(node, context, "add-storage-loop");
             if (biasSpec == null) {
                 CpuStorageBindings bindings = new CpuStorageBindings(
-                        List.of(segmentView(inputs.get(0), leftStorage), segmentView(inputs.get(1), rightStorage)),
-                        segmentView(node, outputStorage)
+                        List.of(
+                                ElementwiseNativeSupport.segmentView(inputs.get(0), leftStorage),
+                                ElementwiseNativeSupport.segmentView(inputs.get(1), rightStorage)
+                        ),
+                        ElementwiseNativeSupport.segmentView(node, outputStorage)
                 );
                 runSegmentDense(bindings);
             } else {
@@ -73,9 +69,10 @@ final class AddStorageLoops {
                     outputStorage,
                     "ADD storage loop wrote " + node.getDataType() + " native output"
             );
-            publishTrace(context, fact, "CPU_NATIVE", "");
+            ElementwiseNativeSupport.publishTrace(context, fact, "CPU_NATIVE", "");
         } catch (Throwable t) {
-            fallbackToArray(kernel, inputs, node, context, fact, "native-kernel-failed:add:" + safeMessage(t));
+            fallbackToArray(kernel, inputs, node, context, fact,
+                    "native-kernel-failed:add:" + ElementwiseNativeSupport.safeMessage(t));
         }
     }
 
@@ -198,13 +195,9 @@ final class AddStorageLoops {
             NativeCpuKernelFact fact,
             String reason
     ) {
-        if (context.executionContext().runtimeConfig().nativeCpuFailurePolicy() == NativeCpuFailurePolicy.REQUIRE_NATIVE) {
-            throw new IllegalStateException("Native CPU execution required but ADD fell back to Java: " + reason);
-        }
-        for (int inputNodeId : context.inputNodeIds()) {
-            context.executionContext().requireCpuReadable(inputNodeId, CpuMaterializationReason.CPU_CONSUMER);
-        }
-        publishTrace(context, fact, "CPU_ARRAY", reason);
+        ElementwiseNativeSupport.requireFallbackAllowed(context, "ADD", reason);
+        ElementwiseNativeSupport.requireCpuReadableInputs(context);
+        ElementwiseNativeSupport.publishTrace(context, fact, "CPU_ARRAY", reason);
         ElementwiseLoops.runBinary(kernel, inputs.get(0), inputs.get(1), node, context);
     }
 
@@ -230,7 +223,9 @@ final class AddStorageLoops {
                 || inputs.get(1).getDataType() != node.getDataType()) {
             return "native-kernel-ineligible:add-dtype";
         }
-        if (!isDenseView(inputs.get(0)) || !isDenseView(inputs.get(1)) || !isDenseView(node)) {
+        if (!ElementwiseNativeSupport.isDenseView(inputs.get(0))
+                || !ElementwiseNativeSupport.isDenseView(inputs.get(1))
+                || !ElementwiseNativeSupport.isDenseView(node)) {
             return "native-kernel-ineligible:add-layout";
         }
         if (context.broadcastPlan() != null && !context.broadcastPlan().isNoBroadcast()) {
@@ -244,28 +239,6 @@ final class AddStorageLoops {
             return "native-kernel-ineligible:add-shape";
         }
         return "";
-    }
-
-    private static NativeTensorStorage requireNativeInput(CpuKernelContext context, int inputIndex, DataType dtype) {
-        NativeTensorStorage storage = context.executionContext().requireNativeReadable(
-                context.inputNodeIds().get(inputIndex),
-                CpuMaterializationReason.CPU_CONSUMER
-        );
-        if (storage.getType() != dtype) {
-            throw new IllegalStateException("ADD native input dtype mismatch. expected=" + dtype + ", actual=" + storage.getType());
-        }
-        return storage;
-    }
-
-    private static CpuStorageView segmentView(Tensor tensor, NativeTensorStorage storage) {
-        return CpuStorageView.segment(
-                tensor.getDataType(),
-                storage.segment(),
-                tensor.getShapeUnsafe(),
-                tensor.getStridesUnsafe(),
-                tensor.getStorageOffsetUnsafe(),
-                tensor.getFlatDataSize()
-        );
     }
 
     private static void validateDenseAdd(CpuStorageBindings bindings) {
@@ -284,35 +257,11 @@ final class AddStorageLoops {
         if (left.logicalSize() != output.logicalSize() || right.logicalSize() != output.logicalSize()) {
             throw new IllegalArgumentException("ADD storage loop requires same-shape dense inputs.");
         }
-        if (!isDenseView(left) || !isDenseView(right) || !isDenseView(output)) {
+        if (!ElementwiseNativeSupport.isDenseView(left)
+                || !ElementwiseNativeSupport.isDenseView(right)
+                || !ElementwiseNativeSupport.isDenseView(output)) {
             throw new IllegalArgumentException("ADD storage loop requires dense zero-offset views.");
         }
-    }
-
-    private static boolean isDenseView(Tensor tensor) {
-        return tensor.isContiguous() && tensor.getStorageOffsetUnsafe() == 0;
-    }
-
-    private static boolean isDenseView(CpuStorageView view) {
-        if (view.storageOffset() != 0) {
-            return false;
-        }
-        int[] shape = view.shape();
-        int[] strides = view.strides();
-        int expected = 1;
-        for (int i = shape.length - 1; i >= 0; i--) {
-            if (strides[i] != expected) {
-                return false;
-            }
-            expected = Math.multiplyExact(expected, shape[i]);
-        }
-        return true;
-    }
-
-    private static boolean nativeRequested(CpuKernelContext context) {
-        return context != null
-                && context.executionContext().runtimeConfig() != null
-                && context.executionContext().runtimeConfig().cpuStorageProfile() == CpuStorageProfile.CPU_NATIVE;
     }
 
     private static BiasBroadcastSpec biasBroadcastSpec(ResolvedBroadcastPlan plan, int leftSize, int rightSize, int outputSize) {
@@ -360,33 +309,6 @@ final class AddStorageLoops {
             product *= value;
         }
         return product;
-    }
-
-    private static void publishTrace(CpuKernelContext context, NativeCpuKernelFact fact, String actualCpuStorage, String fallbackReason) {
-        var runtime = context.executionContext().runtimeConfig();
-        Tensor runtimeTensor = context.executionContext().runtimeTensorForNodeId(context.nodeId());
-        boolean bf16Promoted = runtimeTensor.getDataType() == DataType.BFLOAT16
-                && "CPU_NATIVE".equals(actualCpuStorage)
-                && (fallbackReason == null || fallbackReason.isBlank());
-        context.putRuntimeState(
-                runtimeTensor,
-                new NativeCpuTraceState(
-                        runtime.cpuStorageProfile().name(),
-                        runtime.nativeCpuFailurePolicy().name(),
-                        "CPU_NATIVE",
-                        actualCpuStorage,
-                        fact.status().name(),
-                        fact.family().name(),
-                        fallbackReason,
-                        bf16Promoted ? "BF16" : "",
-                        bf16Promoted ? "F32_PROMOTED" : ""
-                )
-        );
-    }
-
-    private static String safeMessage(Throwable t) {
-        String message = t.getMessage();
-        return message == null || message.isBlank() ? t.getClass().getSimpleName() : message;
     }
 
     private record BiasBroadcastSpec(boolean leftBias, int lastDim) {

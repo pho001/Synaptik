@@ -1,8 +1,6 @@
 package backend.cpu.kernels.elementwise.unary;
 
 import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.elementwise.ElementwiseLoops;
-import backend.cpu.nativecpu.NativeCpuElementwiseExecutor;
 import tensor.Tensor;
 
 import java.util.List;
@@ -14,10 +12,7 @@ public final class ElementwiseUnaryExecutor {
         if (inputs == null || inputs.size() != 1) {
             throw new IllegalArgumentException("Unary elementwise executor requires exactly 1 input.");
         }
-        if (NativeCpuElementwiseExecutor.tryRunUnary(kernel, inputs, node, context)) {
-            return;
-        }
-        ElementwiseLoops.runUnary(kernel, inputs.get(0), node, context);
+        UnaryStorageLoops.execute(kernel, inputs, node, context);
     }
 
     public static void execute(
@@ -31,9 +26,6 @@ public final class ElementwiseUnaryExecutor {
         if (inputs == null || inputs.size() != 1) {
             throw new IllegalArgumentException("Scalar unary elementwise executor requires exactly 1 input.");
         }
-        if (NativeCpuElementwiseExecutor.tryRunScalarUnary(kernel, parameterF64, parameterF32, inputs, node, context)) {
-            return;
-        }
-        ElementwiseLoops.runScalarUnary(kernel, parameterF64, parameterF32, inputs.get(0), node, context);
+        UnaryStorageLoops.execute(kernel, parameterF64, parameterF32, inputs, node, context);
     }
 }

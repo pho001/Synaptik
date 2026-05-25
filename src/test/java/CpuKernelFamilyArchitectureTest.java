@@ -120,7 +120,10 @@ public class CpuKernelFamilyArchitectureTest {
                 "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32JavaMatMulExecutable.java",
                 "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32BlasMatMulExecutable.java",
                 "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32NativeBlasMatMulExecutable.java",
-                "src/main/java/backend/cpu/nativecpu/NativeCpuElementwiseExecutor.java",
+                "src/main/java/backend/cpu/kernels/elementwise/ElementwiseNativeSupport.java",
+                "src/main/java/backend/cpu/kernels/elementwise/binary/BinaryStorageLoops.java",
+                "src/main/java/backend/cpu/kernels/elementwise/unary/UnaryStorageLoops.java",
+                "src/main/java/backend/cpu/kernels/elementwise/where/WhereStorageLoops.java",
                 "src/main/java/backend/cpu/nativecpu/NativeCpuReductionExecutor.java",
                 "src/main/java/backend/cpu/nativecpu/NativeCpuCastExecutor.java",
                 "src/main/java/backend/cpu/nativecpu/NativeCpuContiguousExecutor.java"
@@ -138,10 +141,11 @@ public class CpuKernelFamilyArchitectureTest {
         Map<String, Set<String>> expected = Map.ofEntries(
                 Map.entry("CpuNodeExecutionPlan.java", Set.of("PreparedNativeCpuPlan")),
                 Map.entry("plan/CpuPlanAssembler.java", Set.of("NativeCpuPlanResolver", "PreparedNativeCpuPlan")),
-                Map.entry("elementwise/binary/AddStorageLoops.java", Set.of("NativeCpuKernelFact", "NativeCpuKernelFacts", "NativeCpuTraceState")),
-                Map.entry("elementwise/binary/ElementwiseBinaryExecutor.java", Set.of("NativeCpuElementwiseExecutor")),
-                Map.entry("elementwise/unary/ElementwiseUnaryExecutor.java", Set.of("NativeCpuElementwiseExecutor")),
-                Map.entry("elementwise/where/WhereExecutor.java", Set.of("NativeCpuElementwiseExecutor")),
+                Map.entry("elementwise/ElementwiseNativeSupport.java", Set.of("NativeCpuKernelFact", "NativeCpuTraceState")),
+                Map.entry("elementwise/binary/AddStorageLoops.java", Set.of("NativeCpuKernelFact", "NativeCpuKernelFacts")),
+                Map.entry("elementwise/binary/BinaryStorageLoops.java", Set.of("NativeCpuKernelFact", "NativeCpuKernelFacts")),
+                Map.entry("elementwise/unary/UnaryStorageLoops.java", Set.of("NativeCpuKernelFact", "NativeCpuKernelFacts")),
+                Map.entry("elementwise/where/WhereStorageLoops.java", Set.of("NativeCpuKernelFact", "NativeCpuKernelFacts")),
                 Map.entry("elementwise/compare/CompareExecutor.java", Set.of("NativeCpuCompareExecutor")),
                 Map.entry("elementwise/logical/LogicalExecutor.java", Set.of("NativeCpuBoolMaskExecutor")),
                 Map.entry("reduction/SumLikeReductionExecutor.java", Set.of("NativeCpuReductionExecutor")),
@@ -185,13 +189,29 @@ public class CpuKernelFamilyArchitectureTest {
     }
 
     @Test
-    void waveTwoAddIsNotOwnedByNativeElementwiseExecutor() throws IOException {
-        String executor = Files.readString(Path.of("src/main/java/backend/cpu/nativecpu/NativeCpuElementwiseExecutor.java"));
-        assertTrue(!executor.contains("Operation.OpType.ADD"),
-                "ADD runtime ownership belongs to AddStorageLoops, not NativeCpuElementwiseExecutor.");
+    void waveThreeElementwiseRuntimeOwnershipMovedToStorageLoops() throws IOException {
+        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/nativecpu/NativeCpuElementwiseExecutor.java")),
+                "Elementwise CPU_NATIVE runtime ownership belongs to storage loops, not a standalone native executor.");
         assertTrue(Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/ElementwiseBinaryExecutor.java"))
                         .contains("AddStorageLoops.execute"),
                 "Binary executor must route ADD through the ADD storage loop before the generic native elementwise executor.");
+        assertTrue(Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/ElementwiseBinaryExecutor.java"))
+                        .contains("BinaryStorageLoops.execute"),
+                "Non-ADD binary elementwise runtime ownership must live in BinaryStorageLoops.");
+        assertTrue(Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary/ElementwiseUnaryExecutor.java"))
+                        .contains("UnaryStorageLoops.execute"),
+                "Unary elementwise runtime ownership must live in UnaryStorageLoops.");
+        assertTrue(Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/where/WhereExecutor.java"))
+                        .contains("WhereStorageLoops.execute"),
+                "WHERE runtime ownership must live in WhereStorageLoops.");
+        try (Stream<Path> paths = Files.walk(Path.of("src/main/java/backend/cpu/kernels/elementwise"))) {
+            List<Path> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> contains(path, "NativeCpuElementwiseExecutor"))
+                    .toList();
+            assertTrue(offenders.isEmpty(), () -> "Elementwise kernels must not reference NativeCpuElementwiseExecutor: " + offenders);
+        }
     }
 
     private static void assertPackage(Operation.OpType opType, String expectedPackage) {
@@ -226,5 +246,13 @@ public class CpuKernelFamilyArchitectureTest {
         String prefix = "import backend.cpu.nativecpu.";
         String suffix = importLine.substring(prefix.length());
         return suffix.endsWith(";") ? suffix.substring(0, suffix.length() - 1) : suffix;
+    }
+
+    private static boolean contains(Path path, String needle) {
+        try {
+            return Files.readString(path).contains(needle);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
