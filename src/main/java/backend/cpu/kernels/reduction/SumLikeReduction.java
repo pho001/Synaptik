@@ -2,7 +2,7 @@ package backend.cpu.kernels.reduction;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 import tensor.Tensor;
 
 enum SumLikeReduction {
@@ -47,7 +47,7 @@ enum SumLikeReduction {
             int baseOffset = node.getStorageOffsetUnsafe();
             for (int i = 0; i < node.getFlatDataSize(); i++) {
                 int idx = baseOffset + i;
-                out[idx] = CpuDTypeOps.toBFloat16Bits(CpuDTypeOps.fromBFloat16Bits(out[idx]) * scale);
+                out[idx] = TensorDTypeOps.toBFloat16Bits(TensorDTypeOps.fromBFloat16Bits(out[idx]) * scale);
             }
         }
 

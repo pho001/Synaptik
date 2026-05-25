@@ -2,7 +2,7 @@ package backend.cpu.nativecpu;
 
 import backend.blas.BlasProvider;
 import backend.blas.OpenBlasRuntime;
-import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
+import backend.cpu.plan.linalg.matmul.MatMulExecutionRoute;
 import backend.runtime.ExecutionMode;
 import config.backend.KernelTuningConfig;
 import config.compile.CompileConfig;

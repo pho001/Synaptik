@@ -2,12 +2,12 @@ package backend.cpu.kernels.linalg;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.CpuThreadPool;
-import backend.cpu.kernels.linalg.attention.plan.ResolvedAttentionHints;
-import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
-import backend.cpu.kernels.linalg.attention.plan.ResolvedScaledDotProductAttentionPlan;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.execution.CpuThreadPool;
+import backend.cpu.plan.linalg.attention.ResolvedAttentionHints;
+import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
+import backend.cpu.plan.linalg.attention.ResolvedScaledDotProductAttentionPlan;
 import backend.cpu.kernels.linalg.matmul.blas.MatMulBlasBackend;
 import backend.cpu.kernels.linalg.matmul.common.MatMulBatchingSupport;
 import backend.cpu.kernels.linalg.matmul.f32.F32MatMulJavaBackend;
@@ -357,7 +357,7 @@ final class ScaledDotProductAttentionExecutor {
                 if (cachedWeightsF32 != null) {
                     cachedWeightsF32[weightsBase + keyIndex] = uniform;
                 } else if (cachedWeightsBF16 != null) {
-                    cachedWeightsBF16[weightsBase + keyIndex] = CpuDTypeOps.toBFloat16Bits(uniform);
+                    cachedWeightsBF16[weightsBase + keyIndex] = TensorDTypeOps.toBFloat16Bits(uniform);
                 }
                 if (vectorized) {
                     accumulateWeightedF32(out, outBase, value, valueBase + keyIndex * valueDim, uniform, valueDim, true);
@@ -388,7 +388,7 @@ final class ScaledDotProductAttentionExecutor {
             if (cachedWeightsF32 != null) {
                 cachedWeightsF32[weightsBase + keyIndex] = weight;
             } else if (cachedWeightsBF16 != null) {
-                cachedWeightsBF16[weightsBase + keyIndex] = CpuDTypeOps.toBFloat16Bits(weight);
+                cachedWeightsBF16[weightsBase + keyIndex] = TensorDTypeOps.toBFloat16Bits(weight);
             }
             if (weight == 0.0f) {
                 continue;
@@ -1669,14 +1669,14 @@ final class ScaledDotProductAttentionExecutor {
     private static float[] toF32(short[] src) {
         float[] out = new float[src.length];
         for (int i = 0; i < src.length; i++) {
-            out[i] = CpuDTypeOps.fromBFloat16Bits(src[i]);
+            out[i] = TensorDTypeOps.fromBFloat16Bits(src[i]);
         }
         return out;
     }
 
     private static void writeBF16(float[] src, short[] dst) {
         for (int i = 0; i < dst.length; i++) {
-            dst[i] = CpuDTypeOps.toBFloat16Bits(src[i]);
+            dst[i] = TensorDTypeOps.toBFloat16Bits(src[i]);
         }
     }
 

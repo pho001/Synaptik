@@ -1,46 +1,46 @@
 package backend.cpu.kernels.index;
 
-import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.kernels.TypedCpuKernel;
+import backend.cpu.execution.CpuKernelContext;
 import operations.Operation;
 import operations.index.gatherAxis;
 import tensor.Tensor;
 
 import java.util.List;
 
-public final class CpuGatherAxisKernel implements CpuKernel {
+public final class CpuGatherAxisKernel extends TypedCpuKernel {
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
         IndexExecutor.gatherAxisF64(pair[0], pair[1], node, ((gatherAxis) op).getAxis(), context);
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
         IndexExecutor.gatherAxisF32(pair[0], pair[1], node, ((gatherAxis) op).getAxis(), context);
     }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
         IndexExecutor.gatherAxisBF16(pair[0], pair[1], node, ((gatherAxis) op).getAxis(), context);
     }
 
     @Override
-    public void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
         IndexExecutor.gatherAxisBOOL(pair[0], pair[1], node, ((gatherAxis) op).getAxis(), context);
     }
 
     @Override
-    public void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
         IndexExecutor.gatherAxisI32(pair[0], pair[1], node, ((gatherAxis) op).getAxis(), context);
     }
 
     @Override
-    public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
         IndexExecutor.gatherAxisI64(pair[0], pair[1], node, ((gatherAxis) op).getAxis(), context);
     }

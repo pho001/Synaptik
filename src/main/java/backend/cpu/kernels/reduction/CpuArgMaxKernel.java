@@ -2,8 +2,8 @@ package backend.cpu.kernels.reduction;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.kernels.TypedCpuKernel;
+import backend.cpu.execution.CpuKernelContext;
 import operations.Operation;
 import operations.reduction.ArgMaxTiePolicy;
 import operations.reduction.argMax;
@@ -13,14 +13,14 @@ import tensor.TensorMetadata;
 import java.util.Arrays;
 import java.util.List;
 
-public final class CpuArgMaxKernel implements CpuKernel {
+public final class CpuArgMaxKernel extends TypedCpuKernel {
     @Override
-    public void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         argMax(op, inputs, node, TensorInternalAccess.int32Data(node), null);
     }
 
     @Override
-    public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         argMax(op, inputs, node, null, TensorInternalAccess.int64Data(node));
     }
 

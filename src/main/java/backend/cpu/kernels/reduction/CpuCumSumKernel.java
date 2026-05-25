@@ -2,9 +2,9 @@ package backend.cpu.kernels.reduction;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuKernelContext;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.kernels.TypedCpuKernel;
+import backend.cpu.execution.CpuKernelContext;
 import operations.Operation;
 import operations.reduction.cumSum;
 import tensor.DataType;
@@ -13,29 +13,29 @@ import tensor.TensorMetadata;
 
 import java.util.List;
 
-public final class CpuCumSumKernel implements CpuKernel {
+public final class CpuCumSumKernel extends TypedCpuKernel {
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         scan(op, inputs, node);
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         scan(op, inputs, node);
     }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         scan(op, inputs, node);
     }
 
     @Override
-    public void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         scan(op, inputs, node);
     }
 
     @Override
-    public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         scan(op, inputs, node);
     }
 
@@ -190,7 +190,7 @@ public final class CpuCumSumKernel implements CpuKernel {
         switch (out.getDataType()) {
             case FLOAT64 -> TensorInternalAccess.float64Data(out)[offset] = value;
             case FLOAT32 -> TensorInternalAccess.float32Data(out)[offset] = (float) value;
-            case BFLOAT16 -> TensorInternalAccess.bfloat16Data(out)[offset] = CpuDTypeOps.toBFloat16Bits((float) value);
+            case BFLOAT16 -> TensorInternalAccess.bfloat16Data(out)[offset] = TensorDTypeOps.toBFloat16Bits((float) value);
             case INT32 -> TensorInternalAccess.int32Data(out)[offset] = (int) value;
             case INT64 -> TensorInternalAccess.int64Data(out)[offset] = (long) value;
             case BOOL -> throw new IllegalArgumentException("CumSum requires floating or integer output.");

@@ -1,7 +1,7 @@
 package backend.cpu.kernels.elementwise.logical;
 
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.CpuNativeTraceSupport;
+import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.nativecpu.CpuNativeTraceSupport;
 import backend.cpu.kernels.elementwise.ElementwiseLoops;
 import backend.memory.CpuMaterializationReason;
 import config.runtime.CpuStorageProfile;

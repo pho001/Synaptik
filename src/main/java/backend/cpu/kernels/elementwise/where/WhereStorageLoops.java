@@ -2,13 +2,13 @@ package backend.cpu.kernels.elementwise.where;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.CpuNativeTraceSupport;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.nativecpu.CpuNativeTraceSupport;
 import backend.cpu.kernels.elementwise.ElementwiseLoops;
 import backend.cpu.kernels.elementwise.ElementwiseNativeSupport;
-import backend.cpu.kernels.storage.CpuStorageBindings;
-import backend.cpu.kernels.storage.CpuStorageView;
+import backend.cpu.storage.CpuStorageBindings;
+import backend.cpu.storage.CpuStorageView;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -141,9 +141,9 @@ final class WhereStorageLoops {
     ) {
         for (int i = 0; i < size; i++) {
             long offset = (long) i * Short.BYTES;
-            float trueValue = CpuDTypeOps.fromBFloat16Bits(ifTrue.get(JAVA_SHORT, offset));
-            float falseValue = CpuDTypeOps.fromBFloat16Bits(ifFalse.get(JAVA_SHORT, offset));
-            output.set(JAVA_SHORT, offset, CpuDTypeOps.toBFloat16Bits(kernel.applyBF16(condition[i], trueValue, falseValue)));
+            float trueValue = TensorDTypeOps.fromBFloat16Bits(ifTrue.get(JAVA_SHORT, offset));
+            float falseValue = TensorDTypeOps.fromBFloat16Bits(ifFalse.get(JAVA_SHORT, offset));
+            output.set(JAVA_SHORT, offset, TensorDTypeOps.toBFloat16Bits(kernel.applyBF16(condition[i], trueValue, falseValue)));
         }
     }
 

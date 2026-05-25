@@ -1,7 +1,7 @@
 package backend.cpu.kernels.linalg.matmul.exec;
 
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
+import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.plan.linalg.matmul.MatMulExecutionRoute;
 import tensor.Tensor;
 
 public interface PreparedMatMulExecutable {

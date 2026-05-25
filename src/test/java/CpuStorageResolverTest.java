@@ -1,7 +1,7 @@
-import backend.cpu.kernels.storage.CpuStorageBindings;
-import backend.cpu.kernels.storage.CpuStorageKind;
-import backend.cpu.kernels.storage.CpuStorageResolver;
-import backend.cpu.kernels.storage.CpuStorageView;
+import backend.cpu.storage.CpuStorageBindings;
+import backend.cpu.storage.CpuStorageKind;
+import backend.cpu.storage.CpuStorageResolver;
+import backend.cpu.storage.CpuStorageView;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;

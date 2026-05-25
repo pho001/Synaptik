@@ -91,7 +91,7 @@ Keep these boundaries intact:
 - Public API delegation lives in `src/main/java/tensor/Tensor.java` and `src/main/java/tensor/TensorOps.java`.
 - Shape validation, dtype choice, primitive construction, and backward graph formulas live in `src/main/java/tensor/ops/<family>/`.
 - Primitive descriptors live in `src/main/java/operations/<family>/` and should carry immutable semantic parameters only.
-- Backend kernel selection for CPU is centralized in `src/main/java/backend/cpu/registry/CpuKernelResolver.java`.
+- Backend kernel selection for CPU is centralized in `src/main/java/backend/cpu/kernels/CpuKernelRegistry.java`.
 - CPU preparation and workspace decisions live in `src/main/java/backend/cpu/prepare/CpuNodePreparer.java`.
 - Runtime threshold interpretation lives in CPU planning classes such as `src/main/java/backend/cpu/kernels/plan/CpuExecutionPlanner.java`.
 - Optimizer stage wiring lives in `src/main/java/graph/optimizer/OptimizerFactory.java`.
@@ -111,7 +111,7 @@ Use an existing family as the template. For a binary elementwise op, compare:
 - Public static facade: `src/main/java/tensor/TensorOps.java`
 - Instance method facade: `src/main/java/tensor/Tensor.java`
 - CPU kernel: `src/main/java/backend/cpu/kernels/elementwise/binary/CpuAddKernel.java`
-- CPU registry entry: `src/main/java/backend/cpu/registry/CpuKernelResolver.java`
+- CPU registry entry: `src/main/java/backend/cpu/kernels/CpuKernelRegistry.java`
 - Coverage: `src/test/java/AllOpsTest.java`, family-specific execution tests, and dtype/broadcast tests when applicable
 
 Checklist for a new primitive:
@@ -123,7 +123,7 @@ Checklist for a new primitive:
 5. Attach backward logic with `TensorInternalAccess.setBackwardFunction` when the op participates in autograd.
 6. Add a static wrapper in `src/main/java/tensor/TensorOps.java`.
 7. Add an instance wrapper in `src/main/java/tensor/Tensor.java` if the op is part of the user-facing fluent API.
-8. Add CPU runtime support and register it in `CpuKernelResolver` unless the op is compile-only or descriptor-only.
+8. Add CPU runtime support and register it in `CpuKernelRegistry` unless the op is compile-only or descriptor-only.
 9. Add tests for forward values, gradients, dtype handling, shape validation, and optimizer interaction if a rewrite can see the op.
 
 Broadcasting should use the existing planners. Binary ops call `TensorBroadcastOps.planBinary(...)`, which delegates to `BroadcastPlanner` and throws `IllegalArgumentException("Broadcast mismatch at dim ...")` when aligned dimensions are incompatible.
@@ -160,7 +160,7 @@ CPU kernel checklist:
 2. Override the supported dtype entry points: `forwardF64`, `forwardF32`, `forwardBF16`, `forwardBOOL`, or `forwardI32`.
 3. Use the existing family executor where possible, such as `ElementwiseBinaryExecutor`, `ElementwiseUnaryExecutor`, reduction executors, matmul executables, or conv/pool executors.
 4. Read prepared metadata from `CpuKernelContext`, not from ad hoc policy logic inside the hot loop.
-5. Add a singleton field and switch case in `src/main/java/backend/cpu/registry/CpuKernelResolver.java`.
+5. Add a singleton field and switch case in `src/main/java/backend/cpu/kernels/CpuKernelRegistry.java`.
 6. If the op needs workspace or special prepared metadata, update `src/main/java/backend/cpu/prepare/CpuNodePreparer.java` and the relevant planner under `src/main/java/backend/cpu/kernels/.../plan`.
 7. Add execution tests that call `CompiledGraph.compile(...).execute(...)` rather than only testing helper methods.
 

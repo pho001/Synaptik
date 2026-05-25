@@ -609,7 +609,7 @@ CPU execution reads a prepared recipe, resolves runtime input tensors, applies t
 
 - `ComputeEngine`
 - `CpuBackend`
-- `CpuKernelResolver`
+- `CpuKernelRegistry`
 - `CpuExecutionPlanner`
 - `CpuNodeExecutionPlan`
 - dispatch hints
@@ -619,7 +619,7 @@ CPU execution reads a prepared recipe, resolves runtime input tensors, applies t
 
 - [`ComputeEngine.java`](../src/main/java/backend/ComputeEngine.java)
 - [`CpuBackend.java`](../src/main/java/backend/cpu/CpuBackend.java)
-- [`CpuKernelResolver.java`](../src/main/java/backend/cpu/registry/CpuKernelResolver.java)
+- [`CpuKernelRegistry.java`](../src/main/java/backend/cpu/kernels/CpuKernelRegistry.java)
 - [`CpuExecutionPlanner.java`](../src/main/java/backend/cpu/kernels/plan/CpuExecutionPlanner.java)
 - [`CpuNodePreparer.java`](../src/main/java/backend/cpu/prepare/CpuNodePreparer.java)
 
@@ -647,7 +647,7 @@ For a fused node, metadata contains `CpuFusedKernel`, a `FusedOperation`, and a 
 
 **Internals**
 
-`CpuExecutionPlanner.from(runtimeConfig.cpuKernelConfig())` creates sub-planners for elementwise dispatch, fused dispatch, reductions, matmul, conv2d, attention, and compute-contract resolution. `CpuKernelResolver.resolve(opType)` maps every supported `Operation.OpType` to a concrete CPU kernel or throws for unsupported internal types.
+`CpuExecutionPlanner.from(runtimeConfig.cpuKernelConfig())` creates sub-planners for elementwise dispatch, fused dispatch, reductions, matmul, conv2d, attention, and compute-contract resolution. `CpuKernelRegistry.resolve(opType)` maps every supported `Operation.OpType` to a concrete CPU kernel or throws for unsupported internal types.
 
 **Edge Cases**
 

@@ -1,8 +1,8 @@
 package backend.cpu.kernels.elementwise.where;
 
-import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.kernels.storage.CpuStorageBindings;
-import backend.cpu.kernels.storage.CpuStorageView;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.storage.CpuStorageBindings;
+import backend.cpu.storage.CpuStorageView;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 
@@ -73,7 +73,7 @@ class WhereStorageLoopsTest {
     private static short[] bf16(float... values) {
         short[] bits = new short[values.length];
         for (int i = 0; i < values.length; i++) {
-            bits[i] = CpuDTypeOps.toBFloat16Bits(values[i]);
+            bits[i] = TensorDTypeOps.toBFloat16Bits(values[i]);
         }
         return bits;
     }
@@ -81,7 +81,7 @@ class WhereStorageLoopsTest {
     private static double[] toDouble(short[] values) {
         double[] out = new double[values.length];
         for (int i = 0; i < values.length; i++) {
-            out[i] = CpuDTypeOps.fromBFloat16Bits(values[i]);
+            out[i] = TensorDTypeOps.fromBFloat16Bits(values[i]);
         }
         return out;
     }

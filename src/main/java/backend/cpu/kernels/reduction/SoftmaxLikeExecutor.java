@@ -2,7 +2,7 @@ package backend.cpu.kernels.reduction;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.execution.CpuKernelContext;
 import tensor.Tensor;
 
 final class SoftmaxLikeExecutor {

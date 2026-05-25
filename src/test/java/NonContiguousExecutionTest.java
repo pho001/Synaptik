@@ -76,6 +76,58 @@ public class NonContiguousExecutionTest {
     }
 
     @Test
+    public void testCompareBroadcastWithNonContiguousInputStridedVsMaterializeEquivalence() {
+        RuntimeConfig stridedConfig = runtimeConfig(new CpuKernelConfig(4, 1_000_000, 1_000_000, 1_000_000, 1_024, 100_000, 1_000_000));
+        RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0));
+
+        Tensor left = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, new int[]{1, 2}, null, "compare_left_noncontig", DataType.FLOAT64);
+        Tensor right = new Tensor(new double[]{0, 3, 4}, new int[]{3}, null, "compare_right_broadcast", DataType.FLOAT64);
+
+        Tensor strided = left.greaterThan(right);
+        CompiledGraph.compile(strided, CompileConfig.noGraphOptimizationBaseline()).prepare(stridedConfig).execute(ExecutionMode.FORWARD);
+
+        Tensor materialized = left.greaterThan(right);
+        CompiledGraph.compile(materialized, CompileConfig.noGraphOptimizationBaseline()).prepare(materializedConfig).execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(materialized.toBoolByteArrayCopy(), strided.toBoolByteArrayCopy());
+    }
+
+    @Test
+    public void testLogicalBroadcastWithNonContiguousInputStridedVsMaterializeEquivalence() {
+        RuntimeConfig stridedConfig = runtimeConfig(new CpuKernelConfig(4, 1_000_000, 1_000_000, 1_000_000, 1_024, 100_000, 1_000_000));
+        RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0));
+
+        Tensor left = new Tensor(new byte[]{1, 0, 1, 1, 0, 1}, new int[]{2, 3}, new int[]{1, 2}, null, "logical_left_noncontig", DataType.BOOL);
+        Tensor right = new Tensor(new byte[]{1, 0, 1}, new int[]{3}, null, "logical_right_broadcast", DataType.BOOL);
+
+        Tensor strided = left.logicalAnd(right);
+        CompiledGraph.compile(strided, CompileConfig.noGraphOptimizationBaseline()).prepare(stridedConfig).execute(ExecutionMode.FORWARD);
+
+        Tensor materialized = left.logicalAnd(right);
+        CompiledGraph.compile(materialized, CompileConfig.noGraphOptimizationBaseline()).prepare(materializedConfig).execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(materialized.toBoolByteArrayCopy(), strided.toBoolByteArrayCopy());
+    }
+
+    @Test
+    public void testWhereBroadcastWithNonContiguousBranchStridedVsMaterializeEquivalence() {
+        RuntimeConfig stridedConfig = runtimeConfig(new CpuKernelConfig(4, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 100_000, 1_000_000));
+        RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 0, 100_000, 0));
+
+        Tensor condition = new Tensor(new byte[]{1, 0}, new int[]{2, 1}, null, "where_condition_broadcast", DataType.BOOL);
+        Tensor ifTrue = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, new int[]{1, 2}, null, "where_true_noncontig", DataType.FLOAT64);
+        Tensor ifFalse = new Tensor(new double[]{-1, -2, -3, -4, -5, -6}, new int[]{2, 3}, null, "where_false", DataType.FLOAT64);
+
+        Tensor strided = Tensor.where(condition, ifTrue, ifFalse);
+        CompiledGraph.compile(strided, CompileConfig.noGraphOptimizationBaseline()).prepare(stridedConfig).execute(ExecutionMode.FORWARD);
+
+        Tensor materialized = Tensor.where(condition, ifTrue, ifFalse);
+        CompiledGraph.compile(materialized, CompileConfig.noGraphOptimizationBaseline()).prepare(materializedConfig).execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(materialized.toDoubleArrayCopy(), strided.toDoubleArrayCopy(), EPS);
+    }
+
+    @Test
     public void testAddBroadcastRowViewFloat32StridedVsMaterializeEquivalence() {
         RuntimeConfig stridedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 100));
         RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0));

@@ -1,5 +1,7 @@
 package backend.cpu.kernels.nn;
 
+import backend.cpu.execution.CpuKernelContext;
+
 import backend.cpu.kernels.*;
 
 import operations.Operation;
@@ -8,21 +10,21 @@ import tensor.Tensor;
 
 import java.util.List;
 
-public final class CpuMaxPool2dBackwardInputKernel implements CpuKernel {
+public final class CpuMaxPool2dBackwardInputKernel extends TypedCpuKernel {
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(inputs);
         Pool2dExecutor.maxBackwardInputF64(require(op), pair[0], pair[1], node);
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(inputs);
         Pool2dExecutor.maxBackwardInputF32(require(op), pair[0], pair[1], node);
     }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(inputs);
         Pool2dExecutor.maxBackwardInputBF16(require(op), pair[0], pair[1], node);
     }

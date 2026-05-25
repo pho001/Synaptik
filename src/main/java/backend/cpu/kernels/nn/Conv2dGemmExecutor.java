@@ -1,6 +1,6 @@
 package backend.cpu.kernels.nn;
 
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.execution.CpuKernelContext;
 import operations.nn.conv.conv2dGemm;
 import tensor.Tensor;
 

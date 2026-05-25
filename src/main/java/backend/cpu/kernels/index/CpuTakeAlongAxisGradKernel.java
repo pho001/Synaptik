@@ -1,5 +1,7 @@
 package backend.cpu.kernels.index;
 
+import backend.cpu.execution.CpuKernelContext;
+
 import backend.cpu.kernels.*;
 
 import operations.Operation;
@@ -8,9 +10,9 @@ import tensor.Tensor;
 
 import java.util.List;
 
-public final class CpuTakeAlongAxisGradKernel implements CpuKernel {
+public final class CpuTakeAlongAxisGradKernel extends TypedCpuKernel {
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof takeAlongAxisGrad gradOp)) {
             throw new IllegalArgumentException("CpuTakeAlongAxisGradKernel requires takeAlongAxisGrad operation");
         }
@@ -19,7 +21,7 @@ public final class CpuTakeAlongAxisGradKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof takeAlongAxisGrad gradOp)) {
             throw new IllegalArgumentException("CpuTakeAlongAxisGradKernel requires takeAlongAxisGrad operation");
         }
@@ -28,7 +30,7 @@ public final class CpuTakeAlongAxisGradKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof takeAlongAxisGrad gradOp)) {
             throw new IllegalArgumentException("CpuTakeAlongAxisGradKernel requires takeAlongAxisGrad operation");
         }

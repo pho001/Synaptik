@@ -1,6 +1,6 @@
 package backend.cpu.kernels.linalg.matmul.bf16;
 
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 
 final class BF16MatMulPacking {
     private static final ThreadLocal<float[]> F32_PACKED_B = ThreadLocal.withInitial(() -> new float[0]);
@@ -58,7 +58,7 @@ final class BF16MatMulPacking {
         for (int p = kStart; p < kEnd; p++) {
             int srcBase = bOffset + p * n + jStart;
             for (int j = 0; j < panelWidth; j++) {
-                packed[dst++] = CpuDTypeOps.fromBFloat16Bits(b[srcBase + j]);
+                packed[dst++] = TensorDTypeOps.fromBFloat16Bits(b[srcBase + j]);
             }
         }
         return packed;
@@ -77,7 +77,7 @@ final class BF16MatMulPacking {
         for (int i = iStart; i < iEnd; i++) {
             int srcBase = aOffset + i * sourceK + kStart;
             for (int p = 0; p < panelDepth; p++) {
-                packed[dst++] = CpuDTypeOps.fromBFloat16Bits(a[srcBase + p]);
+                packed[dst++] = TensorDTypeOps.fromBFloat16Bits(a[srcBase + p]);
             }
         }
         return packed;

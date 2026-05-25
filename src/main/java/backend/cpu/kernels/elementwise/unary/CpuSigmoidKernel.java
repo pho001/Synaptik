@@ -1,28 +1,32 @@
 package backend.cpu.kernels.elementwise.unary;
 
-import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.kernels.TypedCpuKernel;
+import backend.cpu.execution.CpuKernelContext;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
 import operations.Operation;
 import tensor.Tensor;
 
+import java.lang.foreign.MemorySegment;
 import java.util.List;
 
-public final class CpuSigmoidKernel implements CpuKernel, UnaryElementwiseKernel {
+import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
+
+public final class CpuSigmoidKernel extends TypedCpuKernel implements UnaryElementwiseKernel {
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         ElementwiseUnaryExecutor.execute(this, inputs, node, context);
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         ElementwiseUnaryExecutor.execute(this, inputs, node, context);
     }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         ElementwiseUnaryExecutor.execute(this, inputs, node, context);
     }
 
@@ -63,5 +67,23 @@ public final class CpuSigmoidKernel implements CpuKernel, UnaryElementwiseKernel
         FloatVector half = FloatVector.broadcast(value.species(), 0.5f);
         FloatVector one = FloatVector.broadcast(value.species(), 1.0f);
         return value.mul(half).lanewise(VectorOperators.TANH).add(one).mul(half);
+    }
+
+    @Override
+    public void runSegmentF64(MemorySegment in, MemorySegment out, int start, int end) {
+        for (int i = start; i < end; i++) {
+            long offset = (long) i * Double.BYTES;
+            double value = in.get(JAVA_DOUBLE, offset);
+            out.set(JAVA_DOUBLE, offset, 1.0d / (1.0d + Math.exp(-value)));
+        }
+    }
+
+    @Override
+    public void runSegmentF32(MemorySegment in, MemorySegment out, int start, int end) {
+        for (int i = start; i < end; i++) {
+            long offset = (long) i * Float.BYTES;
+            float value = in.get(JAVA_FLOAT, offset);
+            out.set(JAVA_FLOAT, offset, 1.0f / (1.0f + (float) Math.exp(-value)));
+        }
     }
 }

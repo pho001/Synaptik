@@ -12,7 +12,7 @@ import backend.metal.buffer.MetalBufferBinding;
 import config.runtime.BFloat16TrainingPolicy;
 import config.runtime.CpuStorageProfile;
 import graph.CompiledNode;
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 import tensor.DataType;
 import tensor.storage.NativeBFloat16Storage;
 import tensor.storage.NativeFloat32Storage;
@@ -214,9 +214,9 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
                 short[] p = TensorInternalAccess.bfloat16Data(parameter);
                 short[] g = TensorInternalAccess.bfloat16Data(gradient);
                 for (int i = 0; i < p.length; i++) {
-                    float updated = CpuDTypeOps.fromBFloat16Bits(p[i])
-                            - learningRate * CpuDTypeOps.fromBFloat16Bits(g[i]);
-                    p[i] = CpuDTypeOps.toBFloat16Bits(updated);
+                    float updated = TensorDTypeOps.fromBFloat16Bits(p[i])
+                            - learningRate * TensorDTypeOps.fromBFloat16Bits(g[i]);
+                    p[i] = TensorDTypeOps.toBFloat16Bits(updated);
                 }
             }
             case INT32, BOOL -> throw new UnsupportedOperationException(
@@ -271,9 +271,9 @@ public final class SgdOptimizer extends AbstractTrainableOptimizer {
         MemorySegment g = gradient.segment();
         for (int i = 0; i < parameter.getSize(); i++) {
             long offset = (long) i * Short.BYTES;
-            float updated = CpuDTypeOps.fromBFloat16Bits(p.get(JAVA_SHORT, offset))
-                    - learningRate * CpuDTypeOps.fromBFloat16Bits(g.get(JAVA_SHORT, offset));
-            p.set(JAVA_SHORT, offset, CpuDTypeOps.toBFloat16Bits(updated));
+            float updated = TensorDTypeOps.fromBFloat16Bits(p.get(JAVA_SHORT, offset))
+                    - learningRate * TensorDTypeOps.fromBFloat16Bits(g.get(JAVA_SHORT, offset));
+            p.set(JAVA_SHORT, offset, TensorDTypeOps.toBFloat16Bits(updated));
         }
     }
 

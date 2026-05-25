@@ -7,8 +7,7 @@ Target layout:
 - `backend.cpu.prepare` owns CPU node preparation.
 - `backend.cpu.lowering` owns CPU region lowering.
 - `backend.cpu.partition` owns CPU partition legality and plans.
-- `backend.cpu.registry` owns CPU kernel resolution.
-- `backend.cpu.kernels` owns CPU runtime kernels.
+- `backend.cpu.kernels` owns CPU kernel resolution and runtime kernels.
 - `backend.cpu.fused` owns fused planning, codegen, generated executable preparation, and generated ASM support.
 
 CPU execution flow:
@@ -16,9 +15,11 @@ CPU execution flow:
 1. `backend.cpu.prepare.CpuNodePreparer` resolves the `CpuKernel`, `CpuNodeExecutionPlan`, dispatch hints, storage
    policy, fused executable, and provider-specific prepared executables.
 2. `backend.cpu.CpuBackend` resolves runtime tensors and applies the prepared input/layout policy.
-3. The selected operation-family kernel executes directly over Java arrays, CPU-native `MemorySegment` storage, or a
+3. `backend.cpu.execution.CpuKernelExecutor` binds runtime storage views, builds `CpuKernelCall`, invokes the
+   selected kernel, and returns `CpuKernelResult`.
+4. The selected operation-family kernel executes directly over Java arrays, CPU-native `MemorySegment` storage, or a
    provider route such as OpenBLAS.
-4. Runtime residency/materialization publishes whether Java array storage, native CPU storage, or device storage is
+5. Runtime residency/materialization publishes whether Java array storage, native CPU storage, or device storage is
    current.
 
 `MemorySegment` is a CPU storage kind, not a second CPU backend. Non-BLAS native segment execution belongs in the

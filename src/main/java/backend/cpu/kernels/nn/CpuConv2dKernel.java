@@ -1,5 +1,7 @@
 package backend.cpu.kernels.nn;
 
+import backend.cpu.execution.CpuKernelContext;
+
 import backend.cpu.kernels.*;
 
 import operations.Operation;
@@ -8,21 +10,21 @@ import tensor.Tensor;
 
 import java.util.List;
 
-public final class CpuConv2dKernel implements CpuKernel {
+public final class CpuConv2dKernel extends TypedCpuKernel {
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         conv2d conv = require(op);
         Conv2dExecutor.forwardF64(conv, inputs.get(0), inputs.get(1), inputs.size() > 2 ? inputs.get(2) : null, node, context);
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         conv2d conv = require(op);
         Conv2dExecutor.forwardF32(conv, inputs.get(0), inputs.get(1), inputs.size() > 2 ? inputs.get(2) : null, node, context);
     }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         conv2d conv = require(op);
         Conv2dExecutor.forwardBF16(conv, inputs.get(0), inputs.get(1), inputs.size() > 2 ? inputs.get(2) : null, node, context);
     }

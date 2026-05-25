@@ -1,6 +1,6 @@
 package backend.cpu.kernels.reduction;
 
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 
 enum LossReduction {
     NLL {
@@ -26,7 +26,7 @@ enum LossReduction {
         double computeBF16(short[] aData, short[] bData, int baseA, int baseB, int axisStrideA, int axisStrideB, int axisSize) {
             double loss = 0.0d;
             for (int i = 0, aOffset = baseA, bOffset = baseB; i < axisSize; i++, aOffset += axisStrideA, bOffset += axisStrideB) {
-                loss -= CpuDTypeOps.fromBFloat16Bits(bData[bOffset]) * CpuDTypeOps.fromBFloat16Bits(aData[aOffset]);
+                loss -= TensorDTypeOps.fromBFloat16Bits(bData[bOffset]) * TensorDTypeOps.fromBFloat16Bits(aData[aOffset]);
             }
             return loss;
         }
@@ -35,7 +35,7 @@ enum LossReduction {
         double computeF32ToBF16(float[] aData, short[] bData, int baseA, int baseB, int axisStrideA, int axisStrideB, int axisSize) {
             double loss = 0.0d;
             for (int i = 0, aOffset = baseA, bOffset = baseB; i < axisSize; i++, aOffset += axisStrideA, bOffset += axisStrideB) {
-                loss -= CpuDTypeOps.fromBFloat16Bits(bData[bOffset]) * aData[aOffset];
+                loss -= TensorDTypeOps.fromBFloat16Bits(bData[bOffset]) * aData[aOffset];
             }
             return loss;
         }
@@ -83,14 +83,14 @@ enum LossReduction {
         double computeBF16(short[] aData, short[] bData, int baseA, int baseB, int axisStrideA, int axisStrideB, int axisSize) {
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0, offset = baseA; i < axisSize; i++, offset += axisStrideA) {
-                max = Math.max(max, CpuDTypeOps.fromBFloat16Bits(aData[offset]));
+                max = Math.max(max, TensorDTypeOps.fromBFloat16Bits(aData[offset]));
             }
             double sumExp = 0.0d;
             double weightedLogits = 0.0d;
             double targetSum = 0.0d;
             for (int i = 0, aOffset = baseA, bOffset = baseB; i < axisSize; i++, aOffset += axisStrideA, bOffset += axisStrideB) {
-                double target = CpuDTypeOps.fromBFloat16Bits(bData[bOffset]);
-                double logit = CpuDTypeOps.fromBFloat16Bits(aData[aOffset]);
+                double target = TensorDTypeOps.fromBFloat16Bits(bData[bOffset]);
+                double logit = TensorDTypeOps.fromBFloat16Bits(aData[aOffset]);
                 sumExp += Math.exp(logit - max);
                 weightedLogits += target * logit;
                 targetSum += target;
@@ -108,7 +108,7 @@ enum LossReduction {
             double weightedLogits = 0.0d;
             double targetSum = 0.0d;
             for (int i = 0, aOffset = baseA, bOffset = baseB; i < axisSize; i++, aOffset += axisStrideA, bOffset += axisStrideB) {
-                double target = CpuDTypeOps.fromBFloat16Bits(bData[bOffset]);
+                double target = TensorDTypeOps.fromBFloat16Bits(bData[bOffset]);
                 double logit = aData[aOffset];
                 sumExp += Math.exp(logit - max);
                 weightedLogits += target * logit;

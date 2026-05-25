@@ -1,5 +1,6 @@
 package backend.cpu.kernels.elementwise.strided;
 
+import backend.cpu.kernels.elementwise.ElementwiseLayoutPlan;
 import tensor.TensorInternalAccess;
 
 import operations.Operation;
@@ -26,8 +27,9 @@ final class StridedBooleanLoops {
         if (op.opType() == Operation.OpType.LOGICAL_NOT) {
             Tensor ta = inputs.getFirst();
             byte[] a = TensorInternalAccess.boolData(ta);
-            int[] aStrides = ta.getStridesUnsafe();
-            int aBaseOffset = ta.getStorageOffsetUnsafe();
+            ElementwiseLayoutPlan.Operand aLayout = ElementwiseLayoutPlan.inputOperand(ta, outShape);
+            int[] aStrides = aLayout.strides();
+            int aBaseOffset = aLayout.baseOffset();
             if (rank == 1) {
                 rank1BoolUnary(a, aStrides[0], aBaseOffset, out, outStrides[0], outBaseOffset, logicalSize);
                 return;
@@ -41,10 +43,12 @@ final class StridedBooleanLoops {
         if (ta.getDataType() == tensor.DataType.BOOL) {
             byte[] a = TensorInternalAccess.boolData(ta);
             byte[] b = TensorInternalAccess.boolData(tb);
-            int[] aStrides = ta.getStridesUnsafe();
-            int[] bStrides = tb.getStridesUnsafe();
-            int aBaseOffset = ta.getStorageOffsetUnsafe();
-            int bBaseOffset = tb.getStorageOffsetUnsafe();
+            ElementwiseLayoutPlan.Operand aLayout = ElementwiseLayoutPlan.inputOperand(ta, outShape);
+            ElementwiseLayoutPlan.Operand bLayout = ElementwiseLayoutPlan.inputOperand(tb, outShape);
+            int[] aStrides = aLayout.strides();
+            int[] bStrides = bLayout.strides();
+            int aBaseOffset = aLayout.baseOffset();
+            int bBaseOffset = bLayout.baseOffset();
             if (rank == 1) {
                 rank1BoolBinary(op, a, b, aStrides[0], bStrides[0], aBaseOffset, bBaseOffset, out, outStrides[0], outBaseOffset, logicalSize);
                 return;
@@ -57,10 +61,12 @@ final class StridedBooleanLoops {
             case FLOAT64 -> {
                 double[] a = TensorInternalAccess.float64Data(ta);
                 double[] b = TensorInternalAccess.float64Data(tb);
-                int[] aStrides = ta.getStridesUnsafe();
-                int[] bStrides = tb.getStridesUnsafe();
-                int aBaseOffset = ta.getStorageOffsetUnsafe();
-                int bBaseOffset = tb.getStorageOffsetUnsafe();
+                ElementwiseLayoutPlan.Operand aLayout = ElementwiseLayoutPlan.inputOperand(ta, outShape);
+                ElementwiseLayoutPlan.Operand bLayout = ElementwiseLayoutPlan.inputOperand(tb, outShape);
+                int[] aStrides = aLayout.strides();
+                int[] bStrides = bLayout.strides();
+                int aBaseOffset = aLayout.baseOffset();
+                int bBaseOffset = bLayout.baseOffset();
                 if (rank == 1) {
                     rank1CompareF64(op, a, b, aStrides[0], bStrides[0], aBaseOffset, bBaseOffset, out, outStrides[0], outBaseOffset, logicalSize);
                     return;
@@ -70,10 +76,12 @@ final class StridedBooleanLoops {
             case FLOAT32 -> {
                 float[] a = TensorInternalAccess.float32Data(ta);
                 float[] b = TensorInternalAccess.float32Data(tb);
-                int[] aStrides = ta.getStridesUnsafe();
-                int[] bStrides = tb.getStridesUnsafe();
-                int aBaseOffset = ta.getStorageOffsetUnsafe();
-                int bBaseOffset = tb.getStorageOffsetUnsafe();
+                ElementwiseLayoutPlan.Operand aLayout = ElementwiseLayoutPlan.inputOperand(ta, outShape);
+                ElementwiseLayoutPlan.Operand bLayout = ElementwiseLayoutPlan.inputOperand(tb, outShape);
+                int[] aStrides = aLayout.strides();
+                int[] bStrides = bLayout.strides();
+                int aBaseOffset = aLayout.baseOffset();
+                int bBaseOffset = bLayout.baseOffset();
                 if (rank == 1) {
                     rank1CompareF32(op, a, b, aStrides[0], bStrides[0], aBaseOffset, bBaseOffset, out, outStrides[0], outBaseOffset, logicalSize);
                     return;
@@ -83,10 +91,12 @@ final class StridedBooleanLoops {
             case BFLOAT16 -> {
                 short[] a = TensorInternalAccess.bfloat16Data(ta);
                 short[] b = TensorInternalAccess.bfloat16Data(tb);
-                int[] aStrides = ta.getStridesUnsafe();
-                int[] bStrides = tb.getStridesUnsafe();
-                int aBaseOffset = ta.getStorageOffsetUnsafe();
-                int bBaseOffset = tb.getStorageOffsetUnsafe();
+                ElementwiseLayoutPlan.Operand aLayout = ElementwiseLayoutPlan.inputOperand(ta, outShape);
+                ElementwiseLayoutPlan.Operand bLayout = ElementwiseLayoutPlan.inputOperand(tb, outShape);
+                int[] aStrides = aLayout.strides();
+                int[] bStrides = bLayout.strides();
+                int aBaseOffset = aLayout.baseOffset();
+                int bBaseOffset = bLayout.baseOffset();
                 if (rank == 1) {
                     rank1CompareBF16(op, a, b, aStrides[0], bStrides[0], aBaseOffset, bBaseOffset, out, outStrides[0], outBaseOffset, logicalSize);
                     return;

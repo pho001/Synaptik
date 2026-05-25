@@ -4,10 +4,10 @@ import tensor.TensorInternalAccess;
 
 import backend.blas.OpenBlasRuntime;
 import backend.blas.OpenBlasSegmentGemm;
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.execution.CpuKernelContext;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
-import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
-import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
+import backend.cpu.plan.linalg.matmul.MatMulExecutionRoute;
+import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import backend.memory.CpuMaterializationReason;
 import config.runtime.NativeCpuFailurePolicy;
 import tensor.storage.NativeFloat64Storage;

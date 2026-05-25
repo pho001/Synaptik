@@ -8,8 +8,8 @@ import backend.cpu.fused.ir.FusedNodePlan;
 import backend.cpu.fused.numeric.FusedApproximationContract;
 import backend.cpu.fused.numeric.FusedNumericContract;
 import backend.cpu.fused.ir.ScalarDoubleAttribute;
-import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.kernels.CpuKernelContext;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.execution.CpuKernelContext;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -261,7 +261,7 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
         return switch (input.getDataType()) {
             case FLOAT64 -> TensorInternalAccess.float64Data(input)[storageIndex];
             case FLOAT32 -> TensorInternalAccess.float32Data(input)[storageIndex];
-            case BFLOAT16 -> CpuDTypeOps.fromBFloat16Bits(TensorInternalAccess.bfloat16Data(input)[storageIndex]);
+            case BFLOAT16 -> TensorDTypeOps.fromBFloat16Bits(TensorInternalAccess.bfloat16Data(input)[storageIndex]);
             case BOOL -> TensorInternalAccess.boolData(input)[storageIndex] == 0 ? 0.0d : 1.0d;
             case INT32 -> TensorInternalAccess.int32Data(input)[storageIndex];
             case INT64 -> TensorInternalAccess.int64Data(input)[storageIndex];
@@ -272,7 +272,7 @@ public final class InterpretedPreparedFusedExecutable implements PreparedFusedEx
         switch (out.getDataType()) {
             case FLOAT64 -> TensorInternalAccess.float64Data(out)[storageIndex] = value;
             case FLOAT32 -> TensorInternalAccess.float32Data(out)[storageIndex] = (float) value;
-            case BFLOAT16 -> TensorInternalAccess.bfloat16Data(out)[storageIndex] = CpuDTypeOps.toBFloat16Bits((float) value);
+            case BFLOAT16 -> TensorInternalAccess.bfloat16Data(out)[storageIndex] = TensorDTypeOps.toBFloat16Bits((float) value);
             case BOOL -> TensorInternalAccess.boolData(out)[storageIndex] = value == 0.0d ? (byte) 0 : (byte) 1;
             case INT32 -> TensorInternalAccess.int32Data(out)[storageIndex] = (int) value;
             case INT64 -> TensorInternalAccess.int64Data(out)[storageIndex] = (long) value;

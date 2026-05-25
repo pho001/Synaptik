@@ -1,5 +1,9 @@
 package backend.cpu.kernels.linalg;
 
+import tensor.dtype.TensorDTypeOps;
+
+import backend.cpu.execution.CpuKernelContext;
+
 import tensor.TensorInternalAccess;
 
 import backend.cpu.kernels.*;
@@ -9,7 +13,7 @@ import backend.cpu.kernels.linalg.matmul.common.PackedLinearWeightCache;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.f32.F32MatMulJavaBackend;
 import backend.cpu.kernels.linalg.matmul.f64.F64MatMulJavaBackend;
-import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
+import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorSpecies;
@@ -271,8 +275,8 @@ final class LinearExecutor {
         short[] biasData = TensorInternalAccess.bfloat16Data(bias);
         int outFeatures = biasFeatureCount(bias);
         for (int i = 0; i < outData.length; i++) {
-            float value = CpuDTypeOps.fromBFloat16Bits(outData[i]) + CpuDTypeOps.fromBFloat16Bits(biasData[i % outFeatures]);
-            outData[i] = CpuDTypeOps.toBFloat16Bits(value);
+            float value = TensorDTypeOps.fromBFloat16Bits(outData[i]) + TensorDTypeOps.fromBFloat16Bits(biasData[i % outFeatures]);
+            outData[i] = TensorDTypeOps.toBFloat16Bits(value);
         }
     }
 
@@ -285,15 +289,15 @@ final class LinearExecutor {
     ) {
         int limit = Math.min(length, Math.min(src.length, out.length));
         for (int i = 0; i < limit; i++) {
-            float value = src[i] + CpuDTypeOps.fromBFloat16Bits(bias[i % outFeatures]);
-            out[i] = CpuDTypeOps.toBFloat16Bits(value);
+            float value = src[i] + TensorDTypeOps.fromBFloat16Bits(bias[i % outFeatures]);
+            out[i] = TensorDTypeOps.toBFloat16Bits(value);
         }
     }
 
     private static void addBiasInPlace(float[] src, short[] bias, int outFeatures, int length) {
         int limit = Math.min(length, src.length);
         for (int i = 0; i < limit; i++) {
-            src[i] += CpuDTypeOps.fromBFloat16Bits(bias[i % outFeatures]);
+            src[i] += TensorDTypeOps.fromBFloat16Bits(bias[i % outFeatures]);
         }
     }
 

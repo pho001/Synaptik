@@ -1,6 +1,6 @@
 package backend.cpu.kernels.linalg.matmul.bf16;
 
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 import backend.cpu.kernels.linalg.matmul.common.PackedLinearWeightCache;
 
 final class BF16MatMulBlockKernels {
@@ -12,7 +12,7 @@ final class BF16MatMulBlockKernels {
             int outRow = outRowBase + row * n;
             int accumBase = row * tileCols;
             for (int j = 0; j < tileCols; j++) {
-                out[outRow + j] = CpuDTypeOps.toBFloat16Bits(accum[accumBase + j]);
+                out[outRow + j] = TensorDTypeOps.toBFloat16Bits(accum[accumBase + j]);
             }
         }
     }

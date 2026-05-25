@@ -67,8 +67,8 @@ Relevant source areas:
 - `src/main/java/tensor/storage/BFloat16Storage.java`
 - `src/main/java/backend/cpu/kernels/CpuDTypeOps.java`
 - `src/main/java/backend/cpu/kernels/plan/CpuComputeContractResolver.java`
-- `src/main/java/backend/cpu/kernels/elementwise/binary/arrayloops/*`
-- `src/main/java/backend/cpu/kernels/elementwise/unary/arrayloops/*`
+- `src/main/java/backend/cpu/kernels/elementwise/binary/Cpu*Kernel.java`
+- `src/main/java/backend/cpu/kernels/elementwise/unary/Cpu*Kernel.java`
 - `src/main/java/backend/cpu/kernels/linalg/matmul/bf16/*`
 - `src/main/java/backend/cpu/kernels/linalg/matmul/blas/MatMulBlasBackend.java`
 

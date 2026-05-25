@@ -3,7 +3,7 @@ package backend.cpu.kernels.nn;
 import operations.nn.conv.conv2d;
 import operations.nn.conv.conv2dBackwardInput;
 import operations.nn.conv.conv2dBackwardWeight;
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.execution.CpuKernelContext;
 import tensor.Tensor;
 
 final class Conv2dExecutor {

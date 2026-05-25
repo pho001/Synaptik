@@ -14,6 +14,8 @@ import java.util.List;
 import static org.objectweb.asm.Opcodes.*;
 
 final class FusedScalarBytecode {
+    private static final String TENSOR_DTYPE_OPS = "tensor/dtype/TensorDTypeOps";
+
     private FusedScalarBytecode() {}
 
     static void emitScalarLoadInsn(MethodVisitor mv, int slot, FusedNumericContract numericContract) {
@@ -48,7 +50,7 @@ final class FusedScalarBytecode {
             }
             case BFLOAT16 -> {
                 mv.visitInsn(SALOAD);
-                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/kernels/CpuDTypeOps", "fromBFloat16Bits", "(S)F", false);
+                mv.visitMethodInsn(INVOKESTATIC, TENSOR_DTYPE_OPS, "fromBFloat16Bits", "(S)F", false);
                 if (numericContract.usesDoubleCompute()) {
                     mv.visitInsn(F2D);
                 }
@@ -77,7 +79,7 @@ final class FusedScalarBytecode {
                 if (numericContract.usesDoubleCompute()) {
                     mv.visitInsn(D2F);
                 }
-                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/kernels/CpuDTypeOps", "toBFloat16Bits", "(F)S", false);
+                mv.visitMethodInsn(INVOKESTATIC, TENSOR_DTYPE_OPS, "toBFloat16Bits", "(F)S", false);
                 mv.visitInsn(SASTORE);
             }
             case BOOL, INT32, INT64 -> throw new UnsupportedOperationException(

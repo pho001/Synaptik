@@ -2,7 +2,7 @@ package training.optimizer;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 import backend.cpu.nativecpu.NativeCpuAllocator;
 import backend.cpu.nativecpu.NativeCpuMaterializer;
 import backend.cpu.nativecpu.NativeCpuStorageFactory;
@@ -325,14 +325,14 @@ public final class AdamOptimizer extends AbstractTrainableOptimizer {
         float bias2 = 1.0f - (float) Math.pow(beta2, step);
         for (int i = 0; i < p.length; i++) {
             float updated = adamValue(
-                    CpuDTypeOps.fromBFloat16Bits(p[i]),
-                    CpuDTypeOps.fromBFloat16Bits(g[i]),
+                    TensorDTypeOps.fromBFloat16Bits(p[i]),
+                    TensorDTypeOps.fromBFloat16Bits(g[i]),
                     state,
                     i,
                     bias1,
                     bias2
             );
-            p[i] = CpuDTypeOps.toBFloat16Bits(updated);
+            p[i] = TensorDTypeOps.toBFloat16Bits(updated);
         }
     }
 

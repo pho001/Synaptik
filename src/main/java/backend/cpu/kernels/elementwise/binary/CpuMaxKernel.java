@@ -1,32 +1,40 @@
 package backend.cpu.kernels.elementwise.binary;
 
-import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
-import backend.cpu.kernels.elementwise.binary.arrayloops.MaxBF16;
-import backend.cpu.kernels.elementwise.binary.arrayloops.MaxF32;
-import backend.cpu.kernels.elementwise.binary.arrayloops.MaxF64;
+import backend.cpu.kernels.TypedCpuKernel;
+import backend.cpu.execution.CpuKernelContext;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.kernels.elementwise.ElementwiseRangeLoop;
+import backend.cpu.plan.elementwise.ResolvedDispatchHints;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
+import jdk.incubator.vector.VectorSpecies;
 import jdk.incubator.vector.VectorOperators;
 import operations.Operation;
 import tensor.Tensor;
 
+import java.lang.foreign.MemorySegment;
 import java.util.List;
 
-public final class CpuMaxKernel implements CpuKernel, BinaryElementwiseKernel {
+import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
+import static java.lang.foreign.ValueLayout.JAVA_SHORT;
+
+public final class CpuMaxKernel extends TypedCpuKernel implements BinaryElementwiseKernel {
+    private static final VectorSpecies<Double> F64 = DoubleVector.SPECIES_PREFERRED;
+    private static final VectorSpecies<Float> F32 = FloatVector.SPECIES_PREFERRED;
+
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         ElementwiseBinaryExecutor.execute(this, inputs, node, context);
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         ElementwiseBinaryExecutor.execute(this, inputs, node, context);
     }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         ElementwiseBinaryExecutor.execute(this, inputs, node, context);
     }
 
@@ -72,7 +80,9 @@ public final class CpuMaxKernel implements CpuKernel, BinaryElementwiseKernel {
 
     @Override
     public void runDirectF64(double[] left, double[] right, double[] out, ResolvedDispatchHints hints) {
-        MaxF64.run(left, right, out, hints);
+        ElementwiseRangeLoop.run(out.length, hints, true,
+                (start, end) -> runArrayF64(left, right, out, start, end),
+                (start, end) -> runArrayVectorF64(left, right, out, start, end));
     }
 
     @Override
@@ -82,7 +92,9 @@ public final class CpuMaxKernel implements CpuKernel, BinaryElementwiseKernel {
 
     @Override
     public void runDirectF32(float[] left, float[] right, float[] out, ResolvedDispatchHints hints) {
-        MaxF32.run(left, right, out, hints);
+        ElementwiseRangeLoop.run(out.length, hints, true,
+                (start, end) -> runArrayF32(left, right, out, start, end),
+                (start, end) -> runArrayVectorF32(left, right, out, start, end));
     }
 
     @Override
@@ -100,13 +112,87 @@ public final class CpuMaxKernel implements CpuKernel, BinaryElementwiseKernel {
             ResolvedDispatchHints hints
     ) {
         if (leftContinuation != null && rightContinuation != null) {
-            MaxBF16.run(leftContinuation, rightContinuation, out, hints);
+            ElementwiseRangeLoop.runScalar(out.length, hints, (start, end) -> runArrayBF16(leftContinuation, rightContinuation, out, start, end));
         } else if (leftContinuation != null) {
-            MaxBF16.run(leftContinuation, rightStorage, out, hints);
+            ElementwiseRangeLoop.runScalar(out.length, hints, (start, end) -> runArrayBF16(leftContinuation, rightStorage, out, start, end));
         } else if (rightContinuation != null) {
-            MaxBF16.run(leftStorage, rightContinuation, out, hints);
+            ElementwiseRangeLoop.runScalar(out.length, hints, (start, end) -> runArrayBF16(leftStorage, rightContinuation, out, start, end));
         } else {
-            MaxBF16.run(leftStorage, rightStorage, out, hints);
+            ElementwiseRangeLoop.runScalar(out.length, hints, (start, end) -> runArrayBF16(leftStorage, rightStorage, out, start, end));
+        }
+    }
+
+    private static void runArrayF64(double[] left, double[] right, double[] out, int start, int end) {
+        for (int i = start; i < end; i++) out[i] = Math.max(left[i], right[i]);
+    }
+
+    private static void runArrayVectorF64(double[] left, double[] right, double[] out, int start, int end) {
+        int width = F64.length();
+        int upper = end - ((end - start) % width);
+        int i = start;
+        for (; i < upper; i += width) {
+            DoubleVector.fromArray(F64, left, i).lanewise(VectorOperators.MAX, DoubleVector.fromArray(F64, right, i)).intoArray(out, i);
+        }
+        runArrayF64(left, right, out, i, end);
+    }
+
+    private static void runArrayF32(float[] left, float[] right, float[] out, int start, int end) {
+        for (int i = start; i < end; i++) out[i] = Math.max(left[i], right[i]);
+    }
+
+    private static void runArrayVectorF32(float[] left, float[] right, float[] out, int start, int end) {
+        int width = F32.length();
+        int upper = end - ((end - start) % width);
+        int i = start;
+        for (; i < upper; i += width) {
+            FloatVector.fromArray(F32, left, i).lanewise(VectorOperators.MAX, FloatVector.fromArray(F32, right, i)).intoArray(out, i);
+        }
+        runArrayF32(left, right, out, i, end);
+    }
+
+    private static void runArrayBF16(float[] left, float[] right, short[] out, int start, int end) {
+        for (int i = start; i < end; i++) out[i] = TensorDTypeOps.toBFloat16Bits(Math.max(left[i], right[i]));
+    }
+
+    private static void runArrayBF16(float[] left, short[] right, short[] out, int start, int end) {
+        for (int i = start; i < end; i++) out[i] = TensorDTypeOps.toBFloat16Bits(Math.max(left[i], TensorDTypeOps.fromBFloat16Bits(right[i])));
+    }
+
+    private static void runArrayBF16(short[] left, float[] right, short[] out, int start, int end) {
+        for (int i = start; i < end; i++) out[i] = TensorDTypeOps.toBFloat16Bits(Math.max(TensorDTypeOps.fromBFloat16Bits(left[i]), right[i]));
+    }
+
+    private static void runArrayBF16(short[] left, short[] right, short[] out, int start, int end) {
+        for (int i = start; i < end; i++) {
+            float leftValue = TensorDTypeOps.fromBFloat16Bits(left[i]);
+            float rightValue = TensorDTypeOps.fromBFloat16Bits(right[i]);
+            out[i] = TensorDTypeOps.toBFloat16Bits(Math.max(leftValue, rightValue));
+        }
+    }
+
+    @Override
+    public void runSegmentF64(MemorySegment left, MemorySegment right, MemorySegment out, int start, int end) {
+        for (int i = start; i < end; i++) {
+            long offset = (long) i * Double.BYTES;
+            out.set(JAVA_DOUBLE, offset, Math.max(left.get(JAVA_DOUBLE, offset), right.get(JAVA_DOUBLE, offset)));
+        }
+    }
+
+    @Override
+    public void runSegmentF32(MemorySegment left, MemorySegment right, MemorySegment out, int start, int end) {
+        for (int i = start; i < end; i++) {
+            long offset = (long) i * Float.BYTES;
+            out.set(JAVA_FLOAT, offset, Math.max(left.get(JAVA_FLOAT, offset), right.get(JAVA_FLOAT, offset)));
+        }
+    }
+
+    @Override
+    public void runSegmentBF16(MemorySegment left, MemorySegment right, MemorySegment out, int start, int end) {
+        for (int i = start; i < end; i++) {
+            long offset = (long) i * Short.BYTES;
+            float leftValue = TensorDTypeOps.fromBFloat16Bits(left.get(JAVA_SHORT, offset));
+            float rightValue = TensorDTypeOps.fromBFloat16Bits(right.get(JAVA_SHORT, offset));
+            out.set(JAVA_SHORT, offset, TensorDTypeOps.toBFloat16Bits(Math.max(leftValue, rightValue)));
         }
     }
 }

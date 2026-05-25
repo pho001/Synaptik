@@ -1,5 +1,6 @@
 package backend.cpu.kernels.elementwise.strided;
 
+import backend.cpu.kernels.elementwise.ElementwiseLayoutPlan;
 import tensor.TensorInternalAccess;
 
 import tensor.Tensor;
@@ -20,13 +21,16 @@ final class StridedWhereLoops {
         double[] ifFalse = TensorInternalAccess.float64Data(inputs.get(2));
         int[] outShape = node.getShapeUnsafe();
         int[] outStrides = node.getStridesUnsafe();
-        int[] condStrides = inputs.get(0).getStridesUnsafe();
-        int[] trueStrides = inputs.get(1).getStridesUnsafe();
-        int[] falseStrides = inputs.get(2).getStridesUnsafe();
+        ElementwiseLayoutPlan.Operand condLayout = ElementwiseLayoutPlan.inputOperand(inputs.get(0), outShape);
+        ElementwiseLayoutPlan.Operand trueLayout = ElementwiseLayoutPlan.inputOperand(inputs.get(1), outShape);
+        ElementwiseLayoutPlan.Operand falseLayout = ElementwiseLayoutPlan.inputOperand(inputs.get(2), outShape);
+        int[] condStrides = condLayout.strides();
+        int[] trueStrides = trueLayout.strides();
+        int[] falseStrides = falseLayout.strides();
         int outBaseOffset = node.getStorageOffsetUnsafe();
-        int condBaseOffset = inputs.get(0).getStorageOffsetUnsafe();
-        int trueBaseOffset = inputs.get(1).getStorageOffsetUnsafe();
-        int falseBaseOffset = inputs.get(2).getStorageOffsetUnsafe();
+        int condBaseOffset = condLayout.baseOffset();
+        int trueBaseOffset = trueLayout.baseOffset();
+        int falseBaseOffset = falseLayout.baseOffset();
 
         StridedScalarLoops.genericWhereF64(
                 cond,
@@ -52,13 +56,16 @@ final class StridedWhereLoops {
         float[] ifFalse = TensorInternalAccess.float32Data(inputs.get(2));
         int[] outShape = node.getShapeUnsafe();
         int[] outStrides = node.getStridesUnsafe();
-        int[] condStrides = inputs.get(0).getStridesUnsafe();
-        int[] trueStrides = inputs.get(1).getStridesUnsafe();
-        int[] falseStrides = inputs.get(2).getStridesUnsafe();
+        ElementwiseLayoutPlan.Operand condLayout = ElementwiseLayoutPlan.inputOperand(inputs.get(0), outShape);
+        ElementwiseLayoutPlan.Operand trueLayout = ElementwiseLayoutPlan.inputOperand(inputs.get(1), outShape);
+        ElementwiseLayoutPlan.Operand falseLayout = ElementwiseLayoutPlan.inputOperand(inputs.get(2), outShape);
+        int[] condStrides = condLayout.strides();
+        int[] trueStrides = trueLayout.strides();
+        int[] falseStrides = falseLayout.strides();
         int outBaseOffset = node.getStorageOffsetUnsafe();
-        int condBaseOffset = inputs.get(0).getStorageOffsetUnsafe();
-        int trueBaseOffset = inputs.get(1).getStorageOffsetUnsafe();
-        int falseBaseOffset = inputs.get(2).getStorageOffsetUnsafe();
+        int condBaseOffset = condLayout.baseOffset();
+        int trueBaseOffset = trueLayout.baseOffset();
+        int falseBaseOffset = falseLayout.baseOffset();
 
         StridedScalarLoops.genericWhereF32(
                 cond,
@@ -84,13 +91,16 @@ final class StridedWhereLoops {
         short[] ifFalse = TensorInternalAccess.bfloat16Data(inputs.get(2));
         int[] outShape = node.getShapeUnsafe();
         int[] outStrides = node.getStridesUnsafe();
-        int[] condStrides = inputs.get(0).getStridesUnsafe();
-        int[] trueStrides = inputs.get(1).getStridesUnsafe();
-        int[] falseStrides = inputs.get(2).getStridesUnsafe();
+        ElementwiseLayoutPlan.Operand condLayout = ElementwiseLayoutPlan.inputOperand(inputs.get(0), outShape);
+        ElementwiseLayoutPlan.Operand trueLayout = ElementwiseLayoutPlan.inputOperand(inputs.get(1), outShape);
+        ElementwiseLayoutPlan.Operand falseLayout = ElementwiseLayoutPlan.inputOperand(inputs.get(2), outShape);
+        int[] condStrides = condLayout.strides();
+        int[] trueStrides = trueLayout.strides();
+        int[] falseStrides = falseLayout.strides();
         int outBaseOffset = node.getStorageOffsetUnsafe();
-        int condBaseOffset = inputs.get(0).getStorageOffsetUnsafe();
-        int trueBaseOffset = inputs.get(1).getStorageOffsetUnsafe();
-        int falseBaseOffset = inputs.get(2).getStorageOffsetUnsafe();
+        int condBaseOffset = condLayout.baseOffset();
+        int trueBaseOffset = trueLayout.baseOffset();
+        int falseBaseOffset = falseLayout.baseOffset();
 
         StridedScalarLoops.genericWhereBF16(
                 cond,

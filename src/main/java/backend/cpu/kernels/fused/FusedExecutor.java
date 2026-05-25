@@ -1,11 +1,11 @@
 package backend.cpu.kernels.fused;
 
-import backend.cpu.kernels.CpuExecutionMode;
+import backend.cpu.plan.CpuExecutionMode;
 import backend.cpu.fused.exec.FusedNativeSegmentBindings;
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.CpuKernelCostClass;
-import backend.cpu.kernels.CpuThreadPool;
-import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
+import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.plan.CpuKernelCostClass;
+import backend.cpu.execution.CpuThreadPool;
+import backend.cpu.plan.elementwise.ResolvedDispatchHints;
 import backend.cpu.fused.exec.PreparedFusedExecutable;
 import backend.cpu.fused.plan.FusedOperation;
 import tensor.Tensor;

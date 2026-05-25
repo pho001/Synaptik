@@ -1,7 +1,7 @@
 package tuning.workload;
 
 import backend.ComputeBackend;
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 import backend.runtime.ExecutionMode;
 import tensor.DataType;
 import tensor.Tensor;
@@ -357,7 +357,7 @@ public final class CalibrationWorkloads {
     private static short[] toBf16(double[] src) {
         short[] out = new short[src.length];
         for (int i = 0; i < src.length; i++) {
-            out[i] = CpuDTypeOps.toBFloat16Bits((float) src[i]);
+            out[i] = TensorDTypeOps.toBFloat16Bits((float) src[i]);
         }
         return out;
     }

@@ -1,6 +1,6 @@
 package backend.cpu.nativecpu;
 
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.storage.NativeBFloat16Storage;
@@ -89,7 +89,7 @@ class NativeBFloat16KernelsTest {
 
             for (int i = 0; i < bits.length; i++) {
                 assertEquals(
-                        Float.floatToRawIntBits(CpuDTypeOps.fromBFloat16Bits(bits[i])),
+                        Float.floatToRawIntBits(TensorDTypeOps.fromBFloat16Bits(bits[i])),
                         Float.floatToRawIntBits(output.getFloat32At(i))
                 );
             }

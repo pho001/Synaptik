@@ -1,8 +1,8 @@
 package backend.cpu.kernels.reduction;
 
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.CpuThreadPool;
-import backend.cpu.kernels.reduction.plan.ResolvedReductionHints;
+import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.execution.CpuThreadPool;
+import backend.cpu.plan.reduction.ResolvedReductionHints;
 import tensor.TensorMetadata;
 
 final class SoftmaxGradTraversal {

@@ -1,7 +1,7 @@
 package tuning.calibration;
 
 import backend.blas.BlasProvider;
-import backend.cpu.kernels.plan.CpuExecutionPlanner;
+import backend.cpu.prepare.CpuExecutionPlanner;
 import config.backend.CpuMatMulMicroKernel;
 import config.profile.ExecutionProfile;
 import tuning.calibration.family.CalibrationFamilyId;

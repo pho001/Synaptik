@@ -1,8 +1,10 @@
 package backend.cpu.kernels.elementwise.binary;
 
-import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
+import backend.cpu.plan.elementwise.ResolvedDispatchHints;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
+
+import java.lang.foreign.MemorySegment;
 
 public interface BinaryElementwiseKernel {
     double applyF64(double left, double right);
@@ -56,5 +58,17 @@ public interface BinaryElementwiseKernel {
             ResolvedDispatchHints hints
     ) {
         throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support direct BF16 execution");
+    }
+
+    default void runSegmentF64(MemorySegment left, MemorySegment right, MemorySegment out, int start, int end) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support direct FLOAT64 segment execution");
+    }
+
+    default void runSegmentF32(MemorySegment left, MemorySegment right, MemorySegment out, int start, int end) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support direct FLOAT32 segment execution");
+    }
+
+    default void runSegmentBF16(MemorySegment left, MemorySegment right, MemorySegment out, int start, int end) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support direct BF16 segment execution");
     }
 }

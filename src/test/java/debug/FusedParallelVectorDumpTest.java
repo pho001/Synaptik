@@ -1,6 +1,6 @@
 package debug;
 
-import backend.cpu.kernels.CpuExecutionMode;
+import backend.cpu.plan.CpuExecutionMode;
 import backend.ApproxMode;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuKernelConfig;

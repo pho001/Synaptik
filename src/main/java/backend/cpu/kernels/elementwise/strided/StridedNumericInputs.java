@@ -1,5 +1,6 @@
 package backend.cpu.kernels.elementwise.strided;
 
+import backend.cpu.kernels.elementwise.ElementwiseLayoutPlan;
 import tensor.TensorInternalAccess;
 
 import tensor.Tensor;
@@ -78,14 +79,16 @@ final class StridedNumericInputs {
         if (!inputs.isEmpty()) {
             Tensor ta = inputs.get(0);
             a = TensorInternalAccess.float64Data(ta);
-            aStrides = ta.getStridesUnsafe();
-            aBaseOffset = ta.getStorageOffsetUnsafe();
+            ElementwiseLayoutPlan.Operand layout = ElementwiseLayoutPlan.inputOperand(ta, outShape);
+            aStrides = layout.strides();
+            aBaseOffset = layout.baseOffset();
         }
         if (inputs.size() > 1) {
             Tensor tb = inputs.get(1);
             b = TensorInternalAccess.float64Data(tb);
-            bStrides = tb.getStridesUnsafe();
-            bBaseOffset = tb.getStorageOffsetUnsafe();
+            ElementwiseLayoutPlan.Operand layout = ElementwiseLayoutPlan.inputOperand(tb, outShape);
+            bStrides = layout.strides();
+            bBaseOffset = layout.baseOffset();
         }
         return new F64(a, b, aStrides, bStrides, aBaseOffset, bBaseOffset, out, outShape, outStrides, outBaseOffset, rank, node.getFlatDataSize());
     }
@@ -110,14 +113,16 @@ final class StridedNumericInputs {
         if (!inputs.isEmpty()) {
             Tensor ta = inputs.get(0);
             a = TensorInternalAccess.float32Data(ta);
-            aStrides = ta.getStridesUnsafe();
-            aBaseOffset = ta.getStorageOffsetUnsafe();
+            ElementwiseLayoutPlan.Operand layout = ElementwiseLayoutPlan.inputOperand(ta, outShape);
+            aStrides = layout.strides();
+            aBaseOffset = layout.baseOffset();
         }
         if (inputs.size() > 1) {
             Tensor tb = inputs.get(1);
             b = TensorInternalAccess.float32Data(tb);
-            bStrides = tb.getStridesUnsafe();
-            bBaseOffset = tb.getStorageOffsetUnsafe();
+            ElementwiseLayoutPlan.Operand layout = ElementwiseLayoutPlan.inputOperand(tb, outShape);
+            bStrides = layout.strides();
+            bBaseOffset = layout.baseOffset();
         }
         return new F32(a, b, aStrides, bStrides, aBaseOffset, bBaseOffset, out, outShape, outStrides, outBaseOffset, rank, node.getFlatDataSize());
     }
@@ -142,14 +147,16 @@ final class StridedNumericInputs {
         if (!inputs.isEmpty()) {
             Tensor ta = inputs.get(0);
             a = TensorInternalAccess.bfloat16Data(ta);
-            aStrides = ta.getStridesUnsafe();
-            aBaseOffset = ta.getStorageOffsetUnsafe();
+            ElementwiseLayoutPlan.Operand layout = ElementwiseLayoutPlan.inputOperand(ta, outShape);
+            aStrides = layout.strides();
+            aBaseOffset = layout.baseOffset();
         }
         if (inputs.size() > 1) {
             Tensor tb = inputs.get(1);
             b = TensorInternalAccess.bfloat16Data(tb);
-            bStrides = tb.getStridesUnsafe();
-            bBaseOffset = tb.getStorageOffsetUnsafe();
+            ElementwiseLayoutPlan.Operand layout = ElementwiseLayoutPlan.inputOperand(tb, outShape);
+            bStrides = layout.strides();
+            bBaseOffset = layout.baseOffset();
         }
         return new BF16(a, b, aStrides, bStrides, aBaseOffset, bBaseOffset, out, outShape, outStrides, outBaseOffset, rank, node.getFlatDataSize());
     }

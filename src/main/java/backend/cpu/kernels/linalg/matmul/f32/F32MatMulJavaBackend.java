@@ -1,7 +1,7 @@
 package backend.cpu.kernels.linalg.matmul.f32;
 
 import backend.cpu.kernels.linalg.matmul.common.PackedLinearWeightCache;
-import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
+import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 
 public final class F32MatMulJavaBackend {
     private F32MatMulJavaBackend() {

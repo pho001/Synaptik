@@ -1,9 +1,13 @@
 package backend.cpu.kernels.nn;
 
+import tensor.dtype.TensorDTypeOps;
+
+import backend.cpu.execution.CpuKernelContext;
+
 import tensor.TensorInternalAccess;
 
 import backend.cpu.kernels.*;
-import backend.cpu.kernels.nn.conv2d.plan.ResolvedConv2dHints;
+import backend.cpu.plan.nn.conv2d.ResolvedConv2dHints;
 
 import backend.blas.BlasProvider;
 import backend.blas.OpenBlasArrayGemm;
@@ -350,10 +354,10 @@ final class Conv2dGemmBackend {
                     float[] packedWeightF32 = new float[packedWeight.length];
                     float[] im2colF32 = new float[im2col.length];
                     for (int i = 0; i < packedWeight.length; i++) {
-                        packedWeightF32[i] = CpuDTypeOps.fromBFloat16Bits(packedWeight[i]);
+                        packedWeightF32[i] = TensorDTypeOps.fromBFloat16Bits(packedWeight[i]);
                     }
                     for (int i = 0; i < im2col.length; i++) {
-                        im2colF32[i] = CpuDTypeOps.fromBFloat16Bits(im2col[i]);
+                        im2colF32[i] = TensorDTypeOps.fromBFloat16Bits(im2col[i]);
                     }
                     runJavaGemmF32(im2colF32, packedWeightF32, gemmOut, outSpatial, outChannelsPerGroup, kSize);
                     stats.recordJava();
@@ -661,7 +665,7 @@ final class Conv2dGemmBackend {
         }
 
         for (int i = 0; i < gradInput.length; i++) {
-            gradInput[i] = CpuDTypeOps.toBFloat16Bits(gradInputAccum[i]);
+            gradInput[i] = TensorDTypeOps.toBFloat16Bits(gradInputAccum[i]);
         }
         publishGemmTrace(node, hints, stats, context);
     }
@@ -1146,10 +1150,10 @@ final class Conv2dGemmBackend {
             int aRow = i * k;
             int cRow = i * n;
             for (int p = 0; p < k; p++) {
-                float av = CpuDTypeOps.fromBFloat16Bits(a[aRow + p]);
+                float av = TensorDTypeOps.fromBFloat16Bits(a[aRow + p]);
                 int bRow = p * n;
                 for (int j = 0; j < n; j++) {
-                    c[cRow + j] += av * CpuDTypeOps.fromBFloat16Bits(b[bRow + j]);
+                    c[cRow + j] += av * TensorDTypeOps.fromBFloat16Bits(b[bRow + j]);
                 }
             }
         }
@@ -1230,7 +1234,7 @@ final class Conv2dGemmBackend {
                 for (int kh = 0; kh < kernelH; kh++) {
                     for (int kw = 0; kw < kernelW; kw++) {
                         weight[indexOIHW(oc, icg, kh, kw, channelsPerGroup, kernelH, kernelW)] =
-                                CpuDTypeOps.toBFloat16Bits(packed[kIndex * outChannelsPerGroup + ocg]);
+                                TensorDTypeOps.toBFloat16Bits(packed[kIndex * outChannelsPerGroup + ocg]);
                         kIndex++;
                     }
                 }
@@ -1344,8 +1348,8 @@ final class Conv2dGemmBackend {
             for (int ow = 0; ow < outW; ow++) {
                 for (int ocg = 0; ocg < outChannelsPerGroup; ocg++) {
                     int oc = outChannelBase + ocg;
-                    float value = gemmOut[row * outChannelsPerGroup + ocg] + (bias == null ? 0.0f : CpuDTypeOps.fromBFloat16Bits(bias[oc]));
-                    out[indexNCHW(batch, oc, oh, ow, outChannels, outH, outW)] = CpuDTypeOps.toBFloat16Bits(value);
+                    float value = gemmOut[row * outChannelsPerGroup + ocg] + (bias == null ? 0.0f : TensorDTypeOps.fromBFloat16Bits(bias[oc]));
+                    out[indexNCHW(batch, oc, oh, ow, outChannels, outH, outW)] = TensorDTypeOps.toBFloat16Bits(value);
                 }
                 row++;
             }

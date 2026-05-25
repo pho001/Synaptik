@@ -1,7 +1,7 @@
 package backend.cpu.nativecpu.layout;
 
-import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.kernels.CpuThreadPool;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.execution.CpuThreadPool;
 import backend.cpu.kernels.elementwise.where.WhereElementwiseKernel;
 import backend.cpu.kernels.elementwise.unary.support.CpuPowSupport;
 import operations.Operation;
@@ -449,8 +449,8 @@ public final class NativeSegmentStridedKernels {
         long outOffset = output.baseByteOffset();
         for (int i = 0; i < size; i++) {
             short bits = in.get(JAVA_SHORT, cursor.offset(0));
-            float value = CpuDTypeOps.fromBFloat16Bits(bits);
-            out.set(JAVA_SHORT, outOffset, CpuDTypeOps.toBFloat16Bits(applyBF16(op.opType(), value, scalar)));
+            float value = TensorDTypeOps.fromBFloat16Bits(bits);
+            out.set(JAVA_SHORT, outOffset, TensorDTypeOps.toBFloat16Bits(applyBF16(op.opType(), value, scalar)));
             outOffset += Short.BYTES;
             if (i + 1 < size) {
                 cursor.step();
@@ -627,9 +627,9 @@ public final class NativeSegmentStridedKernels {
         NativeSegmentOffsetCursor cursor = binaryCursor(left, right);
         long outOffset = output.baseByteOffset();
         for (int i = 0; i < size; i++) {
-            float leftValue = CpuDTypeOps.fromBFloat16Bits(leftSegment.get(JAVA_SHORT, cursor.offset(0)));
-            float rightValue = CpuDTypeOps.fromBFloat16Bits(rightSegment.get(JAVA_SHORT, cursor.offset(1)));
-            outSegment.set(JAVA_SHORT, outOffset, CpuDTypeOps.toBFloat16Bits(applyBinaryF32(op.opType(), leftValue, rightValue)));
+            float leftValue = TensorDTypeOps.fromBFloat16Bits(leftSegment.get(JAVA_SHORT, cursor.offset(0)));
+            float rightValue = TensorDTypeOps.fromBFloat16Bits(rightSegment.get(JAVA_SHORT, cursor.offset(1)));
+            outSegment.set(JAVA_SHORT, outOffset, TensorDTypeOps.toBFloat16Bits(applyBinaryF32(op.opType(), leftValue, rightValue)));
             outOffset += Short.BYTES;
             if (i + 1 < size) {
                 cursor.step();
@@ -969,8 +969,8 @@ public final class NativeSegmentStridedKernels {
         int size = logicalSize(left);
         NativeSegmentOffsetCursor cursor = compareCursor(left, right, outputView);
         for (int i = 0; i < size; i++) {
-            float leftValue = CpuDTypeOps.fromBFloat16Bits(leftSegment.get(JAVA_SHORT, cursor.offset(0)));
-            float rightValue = CpuDTypeOps.fromBFloat16Bits(rightSegment.get(JAVA_SHORT, cursor.offset(1)));
+            float leftValue = TensorDTypeOps.fromBFloat16Bits(leftSegment.get(JAVA_SHORT, cursor.offset(0)));
+            float rightValue = TensorDTypeOps.fromBFloat16Bits(rightSegment.get(JAVA_SHORT, cursor.offset(1)));
             output[Math.toIntExact(cursor.offset(2))] = compare(opType, leftValue, rightValue);
             if (i + 1 < size) {
                 cursor.step();
@@ -1032,8 +1032,8 @@ public final class NativeSegmentStridedKernels {
         int size = logicalSize(left);
         NativeSegmentOffsetCursor cursor = compareCursor(left, right, output);
         for (int i = 0; i < size; i++) {
-            float leftValue = CpuDTypeOps.fromBFloat16Bits(leftSegment.get(JAVA_SHORT, cursor.offset(0)));
-            float rightValue = CpuDTypeOps.fromBFloat16Bits(rightSegment.get(JAVA_SHORT, cursor.offset(1)));
+            float leftValue = TensorDTypeOps.fromBFloat16Bits(leftSegment.get(JAVA_SHORT, cursor.offset(0)));
+            float rightValue = TensorDTypeOps.fromBFloat16Bits(rightSegment.get(JAVA_SHORT, cursor.offset(1)));
             outSegment.set(JAVA_BYTE, cursor.offset(2), compare(opType, leftValue, rightValue));
             if (i + 1 < size) {
                 cursor.step();
@@ -1141,7 +1141,7 @@ public final class NativeSegmentStridedKernels {
             int dimension
     ) {
         if (dimension == -1) {
-            output.segment().set(JAVA_SHORT, output.baseByteOffset(), CpuDTypeOps.toBFloat16Bits(reduceAllBF16(opType, input)));
+            output.segment().set(JAVA_SHORT, output.baseByteOffset(), TensorDTypeOps.toBFloat16Bits(reduceAllBF16(opType, input)));
             return;
         }
         MemorySegment in = input.segment();
@@ -1156,7 +1156,7 @@ public final class NativeSegmentStridedKernels {
         for (int outIndex = 0; outIndex < outSize; outIndex++) {
             long inputBase = inputBaseByteOffset(outIndex, shape, inputStrides, input.baseByteOffset(), reducedStrides, dimension);
             float value = reduceAxisBF16Value(opType, in, inputBase, axisStride, reducedSize);
-            out.set(JAVA_SHORT, outOffset, CpuDTypeOps.toBFloat16Bits(value));
+            out.set(JAVA_SHORT, outOffset, TensorDTypeOps.toBFloat16Bits(value));
             outOffset += Short.BYTES;
         }
     }
@@ -1376,7 +1376,7 @@ public final class NativeSegmentStridedKernels {
         NativeSegmentOffsetCursor cursor = cursor(input);
         double sum = 0.0d;
         for (int i = 0; i < size; i++) {
-            sum += CpuDTypeOps.fromBFloat16Bits(in.get(JAVA_SHORT, cursor.offset(0)));
+            sum += TensorDTypeOps.fromBFloat16Bits(in.get(JAVA_SHORT, cursor.offset(0)));
             if (i + 1 < size) {
                 cursor.step();
             }
@@ -1446,7 +1446,7 @@ public final class NativeSegmentStridedKernels {
     ) {
         double sum = 0.0d;
         for (int k = 0; k < reducedSize; k++) {
-            sum += CpuDTypeOps.fromBFloat16Bits(in.get(JAVA_SHORT, inputBase + (long) k * axisStride));
+            sum += TensorDTypeOps.fromBFloat16Bits(in.get(JAVA_SHORT, inputBase + (long) k * axisStride));
         }
         if (opType == Operation.OpType.MEAN) {
             sum /= reducedSize;

@@ -1,6 +1,6 @@
 package backend.cpu.nativecpu;
 
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 import tensor.storage.NativeBFloat16Storage;
 import tensor.storage.NativeFloat32Storage;
 
@@ -36,7 +36,7 @@ final class NativeBFloat16Kernels {
         var outputSegment = output.segment();
         for (int i = 0; i < size; i++) {
             short bits = inputSegment.get(JAVA_SHORT, (long) i * Short.BYTES);
-            outputSegment.set(JAVA_FLOAT, (long) i * Float.BYTES, CpuDTypeOps.fromBFloat16Bits(bits));
+            outputSegment.set(JAVA_FLOAT, (long) i * Float.BYTES, TensorDTypeOps.fromBFloat16Bits(bits));
         }
         output.markModified();
     }
@@ -51,7 +51,7 @@ final class NativeBFloat16Kernels {
         var outputSegment = output.segment();
         for (int i = 0; i < size; i++) {
             float value = inputSegment.get(JAVA_FLOAT, (long) i * Float.BYTES);
-            outputSegment.set(JAVA_SHORT, (long) i * Short.BYTES, CpuDTypeOps.toBFloat16Bits(value));
+            outputSegment.set(JAVA_SHORT, (long) i * Short.BYTES, TensorDTypeOps.toBFloat16Bits(value));
         }
         output.markModified();
     }

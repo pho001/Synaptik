@@ -2,10 +2,10 @@ package backend.cpu.kernels.linalg.matmul.bf16;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.CpuNodeWorkspace;
+import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.execution.CpuNodeWorkspace;
 import backend.cpu.kernels.linalg.matmul.blas.MatMulBlasBackend;
-import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
+import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import tensor.Tensor;
 
 public final class BF16BlasMatMulExecutable extends AbstractBF16MatMulExecutable {

@@ -257,7 +257,7 @@ The CPU implementation is rooted at `src/main/java/backend/cpu`. Its package REA
 
 CPU preparation happens in `src/main/java/backend/cpu/prepare/CpuNodePreparer.java`. It resolves:
 
-- `CpuKernel` from `backend.cpu.registry.CpuKernelResolver`
+- `CpuKernel` from `backend.cpu.kernels.CpuKernelRegistry`
 - `CpuNodeExecutionPlan` from `backend.cpu.kernels.plan.CpuExecutionPlanner` and `CpuPlanAssembler`
 - dtype compute/storage/accumulation contracts
 - elementwise dispatch hints
@@ -1115,7 +1115,7 @@ The claims in this document were checked against source files and tests includin
 
 - lifecycle: `src/main/java/tensor/internal/TensorExecutionSupport.java`, `src/main/java/graph/CompiledGraph.java`, `src/main/java/graph/compile/GraphCompiler.java`, `src/main/java/backend/prepare/PreparedExecutionBuilder.java`, `src/main/java/graph/execution/PreparedExecution.java`
 - graph optimization and compile planning: `src/main/java/config/compile/CompileConfig.java`, `src/main/java/config/compile/GraphOptimizationConfig.java`, `src/main/java/config/compile/BackendPlanningConfig.java`, `src/main/java/graph/optimizer/OptimizerFactory.java`, `src/main/java/graph/compile/planning/BackendPlanningService.java`
-- backend dispatch: `src/main/java/backend/ComputeEngine.java`, `src/main/java/backend/cpu/CpuBackend.java`, `src/main/java/backend/cpu/prepare/CpuNodePreparer.java`, `src/main/java/backend/cpu/registry/CpuKernelResolver.java`
+- backend dispatch: `src/main/java/backend/ComputeEngine.java`, `src/main/java/backend/cpu/CpuBackend.java`, `src/main/java/backend/cpu/prepare/CpuNodePreparer.java`, `src/main/java/backend/cpu/kernels/CpuKernelRegistry.java`
 - tracing: `src/main/java/graph/execution/trace/*.java`, `src/main/java/backend/runtime/ExecutionContext.java`, `src/main/java/graph/execution/PreparedExecution.java`
 - numerics: `src/main/java/numerics/NumericsCli.java`, `src/main/java/numerics/NumericsHarness.java`, `src/main/java/numerics/NumericsGraphFactory.java`, `src/main/java/numerics/NumericsMetrics.java`, `src/main/java/numerics/NumericsPolicy.java`, `src/main/java/numerics/NumericsReport.java`
 - CLI and build: `src/main/java/synaptik/app/TuningCli.java`, `src/main/java/synaptik/app/Main.java`, `build.gradle`, `settings.gradle`

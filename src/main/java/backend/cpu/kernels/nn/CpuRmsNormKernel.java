@@ -2,10 +2,10 @@ package backend.cpu.kernels.nn;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.CpuThreadPool;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.kernels.TypedCpuKernel;
+import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.execution.CpuThreadPool;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
@@ -16,14 +16,14 @@ import tensor.Tensor;
 
 import java.util.List;
 
-public final class CpuRmsNormKernel implements CpuKernel {
+public final class CpuRmsNormKernel extends TypedCpuKernel {
     private static final VectorSpecies<Float> F32_SPECIES = FloatVector.SPECIES_PREFERRED;
     private static final VectorSpecies<Double> F64_SPECIES = DoubleVector.SPECIES_PREFERRED;
     private static final int MIN_VECTOR_AXIS_MULTIPLIER = 4;
     private static final int PARALLEL_MIN_WORK = 16_384;
 
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         rmsNorm norm = require(op);
         Tensor input = requireInput(inputs, 0, "input");
         Tensor gamma = requireInput(inputs, 1, "gamma");
@@ -31,7 +31,7 @@ public final class CpuRmsNormKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         rmsNorm norm = require(op);
         Tensor input = requireInput(inputs, 0, "input");
         Tensor gamma = requireInput(inputs, 1, "gamma");
@@ -39,7 +39,7 @@ public final class CpuRmsNormKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         rmsNorm norm = require(op);
         Tensor input = requireInput(inputs, 0, "input");
         Tensor gamma = requireInput(inputs, 1, "gamma");
@@ -267,8 +267,8 @@ public final class CpuRmsNormKernel implements CpuKernel {
     private static void applyGroupBF16(short[] in, float[] gamma, short[] out, int inBase, int gammaBase, int outBase, int normalizedSize, float epsilon) {
         float invRms = (float) (1.0d / Math.sqrt(sumSquaresBF16(in, inBase, normalizedSize) / normalizedSize + epsilon));
         for (int i = 0; i < normalizedSize; i++) {
-            float value = CpuDTypeOps.fromBFloat16Bits(in[inBase + i]);
-            out[outBase + i] = CpuDTypeOps.toBFloat16Bits(value * gamma[gammaBase + i] * invRms);
+            float value = TensorDTypeOps.fromBFloat16Bits(in[inBase + i]);
+            out[outBase + i] = TensorDTypeOps.toBFloat16Bits(value * gamma[gammaBase + i] * invRms);
         }
     }
 
@@ -285,23 +285,23 @@ public final class CpuRmsNormKernel implements CpuKernel {
                         .mul(inv)
                         .intoArray(lanes, 0);
                 for (int lane = 0; lane < F32_SPECIES.length(); lane++) {
-                    out[outBase + i + lane] = CpuDTypeOps.toBFloat16Bits(lanes[lane]);
+                    out[outBase + i + lane] = TensorDTypeOps.toBFloat16Bits(lanes[lane]);
                 }
             }
             for (; i < normalizedSize; i++) {
-                out[outBase + i] = CpuDTypeOps.toBFloat16Bits(in[inBase + i] * gamma[gammaBase + i] * invRms);
+                out[outBase + i] = TensorDTypeOps.toBFloat16Bits(in[inBase + i] * gamma[gammaBase + i] * invRms);
             }
             return;
         }
         for (int i = 0; i < normalizedSize; i++) {
-            out[outBase + i] = CpuDTypeOps.toBFloat16Bits(in[inBase + i] * gamma[gammaBase + i] * invRms);
+            out[outBase + i] = TensorDTypeOps.toBFloat16Bits(in[inBase + i] * gamma[gammaBase + i] * invRms);
         }
     }
 
     private static void applyGroupBF16ToF32(short[] in, float[] gamma, float[] out, int inBase, int gammaBase, int outBase, int normalizedSize, float epsilon) {
         float invRms = (float) (1.0d / Math.sqrt(sumSquaresBF16(in, inBase, normalizedSize) / normalizedSize + epsilon));
         for (int i = 0; i < normalizedSize; i++) {
-            float value = CpuDTypeOps.fromBFloat16Bits(in[inBase + i]);
+            float value = TensorDTypeOps.fromBFloat16Bits(in[inBase + i]);
             out[outBase + i] = value * gamma[gammaBase + i] * invRms;
         }
     }
@@ -357,7 +357,7 @@ public final class CpuRmsNormKernel implements CpuKernel {
     private static double sumSquaresBF16(short[] in, int base, int length) {
         double total = 0.0d;
         for (int i = 0; i < length; i++) {
-            float value = CpuDTypeOps.fromBFloat16Bits(in[base + i]);
+            float value = TensorDTypeOps.fromBFloat16Bits(in[base + i]);
             total += value * value;
         }
         return total;
@@ -366,7 +366,7 @@ public final class CpuRmsNormKernel implements CpuKernel {
     private static float[] decodeBFloat16(short[] values, int base, int length) {
         float[] decoded = new float[length];
         for (int i = 0; i < length; i++) {
-            decoded[i] = CpuDTypeOps.fromBFloat16Bits(values[base + i]);
+            decoded[i] = TensorDTypeOps.fromBFloat16Bits(values[base + i]);
         }
         return decoded;
     }

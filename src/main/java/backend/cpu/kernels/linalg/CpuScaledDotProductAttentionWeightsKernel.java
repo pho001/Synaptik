@@ -2,8 +2,8 @@ package backend.cpu.kernels.linalg;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.kernels.TypedCpuKernel;
+import backend.cpu.execution.CpuKernelContext;
 import operations.Operation;
 import operations.linalg.scaledDotProductAttentionWeights;
 import tensor.Tensor;
@@ -11,21 +11,21 @@ import tensor.Tensor;
 import java.util.Arrays;
 import java.util.List;
 
-public final class CpuScaledDotProductAttentionWeightsKernel implements CpuKernel {
+public final class CpuScaledDotProductAttentionWeightsKernel extends TypedCpuKernel {
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor cached = requireCachedWeights(op, inputs, node, context);
         System.arraycopy(TensorInternalAccess.float64Data(cached), 0, TensorInternalAccess.float64Data(node), 0, node.getFlatDataSize());
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor cached = requireCachedWeights(op, inputs, node, context);
         System.arraycopy(TensorInternalAccess.float32Data(cached), 0, TensorInternalAccess.float32Data(node), 0, node.getFlatDataSize());
     }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor cached = requireCachedWeights(op, inputs, node, context);
         if (cached.getDataType() == tensor.DataType.BFLOAT16) {
             System.arraycopy(TensorInternalAccess.bfloat16Data(cached), 0, TensorInternalAccess.bfloat16Data(node), 0, node.getFlatDataSize());
@@ -35,7 +35,7 @@ public final class CpuScaledDotProductAttentionWeightsKernel implements CpuKerne
             float[] src = TensorInternalAccess.float32Data(cached);
             short[] dst = TensorInternalAccess.bfloat16Data(node);
             for (int i = 0; i < dst.length; i++) {
-                dst[i] = backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(src[i]);
+                dst[i] = tensor.dtype.TensorDTypeOps.toBFloat16Bits(src[i]);
             }
             return;
         }

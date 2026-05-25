@@ -1,6 +1,6 @@
 package testsupport;
 
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 import tensor.DataType;
 import utils.FastTranscendentals;
 
@@ -122,7 +122,7 @@ public final class NumericPrecisionOracle {
         return switch (dataType) {
             case FLOAT64 -> value;
             case FLOAT32 -> (double) ((float) value);
-            case BFLOAT16 -> CpuDTypeOps.fromBFloat16Bits(CpuDTypeOps.toBFloat16Bits((float) value));
+            case BFLOAT16 -> TensorDTypeOps.fromBFloat16Bits(TensorDTypeOps.toBFloat16Bits((float) value));
             case INT32, INT64, BOOL -> throw unsupported(dataType);
         };
     }

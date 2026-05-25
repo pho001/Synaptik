@@ -1,30 +1,30 @@
 package backend.cpu.kernels.reduction;
 
-import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.kernels.TypedCpuKernel;
+import backend.cpu.execution.CpuKernelContext;
 import operations.Operation;
 import operations.reduction.softmax;
 import tensor.Tensor;
 
 import java.util.List;
 
-public final class CpuSoftmaxKernel implements CpuKernel {
+public final class CpuSoftmaxKernel extends TypedCpuKernel {
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         softmax reduction = require(op);
         Tensor input = requireSingleInput(inputs);
         SoftmaxLikeExecutor.executeF64(SoftmaxLikeReduction.SOFTMAX, input, node, reduction.getDimension(), context);
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         softmax reduction = require(op);
         Tensor input = requireSingleInput(inputs);
         SoftmaxLikeExecutor.executeF32(SoftmaxLikeReduction.SOFTMAX, input, node, reduction.getDimension(), context);
     }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         softmax reduction = require(op);
         Tensor input = requireSingleInput(inputs);
         float[] continuation = context.inputFloatContinuation(0, input.getFlatDataSize());

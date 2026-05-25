@@ -810,7 +810,7 @@ public class SourceTreeHygieneTest {
                 List.of(Path.of("src/main/java/graph")),
                 List.of(
                         "import backend.cpu.fused.plan.FusedOperation",
-                        "import backend.cpu.kernels.CpuDTypeOps"
+                        "import tensor.dtype.TensorDTypeOps"
                 )
         );
         assertTrue(offenders.isEmpty(),
@@ -1396,31 +1396,33 @@ public class SourceTreeHygieneTest {
                         Path.of("src/main/java/backend/cpu/kernels/elementwise/binary"),
                         Path.of("src/main/java/backend/cpu/kernels/elementwise/unary")
                 )).stream()
-                .filter(path -> !path.contains("/arrayloops/"))
-                .filter(path -> !path.contains("/memorysegmentloops/"))
                 .filter(path -> path.endsWith("Loops.java"))
                 .sorted()
                 .toList();
         assertTrue(rootLoopFiles.isEmpty(),
-                () -> "Binary/unary root packages must own kernels and dispatch only; arrayloops/memorysegmentloops belong in route packages: "
+                () -> "Binary/unary root packages must own kernels and dispatch only; storage loop packages must not return: "
                         + rootLoopFiles);
 
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/memorysegmentloops/BinaryMemorySegmentLoops.java")),
-                "Generic binary MemorySegment route must be explicit under binary.memorysegmentloops.");
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary/memorysegmentloops/UnaryMemorySegmentLoops.java")),
-                "Unary MemorySegment route must be explicit under unary.memorysegmentloops.");
+        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/memorysegmentloops")),
+                "Binary MemorySegment execution must not live behind a separate route package.");
+        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary/memorysegmentloops")),
+                "Unary MemorySegment execution must not live behind a separate route package.");
+        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/arrayloops")),
+                "Binary Java-array hot loops must live in their operation kernels, not a separate route package.");
+        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary/arrayloops")),
+                "Unary Java-array hot loops must live in their operation kernels, not a separate route package.");
         assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/array")),
-                "Binary Java-array loops belong under binary.arrayloops, not binary.array.");
+                "Binary Java-array execution must not use the old binary.array package.");
         assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary/array")),
-                "Unary Java-array loops belong under unary.arrayloops, not unary.array.");
+                "Unary Java-array execution must not use the old unary.array package.");
         assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/segment")),
-                "Binary MemorySegment loops belong under binary.memorysegmentloops, not binary.segment.");
+                "Binary MemorySegment execution must not use the old binary.segment package.");
         assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary/segment")),
-                "Unary MemorySegment loops belong under unary.memorysegmentloops, not unary.segment.");
-        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/arrayloops/AddArrayLoops.java")),
-                "ADD must not have a one-off array wrapper that other binary/unary ops do not have.");
-        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/memorysegmentloops/AddSegmentLoops.java")),
-                "ADD segment behavior belongs inside BinaryMemorySegmentLoops, not a one-off route class.");
+                "Unary MemorySegment execution must not use the old unary.segment package.");
+        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/AddArrayLoops.java")),
+                "ADD array behavior must not return as a one-off route class.");
+        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/AddSegmentLoops.java")),
+                "ADD segment behavior must not return as a one-off route class.");
     }
 
     @Test

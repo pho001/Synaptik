@@ -129,22 +129,22 @@ public class Pool2dExecutionTest {
         assertArrayEquals(new double[]{6, 8, 14, 16}, max32.toDoubleArrayCopy(), 1e-6);
 
         short[] input16Data = new short[]{
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(1),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(2),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(3),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(4),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(5),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(6),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(7),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(8),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(9),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(10),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(11),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(12),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(13),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(14),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(15),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(16)
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(1),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(2),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(3),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(4),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(5),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(6),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(7),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(8),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(9),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(10),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(11),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(12),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(13),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(14),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(15),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(16)
         };
         Tensor input16 = new Tensor(input16Data, new int[]{1, 1, 4, 4}, null, "input16", DataType.BFLOAT16);
 

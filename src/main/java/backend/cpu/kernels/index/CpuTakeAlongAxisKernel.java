@@ -1,5 +1,7 @@
 package backend.cpu.kernels.index;
 
+import backend.cpu.execution.CpuKernelContext;
+
 import backend.cpu.kernels.*;
 
 import operations.Operation;
@@ -8,9 +10,9 @@ import tensor.Tensor;
 
 import java.util.List;
 
-public final class CpuTakeAlongAxisKernel implements CpuKernel {
+public final class CpuTakeAlongAxisKernel extends TypedCpuKernel {
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof takeAlongAxis gatherOp)) {
             throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
         }
@@ -19,7 +21,7 @@ public final class CpuTakeAlongAxisKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof takeAlongAxis gatherOp)) {
             throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
         }
@@ -28,7 +30,7 @@ public final class CpuTakeAlongAxisKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof takeAlongAxis gatherOp)) {
             throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
         }
@@ -37,7 +39,7 @@ public final class CpuTakeAlongAxisKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof takeAlongAxis gatherOp)) {
             throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
         }
@@ -46,7 +48,7 @@ public final class CpuTakeAlongAxisKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof takeAlongAxis gatherOp)) {
             throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
         }
@@ -55,7 +57,7 @@ public final class CpuTakeAlongAxisKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof takeAlongAxis gatherOp)) {
             throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
         }

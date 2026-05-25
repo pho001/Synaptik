@@ -234,7 +234,7 @@ public final class ExecutionContext {
         return executionState.runtimeTensorForNodeId(nodeId);
     }
 
-    public backend.cpu.kernels.CpuNodeWorkspace cpuWorkspaceForNodeId(int nodeId) {
+    public backend.cpu.execution.CpuNodeWorkspace cpuWorkspaceForNodeId(int nodeId) {
         if (executionState == null) {
             return null;
         }
@@ -242,7 +242,7 @@ public final class ExecutionContext {
         if (workspace == null) {
             return null;
         }
-        if (workspace instanceof backend.cpu.kernels.CpuNodeWorkspace cpuWorkspace) {
+        if (workspace instanceof backend.cpu.execution.CpuNodeWorkspace cpuWorkspace) {
             return cpuWorkspace;
         }
         throw new IllegalStateException("Runtime workspace for nodeId=" + nodeId

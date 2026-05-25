@@ -86,7 +86,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **CPU execution plan**: Prepared per-node CPU recipe containing layout, compute contract, dispatch hints, reduction/matmul/conv hints, and application behavior. Source: [`CpuNodeExecutionPlan.java`](../src/main/java/backend/cpu/kernels/CpuNodeExecutionPlan.java), [`CpuPlanAssembler.java`](../src/main/java/backend/cpu/kernels/plan/CpuPlanAssembler.java).
 
-**CPU kernel resolver**: Mapping from `Operation.OpType` to concrete CPU kernel instances. Source: [`CpuKernelResolver.java`](../src/main/java/backend/cpu/registry/CpuKernelResolver.java).
+**CPU kernel resolver**: Mapping from `Operation.OpType` to concrete CPU kernel instances. Source: [`CpuKernelRegistry.java`](../src/main/java/backend/cpu/kernels/CpuKernelRegistry.java).
 
 **CSE**: Common subexpression elimination graph optimization stage. Source: [`CommonSubexpressionEliminationRule.java`](../src/main/java/graph/optimizer/simplify/CommonSubexpressionEliminationRule.java), [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java).
 

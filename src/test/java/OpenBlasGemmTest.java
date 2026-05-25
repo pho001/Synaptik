@@ -1,7 +1,7 @@
 import backend.blas.OpenBlasArrayGemm;
 import backend.blas.OpenBlasRuntime;
 import backend.blas.OpenBlasSegmentGemm;
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
@@ -39,16 +39,16 @@ public class OpenBlasGemmTest {
         Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16ToFloatGemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         short[] a = {
-                CpuDTypeOps.toBFloat16Bits(1.0f),
-                CpuDTypeOps.toBFloat16Bits(2.0f),
-                CpuDTypeOps.toBFloat16Bits(3.0f),
-                CpuDTypeOps.toBFloat16Bits(4.0f)
+                TensorDTypeOps.toBFloat16Bits(1.0f),
+                TensorDTypeOps.toBFloat16Bits(2.0f),
+                TensorDTypeOps.toBFloat16Bits(3.0f),
+                TensorDTypeOps.toBFloat16Bits(4.0f)
         };
         short[] b = {
-                CpuDTypeOps.toBFloat16Bits(5.0f),
-                CpuDTypeOps.toBFloat16Bits(6.0f),
-                CpuDTypeOps.toBFloat16Bits(7.0f),
-                CpuDTypeOps.toBFloat16Bits(8.0f)
+                TensorDTypeOps.toBFloat16Bits(5.0f),
+                TensorDTypeOps.toBFloat16Bits(6.0f),
+                TensorDTypeOps.toBFloat16Bits(7.0f),
+                TensorDTypeOps.toBFloat16Bits(8.0f)
         };
         float[] c = new float[4];
 
@@ -62,16 +62,16 @@ public class OpenBlasGemmTest {
         Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16OutputGemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         short[] a = {
-                CpuDTypeOps.toBFloat16Bits(1.0f),
-                CpuDTypeOps.toBFloat16Bits(2.0f),
-                CpuDTypeOps.toBFloat16Bits(3.0f),
-                CpuDTypeOps.toBFloat16Bits(4.0f)
+                TensorDTypeOps.toBFloat16Bits(1.0f),
+                TensorDTypeOps.toBFloat16Bits(2.0f),
+                TensorDTypeOps.toBFloat16Bits(3.0f),
+                TensorDTypeOps.toBFloat16Bits(4.0f)
         };
         short[] b = {
-                CpuDTypeOps.toBFloat16Bits(5.0f),
-                CpuDTypeOps.toBFloat16Bits(6.0f),
-                CpuDTypeOps.toBFloat16Bits(7.0f),
-                CpuDTypeOps.toBFloat16Bits(8.0f)
+                TensorDTypeOps.toBFloat16Bits(5.0f),
+                TensorDTypeOps.toBFloat16Bits(6.0f),
+                TensorDTypeOps.toBFloat16Bits(7.0f),
+                TensorDTypeOps.toBFloat16Bits(8.0f)
         };
         short[] c = new short[4];
 
@@ -79,21 +79,21 @@ public class OpenBlasGemmTest {
                 2,
                 2,
                 2,
-                CpuDTypeOps.toBFloat16Bits(1.0f),
+                TensorDTypeOps.toBFloat16Bits(1.0f),
                 a,
                 2,
                 b,
                 2,
-                CpuDTypeOps.toBFloat16Bits(0.0f),
+                TensorDTypeOps.toBFloat16Bits(0.0f),
                 c,
                 2
         );
 
         assertArrayEquals(new short[]{
-                CpuDTypeOps.toBFloat16Bits(19.0f),
-                CpuDTypeOps.toBFloat16Bits(22.0f),
-                CpuDTypeOps.toBFloat16Bits(43.0f),
-                CpuDTypeOps.toBFloat16Bits(50.0f)
+                TensorDTypeOps.toBFloat16Bits(19.0f),
+                TensorDTypeOps.toBFloat16Bits(22.0f),
+                TensorDTypeOps.toBFloat16Bits(43.0f),
+                TensorDTypeOps.toBFloat16Bits(50.0f)
         }, c);
     }
 
@@ -155,16 +155,16 @@ public class OpenBlasGemmTest {
             MemorySegment b = arena.allocate(JAVA_SHORT, 4);
             MemorySegment c = arena.allocate(JAVA_FLOAT, 4);
             fill(a, new short[]{
-                    CpuDTypeOps.toBFloat16Bits(1f),
-                    CpuDTypeOps.toBFloat16Bits(2f),
-                    CpuDTypeOps.toBFloat16Bits(3f),
-                    CpuDTypeOps.toBFloat16Bits(4f)
+                    TensorDTypeOps.toBFloat16Bits(1f),
+                    TensorDTypeOps.toBFloat16Bits(2f),
+                    TensorDTypeOps.toBFloat16Bits(3f),
+                    TensorDTypeOps.toBFloat16Bits(4f)
             });
             fill(b, new short[]{
-                    CpuDTypeOps.toBFloat16Bits(5f),
-                    CpuDTypeOps.toBFloat16Bits(6f),
-                    CpuDTypeOps.toBFloat16Bits(7f),
-                    CpuDTypeOps.toBFloat16Bits(8f)
+                    TensorDTypeOps.toBFloat16Bits(5f),
+                    TensorDTypeOps.toBFloat16Bits(6f),
+                    TensorDTypeOps.toBFloat16Bits(7f),
+                    TensorDTypeOps.toBFloat16Bits(8f)
             });
 
             OpenBlasSegmentGemm.sbgemmRowMajorNoTransSegment(
@@ -189,32 +189,32 @@ public class OpenBlasGemmTest {
             MemorySegment b = arena.allocate(JAVA_SHORT, 4);
             MemorySegment c = arena.allocate(JAVA_SHORT, 4);
             fill(a, new short[]{
-                    CpuDTypeOps.toBFloat16Bits(1f),
-                    CpuDTypeOps.toBFloat16Bits(2f),
-                    CpuDTypeOps.toBFloat16Bits(3f),
-                    CpuDTypeOps.toBFloat16Bits(4f)
+                    TensorDTypeOps.toBFloat16Bits(1f),
+                    TensorDTypeOps.toBFloat16Bits(2f),
+                    TensorDTypeOps.toBFloat16Bits(3f),
+                    TensorDTypeOps.toBFloat16Bits(4f)
             });
             fill(b, new short[]{
-                    CpuDTypeOps.toBFloat16Bits(5f),
-                    CpuDTypeOps.toBFloat16Bits(6f),
-                    CpuDTypeOps.toBFloat16Bits(7f),
-                    CpuDTypeOps.toBFloat16Bits(8f)
+                    TensorDTypeOps.toBFloat16Bits(5f),
+                    TensorDTypeOps.toBFloat16Bits(6f),
+                    TensorDTypeOps.toBFloat16Bits(7f),
+                    TensorDTypeOps.toBFloat16Bits(8f)
             });
 
             OpenBlasSegmentGemm.bgemmRowMajorNoTransSegment(
                     2, 2, 2,
-                    CpuDTypeOps.toBFloat16Bits(1f),
+                    TensorDTypeOps.toBFloat16Bits(1f),
                     a, 0L, 2,
                     b, 0L, 2,
-                    CpuDTypeOps.toBFloat16Bits(0f),
+                    TensorDTypeOps.toBFloat16Bits(0f),
                     c, 0L, 2
             );
 
             assertArrayEquals(new short[]{
-                    CpuDTypeOps.toBFloat16Bits(19f),
-                    CpuDTypeOps.toBFloat16Bits(22f),
-                    CpuDTypeOps.toBFloat16Bits(43f),
-                    CpuDTypeOps.toBFloat16Bits(50f)
+                    TensorDTypeOps.toBFloat16Bits(19f),
+                    TensorDTypeOps.toBFloat16Bits(22f),
+                    TensorDTypeOps.toBFloat16Bits(43f),
+                    TensorDTypeOps.toBFloat16Bits(50f)
             }, readShort(c, 4));
         }
     }

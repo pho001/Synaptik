@@ -7,13 +7,14 @@ import backend.cpu.CpuFusedExecutionArtifact;
 import backend.cpu.CpuNodeExecutionArtifact;
 import backend.cpu.CpuRegionExecutionArtifact;
 import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuNativeStorageSupport;
-import backend.cpu.kernels.CpuNodeExecutionPlan;
-import backend.cpu.kernels.CpuNodeWorkspace;
-import backend.cpu.kernels.ResolvedCpuComputeContract;
-import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
-import backend.cpu.kernels.fused.plan.PreparedFusedDispatch;
-import backend.cpu.kernels.plan.CpuExecutionPlanner;
+import backend.cpu.kernels.CpuKernelRegistry;
+import backend.cpu.nativecpu.CpuNativeStorageSupport;
+import backend.cpu.plan.CpuNodeExecutionPlan;
+import backend.cpu.execution.CpuNodeWorkspace;
+import backend.cpu.plan.ResolvedCpuComputeContract;
+import backend.cpu.plan.elementwise.ResolvedDispatchHints;
+import backend.cpu.plan.fused.PreparedFusedDispatch;
+import backend.cpu.prepare.CpuExecutionPlanner;
 import backend.cpu.nativecpu.PreparedNativeCpuRegionExecutable;
 import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweringFamily;
@@ -21,7 +22,6 @@ import backend.lowering.region.CpuFusedRegionPayload;
 import backend.lowering.region.RegionExecutionPlan;
 import backend.prepare.BackendPrepareContext;
 import backend.prepare.RegionPlanValidator;
-import backend.cpu.registry.CpuKernelResolver;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
@@ -132,7 +132,7 @@ public final class CpuNodePreparer {
         }
         FusedOperationPreparation fusedPreparation = fusedPreparation(loweredUnit);
         Operation operation = specializeFusedOperation(fusedPreparation.operation(), context);
-        CpuKernel kernel = CpuKernelResolver.resolve(operation.opType());
+        CpuKernel kernel = CpuKernelRegistry.resolve(operation.opType());
         boolean publishFloatContinuation = shouldPublishFloatContinuation(outputNode, operation, context);
 
         ResolvedCpuComputeContract fusedContract = planner.resolveComputeContract(
@@ -210,7 +210,7 @@ public final class CpuNodePreparer {
     public CompiledNodeExecutionMetadata prepareAsCpu(CompiledNode node, BackendPrepareContext context) {
         Operation operation = node.operation();
         operation = specializeFusedOperation(operation, context);
-        CpuKernel kernel = CpuKernelResolver.resolve(operation.opType());
+        CpuKernel kernel = CpuKernelRegistry.resolve(operation.opType());
         if (kernel == null) {
             throw new IllegalStateException("Missing CPU kernel for opType=" + operation.opType());
         }

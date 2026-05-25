@@ -16,7 +16,7 @@ import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.lowering.AcceleratorSubgraphLowerer;
 import backend.accelerator.lowering.AcceleratorSubgraphLoweringResult;
 import backend.accelerator.lowering.AcceleratorSubgraphSignature;
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 import backend.memory.CpuMaterializationReason;
 import backend.metal.buffer.MetalBufferAllocator;
 import backend.metal.buffer.MetalBufferAccess;
@@ -2807,7 +2807,7 @@ class MetalMpsFfmBridgeTest {
     private static Tensor bf16Tensor(float[] values, int[] shape, String label) {
         short[] bits = new short[values.length];
         for (int i = 0; i < values.length; i++) {
-            bits[i] = CpuDTypeOps.toBFloat16Bits(values[i]);
+            bits[i] = TensorDTypeOps.toBFloat16Bits(values[i]);
         }
         return new Tensor(bits, shape, null, label, DataType.BFLOAT16);
     }
@@ -2886,7 +2886,7 @@ class MetalMpsFfmBridgeTest {
         short[] bits = actual.toBFloat16BitsArrayCopy();
         assertEquals(expected.length, bits.length);
         for (int i = 0; i < expected.length; i++) {
-            assertEquals(expected[i], CpuDTypeOps.fromBFloat16Bits(bits[i]), tolerance, "BF16 mismatch at " + i);
+            assertEquals(expected[i], TensorDTypeOps.fromBFloat16Bits(bits[i]), tolerance, "BF16 mismatch at " + i);
         }
     }
 
@@ -2894,7 +2894,7 @@ class MetalMpsFfmBridgeTest {
         short[] bits = actual.toBFloat16BitsArrayCopy();
         assertEquals(expected.length, bits.length);
         for (int i = 0; i < expected.length; i++) {
-            assertEquals(CpuDTypeOps.toBFloat16Bits(expected[i]), bits[i], "BF16 raw mismatch at " + i);
+            assertEquals(TensorDTypeOps.toBFloat16Bits(expected[i]), bits[i], "BF16 raw mismatch at " + i);
         }
     }
 
@@ -2902,7 +2902,7 @@ class MetalMpsFfmBridgeTest {
         short[] bits = tensor.toBFloat16BitsArrayCopy();
         float[] values = new float[bits.length];
         for (int i = 0; i < bits.length; i++) {
-            values[i] = CpuDTypeOps.fromBFloat16Bits(bits[i]);
+            values[i] = TensorDTypeOps.fromBFloat16Bits(bits[i]);
         }
         return values;
     }

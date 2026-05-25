@@ -3,7 +3,7 @@ package backend.cpu.kernels.linalg.matmul.blas;
 import backend.blas.BlasRuntime;
 import backend.blas.OpenBlasArrayGemm;
 import backend.blas.OpenBlasRuntime;
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 import backend.cpu.kernels.linalg.matmul.common.MatMulBatchingSupport;
 
 public final class MatMulBlasBackend {
@@ -97,12 +97,12 @@ public final class MatMulBlasBackend {
                     m,
                     n,
                     k,
-                    CpuDTypeOps.toBFloat16Bits(1.0f),
+                    TensorDTypeOps.toBFloat16Bits(1.0f),
                     ad,
                     k,
                     bd,
                     n,
-                    CpuDTypeOps.toBFloat16Bits(0.0f),
+                    TensorDTypeOps.toBFloat16Bits(0.0f),
                     od,
                     n
             );
@@ -125,8 +125,8 @@ public final class MatMulBlasBackend {
             int[] aBatchOffsets = MatMulBatchingSupport.computeBatchOffsets(as, outShape);
             int[] bBatchOffsets = MatMulBatchingSupport.computeBatchOffsets(bs, outShape);
             int mn = m * n;
-            short alpha = CpuDTypeOps.toBFloat16Bits(1.0f);
-            short beta = CpuDTypeOps.toBFloat16Bits(0.0f);
+            short alpha = TensorDTypeOps.toBFloat16Bits(1.0f);
+            short beta = TensorDTypeOps.toBFloat16Bits(0.0f);
             for (int batch = 0; batch < batchCount; batch++) {
                 OpenBlasArrayGemm.bgemmRowMajorNoTransOffsets(
                         m,

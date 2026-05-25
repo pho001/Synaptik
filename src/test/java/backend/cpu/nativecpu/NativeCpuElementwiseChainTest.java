@@ -2,7 +2,7 @@ package backend.cpu.nativecpu;
 
 import backend.blas.BlasProvider;
 import backend.blas.OpenBlasRuntime;
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 import backend.runtime.ExecutionMode;
 import config.backend.KernelTuningConfig;
 import config.compile.CompileConfig;
@@ -589,10 +589,10 @@ class NativeCpuElementwiseChainTest {
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new short[]{
-                CpuDTypeOps.toBFloat16Bits(1.0f),
-                CpuDTypeOps.toBFloat16Bits(-0.0f),
-                CpuDTypeOps.toBFloat16Bits(Float.POSITIVE_INFINITY),
-                CpuDTypeOps.toBFloat16Bits(Float.NaN)
+                TensorDTypeOps.toBFloat16Bits(1.0f),
+                TensorDTypeOps.toBFloat16Bits(-0.0f),
+                TensorDTypeOps.toBFloat16Bits(Float.POSITIVE_INFINITY),
+                TensorDTypeOps.toBFloat16Bits(Float.NaN)
         }, out.toBFloat16BitsArrayCopy());
         assertNativeCast(trace.steps().stream()
                 .filter(step -> "CAST".equals(step.opType()))
@@ -614,10 +614,10 @@ class NativeCpuElementwiseChainTest {
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
                 .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.FALLBACK_TO_ARRAY)).executeTraced(ExecutionMode.FORWARD);
 
-        assertEquals(Float.floatToRawIntBits(CpuDTypeOps.fromBFloat16Bits(bits[0])), Float.floatToRawIntBits(out.toFloat32ArrayCopy()[0]));
-        assertEquals(Float.floatToRawIntBits(CpuDTypeOps.fromBFloat16Bits(bits[1])), Float.floatToRawIntBits(out.toFloat32ArrayCopy()[1]));
-        assertEquals(Float.floatToRawIntBits(CpuDTypeOps.fromBFloat16Bits(bits[2])), Float.floatToRawIntBits(out.toFloat32ArrayCopy()[2]));
-        assertEquals(Float.floatToRawIntBits(CpuDTypeOps.fromBFloat16Bits(bits[3])), Float.floatToRawIntBits(out.toFloat32ArrayCopy()[3]));
+        assertEquals(Float.floatToRawIntBits(TensorDTypeOps.fromBFloat16Bits(bits[0])), Float.floatToRawIntBits(out.toFloat32ArrayCopy()[0]));
+        assertEquals(Float.floatToRawIntBits(TensorDTypeOps.fromBFloat16Bits(bits[1])), Float.floatToRawIntBits(out.toFloat32ArrayCopy()[1]));
+        assertEquals(Float.floatToRawIntBits(TensorDTypeOps.fromBFloat16Bits(bits[2])), Float.floatToRawIntBits(out.toFloat32ArrayCopy()[2]));
+        assertEquals(Float.floatToRawIntBits(TensorDTypeOps.fromBFloat16Bits(bits[3])), Float.floatToRawIntBits(out.toFloat32ArrayCopy()[3]));
         assertNativeCast(trace.steps().stream()
                 .filter(step -> "CAST".equals(step.opType()))
                 .findFirst()
@@ -1225,7 +1225,7 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
-    void unsupportedCpuNativeBroadcastMulFallsBackToArrayWithTraceReason() {
+    void cpuNativeBroadcastMulUsesIndexedSegmentRoute() {
         Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor scale = vector(new float[]{2f, 3f}, "scale");
@@ -1240,30 +1240,29 @@ class NativeCpuElementwiseChainTest {
                 .orElseThrow());
 
         assertEquals("CPU_NATIVE", mul.get("requestedCpuStorage"));
-        assertEquals("CPU_ARRAY", mul.get("actualCpuStorage"));
-        assertEquals("native-kernel-ineligible:mul-broadcast", mul.get("nativeCpuFallbackReason"));
-        assertEquals("CPU_ARRAY", mul.get("storageResidency"));
+        assertEquals("CPU_NATIVE", mul.get("actualCpuStorage"));
+        assertEquals("", mul.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", mul.get("storageResidency"));
     }
 
     @Test
-    void requireNativeRejectsUnsupportedCpuNativeBroadcastMul() {
+    void requireNativeAllowsCpuNativeBroadcastMul() {
         Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor scale = vector(new float[]{2f, 3f}, "scale");
         Tensor out = a().matmul(b()).mul(scale);
 
-        IllegalStateException failure = assertThrows(
-                IllegalStateException.class,
-                () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                        .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE)
-        );
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
-        assertTrue(failure.getMessage().contains("Native CPU execution required"));
-        assertTrue(failure.getMessage().contains("native-kernel-ineligible:mul-broadcast"));
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "MUL".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
     }
 
     @Test
-    void unsupportedCpuNativeBroadcastSubFallsBackToArrayWithTraceReason() {
+    void cpuNativeBroadcastSubUsesIndexedSegmentRoute() {
         Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor offset = vector(new float[]{1f, 2f}, "offset");
@@ -1278,30 +1277,29 @@ class NativeCpuElementwiseChainTest {
                 .orElseThrow());
 
         assertEquals("CPU_NATIVE", sub.get("requestedCpuStorage"));
-        assertEquals("CPU_ARRAY", sub.get("actualCpuStorage"));
-        assertEquals("native-kernel-ineligible:sub-broadcast", sub.get("nativeCpuFallbackReason"));
-        assertEquals("CPU_ARRAY", sub.get("storageResidency"));
+        assertEquals("CPU_NATIVE", sub.get("actualCpuStorage"));
+        assertEquals("", sub.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", sub.get("storageResidency"));
     }
 
     @Test
-    void requireNativeRejectsUnsupportedCpuNativeBroadcastDiv() {
+    void requireNativeAllowsCpuNativeBroadcastDiv() {
         Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor divisor = vector(new float[]{1f, 2f}, "divisor");
         Tensor out = a().matmul(b()).div(divisor);
 
-        IllegalStateException failure = assertThrows(
-                IllegalStateException.class,
-                () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                        .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE)
-        );
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
-        assertTrue(failure.getMessage().contains("Native CPU execution required"));
-        assertTrue(failure.getMessage().contains("native-kernel-ineligible:div-broadcast"));
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "DIV".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
     }
 
     @Test
-    void unsupportedCpuNativeBroadcastAddFallsBackToArrayWithTraceReason() {
+    void cpuNativeBroadcastAddUsesIndexedSegmentRoute() {
         Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor columnBias = matrix(new float[]{1f, -100f}, new int[]{2, 1}, "column_bias");
@@ -1316,13 +1314,13 @@ class NativeCpuElementwiseChainTest {
                 .orElseThrow());
 
         assertEquals("CPU_NATIVE", add.get("requestedCpuStorage"));
-        assertEquals("CPU_ARRAY", add.get("actualCpuStorage"));
-        assertEquals("native-kernel-ineligible:add-broadcast", add.get("nativeCpuFallbackReason"));
-        assertEquals("CPU_ARRAY", add.get("storageResidency"));
+        assertEquals("CPU_NATIVE", add.get("actualCpuStorage"));
+        assertEquals("", add.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", add.get("storageResidency"));
     }
 
     @Test
-    void unsupportedCpuNativeF64BroadcastAddFallsBackToArrayWithTraceReason() {
+    void cpuNativeF64BroadcastAddUsesIndexedSegmentRoute() {
         Tensor out = f64Matrix(new double[]{1.0d, 2.0d, 3.0d, 4.0d}, new int[]{2, 2}, "f64_a")
                 .add(f64Matrix(new double[]{10.0d, 20.0d}, new int[]{2, 1}, "f64_column_bias"));
 
@@ -1335,24 +1333,23 @@ class NativeCpuElementwiseChainTest {
                 .orElseThrow());
 
         assertEquals("CPU_NATIVE", add.get("requestedCpuStorage"));
-        assertEquals("CPU_ARRAY", add.get("actualCpuStorage"));
-        assertEquals("native-kernel-ineligible:add-broadcast", add.get("nativeCpuFallbackReason"));
-        assertEquals("CPU_ARRAY", add.get("storageResidency"));
+        assertEquals("CPU_NATIVE", add.get("actualCpuStorage"));
+        assertEquals("", add.get("nativeCpuFallbackReason"));
+        assertEquals("CPU_NATIVE", add.get("storageResidency"));
     }
 
     @Test
-    void requireNativeRejectsUnsupportedCpuNativeF64BroadcastAdd() {
+    void requireNativeAllowsCpuNativeF64BroadcastAdd() {
         Tensor out = f64Matrix(new double[]{1.0d, 2.0d, 3.0d, 4.0d}, new int[]{2, 2}, "f64_a")
                 .add(f64Matrix(new double[]{10.0d, 20.0d}, new int[]{2, 1}, "f64_column_bias"));
 
-        IllegalStateException failure = assertThrows(
-                IllegalStateException.class,
-                () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                        .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE)
-        );
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
-        assertTrue(failure.getMessage().contains("Native CPU execution required"));
-        assertTrue(failure.getMessage().contains("native-kernel-ineligible:add-broadcast"));
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "ADD".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
     }
 
     @Test
@@ -1558,20 +1555,19 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
-    void requireNativeRejectsUnsupportedCpuNativeBroadcastAdd() {
+    void requireNativeAllowsCpuNativeBroadcastAdd() {
         Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         Tensor columnBias = matrix(new float[]{1f, -100f}, new int[]{2, 1}, "column_bias");
         Tensor out = a().matmul(b()).add(columnBias);
 
-        IllegalStateException failure = assertThrows(
-                IllegalStateException.class,
-                () -> CompiledGraph.compile(out, nativeElementwiseCompileConfig())
-                        .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE)
-        );
+        var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
+                .prepare(runtime(CpuStorageProfile.CPU_NATIVE, NativeCpuFailurePolicy.REQUIRE_NATIVE)).executeTraced(ExecutionMode.FORWARD, PublicationPolicy.NONE);
 
-        assertTrue(failure.getMessage().contains("Native CPU execution required"));
-        assertTrue(failure.getMessage().contains("native-kernel-ineligible:add-broadcast"));
+        assertNativeSegmentScalar(trace.steps().stream()
+                .filter(step -> "ADD".equals(step.opType()))
+                .findFirst()
+                .orElseThrow());
     }
 
     @Test
@@ -2092,7 +2088,7 @@ class NativeCpuElementwiseChainTest {
     private static Tensor bf16(float[] values, String label) {
         short[] bits = new short[values.length];
         for (int i = 0; i < values.length; i++) {
-            bits[i] = CpuDTypeOps.toBFloat16Bits(values[i]);
+            bits[i] = TensorDTypeOps.toBFloat16Bits(values[i]);
         }
         return new Tensor(bits, new int[]{2, 2}, null, label, DataType.BFLOAT16);
     }
@@ -2239,7 +2235,7 @@ class NativeCpuElementwiseChainTest {
     }
 
     private static float roundBf16(float value) {
-        return CpuDTypeOps.fromBFloat16Bits(CpuDTypeOps.toBFloat16Bits(value));
+        return TensorDTypeOps.fromBFloat16Bits(TensorDTypeOps.toBFloat16Bits(value));
     }
 
     private static Map<String, Object> attrs(ExecutionStepTrace step) {

@@ -2,9 +2,9 @@ package backend.cpu.kernels.linalg.matmul.f64;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.execution.CpuKernelContext;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
-import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
+import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import tensor.Tensor;
 
 import java.util.Arrays;

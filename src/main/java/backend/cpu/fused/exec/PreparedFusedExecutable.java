@@ -1,6 +1,6 @@
 package backend.cpu.fused.exec;
 
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.execution.CpuKernelContext;
 import tensor.Tensor;
 
 import java.util.List;

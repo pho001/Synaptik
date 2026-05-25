@@ -1,27 +1,27 @@
 package backend.cpu.kernels.linalg;
 
-import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.CpuKernelCostClass;
+import backend.cpu.kernels.TypedCpuKernel;
+import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.plan.CpuKernelCostClass;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import operations.Operation;
 import tensor.Tensor;
 
 import java.util.List;
 
-public class CpuMatMulKernel implements CpuKernel {
+public class CpuMatMulKernel extends TypedCpuKernel {
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         runPrepared(inputs, node, context);
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         runPrepared(inputs, node, context);
     }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         runPrepared(inputs, node, context);
     }
 

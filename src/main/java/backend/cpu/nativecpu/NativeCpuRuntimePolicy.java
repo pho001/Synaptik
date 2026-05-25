@@ -1,6 +1,6 @@
 package backend.cpu.nativecpu;
 
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.execution.CpuKernelContext;
 import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
 

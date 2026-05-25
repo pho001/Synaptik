@@ -1,5 +1,9 @@
 package backend.cpu.kernels.nn;
 
+import tensor.dtype.TensorDTypeOps;
+
+import backend.cpu.execution.CpuKernelContext;
+
 import tensor.TensorInternalAccess;
 
 import backend.cpu.kernels.*;
@@ -210,7 +214,7 @@ final class Conv2dDirectBackend {
                 int outChannelBase = g * outChannelsPerGroup;
                 for (int ocg = 0; ocg < outChannelsPerGroup; ocg++) {
                     int oc = outChannelBase + ocg;
-                    float biasValue = bias == null ? 0.0f : CpuDTypeOps.fromBFloat16Bits(bias[oc]);
+                    float biasValue = bias == null ? 0.0f : TensorDTypeOps.fromBFloat16Bits(bias[oc]);
                     for (int oh = 0; oh < outH; oh++) {
                         int inOriginH = oh * options.strideH() - options.padH();
                         for (int ow = 0; ow < outW; ow++) {
@@ -224,12 +228,12 @@ final class Conv2dDirectBackend {
                                     for (int kw = 0; kw < kernelW; kw++) {
                                         int iw = inOriginW + kw * options.dilationW();
                                         if (iw < 0 || iw >= inW) continue;
-                                        acc += CpuDTypeOps.fromBFloat16Bits(input[indexNCHW(batch, ic, ih, iw, inputShape[1], inH, inW)])
-                                                * CpuDTypeOps.fromBFloat16Bits(weight[indexOIHW(oc, icg, kh, kw, channelsPerGroup, kernelH, kernelW)]);
+                                        acc += TensorDTypeOps.fromBFloat16Bits(input[indexNCHW(batch, ic, ih, iw, inputShape[1], inH, inW)])
+                                                * TensorDTypeOps.fromBFloat16Bits(weight[indexOIHW(oc, icg, kh, kw, channelsPerGroup, kernelH, kernelW)]);
                                     }
                                 }
                             }
-                            out[indexNCHW(batch, oc, oh, ow, outChannels, outH, outW)] = CpuDTypeOps.toBFloat16Bits(acc);
+                            out[indexNCHW(batch, oc, oh, ow, outChannels, outH, outW)] = TensorDTypeOps.toBFloat16Bits(acc);
                         }
                     }
                 }
@@ -363,7 +367,7 @@ final class Conv2dDirectBackend {
                     for (int oh = 0; oh < outH; oh++) {
                         int inOriginH = oh * options.strideH() - options.padH();
                         for (int ow = 0; ow < outW; ow++) {
-                            float grad = CpuDTypeOps.fromBFloat16Bits(outGrad[indexNCHW(batch, oc, oh, ow, outChannels, outH, outW)]);
+                            float grad = TensorDTypeOps.fromBFloat16Bits(outGrad[indexNCHW(batch, oc, oh, ow, outChannels, outH, outW)]);
                             int inOriginW = ow * options.strideW() - options.padW();
                             for (int icg = 0; icg < channelsPerGroup; icg++) {
                                 int ic = inChannelBase + icg;
@@ -374,7 +378,7 @@ final class Conv2dDirectBackend {
                                         int iw = inOriginW + kw * options.dilationW();
                                         if (iw < 0 || iw >= inW) continue;
                                         accum[indexNCHW(batch, ic, ih, iw, inChannels, inH, inW)] +=
-                                                grad * CpuDTypeOps.fromBFloat16Bits(weight[indexOIHW(oc, icg, kh, kw, channelsPerGroup, kernelH, kernelW)]);
+                                                grad * TensorDTypeOps.fromBFloat16Bits(weight[indexOIHW(oc, icg, kh, kw, channelsPerGroup, kernelH, kernelW)]);
                                     }
                                 }
                             }
@@ -384,7 +388,7 @@ final class Conv2dDirectBackend {
             }
         }
         for (int i = 0; i < accum.length; i++) {
-            gradInput[i] = CpuDTypeOps.toBFloat16Bits(accum[i]);
+            gradInput[i] = TensorDTypeOps.toBFloat16Bits(accum[i]);
         }
     }
 
@@ -520,8 +524,8 @@ final class Conv2dDirectBackend {
                                     for (int ow = 0; ow < outW; ow++) {
                                         int iw = ow * options.strideW() - options.padW() + kw * options.dilationW();
                                         if (iw < 0 || iw >= inW) continue;
-                                        acc += CpuDTypeOps.fromBFloat16Bits(input[indexNCHW(batch, ic, ih, iw, inChannels, inH, inW)])
-                                                * CpuDTypeOps.fromBFloat16Bits(outGrad[indexNCHW(batch, oc, oh, ow, outChannels, outH, outW)]);
+                                        acc += TensorDTypeOps.fromBFloat16Bits(input[indexNCHW(batch, ic, ih, iw, inChannels, inH, inW)])
+                                                * TensorDTypeOps.fromBFloat16Bits(outGrad[indexNCHW(batch, oc, oh, ow, outChannels, outH, outW)]);
                                     }
                                 }
                             }
@@ -532,7 +536,7 @@ final class Conv2dDirectBackend {
             }
         }
         for (int i = 0; i < size; i++) {
-            gradWeight[i] = CpuDTypeOps.toBFloat16Bits(accum[i]);
+            gradWeight[i] = TensorDTypeOps.toBFloat16Bits(accum[i]);
         }
     }
 

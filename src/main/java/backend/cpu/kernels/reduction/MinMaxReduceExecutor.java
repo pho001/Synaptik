@@ -2,7 +2,7 @@ package backend.cpu.kernels.reduction;
 
 import backend.cpu.kernels.*;
 
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.execution.CpuKernelContext;
 import operations.Operation;
 import operations.reduction.reduceMax;
 import operations.reduction.reduceMin;

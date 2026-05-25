@@ -1,10 +1,12 @@
 package backend.cpu.kernels.layout;
 
 import backend.cpu.plan.CpuPreparedInput;
-import backend.cpu.kernels.elementwise.strided.StridedLayoutDecision;
-import backend.cpu.kernels.elementwise.strided.StridedPathEligibility;
-import backend.cpu.kernels.plan.CpuExecutionPlanner;
-import backend.cpu.kernels.plan.PreparedTypeContract;
+import backend.cpu.plan.layout.PreparedInputsResult;
+import backend.cpu.plan.layout.StridedLayoutDecision;
+import backend.cpu.prepare.layout.PreparedInputPlanner;
+import backend.cpu.prepare.elementwise.StridedPathEligibility;
+import backend.cpu.prepare.CpuExecutionPlanner;
+import backend.cpu.plan.PreparedTypeContract;
 import config.backend.CpuKernelConfig;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
@@ -126,6 +128,42 @@ public class StridedLayoutPlanningTest {
         );
 
         assertEquals(StridedLayoutDecision.KEEP_STRIDED, decision);
+    }
+
+    @Test
+    public void nonContiguousInputCanUseStridedPathWithImplicitBroadcastOperand() {
+        CpuExecutionPlanner planner = CpuExecutionPlanner.from(config(1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000));
+        Tensor left = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, new int[]{1, 2}, null, "left_noncontig", DataType.FLOAT64);
+        Tensor right = new Tensor(new double[]{10, 20, 30}, new int[]{3}, null, "right_broadcast", DataType.FLOAT64);
+        Tensor out = new Tensor(new int[]{2, 3}, List.of(left, right), new add(), "out", DataType.FLOAT64);
+
+        StridedLayoutDecision decision = StridedPathEligibility.resolve(
+                new add(),
+                List.of(desc(left), desc(right)),
+                desc(out),
+                DataType.FLOAT64,
+                planner
+        );
+
+        assertEquals(StridedLayoutDecision.KEEP_STRIDED, decision);
+    }
+
+    @Test
+    public void denseImplicitBroadcastAloneDoesNotForceStridedPath() {
+        CpuExecutionPlanner planner = CpuExecutionPlanner.from(config(1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000));
+        Tensor left = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "left_dense", DataType.FLOAT64);
+        Tensor right = new Tensor(new double[]{10, 20, 30}, new int[]{3}, null, "right_broadcast", DataType.FLOAT64);
+        Tensor out = new Tensor(new int[]{2, 3}, List.of(left, right), new add(), "out", DataType.FLOAT64);
+
+        StridedLayoutDecision decision = StridedPathEligibility.resolve(
+                new add(),
+                List.of(desc(left), desc(right)),
+                desc(out),
+                DataType.FLOAT64,
+                planner
+        );
+
+        assertEquals(StridedLayoutDecision.NONE, decision);
     }
 
     private static CpuKernelConfig config(

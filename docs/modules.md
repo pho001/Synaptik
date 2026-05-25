@@ -254,7 +254,7 @@ Main paths:
 
 - `src/main/java/backend/cpu/CpuBackend.java`
 - `src/main/java/backend/cpu/prepare/CpuNodePreparer.java`
-- `src/main/java/backend/cpu/registry/CpuKernelResolver.java`
+- `src/main/java/backend/cpu/kernels/CpuKernelRegistry.java`
 - `src/main/java/backend/cpu/kernels/plan/**`
 - `src/main/java/backend/cpu/kernels/**`
 - `src/main/java/backend/cpu/fused/**`
@@ -312,7 +312,7 @@ The CPU kernel tree is organized by operation family:
 | `fused` | direct runtime execution for `FUSED` operations |
 | `plan` | assembly of CPU node execution plans |
 
-`backend.cpu.registry.CpuKernelResolver` is the central mapping from `Operation.OpType` to concrete kernel singleton. If a new operation descriptor is added, the CPU resolver is one of the places that must be updated for CPU execution.
+`backend.cpu.kernels.CpuKernelRegistry` is the central mapping from `Operation.OpType` to concrete kernel singleton. If a new operation descriptor is added, the CPU resolver is one of the places that must be updated for CPU execution.
 
 CPU native storage is not a separate kernel tree. `MemorySegment` execution for non-BLAS operations is implemented
 inside the same family packages through storage-specialized loops. `CpuNativeStorageSupport` records the support,

@@ -1,8 +1,8 @@
 package backend.cpu;
 
 import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuNodeExecutionPlan;
-import backend.cpu.kernels.CpuNodeWorkspace;
+import backend.cpu.plan.CpuNodeExecutionPlan;
+import backend.cpu.execution.CpuNodeWorkspace;
 import backend.cpu.plan.CpuPreparedInput;
 import backend.runtime.ExecutionContext;
 import graph.CompiledNode;

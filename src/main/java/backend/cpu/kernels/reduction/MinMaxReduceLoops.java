@@ -4,10 +4,10 @@ import tensor.TensorInternalAccess;
 
 import backend.cpu.kernels.*;
 
-import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.CpuThreadPool;
-import backend.cpu.kernels.reduction.plan.ResolvedReductionHints;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.execution.CpuThreadPool;
+import backend.cpu.plan.reduction.ResolvedReductionHints;
 import tensor.Tensor;
 import tensor.TensorMetadata;
 
@@ -85,7 +85,7 @@ final class MinMaxReduceLoops {
         }
 
         if (dimension == -1) {
-            out[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toBFloat16Bits((float) reduceAllF16(
+            out[node.getStorageOffsetUnsafe()] = TensorDTypeOps.toBFloat16Bits((float) reduceAllF16(
                     in,
                     shape,
                     input.getStridesUnsafe(),
@@ -156,12 +156,12 @@ final class MinMaxReduceLoops {
             boolean isMax
     ) {
         ReductionTraversal.forEachAxisGroup(inputShape, inputStrides, inputBaseOffset, outShape, dimension, context, (outIndex, baseOffset, reducedSize, reducedStride) -> {
-            float best = CpuDTypeOps.fromBFloat16Bits(in[baseOffset]);
+            float best = TensorDTypeOps.fromBFloat16Bits(in[baseOffset]);
             for (int r = 1; r < reducedSize; r++) {
-                float value = CpuDTypeOps.fromBFloat16Bits(in[baseOffset + r * reducedStride]);
+                float value = TensorDTypeOps.fromBFloat16Bits(in[baseOffset + r * reducedStride]);
                 best = isMax ? Math.max(best, value) : Math.min(best, value);
             }
-            out[outBaseOffset + outIndex] = CpuDTypeOps.toBFloat16Bits(best);
+            out[outBaseOffset + outIndex] = TensorDTypeOps.toBFloat16Bits(best);
         });
     }
 
@@ -293,9 +293,9 @@ final class MinMaxReduceLoops {
     }
 
     private static double reduceContiguousRangeF16(short[] in, int start, int end, boolean isMax) {
-        float best = CpuDTypeOps.fromBFloat16Bits(in[start]);
+        float best = TensorDTypeOps.fromBFloat16Bits(in[start]);
         for (int i = start + 1; i < end; i++) {
-            float value = CpuDTypeOps.fromBFloat16Bits(in[i]);
+            float value = TensorDTypeOps.fromBFloat16Bits(in[i]);
             best = isMax ? Math.max(best, value) : Math.min(best, value);
         }
         return best;
@@ -324,9 +324,9 @@ final class MinMaxReduceLoops {
 
     private static double reduceStridedRangeF16(short[] in, int[] shape, int[] strides, int[] denseStrides, int baseOffset, int start, int end, boolean isMax) {
         int offset = ReductionTraversal.logicalToOffset(start, shape, strides, denseStrides, baseOffset);
-        float best = CpuDTypeOps.fromBFloat16Bits(in[offset]);
+        float best = TensorDTypeOps.fromBFloat16Bits(in[offset]);
         for (int logical = start + 1; logical < end; logical++) {
-            float value = CpuDTypeOps.fromBFloat16Bits(in[ReductionTraversal.logicalToOffset(logical, shape, strides, denseStrides, baseOffset)]);
+            float value = TensorDTypeOps.fromBFloat16Bits(in[ReductionTraversal.logicalToOffset(logical, shape, strides, denseStrides, baseOffset)]);
             best = isMax ? Math.max(best, value) : Math.min(best, value);
         }
         return best;

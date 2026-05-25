@@ -2,9 +2,9 @@ package backend.cpu.kernels.reduction;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuKernelContext;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.kernels.TypedCpuKernel;
+import backend.cpu.execution.CpuKernelContext;
 import operations.Operation;
 import operations.reduction.reduceProd;
 import tensor.Tensor;
@@ -13,19 +13,19 @@ import tensor.TensorMetadata;
 import java.util.Arrays;
 import java.util.List;
 
-public final class CpuReduceProdKernel implements CpuKernel {
+public final class CpuReduceProdKernel extends TypedCpuKernel {
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         reduce(op, inputs, node);
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         reduce(op, inputs, node);
     }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         reduce(op, inputs, node);
     }
 
@@ -80,7 +80,7 @@ public final class CpuReduceProdKernel implements CpuKernel {
         switch (out.getDataType()) {
             case FLOAT64 -> Arrays.fill(TensorInternalAccess.float64Data(out), value);
             case FLOAT32 -> Arrays.fill(TensorInternalAccess.float32Data(out), (float) value);
-            case BFLOAT16 -> Arrays.fill(TensorInternalAccess.bfloat16Data(out), CpuDTypeOps.toBFloat16Bits((float) value));
+            case BFLOAT16 -> Arrays.fill(TensorInternalAccess.bfloat16Data(out), TensorDTypeOps.toBFloat16Bits((float) value));
             case INT32, BOOL -> throw new IllegalArgumentException("ReduceProd requires floating output.");
         }
     }
@@ -92,7 +92,7 @@ public final class CpuReduceProdKernel implements CpuKernel {
             case FLOAT32 -> TensorInternalAccess.float32Data(out)[index] *= (float) value;
             case BFLOAT16 -> {
                 short[] data = TensorInternalAccess.bfloat16Data(out);
-                data[index] = CpuDTypeOps.toBFloat16Bits(CpuDTypeOps.fromBFloat16Bits(data[index]) * (float) value);
+                data[index] = TensorDTypeOps.toBFloat16Bits(TensorDTypeOps.fromBFloat16Bits(data[index]) * (float) value);
             }
             case INT32, BOOL -> throw new IllegalArgumentException("ReduceProd requires floating output.");
         }

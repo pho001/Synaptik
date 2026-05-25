@@ -1,11 +1,14 @@
 import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuNativeStorageSupport;
-import backend.cpu.registry.CpuKernelResolver;
+import backend.cpu.kernels.CpuKernelCall;
+import backend.cpu.kernels.CpuKernelRegistry;
+import backend.cpu.nativecpu.CpuNativeStorageSupport;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -27,29 +30,23 @@ public class CpuKernelFamilyArchitectureTest {
         assertPackage(Operation.OpType.NOOP, "backend.cpu.kernels.layout");
         assertPackage(Operation.OpType.GATHER, "backend.cpu.kernels.index");
         assertPackage(Operation.OpType.SUM, "backend.cpu.kernels.reduction");
+        assertPackage(Operation.OpType.MIN_GRAD, "backend.cpu.kernels.elementwise.grad");
+        assertPackage(Operation.OpType.REDUCE_MIN_GRAD, "backend.cpu.kernels.reduction.grad");
+        assertPackage(Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD, "backend.cpu.kernels.reduction");
         assertPackage(Operation.OpType.MATMUL, "backend.cpu.kernels.linalg");
         assertPackage(Operation.OpType.CONV2D, "backend.cpu.kernels.nn");
         assertPackage(Operation.OpType.FUSED, "backend.cpu.kernels.fused");
     }
 
     @Test
-    void cpuRootPackageOnlyContainsSharedInfrastructure() throws IOException {
+    void cpuRootPackageOnlyContainsFinalKernelContractTypes() throws IOException {
         Path root = Path.of("src/main/java/backend/cpu/kernels");
         Set<String> allowed = Set.of(
-                "CpuAccumulateDType.java",
-                "CpuComputeDType.java",
-                "CpuDTypeOps.java",
-                "CpuExecutionBackend.java",
-                "CpuExecutionMode.java",
                 "CpuKernel.java",
-                "CpuKernelContext.java",
-                "CpuKernelCostClass.java",
-                "CpuNativeStorageSupport.java",
-                "CpuNativeTraceSupport.java",
-                "CpuNodeExecutionPlan.java",
-                "CpuNodeWorkspace.java",
-                "CpuThreadPool.java",
-                "ResolvedCpuComputeContract.java"
+                "CpuKernelCall.java",
+                "CpuKernelRegistry.java",
+                "CpuKernelResult.java",
+                "TypedCpuKernel.java"
         );
 
         try (Stream<Path> files = Files.list(root)) {
@@ -60,8 +57,133 @@ public class CpuKernelFamilyArchitectureTest {
                     .filter(name -> !allowed.contains(name))
                     .sorted()
                     .toList();
-            assertTrue(unexpected.isEmpty(), () -> "Unexpected non-infra files in backend.cpu.kernels root: " + unexpected);
+            assertTrue(unexpected.isEmpty(), () ->
+                    "backend.cpu.kernels root may contain only final kernel boundary types: " + unexpected);
         }
+        assertTrue(Files.exists(Path.of("src/main/java/tensor/dtype/TensorDTypeOps.java")),
+                "Generic dtype helpers must live under tensor.dtype, not backend.cpu.kernels.");
+    }
+
+    @Test
+    void cpuKernelPublicApiDoesNotExposeDTypeSpecificForwardMethods() {
+        Set<String> publicDeclaredMethods = new TreeSet<>();
+        for (Method method : CpuKernel.class.getDeclaredMethods()) {
+            if (Modifier.isPublic(method.getModifiers())) {
+                publicDeclaredMethods.add(method.getName());
+            }
+        }
+
+        assertEquals(Set.of("costClass", "execute"), publicDeclaredMethods,
+                "CpuKernel public API must remain the single execute(call) contract plus cost metadata.");
+        List<String> dtypeSpecificMethods = publicDeclaredMethods.stream()
+                .filter(name -> name.startsWith("forward"))
+                .sorted()
+                .toList();
+        assertTrue(dtypeSpecificMethods.isEmpty(),
+                () -> "CpuKernel must not expose dtype-specific forward* methods: " + dtypeSpecificMethods);
+    }
+
+    @Test
+    void cpuKernelCallCarriesPreparedPlanAndStorageViews() {
+        assertEquals(8, CpuKernelCall.class.getRecordComponents().length,
+                "CpuKernelCall must be the complete executor-to-kernel boundary.");
+        Set<String> componentNames = Stream.of(CpuKernelCall.class.getRecordComponents())
+                .map(java.lang.reflect.RecordComponent::getName)
+                .collect(java.util.stream.Collectors.toCollection(TreeSet::new));
+        assertEquals(Set.of(
+                        "context",
+                        "inputTensors",
+                        "inputs",
+                        "operation",
+                        "output",
+                        "outputTensor",
+                        "plan",
+                        "workspace"
+                ),
+                componentNames,
+                "CpuKernelCall must carry tensors, storage views, immutable plan, context, and workspace.");
+    }
+
+    @Test
+    void cpuBackendUsesExecutionLayerForKernelInvocation() throws IOException {
+        String backend = Files.readString(Path.of("src/main/java/backend/cpu/CpuBackend.java"));
+        assertTrue(backend.contains("CpuKernelExecutor"),
+                "CpuBackend must route kernel invocation through backend.cpu.execution.CpuKernelExecutor.");
+        assertFalse(backend.contains("new CpuKernelCall"),
+                "CpuBackend must not assemble CpuKernelCall directly.");
+        assertFalse(backend.contains("new CpuKernelContext"),
+                "CpuBackend must not assemble CpuKernelContext directly.");
+        assertFalse(backend.contains("CpuStridedElementWise.forward"),
+                "Strided execution routing belongs in CpuKernelExecutor, not CpuBackend.");
+    }
+
+    @Test
+    void movedInfrastructureTypesDoNotRemainUnderKernelPackage() throws IOException {
+        Map<String, String> movedTypes = Map.ofEntries(
+                Map.entry("CpuDTypeOps", "tensor.dtype"),
+                Map.entry("CpuKernelContext", "backend.cpu.execution"),
+                Map.entry("CpuNodeWorkspace", "backend.cpu.execution"),
+                Map.entry("CpuThreadPool", "backend.cpu.execution"),
+                Map.entry("CpuNativeStorageSupport", "backend.cpu.nativecpu"),
+                Map.entry("CpuNativeTraceSupport", "backend.cpu.nativecpu"),
+                Map.entry("CpuAccumulateDType", "backend.cpu.plan"),
+                Map.entry("CpuComputeDType", "backend.cpu.plan"),
+                Map.entry("CpuExecutionBackend", "backend.cpu.plan"),
+                Map.entry("CpuExecutionMode", "backend.cpu.plan"),
+                Map.entry("CpuKernelCostClass", "backend.cpu.plan"),
+                Map.entry("CpuNodeExecutionPlan", "backend.cpu.plan"),
+                Map.entry("ResolvedCpuComputeContract", "backend.cpu.plan")
+        );
+
+        Path root = Path.of("src/main/java/backend/cpu/kernels");
+        try (Stream<Path> paths = Files.walk(root)) {
+            List<String> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .flatMap(path -> movedTypes.keySet().stream()
+                            .filter(type -> path.getFileName().toString().equals(type + ".java")
+                                    || contains(path, "import backend.cpu.kernels." + type + ";")
+                                    || contains(path, "backend.cpu.kernels." + type))
+                            .map(type -> root.relativize(path).toString().replace('\\', '/')
+                                    + " references legacy backend.cpu.kernels." + type
+                                    + " (new owner: " + movedTypes.get(type) + ")"))
+                    .sorted()
+                    .toList();
+            assertTrue(offenders.isEmpty(),
+                    () -> "Moved CPU infrastructure types must not remain under backend.cpu.kernels: " + offenders);
+        }
+    }
+
+    @Test
+    void generatedFusedBytecodeDoesNotReferenceMovedDTypeHelper() throws IOException {
+        Path fusedAsmRoot = Path.of("src/main/java/backend/cpu/fused/asm");
+        try (Stream<Path> paths = Files.walk(fusedAsmRoot)) {
+            List<Path> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> contains(path, "backend/cpu/kernels/TensorDTypeOps")
+                            || contains(path, "backend.cpu.kernels.TensorDTypeOps"))
+                    .toList();
+            assertTrue(offenders.isEmpty(),
+                    () -> "Generated fused bytecode must reference tensor/dtype/TensorDTypeOps: " + offenders);
+        }
+    }
+
+    @Test
+    void cpuKernelRegistryLivesAtKernelBoundaryWithoutOldResolverPackage() throws IOException {
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/CpuKernelRegistry.java")),
+                "CpuKernelRegistry must live at backend.cpu.kernels boundary.");
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/registry/CpuKernelResolver.java")),
+                "Old backend.cpu.registry.CpuKernelResolver must not remain as a compatibility facade.");
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/registry")),
+                "backend.cpu.registry package must not remain after registry cutover.");
+    }
+
+    @Test
+    void cpuExecutionRuntimeHelpersLiveOutsideKernelPackage() throws IOException {
+        assertCpuExecutionRootType("CpuKernelContext.java");
+        assertCpuExecutionRootType("CpuNodeWorkspace.java");
+        assertCpuExecutionRootType("CpuThreadPool.java");
     }
 
     @Test
@@ -79,12 +201,57 @@ public class CpuKernelFamilyArchitectureTest {
     }
 
     @Test
-    void familySpecificPlanningAndSupportHelpersLiveOutsideCpuRoot() {
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/plan/CpuExecutionPlanner.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/plan/CpuPlanAssembler.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/plan/CpuOperationPlanResolver.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/plan/ResolvedCpuOperationPlans.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/plan/ElementwiseDispatchPlanner.java")));
+    void gradKernelsAreOwnedBySourceFamilies() {
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/grad")),
+                "Grad kernels must not live in a root dumping package.");
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/grad/CpuMinGradKernel.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/reduction/grad/CpuReduceMinGradKernel.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/reduction/CpuCrossEntropyLossIndicesGradKernel.java")));
+    }
+
+    @Test
+    void cpuPlanningTypesLiveOutsideKernelPackage() throws IOException {
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/CpuExecutionPlanner.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/CpuPlanAssembler.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/CpuOperationPlanResolver.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/CpuPlanningPolicy.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/CpuTypeContractResolver.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/CpuComputeContractResolver.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/PreparedTypeContract.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/ResolvedCpuOperationPlans.java")));
+        for (String fileName : List.of(
+                "CpuAccumulateDType.java",
+                "CpuComputeDType.java",
+                "CpuExecutionBackend.java",
+                "CpuExecutionMode.java",
+                "CpuKernelCostClass.java",
+                "CpuNodeExecutionPlan.java",
+                "ResolvedCpuComputeContract.java"
+        )) {
+            assertPlanRootType(fileName);
+        }
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/elementwise/ElementwiseDispatchPlanner.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/elementwise/ResolvedDispatchHints.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/layout/ResolvedBroadcastPlan.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/layout/ResolvedWhereBroadcastPlan.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/layout/BroadcastPlanResolver.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/layout/PreparedInputPlanner.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/layout/PreparedInputPolicy.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/layout/PreparedInputsResult.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/elementwise/StridedPathEligibility.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/layout/StridedLayoutDecision.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/reduction/ReductionPlanner.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/reduction/ResolvedReductionHints.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/linalg/matmul/MatMulPlanner.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/linalg/matmul/MatMulExecutionRoute.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/linalg/matmul/ResolvedMatMulHints.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/linalg/attention/ScaledDotProductAttentionPlanner.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/linalg/attention/ResolvedAttentionHints.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/linalg/attention/ResolvedScaledDotProductAttentionPlan.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/nn/conv2d/Conv2dPlanner.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/nn/conv2d/ResolvedConv2dHints.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/fused/FusedDispatchPlanner.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/fused/PreparedFusedDispatch.java")));
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/strided/CpuStridedElementWise.java")));
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/strided/StridedBooleanLoops.java")));
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/strided/StridedNumericInputs.java")));
@@ -94,12 +261,33 @@ public class CpuKernelFamilyArchitectureTest {
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/strided/StridedRank2Loops.java")));
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/strided/StridedElementWiseSemantics.java")));
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/strided/StridedVectorSupport.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/strided/StridedOffsetCursor.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/fused/plan/FusedDispatchPlanner.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/fused/plan/PreparedFusedDispatch.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/ElementwiseLayoutPlan.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/ElementwiseOffsetCursor.java")));
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary/support/CpuPowSupport.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/layout/PreparedInputPlanner.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/layout/PreparedInputPolicy.java")));
+
+        try (Stream<Path> paths = Files.walk(Path.of("src/main/java/backend/cpu/kernels"))) {
+            List<Path> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> path.toString().contains("/plan/")
+                            || contains(path, "package backend.cpu.kernels.plan")
+                            || contains(path, "import backend.cpu.kernels.plan.")
+                            || contains(path, "import backend.cpu.kernels.elementwise.plan.")
+                            || contains(path, "import backend.cpu.kernels.layout.plan.")
+                            || contains(path, "import backend.cpu.kernels.reduction.plan.")
+                            || contains(path, "import backend.cpu.kernels.linalg.matmul.plan.")
+                            || contains(path, "import backend.cpu.kernels.linalg.attention.plan.")
+                            || contains(path, "import backend.cpu.kernels.nn.conv2d.plan.")
+                            || contains(path, "import backend.cpu.kernels.fused.plan."))
+                    .toList();
+            assertTrue(offenders.isEmpty(), () -> "CPU planning packages must not live under backend.cpu.kernels: " + offenders);
+        }
+    }
+
+    @Test
+    void nativeCpuPolicyAndTraceHelpersLiveOutsideKernelPackage() throws IOException {
+        assertNativeCpuRootType("CpuNativeStorageSupport.java");
+        assertNativeCpuRootType("CpuNativeTraceSupport.java");
     }
 
     @Test
@@ -108,9 +296,7 @@ public class CpuKernelFamilyArchitectureTest {
                 "src/main/java/backend/cpu/kernels/elementwise/binary/CpuAddKernel.java",
                 "src/main/java/backend/cpu/kernels/elementwise/binary/ElementwiseBinaryExecutor.java",
                 "src/main/java/backend/cpu/kernels/elementwise/ElementwiseLoops.java",
-                "src/main/java/backend/cpu/kernels/elementwise/binary/arrayloops/AddF32.java",
-                "src/main/java/backend/cpu/kernels/elementwise/binary/arrayloops/AddF64.java",
-                "src/main/java/backend/cpu/kernels/elementwise/binary/arrayloops/AddBF16.java",
+                "src/main/java/backend/cpu/kernels/elementwise/ElementwiseRangeLoop.java",
                 "src/main/java/backend/cpu/kernels/elementwise/where/CpuWhereKernel.java",
                 "src/main/java/backend/cpu/kernels/elementwise/where/WhereExecutor.java",
                 "src/main/java/backend/cpu/kernels/reduction/CpuSumKernel.java",
@@ -120,14 +306,14 @@ public class CpuKernelFamilyArchitectureTest {
                 "src/main/java/backend/cpu/kernels/layout/CpuContiguousKernel.java",
                 "src/main/java/backend/cpu/kernels/layout/LayoutExecutor.java",
                 "src/main/java/backend/cpu/kernels/linalg/CpuMatMulKernel.java",
-                "src/main/java/backend/cpu/kernels/linalg/matmul/plan/MatMulPlanner.java",
-                "src/main/java/backend/cpu/kernels/linalg/matmul/provider/MatMulProviderExecutableFactory.java",
+                "src/main/java/backend/cpu/prepare/linalg/matmul/MatMulPlanner.java",
+                "src/main/java/backend/cpu/provider/linalg/matmul/MatMulProviderExecutableFactory.java",
                 "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32JavaMatMulExecutable.java",
                 "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32BlasMatMulExecutable.java",
                 "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32NativeBlasMatMulExecutable.java",
                 "src/main/java/backend/cpu/kernels/elementwise/ElementwiseNativeSupport.java",
-                "src/main/java/backend/cpu/kernels/elementwise/binary/memorysegmentloops/BinaryMemorySegmentLoops.java",
-                "src/main/java/backend/cpu/kernels/elementwise/unary/memorysegmentloops/UnaryMemorySegmentLoops.java",
+                "src/main/java/backend/cpu/kernels/elementwise/binary/ElementwiseBinaryExecutor.java",
+                "src/main/java/backend/cpu/kernels/elementwise/unary/ElementwiseUnaryExecutor.java",
                 "src/main/java/backend/cpu/kernels/elementwise/where/WhereStorageLoops.java",
                 "src/main/java/backend/cpu/kernels/elementwise/compare/CompareStorageLoops.java",
                 "src/main/java/backend/cpu/kernels/elementwise/logical/LogicalBoolStorageLoops.java",
@@ -145,8 +331,14 @@ public class CpuKernelFamilyArchitectureTest {
     @Test
     void waveZeroNativeCpuImportsFromKernelPackageRemainExplicitlyAllowlisted() throws IOException {
         Map<String, Set<String>> expected = Map.ofEntries(
-                Map.entry("CpuNativeTraceSupport.java", Set.of("NativeCpuTraceState")),
+                Map.entry("elementwise/binary/ElementwiseBinaryExecutor.java", Set.of("CpuNativeTraceSupport")),
+                Map.entry("elementwise/compare/CompareStorageLoops.java", Set.of("CpuNativeTraceSupport")),
+                Map.entry("elementwise/logical/LogicalBoolStorageLoops.java", Set.of("CpuNativeTraceSupport")),
+                Map.entry("elementwise/unary/ElementwiseUnaryExecutor.java", Set.of("CpuNativeTraceSupport")),
+                Map.entry("elementwise/where/WhereStorageLoops.java", Set.of("CpuNativeTraceSupport")),
+                Map.entry("layout/LayoutExecutor.java", Set.of("CpuNativeTraceSupport")),
                 Map.entry("reduction/ReductionStorageLoops.java", Set.of(
+                        "CpuNativeTraceSupport",
                         "layout.NativeCpuStorageFamily",
                         "layout.NativeSegmentStridedKernels",
                         "layout.NativeSegmentView",
@@ -186,12 +378,17 @@ public class CpuKernelFamilyArchitectureTest {
 
     @Test
     void waveFiveMatmulOpenBlasRoutingIsProviderOwned() throws IOException {
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/linalg/matmul/provider/MatMulProviderExecutableFactory.java")),
-                "Matmul provider routing must live under the linalg matmul provider package.");
+        Path providerFactoryPath = Path.of("src/main/java/backend/cpu/provider/linalg/matmul/MatMulProviderExecutableFactory.java");
+        assertTrue(Files.exists(providerFactoryPath),
+                "Matmul provider routing must live outside backend.cpu.kernels under the CPU provider package.");
+        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/linalg/matmul/provider/MatMulProviderExecutableFactory.java")),
+                "The old kernel provider package must not remain as a compatibility facade.");
         assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/linalg/matmul/exec/PreparedMatMulExecutableFactory.java")),
                 "The old generic prepared factory should not remain as a compatibility facade.");
 
-        String providerFactory = Files.readString(Path.of("src/main/java/backend/cpu/kernels/linalg/matmul/provider/MatMulProviderExecutableFactory.java"));
+        String providerFactory = Files.readString(providerFactoryPath);
+        assertTrue(providerFactory.contains("package backend.cpu.provider.linalg.matmul;"),
+                "Matmul provider factory must declare the CPU provider package.");
         assertTrue(providerFactory.contains("case OPENBLAS_NATIVE_SEGMENT"),
                 "OpenBLAS memory-segment routing must stay explicit in the matmul provider factory.");
         assertTrue(providerFactory.contains("case OPENBLAS_ARRAY_COPYING"),
@@ -201,18 +398,29 @@ public class CpuKernelFamilyArchitectureTest {
 
         assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/nativecpu/NativeCpuPlanResolver.java")),
                 "Matmul provider ownership must not keep the generic NativeCpuPlanResolver alive.");
+
+        try (Stream<Path> paths = Files.walk(Path.of("src/main/java/backend/cpu/kernels"))) {
+            List<Path> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> path.toString().contains("/provider/")
+                            || declaresKernelProviderPackage(path)
+                            || importsKernelProviderPackage(path))
+                    .toList();
+            assertTrue(offenders.isEmpty(), () -> "Provider packages must not live under backend.cpu.kernels: " + offenders);
+        }
     }
 
     @Test
-    void waveThreeElementwiseRuntimeOwnershipMovedToSegmentLoops() throws IOException {
+    void waveThreeElementwiseRuntimeOwnershipLivesInFamilyExecutors() throws IOException {
         assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/nativecpu/NativeCpuElementwiseExecutor.java")),
-                "Elementwise CPU_NATIVE runtime ownership belongs to segment loops, not a standalone native executor.");
+                "Elementwise CPU_NATIVE runtime ownership belongs to family executors, not a standalone native executor.");
         assertTrue(Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/ElementwiseBinaryExecutor.java"))
-                        .contains("BinaryMemorySegmentLoops.execute"),
-                "Binary elementwise runtime ownership must live in BinaryMemorySegmentLoops.");
+                        .contains("runDenseSegment"),
+                "Binary elementwise runtime ownership must live in ElementwiseBinaryExecutor.");
         assertTrue(Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary/ElementwiseUnaryExecutor.java"))
-                        .contains("UnaryMemorySegmentLoops.execute"),
-                "Unary elementwise runtime ownership must live in UnaryMemorySegmentLoops.");
+                        .contains("runDenseSegment"),
+                "Unary elementwise runtime ownership must live in ElementwiseUnaryExecutor.");
         assertTrue(Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/where/WhereExecutor.java"))
                         .contains("WhereStorageLoops.execute"),
                 "WHERE runtime ownership must live in WhereStorageLoops.");
@@ -299,7 +507,7 @@ public class CpuKernelFamilyArchitectureTest {
 
     @Test
     void waveSevenFusedMemorySegmentBindingIsNotOwnedByCpuKernelContext() throws IOException {
-        String context = Files.readString(Path.of("src/main/java/backend/cpu/kernels/CpuKernelContext.java"));
+        String context = Files.readString(Path.of("src/main/java/backend/cpu/execution/CpuKernelContext.java"));
         assertFalse(context.contains("java.lang.foreign.MemorySegment"),
                 "CpuKernelContext must not import or expose MemorySegment for fused special cases.");
         assertFalse(context.contains("bindFusedNativeSegments"),
@@ -340,7 +548,7 @@ public class CpuKernelFamilyArchitectureTest {
     }
 
     private static void assertPackage(Operation.OpType opType, String expectedPackage) {
-        CpuKernel kernel = CpuKernelResolver.resolve(opType);
+        CpuKernel kernel = CpuKernelRegistry.resolve(opType);
         assertEquals(expectedPackage, kernel.getClass().getPackageName(), () ->
                 "Kernel for " + opType + " should live in " + expectedPackage + " but was " + kernel.getClass().getPackageName());
     }
@@ -373,9 +581,56 @@ public class CpuKernelFamilyArchitectureTest {
         return suffix.endsWith(";") ? suffix.substring(0, suffix.length() - 1) : suffix;
     }
 
+    private static void assertPlanRootType(String fileName) throws IOException {
+        Path newPath = Path.of("src/main/java/backend/cpu/plan", fileName);
+        Path oldPath = Path.of("src/main/java/backend/cpu/kernels", fileName);
+        assertTrue(Files.exists(newPath), fileName + " must live under backend.cpu.plan.");
+        assertTrue(Files.readString(newPath).contains("package backend.cpu.plan;"),
+                fileName + " must declare package backend.cpu.plan.");
+        assertFalse(Files.exists(oldPath), fileName + " must not remain under backend.cpu.kernels.");
+    }
+
+    private static void assertNativeCpuRootType(String fileName) throws IOException {
+        Path newPath = Path.of("src/main/java/backend/cpu/nativecpu", fileName);
+        Path oldPath = Path.of("src/main/java/backend/cpu/kernels", fileName);
+        assertTrue(Files.exists(newPath), fileName + " must live under backend.cpu.nativecpu.");
+        assertTrue(Files.readString(newPath).contains("package backend.cpu.nativecpu;"),
+                fileName + " must declare package backend.cpu.nativecpu.");
+        assertFalse(Files.exists(oldPath), fileName + " must not remain under backend.cpu.kernels.");
+    }
+
+    private static void assertCpuExecutionRootType(String fileName) throws IOException {
+        Path newPath = Path.of("src/main/java/backend/cpu/execution", fileName);
+        Path oldPath = Path.of("src/main/java/backend/cpu/kernels", fileName);
+        assertTrue(Files.exists(newPath), fileName + " must live under backend.cpu.execution.");
+        assertTrue(Files.readString(newPath).contains("package backend.cpu.execution;"),
+                fileName + " must declare package backend.cpu.execution.");
+        assertFalse(Files.exists(oldPath), fileName + " must not remain under backend.cpu.kernels.");
+    }
+
     private static boolean contains(Path path, String needle) {
         try {
             return Files.readString(path).contains(needle);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static boolean declaresKernelProviderPackage(Path path) {
+        return containsMatchingLine(path, line -> line.startsWith("package backend.cpu.kernels.")
+                && line.contains(".provider"));
+    }
+
+    private static boolean importsKernelProviderPackage(Path path) {
+        return containsMatchingLine(path, line -> line.startsWith("import backend.cpu.kernels.")
+                && line.contains(".provider."));
+    }
+
+    private static boolean containsMatchingLine(Path path, java.util.function.Predicate<String> predicate) {
+        try {
+            return Files.readAllLines(path).stream()
+                    .map(String::trim)
+                    .anyMatch(predicate);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

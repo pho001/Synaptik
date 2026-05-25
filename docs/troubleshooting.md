@@ -517,7 +517,7 @@ Fix path:
 
 1. Implement the relevant `forwardF64`, `forwardF32`, `forwardBF16`, `forwardBOOL`, or `forwardI32` method.
 2. Confirm `ResolvedCpuComputeContract` and planner output route to the expected dtype.
-3. Register the kernel in `src/main/java/backend/cpu/registry/CpuKernelResolver.java`.
+3. Register the kernel in `src/main/java/backend/cpu/kernels/CpuKernelRegistry.java`.
 4. Add dtype coverage:
 
 ```bash
@@ -538,7 +538,7 @@ Missing CPU kernel for opType=<TYPE>
 Fix:
 
 - Add the new `Operation.OpType` to `src/main/java/operations/Operation.java`.
-- Add a singleton and switch branch in `src/main/java/backend/cpu/registry/CpuKernelResolver.java`.
+- Add a singleton and switch branch in `src/main/java/backend/cpu/kernels/CpuKernelRegistry.java`.
 - If the op is intentionally internal to fused planning, do not route it as a standalone compiled node.
 
 Run:

@@ -1,8 +1,8 @@
 package backend.cpu.kernels.layout;
 
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.kernels.CpuNativeTraceSupport;
+import backend.cpu.execution.CpuKernelContext;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.nativecpu.CpuNativeTraceSupport;
 import backend.memory.CpuMaterializationReason;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
@@ -202,7 +202,7 @@ final class LayoutExecutor {
             MemorySegment out = output.segment();
             for (int i = 0; i < size; i++) {
                 out.set(JAVA_SHORT, (long) i * Short.BYTES,
-                        CpuDTypeOps.toBFloat16Bits(in.get(JAVA_FLOAT, (long) i * Float.BYTES)));
+                        TensorDTypeOps.toBFloat16Bits(in.get(JAVA_FLOAT, (long) i * Float.BYTES)));
             }
             output.markModified();
             return;
@@ -212,7 +212,7 @@ final class LayoutExecutor {
             MemorySegment out = output.segment();
             for (int i = 0; i < size; i++) {
                 out.set(JAVA_FLOAT, (long) i * Float.BYTES,
-                        CpuDTypeOps.fromBFloat16Bits(in.get(JAVA_SHORT, (long) i * Short.BYTES)));
+                        TensorDTypeOps.fromBFloat16Bits(in.get(JAVA_SHORT, (long) i * Short.BYTES)));
             }
             output.markModified();
             return;

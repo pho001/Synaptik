@@ -1,5 +1,7 @@
 package backend.cpu.kernels.index;
 
+import backend.cpu.execution.CpuKernelContext;
+
 import backend.cpu.kernels.*;
 
 import operations.Operation;
@@ -8,9 +10,9 @@ import tensor.Tensor;
 
 import java.util.List;
 
-public final class CpuScatterAddKernel implements CpuKernel {
+public final class CpuScatterAddKernel extends TypedCpuKernel {
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof scatterAdd scatterAddOp)) {
             throw new IllegalArgumentException("CpuScatterAddKernel requires scatterAdd operation");
         }
@@ -19,7 +21,7 @@ public final class CpuScatterAddKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof scatterAdd scatterAddOp)) {
             throw new IllegalArgumentException("CpuScatterAddKernel requires scatterAdd operation");
         }
@@ -28,7 +30,7 @@ public final class CpuScatterAddKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof scatterAdd scatterAddOp)) {
             throw new IllegalArgumentException("CpuScatterAddKernel requires scatterAdd operation");
         }

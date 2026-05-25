@@ -2,7 +2,7 @@ package backend.cpu.kernels.elementwise.strided;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.execution.CpuKernelContext;
 import operations.Operation;
 import tensor.Tensor;
 

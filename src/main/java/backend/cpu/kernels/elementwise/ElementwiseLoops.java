@@ -2,13 +2,13 @@ package backend.cpu.kernels.elementwise;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.kernels.CpuExecutionMode;
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.CpuThreadPool;
-import backend.cpu.kernels.layout.plan.ResolvedBroadcastPlan;
-import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
-import backend.cpu.kernels.layout.plan.ResolvedWhereBroadcastPlan;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.plan.CpuExecutionMode;
+import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.execution.CpuThreadPool;
+import backend.cpu.plan.layout.ResolvedBroadcastPlan;
+import backend.cpu.plan.elementwise.ResolvedDispatchHints;
+import backend.cpu.plan.layout.ResolvedWhereBroadcastPlan;
 import backend.cpu.kernels.elementwise.binary.BinaryElementwiseKernel;
 import backend.cpu.kernels.elementwise.compare.CompareElementwiseKernel;
 import backend.cpu.kernels.elementwise.logical.LogicalBinaryElementwiseKernel;
@@ -1326,7 +1326,7 @@ public final class ElementwiseLoops {
     }
 
     private static float loadBF16(float[] continuation, short[] storage, int index) {
-        return continuation != null ? continuation[index] : CpuDTypeOps.fromBFloat16Bits(storage[index]);
+        return continuation != null ? continuation[index] : TensorDTypeOps.fromBFloat16Bits(storage[index]);
     }
 
     private static boolean canPublishFloatContinuation(CpuKernelContext context) {
@@ -1336,7 +1336,7 @@ public final class ElementwiseLoops {
     }
 
     private static short storeBF16(float value) {
-        return CpuDTypeOps.toBFloat16Bits(value);
+        return TensorDTypeOps.toBFloat16Bits(value);
     }
 
     private static UnsupportedOperationException unsupported(DataType dataType, String kind) {

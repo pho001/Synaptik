@@ -168,7 +168,7 @@ public class BroadcastContractMatrixTest {
                 default -> throw new IllegalArgumentException("Unsupported op: " + op);
             };
             out[i] = dataType == DataType.BFLOAT16
-                    ? backend.cpu.kernels.CpuDTypeOps.fromBFloat16Bits(backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits((float) value))
+                    ? tensor.dtype.TensorDTypeOps.fromBFloat16Bits(tensor.dtype.TensorDTypeOps.toBFloat16Bits((float) value))
                     : value;
         }
         return out;
@@ -280,7 +280,7 @@ public class BroadcastContractMatrixTest {
             case BFLOAT16 -> {
                 short[] out = new short[values.length];
                 for (int i = 0; i < values.length; i++) {
-                    out[i] = backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits((float) values[i]);
+                    out[i] = tensor.dtype.TensorDTypeOps.toBFloat16Bits((float) values[i]);
                 }
                 yield new Tensor(out, shape, null, label, DataType.BFLOAT16);
             }

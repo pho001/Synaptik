@@ -1058,7 +1058,7 @@ public class CpuFusedMemorySegmentExecutionTest {
             public void applyRangeScalar(
                     List<Tensor> inputs,
                     Tensor out,
-                    backend.cpu.kernels.CpuKernelContext context,
+                    backend.cpu.execution.CpuKernelContext context,
                     int startInclusive,
                     int endExclusive
             ) {
@@ -1070,7 +1070,7 @@ public class CpuFusedMemorySegmentExecutionTest {
             public void applyRangeVector(
                     List<Tensor> inputs,
                     Tensor out,
-                    backend.cpu.kernels.CpuKernelContext context,
+                    backend.cpu.execution.CpuKernelContext context,
                     int startInclusive,
                     int endExclusive
             ) {
@@ -1100,7 +1100,7 @@ public class CpuFusedMemorySegmentExecutionTest {
         );
     }
 
-    private static void writePartialNativeOutput(backend.cpu.kernels.CpuKernelContext context) {
+    private static void writePartialNativeOutput(backend.cpu.execution.CpuKernelContext context) {
         NativeTensorStorage output = FusedNativeSegmentBindings.outputStorage(context);
         if (output instanceof NativeFloat32Storage f32 && output.getSize() > 0) {
             f32.setFloat32At(0, 123.0f);

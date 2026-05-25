@@ -1,7 +1,7 @@
 package backend.cpu.kernels.elementwise;
 
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.storage.CpuStorageView;
+import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.storage.CpuStorageView;
 import backend.memory.CpuMaterializationReason;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;

@@ -1,15 +1,15 @@
 package backend.cpu.kernels.elementwise.logical;
 
-import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.kernels.TypedCpuKernel;
+import backend.cpu.execution.CpuKernelContext;
 import operations.Operation;
 import tensor.Tensor;
 
 import java.util.List;
 
-public final class CpuLogicalNotKernel implements CpuKernel, LogicalUnaryElementwiseKernel {
+public final class CpuLogicalNotKernel extends TypedCpuKernel implements LogicalUnaryElementwiseKernel {
     @Override
-    public void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         LogicalExecutor.executeUnary(this, inputs, node, context);
     }
 

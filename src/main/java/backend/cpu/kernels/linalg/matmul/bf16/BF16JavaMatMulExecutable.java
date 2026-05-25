@@ -1,7 +1,7 @@
 package backend.cpu.kernels.linalg.matmul.bf16;
 
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
+import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import tensor.Tensor;
 
 public final class BF16JavaMatMulExecutable extends AbstractBF16MatMulExecutable {

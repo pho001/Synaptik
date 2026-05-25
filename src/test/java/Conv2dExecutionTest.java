@@ -126,21 +126,21 @@ public class Conv2dExecutionTest {
         assertArrayEquals(new double[]{-4, -4, -4, -4}, out32.toDoubleArrayCopy(), 1e-6);
 
         short[] input16Data = new short[]{
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(1),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(2),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(3),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(4),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(5),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(6),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(7),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(8),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(9)
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(1),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(2),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(3),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(4),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(5),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(6),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(7),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(8),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(9)
         };
         short[] weight16Data = new short[]{
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(1),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(0),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(0),
-                backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(-1)
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(1),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(0),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(0),
+                tensor.dtype.TensorDTypeOps.toBFloat16Bits(-1)
         };
         Tensor input16 = new Tensor(input16Data, new int[]{1, 1, 3, 3}, null, "input16", DataType.BFLOAT16);
         Tensor weight16 = new Tensor(weight16Data, new int[]{1, 1, 2, 2}, null, "weight16", DataType.BFLOAT16);

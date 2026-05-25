@@ -99,7 +99,7 @@ This composition-first path keeps the semantic graph clean. It avoids creating a
 | Primitive graph construction | [`TensorPrimitiveBuilder.java`](../src/main/java/tensor/internal/TensorPrimitiveBuilder.java) |
 | Binary broadcasting planner | [`TensorBroadcastOps.java`](../src/main/java/tensor/TensorBroadcastOps.java), [`BroadcastPlanner.java`](../src/main/java/tensor/layout/BroadcastPlanner.java) |
 | DType helpers | [`TensorDTypes.java`](../src/main/java/tensor/dtype/TensorDTypes.java), [`DataType.java`](../src/main/java/tensor/DataType.java) |
-| CPU kernel resolver | [`CpuKernelResolver.java`](../src/main/java/backend/cpu/registry/CpuKernelResolver.java) |
+| CPU kernel resolver | [`CpuKernelRegistry.java`](../src/main/java/backend/cpu/kernels/CpuKernelRegistry.java) |
 | CPU prepare | [`CpuNodePreparer.java`](../src/main/java/backend/cpu/prepare/CpuNodePreparer.java) |
 | CSE parameter signatures | [`CommonSubexpressionEliminationRule.java`](../src/main/java/graph/optimizer/simplify/CommonSubexpressionEliminationRule.java) |
 | CPU fused planning/codegen | [`backend/cpu/fused`](../src/main/java/backend/cpu/fused) |
@@ -122,7 +122,7 @@ Use this checklist for any new operation:
 9. Attach backward logic with `TensorInternalAccess.setGradientRule(...)` and `GradientContext.accumulate(...)` if the operation participates in autograd.
 10. Add a static facade method in `TensorOps`.
 11. Add an instance method in `Tensor` when the operation should be fluent.
-12. Add a CPU kernel and register it in `CpuKernelResolver`.
+12. Add a CPU kernel and register it in `CpuKernelRegistry`.
 13. Update `CpuNodePreparer` only if the operation needs workspace, prepared metadata, caches, or a special compute plan.
 14. Update CSE `parameterKey(...)` if the descriptor carries any semantic parameter.
 15. Update fusion/accelerator allowlists only after the operation is actually implemented and tested in those paths.
@@ -285,7 +285,7 @@ Every operation that can survive optimization into execution needs backend suppo
 1. Add a kernel class under the correct package.
 2. Implement the relevant `CpuKernel` dtype entry points.
 3. Reuse the family executor when possible.
-4. Register the singleton in [`CpuKernelResolver.java`](../src/main/java/backend/cpu/registry/CpuKernelResolver.java).
+4. Register the singleton in [`CpuKernelRegistry.java`](../src/main/java/backend/cpu/kernels/CpuKernelRegistry.java).
 
 For a unary elementwise op, follow existing kernels such as [`CpuNegKernel.java`](../src/main/java/backend/cpu/kernels/elementwise/unary/CpuNegKernel.java), [`CpuPowKernel.java`](../src/main/java/backend/cpu/kernels/elementwise/unary/CpuPowKernel.java), or [`CpuReluKernel.java`](../src/main/java/backend/cpu/kernels/elementwise/unary/CpuReluKernel.java).
 

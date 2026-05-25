@@ -2,7 +2,7 @@ package backend.accelerator.exec;
 
 import backend.cpu.CpuFusedExecutionArtifact;
 import backend.cpu.CpuNodeExecutionArtifact;
-import backend.cpu.kernels.CpuNodeExecutionPlan;
+import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.plan.CpuPreparedInput;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;

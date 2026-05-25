@@ -1,5 +1,7 @@
 package backend.cpu.kernels.index;
 
+import tensor.dtype.TensorDTypeOps;
+
 import tensor.TensorInternalAccess;
 
 import backend.cpu.kernels.*;
@@ -87,7 +89,7 @@ final class IndexReadWriteBackend {
         validateGatherAxis(input, indices, out, axis);
         short[] dst = TensorInternalAccess.bfloat16Data(out);
         forEachGatherAxis(input, indices, out, axis, (sourceLogical, outLogical) ->
-                dst[outLogical] = CpuDTypeOps.toBFloat16Bits((float) input.getByFlatIndex(sourceLogical))
+                dst[outLogical] = TensorDTypeOps.toBFloat16Bits((float) input.getByFlatIndex(sourceLogical))
         );
     }
 
@@ -191,12 +193,12 @@ final class IndexReadWriteBackend {
 
     public static void gatherNdGradBF16(Tensor indices, Tensor outGrad, Tensor node, int batchDims) {
         validateGatherNdGrad(indices, outGrad, node, batchDims);
-        java.util.Arrays.fill(TensorInternalAccess.bfloat16Data(node), CpuDTypeOps.toBFloat16Bits(0.0f));
+        java.util.Arrays.fill(TensorInternalAccess.bfloat16Data(node), TensorDTypeOps.toBFloat16Bits(0.0f));
         short[] grad = TensorInternalAccess.bfloat16Data(outGrad);
         short[] dst = TensorInternalAccess.bfloat16Data(node);
         forEachGatherNd(node, indices, outGrad, batchDims, (targetOffset, gradOffset) -> {
-            float acc = CpuDTypeOps.fromBFloat16Bits(dst[targetOffset]) + CpuDTypeOps.fromBFloat16Bits(grad[gradOffset]);
-            dst[targetOffset] = CpuDTypeOps.toBFloat16Bits(acc);
+            float acc = TensorDTypeOps.fromBFloat16Bits(dst[targetOffset]) + TensorDTypeOps.fromBFloat16Bits(grad[gradOffset]);
+            dst[targetOffset] = TensorDTypeOps.toBFloat16Bits(acc);
         });
     }
 
@@ -277,8 +279,8 @@ final class IndexReadWriteBackend {
         short[] grad = TensorInternalAccess.bfloat16Data(outGrad);
         short[] dst = TensorInternalAccess.bfloat16Data(node);
         forEachScatter(indices, outGrad, node, dimension, (baseNode, baseGrad, axisStrideNode, axisStrideGrad, axisIndex) -> {
-            float acc = CpuDTypeOps.fromBFloat16Bits(dst[baseNode + axisIndex * axisStrideNode]) + CpuDTypeOps.fromBFloat16Bits(grad[baseGrad]);
-            dst[baseNode + axisIndex * axisStrideNode] = CpuDTypeOps.toBFloat16Bits(acc);
+            float acc = TensorDTypeOps.fromBFloat16Bits(dst[baseNode + axisIndex * axisStrideNode]) + TensorDTypeOps.fromBFloat16Bits(grad[baseGrad]);
+            dst[baseNode + axisIndex * axisStrideNode] = TensorDTypeOps.toBFloat16Bits(acc);
         });
     }
 
@@ -302,11 +304,11 @@ final class IndexReadWriteBackend {
 
     public static void gatherAxisGradBF16(Tensor indices, Tensor outGrad, Tensor node, int axis) {
         validateGatherAxisGrad(indices, outGrad, node, axis);
-        java.util.Arrays.fill(TensorInternalAccess.bfloat16Data(node), CpuDTypeOps.toBFloat16Bits(0.0f));
+        java.util.Arrays.fill(TensorInternalAccess.bfloat16Data(node), TensorDTypeOps.toBFloat16Bits(0.0f));
         short[] dst = TensorInternalAccess.bfloat16Data(node);
         forEachGatherAxisGrad(indices, outGrad, node, axis, (sourceLogical, outLogical) -> {
-            float acc = CpuDTypeOps.fromBFloat16Bits(dst[sourceLogical]) + (float) outGrad.getByFlatIndex(outLogical);
-            dst[sourceLogical] = CpuDTypeOps.toBFloat16Bits(acc);
+            float acc = TensorDTypeOps.fromBFloat16Bits(dst[sourceLogical]) + (float) outGrad.getByFlatIndex(outLogical);
+            dst[sourceLogical] = TensorDTypeOps.toBFloat16Bits(acc);
         });
     }
 
@@ -333,8 +335,8 @@ final class IndexReadWriteBackend {
         out.copyDataFrom(data);
         short[] dst = TensorInternalAccess.bfloat16Data(out);
         forEachGatherAxisGrad(indices, updates, out, axis, (targetLogical, updateLogical) -> {
-            float acc = CpuDTypeOps.fromBFloat16Bits(dst[targetLogical]) + (float) updates.getByFlatIndex(updateLogical);
-            dst[targetLogical] = CpuDTypeOps.toBFloat16Bits(acc);
+            float acc = TensorDTypeOps.fromBFloat16Bits(dst[targetLogical]) + (float) updates.getByFlatIndex(updateLogical);
+            dst[targetLogical] = TensorDTypeOps.toBFloat16Bits(acc);
         });
     }
 
@@ -364,8 +366,8 @@ final class IndexReadWriteBackend {
         short[] srcData = TensorInternalAccess.bfloat16Data(src);
         short[] dst = TensorInternalAccess.bfloat16Data(out);
         forEachScatter(indices, src, out, dimension, (baseNode, baseGrad, axisStrideNode, axisStrideGrad, axisIndex) -> {
-            float acc = CpuDTypeOps.fromBFloat16Bits(dst[baseNode + axisIndex * axisStrideNode]) + CpuDTypeOps.fromBFloat16Bits(srcData[baseGrad]);
-            dst[baseNode + axisIndex * axisStrideNode] = CpuDTypeOps.toBFloat16Bits(acc);
+            float acc = TensorDTypeOps.fromBFloat16Bits(dst[baseNode + axisIndex * axisStrideNode]) + TensorDTypeOps.fromBFloat16Bits(srcData[baseGrad]);
+            dst[baseNode + axisIndex * axisStrideNode] = TensorDTypeOps.toBFloat16Bits(acc);
         });
     }
 
@@ -401,9 +403,9 @@ final class IndexReadWriteBackend {
         scatterDuplicateState(out, effectiveReduction, "scatterElements", state ->
                 forEachScatterElements(data, indices, updates, out, axis, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
-                    float current = CpuDTypeOps.fromBFloat16Bits(dst[targetOffset]);
-                    float update = CpuDTypeOps.fromBFloat16Bits(updateData[updateOffset]);
-                    dst[targetOffset] = CpuDTypeOps.toBFloat16Bits((float) reduce(current, update, effectiveReduction));
+                    float current = TensorDTypeOps.fromBFloat16Bits(dst[targetOffset]);
+                    float update = TensorDTypeOps.fromBFloat16Bits(updateData[updateOffset]);
+                    dst[targetOffset] = TensorDTypeOps.toBFloat16Bits((float) reduce(current, update, effectiveReduction));
                 }));
     }
 
@@ -475,9 +477,9 @@ final class IndexReadWriteBackend {
         scatterDuplicateState(out, effectiveReduction, "scatterNd", state ->
                 forEachScatterNd(data, indices, updates, out, batchDims, (updateOffset, targetOffset, targetLogical) -> {
                     state.mark(targetLogical);
-                    float current = CpuDTypeOps.fromBFloat16Bits(dst[targetOffset]);
-                    float update = CpuDTypeOps.fromBFloat16Bits(updateData[updateOffset]);
-                    dst[targetOffset] = CpuDTypeOps.toBFloat16Bits((float) reduce(current, update, effectiveReduction));
+                    float current = TensorDTypeOps.fromBFloat16Bits(dst[targetOffset]);
+                    float update = TensorDTypeOps.fromBFloat16Bits(updateData[updateOffset]);
+                    dst[targetOffset] = TensorDTypeOps.toBFloat16Bits((float) reduce(current, update, effectiveReduction));
                 }));
     }
 
@@ -540,8 +542,8 @@ final class IndexReadWriteBackend {
         short[] grad = TensorInternalAccess.bfloat16Data(outGrad);
         short[] dst = TensorInternalAccess.bfloat16Data(node);
         forEachTakeAlongAxisScatter(indices, outGrad, node, dimension, (baseNode, gradOffset, axisStrideNode, axisIndex) -> {
-            float acc = CpuDTypeOps.fromBFloat16Bits(dst[baseNode + axisIndex * axisStrideNode]) + CpuDTypeOps.fromBFloat16Bits(grad[gradOffset]);
-            dst[baseNode + axisIndex * axisStrideNode] = CpuDTypeOps.toBFloat16Bits(acc);
+            float acc = TensorDTypeOps.fromBFloat16Bits(dst[baseNode + axisIndex * axisStrideNode]) + TensorDTypeOps.fromBFloat16Bits(grad[gradOffset]);
+            dst[baseNode + axisIndex * axisStrideNode] = TensorDTypeOps.toBFloat16Bits(acc);
         });
     }
 

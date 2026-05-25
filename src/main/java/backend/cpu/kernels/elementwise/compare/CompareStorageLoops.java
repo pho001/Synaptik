@@ -1,8 +1,8 @@
 package backend.cpu.kernels.elementwise.compare;
 
-import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.CpuNativeTraceSupport;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.nativecpu.CpuNativeTraceSupport;
 import backend.cpu.kernels.elementwise.ElementwiseLoops;
 import backend.memory.CpuMaterializationReason;
 import config.runtime.CpuStorageProfile;
@@ -106,8 +106,8 @@ final class CompareStorageLoops {
     ) {
         for (int i = 0; i < size; i++) {
             long offset = (long) i * Short.BYTES;
-            float leftValue = CpuDTypeOps.fromBFloat16Bits(left.get(JAVA_SHORT, offset));
-            float rightValue = CpuDTypeOps.fromBFloat16Bits(right.get(JAVA_SHORT, offset));
+            float leftValue = TensorDTypeOps.fromBFloat16Bits(left.get(JAVA_SHORT, offset));
+            float rightValue = TensorDTypeOps.fromBFloat16Bits(right.get(JAVA_SHORT, offset));
             output[i] = kernel.testBF16(leftValue, rightValue) ? (byte) 1 : (byte) 0;
         }
     }

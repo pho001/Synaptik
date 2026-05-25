@@ -1,5 +1,7 @@
 package backend.cpu.kernels.elementwise.strided;
 
+import backend.cpu.kernels.elementwise.ElementwiseOffsetCursor;
+
 final class StridedScalarLoops {
     private StridedScalarLoops() {
     }
@@ -204,7 +206,7 @@ final class StridedScalarLoops {
         if (logicalSize <= 0) {
             return;
         }
-        StridedOffsetCursor cursor = new StridedOffsetCursor(
+        ElementwiseOffsetCursor cursor = new ElementwiseOffsetCursor(
                 shape,
                 new int[][]{outStrides, aStrides},
                 new int[]{outBaseOffset, aBaseOffset}
@@ -234,7 +236,7 @@ final class StridedScalarLoops {
         if (logicalSize <= 0) {
             return;
         }
-        StridedOffsetCursor cursor = new StridedOffsetCursor(
+        ElementwiseOffsetCursor cursor = new ElementwiseOffsetCursor(
                 shape,
                 new int[][]{outStrides, aStrides, bStrides},
                 new int[]{outBaseOffset, aBaseOffset, bBaseOffset}
@@ -264,7 +266,7 @@ final class StridedScalarLoops {
         if (logicalSize <= 0) {
             return;
         }
-        StridedOffsetCursor cursor = new StridedOffsetCursor(
+        ElementwiseOffsetCursor cursor = new ElementwiseOffsetCursor(
                 shape,
                 new int[][]{outStrides, aStrides, bStrides},
                 new int[]{outBaseOffset, aBaseOffset, bBaseOffset}
@@ -294,7 +296,7 @@ final class StridedScalarLoops {
         if (logicalSize <= 0) {
             return;
         }
-        StridedOffsetCursor cursor = new StridedOffsetCursor(
+        ElementwiseOffsetCursor cursor = new ElementwiseOffsetCursor(
                 shape,
                 new int[][]{outStrides, aStrides, bStrides},
                 new int[]{outBaseOffset, aBaseOffset, bBaseOffset}
@@ -324,7 +326,7 @@ final class StridedScalarLoops {
         if (logicalSize <= 0) {
             return;
         }
-        StridedOffsetCursor cursor = new StridedOffsetCursor(
+        ElementwiseOffsetCursor cursor = new ElementwiseOffsetCursor(
                 shape,
                 new int[][]{outStrides, aStrides, bStrides},
                 new int[]{outBaseOffset, aBaseOffset, bBaseOffset}
@@ -354,7 +356,7 @@ final class StridedScalarLoops {
         if (logicalSize <= 0) {
             return;
         }
-        StridedOffsetCursor cursor = new StridedOffsetCursor(
+        ElementwiseOffsetCursor cursor = new ElementwiseOffsetCursor(
                 shape,
                 new int[][]{outStrides, aStrides, bStrides},
                 new int[]{outBaseOffset, aBaseOffset, bBaseOffset}
@@ -384,7 +386,7 @@ final class StridedScalarLoops {
         if (logicalSize <= 0) {
             return;
         }
-        StridedOffsetCursor cursor = new StridedOffsetCursor(
+        ElementwiseOffsetCursor cursor = new ElementwiseOffsetCursor(
                 shape,
                 new int[][]{outStrides, aStrides, bStrides},
                 new int[]{outBaseOffset, aBaseOffset, bBaseOffset}
@@ -414,7 +416,7 @@ final class StridedScalarLoops {
         if (logicalSize <= 0) {
             return;
         }
-        StridedOffsetCursor cursor = new StridedOffsetCursor(
+        ElementwiseOffsetCursor cursor = new ElementwiseOffsetCursor(
                 shape,
                 new int[][]{outStrides, aStrides, bStrides},
                 new int[]{outBaseOffset, aBaseOffset, bBaseOffset}
@@ -441,7 +443,7 @@ final class StridedScalarLoops {
         if (logicalSize <= 0) {
             return;
         }
-        StridedOffsetCursor cursor = new StridedOffsetCursor(
+        ElementwiseOffsetCursor cursor = new ElementwiseOffsetCursor(
                 shape,
                 new int[][]{outStrides, aStrides},
                 new int[]{outBaseOffset, aBaseOffset}
@@ -468,7 +470,7 @@ final class StridedScalarLoops {
         if (logicalSize <= 0) {
             return;
         }
-        StridedOffsetCursor cursor = new StridedOffsetCursor(
+        ElementwiseOffsetCursor cursor = new ElementwiseOffsetCursor(
                 shape,
                 new int[][]{outStrides, aStrides},
                 new int[]{outBaseOffset, aBaseOffset}
@@ -495,7 +497,7 @@ final class StridedScalarLoops {
         if (logicalSize <= 0) {
             return;
         }
-        StridedOffsetCursor cursor = new StridedOffsetCursor(
+        ElementwiseOffsetCursor cursor = new ElementwiseOffsetCursor(
                 shape,
                 new int[][]{outStrides, aStrides},
                 new int[]{outBaseOffset, aBaseOffset}
@@ -527,7 +529,7 @@ final class StridedScalarLoops {
         if (logicalSize <= 0) {
             return;
         }
-        StridedOffsetCursor cursor = new StridedOffsetCursor(
+        ElementwiseOffsetCursor cursor = new ElementwiseOffsetCursor(
                 shape,
                 new int[][]{outStrides, condStrides, trueStrides, falseStrides},
                 new int[]{outBaseOffset, condBaseOffset, trueBaseOffset, falseBaseOffset}
@@ -559,7 +561,7 @@ final class StridedScalarLoops {
         if (logicalSize <= 0) {
             return;
         }
-        StridedOffsetCursor cursor = new StridedOffsetCursor(
+        ElementwiseOffsetCursor cursor = new ElementwiseOffsetCursor(
                 shape,
                 new int[][]{outStrides, condStrides, trueStrides, falseStrides},
                 new int[]{outBaseOffset, condBaseOffset, trueBaseOffset, falseBaseOffset}
@@ -591,7 +593,7 @@ final class StridedScalarLoops {
         if (logicalSize <= 0) {
             return;
         }
-        StridedOffsetCursor cursor = new StridedOffsetCursor(
+        ElementwiseOffsetCursor cursor = new ElementwiseOffsetCursor(
                 shape,
                 new int[][]{outStrides, condStrides, trueStrides, falseStrides},
                 new int[]{outBaseOffset, condBaseOffset, trueBaseOffset, falseBaseOffset}

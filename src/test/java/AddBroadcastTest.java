@@ -1,4 +1,4 @@
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
@@ -74,11 +74,11 @@ public class AddBroadcastTest {
     @Test
     public void testAddBackwardBroadcastBFloat16() {
         Tensor a = new Tensor(new short[]{
-                CpuDTypeOps.toBFloat16Bits(1f), CpuDTypeOps.toBFloat16Bits(2f), CpuDTypeOps.toBFloat16Bits(3f),
-                CpuDTypeOps.toBFloat16Bits(4f), CpuDTypeOps.toBFloat16Bits(5f), CpuDTypeOps.toBFloat16Bits(6f)
+                TensorDTypeOps.toBFloat16Bits(1f), TensorDTypeOps.toBFloat16Bits(2f), TensorDTypeOps.toBFloat16Bits(3f),
+                TensorDTypeOps.toBFloat16Bits(4f), TensorDTypeOps.toBFloat16Bits(5f), TensorDTypeOps.toBFloat16Bits(6f)
         }, new int[]{2, 3}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(new short[]{
-                CpuDTypeOps.toBFloat16Bits(10f), CpuDTypeOps.toBFloat16Bits(20f), CpuDTypeOps.toBFloat16Bits(30f)
+                TensorDTypeOps.toBFloat16Bits(10f), TensorDTypeOps.toBFloat16Bits(20f), TensorDTypeOps.toBFloat16Bits(30f)
         }, new int[]{3}, null, "b", DataType.BFLOAT16);
         a.setRequiresGrad(true);
         b.setRequiresGrad(true);

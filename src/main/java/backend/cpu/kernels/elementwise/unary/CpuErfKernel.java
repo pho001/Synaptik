@@ -1,26 +1,26 @@
 package backend.cpu.kernels.elementwise.unary;
 
-import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.kernels.TypedCpuKernel;
+import backend.cpu.execution.CpuKernelContext;
 import operations.Operation;
 import tensor.Tensor;
 import utils.SpecialFunctions;
 
 import java.util.List;
 
-public final class CpuErfKernel implements CpuKernel, UnaryElementwiseKernel {
+public final class CpuErfKernel extends TypedCpuKernel implements UnaryElementwiseKernel {
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         ElementwiseUnaryExecutor.execute(this, inputs, node, context);
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         ElementwiseUnaryExecutor.execute(this, inputs, node, context);
     }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         ElementwiseUnaryExecutor.execute(this, inputs, node, context);
     }
 

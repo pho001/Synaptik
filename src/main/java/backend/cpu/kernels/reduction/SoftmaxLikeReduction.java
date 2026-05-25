@@ -1,6 +1,6 @@
 package backend.cpu.kernels.reduction;
 
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
@@ -56,17 +56,17 @@ enum SoftmaxLikeReduction {
         void computeBF16(short[] in, short[] out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
-                max = Math.max(max, CpuDTypeOps.fromBFloat16Bits(in[inOffset]));
+                max = Math.max(max, TensorDTypeOps.fromBFloat16Bits(in[inOffset]));
             }
             float sum = 0.0f;
             for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
-                float value = (float) Math.exp(CpuDTypeOps.fromBFloat16Bits(in[inOffset]) - max);
-                out[outOffset] = CpuDTypeOps.toBFloat16Bits(value);
+                float value = (float) Math.exp(TensorDTypeOps.fromBFloat16Bits(in[inOffset]) - max);
+                out[outOffset] = TensorDTypeOps.toBFloat16Bits(value);
                 sum += value;
             }
             float inv = 1.0f / sum;
             for (int i = 0, outOffset = baseOut; i < axisSize; i++, outOffset += axisStrideOut) {
-                out[outOffset] = CpuDTypeOps.toBFloat16Bits(CpuDTypeOps.fromBFloat16Bits(out[outOffset]) * inv);
+                out[outOffset] = TensorDTypeOps.toBFloat16Bits(TensorDTypeOps.fromBFloat16Bits(out[outOffset]) * inv);
             }
         }
 
@@ -79,12 +79,12 @@ enum SoftmaxLikeReduction {
             float sum = 0.0f;
             for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
                 float value = (float) Math.exp(in[inOffset] - max);
-                out[outOffset] = CpuDTypeOps.toBFloat16Bits(value);
+                out[outOffset] = TensorDTypeOps.toBFloat16Bits(value);
                 sum += value;
             }
             float inv = 1.0f / sum;
             for (int i = 0, outOffset = baseOut; i < axisSize; i++, outOffset += axisStrideOut) {
-                out[outOffset] = CpuDTypeOps.toBFloat16Bits(CpuDTypeOps.fromBFloat16Bits(out[outOffset]) * inv);
+                out[outOffset] = TensorDTypeOps.toBFloat16Bits(TensorDTypeOps.fromBFloat16Bits(out[outOffset]) * inv);
             }
         }
 
@@ -138,15 +138,15 @@ enum SoftmaxLikeReduction {
         void computeBF16(short[] in, short[] out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
-                max = Math.max(max, CpuDTypeOps.fromBFloat16Bits(in[inOffset]));
+                max = Math.max(max, TensorDTypeOps.fromBFloat16Bits(in[inOffset]));
             }
             float sum = 0.0f;
             for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
-                sum += (float) Math.exp(CpuDTypeOps.fromBFloat16Bits(in[inOffset]) - max);
+                sum += (float) Math.exp(TensorDTypeOps.fromBFloat16Bits(in[inOffset]) - max);
             }
             float logSumExp = (float) (max + Math.log(sum));
             for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
-                out[outOffset] = CpuDTypeOps.toBFloat16Bits(CpuDTypeOps.fromBFloat16Bits(in[inOffset]) - logSumExp);
+                out[outOffset] = TensorDTypeOps.toBFloat16Bits(TensorDTypeOps.fromBFloat16Bits(in[inOffset]) - logSumExp);
             }
         }
 
@@ -162,7 +162,7 @@ enum SoftmaxLikeReduction {
             }
             float logSumExp = (float) (max + Math.log(sum));
             for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
-                out[outOffset] = CpuDTypeOps.toBFloat16Bits(in[inOffset] - logSumExp);
+                out[outOffset] = TensorDTypeOps.toBFloat16Bits(in[inOffset] - logSumExp);
             }
         }
 

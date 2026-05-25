@@ -6,10 +6,10 @@ import backend.ComputeBackend;
 import backend.cpu.CpuBackend;
 import backend.cpu.CpuFusedExecutionArtifact;
 import backend.cpu.CpuNodeExecutionArtifact;
-import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.CpuNativeStorageSupport;
-import backend.cpu.kernels.CpuNodeExecutionPlan;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.nativecpu.CpuNativeStorageSupport;
+import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.kernels.elementwise.unary.support.CpuPowSupport;
 import backend.cpu.kernels.elementwise.where.WhereElementwiseKernel;
 import backend.cpu.nativecpu.layout.NativeCpuStorageFamily;
@@ -285,8 +285,8 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         NativeBFloat16Storage out = allocateBF16(context, step, opLabel(op));
         int size = outTensor.getFlatDataSize();
         for (int i = 0; i < size; i++) {
-            float value = CpuDTypeOps.fromBFloat16Bits(input.getBFloat16BitsAt(i));
-            out.setBFloat16BitsAt(i, CpuDTypeOps.toBFloat16Bits(applyUnaryBF16(op, value)));
+            float value = TensorDTypeOps.fromBFloat16Bits(input.getBFloat16BitsAt(i));
+            out.setBFloat16BitsAt(i, TensorDTypeOps.toBFloat16Bits(applyUnaryBF16(op, value)));
         }
         context.attachNativeStorage(
                 step.compiledNode().id(),
@@ -722,8 +722,8 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
                 int rightIndex = broadcastedFlatIndex(i, outShape, outStrides, rightEffStrides);
                 out[i] = applyCompareF32(
                         op.opType(),
-                        CpuDTypeOps.fromBFloat16Bits(left.getBFloat16BitsAt(leftIndex)),
-                        CpuDTypeOps.fromBFloat16Bits(right.getBFloat16BitsAt(rightIndex))
+                        TensorDTypeOps.fromBFloat16Bits(left.getBFloat16BitsAt(leftIndex)),
+                        TensorDTypeOps.fromBFloat16Bits(right.getBFloat16BitsAt(rightIndex))
                 );
             }
         }
@@ -954,9 +954,9 @@ public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegio
         for (int i = 0; i < outSize; i++) {
             int leftIndex = broadcastedFlatIndex(i, outShape, outStrides, leftEffStrides);
             int rightIndex = broadcastedFlatIndex(i, outShape, outStrides, rightEffStrides);
-            float leftValue = CpuDTypeOps.fromBFloat16Bits(left.getBFloat16BitsAt(leftIndex));
-            float rightValue = CpuDTypeOps.fromBFloat16Bits(right.getBFloat16BitsAt(rightIndex));
-            out.setBFloat16BitsAt(i, CpuDTypeOps.toBFloat16Bits(applyDenseBinaryBF16(
+            float leftValue = TensorDTypeOps.fromBFloat16Bits(left.getBFloat16BitsAt(leftIndex));
+            float rightValue = TensorDTypeOps.fromBFloat16Bits(right.getBFloat16BitsAt(rightIndex));
+            out.setBFloat16BitsAt(i, TensorDTypeOps.toBFloat16Bits(applyDenseBinaryBF16(
                     op.opType(),
                     leftValue,
                     rightValue

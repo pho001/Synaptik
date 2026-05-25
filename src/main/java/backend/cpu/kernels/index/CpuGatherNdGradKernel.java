@@ -1,28 +1,28 @@
 package backend.cpu.kernels.index;
 
-import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.kernels.TypedCpuKernel;
+import backend.cpu.execution.CpuKernelContext;
 import operations.Operation;
 import operations.index.gatherNdGrad;
 import tensor.Tensor;
 
 import java.util.List;
 
-public final class CpuGatherNdGradKernel implements CpuKernel {
+public final class CpuGatherNdGradKernel extends TypedCpuKernel {
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
         IndexExecutor.gatherNdGradF64(pair[0], pair[1], node, requireOp(op).getBatchDims(), context);
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
         IndexExecutor.gatherNdGradF32(pair[0], pair[1], node, requireOp(op).getBatchDims(), context);
     }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
         IndexExecutor.gatherNdGradBF16(pair[0], pair[1], node, requireOp(op).getBatchDims(), context);
     }

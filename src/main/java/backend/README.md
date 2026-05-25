@@ -65,7 +65,7 @@ Do not add root wrappers for backend-specific implementation classes.
   - [prepare/BackendPrepareDispatcher.java](../backend/prepare/BackendPrepareDispatcher.java)
 - backend-specific preparers live under backend roots
 - CPU kernel resolution:
-  - target: `backend.cpu.registry.CpuKernelResolver`
+  - target: `backend.cpu.kernels.CpuKernelRegistry`
 - runtime context:
   - [runtime/ExecutionContext.java](../backend/runtime/ExecutionContext.java)
 

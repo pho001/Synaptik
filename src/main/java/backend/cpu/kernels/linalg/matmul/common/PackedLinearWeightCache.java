@@ -2,8 +2,8 @@ package backend.cpu.kernels.linalg.matmul.common;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import tensor.Tensor;
 import tensor.storage.TensorStorage;
 
@@ -313,7 +313,7 @@ public final class PackedLinearWeightCache {
                     for (int p = kk; p < kkEnd; p++) {
                         int src = baseOffset + p * n + jj;
                         for (int col = 0; col < panelWidth; col++) {
-                            packed[dst++] = CpuDTypeOps.fromBFloat16Bits(data[src + col]);
+                            packed[dst++] = TensorDTypeOps.fromBFloat16Bits(data[src + col]);
                         }
                     }
                     panels[panelIndex++] = packed;

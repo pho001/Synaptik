@@ -2,15 +2,15 @@ package backend.cpu.nativecpu;
 
 import backend.ComputeBackend;
 import backend.blas.OpenBlasRuntime;
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.kernels.CpuNodeExecutionPlan;
+import backend.cpu.execution.CpuKernelContext;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.bf16.BF16NativeBlasMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.f32.F32NativeBlasMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.f64.F64NativeBlasMatMulExecutable;
-import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
-import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
+import backend.cpu.plan.linalg.matmul.MatMulExecutionRoute;
+import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.StorageResidency;
 import backend.runtime.ExecutionContext;
@@ -331,7 +331,7 @@ class NativeOpenBlasMatMulExecutableTest {
     private static float[] read(NativeBFloat16Storage storage) {
         float[] out = new float[storage.getSize()];
         for (int i = 0; i < out.length; i++) {
-            out[i] = CpuDTypeOps.fromBFloat16Bits(storage.getBFloat16BitsAt(i));
+            out[i] = TensorDTypeOps.fromBFloat16Bits(storage.getBFloat16BitsAt(i));
         }
         return out;
     }

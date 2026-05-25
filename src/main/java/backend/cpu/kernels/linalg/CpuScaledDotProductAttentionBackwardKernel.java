@@ -1,29 +1,29 @@
 package backend.cpu.kernels.linalg;
 
-import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.CpuKernelCostClass;
+import backend.cpu.kernels.TypedCpuKernel;
+import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.plan.CpuKernelCostClass;
 import operations.Operation;
 import operations.linalg.scaledDotProductAttentionBackward;
 import tensor.Tensor;
 
 import java.util.List;
 
-public final class CpuScaledDotProductAttentionBackwardKernel implements CpuKernel {
+public final class CpuScaledDotProductAttentionBackwardKernel extends TypedCpuKernel {
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(inputs);
         ScaledDotProductAttentionExecutor.executeBackwardF64(require(op).getOutputKind(), pair[0], pair[1], node, context);
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(inputs);
         ScaledDotProductAttentionExecutor.executeBackwardF32(require(op).getOutputKind(), pair[0], pair[1], node, context);
     }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(inputs);
         ScaledDotProductAttentionExecutor.executeBackwardBF16(require(op).getOutputKind(), pair[0], pair[1], node, context);
     }

@@ -1,12 +1,11 @@
 package backend.cpu;
 
 import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.CpuNodeExecutionPlan;
-import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
-import backend.cpu.kernels.elementwise.strided.CpuStridedElementWise;
-import backend.cpu.kernels.plan.CpuExecutionPlanner;
-import backend.cpu.kernels.plan.CpuPlanAssembler;
+import backend.cpu.execution.CpuKernelExecutor;
+import backend.cpu.plan.CpuNodeExecutionPlan;
+import backend.cpu.plan.elementwise.ResolvedDispatchHints;
+import backend.cpu.prepare.CpuExecutionPlanner;
+import backend.cpu.prepare.CpuPlanAssembler;
 import backend.runtime.ExecutionContext;
 import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
@@ -23,6 +22,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class CpuBackend {
+    private final CpuKernelExecutor kernelExecutor = new CpuKernelExecutor();
+
     public void execute(
             CompiledNode node,
             CompiledNodeExecutionMetadata metadata,
@@ -46,11 +47,6 @@ public final class CpuBackend {
                     " (operation class: " + op.getClass().getName() + ")"
             );
         }
-        var cpuWorkspace = executionContext.cpuWorkspaceForNodeId(node.id());
-        if (cpuWorkspace != null) {
-            cpuWorkspace.clearFloatContinuation();
-        }
-
         if (executionPlan == null) {
             throw new IllegalStateException("Missing CpuNodeExecutionPlan for node " + node.label());
         }
@@ -61,21 +57,18 @@ public final class CpuBackend {
         List<Tensor> originalInputs = resolveRuntimeInputs(effectiveInputNodeIds, executionContext);
         List<Tensor> inputs = executionPlan.apply(node.id(), originalInputs, executionContext);
         List<CompiledNodeExecutionMetadata> inputMetadatas = resolveInputMetadatas(effectiveInputNodeIds, originalInputs, inputs, executionContext);
-        if (executionPlan.stridedPath()) {
-            CpuStridedElementWise.forward(op, inputs, runtimeTensor, new CpuKernelContext(node.id(), effectiveInputNodeIds, executionPlan, executionContext, metadata, inputMetadatas, op));
-            return;
-        }
-
-        CpuKernelContext kernelContext = new CpuKernelContext(node.id(), effectiveInputNodeIds, executionPlan, executionContext, metadata, inputMetadatas, op);
-
-        switch (node.dataType()) {
-            case FLOAT64 -> kernel.forwardF64(op, inputs, runtimeTensor, kernelContext);
-            case FLOAT32 -> kernel.forwardF32(op, inputs, runtimeTensor, kernelContext);
-            case BFLOAT16 -> kernel.forwardBF16(op, inputs, runtimeTensor, kernelContext);
-            case INT32 -> kernel.forwardI32(op, inputs, runtimeTensor, kernelContext);
-            case INT64 -> kernel.forwardI64(op, inputs, runtimeTensor, kernelContext);
-            case BOOL -> kernel.forwardBOOL(op, inputs, runtimeTensor, kernelContext);
-        }
+        kernelExecutor.execute(
+                kernel,
+                op,
+                inputs,
+                runtimeTensor,
+                node.id(),
+                effectiveInputNodeIds,
+                executionPlan,
+                executionContext,
+                metadata,
+                inputMetadatas
+        );
 
         if (node.dataType() != DataType.FLOAT64) {
         }

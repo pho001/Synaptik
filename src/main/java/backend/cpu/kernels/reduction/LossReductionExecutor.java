@@ -2,8 +2,8 @@ package backend.cpu.kernels.reduction;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.kernels.CpuKernelContext;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.execution.CpuKernelContext;
 import tensor.Tensor;
 
 final class LossReductionExecutor {
@@ -43,7 +43,7 @@ final class LossReductionExecutor {
                 (baseA, baseB, axisStrideA, axisStrideB, axisSize) ->
                         reduction.computeBF16(aData, bData, baseA, baseB, axisStrideA, axisStrideB, axisSize)
         );
-        TensorInternalAccess.bfloat16Data(node)[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toBFloat16Bits(loss);
+        TensorInternalAccess.bfloat16Data(node)[node.getStorageOffsetUnsafe()] = TensorDTypeOps.toBFloat16Bits(loss);
     }
 
     static void executeF32ToBF16(LossReduction reduction, Tensor a, float[] aData, Tensor b, Tensor node, int classDimension, CpuKernelContext context) {
@@ -58,7 +58,7 @@ final class LossReductionExecutor {
                 (baseA, baseB, axisStrideA, axisStrideB, axisSize) ->
                         reduction.computeF32ToBF16(aData, bData, baseA, baseB, axisStrideA, axisStrideB, axisSize)
         );
-        TensorInternalAccess.bfloat16Data(node)[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toBFloat16Bits(loss);
+        TensorInternalAccess.bfloat16Data(node)[node.getStorageOffsetUnsafe()] = TensorDTypeOps.toBFloat16Bits(loss);
     }
 
     private static void validate(LossReduction reduction, Tensor a, Tensor b, Tensor node, CpuKernelContext context) {

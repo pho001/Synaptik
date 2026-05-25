@@ -2,7 +2,7 @@ package onnx;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 import com.google.protobuf.ByteString;
 import tensor.DataType;
 import tensor.Tensor;
@@ -283,7 +283,7 @@ final class OnnxTensorProtoUtil {
         double[] values = tensor.toDoubleArrayCopy();
         short[] out = new short[values.length];
         for (int i = 0; i < values.length; i++) {
-            out[i] = CpuDTypeOps.toBFloat16Bits((float) values[i]);
+            out[i] = TensorDTypeOps.toBFloat16Bits((float) values[i]);
         }
         return out;
     }

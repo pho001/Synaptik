@@ -1,6 +1,6 @@
 package backend.cpu.kernels.elementwise.logical;
 
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.execution.CpuKernelContext;
 import tensor.DataType;
 import tensor.Tensor;
 

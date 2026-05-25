@@ -1,5 +1,7 @@
 package backend.cpu.kernels.nn;
 
+import tensor.dtype.TensorDTypeOps;
+
 import tensor.TensorInternalAccess;
 
 import backend.cpu.kernels.*;
@@ -208,7 +210,7 @@ final class Pool2dDirectBackend {
                                 if (iw < 0 || iw >= inW) {
                                     continue;
                                 }
-                                float value = CpuDTypeOps.fromBFloat16Bits(input[indexNCHW(batch, channel, ih, iw, c, inH, inW)]);
+                                float value = TensorDTypeOps.fromBFloat16Bits(input[indexNCHW(batch, channel, ih, iw, c, inH, inW)]);
                                 if (!found || value > best) {
                                     best = value;
                                     bestIndex = indexNCHW(batch, channel, ih, iw, c, inH, inW);
@@ -220,7 +222,7 @@ final class Pool2dDirectBackend {
                             throw new IllegalArgumentException("maxPool2d window has no valid input elements.");
                         }
                         int outputIndex = indexNCHW(batch, channel, oh, ow, c, outH, outW);
-                        out[outputIndex] = CpuDTypeOps.toBFloat16Bits(best);
+                        out[outputIndex] = TensorDTypeOps.toBFloat16Bits(best);
                         argmaxWorkspace[outputIndex] = bestIndex;
                     }
                 }
@@ -320,9 +322,9 @@ final class Pool2dDirectBackend {
                         int inOriginW = ow * options.strideW() - options.padW();
                         int outputIndex = indexNCHW(batch, channel, oh, ow, c, outH, outW);
                         int bestIndex = findMaxIndexF16(source, batch, channel, inOriginH, inOriginW, c, inH, inW, options);
-                        float updated = CpuDTypeOps.fromBFloat16Bits(gradInput[bestIndex])
-                                + CpuDTypeOps.fromBFloat16Bits(outGrad[indexNCHW(batch, channel, oh, ow, c, outH, outW)]);
-                        gradInput[bestIndex] = CpuDTypeOps.toBFloat16Bits(updated);
+                        float updated = TensorDTypeOps.fromBFloat16Bits(gradInput[bestIndex])
+                                + TensorDTypeOps.fromBFloat16Bits(outGrad[indexNCHW(batch, channel, oh, ow, c, outH, outW)]);
+                        gradInput[bestIndex] = TensorDTypeOps.toBFloat16Bits(updated);
                     }
                 }
             }
@@ -438,7 +440,7 @@ final class Pool2dDirectBackend {
                     continue;
                 }
                 int index = indexNCHW(batch, channel, ih, iw, channels, inH, inW);
-                float value = CpuDTypeOps.fromBFloat16Bits(source[index]);
+                float value = TensorDTypeOps.fromBFloat16Bits(source[index]);
                 if (!found || value > best) {
                     best = value;
                     bestIndex = index;
@@ -560,7 +562,7 @@ final class Pool2dDirectBackend {
                                 if (iw < 0 || iw >= inW) {
                                     continue;
                                 }
-                                acc += CpuDTypeOps.fromBFloat16Bits(input[indexNCHW(batch, channel, ih, iw, c, inH, inW)]);
+                                acc += TensorDTypeOps.fromBFloat16Bits(input[indexNCHW(batch, channel, ih, iw, c, inH, inW)]);
                                 validCount++;
                             }
                         }
@@ -568,7 +570,7 @@ final class Pool2dDirectBackend {
                         if (divisor <= 0) {
                             throw new IllegalArgumentException("avgPool2d window has no valid input elements.");
                         }
-                        out[indexNCHW(batch, channel, oh, ow, c, outH, outW)] = CpuDTypeOps.toBFloat16Bits(acc / divisor);
+                        out[indexNCHW(batch, channel, oh, ow, c, outH, outW)] = TensorDTypeOps.toBFloat16Bits(acc / divisor);
                     }
                 }
             }
@@ -675,7 +677,7 @@ final class Pool2dDirectBackend {
                         if (divisor <= 0) {
                             throw new IllegalArgumentException("avgPool2d backward window has no valid input elements.");
                         }
-                        float contribution = CpuDTypeOps.fromBFloat16Bits(outGrad[indexNCHW(batch, channel, oh, ow, c, outH, outW)]) / divisor;
+                        float contribution = TensorDTypeOps.fromBFloat16Bits(outGrad[indexNCHW(batch, channel, oh, ow, c, outH, outW)]) / divisor;
                         for (int kh = 0; kh < options.kernelH(); kh++) {
                             int ih = inOriginH + kh;
                             if (ih < 0 || ih >= inH) {
@@ -687,8 +689,8 @@ final class Pool2dDirectBackend {
                                     continue;
                                 }
                                 int inputIndex = indexNCHW(batch, channel, ih, iw, c, inH, inW);
-                                float updated = CpuDTypeOps.fromBFloat16Bits(gradInput[inputIndex]) + contribution;
-                                gradInput[inputIndex] = CpuDTypeOps.toBFloat16Bits(updated);
+                                float updated = TensorDTypeOps.fromBFloat16Bits(gradInput[inputIndex]) + contribution;
+                                gradInput[inputIndex] = TensorDTypeOps.toBFloat16Bits(updated);
                             }
                         }
                     }

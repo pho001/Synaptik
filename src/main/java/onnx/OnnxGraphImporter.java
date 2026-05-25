@@ -2,7 +2,7 @@ package onnx;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 import operations.reduction.ArgMaxTiePolicy;
 import tensor.DataType;
 import tensor.Tensor;
@@ -673,7 +673,7 @@ final class OnnxGraphImporter {
             }
             case BFLOAT16 -> {
                 short[] data = new short[count];
-                Arrays.fill(data, CpuDTypeOps.toBFloat16Bits((float) value));
+                Arrays.fill(data, TensorDTypeOps.toBFloat16Bits((float) value));
                 yield new Tensor(data, shape, null, label, DataType.BFLOAT16);
             }
             case INT32 -> {
@@ -786,7 +786,7 @@ final class OnnxGraphImporter {
             }
             case BFLOAT16 -> {
                 short[] data = new short[values.size()];
-                for (int i = 0; i < data.length; i++) data[i] = CpuDTypeOps.toBFloat16Bits(values.get(i).floatValue());
+                for (int i = 0; i < data.length; i++) data[i] = TensorDTypeOps.toBFloat16Bits(values.get(i).floatValue());
                 yield new Tensor(data, shape, null, node.getOutput(0), DataType.BFLOAT16);
             }
             case INT32 -> {

@@ -1,4 +1,4 @@
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.BFloat16TrainingPolicy;
@@ -241,8 +241,8 @@ class TrainingOptimizerTest {
 
         assertArrayEquals(
                 new double[]{
-                        CpuDTypeOps.fromBFloat16Bits(CpuDTypeOps.toBFloat16Bits(0.8f)),
-                        CpuDTypeOps.fromBFloat16Bits(CpuDTypeOps.toBFloat16Bits(1.7f))
+                        TensorDTypeOps.fromBFloat16Bits(TensorDTypeOps.toBFloat16Bits(0.8f)),
+                        TensorDTypeOps.fromBFloat16Bits(TensorDTypeOps.toBFloat16Bits(1.7f))
                 },
                 w.toDoubleArrayCopy(),
                 0.0
@@ -569,7 +569,7 @@ class TrainingOptimizerTest {
     private static Tensor bf16Tensor(float[] values, String label) {
         short[] bits = new short[values.length];
         for (int i = 0; i < values.length; i++) {
-            bits[i] = CpuDTypeOps.toBFloat16Bits(values[i]);
+            bits[i] = TensorDTypeOps.toBFloat16Bits(values[i]);
         }
         return new Tensor(bits, new int[]{values.length}, null, label, DataType.BFLOAT16);
     }

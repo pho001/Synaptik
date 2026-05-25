@@ -1,6 +1,6 @@
 package backend.cpu.nativecpu.layout;
 
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 import backend.cpu.kernels.elementwise.where.CpuWhereKernel;
 import backend.cpu.nativecpu.NativeCpuStorageFactory;
 import operations.elementwise.compare.greaterThan;
@@ -168,12 +168,12 @@ class NativeSegmentStridedKernelsTest {
         NativeBFloat16Storage output = bf16Storage(6);
         try {
             short[] bits = new short[]{
-                    CpuDTypeOps.toBFloat16Bits(1.0f),
-                    CpuDTypeOps.toBFloat16Bits(2.0f),
-                    CpuDTypeOps.toBFloat16Bits(3.0f),
-                    CpuDTypeOps.toBFloat16Bits(4.0f),
-                    CpuDTypeOps.toBFloat16Bits(5.0f),
-                    CpuDTypeOps.toBFloat16Bits(6.0f)
+                    TensorDTypeOps.toBFloat16Bits(1.0f),
+                    TensorDTypeOps.toBFloat16Bits(2.0f),
+                    TensorDTypeOps.toBFloat16Bits(3.0f),
+                    TensorDTypeOps.toBFloat16Bits(4.0f),
+                    TensorDTypeOps.toBFloat16Bits(5.0f),
+                    TensorDTypeOps.toBFloat16Bits(6.0f)
             };
             write(input, bits);
 
@@ -244,13 +244,13 @@ class NativeSegmentStridedKernelsTest {
         NativeBFloat16Storage output = bf16Storage(4);
         try {
             write(left,
-                    CpuDTypeOps.toBFloat16Bits(1.0f),
-                    CpuDTypeOps.toBFloat16Bits(2.0f),
-                    CpuDTypeOps.toBFloat16Bits(3.0f),
-                    CpuDTypeOps.toBFloat16Bits(4.0f));
+                    TensorDTypeOps.toBFloat16Bits(1.0f),
+                    TensorDTypeOps.toBFloat16Bits(2.0f),
+                    TensorDTypeOps.toBFloat16Bits(3.0f),
+                    TensorDTypeOps.toBFloat16Bits(4.0f));
             write(right,
-                    CpuDTypeOps.toBFloat16Bits(10.0f),
-                    CpuDTypeOps.toBFloat16Bits(100.0f));
+                    TensorDTypeOps.toBFloat16Bits(10.0f),
+                    TensorDTypeOps.toBFloat16Bits(100.0f));
 
             NativeSegmentStridedKernels.runBinary(
                     new add(),
@@ -260,10 +260,10 @@ class NativeSegmentStridedKernelsTest {
             );
 
             assertArrayEquals(new short[]{
-                    CpuDTypeOps.toBFloat16Bits(11.0f),
-                    CpuDTypeOps.toBFloat16Bits(102.0f),
-                    CpuDTypeOps.toBFloat16Bits(13.0f),
-                    CpuDTypeOps.toBFloat16Bits(104.0f)
+                    TensorDTypeOps.toBFloat16Bits(11.0f),
+                    TensorDTypeOps.toBFloat16Bits(102.0f),
+                    TensorDTypeOps.toBFloat16Bits(13.0f),
+                    TensorDTypeOps.toBFloat16Bits(104.0f)
             }, readBits(output, 4));
         } finally {
             left.close();
@@ -326,13 +326,13 @@ class NativeSegmentStridedKernelsTest {
             assertArrayEquals(new double[]{1.0d, 4.0d, 2.0d, 4.0d}, read(f64ClampOut, 4), 0.0d);
 
             write(bf16Left,
-                    CpuDTypeOps.toBFloat16Bits(1.0f),
-                    CpuDTypeOps.toBFloat16Bits(5.0f),
-                    CpuDTypeOps.toBFloat16Bits(3.0f),
-                    CpuDTypeOps.toBFloat16Bits(7.0f));
+                    TensorDTypeOps.toBFloat16Bits(1.0f),
+                    TensorDTypeOps.toBFloat16Bits(5.0f),
+                    TensorDTypeOps.toBFloat16Bits(3.0f),
+                    TensorDTypeOps.toBFloat16Bits(7.0f));
             write(bf16Right,
-                    CpuDTypeOps.toBFloat16Bits(4.0f),
-                    CpuDTypeOps.toBFloat16Bits(6.0f));
+                    TensorDTypeOps.toBFloat16Bits(4.0f),
+                    TensorDTypeOps.toBFloat16Bits(6.0f));
             NativeSegmentStridedKernels.runBinary(
                     new max(),
                     view(bf16Left, DataType.BFLOAT16, new int[]{2, 2}, new int[]{2, 1}, 0),
@@ -340,10 +340,10 @@ class NativeSegmentStridedKernelsTest {
                     view(bf16MaxOut, DataType.BFLOAT16, new int[]{2, 2}, new int[]{2, 1}, 0)
             );
             assertArrayEquals(new short[]{
-                    CpuDTypeOps.toBFloat16Bits(4.0f),
-                    CpuDTypeOps.toBFloat16Bits(6.0f),
-                    CpuDTypeOps.toBFloat16Bits(4.0f),
-                    CpuDTypeOps.toBFloat16Bits(7.0f)
+                    TensorDTypeOps.toBFloat16Bits(4.0f),
+                    TensorDTypeOps.toBFloat16Bits(6.0f),
+                    TensorDTypeOps.toBFloat16Bits(4.0f),
+                    TensorDTypeOps.toBFloat16Bits(7.0f)
             }, readBits(bf16MaxOut, 4));
 
             NativeSegmentStridedKernels.runUnary(
@@ -354,10 +354,10 @@ class NativeSegmentStridedKernelsTest {
                     false
             );
             assertArrayEquals(new short[]{
-                    CpuDTypeOps.toBFloat16Bits(1.0f),
-                    CpuDTypeOps.toBFloat16Bits(4.0f),
-                    CpuDTypeOps.toBFloat16Bits(3.0f),
-                    CpuDTypeOps.toBFloat16Bits(4.0f)
+                    TensorDTypeOps.toBFloat16Bits(1.0f),
+                    TensorDTypeOps.toBFloat16Bits(4.0f),
+                    TensorDTypeOps.toBFloat16Bits(3.0f),
+                    TensorDTypeOps.toBFloat16Bits(4.0f)
             }, readBits(bf16ClampOut, 4));
         } finally {
             f32Left.close();
@@ -414,15 +414,15 @@ class NativeSegmentStridedKernelsTest {
             }, read(f64Out, 6), 1.0e-12d);
 
             write(bf16Base,
-                    CpuDTypeOps.toBFloat16Bits(1.0f),
-                    CpuDTypeOps.toBFloat16Bits(2.0f),
-                    CpuDTypeOps.toBFloat16Bits(3.0f),
-                    CpuDTypeOps.toBFloat16Bits(4.0f));
+                    TensorDTypeOps.toBFloat16Bits(1.0f),
+                    TensorDTypeOps.toBFloat16Bits(2.0f),
+                    TensorDTypeOps.toBFloat16Bits(3.0f),
+                    TensorDTypeOps.toBFloat16Bits(4.0f));
             write(bf16Exponent,
-                    CpuDTypeOps.toBFloat16Bits(2.0f),
-                    CpuDTypeOps.toBFloat16Bits(2.0f),
-                    CpuDTypeOps.toBFloat16Bits(2.0f),
-                    CpuDTypeOps.toBFloat16Bits(2.0f));
+                    TensorDTypeOps.toBFloat16Bits(2.0f),
+                    TensorDTypeOps.toBFloat16Bits(2.0f),
+                    TensorDTypeOps.toBFloat16Bits(2.0f),
+                    TensorDTypeOps.toBFloat16Bits(2.0f));
             assertThrows(UnsupportedOperationException.class, () ->
                     NativeSegmentStridedKernels.runBinary(
                             new powTensor(),
@@ -474,13 +474,13 @@ class NativeSegmentStridedKernelsTest {
         byte[] output = new byte[4];
         try {
             write(left,
-                    CpuDTypeOps.toBFloat16Bits(1.0f),
-                    CpuDTypeOps.toBFloat16Bits(4.0f),
-                    CpuDTypeOps.toBFloat16Bits(3.0f),
-                    CpuDTypeOps.toBFloat16Bits(2.0f));
+                    TensorDTypeOps.toBFloat16Bits(1.0f),
+                    TensorDTypeOps.toBFloat16Bits(4.0f),
+                    TensorDTypeOps.toBFloat16Bits(3.0f),
+                    TensorDTypeOps.toBFloat16Bits(2.0f));
             write(right,
-                    CpuDTypeOps.toBFloat16Bits(2.0f),
-                    CpuDTypeOps.toBFloat16Bits(3.0f));
+                    TensorDTypeOps.toBFloat16Bits(2.0f),
+                    TensorDTypeOps.toBFloat16Bits(3.0f));
 
             NativeSegmentStridedKernels.runCompare(
                     new greaterThan(null),
@@ -591,15 +591,15 @@ class NativeSegmentStridedKernelsTest {
         try {
             write(condition, (byte) 0, (byte) 1);
             write(ifTrue,
-                    CpuDTypeOps.toBFloat16Bits(1.0f),
-                    CpuDTypeOps.toBFloat16Bits(2.0f),
-                    CpuDTypeOps.toBFloat16Bits(3.0f),
-                    CpuDTypeOps.toBFloat16Bits(4.0f),
-                    CpuDTypeOps.toBFloat16Bits(5.0f),
-                    CpuDTypeOps.toBFloat16Bits(6.0f));
+                    TensorDTypeOps.toBFloat16Bits(1.0f),
+                    TensorDTypeOps.toBFloat16Bits(2.0f),
+                    TensorDTypeOps.toBFloat16Bits(3.0f),
+                    TensorDTypeOps.toBFloat16Bits(4.0f),
+                    TensorDTypeOps.toBFloat16Bits(5.0f),
+                    TensorDTypeOps.toBFloat16Bits(6.0f));
             write(ifFalse,
-                    CpuDTypeOps.toBFloat16Bits(-1.0f),
-                    CpuDTypeOps.toBFloat16Bits(-2.0f));
+                    TensorDTypeOps.toBFloat16Bits(-1.0f),
+                    TensorDTypeOps.toBFloat16Bits(-2.0f));
 
             NativeSegmentStridedKernels.runWhere(
                     new CpuWhereKernel(),
@@ -610,12 +610,12 @@ class NativeSegmentStridedKernelsTest {
             );
 
             assertArrayEquals(new short[]{
-                    CpuDTypeOps.toBFloat16Bits(-1.0f),
-                    CpuDTypeOps.toBFloat16Bits(2.0f),
-                    CpuDTypeOps.toBFloat16Bits(-1.0f),
-                    CpuDTypeOps.toBFloat16Bits(4.0f),
-                    CpuDTypeOps.toBFloat16Bits(-1.0f),
-                    CpuDTypeOps.toBFloat16Bits(6.0f)
+                    TensorDTypeOps.toBFloat16Bits(-1.0f),
+                    TensorDTypeOps.toBFloat16Bits(2.0f),
+                    TensorDTypeOps.toBFloat16Bits(-1.0f),
+                    TensorDTypeOps.toBFloat16Bits(4.0f),
+                    TensorDTypeOps.toBFloat16Bits(-1.0f),
+                    TensorDTypeOps.toBFloat16Bits(6.0f)
             }, readBits(output, 6));
         } finally {
             condition.close();
@@ -953,10 +953,10 @@ class NativeSegmentStridedKernelsTest {
         try {
             write(f32Input, -1f, -2f, 3f, 4f);
             write(bf16Input,
-                    CpuDTypeOps.toBFloat16Bits(-1.0f),
-                    CpuDTypeOps.toBFloat16Bits(-2.0f),
-                    CpuDTypeOps.toBFloat16Bits(3.0f),
-                    CpuDTypeOps.toBFloat16Bits(4.0f));
+                    TensorDTypeOps.toBFloat16Bits(-1.0f),
+                    TensorDTypeOps.toBFloat16Bits(-2.0f),
+                    TensorDTypeOps.toBFloat16Bits(3.0f),
+                    TensorDTypeOps.toBFloat16Bits(4.0f));
 
             NativeSegmentDispatchResult threshold = NativeSegmentStridedKernels.runUnaryWithDispatch(
                     new abs(),
@@ -981,10 +981,10 @@ class NativeSegmentStridedKernelsTest {
             assertEquals(NativeSegmentKernelFamily.SEGMENT_DENSE_SCALAR, unsupported.family());
             assertTrue(unsupported.reason().contains("unsupported-parallel-family"));
             assertArrayEquals(new short[]{
-                    CpuDTypeOps.toBFloat16Bits(1.0f),
-                    CpuDTypeOps.toBFloat16Bits(2.0f),
-                    CpuDTypeOps.toBFloat16Bits(3.0f),
-                    CpuDTypeOps.toBFloat16Bits(4.0f)
+                    TensorDTypeOps.toBFloat16Bits(1.0f),
+                    TensorDTypeOps.toBFloat16Bits(2.0f),
+                    TensorDTypeOps.toBFloat16Bits(3.0f),
+                    TensorDTypeOps.toBFloat16Bits(4.0f)
             }, readBits(bf16Output, 4));
         } finally {
             f32Input.close();
@@ -1175,7 +1175,7 @@ class NativeSegmentStridedKernelsTest {
 
     private static void writeBF16(NativeBFloat16Storage storage, float... values) {
         for (int i = 0; i < values.length; i++) {
-            storage.setBFloat16BitsAt(i, CpuDTypeOps.toBFloat16Bits(values[i]));
+            storage.setBFloat16BitsAt(i, TensorDTypeOps.toBFloat16Bits(values[i]));
         }
     }
 
@@ -1212,7 +1212,7 @@ class NativeSegmentStridedKernelsTest {
     private static float[] readBF16AsF32(NativeBFloat16Storage storage, int elements) {
         float[] out = new float[elements];
         for (int i = 0; i < elements; i++) {
-            out[i] = CpuDTypeOps.fromBFloat16Bits(storage.getBFloat16BitsAt(i));
+            out[i] = TensorDTypeOps.fromBFloat16Bits(storage.getBFloat16BitsAt(i));
         }
         return out;
     }

@@ -1,6 +1,6 @@
 package backend.cpu.kernels.elementwise.strided;
 
-import backend.cpu.kernels.CpuDTypeOps;
+import tensor.dtype.TensorDTypeOps;
 import backend.cpu.kernels.elementwise.unary.support.CpuPowSupport;
 import operations.Operation;
 import operations.elementwise.unary.clampMax;
@@ -137,23 +137,23 @@ final class StridedElementWiseSemantics {
             return null;
         }
         return switch (kind) {
-            case ADD -> (left, right) -> CpuDTypeOps.toBFloat16Bits(
-                    CpuDTypeOps.fromBFloat16Bits(left) + CpuDTypeOps.fromBFloat16Bits(right)
+            case ADD -> (left, right) -> TensorDTypeOps.toBFloat16Bits(
+                    TensorDTypeOps.fromBFloat16Bits(left) + TensorDTypeOps.fromBFloat16Bits(right)
             );
-            case SUB -> (left, right) -> CpuDTypeOps.toBFloat16Bits(
-                    CpuDTypeOps.fromBFloat16Bits(left) - CpuDTypeOps.fromBFloat16Bits(right)
+            case SUB -> (left, right) -> TensorDTypeOps.toBFloat16Bits(
+                    TensorDTypeOps.fromBFloat16Bits(left) - TensorDTypeOps.fromBFloat16Bits(right)
             );
-            case MUL -> (left, right) -> CpuDTypeOps.toBFloat16Bits(
-                    CpuDTypeOps.fromBFloat16Bits(left) * CpuDTypeOps.fromBFloat16Bits(right)
+            case MUL -> (left, right) -> TensorDTypeOps.toBFloat16Bits(
+                    TensorDTypeOps.fromBFloat16Bits(left) * TensorDTypeOps.fromBFloat16Bits(right)
             );
-            case DIV -> (left, right) -> CpuDTypeOps.toBFloat16Bits(
-                    CpuDTypeOps.fromBFloat16Bits(left) / CpuDTypeOps.fromBFloat16Bits(right)
+            case DIV -> (left, right) -> TensorDTypeOps.toBFloat16Bits(
+                    TensorDTypeOps.fromBFloat16Bits(left) / TensorDTypeOps.fromBFloat16Bits(right)
             );
-            case MIN -> (left, right) -> CpuDTypeOps.toBFloat16Bits(
-                    Math.min(CpuDTypeOps.fromBFloat16Bits(left), CpuDTypeOps.fromBFloat16Bits(right))
+            case MIN -> (left, right) -> TensorDTypeOps.toBFloat16Bits(
+                    Math.min(TensorDTypeOps.fromBFloat16Bits(left), TensorDTypeOps.fromBFloat16Bits(right))
             );
-            case MAX -> (left, right) -> CpuDTypeOps.toBFloat16Bits(
-                    Math.max(CpuDTypeOps.fromBFloat16Bits(left), CpuDTypeOps.fromBFloat16Bits(right))
+            case MAX -> (left, right) -> TensorDTypeOps.toBFloat16Bits(
+                    Math.max(TensorDTypeOps.fromBFloat16Bits(left), TensorDTypeOps.fromBFloat16Bits(right))
             );
         };
     }
@@ -235,41 +235,41 @@ final class StridedElementWiseSemantics {
             return null;
         }
         return switch (op.opType()) {
-            case NEG -> valueBits -> CpuDTypeOps.toBFloat16Bits(-CpuDTypeOps.fromBFloat16Bits(valueBits));
-            case INV -> valueBits -> CpuDTypeOps.toBFloat16Bits(1.0f / CpuDTypeOps.fromBFloat16Bits(valueBits));
-            case LOG -> valueBits -> CpuDTypeOps.toBFloat16Bits((float) Math.log(CpuDTypeOps.fromBFloat16Bits(valueBits)));
+            case NEG -> valueBits -> TensorDTypeOps.toBFloat16Bits(-TensorDTypeOps.fromBFloat16Bits(valueBits));
+            case INV -> valueBits -> TensorDTypeOps.toBFloat16Bits(1.0f / TensorDTypeOps.fromBFloat16Bits(valueBits));
+            case LOG -> valueBits -> TensorDTypeOps.toBFloat16Bits((float) Math.log(TensorDTypeOps.fromBFloat16Bits(valueBits)));
             case EXP -> valueBits -> {
-                float value = CpuDTypeOps.fromBFloat16Bits(valueBits);
-                return CpuDTypeOps.toBFloat16Bits(useFastExpApprox ? FastTranscendentals.fastExpF32(value) : (float) Math.exp(value));
+                float value = TensorDTypeOps.fromBFloat16Bits(valueBits);
+                return TensorDTypeOps.toBFloat16Bits(useFastExpApprox ? FastTranscendentals.fastExpF32(value) : (float) Math.exp(value));
             };
-            case FAST_EXP -> valueBits -> CpuDTypeOps.toBFloat16Bits(FastTranscendentals.fastExpF32(CpuDTypeOps.fromBFloat16Bits(valueBits)));
+            case FAST_EXP -> valueBits -> TensorDTypeOps.toBFloat16Bits(FastTranscendentals.fastExpF32(TensorDTypeOps.fromBFloat16Bits(valueBits)));
             case TANH -> valueBits -> {
-                float value = CpuDTypeOps.fromBFloat16Bits(valueBits);
-                return CpuDTypeOps.toBFloat16Bits(useFastTanhApprox ? FastTranscendentals.fastTanhF32(value) : (float) Math.tanh(value));
+                float value = TensorDTypeOps.fromBFloat16Bits(valueBits);
+                return TensorDTypeOps.toBFloat16Bits(useFastTanhApprox ? FastTranscendentals.fastTanhF32(value) : (float) Math.tanh(value));
             };
-            case FAST_TANH -> valueBits -> CpuDTypeOps.toBFloat16Bits(FastTranscendentals.fastTanhF32(CpuDTypeOps.fromBFloat16Bits(valueBits)));
-            case SQRT -> valueBits -> CpuDTypeOps.toBFloat16Bits((float) Math.sqrt(CpuDTypeOps.fromBFloat16Bits(valueBits)));
-            case ABS -> valueBits -> CpuDTypeOps.toBFloat16Bits(Math.abs(CpuDTypeOps.fromBFloat16Bits(valueBits)));
-            case RELU -> valueBits -> CpuDTypeOps.toBFloat16Bits(Math.max(0.0f, CpuDTypeOps.fromBFloat16Bits(valueBits)));
+            case FAST_TANH -> valueBits -> TensorDTypeOps.toBFloat16Bits(FastTranscendentals.fastTanhF32(TensorDTypeOps.fromBFloat16Bits(valueBits)));
+            case SQRT -> valueBits -> TensorDTypeOps.toBFloat16Bits((float) Math.sqrt(TensorDTypeOps.fromBFloat16Bits(valueBits)));
+            case ABS -> valueBits -> TensorDTypeOps.toBFloat16Bits(Math.abs(TensorDTypeOps.fromBFloat16Bits(valueBits)));
+            case RELU -> valueBits -> TensorDTypeOps.toBFloat16Bits(Math.max(0.0f, TensorDTypeOps.fromBFloat16Bits(valueBits)));
             case SIGMOID -> valueBits -> {
-                float value = CpuDTypeOps.fromBFloat16Bits(valueBits);
-                return CpuDTypeOps.toBFloat16Bits((float) (1.0 / (1.0 + Math.exp(-value))));
+                float value = TensorDTypeOps.fromBFloat16Bits(valueBits);
+                return TensorDTypeOps.toBFloat16Bits((float) (1.0 / (1.0 + Math.exp(-value))));
             };
             case CLAMP_MIN -> {
                 float minValue = ((clampMin) op).getMinValueF32();
-                yield valueBits -> CpuDTypeOps.toBFloat16Bits(Math.max(minValue, CpuDTypeOps.fromBFloat16Bits(valueBits)));
+                yield valueBits -> TensorDTypeOps.toBFloat16Bits(Math.max(minValue, TensorDTypeOps.fromBFloat16Bits(valueBits)));
             }
             case CLAMP_MAX -> {
                 float maxValue = ((clampMax) op).getMaxValueF32();
-                yield valueBits -> CpuDTypeOps.toBFloat16Bits(Math.min(maxValue, CpuDTypeOps.fromBFloat16Bits(valueBits)));
+                yield valueBits -> TensorDTypeOps.toBFloat16Bits(Math.min(maxValue, TensorDTypeOps.fromBFloat16Bits(valueBits)));
             }
             case MUL_SCALAR -> {
                 float scalar = ((mulScalar) op).getScalarF32();
-                yield valueBits -> CpuDTypeOps.toBFloat16Bits(CpuDTypeOps.fromBFloat16Bits(valueBits) * scalar);
+                yield valueBits -> TensorDTypeOps.toBFloat16Bits(TensorDTypeOps.fromBFloat16Bits(valueBits) * scalar);
             }
             case POW -> {
                 float exponent = ((pow) op).getExponentF32();
-                yield valueBits -> CpuDTypeOps.toBFloat16Bits(CpuPowSupport.applyF32(CpuDTypeOps.fromBFloat16Bits(valueBits), exponent));
+                yield valueBits -> TensorDTypeOps.toBFloat16Bits(CpuPowSupport.applyF32(TensorDTypeOps.fromBFloat16Bits(valueBits), exponent));
             }
             default -> null;
         };
@@ -310,12 +310,12 @@ final class StridedElementWiseSemantics {
             return null;
         }
         return switch (op.opType()) {
-            case GT -> (leftBits, rightBits) -> CpuDTypeOps.fromBFloat16Bits(leftBits) > CpuDTypeOps.fromBFloat16Bits(rightBits) ? (byte) 1 : (byte) 0;
-            case GE -> (leftBits, rightBits) -> CpuDTypeOps.fromBFloat16Bits(leftBits) >= CpuDTypeOps.fromBFloat16Bits(rightBits) ? (byte) 1 : (byte) 0;
-            case LT -> (leftBits, rightBits) -> CpuDTypeOps.fromBFloat16Bits(leftBits) < CpuDTypeOps.fromBFloat16Bits(rightBits) ? (byte) 1 : (byte) 0;
-            case LE -> (leftBits, rightBits) -> CpuDTypeOps.fromBFloat16Bits(leftBits) <= CpuDTypeOps.fromBFloat16Bits(rightBits) ? (byte) 1 : (byte) 0;
-            case EQ -> (leftBits, rightBits) -> CpuDTypeOps.fromBFloat16Bits(leftBits) == CpuDTypeOps.fromBFloat16Bits(rightBits) ? (byte) 1 : (byte) 0;
-            case NE -> (leftBits, rightBits) -> CpuDTypeOps.fromBFloat16Bits(leftBits) != CpuDTypeOps.fromBFloat16Bits(rightBits) ? (byte) 1 : (byte) 0;
+            case GT -> (leftBits, rightBits) -> TensorDTypeOps.fromBFloat16Bits(leftBits) > TensorDTypeOps.fromBFloat16Bits(rightBits) ? (byte) 1 : (byte) 0;
+            case GE -> (leftBits, rightBits) -> TensorDTypeOps.fromBFloat16Bits(leftBits) >= TensorDTypeOps.fromBFloat16Bits(rightBits) ? (byte) 1 : (byte) 0;
+            case LT -> (leftBits, rightBits) -> TensorDTypeOps.fromBFloat16Bits(leftBits) < TensorDTypeOps.fromBFloat16Bits(rightBits) ? (byte) 1 : (byte) 0;
+            case LE -> (leftBits, rightBits) -> TensorDTypeOps.fromBFloat16Bits(leftBits) <= TensorDTypeOps.fromBFloat16Bits(rightBits) ? (byte) 1 : (byte) 0;
+            case EQ -> (leftBits, rightBits) -> TensorDTypeOps.fromBFloat16Bits(leftBits) == TensorDTypeOps.fromBFloat16Bits(rightBits) ? (byte) 1 : (byte) 0;
+            case NE -> (leftBits, rightBits) -> TensorDTypeOps.fromBFloat16Bits(leftBits) != TensorDTypeOps.fromBFloat16Bits(rightBits) ? (byte) 1 : (byte) 0;
             default -> null;
         };
     }

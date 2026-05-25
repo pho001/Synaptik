@@ -1,6 +1,6 @@
 package backend.cpu.kernels.index;
 
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.execution.CpuKernelContext;
 import operations.index.ScatterReduction;
 import tensor.Tensor;
 

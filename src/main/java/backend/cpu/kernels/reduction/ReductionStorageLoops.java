@@ -1,8 +1,8 @@
 package backend.cpu.kernels.reduction;
 
-import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.kernels.CpuNativeTraceSupport;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.nativecpu.CpuNativeTraceSupport;
 import backend.cpu.nativecpu.layout.NativeCpuStorageFamily;
 import backend.cpu.nativecpu.layout.NativeSegmentStridedKernels;
 import backend.cpu.nativecpu.layout.NativeSegmentView;

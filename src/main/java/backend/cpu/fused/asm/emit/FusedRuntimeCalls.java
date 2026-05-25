@@ -1,5 +1,7 @@
 package backend.cpu.fused.asm.emit;
 
+import backend.cpu.execution.CpuKernelContext;
+
 import backend.cpu.fused.numeric.FusedNumericContract;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
@@ -10,6 +12,8 @@ import utils.SlotManager;
 import static org.objectweb.asm.Opcodes.*;
 
 final class FusedRuntimeCalls {
+    private static final String TENSOR_DTYPE_OPS = "tensor/dtype/TensorDTypeOps";
+
     private FusedRuntimeCalls() {}
 
     static void emitGetRawArrayFromTensorCall(MethodVisitor mv, DataType dataType) {
@@ -28,7 +32,7 @@ final class FusedRuntimeCalls {
                 INVOKESTATIC,
                 "backend/cpu/fused/exec/FusedNativeSegmentBindings",
                 "inputSegment",
-                "(Lbackend/cpu/kernels/CpuKernelContext;I)Ljava/lang/foreign/MemorySegment;",
+                "(Lbackend/cpu/execution/CpuKernelContext;I)Ljava/lang/foreign/MemorySegment;",
                 false
         );
     }
@@ -38,7 +42,7 @@ final class FusedRuntimeCalls {
                 INVOKESTATIC,
                 "backend/cpu/fused/exec/FusedNativeSegmentBindings",
                 "outputSegment",
-                "(Lbackend/cpu/kernels/CpuKernelContext;)Ljava/lang/foreign/MemorySegment;",
+                "(Lbackend/cpu/execution/CpuKernelContext;)Ljava/lang/foreign/MemorySegment;",
                 false
         );
     }
@@ -62,7 +66,7 @@ final class FusedRuntimeCalls {
             case BFLOAT16 -> {
                 emitElementIndexToByteOffset(mv, Short.BYTES);
                 emitSegmentGet(mv, "JAVA_SHORT", "Ljava/lang/foreign/ValueLayout$OfShort;", "S");
-                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/kernels/CpuDTypeOps", "fromBFloat16Bits", "(S)F", false);
+                mv.visitMethodInsn(INVOKESTATIC, TENSOR_DTYPE_OPS, "fromBFloat16Bits", "(S)F", false);
                 if (numericContract.usesDoubleCompute()) {
                     mv.visitInsn(F2D);
                 }
@@ -117,7 +121,7 @@ final class FusedRuntimeCalls {
                 if (numericContract.usesDoubleCompute()) {
                     mv.visitInsn(D2F);
                 }
-                mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/kernels/CpuDTypeOps", "toBFloat16Bits", "(F)S", false);
+                mv.visitMethodInsn(INVOKESTATIC, TENSOR_DTYPE_OPS, "toBFloat16Bits", "(F)S", false);
                 mv.visitVarInsn(ISTORE, tmp);
                 emitElementIndexToByteOffset(mv, Short.BYTES);
                 emitSegmentSetPrefix(mv, "JAVA_SHORT", "Ljava/lang/foreign/ValueLayout$OfShort;");

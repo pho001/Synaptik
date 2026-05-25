@@ -4,7 +4,7 @@ import backend.ComputeBackend;
 import backend.accelerator.lowering.GpuLoweringCoverageEntry;
 import backend.accelerator.lowering.GpuLoweringCoverageMatrix;
 import backend.accelerator.lowering.GpuLoweringCoverageStatus;
-import backend.cpu.registry.CpuKernelResolver;
+import backend.cpu.kernels.CpuKernelRegistry;
 import operations.Operation;
 
 import java.io.IOException;
@@ -217,7 +217,7 @@ public final class MetalOperationParityMatrix {
 
     private static boolean cpuKernelAvailable(Operation.OpType opType) {
         try {
-            CpuKernelResolver.resolve(opType);
+            CpuKernelRegistry.resolve(opType);
             return true;
         } catch (RuntimeException ex) {
             return false;

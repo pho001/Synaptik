@@ -4,10 +4,10 @@ import tensor.TensorInternalAccess;
 
 import backend.blas.OpenBlasRuntime;
 import backend.blas.OpenBlasSegmentGemm;
-import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.execution.CpuKernelContext;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
-import backend.cpu.kernels.linalg.matmul.plan.MatMulExecutionRoute;
-import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
+import backend.cpu.plan.linalg.matmul.MatMulExecutionRoute;
+import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import backend.memory.CpuMaterializationReason;
 import config.runtime.NativeCpuFailurePolicy;
 import tensor.storage.NativeBFloat16Storage;
@@ -15,8 +15,8 @@ import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;
 
 public final class BF16NativeBlasMatMulExecutable implements PreparedMatMulExecutable {
-    private static final short BF16_ONE = backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(1.0f);
-    private static final short BF16_ZERO = backend.cpu.kernels.CpuDTypeOps.toBFloat16Bits(0.0f);
+    private static final short BF16_ONE = tensor.dtype.TensorDTypeOps.toBFloat16Bits(1.0f);
+    private static final short BF16_ZERO = tensor.dtype.TensorDTypeOps.toBFloat16Bits(0.0f);
 
     private final ResolvedMatMulHints hints;
     private MatMulExecutionRoute lastRoute = MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT;

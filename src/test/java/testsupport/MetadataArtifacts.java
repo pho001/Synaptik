@@ -8,8 +8,8 @@ import backend.cpu.CpuNodeExecutionArtifact;
 import backend.cpu.CpuRegionExecutionArtifact;
 import backend.cpu.fused.exec.PreparedFusedExecutable;
 import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuNodeExecutionPlan;
-import backend.cpu.kernels.CpuNodeWorkspace;
+import backend.cpu.plan.CpuNodeExecutionPlan;
+import backend.cpu.execution.CpuNodeWorkspace;
 import backend.cpu.region.PreparedCpuRegionExecutable;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 

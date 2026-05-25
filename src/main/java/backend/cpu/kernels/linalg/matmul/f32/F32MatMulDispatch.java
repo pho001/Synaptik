@@ -1,10 +1,10 @@
 package backend.cpu.kernels.linalg.matmul.f32;
 
-import backend.cpu.kernels.CpuThreadPool;
+import backend.cpu.execution.CpuThreadPool;
 import backend.cpu.kernels.linalg.matmul.common.MatMulBatchingSupport;
 import backend.cpu.kernels.linalg.matmul.common.PackedLinearWeightCache;
-import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
-import backend.cpu.kernels.plan.CpuExecutionPlanner;
+import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
+import backend.cpu.prepare.CpuExecutionPlanner;
 
 final class F32MatMulDispatch {
     @FunctionalInterface

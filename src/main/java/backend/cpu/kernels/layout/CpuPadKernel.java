@@ -2,9 +2,9 @@ package backend.cpu.kernels.layout;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.kernels.CpuKernel;
-import backend.cpu.kernels.CpuKernelContext;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.kernels.TypedCpuKernel;
+import backend.cpu.execution.CpuKernelContext;
 import operations.Operation;
 import operations.layout.pad;
 import tensor.Tensor;
@@ -13,34 +13,34 @@ import tensor.TensorMetadata;
 import java.util.Arrays;
 import java.util.List;
 
-public final class CpuPadKernel implements CpuKernel {
+public final class CpuPadKernel extends TypedCpuKernel {
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         pad(op, inputs, node);
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         pad(op, inputs, node);
     }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         pad(op, inputs, node);
     }
 
     @Override
-    public void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         pad(op, inputs, node);
     }
 
     @Override
-    public void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         pad(op, inputs, node);
     }
 
     @Override
-    public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         pad(op, inputs, node);
     }
 
@@ -82,7 +82,7 @@ public final class CpuPadKernel implements CpuKernel {
         switch (out.getDataType()) {
             case FLOAT64 -> Arrays.fill(TensorInternalAccess.float64Data(out), value);
             case FLOAT32 -> Arrays.fill(TensorInternalAccess.float32Data(out), (float) value);
-            case BFLOAT16 -> Arrays.fill(TensorInternalAccess.bfloat16Data(out), CpuDTypeOps.toBFloat16Bits((float) value));
+            case BFLOAT16 -> Arrays.fill(TensorInternalAccess.bfloat16Data(out), TensorDTypeOps.toBFloat16Bits((float) value));
             case INT32 -> Arrays.fill(TensorInternalAccess.int32Data(out), (int) value);
             case INT64 -> Arrays.fill(TensorInternalAccess.int64Data(out), (long) value);
             case BOOL -> Arrays.fill(TensorInternalAccess.boolData(out), value == 0.0d ? (byte) 0 : (byte) 1);
@@ -93,7 +93,7 @@ public final class CpuPadKernel implements CpuKernel {
         switch (out.getDataType()) {
             case FLOAT64 -> TensorInternalAccess.float64Data(out)[index] = value;
             case FLOAT32 -> TensorInternalAccess.float32Data(out)[index] = (float) value;
-            case BFLOAT16 -> TensorInternalAccess.bfloat16Data(out)[index] = CpuDTypeOps.toBFloat16Bits((float) value);
+            case BFLOAT16 -> TensorInternalAccess.bfloat16Data(out)[index] = TensorDTypeOps.toBFloat16Bits((float) value);
             case INT32 -> TensorInternalAccess.int32Data(out)[index] = (int) value;
             case INT64 -> TensorInternalAccess.int64Data(out)[index] = (long) value;
             case BOOL -> TensorInternalAccess.boolData(out)[index] = value == 0.0d ? (byte) 0 : (byte) 1;

@@ -389,6 +389,6 @@ Use the failure location to classify the issue:
 - Forward output mismatch: compare no-optimization execution with optimized execution to isolate rewrite/fusion/memory changes.
 - Gradient mismatch or `getGradient()` null: verify `setRequiresGrad(true)` on leaf tensors and backward wiring in the relevant `tensor.ops.*` builder.
 - `UnsupportedOperationException: <Kernel> does not support <dtype>`: implement the dtype entry point or adjust dtype routing in prepared metadata.
-- `Cannot resolve CPU kernel for UNKNOWN operation type` or missing switch case: update `CpuKernelResolver`.
+- `Cannot resolve CPU kernel for UNKNOWN operation type` or missing switch case: update `CpuKernelRegistry`.
 - Source hygiene failure: move code to the owner package rather than adding suppressions.
 - Performance regression failure: read `build/tuning-etalon-regression/current-inference-suite.json`, compare the reported candidate/workload to the baseline resource, then rerun targeted debug benchmarks to reduce noise.

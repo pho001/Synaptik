@@ -2,8 +2,8 @@ package backend.cpu.kernels.reduction;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.kernels.CpuDTypeOps;
-import backend.cpu.kernels.CpuKernelContext;
+import tensor.dtype.TensorDTypeOps;
+import backend.cpu.execution.CpuKernelContext;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
@@ -345,13 +345,13 @@ final class SoftmaxGradExecutor {
                                            int primaryAxisStride, int gradAxisStride, int outAxisStride, int axisSize) {
         float dot = 0.0f;
         for (int i = 0, primaryOffset = primaryBase, gradOffset = gradBase; i < axisSize; i++, primaryOffset += primaryAxisStride, gradOffset += gradAxisStride) {
-            dot += CpuDTypeOps.fromBFloat16Bits(primary[primaryOffset]) * CpuDTypeOps.fromBFloat16Bits(grad[gradOffset]);
+            dot += TensorDTypeOps.fromBFloat16Bits(primary[primaryOffset]) * TensorDTypeOps.fromBFloat16Bits(grad[gradOffset]);
         }
         for (int i = 0, primaryOffset = primaryBase, gradOffset = gradBase, outOffset = outBase;
              i < axisSize;
              i++, primaryOffset += primaryAxisStride, gradOffset += gradAxisStride, outOffset += outAxisStride) {
-            float value = CpuDTypeOps.fromBFloat16Bits(primary[primaryOffset]) * (CpuDTypeOps.fromBFloat16Bits(grad[gradOffset]) - dot);
-            out[outOffset] = CpuDTypeOps.toBFloat16Bits(value);
+            float value = TensorDTypeOps.fromBFloat16Bits(primary[primaryOffset]) * (TensorDTypeOps.fromBFloat16Bits(grad[gradOffset]) - dot);
+            out[outOffset] = TensorDTypeOps.toBFloat16Bits(value);
         }
     }
 
@@ -436,14 +436,14 @@ final class SoftmaxGradExecutor {
                                               int primaryAxisStride, int gradAxisStride, int outAxisStride, int axisSize) {
         float sumGrad = 0.0f;
         for (int i = 0, gradOffset = gradBase; i < axisSize; i++, gradOffset += gradAxisStride) {
-            sumGrad += CpuDTypeOps.fromBFloat16Bits(grad[gradOffset]);
+            sumGrad += TensorDTypeOps.fromBFloat16Bits(grad[gradOffset]);
         }
         for (int i = 0, primaryOffset = primaryBase, gradOffset = gradBase, outOffset = outBase;
              i < axisSize;
              i++, primaryOffset += primaryAxisStride, gradOffset += gradAxisStride, outOffset += outAxisStride) {
-            float value = CpuDTypeOps.fromBFloat16Bits(grad[gradOffset])
-                    - (float) Math.exp(CpuDTypeOps.fromBFloat16Bits(primary[primaryOffset])) * sumGrad;
-            out[outOffset] = CpuDTypeOps.toBFloat16Bits(value);
+            float value = TensorDTypeOps.fromBFloat16Bits(grad[gradOffset])
+                    - (float) Math.exp(TensorDTypeOps.fromBFloat16Bits(primary[primaryOffset])) * sumGrad;
+            out[outOffset] = TensorDTypeOps.toBFloat16Bits(value);
         }
     }
 
@@ -597,11 +597,11 @@ final class SoftmaxGradExecutor {
             FloatVector gradVector = FloatVector.fromArray(F32_SPECIES, grad, gradBase + i);
             primaryVector.mul(gradVector.sub(dotVector)).intoArray(lanes, 0);
             for (int lane = 0; lane < F32_SPECIES.length(); lane++) {
-                out[outBase + i + lane] = CpuDTypeOps.toBFloat16Bits(lanes[lane]);
+                out[outBase + i + lane] = TensorDTypeOps.toBFloat16Bits(lanes[lane]);
             }
         }
         for (; i < length; i++) {
-            out[outBase + i] = CpuDTypeOps.toBFloat16Bits(primary[primaryBase + i] * (grad[gradBase + i] - dot));
+            out[outBase + i] = TensorDTypeOps.toBFloat16Bits(primary[primaryBase + i] * (grad[gradBase + i] - dot));
         }
     }
 
@@ -643,16 +643,16 @@ final class SoftmaxGradExecutor {
             FloatVector gradVector = FloatVector.fromArray(F32_SPECIES, grad, gradBase + i);
             gradVector.sub(primaryVector.lanewise(VectorOperators.EXP).mul(sumVector)).intoArray(lanes, 0);
             for (int lane = 0; lane < F32_SPECIES.length(); lane++) {
-                out[outBase + i + lane] = CpuDTypeOps.toBFloat16Bits(lanes[lane]);
+                out[outBase + i + lane] = TensorDTypeOps.toBFloat16Bits(lanes[lane]);
             }
         }
         for (; i < length; i++) {
-            out[outBase + i] = CpuDTypeOps.toBFloat16Bits(grad[gradBase + i] - (float) Math.exp(primary[primaryBase + i]) * sumGrad);
+            out[outBase + i] = TensorDTypeOps.toBFloat16Bits(grad[gradBase + i] - (float) Math.exp(primary[primaryBase + i]) * sumGrad);
         }
     }
 
     private static float load(float[] continuation, short[] storage, int offset) {
-        return continuation != null ? continuation[offset] : CpuDTypeOps.fromBFloat16Bits(storage[offset]);
+        return continuation != null ? continuation[offset] : TensorDTypeOps.fromBFloat16Bits(storage[offset]);
     }
 
     private static void store(short[] outBF16, float[] outF32, int offset, float value) {
@@ -660,7 +660,7 @@ final class SoftmaxGradExecutor {
             outF32[offset] = value;
             return;
         }
-        outBF16[offset] = CpuDTypeOps.toBFloat16Bits(value);
+        outBF16[offset] = TensorDTypeOps.toBFloat16Bits(value);
     }
 
 }

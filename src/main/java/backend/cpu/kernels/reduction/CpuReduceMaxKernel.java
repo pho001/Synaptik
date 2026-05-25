@@ -1,5 +1,7 @@
 package backend.cpu.kernels.reduction;
 
+import backend.cpu.execution.CpuKernelContext;
+
 import backend.cpu.kernels.*;
 
 import backend.cpu.kernels.reduction.MinMaxReduceExecutor;
@@ -9,11 +11,11 @@ import tensor.Tensor;
 
 import java.util.List;
 
-public final class CpuReduceMaxKernel implements CpuKernel {
+public final class CpuReduceMaxKernel extends TypedCpuKernel {
     private static final MinMaxReduceExecutor EXECUTOR = new MinMaxReduceExecutor();
 
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof reduceMax reduction)) {
             throw new IllegalArgumentException("CpuReduceMaxKernel requires reduceMax operation");
         }
@@ -21,7 +23,7 @@ public final class CpuReduceMaxKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof reduceMax reduction)) {
             throw new IllegalArgumentException("CpuReduceMaxKernel requires reduceMax operation");
         }
@@ -29,7 +31,7 @@ public final class CpuReduceMaxKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof reduceMax reduction)) {
             throw new IllegalArgumentException("CpuReduceMaxKernel requires reduceMax operation");
         }
