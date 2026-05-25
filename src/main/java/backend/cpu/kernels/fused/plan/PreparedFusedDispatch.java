@@ -1,7 +1,7 @@
 package backend.cpu.kernels.fused.plan;
 
 import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
-import backend.cpu.fused.plan.FusedVectorBlockReason;
+import backend.cpu.fused.plan.FusedVectorFallbackReason;
 
 import java.util.Objects;
 
@@ -9,12 +9,12 @@ public record PreparedFusedDispatch(
         ResolvedDispatchHints dispatchHints,
         int cpuVectorMinSize,
         int asmVectorWidth,
-        FusedVectorBlockReason vectorBlockReason
+        FusedVectorFallbackReason vectorFallbackReason
 ) {
     public PreparedFusedDispatch {
         Objects.requireNonNull(dispatchHints, "dispatchHints cannot be null");
         cpuVectorMinSize = Math.max(1, cpuVectorMinSize);
         asmVectorWidth = Math.max(1, asmVectorWidth);
-        vectorBlockReason = vectorBlockReason == null ? FusedVectorBlockReason.NONE : vectorBlockReason;
+        vectorFallbackReason = vectorFallbackReason == null ? FusedVectorFallbackReason.NONE : vectorFallbackReason;
     }
 }

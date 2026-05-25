@@ -4,7 +4,7 @@ import backend.ComputeBackend;
 import backend.accelerator.exec.AcceleratorExecutionArtifact;
 import backend.blas.OpenBlasRuntime;
 import backend.cpu.fused.plan.FusedOperation;
-import backend.cpu.fused.plan.FusedVectorBlockReason;
+import backend.cpu.fused.plan.FusedVectorFallbackReason;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
@@ -108,14 +108,14 @@ public final class CpuStepTraceContributor {
                     ? artifact.fusedExecutable()
                     : null;
             String executionClass = fusedExecutable == null ? "" : fusedExecutable.getClass().getSimpleName();
-            FusedVectorBlockReason vectorBlockReason = metadata.artifact() instanceof CpuFusedExecutionArtifact artifact
-                    ? artifact.vectorBlockReason()
-                    : FusedVectorBlockReason.NONE;
+            FusedVectorFallbackReason vectorFallbackReason = metadata.artifact() instanceof CpuFusedExecutionArtifact artifact
+                    ? artifact.vectorFallbackReason()
+                    : FusedVectorFallbackReason.NONE;
             attrs.put("fusedInputStorageKind", fused.getNumericContract().inputStorageKind().name());
             attrs.put("fusedOutputStorageKind", fused.getNumericContract().outputStorageKind().name());
             attrs.put("fusedExecutionClass", executionClass);
-            attrs.put("fusedVectorBlockReason", vectorBlockReason.name());
-            attrs.put("fusedVectorEligible", vectorBlockReason == FusedVectorBlockReason.NONE
+            attrs.put("fusedVectorFallbackReason", vectorFallbackReason.name());
+            attrs.put("fusedVectorEligible", vectorFallbackReason == FusedVectorFallbackReason.NONE
                     && cpuPlan != null
                     && cpuPlan.dispatchHints() != null
                     && cpuPlan.dispatchHints().vectorWidth() > 1);
@@ -128,7 +128,7 @@ public final class CpuStepTraceContributor {
                     executionClass,
                     fused.getPlan().nodeCount(),
                     fused.getPlan().inputCount(),
-                    vectorBlockReason.name()
+                    vectorFallbackReason.name()
             );
         }
 

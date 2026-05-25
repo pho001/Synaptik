@@ -1,6 +1,6 @@
 package backend.cpu;
 
-import backend.cpu.fused.plan.FusedVectorBlockReason;
+import backend.cpu.fused.plan.FusedVectorFallbackReason;
 import backend.cpu.fused.exec.PreparedFusedExecutable;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
@@ -19,10 +19,10 @@ public record CpuFusedExecutionArtifact(
         CpuNodeExecutionPlan cpuPlan,
         PreparedFusedExecutable fusedExecutable,
         CpuNodeWorkspace cpuWorkspace,
-        FusedVectorBlockReason vectorBlockReason
+        FusedVectorFallbackReason vectorFallbackReason
 ) implements PreparedExecutionArtifact {
     public CpuFusedExecutionArtifact {
-        vectorBlockReason = vectorBlockReason == null ? FusedVectorBlockReason.NONE : vectorBlockReason;
+        vectorFallbackReason = vectorFallbackReason == null ? FusedVectorFallbackReason.NONE : vectorFallbackReason;
     }
 
     @Override

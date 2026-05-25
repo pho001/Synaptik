@@ -408,8 +408,8 @@ public class CpuFusedMemorySegmentExecutionTest {
             assertEquals("CPU_JAVA_ARRAY", fusedTrace(trace).metadata().attributes().get("fusedOutputStorageKind"));
             assertEquals(fusedTrace(trace).metadata().fused().executionBackend(),
                     fusedTrace(trace).metadata().attributes().get("fusedExecutionClass"));
-            assertEquals(fusedTrace(trace).metadata().fused().vectorBlockReason(),
-                    fusedTrace(trace).metadata().attributes().get("fusedVectorBlockReason"));
+            assertEquals(fusedTrace(trace).metadata().fused().vectorFallbackReason(),
+                    fusedTrace(trace).metadata().attributes().get("fusedVectorFallbackReason"));
             assertFalse(fusedTrace(trace).metadata().attributes().containsKey("fusedNativeOutputWritten"));
             assertTrue(trace.cpuMaterializations().stream().noneMatch(entry ->
                             entry.detail().contains("array_to_native") || entry.detail().contains("native_to_array")),
@@ -727,7 +727,7 @@ public class CpuFusedMemorySegmentExecutionTest {
                 .orElseThrow();
         assertEquals("PARALLEL_VECTOR", fusedTrace.metadata().dispatch().mode());
         assertTrue(fusedTrace.metadata().dispatch().vectorWidth() > 1);
-        assertEquals("NONE", fusedTrace.metadata().fused().vectorBlockReason());
+        assertEquals("NONE", fusedTrace.metadata().fused().vectorFallbackReason());
         assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedInputStorageKind"));
         assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedOutputStorageKind"));
         assertGraphOutputMaterializedFromNativeFusedOutput(prepared, trace);
@@ -952,12 +952,12 @@ public class CpuFusedMemorySegmentExecutionTest {
     private static void assertVectorSegmentTrace(RunTrace trace) {
         var fusedTrace = fusedTrace(trace);
         assertTrue(fusedTrace.metadata().dispatch().vectorWidth() > 1);
-        assertEquals("NONE", fusedTrace.metadata().fused().vectorBlockReason());
+        assertEquals("NONE", fusedTrace.metadata().fused().vectorFallbackReason());
         assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedInputStorageKind"));
         assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedOutputStorageKind"));
         assertEquals(fusedTrace.metadata().fused().executionBackend(),
                 fusedTrace.metadata().attributes().get("fusedExecutionClass"));
-        assertEquals("NONE", fusedTrace.metadata().attributes().get("fusedVectorBlockReason"));
+        assertEquals("NONE", fusedTrace.metadata().attributes().get("fusedVectorFallbackReason"));
         assertEquals(true, fusedTrace.metadata().attributes().get("fusedVectorEligible"));
         assertNativeOutputWriteTrace(fusedTrace);
     }
@@ -965,12 +965,12 @@ public class CpuFusedMemorySegmentExecutionTest {
     private static void assertScalarOnlySegmentTrace(RunTrace trace) {
         var fusedTrace = fusedTrace(trace);
         assertEquals(1, fusedTrace.metadata().dispatch().vectorWidth());
-        assertEquals("UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH", fusedTrace.metadata().fused().vectorBlockReason());
+        assertEquals("VECTOR_PATH_UNSUPPORTED", fusedTrace.metadata().fused().vectorFallbackReason());
         assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedInputStorageKind"));
         assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedOutputStorageKind"));
         assertEquals(fusedTrace.metadata().fused().executionBackend(),
                 fusedTrace.metadata().attributes().get("fusedExecutionClass"));
-        assertEquals("UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH", fusedTrace.metadata().attributes().get("fusedVectorBlockReason"));
+        assertEquals("VECTOR_PATH_UNSUPPORTED", fusedTrace.metadata().attributes().get("fusedVectorFallbackReason"));
         assertEquals(false, fusedTrace.metadata().attributes().get("fusedVectorEligible"));
         assertNativeOutputWriteTrace(fusedTrace);
     }
@@ -979,10 +979,10 @@ public class CpuFusedMemorySegmentExecutionTest {
         var fusedTrace = fusedTrace(trace);
         assertTrue(fusedTrace.metadata().dispatch().vectorWidth() > 1);
         assertEquals("SCALAR", fusedTrace.metadata().dispatch().mode());
-        assertEquals("BELOW_VECTOR_THRESHOLD", fusedTrace.metadata().fused().vectorBlockReason());
+        assertEquals("BELOW_VECTOR_THRESHOLD", fusedTrace.metadata().fused().vectorFallbackReason());
         assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedInputStorageKind"));
         assertEquals("CPU_MEMORY_SEGMENT", fusedTrace.metadata().attributes().get("fusedOutputStorageKind"));
-        assertEquals("BELOW_VECTOR_THRESHOLD", fusedTrace.metadata().attributes().get("fusedVectorBlockReason"));
+        assertEquals("BELOW_VECTOR_THRESHOLD", fusedTrace.metadata().attributes().get("fusedVectorFallbackReason"));
         assertEquals(false, fusedTrace.metadata().attributes().get("fusedVectorEligible"));
         assertNativeOutputWriteTrace(fusedTrace);
     }
@@ -1086,7 +1086,7 @@ public class CpuFusedMemorySegmentExecutionTest {
                         artifact.cpuPlan(),
                         throwingExecutable,
                         artifact.cpuWorkspace(),
-                        artifact.vectorBlockReason()
+                        artifact.vectorFallbackReason()
                 ),
                 step.metadata().inputResidencyRequirement(),
                 step.metadata().outputResidencyEffect()

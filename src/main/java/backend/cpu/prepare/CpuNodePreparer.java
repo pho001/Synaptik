@@ -32,7 +32,7 @@ import backend.cpu.fused.numeric.FusedApproximationContract;
 import backend.cpu.fused.plan.FusedExecutionPlan;
 import backend.cpu.fused.plan.FusedOperationPreparation;
 import backend.cpu.fused.exec.PreparedFusedExecutable;
-import backend.cpu.fused.plan.FusedVectorBlockReason;
+import backend.cpu.fused.plan.FusedVectorFallbackReason;
 import operations.Operation;
 import backend.cpu.fused.plan.FusedOperation;
 import tensor.layout.BroadcastPlanner;
@@ -179,7 +179,7 @@ public final class CpuNodePreparer {
                         cpuPlan,
                         fusedExecutable,
                         cpuWorkspace,
-                        preparedFusedDispatch.vectorBlockReason()
+                        preparedFusedDispatch.vectorFallbackReason()
                 ),
                 inputResidencyRequirement(cpuPlan, operation),
                 outputResidencyEffect(operation)
@@ -276,8 +276,8 @@ public final class CpuNodePreparer {
                         fusedExecutable,
                         cpuWorkspace,
                         preparedFusedDispatch == null
-                                ? FusedVectorBlockReason.NONE
-                                : preparedFusedDispatch.vectorBlockReason()
+                                ? FusedVectorFallbackReason.NONE
+                                : preparedFusedDispatch.vectorFallbackReason()
                 );
         return new CompiledNodeExecutionMetadata(
                 ComputeBackend.CPU,

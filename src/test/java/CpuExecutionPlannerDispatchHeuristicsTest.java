@@ -11,7 +11,7 @@ import backend.cpu.fused.ir.FusedExternalInputPlan;
 import backend.cpu.fused.ir.FusedNodePlan;
 import backend.cpu.fused.plan.FusedDispatchFamily;
 import backend.cpu.fused.plan.FusedOperation;
-import backend.cpu.fused.plan.FusedVectorBlockReason;
+import backend.cpu.fused.plan.FusedVectorFallbackReason;
 import backend.cpu.fused.numeric.FusedComputeKind;
 import backend.cpu.fused.numeric.FusedApproximationContract;
 import backend.cpu.fused.numeric.FusedNumericContract;
@@ -59,7 +59,7 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
 
         assertEquals(CpuExecutionMode.PARALLEL, hints.mode());
         assertEquals(4, hints.vectorWidth());
-        assertEquals(FusedVectorBlockReason.BELOW_VECTOR_THRESHOLD, prepared.vectorBlockReason());
+        assertEquals(FusedVectorFallbackReason.BELOW_VECTOR_THRESHOLD, prepared.vectorFallbackReason());
     }
 
     @Test
@@ -95,7 +95,7 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
 
         assertEquals(CpuExecutionMode.SCALAR, hints.mode());
         assertEquals(1, hints.vectorWidth());
-        assertEquals(FusedVectorBlockReason.MASKED_SCALE_WHERE_SCALAR_ONLY, prepared.vectorBlockReason());
+        assertEquals(FusedVectorFallbackReason.MASKED_SCALE_WHERE_VECTOR_DISABLED, prepared.vectorFallbackReason());
     }
 
     @Test
@@ -130,7 +130,7 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
 
         assertEquals(CpuExecutionMode.PARALLEL, hints.mode());
         assertEquals(4, hints.vectorWidth());
-        assertEquals(FusedVectorBlockReason.BELOW_VECTOR_THRESHOLD, prepared.vectorBlockReason());
+        assertEquals(FusedVectorFallbackReason.BELOW_VECTOR_THRESHOLD, prepared.vectorFallbackReason());
     }
 
     private static CpuKernelConfig vectorizedFusedConfig() {

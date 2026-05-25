@@ -136,7 +136,7 @@ final class FusedParallelVectorDumpTest {
                 fused.getPlan().nodeCount(),
                 fused.getPlan().inputCount(),
                 dataType == DataType.BFLOAT16
-                        ? "BF16 generated class remains scalar-blocked until allocation-free BF16 vector storage is implemented."
+                        ? "BF16 generated class falls back until allocation-free BF16 vector storage is implemented."
                         : "F32/F64 generated class contains a real Vector API range loop; parallel scheduling happens in backend.cpu.kernels.fused.FusedExecutor."
         );
 

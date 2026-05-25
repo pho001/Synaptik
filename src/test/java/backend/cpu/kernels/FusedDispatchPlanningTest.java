@@ -16,7 +16,7 @@ import backend.cpu.fused.numeric.FusedNumericContract;
 import backend.cpu.fused.numeric.FusedStorageKind;
 import backend.cpu.fused.numeric.FusedValueLane;
 import backend.cpu.fused.plan.FusedDispatchFamily;
-import backend.cpu.fused.plan.FusedVectorBlockReason;
+import backend.cpu.fused.plan.FusedVectorFallbackReason;
 import jdk.incubator.vector.FloatVector;
 import backend.cpu.fused.plan.FusedOperation;
 import operations.Operation;
@@ -55,7 +55,7 @@ class FusedDispatchPlanningTest {
         assertEquals(expectedVectorMinSize, prepared.cpuVectorMinSize());
         assertEquals(expectedWidth, prepared.asmVectorWidth());
         assertEquals(expectedWidth, prepared.dispatchHints().vectorWidth());
-        assertEquals(FusedVectorBlockReason.BELOW_VECTOR_THRESHOLD, prepared.vectorBlockReason());
+        assertEquals(FusedVectorFallbackReason.BELOW_VECTOR_THRESHOLD, prepared.vectorFallbackReason());
         assertEquals(
                 expectedWidth > 1 && out.getFlatDataSize() >= expectedVectorMinSize ? CpuExecutionMode.VECTOR : CpuExecutionMode.SCALAR,
                 prepared.dispatchHints().mode()
@@ -86,7 +86,7 @@ class FusedDispatchPlanningTest {
         assertEquals(expectedVectorMinSize, prepared.cpuVectorMinSize());
         assertEquals(1, prepared.asmVectorWidth());
         assertEquals(1, prepared.dispatchHints().vectorWidth());
-        assertEquals(FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH, prepared.vectorBlockReason());
+        assertEquals(FusedVectorFallbackReason.VECTOR_PATH_UNSUPPORTED, prepared.vectorFallbackReason());
         assertEquals(CpuExecutionMode.SCALAR, prepared.dispatchHints().mode());
     }
 
@@ -112,7 +112,7 @@ class FusedDispatchPlanningTest {
 
         assertEquals(1, prepared.asmVectorWidth());
         assertEquals(1, prepared.dispatchHints().vectorWidth());
-        assertEquals(FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH, prepared.vectorBlockReason());
+        assertEquals(FusedVectorFallbackReason.VECTOR_PATH_UNSUPPORTED, prepared.vectorFallbackReason());
     }
 
     @Test
@@ -138,7 +138,7 @@ class FusedDispatchPlanningTest {
         int expectedWidth = Math.min(4, FloatVector.SPECIES_PREFERRED.length());
         assertEquals(expectedWidth, prepared.asmVectorWidth());
         assertEquals(expectedWidth, prepared.dispatchHints().vectorWidth());
-        assertEquals(FusedVectorBlockReason.NONE, prepared.vectorBlockReason());
+        assertEquals(FusedVectorFallbackReason.NONE, prepared.vectorFallbackReason());
     }
 
     @Test
@@ -174,7 +174,7 @@ class FusedDispatchPlanningTest {
         int expectedWidth = Math.min(4, FloatVector.SPECIES_PREFERRED.length());
         assertEquals(expectedWidth, prepared.asmVectorWidth());
         assertEquals(expectedWidth, prepared.dispatchHints().vectorWidth());
-        assertEquals(FusedVectorBlockReason.NONE, prepared.vectorBlockReason());
+        assertEquals(FusedVectorFallbackReason.NONE, prepared.vectorFallbackReason());
     }
 
     @Test
@@ -210,7 +210,7 @@ class FusedDispatchPlanningTest {
         int expectedWidth = Math.min(4, FloatVector.SPECIES_PREFERRED.length());
         assertEquals(expectedWidth, prepared.asmVectorWidth());
         assertEquals(expectedWidth, prepared.dispatchHints().vectorWidth());
-        assertEquals(FusedVectorBlockReason.NONE, prepared.vectorBlockReason());
+        assertEquals(FusedVectorFallbackReason.NONE, prepared.vectorFallbackReason());
     }
 
     @Test
@@ -243,10 +243,10 @@ class FusedDispatchPlanningTest {
         );
 
         assertEquals(1, bf16Prepared.asmVectorWidth());
-        assertEquals(FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH, bf16Prepared.vectorBlockReason());
+        assertEquals(FusedVectorFallbackReason.VECTOR_PATH_UNSUPPORTED, bf16Prepared.vectorFallbackReason());
         int expectedWidth = Math.min(4, FloatVector.SPECIES_PREFERRED.length());
         assertEquals(expectedWidth, stridedPrepared.asmVectorWidth());
-        assertEquals(FusedVectorBlockReason.NONE, stridedPrepared.vectorBlockReason());
+        assertEquals(FusedVectorFallbackReason.NONE, stridedPrepared.vectorFallbackReason());
     }
 
     @Test
@@ -329,10 +329,10 @@ class FusedDispatchPlanningTest {
 
         assertEquals(1, comparePrepared.asmVectorWidth());
         assertEquals(1, comparePrepared.dispatchHints().vectorWidth());
-        assertEquals(FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH, comparePrepared.vectorBlockReason());
+        assertEquals(FusedVectorFallbackReason.VECTOR_PATH_UNSUPPORTED, comparePrepared.vectorFallbackReason());
         assertEquals(1, wherePrepared.asmVectorWidth());
         assertEquals(1, wherePrepared.dispatchHints().vectorWidth());
-        assertEquals(FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH, wherePrepared.vectorBlockReason());
+        assertEquals(FusedVectorFallbackReason.VECTOR_PATH_UNSUPPORTED, wherePrepared.vectorFallbackReason());
     }
 
     @Test
@@ -377,7 +377,7 @@ class FusedDispatchPlanningTest {
 
         assertEquals(1, prepared.asmVectorWidth());
         assertEquals(1, prepared.dispatchHints().vectorWidth());
-        assertEquals(FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH, prepared.vectorBlockReason());
+        assertEquals(FusedVectorFallbackReason.VECTOR_PATH_UNSUPPORTED, prepared.vectorFallbackReason());
     }
 
     private static CpuKernelConfig testKernelConfig() {

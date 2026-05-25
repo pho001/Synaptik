@@ -1048,7 +1048,7 @@ public final class TextBenchmarkReportRenderer {
                         .append(" lowCostHint=").append(metadata.fused().lowCostHint())
                         .append(" dispatchFamily=").append(metadata.fused().dispatchFamily())
                         .append(" schedulerSignature=").append(metadata.fused().schedulerSignature())
-                        .append(" vectorBlockReason=").append(metadata.fused().vectorBlockReason())
+                        .append(" vectorFallbackReason=").append(metadata.fused().vectorFallbackReason())
                         .append(" executionBackend=").append(metadata.fused().executionBackend())
                         .append(" fusedNodeCount=").append(metadata.fused().fusedNodeCount())
                         .append(" fusedInputCount=").append(metadata.fused().fusedInputCount())

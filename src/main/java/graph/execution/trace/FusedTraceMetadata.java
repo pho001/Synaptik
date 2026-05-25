@@ -10,7 +10,7 @@ package graph.execution.trace;
  * @param executionBackend backend selected for fused execution
  * @param fusedNodeCount number of nodes represented by the fused op
  * @param fusedInputCount number of fused inputs
- * @param vectorBlockReason reason fused vector dispatch was blocked, or NONE
+ * @param vectorFallbackReason reason fused vector dispatch fell back, or NONE
  */
 public record FusedTraceMetadata(
         String numericContract,
@@ -20,6 +20,6 @@ public record FusedTraceMetadata(
         String executionBackend,
         int fusedNodeCount,
         int fusedInputCount,
-        String vectorBlockReason
+        String vectorFallbackReason
 ) {
 }

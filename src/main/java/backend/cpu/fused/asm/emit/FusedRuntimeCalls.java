@@ -230,7 +230,7 @@ final class FusedRuntimeCalls {
     }
 
     static void emitLoadBoolVectorFromArrayCall(MethodVisitor mv, FusedNumericContract numericContract) {
-        throw new UnsupportedOperationException("BOOL vector loads must be scalar-blocked before bytecode generation.");
+        throw new UnsupportedOperationException("BOOL vector loads must fall back before vector bytecode generation.");
     }
 
     static void emitStoreVectorToArrayCall(MethodVisitor mv, DataType dataType, FusedNumericContract numericContract) {
@@ -288,7 +288,7 @@ final class FusedRuntimeCalls {
     }
 
     static void emitStoreBoolVectorToArrayCall(MethodVisitor mv, FusedNumericContract numericContract) {
-        throw new UnsupportedOperationException("BOOL vector stores must be scalar-blocked before bytecode generation.");
+        throw new UnsupportedOperationException("BOOL vector stores must fall back before vector bytecode generation.");
     }
 
     static String vectorTypeDesc(FusedNumericContract numericContract) {

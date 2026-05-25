@@ -128,7 +128,7 @@ final class FusedVectorBytecode {
                 mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "sqrt" + suffix, "(" + vd + ")" + vd, false);
                 return;
             }
-            throw new UnsupportedOperationException("Generic F32 vector POW must be blocked before bytecode generation.");
+            throw new UnsupportedOperationException("Generic F32 vector POW must fall back before vector bytecode generation.");
         }
         double exponent = exponentValue;
         if (Double.compare(exponent, -2.0d) == 0) {
@@ -155,7 +155,7 @@ final class FusedVectorBytecode {
             mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/runtime/FusedVectorOps", "sqrt" + suffix, "(" + vd + ")" + vd, false);
             return;
         }
-        throw new UnsupportedOperationException("Generic F64 vector POW must be blocked before bytecode generation.");
+        throw new UnsupportedOperationException("Generic F64 vector POW must fall back before vector bytecode generation.");
     }
 
     static void emitVectorClampCall(MethodVisitor mv, String op, FusedNumericContract numericContract) {

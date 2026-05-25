@@ -6,7 +6,7 @@ import backend.cpu.kernels.ResolvedCpuComputeContract;
 import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
 import backend.cpu.kernels.plan.CpuPlanningPolicy;
 import backend.cpu.fused.plan.FusedOperation;
-import backend.cpu.fused.plan.FusedVectorBlockReason;
+import backend.cpu.fused.plan.FusedVectorFallbackReason;
 import backend.cpu.fused.plan.FusedVectorGuard;
 import tensor.Tensor;
 
@@ -43,9 +43,9 @@ public final class FusedDispatchPlanner {
         CpuKernelCostClass costClass = fusedCostClass(fused);
         int targetChunks = policy.targetChunksPerWorker(costClass);
         int cpuVectorMinSize = policy.fusedDirectVectorMinSize(fused);
-        FusedVectorBlockReason dispatchBlockReason = FusedVectorGuard.dispatchBlockReason(fused);
+        FusedVectorFallbackReason dispatchFallbackReason = FusedVectorGuard.dispatchFallbackReason(fused);
 
-        if (dispatchBlockReason.forceSerialScalarDispatch()) {
+        if (dispatchFallbackReason.requiresSerialScalarDispatch()) {
             return new PreparedFusedDispatch(
                     new ResolvedDispatchHints(
                             totalLength,
@@ -58,7 +58,7 @@ public final class FusedDispatchPlanner {
                     ),
                     cpuVectorMinSize,
                     1,
-                    dispatchBlockReason
+                    dispatchFallbackReason
             );
         }
 
@@ -86,7 +86,7 @@ public final class FusedDispatchPlanner {
                 ),
                 cpuVectorMinSize,
                 asmVectorWidth,
-                FusedVectorGuard.preparedBlockReason(contract, fused, totalLength, cpuVectorMinSize, asmVectorWidth)
+                FusedVectorGuard.preparedFallbackReason(contract, fused, totalLength, cpuVectorMinSize, asmVectorWidth)
         );
     }
 

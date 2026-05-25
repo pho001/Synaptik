@@ -22,57 +22,57 @@ public final class FusedVectorGuard {
     }
 
     public static boolean requiresScalarDispatch(FusedOperation fused) {
-        return dispatchBlockReason(fused).forceSerialScalarDispatch();
+        return dispatchFallbackReason(fused).requiresSerialScalarDispatch();
     }
 
     public static boolean requiresScalarAsmWidth(ResolvedCpuComputeContract contract, FusedOperation fused) {
-        return asmWidthBlockReason(contract, fused).forceScalarAsmWidth();
+        return asmWidthFallbackReason(contract, fused).requiresScalarAsmWidth();
     }
 
-    public static FusedVectorBlockReason dispatchBlockReason(FusedOperation fused) {
+    public static FusedVectorFallbackReason dispatchFallbackReason(FusedOperation fused) {
         return isMaskedScaleWherePlan(fused)
-                ? FusedVectorBlockReason.MASKED_SCALE_WHERE_SCALAR_ONLY
-                : FusedVectorBlockReason.NONE;
+                ? FusedVectorFallbackReason.MASKED_SCALE_WHERE_VECTOR_DISABLED
+                : FusedVectorFallbackReason.NONE;
     }
 
-    public static FusedVectorBlockReason asmWidthBlockReason(
+    public static FusedVectorFallbackReason asmWidthFallbackReason(
             ResolvedCpuComputeContract contract,
             FusedOperation fused
     ) {
-        FusedVectorBlockReason dispatchReason = dispatchBlockReason(fused);
-        if (dispatchReason.forceScalarAsmWidth()) {
+        FusedVectorFallbackReason dispatchReason = dispatchFallbackReason(fused);
+        if (dispatchReason.requiresScalarAsmWidth()) {
             return dispatchReason;
         }
         if (fused != null && !supportsAllocationFreeVectorPath(fused.getNumericContract(), fused.getPlan())) {
-            return FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH;
+            return FusedVectorFallbackReason.VECTOR_PATH_UNSUPPORTED;
         }
         if (fused != null
                 && fused.getNumericContract().usesMemorySegmentStorage()
                 && !supportsMemorySegmentVectorAsm(fused.getNumericContract(), fused.getPlan())) {
-            return FusedVectorBlockReason.MEMORY_SEGMENT_SCALAR_ONLY;
+            return FusedVectorFallbackReason.MEMORY_SEGMENT_VECTOR_UNSUPPORTED;
         }
         return isBf16AffineRationalStridedPlan(contract, fused)
-                ? FusedVectorBlockReason.BF16_STRIDED_RATIONAL_SCALAR_ONLY
-                : FusedVectorBlockReason.NONE;
+                ? FusedVectorFallbackReason.BF16_STRIDED_RATIONAL_VECTOR_DISABLED
+                : FusedVectorFallbackReason.NONE;
     }
 
-    public static FusedVectorBlockReason preparedBlockReason(
+    public static FusedVectorFallbackReason preparedFallbackReason(
             ResolvedCpuComputeContract contract,
             FusedOperation fused,
             int totalLength,
             int cpuVectorMinSize,
             int asmVectorWidth
     ) {
-        FusedVectorBlockReason explicitReason = asmWidthBlockReason(contract, fused);
-        if (explicitReason != FusedVectorBlockReason.NONE) {
+        FusedVectorFallbackReason explicitReason = asmWidthFallbackReason(contract, fused);
+        if (explicitReason != FusedVectorFallbackReason.NONE) {
             return explicitReason;
         }
         if (asmVectorWidth <= 1) {
-            return FusedVectorBlockReason.PREFERRED_WIDTH_SCALAR;
+            return FusedVectorFallbackReason.PREFERRED_WIDTH_IS_SCALAR;
         }
         return totalLength < Math.max(1, cpuVectorMinSize)
-                ? FusedVectorBlockReason.BELOW_VECTOR_THRESHOLD
-                : FusedVectorBlockReason.NONE;
+                ? FusedVectorFallbackReason.BELOW_VECTOR_THRESHOLD
+                : FusedVectorFallbackReason.NONE;
     }
 
     public static boolean supportsMemorySegmentVectorAsm(

@@ -102,7 +102,7 @@ public final class FusedVectorMethodEmitter {
             mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
             mv.visitVarInsn(ALOAD, nodeVectorSlots[plan.outputRef() - plan.inputCount()]);
             if (plan.outputNode().outputType() == tensor.DataType.BOOL) {
-                throw new UnsupportedOperationException("BOOL vector outputs must be scalar-blocked before bytecode generation.");
+                throw new UnsupportedOperationException("BOOL vector outputs must fall back before vector bytecode generation.");
             } else if (!context.numericContract().writesBf16()) {
                 FusedRuntimeCalls.emitDirectStoreVectorToArrayCall(mv, context.numericContract());
             } else {

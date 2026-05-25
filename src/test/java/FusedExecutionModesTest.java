@@ -1,7 +1,7 @@
 import backend.runtime.ExecutionMode;
 import backend.cpu.CpuFusedExecutionArtifact;
 import backend.cpu.fused.plan.FusedOperation;
-import backend.cpu.fused.plan.FusedVectorBlockReason;
+import backend.cpu.fused.plan.FusedVectorFallbackReason;
 import config.compile.CompileConfig;
 import config.compile.GraphOptimizationConfig;
 import config.runtime.RuntimeConfig;
@@ -142,8 +142,8 @@ public class FusedExecutionModesTest {
         var fusedStep = findPreparedFusedStep(prepared);
         assertTrue(testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth() > 1);
         assertEquals(
-                FusedVectorBlockReason.NONE,
-                ((CpuFusedExecutionArtifact) fusedStep.metadata().artifact()).vectorBlockReason()
+                FusedVectorFallbackReason.NONE,
+                ((CpuFusedExecutionArtifact) fusedStep.metadata().artifact()).vectorFallbackReason()
         );
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-5);
 
@@ -181,8 +181,8 @@ public class FusedExecutionModesTest {
         var fusedStep = findPreparedFusedStep(prepared);
         assertTrue(testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth() > 1);
         assertEquals(
-                FusedVectorBlockReason.NONE,
-                ((CpuFusedExecutionArtifact) fusedStep.metadata().artifact()).vectorBlockReason()
+                FusedVectorFallbackReason.NONE,
+                ((CpuFusedExecutionArtifact) fusedStep.metadata().artifact()).vectorFallbackReason()
         );
         assertArrayEquals(expected, out.toDoubleArrayCopy(), EPS);
 
@@ -586,8 +586,8 @@ public class FusedExecutionModesTest {
         var cpuPlan = testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata());
         assertEquals(1, cpuPlan.dispatchHints().vectorWidth());
         assertEquals(
-                FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH,
-                ((CpuFusedExecutionArtifact) fusedStep.metadata().artifact()).vectorBlockReason()
+                FusedVectorFallbackReason.VECTOR_PATH_UNSUPPORTED,
+                ((CpuFusedExecutionArtifact) fusedStep.metadata().artifact()).vectorFallbackReason()
         );
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
     }
