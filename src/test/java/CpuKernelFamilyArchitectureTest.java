@@ -7,7 +7,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -94,9 +97,123 @@ public class CpuKernelFamilyArchitectureTest {
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/layout/PreparedInputPolicy.java")));
     }
 
+    @Test
+    void waveZeroCriticalOpOwnersHaveDocumentedEntrypoints() {
+        List<String> requiredPaths = List.of(
+                "src/main/java/backend/cpu/kernels/elementwise/binary/CpuAddKernel.java",
+                "src/main/java/backend/cpu/kernels/elementwise/binary/ElementwiseBinaryExecutor.java",
+                "src/main/java/backend/cpu/kernels/elementwise/ElementwiseLoops.java",
+                "src/main/java/backend/cpu/kernels/elementwise/binary/f32/AddF32.java",
+                "src/main/java/backend/cpu/kernels/elementwise/binary/f64/AddF64.java",
+                "src/main/java/backend/cpu/kernels/elementwise/binary/bf16/AddBF16.java",
+                "src/main/java/backend/cpu/kernels/elementwise/where/CpuWhereKernel.java",
+                "src/main/java/backend/cpu/kernels/elementwise/where/WhereExecutor.java",
+                "src/main/java/backend/cpu/kernels/reduction/CpuSumKernel.java",
+                "src/main/java/backend/cpu/kernels/reduction/SumLikeReductionExecutor.java",
+                "src/main/java/backend/cpu/kernels/reduction/SumLoops.java",
+                "src/main/java/backend/cpu/kernels/layout/CpuCastKernel.java",
+                "src/main/java/backend/cpu/kernels/layout/CpuContiguousKernel.java",
+                "src/main/java/backend/cpu/kernels/layout/LayoutExecutor.java",
+                "src/main/java/backend/cpu/kernels/linalg/CpuMatMulKernel.java",
+                "src/main/java/backend/cpu/kernels/linalg/matmul/plan/MatMulPlanner.java",
+                "src/main/java/backend/cpu/kernels/linalg/matmul/exec/PreparedMatMulExecutableFactory.java",
+                "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32JavaMatMulExecutable.java",
+                "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32BlasMatMulExecutable.java",
+                "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32NativeBlasMatMulExecutable.java",
+                "src/main/java/backend/cpu/nativecpu/NativeCpuElementwiseExecutor.java",
+                "src/main/java/backend/cpu/nativecpu/NativeCpuReductionExecutor.java",
+                "src/main/java/backend/cpu/nativecpu/NativeCpuCastExecutor.java",
+                "src/main/java/backend/cpu/nativecpu/NativeCpuContiguousExecutor.java"
+        );
+
+        List<String> missing = requiredPaths.stream()
+                .filter(path -> !Files.exists(Path.of(path)))
+                .sorted()
+                .toList();
+        assertTrue(missing.isEmpty(), () -> "Wave 0 owner map paths drifted: " + missing);
+    }
+
+    @Test
+    void waveZeroNativeCpuImportsFromKernelPackageRemainExplicitlyAllowlisted() throws IOException {
+        Map<String, Set<String>> expected = Map.ofEntries(
+                Map.entry("CpuNodeExecutionPlan.java", Set.of("PreparedNativeCpuPlan")),
+                Map.entry("plan/CpuPlanAssembler.java", Set.of("NativeCpuPlanResolver", "PreparedNativeCpuPlan")),
+                Map.entry("elementwise/binary/ElementwiseBinaryExecutor.java", Set.of("NativeCpuElementwiseExecutor")),
+                Map.entry("elementwise/unary/ElementwiseUnaryExecutor.java", Set.of("NativeCpuElementwiseExecutor")),
+                Map.entry("elementwise/where/WhereExecutor.java", Set.of("NativeCpuElementwiseExecutor")),
+                Map.entry("elementwise/compare/CompareExecutor.java", Set.of("NativeCpuCompareExecutor")),
+                Map.entry("elementwise/logical/LogicalExecutor.java", Set.of("NativeCpuBoolMaskExecutor")),
+                Map.entry("reduction/SumLikeReductionExecutor.java", Set.of("NativeCpuReductionExecutor")),
+                Map.entry("reduction/MinMaxReduceExecutor.java", Set.of("NativeCpuReductionExecutor")),
+                Map.entry("reduction/BoolReduceExecutor.java", Set.of("NativeCpuBoolMaskExecutor")),
+                Map.entry("layout/CpuCastKernel.java", Set.of("NativeCpuCastExecutor")),
+                Map.entry("layout/CpuContiguousKernel.java", Set.of("NativeCpuContiguousExecutor")),
+                Map.entry("layout/CpuAliasViewKernel.java", Set.of("NativeCpuViewExecutor")),
+                Map.entry("layout/CpuNoopKernel.java", Set.of("NativeCpuViewExecutor")),
+                Map.entry("layout/CpuReshapeLikeKernel.java", Set.of("NativeCpuViewExecutor"))
+        );
+
+        assertEquals(expected, nativeCpuImportsUnder(Path.of("src/main/java/backend/cpu/kernels")),
+                "Wave 0 baseline must make native CPU dependencies explicit before the rewrite removes them.");
+    }
+
+    @Test
+    void waveZeroBaselineDocumentCapturesOpsAndBenchmarkSanity() throws IOException {
+        String doc = Files.readString(Path.of("docs/cpu-kernels-wave0-baseline.md"));
+        List<String> requiredMarkers = List.of(
+                "`ADD`",
+                "`WHERE`",
+                "`SUM`",
+                "`CAST`",
+                "`CONTIGUOUS`",
+                "`MATMUL`",
+                "dense F32 add",
+                "dense F64 add",
+                "BF16 add",
+                "F32 sum",
+                "F32 matmul Java",
+                "F32 OpenBLAS array copy",
+                "F32 OpenBLAS segment",
+                "NativeCpuElementwiseExecutor",
+                "PreparedMatMulExecutableFactory"
+        );
+        List<String> missing = requiredMarkers.stream()
+                .filter(marker -> !doc.contains(marker))
+                .toList();
+        assertTrue(missing.isEmpty(), () -> "Wave 0 baseline document is missing required markers: " + missing);
+    }
+
     private static void assertPackage(Operation.OpType opType, String expectedPackage) {
         CpuKernel kernel = CpuKernelResolver.resolve(opType);
         assertEquals(expectedPackage, kernel.getClass().getPackageName(), () ->
                 "Kernel for " + opType + " should live in " + expectedPackage + " but was " + kernel.getClass().getPackageName());
+    }
+
+    private static Map<String, Set<String>> nativeCpuImportsUnder(Path root) throws IOException {
+        Map<String, Set<String>> imports = new TreeMap<>();
+        try (Stream<Path> paths = Files.walk(root)) {
+            for (Path path : paths
+                    .filter(Files::isRegularFile)
+                    .filter(file -> file.toString().endsWith(".java"))
+                    .toList()) {
+                List<String> nativeImports = Files.readAllLines(path).stream()
+                        .map(String::trim)
+                        .filter(line -> line.startsWith("import backend.cpu.nativecpu."))
+                        .map(CpuKernelFamilyArchitectureTest::importedSimpleName)
+                        .sorted()
+                        .toList();
+                if (!nativeImports.isEmpty()) {
+                    String relativePath = root.relativize(path).toString().replace('\\', '/');
+                    imports.put(relativePath, new TreeSet<>(nativeImports));
+                }
+            }
+        }
+        return imports;
+    }
+
+    private static String importedSimpleName(String importLine) {
+        String prefix = "import backend.cpu.nativecpu.";
+        String suffix = importLine.substring(prefix.length());
+        return suffix.endsWith(";") ? suffix.substring(0, suffix.length() - 1) : suffix;
     }
 }

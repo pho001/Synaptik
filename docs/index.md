@@ -91,6 +91,7 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 | [onnx.md](onnx.md#onnx-import-and-export) | ONNX import/export boundary, public API, supported static dense inference subset, dtype/op mapping, and failure policy. |
 | [cpu-bf16.md](cpu-bf16.md#cpu-bf16-runtime) | CPU BF16 storage/compute/accumulation contract, conversion costs, fusion limits, BLAS implications, and trace-reading guidance. |
 | [native-bridges-and-blas.md](native-bridges-and-blas.md#term-map-at-a-glance) | Explanation of BLAS/GEMM, OpenBLAS dispatch, Java FFM bridges, native lookup, fallbacks, and performance tradeoffs. |
+| [cpu-kernels-wave0-baseline.md](cpu-kernels-wave0-baseline.md#cpu-kernels-wave-0-baseline) | Baseline owner map, execution-path classification, native import gate, and benchmark sanity list for the CPU kernels rewrite. |
 | [metal-backend.md](metal-backend.md#end-to-end-flow) | Detailed Metal backend guide covering planner legality, Java FFM, Objective-C MPS shim, native buffer ABI, residency, traces, and fallbacks. |
 | [adding-tensor-operation.md](adding-tensor-operation.md#implementation-checklist) | Contributor guide for adding a new tensor operation through descriptors, builders, public API, CPU kernels, autograd, optimizer/fusion integration, docs, and tests. |
 | [tensor-api.md](tensor-api.md#api-surface-and-conventions) | Detailed public Tensor API guide with signatures, `compute(...)` options, edge cases, and value-level operation examples. |
