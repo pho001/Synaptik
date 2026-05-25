@@ -125,34 +125,37 @@ public final class FusedInputBindingEmitter {
         }
     }
 
-    public static void emitVectorCursorBindings(
+    public static void emitVectorScratchBindings(
             MethodVisitor mv,
-            List<FusedExternalInputPlan> inputAccess,
-            SlotManager sm,
-            boolean memorySegmentStorage
+            FusedGenerationContext context,
+            SlotManager sm
     ) {
-        List<Integer> cursorSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS);
-        for (int i = 0; i < inputAccess.size(); i++) {
-            FusedExternalInputPlan meta = inputAccess.get(i);
-            if (!meta.usesCursor()) {
-                continue;
+        List<Integer> indexMapSlots = sm.getGroup(SlotKey.FUSED_VECTOR_INDEX_MAPS);
+        List<Integer> laneScratchSlots = sm.getGroup(SlotKey.FUSED_VECTOR_LANE_ARRAYS);
+        boolean memorySegmentStorage = context.numericContract().inputStorageKind() == FusedStorageKind.CPU_MEMORY_SEGMENT;
+        for (int i = 0; i < context.plan().inputCount(); i++) {
+            FusedExternalInputPlan meta = context.plan().inputs().get(i);
+            if (FusedVectorGatherEmitter.requiresGather(meta)) {
+                FusedVectorBytecode.emitVectorWidthConstant(mv, context.vectorWidth());
+                mv.visitIntInsn(NEWARRAY, T_INT);
+            } else {
+                mv.visitInsn(ACONST_NULL);
             }
-            if (isZeroStrideBroadcast(meta)) {
-                continue;
+            mv.visitVarInsn(ASTORE, indexMapSlots.get(i));
+
+            if (memorySegmentStorage && FusedVectorGatherEmitter.requiresGather(meta)) {
+                FusedVectorBytecode.emitVectorWidthConstant(mv, context.vectorWidth());
+                if (meta.dataType() == DataType.FLOAT32 && context.numericContract().usesFloatCompute()) {
+                    mv.visitIntInsn(NEWARRAY, T_FLOAT);
+                } else if (meta.dataType() == DataType.FLOAT64 && context.numericContract().usesDoubleCompute()) {
+                    mv.visitIntInsn(NEWARRAY, T_DOUBLE);
+                } else {
+                    throw new UnsupportedOperationException("Vector segment gather scratch requires F32/F64 storage matching compute kind.");
+                }
+            } else {
+                mv.visitInsn(ACONST_NULL);
             }
-            mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_START));
-            FusedScalarBytecode.emitIntArrayConstant(mv, meta.logicalOutputShape());
-            FusedScalarBytecode.emitIntArrayConstant(mv, meta.logicalOutputDenseStrides());
-            FusedScalarBytecode.emitIntArrayConstant(mv, meta.effectiveStrides());
-            mv.visitLdcInsn(meta.storageOffset());
-            mv.visitMethodInsn(
-                    INVOKESTATIC,
-                    "backend/cpu/fused/runtime/FusedBroadcastCursor",
-                    "atStart",
-                    "(I[I[I[II)Lbackend/cpu/fused/runtime/FusedBroadcastCursor;",
-                    false
-            );
-            mv.visitVarInsn(ASTORE, cursorSlots.get(i));
+            mv.visitVarInsn(ASTORE, laneScratchSlots.get(i));
         }
     }
 
@@ -166,6 +169,8 @@ public final class FusedInputBindingEmitter {
     ) {
         List<Integer> inputSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS);
         List<Integer> cachedInputVectorSlots = sm.getGroup(SlotKey.CLUSTER_INTERMEDIATES_ARRAYS);
+        List<Integer> indexMapSlots = sm.getGroup(SlotKey.FUSED_VECTOR_INDEX_MAPS);
+        List<Integer> laneScratchSlots = sm.getGroup(SlotKey.FUSED_VECTOR_LANE_ARRAYS);
         boolean memorySegmentStorage = context.numericContract().inputStorageKind() == FusedStorageKind.CPU_MEMORY_SEGMENT;
 
         for (int i = 0; i < inputCount; i++) {
@@ -187,28 +192,60 @@ public final class FusedInputBindingEmitter {
                     }
                 } else {
                     if (memorySegmentStorage) {
-                        if (!isZeroStrideBroadcast(meta)) {
-                            throw new UnsupportedOperationException(
-                                    "Non-linear MemorySegment vector loads are not supported for fused execution."
+                        if (isZeroStrideBroadcast(meta)) {
+                            mv.visitVarInsn(ALOAD, inputSlots.get(i));
+                            mv.visitLdcInsn(meta.storageOffset());
+                            FusedRuntimeCalls.emitBroadcastSegmentVectorLoad(
+                                    mv,
+                                    meta.dataType(),
+                                    context.numericContract(),
+                                    vectorWidth
+                            );
+                        } else {
+                            FusedVectorGatherEmitter.emitIndexMap(
+                                    mv,
+                                    meta,
+                                    sm,
+                                    indexMapSlots.get(i),
+                                    vectorWidth
+                            );
+                            FusedVectorGatherEmitter.emitSegmentGatherLoad(
+                                    mv,
+                                    inputSlots.get(i),
+                                    indexMapSlots.get(i),
+                                    laneScratchSlots.get(i),
+                                    meta.dataType(),
+                                    context.numericContract(),
+                                    vectorWidth
                             );
                         }
-                        mv.visitVarInsn(ALOAD, inputSlots.get(i));
-                        mv.visitLdcInsn(meta.storageOffset());
-                        FusedRuntimeCalls.emitBroadcastSegmentVectorLoad(
-                                mv,
-                                meta.dataType(),
-                                context.numericContract(),
-                                vectorWidth
-                        );
                     } else {
-                        mv.visitVarInsn(ALOAD, inputSlots.get(i));
-                        mv.visitLdcInsn(meta.storageOffset());
-                        FusedRuntimeCalls.emitBroadcastArrayVectorLoad(
-                                mv,
-                                meta.dataType(),
-                                context.numericContract(),
-                                vectorWidth
-                        );
+                        if (isZeroStrideBroadcast(meta)) {
+                            mv.visitVarInsn(ALOAD, inputSlots.get(i));
+                            mv.visitLdcInsn(meta.storageOffset());
+                            FusedRuntimeCalls.emitBroadcastArrayVectorLoad(
+                                    mv,
+                                    meta.dataType(),
+                                    context.numericContract(),
+                                    vectorWidth
+                            );
+                        } else {
+                            FusedVectorGatherEmitter.emitIndexMap(
+                                    mv,
+                                    meta,
+                                    sm,
+                                    indexMapSlots.get(i),
+                                    vectorWidth
+                            );
+                            FusedVectorGatherEmitter.emitArrayGatherLoad(
+                                    mv,
+                                    inputSlots.get(i),
+                                    indexMapSlots.get(i),
+                                    meta.dataType(),
+                                    context.numericContract(),
+                                    vectorWidth
+                            );
+                        }
                     }
                 }
             }

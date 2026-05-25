@@ -578,12 +578,18 @@ public class SourceTreeHygieneTest {
         String scalarOps = "Fused" + "Scalar" + "Ops";
         String broadcastOps = "Fused" + "Broadcast" + "Vector" + "Ops";
         String storageOps = "Fused" + "Storage" + "Ops";
+        String gatherHelper = "Fused" + "Vector" + "Gather" + "Helper";
+        String broadcastHelper = "Fused" + "Broadcast" + "Helper";
         assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/fused/runtime/" + scalarOps + ".java")),
                 scalarOps + " must not be restored as a scalar math helper layer");
         assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/fused/runtime/" + broadcastOps + ".java")),
                 broadcastOps + " must not hide broadcast/gather vector helper loops");
         assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/fused/runtime/" + storageOps + ".java")),
                 storageOps + " must not hide storage/vector helper loops");
+        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/fused/runtime/" + gatherHelper + ".java")),
+                gatherHelper + " must not hide generated vector gather bytecode behind a runtime helper");
+        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/fused/runtime/" + broadcastHelper + ".java")),
+                broadcastHelper + " must not hide generated vector broadcast bytecode behind a runtime helper");
 
         List<String> hotPathOffenders = sourceLinesContaining(
                 List.of(Path.of("src/main/java/backend/cpu/fused/asm"), Path.of("src/main/java/backend/cpu/fused/plan")),
@@ -591,6 +597,8 @@ public class SourceTreeHygieneTest {
                         "backend/cpu/fused/runtime/" + scalarOps,
                         "backend/cpu/fused/runtime/" + broadcastOps,
                         "backend/cpu/fused/runtime/" + storageOps,
+                        "backend/cpu/fused/runtime/" + gatherHelper,
+                        "backend/cpu/fused/runtime/" + broadcastHelper,
                         "loadVectorBF16Array",
                         "storeVectorBF16Array",
                         "loadMaskF32Array",

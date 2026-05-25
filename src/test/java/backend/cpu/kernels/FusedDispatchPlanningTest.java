@@ -178,7 +178,7 @@ class FusedDispatchPlanningTest {
     }
 
     @Test
-    void memorySegmentF32UnusedUnsupportedInputForcesScalarAsmWidth() {
+    void memorySegmentF32GeneralStridedInputKeepsVectorAsmWidth() {
         CpuExecutionPlanner planner = CpuExecutionPlanner.from(testKernelConfig());
         FusedExpressionPlan plan = new FusedExpressionPlan(
                 List.of(new FusedNodePlan(0, Operation.OpType.RELU, List.of(0), 2, DataType.FLOAT32, NoAttributes.INSTANCE)),
@@ -189,12 +189,12 @@ class FusedDispatchPlanningTest {
                 2
         );
         FusedOperation fused = new FusedOperation(
-                "fused-unused-unsupported-segment-input",
+                "fused-general-strided-segment-input",
                 numericSegment(FusedValueLane.F32),
                 FusedApproximationContract.STRICT,
                 true,
                 FusedDispatchFamily.CHEAP_STRIDED,
-                "fused-unused-unsupported-segment-input",
+                "fused-general-strided-segment-input",
                 plan
         );
         Tensor out = new Tensor(new int[]{2_048}, null, "fused_out", DataType.FLOAT32);
@@ -207,13 +207,14 @@ class FusedDispatchPlanningTest {
 
         PreparedFusedDispatch prepared = planner.resolveFusedDispatch(fused, out, contract);
 
-        assertEquals(1, prepared.asmVectorWidth());
-        assertEquals(1, prepared.dispatchHints().vectorWidth());
-        assertEquals(FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH, prepared.vectorBlockReason());
+        int expectedWidth = Math.min(4, FloatVector.SPECIES_PREFERRED.length());
+        assertEquals(expectedWidth, prepared.asmVectorWidth());
+        assertEquals(expectedWidth, prepared.dispatchHints().vectorWidth());
+        assertEquals(FusedVectorBlockReason.NONE, prepared.vectorBlockReason());
     }
 
     @Test
-    void memorySegmentBf16AndStridedDispatchStayScalarOnly() {
+    void memorySegmentBf16DispatchStaysScalarOnlyWhileF32StridedDispatchVectorizes() {
         CpuExecutionPlanner planner = CpuExecutionPlanner.from(testKernelConfig());
         FusedOperation bf16 = fusedUnary(
                 Operation.OpType.RELU,
@@ -243,8 +244,9 @@ class FusedDispatchPlanningTest {
 
         assertEquals(1, bf16Prepared.asmVectorWidth());
         assertEquals(FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH, bf16Prepared.vectorBlockReason());
-        assertEquals(1, stridedPrepared.asmVectorWidth());
-        assertEquals(FusedVectorBlockReason.UNSUPPORTED_ALLOCATION_FREE_VECTOR_PATH, stridedPrepared.vectorBlockReason());
+        int expectedWidth = Math.min(4, FloatVector.SPECIES_PREFERRED.length());
+        assertEquals(expectedWidth, stridedPrepared.asmVectorWidth());
+        assertEquals(FusedVectorBlockReason.NONE, stridedPrepared.vectorBlockReason());
     }
 
     @Test

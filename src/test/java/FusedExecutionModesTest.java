@@ -114,6 +114,84 @@ public class FusedExecutionModesTest {
     }
 
     @Test
+    void f32GeneralBroadcastUsesGeneratedIndexedArrayVectorGather() {
+        int rows = 8192;
+        int cols = 19;
+        float[] rowValues = new float[rows];
+        float[] colValues = new float[cols];
+        for (int i = 0; i < rows; i++) {
+            rowValues[i] = (i % 23) - 11.0f;
+        }
+        for (int i = 0; i < cols; i++) {
+            colValues[i] = (i % 7) * 0.5f - 1.0f;
+        }
+        Tensor rowBase = new Tensor(rowValues.clone(), new int[]{rows, 1}, null, "f32_row_base", DataType.FLOAT32);
+        Tensor colBase = new Tensor(colValues.clone(), new int[]{1, cols}, null, "f32_col_base", DataType.FLOAT32);
+        Tensor baseline = rowBase.add(colBase).relu();
+        CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
+                .prepare(runtimeConfig(CpuKernelConfig.defaultsTraining())).execute(ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor row = new Tensor(rowValues.clone(), new int[]{rows, 1}, null, "f32_row", DataType.FLOAT32);
+        Tensor col = new Tensor(colValues.clone(), new int[]{1, cols}, null, "f32_col", DataType.FLOAT32);
+        Tensor out = row.add(col).relu();
+
+        PreparedExecution prepared = CompiledGraph.compile(out, fuseOnlyInferenceConfig())
+                .prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)));
+        prepared.execute(ExecutionMode.FORWARD);
+        var fusedStep = findPreparedFusedStep(prepared);
+        assertTrue(testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth() > 1);
+        assertEquals(
+                FusedVectorBlockReason.NONE,
+                ((CpuFusedExecutionArtifact) fusedStep.metadata().artifact()).vectorBlockReason()
+        );
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-5);
+
+        String constantPool = generatedConstantPool("debug/test/F32ArrayGatherKernel", fusedStep);
+        assertTrue(constantPool.contains("[FI[II"), "F32 array gather must use indexed FloatVector.fromArray.");
+        assertFalse(constantPool.contains("FusedBroadcastVectorOps"));
+    }
+
+    @Test
+    void f64GeneralBroadcastUsesGeneratedIndexedArrayVectorGatherAcrossRows() {
+        int rows = 8192;
+        int cols = 23;
+        double[] rowValues = new double[rows];
+        double[] colValues = new double[cols];
+        for (int i = 0; i < rows; i++) {
+            rowValues[i] = (i % 17) - 8.0;
+        }
+        for (int i = 0; i < cols; i++) {
+            colValues[i] = Math.sin(i * 0.2);
+        }
+        Tensor rowBase = new Tensor(rowValues.clone(), new int[]{rows, 1}, null, "f64_row_base", DataType.FLOAT64);
+        Tensor colBase = new Tensor(colValues.clone(), new int[]{1, cols}, null, "f64_col_base", DataType.FLOAT64);
+        Tensor baseline = rowBase.add(colBase).abs();
+        CompiledGraph.compile(baseline, CompileConfig.noGraphOptimizationBaseline())
+                .prepare(runtimeConfig(CpuKernelConfig.defaultsTraining())).execute(ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor row = new Tensor(rowValues.clone(), new int[]{rows, 1}, null, "f64_row", DataType.FLOAT64);
+        Tensor col = new Tensor(colValues.clone(), new int[]{1, cols}, null, "f64_col", DataType.FLOAT64);
+        Tensor out = row.add(col).abs();
+
+        PreparedExecution prepared = CompiledGraph.compile(out, fuseOnlyInferenceConfig())
+                .prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)));
+        prepared.execute(ExecutionMode.FORWARD);
+        var fusedStep = findPreparedFusedStep(prepared);
+        assertTrue(testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth() > 1);
+        assertEquals(
+                FusedVectorBlockReason.NONE,
+                ((CpuFusedExecutionArtifact) fusedStep.metadata().artifact()).vectorBlockReason()
+        );
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), EPS);
+
+        String constantPool = generatedConstantPool("debug/test/F64ArrayGatherKernel", fusedStep);
+        assertTrue(constantPool.contains("[DI[II"), "F64 array gather must use indexed DoubleVector.fromArray.");
+        assertFalse(constantPool.contains("FusedBroadcastVectorOps"));
+    }
+
+    @Test
     void fusedBFloat16MatchesBaselineWithBroadcastInputs() {
         Tensor aBase = new Tensor(new double[]{
                 1, 2, 3, 4,
@@ -786,6 +864,20 @@ public class FusedExecutionModesTest {
         var executable = testsupport.MetadataArtifacts.fusedExecutable(findPreparedFusedStep(prepared).metadata());
         assertTrue(!executable.getClass().getName().contains("InterpretedPreparedFusedExecutable"),
                 () -> "Expected generated ASM fused executable, got " + executable.getClass().getName());
+    }
+
+    private static String generatedConstantPool(String internalClassName, PreparedExecutionStep fusedStep) {
+        FusedOperation fused = (FusedOperation) fusedStep.executionOperation();
+        int vectorWidth = testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth();
+        byte[] bytecode = FusedOperationGenerator.generate(
+                internalClassName,
+                fused.getPlan(),
+                fused.getNumericContract(),
+                fused.getApproximationContract(),
+                vectorWidth,
+                FusedAsmSpecializationMatcher.match(fused.getPlan(), fused.getNumericContract())
+        );
+        return new String(bytecode, StandardCharsets.ISO_8859_1);
     }
 
     private static PreparedExecutionStep findPreparedFusedStep(PreparedExecution prepared) {

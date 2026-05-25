@@ -216,6 +216,64 @@ public class CpuFusedMemorySegmentExecutionTest {
     }
 
     @Test
+    void f32GeneralBroadcastFusedSegmentUsesGeneratedGatherVectorPath() {
+        int rows = 8192;
+        int cols = 17;
+        float[] rowValues = new float[rows];
+        float[] colValues = new float[cols];
+        for (int i = 0; i < rows; i++) {
+            rowValues[i] = (i % 29) - 14.0f;
+        }
+        for (int i = 0; i < cols; i++) {
+            colValues[i] = (i % 11) * 0.25f - 1.25f;
+        }
+        Tensor row = new Tensor(rowValues, new int[]{rows, 1}, null, "f32_segment_row");
+        Tensor col = new Tensor(colValues, new int[]{1, cols}, null, "f32_segment_col");
+        Tensor out = row.add(col).relu();
+
+        PreparedExecution prepared = prepare(out, vectorNativeRuntime());
+        assertSegmentPrepared(prepared);
+        RunTrace trace = prepared.executeTraced(ExecutionMode.FORWARD);
+
+        double[] values = out.toDoubleArrayCopy();
+        assertEquals(Math.max(0.0, rowValues[0] + colValues[0]), values[0], 1e-5);
+        assertEquals(Math.max(0.0, rowValues[0] + colValues[1]), values[1], 1e-5);
+        assertEquals(Math.max(0.0, rowValues[1] + colValues[0]), values[cols], 1e-5);
+        assertEquals(Math.max(0.0, rowValues[rows - 1] + colValues[cols - 1]), values[values.length - 1], 1e-5);
+        assertVectorSegmentTrace(trace);
+        assertGraphOutputMaterializedFromNativeFusedOutput(prepared, trace);
+    }
+
+    @Test
+    void f64GeneralBroadcastFusedSegmentUsesGeneratedGatherVectorPath() {
+        int rows = 8192;
+        int cols = 23;
+        double[] rowValues = new double[rows];
+        double[] colValues = new double[cols];
+        for (int i = 0; i < rows; i++) {
+            rowValues[i] = (i % 19) - 9.0;
+        }
+        for (int i = 0; i < cols; i++) {
+            colValues[i] = Math.cos(i * 0.15);
+        }
+        Tensor row = new Tensor(rowValues, new int[]{rows, 1}, null, "f64_segment_row", DataType.FLOAT64);
+        Tensor col = new Tensor(colValues, new int[]{1, cols}, null, "f64_segment_col", DataType.FLOAT64);
+        Tensor out = row.add(col).abs();
+
+        PreparedExecution prepared = prepare(out, vectorNativeRuntime());
+        assertSegmentPrepared(prepared);
+        RunTrace trace = prepared.executeTraced(ExecutionMode.FORWARD);
+
+        double[] values = out.toDoubleArrayCopy();
+        assertEquals(Math.abs(rowValues[0] + colValues[0]), values[0], 1e-9);
+        assertEquals(Math.abs(rowValues[0] + colValues[1]), values[1], 1e-9);
+        assertEquals(Math.abs(rowValues[1] + colValues[0]), values[cols], 1e-9);
+        assertEquals(Math.abs(rowValues[rows - 1] + colValues[cols - 1]), values[values.length - 1], 1e-9);
+        assertVectorSegmentTrace(trace);
+        assertGraphOutputMaterializedFromNativeFusedOutput(prepared, trace);
+    }
+
+    @Test
     void generatedF32SegmentVectorKernelUsesMemorySegmentApiWithoutArrayBindings() {
         Tensor a = new Tensor(new float[128], new int[]{128}, null, "bytecode_a");
         Tensor b = new Tensor(new float[128], new int[]{128}, null, "bytecode_b");
@@ -297,6 +355,39 @@ public class CpuFusedMemorySegmentExecutionTest {
         assertTrue(constantPool.contains("broadcast"));
         assertTrue(constantPool.contains("intoMemorySegment"));
         assertNoArrayBackedSegmentBytecode(constantPool);
+    }
+
+    @Test
+    void generatedF32SegmentGatherVectorKernelUsesMemorySegmentLaneLoadsAndScratchVectorLoad() {
+        Tensor row = new Tensor(new float[64], new int[]{64, 1}, null, "bytecode_gather_row");
+        Tensor col = new Tensor(new float[17], new int[]{1, 17}, null, "bytecode_gather_col");
+        Tensor out = row.add(col).relu();
+
+        PreparedExecution prepared = prepare(out, vectorNativeRuntime());
+        var fusedStep = fusedStep(prepared);
+        FusedOperation fused = (FusedOperation) fusedStep.metadata().executionOperation();
+        int vectorWidth = testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth();
+
+        byte[] bytecode = FusedOperationGenerator.generate(
+                "debug/test/F32SegmentGatherVectorKernel",
+                fused.getPlan(),
+                fused.getNumericContract(),
+                fused.getApproximationContract(),
+                vectorWidth,
+                FusedAsmSpecializationKind.NONE
+        );
+        String constantPool = new String(bytecode, StandardCharsets.ISO_8859_1);
+
+        assertTrue(vectorWidth > 1);
+        assertTrue(constantPool.contains("java/lang/foreign/MemorySegment"));
+        assertTrue(constantPool.contains("JAVA_FLOAT"));
+        assertTrue(constantPool.contains("get"));
+        assertTrue(constantPool.contains("fromArray"));
+        assertTrue(constantPool.contains("intoMemorySegment"));
+        assertFalse(constantPool.contains("fromMemorySegment"));
+        assertFalse(constantPool.contains("FusedBroadcastVectorOps"));
+        assertFalse(constantPool.contains("FusedStorageOps"));
+        assertFalse(constantPool.contains("TensorInternalAccess"));
     }
 
     @Test
@@ -447,8 +538,8 @@ public class CpuFusedMemorySegmentExecutionTest {
     }
 
     @Test
-    void segmentScalarPathHandlesUnsupportedInnermostBroadcastInput() {
-        int rows = 64;
+    void segmentVectorPathHandlesInnermostBroadcastInputWithGeneratedGather() {
+        int rows = 4096;
         int cols = 32;
         float[] data = new float[rows];
         for (int i = 0; i < data.length; i++) {
@@ -466,7 +557,7 @@ public class CpuFusedMemorySegmentExecutionTest {
         assertEquals(Math.max(0.0, data[0]), values[0], 1e-5);
         assertEquals(Math.max(0.0, data[0]), values[1], 1e-5);
         assertEquals(Math.max(0.0, data[1]), values[cols], 1e-5);
-        assertScalarOnlySegmentTrace(trace);
+        assertVectorSegmentTrace(trace);
         assertGraphOutputMaterializedFromNativeFusedOutput(prepared, trace);
     }
 

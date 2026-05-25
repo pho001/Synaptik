@@ -40,6 +40,10 @@ final class FusedSlotLayouts {
         sm.defineGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS, externalInputCount);
         sm.defineGroup(SlotKey.CLUSTER_INTERMEDIATES_ARRAYS, externalInputCount);
         sm.defineGroup(SlotKey.FUSED_NODE_VECTOR_VALUES, nodeCount);
+        sm.defineGroup(SlotKey.FUSED_VECTOR_INDEX_MAPS, externalInputCount);
+        sm.defineGroup(SlotKey.FUSED_VECTOR_LANE_ARRAYS, externalInputCount);
+        sm.define(SlotKey.FUSED_VECTOR_REMAIN);
+        sm.define(SlotKey.FUSED_VECTOR_STORAGE_INDEX);
         return sm;
     }
 }

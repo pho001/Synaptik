@@ -97,7 +97,7 @@ public final class FusedVectorGuard {
             FusedExternalInputPlan input = plan.inputs().get(i);
             if (!isF32OrF64(input.dataType())
                     || !matchesSegmentVectorLane(input.dataType(), numericContract)
-                    || !isSupportedMemorySegmentVectorInput(input)) {
+                    || input.dataType() == DataType.BOOL) {
                 return false;
             }
         }
@@ -127,7 +127,7 @@ public final class FusedVectorGuard {
             return false;
         }
         for (FusedExternalInputPlan input : plan.inputs()) {
-            if (!supportsDirectVectorInput(input, numericContract)) {
+            if (!supportsGeneratedVectorInput(input, numericContract)) {
                 return false;
             }
         }
@@ -279,10 +279,10 @@ public final class FusedVectorGuard {
     }
 
     private static boolean usesAllocationFreeSegmentVectorLanes(FusedNumericContract numericContract) {
-        // MemorySegment vector ASM intentionally admits only lanes the emitter can load,
-        // compute, and store through Vector API segment methods without scratch arrays.
-        // BF16 and BOOL/mask segment paths stay scalar until they have a separate
-        // allocation-free emitter instead of using the Java-array BF16/mask helpers.
+        // MemorySegment vector ASM intentionally admits only F32/F64 lanes the emitter can
+        // load, compute, and store without runtime helper loops. General segment gather
+        // uses generated lane loads into method-local scratch allocated outside the loop.
+        // BF16 and BOOL/mask segment paths stay scalar until they have dedicated emitters.
         if (numericContract.computeKind() != FusedComputeKind.F32
                 && numericContract.computeKind() != FusedComputeKind.F64) {
             return false;
@@ -317,7 +317,7 @@ public final class FusedVectorGuard {
         };
     }
 
-    private static boolean supportsDirectVectorInput(
+    private static boolean supportsGeneratedVectorInput(
             FusedExternalInputPlan input,
             FusedNumericContract numericContract
     ) {
@@ -327,7 +327,7 @@ public final class FusedVectorGuard {
         if (!isF32OrF64(input.dataType()) || !matchesSegmentVectorLane(input.dataType(), numericContract)) {
             return false;
         }
-        return isContiguousLinear(input) || isZeroStrideBroadcast(input);
+        return true;
     }
 
     private static boolean supportsDirectVectorNode(FusedNodePlan node) {
@@ -360,10 +360,6 @@ public final class FusedVectorGuard {
     private static boolean isContiguousLinear(FusedExternalInputPlan input) {
         return input.accessKind() == FusedAccessKind.DIRECT_CONTIGUOUS
                 || input.accessKind() == FusedAccessKind.OFFSET_CONTIGUOUS;
-    }
-
-    private static boolean isSupportedMemorySegmentVectorInput(FusedExternalInputPlan input) {
-        return isContiguousLinear(input) || isZeroStrideBroadcast(input);
     }
 
     private static boolean matchesSegmentVectorLane(
