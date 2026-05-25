@@ -5,7 +5,6 @@ import tensor.TensorInternalAccess;
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.nativecpu.NativeCpuCastExecutor;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -47,7 +46,7 @@ public final class CpuCastKernel implements CpuKernel {
         if (inputs == null || inputs.size() != 1) {
             throw new IllegalArgumentException("cast expects exactly one input.");
         }
-        if (NativeCpuCastExecutor.tryRunCast(inputs, node, context)) {
+        if (LayoutExecutor.tryRunNativeCast(inputs, node, context)) {
             return;
         }
         Tensor input = inputs.getFirst();

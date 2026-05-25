@@ -1,7 +1,6 @@
 package backend.cpu.kernels.layout;
 
 import backend.cpu.kernels.*;
-import backend.cpu.nativecpu.NativeCpuViewExecutor;
 
 import operations.Operation;
 import tensor.Tensor;
@@ -10,7 +9,7 @@ import java.util.List;
 public class CpuReshapeLikeKernel implements CpuKernel {
     @Override
     public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        if (NativeCpuViewExecutor.tryRunView(inputs, node, context)) {
+        if (LayoutExecutor.tryRunNativeView(op, inputs, node, context)) {
             return;
         }
         LayoutExecutor.reshapeLike(inputs, node);
@@ -18,7 +17,7 @@ public class CpuReshapeLikeKernel implements CpuKernel {
 
     @Override
     public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        if (NativeCpuViewExecutor.tryRunView(inputs, node, context)) {
+        if (LayoutExecutor.tryRunNativeView(op, inputs, node, context)) {
             return;
         }
         LayoutExecutor.reshapeLike(inputs, node);
@@ -26,7 +25,7 @@ public class CpuReshapeLikeKernel implements CpuKernel {
 
     @Override
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        if (NativeCpuViewExecutor.tryRunView(inputs, node, context)) {
+        if (LayoutExecutor.tryRunNativeView(op, inputs, node, context)) {
             return;
         }
         LayoutExecutor.reshapeLike(inputs, node);
@@ -34,7 +33,7 @@ public class CpuReshapeLikeKernel implements CpuKernel {
 
     @Override
     public void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        if (NativeCpuViewExecutor.tryRunView(inputs, node, context)) {
+        if (LayoutExecutor.tryRunNativeView(op, inputs, node, context)) {
             return;
         }
         LayoutExecutor.reshapeLike(inputs, node);
@@ -42,7 +41,7 @@ public class CpuReshapeLikeKernel implements CpuKernel {
 
     @Override
     public void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        if (NativeCpuViewExecutor.tryRunView(inputs, node, context)) {
+        if (LayoutExecutor.tryRunNativeView(op, inputs, node, context)) {
             return;
         }
         LayoutExecutor.reshapeLike(inputs, node);
@@ -50,7 +49,7 @@ public class CpuReshapeLikeKernel implements CpuKernel {
 
     @Override
     public void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        if (NativeCpuViewExecutor.tryRunView(inputs, node, context)) {
+        if (LayoutExecutor.tryRunNativeView(op, inputs, node, context)) {
             return;
         }
         LayoutExecutor.reshapeLike(inputs, node);

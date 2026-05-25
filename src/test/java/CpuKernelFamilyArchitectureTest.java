@@ -124,9 +124,10 @@ public class CpuKernelFamilyArchitectureTest {
                 "src/main/java/backend/cpu/kernels/elementwise/binary/BinaryStorageLoops.java",
                 "src/main/java/backend/cpu/kernels/elementwise/unary/UnaryStorageLoops.java",
                 "src/main/java/backend/cpu/kernels/elementwise/where/WhereStorageLoops.java",
-                "src/main/java/backend/cpu/nativecpu/NativeCpuReductionExecutor.java",
-                "src/main/java/backend/cpu/nativecpu/NativeCpuCastExecutor.java",
-                "src/main/java/backend/cpu/nativecpu/NativeCpuContiguousExecutor.java"
+                "src/main/java/backend/cpu/kernels/elementwise/compare/CompareStorageLoops.java",
+                "src/main/java/backend/cpu/kernels/elementwise/logical/LogicalBoolStorageLoops.java",
+                "src/main/java/backend/cpu/kernels/reduction/ReductionStorageLoops.java",
+                "src/main/java/backend/cpu/kernels/layout/LayoutExecutor.java"
         );
 
         List<String> missing = requiredPaths.stream()
@@ -146,20 +147,22 @@ public class CpuKernelFamilyArchitectureTest {
                 Map.entry("elementwise/binary/BinaryStorageLoops.java", Set.of("NativeCpuKernelFact", "NativeCpuKernelFacts")),
                 Map.entry("elementwise/unary/UnaryStorageLoops.java", Set.of("NativeCpuKernelFact", "NativeCpuKernelFacts")),
                 Map.entry("elementwise/where/WhereStorageLoops.java", Set.of("NativeCpuKernelFact", "NativeCpuKernelFacts")),
-                Map.entry("elementwise/compare/CompareExecutor.java", Set.of("NativeCpuCompareExecutor")),
-                Map.entry("elementwise/logical/LogicalExecutor.java", Set.of("NativeCpuBoolMaskExecutor")),
-                Map.entry("reduction/SumLikeReductionExecutor.java", Set.of("NativeCpuReductionExecutor")),
-                Map.entry("reduction/MinMaxReduceExecutor.java", Set.of("NativeCpuReductionExecutor")),
-                Map.entry("reduction/BoolReduceExecutor.java", Set.of("NativeCpuBoolMaskExecutor")),
-                Map.entry("layout/CpuCastKernel.java", Set.of("NativeCpuCastExecutor")),
-                Map.entry("layout/CpuContiguousKernel.java", Set.of("NativeCpuContiguousExecutor")),
-                Map.entry("layout/CpuAliasViewKernel.java", Set.of("NativeCpuViewExecutor")),
-                Map.entry("layout/CpuNoopKernel.java", Set.of("NativeCpuViewExecutor")),
-                Map.entry("layout/CpuReshapeLikeKernel.java", Set.of("NativeCpuViewExecutor"))
+                Map.entry("elementwise/compare/CompareStorageLoops.java", Set.of("NativeCpuKernelFact", "NativeCpuKernelFacts", "NativeCpuTraceState")),
+                Map.entry("elementwise/logical/LogicalBoolStorageLoops.java", Set.of("NativeCpuKernelFact", "NativeCpuKernelFacts", "NativeCpuTraceState")),
+                Map.entry("reduction/ReductionStorageLoops.java", Set.of(
+                        "NativeCpuKernelFact",
+                        "NativeCpuKernelFacts",
+                        "NativeCpuTraceState",
+                        "layout.NativeCpuStorageFamily",
+                        "layout.NativeSegmentStridedKernels",
+                        "layout.NativeSegmentView",
+                        "layout.TensorPhysicalView"
+                )),
+                Map.entry("layout/LayoutExecutor.java", Set.of("NativeCpuKernelFact", "NativeCpuKernelFacts", "NativeCpuTraceState"))
         );
 
         assertEquals(expected, nativeCpuImportsUnder(Path.of("src/main/java/backend/cpu/kernels")),
-                "Wave 0 baseline must make native CPU dependencies explicit before the rewrite removes them.");
+                "Native CPU dependencies from kernels must remain explicit and restricted to storage ownership helpers.");
     }
 
     @Test
@@ -211,6 +214,30 @@ public class CpuKernelFamilyArchitectureTest {
                     .filter(path -> contains(path, "NativeCpuElementwiseExecutor"))
                     .toList();
             assertTrue(offenders.isEmpty(), () -> "Elementwise kernels must not reference NativeCpuElementwiseExecutor: " + offenders);
+        }
+    }
+
+    @Test
+    void waveFourNonElementwiseNativeExecutorsAreDeleted() throws IOException {
+        List<String> deletedExecutors = List.of(
+                "NativeCpuReductionExecutor",
+                "NativeCpuCompareExecutor",
+                "NativeCpuBoolMaskExecutor",
+                "NativeCpuCastExecutor",
+                "NativeCpuContiguousExecutor",
+                "NativeCpuViewExecutor"
+        );
+        for (String executor : deletedExecutors) {
+            assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/nativecpu/" + executor + ".java")),
+                    executor + " must not exist after Wave 4 runtime ownership moves to kernel storage owners.");
+        }
+        try (Stream<Path> paths = Files.walk(Path.of("src/main/java/backend/cpu/kernels"))) {
+            List<Path> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> deletedExecutors.stream().anyMatch(executor -> contains(path, executor)))
+                    .toList();
+            assertTrue(offenders.isEmpty(), () -> "CPU kernels must not reference deleted Wave 4 native executors: " + offenders);
         }
     }
 

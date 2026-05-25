@@ -1,7 +1,6 @@
 package backend.cpu.kernels.reduction;
 
 import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.nativecpu.NativeCpuReductionExecutor;
 import operations.Operation;
 import tensor.Tensor;
 
@@ -10,7 +9,7 @@ final class SumLikeReductionExecutor {
 
     static void executeF64(SumLikeReduction reduction, Tensor input, Tensor node, int dimension, CpuKernelContext context) {
         validate(reduction, input, node, context);
-        if (NativeCpuReductionExecutor.tryRunSumLike(opType(reduction), input, node, dimension, context)) {
+        if (ReductionStorageLoops.tryRunSumLike(opType(reduction), input, node, dimension, context)) {
             return;
         }
         SumLoops.execute(input, node, dimension, context);
@@ -19,7 +18,7 @@ final class SumLikeReductionExecutor {
 
     static void executeF32(SumLikeReduction reduction, Tensor input, Tensor node, int dimension, CpuKernelContext context) {
         validate(reduction, input, node, context);
-        if (NativeCpuReductionExecutor.tryRunSumLike(opType(reduction), input, node, dimension, context)) {
+        if (ReductionStorageLoops.tryRunSumLike(opType(reduction), input, node, dimension, context)) {
             return;
         }
         SumLoops.executeF32(input, node, dimension, context);
@@ -28,7 +27,7 @@ final class SumLikeReductionExecutor {
 
     static void executeBF16(SumLikeReduction reduction, Tensor input, Tensor node, int dimension, CpuKernelContext context) {
         validate(reduction, input, node, context);
-        if (NativeCpuReductionExecutor.tryRunSumLike(opType(reduction), input, node, dimension, context)) {
+        if (ReductionStorageLoops.tryRunSumLike(opType(reduction), input, node, dimension, context)) {
             return;
         }
         float[] continuation = context.inputFloatContinuation(0, input.getFlatDataSize());

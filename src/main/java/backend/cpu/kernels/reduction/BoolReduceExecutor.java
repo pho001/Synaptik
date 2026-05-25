@@ -1,14 +1,14 @@
 package backend.cpu.kernels.reduction;
 
 import backend.cpu.kernels.CpuKernelContext;
-import backend.cpu.nativecpu.NativeCpuBoolMaskExecutor;
+import operations.Operation;
 import operations.reduction.reduceAll;
 import operations.reduction.reduceAny;
 import tensor.Tensor;
 
 public final class BoolReduceExecutor {
     public void execute(reduceAll op, Tensor input, Tensor node, CpuKernelContext context) {
-        if (NativeCpuBoolMaskExecutor.tryRunReduction(op, input, node, context)) {
+        if (ReductionStorageLoops.tryRunBool(Operation.OpType.REDUCE_ALL, input, node, op.getDimension(), context)) {
             return;
         }
         validate(op, input, node, context);
@@ -16,7 +16,7 @@ public final class BoolReduceExecutor {
     }
 
     public void execute(reduceAny op, Tensor input, Tensor node, CpuKernelContext context) {
-        if (NativeCpuBoolMaskExecutor.tryRunReduction(op, input, node, context)) {
+        if (ReductionStorageLoops.tryRunBool(Operation.OpType.REDUCE_ANY, input, node, op.getDimension(), context)) {
             return;
         }
         validate(op, input, node, context);
