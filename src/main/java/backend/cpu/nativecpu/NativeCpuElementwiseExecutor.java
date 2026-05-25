@@ -28,7 +28,6 @@ import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;
 import utils.FastTranscendentals;
 
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -40,7 +39,6 @@ import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
  */
 public final class NativeCpuElementwiseExecutor {
     private static final EnumSet<Operation.OpType> POLICY_HANDLED_OPS = EnumSet.of(
-            Operation.OpType.ADD,
             Operation.OpType.SUB,
             Operation.OpType.MUL,
             Operation.OpType.DIV,
@@ -78,10 +76,6 @@ public final class NativeCpuElementwiseExecutor {
         Operation.OpType opType = op.opType();
         if (isNativeUnaryOp(opType, dataType)) {
             return true;
-        }
-        if (dataType == DataType.FLOAT32 && opType == Operation.OpType.ADD) {
-            ResolvedBroadcastPlan broadcastPlan = plan.broadcastPlan();
-            return broadcastPlan == null || broadcastPlan.isNoBroadcast() || isLastDimBiasBroadcast(broadcastPlan);
         }
         if (isNativeBinaryOp(opType, dataType)) {
             ResolvedBroadcastPlan broadcastPlan = plan.broadcastPlan();
@@ -208,7 +202,7 @@ public final class NativeCpuElementwiseExecutor {
             return true;
         }
         ResolvedBroadcastPlan broadcastPlan = context.broadcastPlan();
-        if (broadcastPlan != null && !broadcastPlan.isNoBroadcast() && !supportsBroadcast(op.opType(), node.getDataType(), broadcastPlan)) {
+        if (broadcastPlan != null && !broadcastPlan.isNoBroadcast()) {
             fallbackBinary(kernel, inputs, node, context, fact, "native-kernel-ineligible:" + opLabel(op) + "-broadcast");
             return true;
         }
@@ -216,19 +210,7 @@ public final class NativeCpuElementwiseExecutor {
             fallbackBinary(kernel, inputs, node, context, fact, "native-kernel-ineligible:" + opLabel(op) + "-shape");
             return true;
         }
-        BiasBroadcastSpec biasSpec = null;
-        if (broadcastPlan != null && !broadcastPlan.isNoBroadcast()) {
-            biasSpec = biasBroadcastSpec(
-                    broadcastPlan,
-                    inputs.get(0).getFlatDataSize(),
-                    inputs.get(1).getFlatDataSize(),
-                    node.getFlatDataSize()
-            );
-            if (biasSpec == null) {
-                fallbackBinary(kernel, inputs, node, context, fact, "native-kernel-ineligible:" + opLabel(op) + "-broadcast");
-                return true;
-            }
-        } else if (inputs.get(0).getFlatDataSize() != node.getFlatDataSize()
+        if (inputs.get(0).getFlatDataSize() != node.getFlatDataSize()
                 || inputs.get(1).getFlatDataSize() != node.getFlatDataSize()) {
             fallbackBinary(kernel, inputs, node, context, fact, "native-kernel-ineligible:" + opLabel(op) + "-shape");
             return true;
@@ -254,11 +236,7 @@ public final class NativeCpuElementwiseExecutor {
                 NativeFloat32Storage left = requireF32NativeInput(context, 0, label.toUpperCase());
                 NativeFloat32Storage right = requireF32NativeInput(context, 1, label.toUpperCase());
                 NativeFloat32Storage f32Out = allocateF32(node, context, label);
-                if (biasSpec == null) {
-                    runDenseBinaryF32(op.opType(), left, right, f32Out, node.getFlatDataSize());
-                } else {
-                    runLastDimBiasAdd(left, right, f32Out, node.getFlatDataSize(), biasSpec);
-                }
+                runDenseBinaryF32(op.opType(), left, right, f32Out, node.getFlatDataSize());
                 f32Out.markModified();
                 out = f32Out;
             }
@@ -447,7 +425,6 @@ public final class NativeCpuElementwiseExecutor {
 
     private static float applyBinary(Operation.OpType opType, float leftValue, float rightValue) {
         return switch (opType) {
-            case ADD -> leftValue + rightValue;
             case SUB -> leftValue - rightValue;
             case MUL -> leftValue * rightValue;
             case DIV -> leftValue / rightValue;
@@ -460,7 +437,6 @@ public final class NativeCpuElementwiseExecutor {
 
     private static double applyBinary(Operation.OpType opType, double leftValue, double rightValue) {
         return switch (opType) {
-            case ADD -> leftValue + rightValue;
             case SUB -> leftValue - rightValue;
             case MUL -> leftValue * rightValue;
             case DIV -> leftValue / rightValue;
@@ -635,87 +611,11 @@ public final class NativeCpuElementwiseExecutor {
             return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64;
         }
         return (dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64 || dataType == DataType.BFLOAT16)
-                && (opType == Operation.OpType.ADD
-                || opType == Operation.OpType.SUB
+                && (opType == Operation.OpType.SUB
                 || opType == Operation.OpType.MUL
                 || opType == Operation.OpType.DIV
                 || opType == Operation.OpType.MIN
                 || opType == Operation.OpType.MAX);
-    }
-
-    private static boolean supportsBroadcast(Operation.OpType opType, DataType dataType, ResolvedBroadcastPlan broadcastPlan) {
-        return dataType == DataType.FLOAT32 && opType == Operation.OpType.ADD && isLastDimBiasBroadcast(broadcastPlan);
-    }
-
-    private static void runLastDimBiasAdd(
-            NativeFloat32Storage left,
-            NativeFloat32Storage right,
-            NativeFloat32Storage out,
-            int size,
-            BiasBroadcastSpec spec
-    ) {
-        for (int i = 0; i < size; i++) {
-            long outOffset = (long) i * Float.BYTES;
-            long biasOffset = (long) (i % spec.lastDim()) * Float.BYTES;
-            float leftValue = left.segment().get(JAVA_FLOAT, spec.leftBias() ? biasOffset : outOffset);
-            float rightValue = right.segment().get(JAVA_FLOAT, spec.leftBias() ? outOffset : biasOffset);
-            out.segment().set(JAVA_FLOAT, outOffset, leftValue + rightValue);
-        }
-    }
-
-    private static boolean isLastDimBiasBroadcast(ResolvedBroadcastPlan plan) {
-        if (plan == null || plan.isNoBroadcast()) {
-            return false;
-        }
-        return isFullOutputSide(plan.aEffStrides(), plan.outStrides()) && isLastDimBiasSide(plan.bEffStrides(), plan.outShape())
-                || isLastDimBiasSide(plan.aEffStrides(), plan.outShape()) && isFullOutputSide(plan.bEffStrides(), plan.outStrides());
-    }
-
-    private static BiasBroadcastSpec biasBroadcastSpec(ResolvedBroadcastPlan plan, int leftSize, int rightSize, int outSize) {
-        if (plan == null || plan.isNoBroadcast() || product(plan.outShape()) != outSize) {
-            return null;
-        }
-        int[] shape = plan.outShape();
-        int lastDim = shape[shape.length - 1];
-        boolean leftFull = isFullOutputSide(plan.aEffStrides(), plan.outStrides());
-        boolean rightFull = isFullOutputSide(plan.bEffStrides(), plan.outStrides());
-        boolean leftBias = isLastDimBiasSide(plan.aEffStrides(), shape) && leftSize == lastDim;
-        boolean rightBias = isLastDimBiasSide(plan.bEffStrides(), shape) && rightSize == lastDim;
-        if (leftFull && leftSize == outSize && rightBias) {
-            return new BiasBroadcastSpec(false, lastDim);
-        }
-        if (leftBias && rightFull && rightSize == outSize) {
-            return new BiasBroadcastSpec(true, lastDim);
-        }
-        return null;
-    }
-
-    private static boolean isFullOutputSide(int[] effectiveStrides, int[] outStrides) {
-        return Arrays.equals(effectiveStrides, outStrides);
-    }
-
-    private static boolean isLastDimBiasSide(int[] effectiveStrides, int[] outShape) {
-        if (effectiveStrides == null || outShape == null || effectiveStrides.length != outShape.length || outShape.length < 2) {
-            return false;
-        }
-        int last = effectiveStrides.length - 1;
-        if (outShape[last] <= 0 || effectiveStrides[last] != 1) {
-            return false;
-        }
-        for (int dim = 0; dim < last; dim++) {
-            if (effectiveStrides[dim] != 0) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static int product(int[] values) {
-        int product = 1;
-        for (int value : values) {
-            product *= value;
-        }
-        return product;
     }
 
     private static void fallbackUnary(UnaryElementwiseKernel kernel, List<Tensor> inputs, Tensor node, CpuKernelContext context, NativeCpuKernelFact fact, String reason) {
@@ -880,6 +780,4 @@ public final class NativeCpuElementwiseExecutor {
         return message == null || message.isBlank() ? t.getClass().getSimpleName() : message;
     }
 
-    private record BiasBroadcastSpec(boolean leftBias, int lastDim) {
-    }
 }

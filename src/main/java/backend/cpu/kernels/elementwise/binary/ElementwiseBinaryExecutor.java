@@ -14,6 +14,10 @@ public final class ElementwiseBinaryExecutor {
         if (inputs == null || inputs.size() != 2) {
             throw new IllegalArgumentException("Binary elementwise executor requires exactly 2 inputs.");
         }
+        if (kernel instanceof CpuAddKernel addKernel) {
+            AddStorageLoops.execute(addKernel, inputs, node, context);
+            return;
+        }
         if (NativeCpuElementwiseExecutor.tryRunBinary(kernel, inputs, node, context)) {
             return;
         }

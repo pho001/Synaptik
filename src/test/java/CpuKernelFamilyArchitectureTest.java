@@ -138,6 +138,7 @@ public class CpuKernelFamilyArchitectureTest {
         Map<String, Set<String>> expected = Map.ofEntries(
                 Map.entry("CpuNodeExecutionPlan.java", Set.of("PreparedNativeCpuPlan")),
                 Map.entry("plan/CpuPlanAssembler.java", Set.of("NativeCpuPlanResolver", "PreparedNativeCpuPlan")),
+                Map.entry("elementwise/binary/AddStorageLoops.java", Set.of("NativeCpuKernelFact", "NativeCpuKernelFacts", "NativeCpuTraceState")),
                 Map.entry("elementwise/binary/ElementwiseBinaryExecutor.java", Set.of("NativeCpuElementwiseExecutor")),
                 Map.entry("elementwise/unary/ElementwiseUnaryExecutor.java", Set.of("NativeCpuElementwiseExecutor")),
                 Map.entry("elementwise/where/WhereExecutor.java", Set.of("NativeCpuElementwiseExecutor")),
@@ -181,6 +182,16 @@ public class CpuKernelFamilyArchitectureTest {
                 .filter(marker -> !doc.contains(marker))
                 .toList();
         assertTrue(missing.isEmpty(), () -> "Wave 0 baseline document is missing required markers: " + missing);
+    }
+
+    @Test
+    void waveTwoAddIsNotOwnedByNativeElementwiseExecutor() throws IOException {
+        String executor = Files.readString(Path.of("src/main/java/backend/cpu/nativecpu/NativeCpuElementwiseExecutor.java"));
+        assertTrue(!executor.contains("Operation.OpType.ADD"),
+                "ADD runtime ownership belongs to AddStorageLoops, not NativeCpuElementwiseExecutor.");
+        assertTrue(Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/ElementwiseBinaryExecutor.java"))
+                        .contains("AddStorageLoops.execute"),
+                "Binary executor must route ADD through the ADD storage loop before the generic native elementwise executor.");
     }
 
     private static void assertPackage(Operation.OpType opType, String expectedPackage) {
