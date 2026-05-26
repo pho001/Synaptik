@@ -12,37 +12,37 @@ public final class CpuGatherAxisKernel extends TypedCpuKernel {
     @Override
     protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
-        IndexExecutor.gatherAxisF64(pair[0], pair[1], node, ((gatherAxis) op).getAxis(), context);
+        GatherAxisLoops.gatherAxisF64(pair[0], pair[1], node, ((gatherAxis) op).getAxis());
     }
 
     @Override
     protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
-        IndexExecutor.gatherAxisF32(pair[0], pair[1], node, ((gatherAxis) op).getAxis(), context);
+        GatherAxisLoops.gatherAxisF32(pair[0], pair[1], node, ((gatherAxis) op).getAxis());
     }
 
     @Override
     protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
-        IndexExecutor.gatherAxisBF16(pair[0], pair[1], node, ((gatherAxis) op).getAxis(), context);
+        GatherAxisLoops.gatherAxisBF16(pair[0], pair[1], node, ((gatherAxis) op).getAxis());
     }
 
     @Override
     protected void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
-        IndexExecutor.gatherAxisBOOL(pair[0], pair[1], node, ((gatherAxis) op).getAxis(), context);
+        GatherAxisLoops.gatherAxisBOOL(pair[0], pair[1], node, ((gatherAxis) op).getAxis());
     }
 
     @Override
     protected void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
-        IndexExecutor.gatherAxisI32(pair[0], pair[1], node, ((gatherAxis) op).getAxis(), context);
+        GatherAxisLoops.gatherAxisI32(pair[0], pair[1], node, ((gatherAxis) op).getAxis());
     }
 
     @Override
     protected void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
-        IndexExecutor.gatherAxisI64(pair[0], pair[1], node, ((gatherAxis) op).getAxis(), context);
+        GatherAxisLoops.gatherAxisI64(pair[0], pair[1], node, ((gatherAxis) op).getAxis());
     }
 
     private static Tensor[] requirePair(Operation op, List<Tensor> inputs) {

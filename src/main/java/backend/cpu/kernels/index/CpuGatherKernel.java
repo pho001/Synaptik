@@ -17,7 +17,7 @@ public final class CpuGatherKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuGatherKernel requires gather operation");
         }
         Tensor[] pair = requirePair(inputs);
-        IndexExecutor.gatherF64(pair[0], pair[1], node, gatherOp.getDimension(), context);
+        GatherLoops.gatherF64(pair[0], pair[1], node, gatherOp.getDimension());
     }
 
     @Override
@@ -26,7 +26,7 @@ public final class CpuGatherKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuGatherKernel requires gather operation");
         }
         Tensor[] pair = requirePair(inputs);
-        IndexExecutor.gatherF32(pair[0], pair[1], node, gatherOp.getDimension(), context);
+        GatherLoops.gatherF32(pair[0], pair[1], node, gatherOp.getDimension());
     }
 
     @Override
@@ -35,7 +35,7 @@ public final class CpuGatherKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuGatherKernel requires gather operation");
         }
         Tensor[] pair = requirePair(inputs);
-        IndexExecutor.gatherBF16(pair[0], pair[1], node, gatherOp.getDimension(), context);
+        GatherLoops.gatherBF16(pair[0], pair[1], node, gatherOp.getDimension());
     }
 
     @Override
@@ -44,7 +44,7 @@ public final class CpuGatherKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuGatherKernel requires gather operation");
         }
         Tensor[] pair = requirePair(inputs);
-        IndexExecutor.gatherBOOL(pair[0], pair[1], node, gatherOp.getDimension(), context);
+        GatherLoops.gatherBOOL(pair[0], pair[1], node, gatherOp.getDimension());
     }
 
     @Override
@@ -53,7 +53,7 @@ public final class CpuGatherKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuGatherKernel requires gather operation");
         }
         Tensor[] pair = requirePair(inputs);
-        IndexExecutor.gatherI32(pair[0], pair[1], node, gatherOp.getDimension(), context);
+        GatherLoops.gatherI32(pair[0], pair[1], node, gatherOp.getDimension());
     }
 
     @Override
@@ -62,7 +62,7 @@ public final class CpuGatherKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuGatherKernel requires gather operation");
         }
         Tensor[] pair = requirePair(inputs);
-        IndexExecutor.gatherI64(pair[0], pair[1], node, gatherOp.getDimension(), context);
+        GatherLoops.gatherI64(pair[0], pair[1], node, gatherOp.getDimension());
     }
 
     private static Tensor[] requirePair(List<Tensor> inputs) {

@@ -12,19 +12,19 @@ public final class CpuGatherAxisGradKernel extends TypedCpuKernel {
     @Override
     protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
-        IndexExecutor.gatherAxisGradF64(pair[0], pair[1], node, ((gatherAxisGrad) op).getAxis(), context);
+        GatherAxisLoops.gatherAxisGradF64(pair[0], pair[1], node, ((gatherAxisGrad) op).getAxis());
     }
 
     @Override
     protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
-        IndexExecutor.gatherAxisGradF32(pair[0], pair[1], node, ((gatherAxisGrad) op).getAxis(), context);
+        GatherAxisLoops.gatherAxisGradF32(pair[0], pair[1], node, ((gatherAxisGrad) op).getAxis());
     }
 
     @Override
     protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
-        IndexExecutor.gatherAxisGradBF16(pair[0], pair[1], node, ((gatherAxisGrad) op).getAxis(), context);
+        GatherAxisLoops.gatherAxisGradBF16(pair[0], pair[1], node, ((gatherAxisGrad) op).getAxis());
     }
 
     private static Tensor[] requirePair(Operation op, List<Tensor> inputs) {

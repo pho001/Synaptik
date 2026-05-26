@@ -17,7 +17,7 @@ public final class CpuGatherGradKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuGatherGradKernel requires gatherGrad operation");
         }
         Tensor[] pair = requirePair(inputs);
-        IndexExecutor.gatherGradF64(pair[0], pair[1], node, gatherGradOp.getDimension(), context);
+        GatherLoops.gatherGradF64(pair[0], pair[1], node, gatherGradOp.getDimension());
     }
 
     @Override
@@ -26,7 +26,7 @@ public final class CpuGatherGradKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuGatherGradKernel requires gatherGrad operation");
         }
         Tensor[] pair = requirePair(inputs);
-        IndexExecutor.gatherGradF32(pair[0], pair[1], node, gatherGradOp.getDimension(), context);
+        GatherLoops.gatherGradF32(pair[0], pair[1], node, gatherGradOp.getDimension());
     }
 
     @Override
@@ -35,7 +35,7 @@ public final class CpuGatherGradKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuGatherGradKernel requires gatherGrad operation");
         }
         Tensor[] pair = requirePair(inputs);
-        IndexExecutor.gatherGradBF16(pair[0], pair[1], node, gatherGradOp.getDimension(), context);
+        GatherLoops.gatherGradBF16(pair[0], pair[1], node, gatherGradOp.getDimension());
     }
 
     private static Tensor[] requirePair(List<Tensor> inputs) {

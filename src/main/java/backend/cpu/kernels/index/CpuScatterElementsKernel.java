@@ -13,42 +13,42 @@ public final class CpuScatterElementsKernel extends TypedCpuKernel {
     protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         scatterElements scatterOp = requireOp(op);
         Tensor[] triple = requireTriple(inputs);
-        IndexExecutor.scatterElementsF64(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction(), context);
+        ScatterElementsLoops.scatterElementsF64(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction());
     }
 
     @Override
     protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         scatterElements scatterOp = requireOp(op);
         Tensor[] triple = requireTriple(inputs);
-        IndexExecutor.scatterElementsF32(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction(), context);
+        ScatterElementsLoops.scatterElementsF32(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction());
     }
 
     @Override
     protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         scatterElements scatterOp = requireOp(op);
         Tensor[] triple = requireTriple(inputs);
-        IndexExecutor.scatterElementsBF16(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction(), context);
+        ScatterElementsLoops.scatterElementsBF16(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction());
     }
 
     @Override
     protected void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         scatterElements scatterOp = requireOp(op);
         Tensor[] triple = requireTriple(inputs);
-        IndexExecutor.scatterElementsBOOL(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction(), context);
+        ScatterElementsLoops.scatterElementsBOOL(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction());
     }
 
     @Override
     protected void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         scatterElements scatterOp = requireOp(op);
         Tensor[] triple = requireTriple(inputs);
-        IndexExecutor.scatterElementsI32(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction(), context);
+        ScatterElementsLoops.scatterElementsI32(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction());
     }
 
     @Override
     protected void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         scatterElements scatterOp = requireOp(op);
         Tensor[] triple = requireTriple(inputs);
-        IndexExecutor.scatterElementsI64(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction(), context);
+        ScatterElementsLoops.scatterElementsI64(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction());
     }
 
     private static scatterElements requireOp(Operation op) {

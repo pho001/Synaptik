@@ -12,19 +12,19 @@ public final class CpuGatherNdGradKernel extends TypedCpuKernel {
     @Override
     protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
-        IndexExecutor.gatherNdGradF64(pair[0], pair[1], node, requireOp(op).getBatchDims(), context);
+        GatherNdLoops.gatherNdGradF64(pair[0], pair[1], node, requireOp(op).getBatchDims());
     }
 
     @Override
     protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
-        IndexExecutor.gatherNdGradF32(pair[0], pair[1], node, requireOp(op).getBatchDims(), context);
+        GatherNdLoops.gatherNdGradF32(pair[0], pair[1], node, requireOp(op).getBatchDims());
     }
 
     @Override
     protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
-        IndexExecutor.gatherNdGradBF16(pair[0], pair[1], node, requireOp(op).getBatchDims(), context);
+        GatherNdLoops.gatherNdGradBF16(pair[0], pair[1], node, requireOp(op).getBatchDims());
     }
 
     private static gatherNdGrad requireOp(Operation op) {

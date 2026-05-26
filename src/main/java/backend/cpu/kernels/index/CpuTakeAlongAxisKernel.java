@@ -17,7 +17,7 @@ public final class CpuTakeAlongAxisKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
         }
         Tensor[] pair = requirePair(inputs);
-        IndexExecutor.takeAlongAxisF64(pair[0], pair[1], node, gatherOp.getDimension(), context);
+        TakeAlongAxisLoops.takeAlongAxisF64(pair[0], pair[1], node, gatherOp.getDimension());
     }
 
     @Override
@@ -26,7 +26,7 @@ public final class CpuTakeAlongAxisKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
         }
         Tensor[] pair = requirePair(inputs);
-        IndexExecutor.takeAlongAxisF32(pair[0], pair[1], node, gatherOp.getDimension(), context);
+        TakeAlongAxisLoops.takeAlongAxisF32(pair[0], pair[1], node, gatherOp.getDimension());
     }
 
     @Override
@@ -35,7 +35,7 @@ public final class CpuTakeAlongAxisKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
         }
         Tensor[] pair = requirePair(inputs);
-        IndexExecutor.takeAlongAxisBF16(pair[0], pair[1], node, gatherOp.getDimension(), context);
+        TakeAlongAxisLoops.takeAlongAxisBF16(pair[0], pair[1], node, gatherOp.getDimension());
     }
 
     @Override
@@ -44,7 +44,7 @@ public final class CpuTakeAlongAxisKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
         }
         Tensor[] pair = requirePair(inputs);
-        IndexExecutor.takeAlongAxisBOOL(pair[0], pair[1], node, gatherOp.getDimension(), context);
+        TakeAlongAxisLoops.takeAlongAxisBOOL(pair[0], pair[1], node, gatherOp.getDimension());
     }
 
     @Override
@@ -53,7 +53,7 @@ public final class CpuTakeAlongAxisKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
         }
         Tensor[] pair = requirePair(inputs);
-        IndexExecutor.takeAlongAxisI32(pair[0], pair[1], node, gatherOp.getDimension(), context);
+        TakeAlongAxisLoops.takeAlongAxisI32(pair[0], pair[1], node, gatherOp.getDimension());
     }
 
     @Override
@@ -62,7 +62,7 @@ public final class CpuTakeAlongAxisKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
         }
         Tensor[] pair = requirePair(inputs);
-        IndexExecutor.takeAlongAxisI64(pair[0], pair[1], node, gatherOp.getDimension(), context);
+        TakeAlongAxisLoops.takeAlongAxisI64(pair[0], pair[1], node, gatherOp.getDimension());
     }
 
     private static Tensor[] requirePair(List<Tensor> inputs) {

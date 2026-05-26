@@ -12,37 +12,37 @@ public final class CpuGatherNdKernel extends TypedCpuKernel {
     @Override
     protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
-        IndexExecutor.gatherNdF64(pair[0], pair[1], node, requireOp(op).getBatchDims(), context);
+        GatherNdLoops.gatherNdF64(pair[0], pair[1], node, requireOp(op).getBatchDims());
     }
 
     @Override
     protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
-        IndexExecutor.gatherNdF32(pair[0], pair[1], node, requireOp(op).getBatchDims(), context);
+        GatherNdLoops.gatherNdF32(pair[0], pair[1], node, requireOp(op).getBatchDims());
     }
 
     @Override
     protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
-        IndexExecutor.gatherNdBF16(pair[0], pair[1], node, requireOp(op).getBatchDims(), context);
+        GatherNdLoops.gatherNdBF16(pair[0], pair[1], node, requireOp(op).getBatchDims());
     }
 
     @Override
     protected void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
-        IndexExecutor.gatherNdBOOL(pair[0], pair[1], node, requireOp(op).getBatchDims(), context);
+        GatherNdLoops.gatherNdBOOL(pair[0], pair[1], node, requireOp(op).getBatchDims());
     }
 
     @Override
     protected void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
-        IndexExecutor.gatherNdI32(pair[0], pair[1], node, requireOp(op).getBatchDims(), context);
+        GatherNdLoops.gatherNdI32(pair[0], pair[1], node, requireOp(op).getBatchDims());
     }
 
     @Override
     protected void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] pair = requirePair(op, inputs);
-        IndexExecutor.gatherNdI64(pair[0], pair[1], node, requireOp(op).getBatchDims(), context);
+        GatherNdLoops.gatherNdI64(pair[0], pair[1], node, requireOp(op).getBatchDims());
     }
 
     private static gatherNd requireOp(Operation op) {

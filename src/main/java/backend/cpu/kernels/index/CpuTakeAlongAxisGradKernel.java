@@ -17,7 +17,7 @@ public final class CpuTakeAlongAxisGradKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuTakeAlongAxisGradKernel requires takeAlongAxisGrad operation");
         }
         Tensor[] pair = requirePair(inputs);
-        IndexExecutor.takeAlongAxisGradF64(pair[0], pair[1], node, gradOp.getDimension(), context);
+        TakeAlongAxisLoops.takeAlongAxisGradF64(pair[0], pair[1], node, gradOp.getDimension());
     }
 
     @Override
@@ -26,7 +26,7 @@ public final class CpuTakeAlongAxisGradKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuTakeAlongAxisGradKernel requires takeAlongAxisGrad operation");
         }
         Tensor[] pair = requirePair(inputs);
-        IndexExecutor.takeAlongAxisGradF32(pair[0], pair[1], node, gradOp.getDimension(), context);
+        TakeAlongAxisLoops.takeAlongAxisGradF32(pair[0], pair[1], node, gradOp.getDimension());
     }
 
     @Override
@@ -35,7 +35,7 @@ public final class CpuTakeAlongAxisGradKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuTakeAlongAxisGradKernel requires takeAlongAxisGrad operation");
         }
         Tensor[] pair = requirePair(inputs);
-        IndexExecutor.takeAlongAxisGradBF16(pair[0], pair[1], node, gradOp.getDimension(), context);
+        TakeAlongAxisLoops.takeAlongAxisGradBF16(pair[0], pair[1], node, gradOp.getDimension());
     }
 
     private static Tensor[] requirePair(List<Tensor> inputs) {

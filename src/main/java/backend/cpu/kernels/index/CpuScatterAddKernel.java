@@ -17,7 +17,7 @@ public final class CpuScatterAddKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuScatterAddKernel requires scatterAdd operation");
         }
         Tensor[] triple = requireTriple(inputs);
-        IndexExecutor.scatterAddF64(triple[0], triple[1], triple[2], node, scatterAddOp.getDimension(), context);
+        ScatterLoops.scatterAddF64(triple[0], triple[1], triple[2], node, scatterAddOp.getDimension());
     }
 
     @Override
@@ -26,7 +26,7 @@ public final class CpuScatterAddKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuScatterAddKernel requires scatterAdd operation");
         }
         Tensor[] triple = requireTriple(inputs);
-        IndexExecutor.scatterAddF32(triple[0], triple[1], triple[2], node, scatterAddOp.getDimension(), context);
+        ScatterLoops.scatterAddF32(triple[0], triple[1], triple[2], node, scatterAddOp.getDimension());
     }
 
     @Override
@@ -35,7 +35,7 @@ public final class CpuScatterAddKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuScatterAddKernel requires scatterAdd operation");
         }
         Tensor[] triple = requireTriple(inputs);
-        IndexExecutor.scatterAddBF16(triple[0], triple[1], triple[2], node, scatterAddOp.getDimension(), context);
+        ScatterLoops.scatterAddBF16(triple[0], triple[1], triple[2], node, scatterAddOp.getDimension());
     }
 
     private static Tensor[] requireTriple(List<Tensor> inputs) {

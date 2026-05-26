@@ -12,19 +12,19 @@ public final class CpuScatterAxisAddKernel extends TypedCpuKernel {
     @Override
     protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] triple = requireTriple(op, inputs);
-        IndexExecutor.scatterAxisAddF64(triple[0], triple[1], triple[2], node, ((scatterAxisAdd) op).getAxis(), context);
+        GatherAxisLoops.scatterAxisAddF64(triple[0], triple[1], triple[2], node, ((scatterAxisAdd) op).getAxis());
     }
 
     @Override
     protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] triple = requireTriple(op, inputs);
-        IndexExecutor.scatterAxisAddF32(triple[0], triple[1], triple[2], node, ((scatterAxisAdd) op).getAxis(), context);
+        GatherAxisLoops.scatterAxisAddF32(triple[0], triple[1], triple[2], node, ((scatterAxisAdd) op).getAxis());
     }
 
     @Override
     protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor[] triple = requireTriple(op, inputs);
-        IndexExecutor.scatterAxisAddBF16(triple[0], triple[1], triple[2], node, ((scatterAxisAdd) op).getAxis(), context);
+        GatherAxisLoops.scatterAxisAddBF16(triple[0], triple[1], triple[2], node, ((scatterAxisAdd) op).getAxis());
     }
 
     private static Tensor[] requireTriple(Operation op, List<Tensor> inputs) {
