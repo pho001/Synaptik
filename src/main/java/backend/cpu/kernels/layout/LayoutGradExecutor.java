@@ -3,7 +3,6 @@ package backend.cpu.kernels.layout;
 import tensor.TensorInternalAccess;
 
 import tensor.dtype.TensorDTypeOps;
-import operations.layout.sliceGrad;
 import operations.layout.sliceScatterAdd;
 import tensor.DataType;
 import tensor.Tensor;
@@ -11,10 +10,6 @@ import tensor.TensorMetadata;
 
 final class LayoutGradExecutor {
     private LayoutGradExecutor() {
-    }
-
-    static void sliceGrad(sliceGrad op, Tensor outGrad, Tensor node) {
-        sliceScatterAdd(op.getStarts(), op.getAxes(), op.getSteps(), op.getInputShape(), outGrad, node, "sliceGrad");
     }
 
     static void sliceScatterAdd(sliceScatterAdd op, Tensor updates, Tensor node) {
@@ -81,7 +76,7 @@ final class LayoutGradExecutor {
             case FLOAT64 -> java.util.Arrays.fill(TensorInternalAccess.float64Data(node), 0.0d);
             case FLOAT32 -> java.util.Arrays.fill(TensorInternalAccess.float32Data(node), 0.0f);
             case BFLOAT16 -> java.util.Arrays.fill(TensorInternalAccess.bfloat16Data(node), TensorDTypeOps.toBFloat16Bits(0.0f));
-            case INT32, BOOL -> throw new IllegalArgumentException("sliceGrad requires floating output dtype.");
+            case INT32, BOOL -> throw new IllegalArgumentException("sliceScatterAdd requires floating output dtype.");
         }
     }
 
@@ -94,7 +89,7 @@ final class LayoutGradExecutor {
                 float acc = TensorDTypeOps.fromBFloat16Bits(data[index]) + (float) value;
                 data[index] = TensorDTypeOps.toBFloat16Bits(acc);
             }
-            case INT32, BOOL -> throw new IllegalArgumentException("sliceGrad requires floating output dtype.");
+            case INT32, BOOL -> throw new IllegalArgumentException("sliceScatterAdd requires floating output dtype.");
         }
     }
 }

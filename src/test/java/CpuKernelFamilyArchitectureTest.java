@@ -20,6 +20,7 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CpuKernelFamilyArchitectureTest {
@@ -30,12 +31,19 @@ public class CpuKernelFamilyArchitectureTest {
         assertPackage(Operation.OpType.NOOP, "backend.cpu.kernels.layout");
         assertPackage(Operation.OpType.GATHER, "backend.cpu.kernels.index");
         assertPackage(Operation.OpType.SUM, "backend.cpu.kernels.reduction");
-        assertPackage(Operation.OpType.MIN_GRAD, "backend.cpu.kernels.elementwise.grad");
-        assertPackage(Operation.OpType.REDUCE_MIN_GRAD, "backend.cpu.kernels.reduction.grad");
-        assertPackage(Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD, "backend.cpu.kernels.reduction");
         assertPackage(Operation.OpType.MATMUL, "backend.cpu.kernels.linalg");
         assertPackage(Operation.OpType.CONV2D, "backend.cpu.kernels.nn");
+        assertPackage(Operation.OpType.CONV2D_BACKWARD_INPUT, "backend.cpu.kernels.nn");
+        assertPackage(Operation.OpType.MAX_POOL2D_BACKWARD_INPUT, "backend.cpu.kernels.nn");
         assertPackage(Operation.OpType.FUSED, "backend.cpu.kernels.fused");
+    }
+
+    @Test
+    void registryRejectsNonFinalLegacyBackwardDescriptors() {
+        for (Operation.OpType opType : nonFinalLegacyBackwardOpTypes()) {
+            IllegalStateException error = assertThrows(IllegalStateException.class, () -> CpuKernelRegistry.resolve(opType));
+            assertTrue(error.getMessage().contains("legacy backward op type " + opType));
+        }
     }
 
     @Test
@@ -204,9 +212,33 @@ public class CpuKernelFamilyArchitectureTest {
     void gradKernelsAreOwnedBySourceFamilies() {
         assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/grad")),
                 "Grad kernels must not live in a root dumping package.");
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/grad/CpuMinGradKernel.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/reduction/grad/CpuReduceMinGradKernel.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/reduction/CpuCrossEntropyLossIndicesGradKernel.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/grad/CpuMinGradKernel.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/reduction/grad/CpuReduceMinGradKernel.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/reduction/CpuCrossEntropyLossIndicesGradKernel.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/nn/CpuConv2dBackwardInputKernel.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/nn/CpuMaxPool2dBackwardInputKernel.java")));
+    }
+
+    @Test
+    void nonFinalLegacyBackwardKernelFilesDoNotRemainUnderCpuKernels() {
+        for (String relativePath : List.of(
+                "elementwise/grad/CpuMinGradKernel.java",
+                "elementwise/grad/CpuMaxGradKernel.java",
+                "reduction/grad/CpuReduceMinGradKernel.java",
+                "reduction/grad/CpuReduceMaxGradKernel.java",
+                "reduction/CpuSoftmaxGradKernel.java",
+                "reduction/CpuLogSoftmaxGradKernel.java",
+                "reduction/CpuCrossEntropyLossIndicesGradKernel.java",
+                "index/CpuGatherGradKernel.java",
+                "index/CpuGatherAxisGradKernel.java",
+                "index/CpuGatherNdGradKernel.java",
+                "index/CpuTakeAlongAxisGradKernel.java",
+                "layout/CpuSliceGradKernel.java",
+                "linalg/CpuScaledDotProductAttentionBackwardKernel.java"
+        )) {
+            assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels", relativePath)),
+                    relativePath + " must not remain as direct CPU legacy backward kernel support.");
+        }
     }
 
     @Test
@@ -551,6 +583,24 @@ public class CpuKernelFamilyArchitectureTest {
         CpuKernel kernel = CpuKernelRegistry.resolve(opType);
         assertEquals(expectedPackage, kernel.getClass().getPackageName(), () ->
                 "Kernel for " + opType + " should live in " + expectedPackage + " but was " + kernel.getClass().getPackageName());
+    }
+
+    private static List<Operation.OpType> nonFinalLegacyBackwardOpTypes() {
+        return List.of(
+                Operation.OpType.MIN_GRAD,
+                Operation.OpType.MAX_GRAD,
+                Operation.OpType.REDUCE_MIN_GRAD,
+                Operation.OpType.REDUCE_MAX_GRAD,
+                Operation.OpType.SOFTMAX_GRAD,
+                Operation.OpType.LOG_SOFTMAX_GRAD,
+                Operation.OpType.GATHER_GRAD,
+                Operation.OpType.GATHER_AXIS_GRAD,
+                Operation.OpType.GATHER_ND_GRAD,
+                Operation.OpType.TAKE_ALONG_AXIS_GRAD,
+                Operation.OpType.SLICE_GRAD,
+                Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD,
+                Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD
+        );
     }
 
     private static Map<String, Set<String>> nativeCpuImportsUnder(Path root) throws IOException {

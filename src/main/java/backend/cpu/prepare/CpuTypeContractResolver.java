@@ -31,27 +31,18 @@ public final class CpuTypeContractResolver {
             case ARGMAX -> resolveArgMaxContract(inputs);
             case CUMSUM -> resolveCumSumContract(inputs);
             case GATHER -> resolveGatherContract(inputs);
-            case GATHER_GRAD -> resolveGatherGradContract(inputs);
             case GATHER_AXIS -> resolveGatherContract(inputs);
-            case GATHER_AXIS_GRAD -> resolveGatherGradContract(inputs);
             case GATHER_ND -> resolveGatherContract(inputs);
-            case GATHER_ND_GRAD -> resolveGatherGradContract(inputs);
             case TAKE_ALONG_AXIS -> resolveTakeAlongAxisContract(inputs);
-            case TAKE_ALONG_AXIS_GRAD -> resolveTakeAlongAxisGradContract(inputs);
             case SCATTER_ADD -> resolveScatterAddContract(inputs);
             case SCATTER_AXIS_ADD -> resolveScatterAddContract(inputs);
             case SCATTER_ELEMENTS -> resolveScatterElementsContract(op, inputs);
             case SCATTER_ND -> resolveScatterNdContract(op, inputs);
-            case SLICE_GRAD -> resolveSingleFloatingInputContract(inputs, "sliceGrad");
             case SLICE_SCATTER_ADD -> resolveSingleFloatingInputContract(inputs, "sliceScatterAdd");
             case CAST -> resolveCastContract(node, inputs);
             case SCALED_DOT_PRODUCT_ATTENTION -> resolveAttentionContract(inputs);
-            case SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> resolveSameFloatingBinaryContract(inputs, "scaledDotProductAttentionBackward");
             case SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS -> resolveSingleFloatingInputContract(inputs, "scaledDotProductAttentionWeights");
             case CROSS_ENTROPY_LOSS_INDICES -> resolveCrossEntropyLossIndicesContract(inputs);
-            case CROSS_ENTROPY_LOSS_INDICES_GRAD -> resolveCrossEntropyLossIndicesGradContract(inputs);
-            case SOFTMAX_GRAD -> resolveSameFloatingBinaryContract(inputs, "softmaxGrad");
-            case LOG_SOFTMAX_GRAD -> resolveSameFloatingBinaryContract(inputs, "logSoftmaxGrad");
             case FUSED -> resolveFusedContract(op, inputs);
             default -> {
                 DataType outputType = resolveTargetType(node, inputs);
@@ -184,18 +175,6 @@ public final class CpuTypeContractResolver {
         return new PreparedTypeContract(sourceType, List.of(sourceType, indexType));
     }
 
-    private static PreparedTypeContract resolveGatherGradContract(List<CompiledTensorDescriptor> inputs) {
-        if (inputs == null || inputs.size() != 2) {
-            throw new IllegalArgumentException("gatherGrad expects exactly two inputs.");
-        }
-        DataType indexType = inputs.get(0).dataType();
-        DataType gradType = inputs.get(1).dataType();
-        if (indexType == DataType.BOOL || gradType == DataType.BOOL) {
-            throw new IllegalArgumentException("gatherGrad requires numeric indices and numeric gradient input.");
-        }
-        return new PreparedTypeContract(gradType, List.of(indexType, gradType));
-    }
-
     private static PreparedTypeContract resolveScatterAddContract(List<CompiledTensorDescriptor> inputs) {
         if (inputs == null || inputs.size() != 3) {
             throw new IllegalArgumentException("scatterAdd expects exactly three inputs.");
@@ -269,26 +248,6 @@ public final class CpuTypeContractResolver {
         return new PreparedTypeContract(logitsType, List.of(logitsType, indexType));
     }
 
-    private static PreparedTypeContract resolveCrossEntropyLossIndicesGradContract(List<CompiledTensorDescriptor> inputs) {
-        if (inputs == null || inputs.size() != 3) {
-            throw new IllegalArgumentException("crossEntropyLossFromIndicesGrad expects exactly three inputs.");
-        }
-        DataType logitsType = inputs.get(0).dataType();
-        DataType indexType = inputs.get(1).dataType();
-        DataType scaleType = inputs.get(2).dataType();
-        if (logitsType == DataType.BOOL || logitsType == DataType.INT32 || logitsType == DataType.INT64
-                || scaleType == DataType.BOOL || scaleType == DataType.INT32 || scaleType == DataType.INT64) {
-            throw new IllegalArgumentException("crossEntropyLossFromIndicesGrad requires floating logits and floating scale.");
-        }
-        if (indexType == DataType.BOOL) {
-            throw new IllegalArgumentException("crossEntropyLossFromIndicesGrad indices must be numeric integral values.");
-        }
-        if (logitsType != scaleType) {
-            throw new IllegalArgumentException("crossEntropyLossFromIndicesGrad requires matching logits and scale dtypes.");
-        }
-        return new PreparedTypeContract(logitsType, List.of(logitsType, indexType, scaleType));
-    }
-
     private static PreparedTypeContract resolveAttentionContract(List<CompiledTensorDescriptor> inputs) {
         if (inputs == null || (inputs.size() != 3 && inputs.size() != 4)) {
             throw new IllegalArgumentException("scaledDotProductAttention expects three or four inputs.");
@@ -348,18 +307,6 @@ public final class CpuTypeContractResolver {
             throw new IllegalArgumentException("takeAlongAxis indices must be numeric integral values.");
         }
         return new PreparedTypeContract(sourceType, List.of(sourceType, indexType));
-    }
-
-    private static PreparedTypeContract resolveTakeAlongAxisGradContract(List<CompiledTensorDescriptor> inputs) {
-        if (inputs == null || inputs.size() != 2) {
-            throw new IllegalArgumentException("takeAlongAxisGrad expects exactly two inputs.");
-        }
-        DataType indexType = inputs.get(0).dataType();
-        DataType gradType = inputs.get(1).dataType();
-        if (indexType == DataType.BOOL || gradType == DataType.BOOL) {
-            throw new IllegalArgumentException("takeAlongAxisGrad requires numeric indices and numeric gradient input.");
-        }
-        return new PreparedTypeContract(gradType, List.of(indexType, gradType));
     }
 
     private static DataType resolveTargetType(CompiledTensorDescriptor node, List<CompiledTensorDescriptor> inputs) {

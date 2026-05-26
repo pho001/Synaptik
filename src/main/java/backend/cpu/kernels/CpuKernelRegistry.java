@@ -32,19 +32,14 @@ public final class CpuKernelRegistry {
     private static final CpuLogicalOrKernel LOGICAL_OR = new CpuLogicalOrKernel();
     private static final CpuLogicalNotKernel LOGICAL_NOT = new CpuLogicalNotKernel();
     private static final CpuGatherKernel GATHER = new CpuGatherKernel();
-    private static final CpuGatherGradKernel GATHER_GRAD = new CpuGatherGradKernel();
     private static final CpuGatherAxisKernel GATHER_AXIS = new CpuGatherAxisKernel();
-    private static final CpuGatherAxisGradKernel GATHER_AXIS_GRAD = new CpuGatherAxisGradKernel();
     private static final CpuGatherNdKernel GATHER_ND = new CpuGatherNdKernel();
-    private static final CpuGatherNdGradKernel GATHER_ND_GRAD = new CpuGatherNdGradKernel();
     private static final CpuTakeAlongAxisKernel TAKE_ALONG_AXIS = new CpuTakeAlongAxisKernel();
-    private static final CpuTakeAlongAxisGradKernel TAKE_ALONG_AXIS_GRAD = new CpuTakeAlongAxisGradKernel();
     private static final CpuScatterAddKernel SCATTER_ADD = new CpuScatterAddKernel();
     private static final CpuScatterAxisAddKernel SCATTER_AXIS_ADD = new CpuScatterAxisAddKernel();
     private static final CpuScatterElementsKernel SCATTER_ELEMENTS = new CpuScatterElementsKernel();
     private static final CpuScatterNdKernel SCATTER_ND = new CpuScatterNdKernel();
     private static final CpuScaledDotProductAttentionKernel SCALED_DOT_PRODUCT_ATTENTION = new CpuScaledDotProductAttentionKernel();
-    private static final CpuScaledDotProductAttentionBackwardKernel SCALED_DOT_PRODUCT_ATTENTION_BACKWARD = new CpuScaledDotProductAttentionBackwardKernel();
     private static final CpuScaledDotProductAttentionWeightsKernel SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS = new CpuScaledDotProductAttentionWeightsKernel();
     private static final CpuLinearKernel LINEAR = new CpuLinearKernel();
     private static final CpuConv2dKernel CONV2D = new CpuConv2dKernel();
@@ -59,8 +54,6 @@ public final class CpuKernelRegistry {
     private static final CpuAvgPool2dBackwardInputKernel AVG_POOL2D_BACKWARD_INPUT = new CpuAvgPool2dBackwardInputKernel();
     private static final CpuLayerNormKernel LAYER_NORM = new CpuLayerNormKernel();
     private static final CpuRmsNormKernel RMS_NORM = new CpuRmsNormKernel();
-    private static final CpuMinGradKernel MIN_GRAD = new CpuMinGradKernel();
-    private static final CpuMaxGradKernel MAX_GRAD = new CpuMaxGradKernel();
     private static final CpuReduceMinKernel REDUCE_MIN = new CpuReduceMinKernel();
     private static final CpuReduceMaxKernel REDUCE_MAX = new CpuReduceMaxKernel();
     private static final CpuReduceProdKernel REDUCE_PROD = new CpuReduceProdKernel();
@@ -69,15 +62,10 @@ public final class CpuKernelRegistry {
     private static final CpuReduceAllKernel REDUCE_ALL = new CpuReduceAllKernel();
     private static final CpuReduceAnyKernel REDUCE_ANY = new CpuReduceAnyKernel();
     private static final CpuSoftmaxKernel SOFTMAX = new CpuSoftmaxKernel();
-    private static final CpuSoftmaxGradKernel SOFTMAX_GRAD = new CpuSoftmaxGradKernel();
     private static final CpuLogSoftmaxKernel LOG_SOFTMAX = new CpuLogSoftmaxKernel();
-    private static final CpuLogSoftmaxGradKernel LOG_SOFTMAX_GRAD = new CpuLogSoftmaxGradKernel();
     private static final CpuNllLossKernel NLL_LOSS = new CpuNllLossKernel();
     private static final CpuCrossEntropyLossKernel CROSS_ENTROPY_LOSS = new CpuCrossEntropyLossKernel();
     private static final CpuCrossEntropyLossIndicesKernel CROSS_ENTROPY_LOSS_INDICES = new CpuCrossEntropyLossIndicesKernel();
-    private static final CpuCrossEntropyLossIndicesGradKernel CROSS_ENTROPY_LOSS_INDICES_GRAD = new CpuCrossEntropyLossIndicesGradKernel();
-    private static final CpuReduceMinGradKernel REDUCE_MIN_GRAD = new CpuReduceMinGradKernel();
-    private static final CpuReduceMaxGradKernel REDUCE_MAX_GRAD = new CpuReduceMaxGradKernel();
     private static final CpuMatMulKernel MATMUL = new CpuMatMulKernel();
     private static final CpuNegKernel NEG = new CpuNegKernel();
     private static final CpuInvKernel INV = new CpuInvKernel();
@@ -106,7 +94,6 @@ public final class CpuKernelRegistry {
     private static final CpuReshapeLikeKernel RESHAPE = new CpuReshapeLikeKernel();
     private static final CpuExpandKernel EXPAND = new CpuExpandKernel();
     private static final CpuAliasViewKernel ALIAS_VIEW = new CpuAliasViewKernel();
-    private static final CpuSliceGradKernel SLICE_GRAD = new CpuSliceGradKernel();
     private static final CpuSliceScatterAddKernel SLICE_SCATTER_ADD = new CpuSliceScatterAddKernel();
     private static final CpuConcatKernel CONCAT = new CpuConcatKernel();
     private static final CpuPadKernel PAD = new CpuPadKernel();
@@ -137,19 +124,14 @@ public final class CpuKernelRegistry {
             case LOGICAL_OR -> LOGICAL_OR;
             case LOGICAL_NOT -> LOGICAL_NOT;
             case GATHER -> GATHER;
-            case GATHER_GRAD -> GATHER_GRAD;
             case GATHER_AXIS -> GATHER_AXIS;
-            case GATHER_AXIS_GRAD -> GATHER_AXIS_GRAD;
             case GATHER_ND -> GATHER_ND;
-            case GATHER_ND_GRAD -> GATHER_ND_GRAD;
             case TAKE_ALONG_AXIS -> TAKE_ALONG_AXIS;
-            case TAKE_ALONG_AXIS_GRAD -> TAKE_ALONG_AXIS_GRAD;
             case SCATTER_ADD -> SCATTER_ADD;
             case SCATTER_AXIS_ADD -> SCATTER_AXIS_ADD;
             case SCATTER_ELEMENTS -> SCATTER_ELEMENTS;
             case SCATTER_ND -> SCATTER_ND;
             case SCALED_DOT_PRODUCT_ATTENTION -> SCALED_DOT_PRODUCT_ATTENTION;
-            case SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> SCALED_DOT_PRODUCT_ATTENTION_BACKWARD;
             case SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS -> SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS;
             case LINEAR -> LINEAR;
             case CONV2D -> CONV2D;
@@ -164,8 +146,6 @@ public final class CpuKernelRegistry {
             case AVG_POOL2D_BACKWARD_INPUT -> AVG_POOL2D_BACKWARD_INPUT;
             case LAYER_NORM -> LAYER_NORM;
             case RMS_NORM -> RMS_NORM;
-            case MIN_GRAD -> MIN_GRAD;
-            case MAX_GRAD -> MAX_GRAD;
             case REDUCE_MIN -> REDUCE_MIN;
             case REDUCE_MAX -> REDUCE_MAX;
             case REDUCE_PROD -> REDUCE_PROD;
@@ -174,15 +154,10 @@ public final class CpuKernelRegistry {
             case REDUCE_ALL -> REDUCE_ALL;
             case REDUCE_ANY -> REDUCE_ANY;
             case SOFTMAX -> SOFTMAX;
-            case SOFTMAX_GRAD -> SOFTMAX_GRAD;
             case LOG_SOFTMAX -> LOG_SOFTMAX;
-            case LOG_SOFTMAX_GRAD -> LOG_SOFTMAX_GRAD;
             case NLL_LOSS -> NLL_LOSS;
             case CROSS_ENTROPY_LOSS -> CROSS_ENTROPY_LOSS;
             case CROSS_ENTROPY_LOSS_INDICES -> CROSS_ENTROPY_LOSS_INDICES;
-            case CROSS_ENTROPY_LOSS_INDICES_GRAD -> CROSS_ENTROPY_LOSS_INDICES_GRAD;
-            case REDUCE_MIN_GRAD -> REDUCE_MIN_GRAD;
-            case REDUCE_MAX_GRAD -> REDUCE_MAX_GRAD;
             case MATMUL -> MATMUL;
             case NEG -> NEG;
             case INV -> INV;
@@ -211,13 +186,18 @@ public final class CpuKernelRegistry {
             case RESHAPE -> RESHAPE;
             case EXPAND -> EXPAND;
             case SELECT, SLICE, EXPAND_DIMS, SQUEEZE -> ALIAS_VIEW;
-            case SLICE_GRAD -> SLICE_GRAD;
             case SLICE_SCATTER_ADD -> SLICE_SCATTER_ADD;
             case CONCAT -> CONCAT;
             case PAD -> PAD;
             case TILE -> TILE;
             case CAST -> CAST;
             case PERMUTE -> PERMUTE;
+            case MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD,
+                    SOFTMAX_GRAD, LOG_SOFTMAX_GRAD,
+                    GATHER_GRAD, GATHER_AXIS_GRAD, GATHER_ND_GRAD, TAKE_ALONG_AXIS_GRAD,
+                    SLICE_GRAD, CROSS_ENTROPY_LOSS_INDICES_GRAD,
+                    SCALED_DOT_PRODUCT_ATTENTION_BACKWARD ->
+                    throw new IllegalStateException("CPU has no direct kernel for legacy backward op type " + type);
             case CONST_SCALAR -> throw new IllegalStateException("CONST_SCALAR is an internal fused-plan op and has no standalone CPU kernel");
             case NOOP -> NOOP;
             case FUSED -> FUSED;

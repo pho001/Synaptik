@@ -417,7 +417,6 @@ public final class CpuNodePreparer {
             case SUM, MEAN, SOFTMAX, LOG_SOFTMAX -> isSupportedReductionContinuationConsumer(target);
             case LAYER_NORM -> isSupportedLayerNormContinuationConsumer(target, context);
             case RMS_NORM -> isSupportedRmsNormContinuationConsumer(target, context);
-            case SOFTMAX_GRAD, LOG_SOFTMAX_GRAD -> isSupportedSoftmaxGradContinuationConsumer(target, context);
             case NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES -> isSupportedDenseLossContinuationConsumer(target, context);
             case FUSED -> isSupportedFusedContinuationConsumer((FusedOperation) consumer.operation(), target, context);
             default -> false;
@@ -565,23 +564,6 @@ public final class CpuNodePreparer {
         return consumer.contiguous() && !consumer.hasStorageOffset() && isContiguousBFloat16Parameter(gamma);
     }
 
-    private boolean isSupportedSoftmaxGradContinuationConsumer(ContinuationConsumerTarget target, BackendPrepareContext context) {
-        CompiledNode consumer = target.consumer();
-        if (consumer.inputIds().size() != 2) {
-            return false;
-        }
-        int otherIndex = target.producerInputIndex() == 0 ? 1 : 0;
-        CompiledNode other = context.compiledNode(consumer.inputIds().get(otherIndex));
-        if (other == null || other.dataType() != DataType.BFLOAT16) {
-            return false;
-        }
-        return java.util.Arrays.equals(other.shape(), consumer.shape())
-                && other.contiguous()
-                && !other.hasStorageOffset()
-                && consumer.contiguous()
-                && !consumer.hasStorageOffset();
-    }
-
     private boolean isSupportedDenseLossContinuationConsumer(ContinuationConsumerTarget target, BackendPrepareContext context) {
         CompiledNode consumer = target.consumer();
         if (consumer.inputIds().size() != 2) {
@@ -644,8 +626,8 @@ public final class CpuNodePreparer {
 
     private boolean supportsFloatContinuationProducer(Operation.OpType opType) {
         return switch (opType) {
-            case MATMUL, LINEAR, SOFTMAX, LOG_SOFTMAX, SOFTMAX_GRAD, LOG_SOFTMAX_GRAD, LAYER_NORM, RMS_NORM,
-                    SCALED_DOT_PRODUCT_ATTENTION, SCALED_DOT_PRODUCT_ATTENTION_BACKWARD,
+            case MATMUL, LINEAR, SOFTMAX, LOG_SOFTMAX, LAYER_NORM, RMS_NORM,
+                    SCALED_DOT_PRODUCT_ATTENTION,
                     ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH,
                     POW, SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID, WHERE -> true;
             default -> false;

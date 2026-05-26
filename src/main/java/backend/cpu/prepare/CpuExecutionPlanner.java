@@ -202,7 +202,7 @@ public final class CpuExecutionPlanner {
         this.reductionPlanner = new ReductionPlanner(policy);
         this.matMulPlanner = new MatMulPlanner(policy);
         this.conv2dPlanner = new Conv2dPlanner();
-        this.attentionPlanner = new ScaledDotProductAttentionPlanner(reductionPlanner, matMulPlanner);
+        this.attentionPlanner = new ScaledDotProductAttentionPlanner(reductionPlanner);
         this.computeContractResolver = new CpuComputeContractResolver();
     }
 

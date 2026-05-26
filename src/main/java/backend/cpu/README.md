@@ -40,5 +40,11 @@ non-BLAS segment scalar kernels require explicit benchmark proof before promotio
 - `backend.cpu.fused` prepares generated or planned fused execution artifacts.
 - `backend.cpu.kernels.fused` executes direct runtime fused kernels.
 
+Rewrite planning references:
+
+- `docs/cpu-storage-rewrite-plan.md` defines the current storage rewrite scope, wave order, package checklist, and fused
+  exclusion.
+- `docs/cpu-kernels-wave0-baseline.md` is historical baseline evidence for earlier native CPU ownership cleanup.
+
 Root-level CPU classes in `backend` and the old split CPU kernel tree have been removed.
 Do not add new CPU implementation code outside `backend.cpu`.

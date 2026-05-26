@@ -51,8 +51,8 @@ public final class CpuComputeContractResolver {
             case CONV2D_GEMM, CONV2D_BACKWARD_INPUT_GEMM, CONV2D_BACKWARD_WEIGHT_GEMM ->
                     resolveConv2dContract(dataType, conv2dHints);
             case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_PROD, CUMSUM, ARGMAX, REDUCE_ALL, REDUCE_ANY,
-                    SOFTMAX, SOFTMAX_GRAD, LOG_SOFTMAX, LOG_SOFTMAX_GRAD,
-                    NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD ->
+                    SOFTMAX, LOG_SOFTMAX,
+                    NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES ->
                     resolveReductionContract(dataType);
             case FUSED -> defaultContractFor(dataType, CpuExecutionBackend.CPU_FUSED);
             default -> (op.opType().category() == Operation.OpArityClass.ELEMENT_WISE)

@@ -32,8 +32,7 @@ The optional lowering order is:
 
 1. `LinearLoweringRule`
 2. `LossForwardLoweringRule`
-3. `LossBackwardSpecializationRule`
-4. optional `Conv2dGemmLoweringRule`
+3. optional `Conv2dGemmLoweringRule`
 
 That order is intentional:
 
@@ -264,7 +263,6 @@ Worked shape example:
 Files:
 
 - [rewrite/lowering/LossForwardLoweringRule.java](./rewrite/lowering/LossForwardLoweringRule.java)
-- [rewrite/lowering/LossBackwardSpecializationRule.java](./rewrite/lowering/LossBackwardSpecializationRule.java)
 
 ### Forward pattern
 
@@ -287,15 +285,9 @@ Lowering target:
 crossEntropyLossFromIndices(logits, targetIndices, classDimension, reduction)
 ```
 
-### Backward pattern
-
-Current backward lowering recognizes the decomposed cross-entropy gradient pattern and lowers it to:
-
-```text
-crossEntropyLossIndicesGrad(logits, targetIndices, sampleScale, classDimension)
-```
-
-This reduces the amount of decomposed scatter/add/softmax machinery left in the runtime graph.
+Backward loss DAGs remain in their canonical primitive form. The default graph
+optimizer must not rewrite public Tensor/autograd backward DAGs into legacy
+gradient descriptors such as `CROSS_ENTROPY_LOSS_INDICES_GRAD`.
 
 ## Attention
 

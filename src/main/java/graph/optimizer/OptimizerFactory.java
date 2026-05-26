@@ -13,7 +13,6 @@ import graph.optimizer.rewrite.algebraic.AlgebraicSimplificationRule;
 import graph.optimizer.rewrite.canonical.PiecewiseCanonicalizationRule;
 import graph.optimizer.rewrite.lowering.Conv2dGemmLoweringRule;
 import graph.optimizer.rewrite.lowering.LinearLoweringRule;
-import graph.optimizer.rewrite.lowering.LossBackwardSpecializationRule;
 import graph.optimizer.rewrite.lowering.LossForwardLoweringRule;
 
 import java.util.ArrayList;
@@ -103,7 +102,6 @@ public final class OptimizerFactory {
             rules.add(new LinearLoweringRule());
         }
         rules.add(new LossForwardLoweringRule());
-        rules.add(new LossBackwardSpecializationRule());
         if (resolved.conv2dLowering().mode() != Conv2dLoweringMode.OFF) {
             rules.add(new Conv2dGemmLoweringRule(resolved.conv2dLowering()));
         }

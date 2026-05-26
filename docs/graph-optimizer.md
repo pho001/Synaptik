@@ -255,7 +255,7 @@ Source area:
 Examples:
 
 - `matmul(input, weight) + bias` can become `linear(input, weight, bias)`
-- selected loss, reduction, and attention forms can become specialized operation surfaces
+- selected forward loss forms can become specialized operation surfaces
 - conv2d lowering follows the configured `Conv2dLoweringConfig`
 
 Important current detail: `SCALED_DOT_PRODUCT_ATTENTION` is increasingly represented as a DAG of primitives for backend coverage. Lowering should not be used as a blanket reason to hide primitive structure when the backend planners and lowerers need to see the DAG. In other words, lowering is optional graph shaping, not a mandatory route to make attention executable.
@@ -264,7 +264,6 @@ Source area:
 
 - `src/main/java/graph/optimizer/rewrite/lowering/LinearLoweringRule.java`
 - `src/main/java/graph/optimizer/rewrite/lowering/LossForwardLoweringRule.java`
-- `src/main/java/graph/optimizer/rewrite/lowering/LossBackwardSpecializationRule.java`
 - `src/main/java/graph/optimizer/rewrite/lowering/Conv2dGemmLoweringRule.java`
 
 ## Snapshot Safety

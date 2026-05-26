@@ -431,7 +431,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void metalSelectionAcceptsIndexGradientPrimitives() {
+    void directCpuRejectsLegacyIndexGradientPrimitives() {
         Tensor gatherIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalGatherGradIndices", DataType.INT32);
         Tensor gatherOutGrad = new Tensor(new float[]{1f, 2f}, new int[]{2}, null, "metalGatherGradOut", DataType.FLOAT32);
         Tensor gatherGradOut = TensorPrimitiveBuilder.binary(
@@ -442,19 +442,12 @@ public class PreparedExecutionBuildTest {
                 "metalGatherGrad",
                 DataType.FLOAT32
         );
-        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
-        backendIntentPlan = backendIntentPlan.withBackend(gatherGradOut, ComputeBackend.GPU_METAL);
-        CompiledGraph gatherCompiled = CompiledGraph.compile(gatherGradOut, CompileConfig.noGraphOptimizationBaseline(), backendIntentPlan);
-        PreparedExecution gatherExecution = gatherCompiled.prepare(RuntimeConfig.inferenceDefaults());
-        int gatherGradNodeId = nodeId(gatherCompiled, Operation.OpType.GATHER_GRAD);
-        String gatherReason = MetalPartitionSupport.plannerUnsupportedReason(
-                compiledNode(gatherCompiled, gatherGradNodeId),
-                planningContext(gatherCompiled)
+        CompiledGraph gatherCompiled = CompiledGraph.compile(gatherGradOut, CompileConfig.noGraphOptimizationBaseline());
+        IllegalStateException gatherError = assertThrows(
+                IllegalStateException.class,
+                () -> gatherCompiled.prepare(RuntimeConfig.inferenceDefaults())
         );
-
-        assertTrue(hasSelectedAcceleratorDecisionFor(gatherExecution, ComputeBackend.GPU_METAL, gatherGradNodeId));
-        assertEquals("", gatherReason);
-        assertAcceleratorPreparedStepAvailable(gatherExecution, gatherGradNodeId);
+        assertTrue(gatherError.getMessage().contains("legacy backward op type GATHER_GRAD"));
 
         Tensor takeIndices = new Tensor(new int[]{2, 2, 0, 0}, new int[]{2, 2}, null, "metalTakeGradIndices", DataType.INT32);
         Tensor takeOutGrad = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalTakeGradOut", DataType.FLOAT32);
@@ -466,18 +459,12 @@ public class PreparedExecutionBuildTest {
                 "metalTakeAlongAxisGrad",
                 DataType.FLOAT32
         );
-        backendIntentPlan = backendIntentPlan.withBackend(takeGradOut, ComputeBackend.GPU_METAL);
-        CompiledGraph takeCompiled = CompiledGraph.compile(takeGradOut, CompileConfig.noGraphOptimizationBaseline(), backendIntentPlan);
-        PreparedExecution takeExecution = takeCompiled.prepare(RuntimeConfig.inferenceDefaults());
-        int takeGradNodeId = nodeId(takeCompiled, Operation.OpType.TAKE_ALONG_AXIS_GRAD);
-        String takeReason = MetalPartitionSupport.plannerUnsupportedReason(
-                compiledNode(takeCompiled, takeGradNodeId),
-                planningContext(takeCompiled)
+        CompiledGraph takeCompiled = CompiledGraph.compile(takeGradOut, CompileConfig.noGraphOptimizationBaseline());
+        IllegalStateException takeError = assertThrows(
+                IllegalStateException.class,
+                () -> takeCompiled.prepare(RuntimeConfig.inferenceDefaults())
         );
-
-        assertTrue(hasSelectedAcceleratorDecisionFor(takeExecution, ComputeBackend.GPU_METAL, takeGradNodeId));
-        assertEquals("", takeReason);
-        assertAcceleratorPreparedStepAvailable(takeExecution, takeGradNodeId);
+        assertTrue(takeError.getMessage().contains("legacy backward op type TAKE_ALONG_AXIS_GRAD"));
     }
 
     @Test
