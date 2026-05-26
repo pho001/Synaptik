@@ -3,6 +3,7 @@ import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
+import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.options.Pool2dOptions;
@@ -44,8 +45,8 @@ public class Pool2dExecutionTest {
         input.setRequiresGrad(true);
 
         Tensor loss = input.maxPool2d(Pool2dOptions.square(2)).sum();
-        CompiledGraph.compile(loss, CompileConfig.training())
-                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph graph = CompiledGraph.compile(loss, CompileConfig.training());
+        graph.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 0, 0, 0, 0,
@@ -53,6 +54,37 @@ public class Pool2dExecutionTest {
                 0, 0, 0, 0,
                 0, 1, 0, 1
         }, input.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertContainsOp(graph, Operation.OpType.UNFOLD2D);
+        assertContainsOp(graph, Operation.OpType.FOLD2D);
+        assertContainsOp(graph, Operation.OpType.ARGMAX);
+        assertContainsOp(graph, Operation.OpType.SCATTER_ELEMENTS);
+    }
+
+    @Test
+    void maxPool2dBackwardIgnoresPaddingWhenInputsAreNegative() {
+        for (DataType dataType : new DataType[]{DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16}) {
+            Tensor input = new Tensor(new double[]{
+                    -4, -3,
+                    -2, -1
+            }, new int[]{1, 1, 2, 2}, null, "input", dataType);
+            input.setRequiresGrad(true);
+
+            Tensor loss = input.maxPool2d(
+                    Pool2dOptions.square(2)
+                            .withStride(1, 1)
+                            .withPadding(1, 1)
+            ).sum();
+            CompiledGraph graph = CompiledGraph.compile(loss, CompileConfig.training());
+            graph.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
+
+            assertArrayEquals(new double[]{
+                    1, 2,
+                    2, 4
+            }, input.getGradient().toDoubleArrayCopy(), dataType == DataType.BFLOAT16 ? 1e-3 : 1e-6);
+            assertContainsOp(graph, Operation.OpType.WHERE);
+            assertContainsOp(graph, Operation.OpType.ARGMAX);
+            assertContainsOp(graph, Operation.OpType.FOLD2D);
+        }
     }
 
     @Test
@@ -83,8 +115,8 @@ public class Pool2dExecutionTest {
         backwardInput.setRequiresGrad(true);
 
         Tensor loss = backwardInput.avgPool2d(Pool2dOptions.square(2)).sum();
-        CompiledGraph.compile(loss, CompileConfig.training())
-                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph backwardGraph = CompiledGraph.compile(loss, CompileConfig.training());
+        backwardGraph.prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 0.25, 0.25, 0.25, 0.25,
@@ -92,6 +124,8 @@ public class Pool2dExecutionTest {
                 0.25, 0.25, 0.25, 0.25,
                 0.25, 0.25, 0.25, 0.25
         }, backwardInput.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertContainsOp(backwardGraph, Operation.OpType.UNFOLD2D);
+        assertContainsOp(backwardGraph, Operation.OpType.FOLD2D);
     }
 
     @Test
@@ -191,5 +225,17 @@ public class Pool2dExecutionTest {
 
         execution.execute(ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{16, 14, 8, 6}, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    private static void assertContainsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
+        org.junit.jupiter.api.Assertions.assertTrue(containsOp(compiledGraph, opType), "Expected graph to contain " + opType);
+    }
+
+    private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
+        return compiledGraph.program().compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
+                .filter(op -> op != null)
+                .map(Operation::opType)
+                .anyMatch(type -> type == opType);
     }
 }

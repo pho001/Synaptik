@@ -392,7 +392,7 @@ Add changes by ownership:
 - `CF` -> `new ConstantFoldingRule()`
 - `CSE` -> `new CommonSubexpressionEliminationRule(config.cse())`
 - `DCE` -> `new DeadCodeEliminationRule()`
-- `LOWER` -> optional `LinearLoweringRule`, loss lowering rules, and optional `Conv2dGemmLoweringRule`
+- `LOWER` -> optional `LinearLoweringRule`, loss lowering rules, and optional `Conv2dDagLoweringRule`
 
 When a new operation has semantic parameters, update CSE signature handling in `CommonSubexpressionEliminationRule.parameterKey(...)`; otherwise structurally different instances may collapse incorrectly or identical instances may fail to collapse.
 
@@ -428,7 +428,6 @@ The standard calibration suite is defined in `CalibrationFamilyRegistry.standard
 scheduler
 matmul
 attention-matmul
-conv2d-gemm-dispatch
 elementwise-dispatch
 fused-dispatch
 fused-cheap-contiguous-width

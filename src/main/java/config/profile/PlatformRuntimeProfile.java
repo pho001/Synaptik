@@ -32,7 +32,7 @@ import java.util.Objects;
  *
  * @param metadata platform id, hardware key, schema versions, dtype, and execution mode
  * @param matmul calibrated matmul and attention-matmul runtime settings
- * @param conv2d calibrated conv2d GEMM dispatch settings; {@code null} derives defaults from matmul
+ * @param conv2d legacy calibrated conv2d dispatch settings; {@code null} derives defaults from matmul
  * @param fused calibrated fused elementwise dispatch and generated-ASM vector width settings
  * @param elementwiseDispatch calibrated non-fused elementwise dispatch thresholds
  * @param reduction calibrated reduction and attention-reduction thresholds

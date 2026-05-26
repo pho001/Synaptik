@@ -462,7 +462,7 @@ Supported commands:
 ```bash
 ./gradlew run --args="full f64"
 ./gradlew run --args="calibrate --dtype f64 --families all"
-./gradlew run --args="calibrate --dtype f64 --family conv2d-gemm-dispatch --measurement 30:100:2"
+./gradlew run --args="calibrate --dtype f64 --family matmul --measurement 30:100:2"
 ./gradlew run --args="autotune f64"
 ./gradlew run --args="benchmark-winner f64"
 ./gradlew run --args="benchmark-graph-space f64"
@@ -497,7 +497,6 @@ Current public family names include:
 
 - `matmul`
 - `attention-matmul`
-- `conv2d-gemm-dispatch`
 - `fused-dispatch`
 - `fused-cheap-contiguous-width`
 - `fused-cheap-strided-width`

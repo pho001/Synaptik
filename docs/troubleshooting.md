@@ -145,7 +145,6 @@ Symptoms:
 
 ```text
 OpenBLAS FFM is unavailable
-Prepared conv2d GEMM plan requires OPENBLAS_FFM, but the bridge is not available.
 OpenBLAS FFM bridge unavailable: ...
 ```
 
@@ -180,8 +179,7 @@ is present. BF16 correctness should be checked against Synaptik's Java BF16 refe
 because BF16 storage intentionally quantizes inputs and outputs.
 
 Important distinction: selecting `OPENBLAS_FFM` only makes BLAS eligible. A specific matmul still needs to pass dtype,
-work, contiguity, and shape gates, and matmul falls back to Java if the native bridge is unavailable or throws. A
-prepared conv2d GEMM plan that requires OpenBLAS is stricter and can fail when the bridge is unavailable. The detailed
+work, contiguity, and shape gates, and matmul falls back to Java if the native bridge is unavailable or throws. The detailed
 BLAS/GEMM/Java FFM explanation is in [Native Bridges & BLAS: Failure And Fallback Behavior](native-bridges-and-blas.md#failure-and-fallback-behavior).
 
 ## Metal MPS Shim Missing
@@ -280,7 +278,7 @@ If `SCATTER_ELEMENTS` or `SCATTER_ND` rejects while the CPU path works, check th
 
 If a conv/pool path unexpectedly falls back, check all of these before treating it as a Metal bug:
 
-1. The operation must be forward `CONV2D`, `CONV2D_GEMM`, `MAX_POOL2D`, or `AVG_POOL2D`; conv/pool backward ops are still capability-gated.
+1. The operation must be forward `CONV2D`, `MAX_POOL2D`, or `AVG_POOL2D`; conv/pool backward ops are still capability-gated.
 2. Inputs and outputs must be dense `FLOAT32` rank-4 NCHW tensors, and Conv2D weights must be dense OIHW.
 3. Conv2D is scoped to `groups=1`, `dilationH=1`, and `dilationW=1`; grouped/depthwise and dilated conv still reject with `CAPABILITY_MISSING`.
 4. Pooling metadata must fit the native DAG encoding, and `AVG_POOL2D countIncludePad=true` remains rejected because divisor semantics are not implemented natively.

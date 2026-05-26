@@ -10,8 +10,6 @@ import backend.cpu.plan.linalg.attention.ResolvedScaledDotProductAttentionPlan;
 import backend.cpu.prepare.linalg.attention.ScaledDotProductAttentionPlanner;
 import backend.cpu.prepare.linalg.matmul.MatMulPlanner;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
-import backend.cpu.prepare.nn.conv2d.Conv2dPlanner;
-import backend.cpu.plan.nn.conv2d.ResolvedConv2dHints;
 import backend.cpu.plan.ResolvedCpuComputeContract;
 import backend.cpu.prepare.reduction.ReductionPlanner;
 import backend.cpu.plan.reduction.ResolvedReductionHints;
@@ -20,7 +18,6 @@ import config.backend.CpuKernelConfig;
 import config.backend.CpuMatMulMicroKernel;
 import config.backend.SumAccuracyMode;
 import config.runtime.BlasConfig;
-import config.runtime.Conv2dConfig;
 import config.runtime.CpuStorageProfile;
 import backend.cpu.fused.plan.FusedOperation;
 import graph.compile.descriptor.CompiledTensorDescriptor;
@@ -42,7 +39,6 @@ public final class CpuExecutionPlanner {
     private final FusedDispatchPlanner fusedDispatchPlanner;
     private final ReductionPlanner reductionPlanner;
     private final MatMulPlanner matMulPlanner;
-    private final Conv2dPlanner conv2dPlanner;
     private final ScaledDotProductAttentionPlanner attentionPlanner;
     private final CpuComputeContractResolver computeContractResolver;
 
@@ -201,7 +197,6 @@ public final class CpuExecutionPlanner {
         this.fusedDispatchPlanner = new FusedDispatchPlanner(policy);
         this.reductionPlanner = new ReductionPlanner(policy);
         this.matMulPlanner = new MatMulPlanner(policy);
-        this.conv2dPlanner = new Conv2dPlanner();
         this.attentionPlanner = new ScaledDotProductAttentionPlanner(reductionPlanner);
         this.computeContractResolver = new CpuComputeContractResolver();
     }
@@ -334,20 +329,18 @@ public final class CpuExecutionPlanner {
             List<Tensor> inputs,
             Tensor node,
             BlasConfig blasConfig,
-            ResolvedMatMulHints matMulHints,
-            ResolvedConv2dHints conv2dHints
+            ResolvedMatMulHints matMulHints
     ) {
-        return computeContractResolver.resolve(op, node, matMulHints, conv2dHints);
+        return computeContractResolver.resolve(op, node, matMulHints);
     }
 
     public ResolvedCpuComputeContract resolveComputeContract(
             Operation op,
             CompiledTensorDescriptor descriptor,
             BlasConfig blasConfig,
-            ResolvedMatMulHints matMulHints,
-            ResolvedConv2dHints conv2dHints
+            ResolvedMatMulHints matMulHints
     ) {
-        return computeContractResolver.resolve(op, descriptor, matMulHints, conv2dHints);
+        return computeContractResolver.resolve(op, descriptor, matMulHints);
     }
 
     public ResolvedMatMulHints resolveMatMulHints(Tensor a, Tensor b, Tensor out, BlasConfig blasConfig) {
@@ -414,15 +407,6 @@ public final class CpuExecutionPlanner {
 
     public ResolvedMatMulHints resolveAttentionJavaMatMulHints(int[] aShape, int[] bShape, int[] outShape, DataType outDataType) {
         return matMulPlanner.resolveAttentionJava(aShape, bShape, outShape, outDataType);
-    }
-
-    public ResolvedConv2dHints resolveConv2dHints(
-            Operation op,
-            List<CompiledTensorDescriptor> inputs,
-            CompiledTensorDescriptor node,
-            Conv2dConfig conv2dConfig
-    ) {
-        return conv2dPlanner.resolve(op, inputs, node, conv2dConfig);
     }
 
     public ResolvedScaledDotProductAttentionPlan resolveScaledDotProductAttentionPlan(

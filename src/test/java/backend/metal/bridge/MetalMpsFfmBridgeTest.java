@@ -36,6 +36,7 @@ import tensor.internal.TensorPrimitiveBuilder;
 import tensor.options.AttentionOptions;
 import tensor.options.Conv2dOptions;
 import tensor.options.Pool2dOptions;
+import tensor.options.Window2dOptions;
 
 import java.util.Arrays;
 import java.util.List;
@@ -747,6 +748,58 @@ class MetalMpsFfmBridgeTest {
     }
 
     @Test
+    void explicitShimExecuteBuffersSupportsWindowLayoutMaterializationOps() {
+        Tensor axisInput = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "metalWindowAxisInput", DataType.FLOAT32);
+        Tensor unfoldedAxis = axisInput.unfold(0, 2, 1);
+        Tensor axisDestination = executeF32LoweredNode(
+                unfoldedAxis,
+                Operation.OpType.UNFOLD_AXIS,
+                List.of(axisInput),
+                new int[]{3, 2}
+        );
+
+        Tensor image = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f,
+                7f, 8f, 9f
+        }, new int[]{1, 1, 3, 3}, null, "metalUnfold2dInput", DataType.FLOAT32);
+        Tensor columns = image.unfold2d(Window2dOptions.of(2, 2));
+        Tensor unfold2dDestination = executeF32LoweredNode(
+                columns,
+                Operation.OpType.UNFOLD2D,
+                List.of(image),
+                new int[]{1, 4, 4}
+        );
+
+        Tensor columnInput = new Tensor(new float[]{
+                1f, 2f, 4f, 5f,
+                2f, 3f, 5f, 6f,
+                4f, 5f, 7f, 8f,
+                5f, 6f, 8f, 9f
+        }, new int[]{1, 4, 4}, null, "metalFold2dInput", DataType.FLOAT32);
+        Tensor folded = columnInput.fold2d(new int[]{1, 1, 3, 3}, Window2dOptions.of(2, 2));
+        Tensor fold2dDestination = executeF32LoweredNode(
+                folded,
+                Operation.OpType.FOLD2D,
+                List.of(columnInput),
+                new int[]{1, 1, 3, 3}
+        );
+
+        assertArrayEquals(new float[]{1f, 2f, 2f, 3f, 3f, 4f}, axisDestination.toFloat32ArrayCopy(), 0.0f);
+        assertArrayEquals(new float[]{
+                1f, 2f, 4f, 5f,
+                2f, 3f, 5f, 6f,
+                4f, 5f, 7f, 8f,
+                5f, 6f, 8f, 9f
+        }, unfold2dDestination.toFloat32ArrayCopy(), 0.0f);
+        assertArrayEquals(new float[]{
+                1f, 4f, 3f,
+                8f, 20f, 12f,
+                7f, 16f, 9f
+        }, fold2dDestination.toFloat32ArrayCopy(), 0.0f);
+    }
+
+    @Test
     void explicitShimExecuteBuffersSupportsGatherNdWithBatchDims() {
         Tensor data = new Tensor(new float[]{
                 1f, 2f, 3f,
@@ -1183,175 +1236,6 @@ class MetalMpsFfmBridgeTest {
                 14.5f, 34.5f, 20.5f,
                 13.5f, 29.5f, 16.5f
         }, destination.toFloat32ArrayCopy(), 1.0e-5f);
-    }
-
-    @Test
-    void explicitShimExecuteBuffersSupportsFloat32Conv2dBackwardInputAndWeight() {
-        Conv2dOptions options = Conv2dOptions.defaults();
-
-        Tensor expectedWeight = new Tensor(new float[]{
-                1f, 0f,
-                0f, 1f
-        }, new int[]{1, 1, 2, 2}, null, "expectedConvBackwardWeightInput", DataType.FLOAT32);
-        Tensor expectedOutGrad = new Tensor(new float[]{
-                1f, 2f,
-                3f, 4f
-        }, new int[]{1, 1, 2, 2}, null, "expectedConvBackwardOutGrad", DataType.FLOAT32);
-        Tensor expectedInputGrad = TensorPrimitiveBuilder.binaryNoGrad(
-                expectedWeight,
-                expectedOutGrad,
-                new int[]{1, 1, 3, 3},
-                new operations.nn.conv.conv2dBackwardInput(options, new int[]{1, 1, 3, 3}),
-                "expectedConv2dBackwardInput",
-                DataType.FLOAT32
-        );
-        expectedInputGrad.compute();
-
-        Tensor weight = new Tensor(new float[]{
-                1f, 0f,
-                0f, 1f
-        }, new int[]{1, 1, 2, 2}, null, "convBackwardWeightInput", DataType.FLOAT32);
-        Tensor outGradForInput = new Tensor(new float[]{
-                1f, 2f,
-                3f, 4f
-        }, new int[]{1, 1, 2, 2}, null, "convBackwardOutGradInput", DataType.FLOAT32);
-        Tensor inputGrad = TensorPrimitiveBuilder.binaryNoGrad(
-                weight,
-                outGradForInput,
-                new int[]{1, 1, 3, 3},
-                new operations.nn.conv.conv2dBackwardInput(options, new int[]{1, 1, 3, 3}),
-                "conv2dBackwardInput",
-                DataType.FLOAT32
-        );
-
-        Tensor inputGradDestination = executeF32LoweredNode(
-                inputGrad,
-                Operation.OpType.CONV2D_BACKWARD_INPUT,
-                List.of(weight, outGradForInput),
-                new int[]{1, 1, 3, 3}
-        );
-
-        Tensor expectedInput = new Tensor(new float[]{
-                1f, 2f, 3f,
-                4f, 5f, 6f,
-                7f, 8f, 9f
-        }, new int[]{1, 1, 3, 3}, null, "expectedConvBackwardInputSource", DataType.FLOAT32);
-        Tensor expectedWeightGrad = TensorPrimitiveBuilder.binaryNoGrad(
-                expectedInput,
-                expectedOutGrad,
-                new int[]{1, 1, 2, 2},
-                new operations.nn.conv.conv2dBackwardWeight(options, new int[]{1, 1, 2, 2}),
-                "expectedConv2dBackwardWeight",
-                DataType.FLOAT32
-        );
-        expectedWeightGrad.compute();
-
-        Tensor input = new Tensor(new float[]{
-                1f, 2f, 3f,
-                4f, 5f, 6f,
-                7f, 8f, 9f
-        }, new int[]{1, 1, 3, 3}, null, "convBackwardInputSource", DataType.FLOAT32);
-        Tensor outGradForWeight = new Tensor(new float[]{
-                1f, 2f,
-                3f, 4f
-        }, new int[]{1, 1, 2, 2}, null, "convBackwardOutGradWeight", DataType.FLOAT32);
-        Tensor weightGrad = TensorPrimitiveBuilder.binaryNoGrad(
-                input,
-                outGradForWeight,
-                new int[]{1, 1, 2, 2},
-                new operations.nn.conv.conv2dBackwardWeight(options, new int[]{1, 1, 2, 2}),
-                "conv2dBackwardWeight",
-                DataType.FLOAT32
-        );
-
-        Tensor weightGradDestination = executeF32LoweredNode(
-                weightGrad,
-                Operation.OpType.CONV2D_BACKWARD_WEIGHT,
-                List.of(input, outGradForWeight),
-                new int[]{1, 1, 2, 2}
-        );
-
-        assertArrayEquals(expectedInputGrad.toFloat32ArrayCopy(), inputGradDestination.toFloat32ArrayCopy(), 1.0e-5f);
-        assertArrayEquals(expectedWeightGrad.toFloat32ArrayCopy(), weightGradDestination.toFloat32ArrayCopy(), 1.0e-5f);
-    }
-
-    @Test
-    void explicitShimExecuteBuffersSupportsFloat32AvgPool2dBackwardInput() {
-        Pool2dOptions options = new Pool2dOptions(2, 2, 1, 1, 0, 0, false);
-        Tensor expectedOutGrad = new Tensor(new float[]{
-                1f, 2f,
-                3f, 4f
-        }, new int[]{1, 1, 2, 2}, null, "expectedAvgPoolBackwardOutGrad", DataType.FLOAT32);
-        Tensor expected = TensorPrimitiveBuilder.unaryNoGrad(
-                expectedOutGrad,
-                new int[]{1, 1, 3, 3},
-                new operations.nn.pool.avgPool2dBackwardInput(options, new int[]{1, 1, 3, 3}),
-                "expectedAvgPool2dBackwardInput",
-                DataType.FLOAT32
-        );
-        expected.compute();
-
-        Tensor outGrad = new Tensor(new float[]{
-                1f, 2f,
-                3f, 4f
-        }, new int[]{1, 1, 2, 2}, null, "avgPoolBackwardOutGrad", DataType.FLOAT32);
-        Tensor grad = TensorPrimitiveBuilder.unaryNoGrad(
-                outGrad,
-                new int[]{1, 1, 3, 3},
-                new operations.nn.pool.avgPool2dBackwardInput(options, new int[]{1, 1, 3, 3}),
-                "avgPool2dBackwardInput",
-                DataType.FLOAT32
-        );
-
-        Tensor destination = executeF32LoweredNode(
-                grad,
-                Operation.OpType.AVG_POOL2D_BACKWARD_INPUT,
-                List.of(outGrad),
-                new int[]{1, 1, 3, 3}
-        );
-
-        assertArrayEquals(expected.toFloat32ArrayCopy(), destination.toFloat32ArrayCopy(), 1.0e-5f);
-    }
-
-    @Test
-    void explicitShimExecuteBuffersSupportsFloat32MaxPool2dBackwardInput() {
-        Pool2dOptions options = new Pool2dOptions(2, 2, 1, 1, 0, 0, false);
-        Tensor source = new Tensor(new float[]{
-                1f, 5f, 2f,
-                4f, 5f, 3f,
-                7f, 6f, 8f
-        }, new int[]{1, 1, 3, 3}, null, "maxPoolBackwardSource", DataType.FLOAT32);
-        Tensor outGrad = new Tensor(new float[]{
-                1f, 2f,
-                3f, 4f
-        }, new int[]{1, 1, 2, 2}, null, "maxPoolBackwardOutGrad", DataType.FLOAT32);
-        Tensor expected = TensorPrimitiveBuilder.binaryNoGrad(
-                outGrad,
-                source,
-                new int[]{1, 1, 3, 3},
-                new operations.nn.pool.maxPool2dBackwardInput(options, new int[]{1, 1, 3, 3}),
-                "expectedMaxPool2dBackwardInput",
-                DataType.FLOAT32
-        );
-        expected.compute();
-
-        Tensor grad = TensorPrimitiveBuilder.binaryNoGrad(
-                outGrad,
-                source,
-                new int[]{1, 1, 3, 3},
-                new operations.nn.pool.maxPool2dBackwardInput(options, new int[]{1, 1, 3, 3}),
-                "maxPool2dBackwardInput",
-                DataType.FLOAT32
-        );
-
-        Tensor destination = executeF32LoweredNode(
-                grad,
-                Operation.OpType.MAX_POOL2D_BACKWARD_INPUT,
-                List.of(outGrad, source),
-                new int[]{1, 1, 3, 3}
-        );
-
-        assertArrayEquals(expected.toFloat32ArrayCopy(), destination.toFloat32ArrayCopy(), 1.0e-5f);
     }
 
     @Test

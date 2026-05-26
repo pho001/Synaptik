@@ -1542,7 +1542,7 @@ class PreparedMetalExecutableBufferBindingTest {
                 null,
                 List.of()
         );
-        return new CpuNodeExecutionPlan(layoutPlan, null, false, 1, 0, null, null, null, null, null, null);
+        return new CpuNodeExecutionPlan(layoutPlan, null, false, 1, 0, null, null, null, null, null);
     }
 
     private static AcceleratorBufferRequest singleInputRequest(Fixture fixture, Tensor input) {

@@ -139,7 +139,6 @@ public final class CpuNodePreparer {
                 operation,
                 context.descriptor(outputNode.id()),
                 runtimeConfig.blas(),
-                null,
                 null
         );
         PreparedFusedDispatch preparedFusedDispatch = planner.resolveFusedDispatch(
@@ -224,7 +223,6 @@ public final class CpuNodePreparer {
                     operation,
                     context.descriptor(node.id()),
                     runtimeConfig.blas(),
-                    null,
                     null
             );
             dispatchHintsOverride = planner.resolveDispatchHints(operation, context.descriptor(node.id()), elementwiseContract);
@@ -234,7 +232,6 @@ public final class CpuNodePreparer {
                     operation,
                     context.descriptor(node.id()),
                     runtimeConfig.blas(),
-                    null,
                     null
             );
             preparedFusedDispatch = planner.resolveFusedDispatch((FusedOperation) operation, context.descriptor(node.id()), fusedContract);
@@ -346,9 +343,6 @@ public final class CpuNodePreparer {
                     ? CpuNodeWorkspace.withFloatWorkspaceAndPackedLinearWeights(node.flatDataSize())
                     : CpuNodeWorkspace.withPackedLinearWeights();
             case LOG_SOFTMAX -> publishFloatContinuation
-                    ? CpuNodeWorkspace.withFloatWorkspace(node.flatDataSize())
-                    : null;
-            case CONV2D_GEMM -> node.dataType() == DataType.BFLOAT16
                     ? CpuNodeWorkspace.withFloatWorkspace(node.flatDataSize())
                     : null;
             default -> publishFloatContinuation

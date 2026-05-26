@@ -37,9 +37,6 @@ public final class GpuTargetCoverageTruth {
             Operation.OpType.CROSS_ENTROPY_LOSS_INDICES,
             Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD,
             Operation.OpType.CONV2D,
-            Operation.OpType.CONV2D_GEMM,
-            Operation.OpType.CONV2D_BACKWARD_INPUT,
-            Operation.OpType.CONV2D_BACKWARD_WEIGHT,
             Operation.OpType.MAX_POOL2D,
             Operation.OpType.AVG_POOL2D,
             Operation.OpType.GATHER,
@@ -65,11 +62,7 @@ public final class GpuTargetCoverageTruth {
             Operation.OpType.REDUCE_MAX_GRAD,
             Operation.OpType.MIN_GRAD,
             Operation.OpType.MAX_GRAD,
-            Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD,
-            Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM,
-            Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM,
-            Operation.OpType.MAX_POOL2D_BACKWARD_INPUT,
-            Operation.OpType.AVG_POOL2D_BACKWARD_INPUT
+            Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD
     );
 
     private static final Map<ComputeBackend, Set<Operation.OpType>> NATIVE_EXECUTABLE_TARGETS =
@@ -172,15 +165,8 @@ public final class GpuTargetCoverageTruth {
         metalTargets.add(Operation.OpType.TAKE_ALONG_AXIS_GRAD);
         metalTargets.add(Operation.OpType.SCATTER_ADD);
         metalTargets.add(Operation.OpType.CONV2D);
-        metalTargets.add(Operation.OpType.CONV2D_GEMM);
-        metalTargets.add(Operation.OpType.CONV2D_BACKWARD_INPUT);
-        metalTargets.add(Operation.OpType.CONV2D_BACKWARD_WEIGHT);
-        metalTargets.add(Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM);
-        metalTargets.add(Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM);
         metalTargets.add(Operation.OpType.MAX_POOL2D);
         metalTargets.add(Operation.OpType.AVG_POOL2D);
-        metalTargets.add(Operation.OpType.MAX_POOL2D_BACKWARD_INPUT);
-        metalTargets.add(Operation.OpType.AVG_POOL2D_BACKWARD_INPUT);
         out.put(ComputeBackend.GPU_METAL, metalTargets);
         out.put(ComputeBackend.GPU_CUDA, EnumSet.copyOf(reductions));
         return Map.copyOf(out);

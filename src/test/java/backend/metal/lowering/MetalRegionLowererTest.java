@@ -46,7 +46,6 @@ import operations.index.gatherGrad;
 import operations.index.takeAlongAxisGrad;
 import operations.layout.sliceGrad;
 import operations.nn.conv.conv2d;
-import operations.nn.conv.conv2dGemm;
 import operations.nn.pool.maxPool2d;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -888,6 +887,49 @@ class MetalRegionLowererTest {
         ));
         assertTrue(planFor(concat, Operation.OpType.CONCAT).lowering().dagSpec().nodes().stream()
                 .anyMatch(node -> node.type() == AcceleratorDagNodeType.CONCAT && node.scalarValueBits() == 1));
+
+        Tensor axisInput = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "metalWindowAxisInput", DataType.FLOAT32);
+        Tensor axisOut = axisInput.unfold(0, 2, 1);
+        backendIntentPlan = backendIntentPlan.withBackend(axisOut, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext axisContext = planningContext(axisOut, backendIntentPlan);
+        assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(
+                axisContext.compiledNode(nodeId(axisContext, Operation.OpType.UNFOLD_AXIS)),
+                axisContext
+        ));
+        assertTrue(planFor(axisOut, Operation.OpType.UNFOLD_AXIS).lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.UNFOLD_AXIS
+                        && node.attribute1() == 2
+                        && node.attribute2() == 1));
+
+        Tensor image = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f,
+                7f, 8f, 9f
+        }, new int[]{1, 1, 3, 3}, null, "metalWindowImage", DataType.FLOAT32);
+        tensor.options.Window2dOptions window = tensor.options.Window2dOptions.of(2, 2);
+        Tensor columns = image.unfold2d(window);
+        backendIntentPlan = backendIntentPlan.withBackend(columns, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext unfoldContext = planningContext(columns, backendIntentPlan);
+        assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(
+                unfoldContext.compiledNode(nodeId(unfoldContext, Operation.OpType.UNFOLD2D)),
+                unfoldContext
+        ));
+        assertTrue(planFor(columns, Operation.OpType.UNFOLD2D).lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.UNFOLD2D
+                        && node.attribute0() == 2
+                        && node.attribute1() == 2));
+
+        Tensor folded = columns.fold2d(new int[]{1, 1, 3, 3}, window);
+        backendIntentPlan = backendIntentPlan.withBackend(folded, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext foldContext = planningContext(folded, backendIntentPlan);
+        assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(
+                foldContext.compiledNode(nodeId(foldContext, Operation.OpType.FOLD2D)),
+                foldContext
+        ));
+        assertTrue(planFor(folded, Operation.OpType.FOLD2D).lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.FOLD2D
+                        && node.attribute0() == 2
+                        && node.attribute1() == 2));
     }
 
     @Test
@@ -1470,21 +1512,6 @@ class MetalRegionLowererTest {
                 convContext
         );
 
-        Tensor gemm = TensorPrimitiveBuilder.binary(
-                input,
-                weight,
-                conv.getShape(),
-                new conv2dGemm(Conv2dOptions.defaults(), false),
-                "metalPhase35ConvGemm",
-                DataType.FLOAT32
-        );
-        backendIntentPlan = backendIntentPlan.withBackend(gemm, ComputeBackend.GPU_METAL);
-        PartitionPlanningContext gemmContext = planningContext(gemm, backendIntentPlan);
-        String gemmReason = MetalPartitionSupport.plannerUnsupportedReason(
-                gemmContext.compiledNode(nodeId(gemmContext, Operation.OpType.CONV2D_GEMM)),
-                gemmContext
-        );
-
         Tensor poolInput = new Tensor(new float[]{
                 1f, 2f, 3f, 4f,
                 5f, 6f, 7f, 8f,
@@ -1508,7 +1535,6 @@ class MetalRegionLowererTest {
         );
 
         assertEquals("", convReason);
-        assertEquals("", gemmReason);
         assertEquals("", maxPoolReason);
         assertEquals("", avgPoolReason);
         MetalBackendPartitionCapability adapter = new MetalBackendPartitionCapability();
@@ -1521,8 +1547,6 @@ class MetalRegionLowererTest {
         MetalPartitionPlan plan = (MetalPartitionPlan) adapter.createPlan(candidate, convContext);
         assertNotNull(plan);
         assertTrue(plan.lowering().dagSpec().nodes().stream()
-                .anyMatch(node -> node.type() == AcceleratorDagNodeType.CONV2D));
-        assertTrue(planFor(gemm, Operation.OpType.CONV2D_GEMM).lowering().dagSpec().nodes().stream()
                 .anyMatch(node -> node.type() == AcceleratorDagNodeType.CONV2D));
         assertTrue(planFor(maxPool, Operation.OpType.MAX_POOL2D).lowering().dagSpec().nodes().stream()
                 .anyMatch(node -> node.type() == AcceleratorDagNodeType.MAX_POOL2D));

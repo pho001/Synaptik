@@ -7,7 +7,6 @@ import backend.cpu.plan.layout.ResolvedWhereBroadcastPlan;
 import backend.cpu.plan.linalg.attention.ResolvedScaledDotProductAttentionPlan;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
-import backend.cpu.plan.nn.conv2d.ResolvedConv2dHints;
 import backend.cpu.plan.reduction.ResolvedReductionHints;
 import tensor.DataType;
 import tensor.Tensor;
@@ -25,7 +24,6 @@ public record CpuNodeExecutionPlan(
         ResolvedReductionHints reductionHints,
         ResolvedMatMulHints matMulHints,
         PreparedMatMulExecutable matMulExecutable,
-        ResolvedConv2dHints conv2dHints,
         ResolvedScaledDotProductAttentionPlan attentionPlan
 ) {
     public CpuNodeExecutionPlan {

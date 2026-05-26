@@ -3,11 +3,14 @@ package tensor.ops.conv;
 import operations.nn.conv.conv2d;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorOps;
 import tensor.dtype.TensorDTypes;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
 import tensor.options.Conv2dOptions;
+import tensor.options.Window2dOptions;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -111,26 +114,10 @@ public final class Conv2dOp {
             }
 
             if (input.getRequiresGrad()) {
-                Tensor grad = TensorPrimitiveBuilder.binaryNoGrad(
-                        weight,
-                        outGrad,
-                        inputShape.clone(),
-                        new operations.nn.conv.conv2dBackwardInput(options, inputShape),
-                        "conv2d_backward_input",
-                        gradType
-                );
-                context.accumulate(input, grad);
+                context.accumulate(input, inputGradient(weight, outGrad, inputShape, weightShape, outH, outW, options));
             }
             if (weight.getRequiresGrad()) {
-                Tensor grad = TensorPrimitiveBuilder.binaryNoGrad(
-                        input,
-                        outGrad,
-                        weightShape.clone(),
-                        new operations.nn.conv.conv2dBackwardWeight(options, weightShape),
-                        "conv2d_backward_weight",
-                        gradType
-                );
-                context.accumulate(weight, grad);
+                context.accumulate(weight, weightGradient(input, outGrad, inputShape, weightShape, outH, outW, options));
             }
             if (bias != null && bias.getRequiresGrad()) {
                 Tensor grad = outGrad.sum(0).sum(1).sum(1);
@@ -138,5 +125,118 @@ public final class Conv2dOp {
             }
         });
         return out;
+    }
+
+    private static Tensor inputGradient(
+            Tensor weight,
+            Tensor outGrad,
+            int[] inputShape,
+            int[] weightShape,
+            int outH,
+            int outW,
+            Conv2dOptions options
+    ) {
+        int n = inputShape[0];
+        int outChannels = weightShape[0];
+        int channelsPerGroup = weightShape[1];
+        int kernelH = weightShape[2];
+        int kernelW = weightShape[3];
+        int windowArea = Math.multiplyExact(kernelH, kernelW);
+        int windowCount = Math.multiplyExact(outH, outW);
+        int groups = options.groups();
+        int outChannelsPerGroup = outChannels / groups;
+        int flatChannelsPerGroup = Math.multiplyExact(channelsPerGroup, windowArea);
+        Tensor outGradColumns = outGrad.reshape(n, outChannels, windowCount);
+
+        Tensor columnsGrad;
+        if (groups == 1) {
+            Tensor weight2dT = weight.reshape(outChannels, flatChannelsPerGroup).transpose();
+            columnsGrad = weight2dT.matmul(outGradColumns);
+        } else {
+            List<Tensor> groupColumns = new ArrayList<>(groups);
+            for (int group = 0; group < groups; group++) {
+                int outStart = group * outChannelsPerGroup;
+                int outEnd = outStart + outChannelsPerGroup;
+                Tensor weightGroupT = weight.sliceAxis(0, outStart, outEnd)
+                        .reshape(outChannelsPerGroup, flatChannelsPerGroup)
+                        .transpose();
+                Tensor outGradGroup = outGradColumns.sliceAxis(1, outStart, outEnd);
+                groupColumns.add(weightGroupT.matmul(outGradGroup));
+            }
+            columnsGrad = TensorOps.concat(1, groupColumns);
+        }
+
+        return columnsGrad.fold2d(inputShape.clone(), windowOptions(options, kernelH, kernelW));
+    }
+
+    private static Tensor weightGradient(
+            Tensor input,
+            Tensor outGrad,
+            int[] inputShape,
+            int[] weightShape,
+            int outH,
+            int outW,
+            Conv2dOptions options
+    ) {
+        int n = inputShape[0];
+        int outChannels = weightShape[0];
+        int channelsPerGroup = weightShape[1];
+        int kernelH = weightShape[2];
+        int kernelW = weightShape[3];
+        int windowArea = Math.multiplyExact(kernelH, kernelW);
+        int windowCount = Math.multiplyExact(outH, outW);
+        int groups = options.groups();
+        int outChannelsPerGroup = outChannels / groups;
+        int flatChannelsPerGroup = Math.multiplyExact(channelsPerGroup, windowArea);
+        Tensor columns = input.unfold2d(windowOptions(options, kernelH, kernelW));
+        Tensor outGradColumns = outGrad.reshape(n, outChannels, windowCount);
+
+        Tensor flatWeightGrad;
+        if (groups == 1) {
+            Tensor batchGrad = outGradColumns.matmul(transposeLastTwo(columns));
+            flatWeightGrad = batchGrad.sum(0);
+        } else {
+            List<Tensor> groupWeights = new ArrayList<>(groups);
+            for (int group = 0; group < groups; group++) {
+                int outStart = group * outChannelsPerGroup;
+                int outEnd = outStart + outChannelsPerGroup;
+                int columnStart = group * flatChannelsPerGroup;
+                int columnEnd = columnStart + flatChannelsPerGroup;
+                Tensor outGradGroup = outGradColumns.sliceAxis(1, outStart, outEnd);
+                Tensor columnsGroupT = transposeLastTwo(columns.sliceAxis(1, columnStart, columnEnd));
+                groupWeights.add(outGradGroup.matmul(columnsGroupT).sum(0));
+            }
+            flatWeightGrad = TensorOps.concat(0, groupWeights);
+        }
+
+        return flatWeightGrad.reshape(weightShape.clone());
+    }
+
+    private static Tensor transposeLastTwo(Tensor tensor) {
+        int rank = tensor.getShapeUnsafe().length;
+        if (rank == 2) {
+            return tensor.transpose();
+        }
+        int[] axes = new int[rank];
+        for (int i = 0; i < rank; i++) {
+            axes[i] = i;
+        }
+        int tmp = axes[rank - 1];
+        axes[rank - 1] = axes[rank - 2];
+        axes[rank - 2] = tmp;
+        return tensor.permute(axes);
+    }
+
+    private static Window2dOptions windowOptions(Conv2dOptions options, int kernelH, int kernelW) {
+        return new Window2dOptions(
+                kernelH,
+                kernelW,
+                options.strideH(),
+                options.strideW(),
+                options.padH(),
+                options.padW(),
+                options.dilationH(),
+                options.dilationW()
+        );
     }
 }

@@ -21,6 +21,7 @@ import tensor.loss.LossReduction;
 import tensor.options.AttentionOptions;
 import tensor.options.Conv2dOptions;
 import tensor.options.Pool2dOptions;
+import tensor.options.Window2dOptions;
 import tensor.storage.TensorStorage;
 import tensor.storage.TensorStorageAccess;
 
@@ -1548,6 +1549,39 @@ public class Tensor {
 
     public Tensor tile(int... repeats) {
         return TensorOps.tile(this, repeats);
+    }
+
+    /**
+     * Materializes 1-D sliding windows along one axis and appends the window dimension.
+     *
+     * @param axis axis to unfold; negative axes are normalized
+     * @param size number of elements in each window
+     * @param step distance between consecutive window starts
+     * @return tensor with the selected axis replaced by window count and trailing {@code size}
+     */
+    public Tensor unfold(int axis, int size, int step) {
+        return TensorOps.unfold(this, axis, size, step);
+    }
+
+    /**
+     * Materializes NCHW 2-D sliding windows into im2col layout.
+     *
+     * @param options window geometry
+     * @return rank-3 tensor shaped {@code [N, C * kernelH * kernelW, outH * outW]}
+     */
+    public Tensor unfold2d(Window2dOptions options) {
+        return TensorOps.unfold2d(this, options);
+    }
+
+    /**
+     * Accumulates im2col 2-D sliding-window columns into an NCHW tensor.
+     *
+     * @param outputShape rank-4 NCHW output shape
+     * @param options window geometry matching the column tensor
+     * @return folded tensor with overlapping windows summed
+     */
+    public Tensor fold2d(int[] outputShape, Window2dOptions options) {
+        return TensorOps.fold2d(this, outputShape, options);
     }
 
     public Tensor cast(DataType targetType) {

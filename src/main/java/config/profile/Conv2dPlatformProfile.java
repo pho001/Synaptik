@@ -5,13 +5,13 @@ import backend.blas.BlasProvider;
 import java.util.Objects;
 
 /**
- * Calibrated conv2d GEMM-dispatch thresholds for one platform/dtype family.
+ * Legacy calibrated conv2d dispatch thresholds for one platform/dtype family.
  *
- * <p>Conv2d lowering can route im2col/GEMM-style work to BLAS depending on dtype and shape. This
- * profile records the provider and dtype-specific thresholds used by runtime dispatch. Invalid
+ * <p>This profile records the provider and dtype-specific thresholds used by historical conv2d
+ * runtime dispatch. Invalid
  * non-positive thresholds are normalized to conservative positive values.</p>
  *
- * @param blasProvider BLAS provider selected for conv2d GEMM dispatch
+ * @param blasProvider BLAS provider selected for historical conv2d dispatch
  * @param f64BlasMinWork minimum F64 conv2d work before BLAS is eligible
  * @param f32BlasMinWork minimum F32 conv2d work before BLAS is eligible
  * @param f32RequireMgeK whether F32 BLAS dispatch requires {@code M >= K}

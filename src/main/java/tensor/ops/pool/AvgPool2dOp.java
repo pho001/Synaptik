@@ -5,6 +5,7 @@ import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
 import tensor.options.Pool2dOptions;
+import tensor.options.Window2dOptions;
 
 /**
  * Graph-building definition for NCHW 2-D average pooling.
@@ -43,15 +44,36 @@ public final class AvgPool2dOp {
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
             }
-            Tensor grad = TensorPrimitiveBuilder.unaryNoGrad(
-                    outGrad,
-                    inputShape.clone(),
-                    new operations.nn.pool.avgPool2dBackwardInput(options, inputShape),
-                    "avgPool2dBackwardInput",
-                    input.getDataType()
-            );
+            int windowArea = Math.multiplyExact(options.kernelH(), options.kernelW());
+            int windowCount = Math.multiplyExact(outH, outW);
+            Window2dOptions windowOptions = windowOptions(options);
+            Tensor alignedGrad = outGrad.reshape(inputShape[0], inputShape[1], 1, windowCount);
+            Tensor divisor = options.countIncludePad()
+                    ? Tensor.onesLike(alignedGrad).mul(windowArea)
+                    : Tensor.onesLike(input)
+                            .unfold2d(windowOptions)
+                            .reshape(inputShape[0], inputShape[1], windowArea, windowCount)
+                            .sum(2, true);
+            Tensor columnGrad = alignedGrad.div(divisor)
+                    .expand(new int[]{inputShape[0], inputShape[1], windowArea, windowCount})
+                    .reshape(inputShape[0], inputShape[1] * windowArea, windowCount);
+            Tensor grad = columnGrad.fold2d(inputShape.clone(), windowOptions);
             context.accumulate(input, grad);
         });
         return out;
+    }
+
+    private static Window2dOptions windowOptions(Pool2dOptions options) {
+        return new Window2dOptions(
+                options.kernelH(),
+                options.kernelW(),
+                options.strideH(),
+                options.strideW(),
+                options.padH(),
+                options.padW(),
+                1,
+                1,
+                options.ceilMode()
+        );
     }
 }

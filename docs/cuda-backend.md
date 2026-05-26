@@ -94,7 +94,7 @@ Forward `GATHER` and `TAKE_ALONG_AXIS` now validate the scoped CUDA contract bef
 
 CUDA forward SDPA validates dense `FLOAT32` rank-3/4 query/key/value/output tensors and classifies `UNMASKED`, `EXTERNAL_BOOL_MASK`, `CAUSAL_BOOL_MASK`, and `EXTERNAL_AND_CAUSAL_BOOL_MASK` before reporting `CAPABILITY_MISSING`. This is rejection evidence only; CUDA has no native/routed SDPA execution path yet.
 
-CUDA forward `CONV2D`, `CONV2D_GEMM`, `MAX_POOL2D`, and `AVG_POOL2D` validate the scoped dense `FLOAT32` NCHW/OIHW contract before final `CAPABILITY_MISSING`. Grouped/depthwise conv, dilation, invalid shape/rank/layout/dtype, and `AVG_POOL2D countIncludePad=true` remain explicit blockers.
+CUDA forward `CONV2D`, `MAX_POOL2D`, and `AVG_POOL2D` validate the scoped dense `FLOAT32` NCHW/OIHW contract before final `CAPABILITY_MISSING`. Grouped/depthwise conv, dilation, invalid shape/rank/layout/dtype, and `AVG_POOL2D countIncludePad=true` remain explicit blockers.
 
 CUDA dense `NLL_LOSS` and dense `CROSS_ENTROPY_LOSS` validate dense `FLOAT32` rank 1..4 inputs, dense targets matching score shape, valid class axis, and scalar mean output `[1]` before reporting `DAG_PRIMITIVE_UNSUPPORTED`. Index-target loss remains separate as `UNSUPPORTED_INDEX_SEMANTICS`.
 

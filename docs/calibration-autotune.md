@@ -568,7 +568,6 @@ The supported family names are defined in `CalibrationFamilyRegistry`. Each fami
 | `scheduler` | yes | `f64`, `f32`, `bf16` | Chunk sizing and work-per-worker thresholds for low, medium, high, scalar, vector, reduction, and common-pool work. |
 | `matmul` | yes | `f64`, `f32`, `bf16` | Java matmul tiles/micro-kernel, matmul parallel threshold, BLAS provider, and BLAS dispatch thresholds. |
 | `attention-matmul` | yes | `f64`, `f32`, `bf16` | Attention-specific matmul tiles and micro-kernel. |
-| `conv2d-gemm-dispatch` | yes | `f64`, `f32`, `bf16` | Conv2d BLAS provider and dtype-specific GEMM dispatch thresholds. |
 | `elementwise-dispatch` | yes | `f64`, `f32`, `bf16` | Vector and parallel thresholds for cheap and transcendental elementwise kernels. |
 | `fused-dispatch` | yes | `f64`, `f32`, `bf16` | Vector and parallel thresholds for fused cheap and fused transcendental loops. |
 | `fused-cheap-contiguous-width` | yes | `f64`, `f32`, `bf16` | ASM vector width for cheap contiguous fused loops. |
@@ -2041,7 +2040,7 @@ The score used by calibration is not necessarily the raw median from one workloa
 | Score policy | Meaning | Used by |
 |---|---|---|
 | `averageMedianMs` | Average median milliseconds across all workloads in the step; invalid if any workload fails. | Scheduler, matmul Java, matmul BLAS dispatch, fused dispatch, fused width families, elementwise dispatch, reduction, materialization |
-| `weightedGeometricMeanWithWorstBucketPenalty(0.25)` | Geometric mean plus a worst-bucket penalty; invalid if any workload fails. | Matmul wide BLAS heuristic, attention matmul, conv2d GEMM dispatch, attention thresholds, Metal selection |
+| `weightedGeometricMeanWithWorstBucketPenalty(0.25)` | Geometric mean plus a worst-bucket penalty; invalid if any workload fails. | Matmul wide BLAS heuristic, attention matmul, attention thresholds, Metal selection |
 
 Example `averageMedianMs` score:
 
@@ -2060,7 +2059,7 @@ candidate A medians: pointwise=1.0 ms, resnet3x3=4.0 ms
 candidate B medians: pointwise=1.4 ms, resnet3x3=2.2 ms
 ```
 
-Candidate A is excellent on the first bucket but much worse on the second. The worst-bucket penalty exists so calibration does not choose a candidate that wins one tiny shape but regresses a representative larger bucket. This matters for dispatch policies such as conv2d GEMM or attention thresholds, where the useful default should cover a shape family rather than one exact shape.
+Candidate A is excellent on the first bucket but much worse on the second. The worst-bucket penalty exists so calibration does not choose a candidate that wins one tiny shape but regresses a representative larger bucket. This matters for dispatch policies such as attention thresholds, where the useful default should cover a shape family rather than one exact shape.
 
 ## Validation Policy
 
@@ -2112,16 +2111,15 @@ When `requireGradientMatch=true`, validation also walks labeled tensors reachabl
 1. `scheduler`
 2. `matmul`
 3. `attention-matmul`
-4. `conv2d-gemm-dispatch`
-5. `elementwise-dispatch`
-6. `fused-dispatch`
-7. `fused-cheap-contiguous-width`
-8. `fused-cheap-strided-width`
-9. `fused-noncheap-contiguous-width`
-10. `fused-noncheap-strided-width`
-11. `reduction`
-12. `attention-thresholds`
-13. `materialization`
+4. `elementwise-dispatch`
+5. `fused-dispatch`
+6. `fused-cheap-contiguous-width`
+7. `fused-cheap-strided-width`
+8. `fused-noncheap-contiguous-width`
+9. `fused-noncheap-strided-width`
+10. `reduction`
+11. `attention-thresholds`
+12. `materialization`
 
 `metal-selection` is added only by `fullSuite(true)` or CLI `--include-accelerators`.
 
@@ -2141,7 +2139,6 @@ The important design choice is that calibration tunes families, not arbitrary gl
 | `SCHEDULER` | `scheduler` | `FLOAT64`, `FLOAT32`, `BFLOAT16` | No | Tunes CPU chunking targets and minimum chunk sizes. |
 | `MATMUL` | `matmul` | `FLOAT64`, `FLOAT32`, `BFLOAT16` | No | Tunes Java matmul microkernels/tiles/parallel threshold plus BLAS provider and shape dispatch thresholds. |
 | `ATTENTION_MATMUL` | `attention-matmul` | `FLOAT64`, `FLOAT32`, `BFLOAT16` | No | Tunes attention-specific matmul tiles and microkernel. |
-| `CONV2D_GEMM_DISPATCH` | `conv2d-gemm-dispatch` | `FLOAT64`, `FLOAT32`, `BFLOAT16` | No | Tunes lowered conv2d GEMM dispatch to Java or BLAS and dtype-specific shape heuristics. |
 | `ELEMENTWISE_DISPATCH` | `elementwise-dispatch` | `FLOAT64`, `FLOAT32`, `BFLOAT16` | No | Tunes non-fused elementwise vector and parallel thresholds. |
 | `FUSED_DISPATCH` | `fused-dispatch` | `FLOAT64`, `FLOAT32`, `BFLOAT16` | No | Tunes fused cheap/transcendental vector and parallel thresholds. |
 | `FUSED_CHEAP_CONTIGUOUS_WIDTH` | `fused-cheap-contiguous-width` | `FLOAT64`, `FLOAT32`, `BFLOAT16` | No | Tunes ASM vector width for cheap contiguous fused nodes. |
@@ -2257,40 +2254,6 @@ Workloads:
 
 - `maskedAttention(<name>_workload_medium, 4, 8, 64, 32, 32)`
 - `maskedAttention(<name>_workload_large, 4, 8, 128, 32, 32)`
-
-### Conv2d GEMM Dispatch
-
-Owned knobs:
-
-- `runtime.conv2d.blasProvider`
-- `runtime.conv2d.f64MinWork`
-- `runtime.conv2d.f32MinWork`
-- `runtime.conv2d.f32RequireMgeK`
-- `runtime.conv2d.f32MaxNOverK`
-- `runtime.conv2d.bf16MinWork`
-- `runtime.conv2d.bf16RequireMgeK`
-- `runtime.conv2d.bf16MaxNOverK`
-
-Candidate names:
-
-- `base+conv2dBlasProvider=NONE`
-- `base+conv2dBlasProvider=OPENBLAS_FFM:minWork=<value>`
-- `base+conv2dBlasProvider=...+conv2dShape=<requireMgeK>/<maxNOverK>` for `FLOAT32` and `BFLOAT16`
-
-Candidate values:
-
-| DType | Provider candidates | Min-work candidates | Shape heuristic candidates |
-|---|---|---|---|
-| `FLOAT64` | `NONE`, `OPENBLAS_FFM` | `50000`, `100000`, `250000`, `1000000`, `4000000` for `runtime.conv2d.f64MinWork` | None |
-| `FLOAT32` | `NONE`, `OPENBLAS_FFM` | `50000`, `100000`, `250000`, `1000000`, `4000000` for `runtime.conv2d.f32MinWork` | `requireMgeK` `true/false`; `maxNOverK` `1.5`, `2.0`, `3.0`, `4.0`, `6.0`, `100.0` |
-| `BFLOAT16` | `NONE`, `OPENBLAS_FFM` | `50000`, `100000`, `250000`, `1000000`, `4000000` for `runtime.conv2d.bf16MinWork` | `requireMgeK` `true/false`; `maxNOverK` `1.5`, `2.0`, `3.0`, `4.0`, `6.0`, `100.0` |
-
-Workloads:
-
-- Pointwise projection: `4x128x64x8x8`, `4x128x128x8x8`, `4x128x256x8x8`, `1x128x128x16x16`, `2x128x256x56x56`.
-- ResNet-style 3x3: `8x64x64x8x8`, `8x64x128x8x8`, `2x64x128x28x28`.
-
-This family tunes runtime dispatch for lowered conv2d GEMM execution. It does not decide whether semantic conv2d is lowered in the optimizer.
 
 ### Elementwise Dispatch
 

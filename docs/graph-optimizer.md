@@ -264,7 +264,7 @@ Source area:
 
 - `src/main/java/graph/optimizer/rewrite/lowering/LinearLoweringRule.java`
 - `src/main/java/graph/optimizer/rewrite/lowering/LossForwardLoweringRule.java`
-- `src/main/java/graph/optimizer/rewrite/lowering/Conv2dGemmLoweringRule.java`
+- `src/main/java/graph/optimizer/rewrite/lowering/Conv2dDagLoweringRule.java`
 
 ## Snapshot Safety
 

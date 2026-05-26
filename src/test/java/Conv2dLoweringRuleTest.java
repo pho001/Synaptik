@@ -1,12 +1,14 @@
 import config.compile.CompileConfig;
 import config.compile.GraphOptimizationConfig;
+import config.optimizer.Conv2dDagLoweringProfile;
 import config.optimizer.Conv2dLoweringConfig;
 import config.optimizer.Conv2dLoweringMode;
 import config.optimizer.RewriteConfig;
 import graph.CompiledGraph;
 import graph.optimizer.GraphOptimizer;
-import graph.optimizer.rewrite.lowering.Conv2dGemmLoweringRule;
+import graph.optimizer.rewrite.lowering.Conv2dDagLoweringRule;
 import org.junit.jupiter.api.Test;
+import operations.Operation;
 import tensor.CompileMode;
 import tensor.options.Conv2dOptions;
 import tensor.DataType;
@@ -16,13 +18,12 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class Conv2dLoweringRuleTest {
     @Test
-    void lowersForwardConv2dToConv2dGemmPrimitive() {
+    void lowersForwardConv2dToWindowMatmulDag() {
         Tensor input = new Tensor(new double[]{
                 1, 2, 3,
                 4, 5, 6,
@@ -34,15 +35,13 @@ public class Conv2dLoweringRuleTest {
         }, new int[]{1, 1, 2, 2}, null, "weight", DataType.FLOAT64);
 
         Tensor root = input.conv2d(weight, Conv2dOptions.defaults());
-        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dGemmLoweringRule(Conv2dLoweringConfig.always()));
+        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dDagLoweringRule(Conv2dLoweringConfig.always()));
         List<Tensor> optimized = optimizer.optimize(root.topologicalSort());
 
-        Tensor lowered = optimized.stream()
-                .filter(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.CONV2D_GEMM)
-                .findFirst()
-                .orElse(null);
-        assertNotNull(lowered);
-        assertEquals(2, lowered.getPrevTensors().size());
+        assertEquals(0, countOp(optimized, Operation.OpType.CONV2D));
+        assertTrue(countOp(optimized, Operation.OpType.UNFOLD2D) >= 1);
+        assertTrue(countOp(optimized, Operation.OpType.MATMUL) >= 1);
+        assertTrue(countOp(optimized, Operation.OpType.RESHAPE) >= 1);
     }
 
     @Test
@@ -85,15 +84,14 @@ public class Conv2dLoweringRuleTest {
         }, new int[]{1, 1, 2, 2}, null, "weight", DataType.FLOAT64);
 
         Tensor root = input.conv2d(weight, Conv2dOptions.defaults());
-        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dGemmLoweringRule(
+        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dDagLoweringRule(
                 new Conv2dLoweringConfig(Conv2dLoweringMode.OFF)
         ));
         List<Tensor> optimized = optimizer.optimize(root.topologicalSort());
 
-        long gemmCount = optimized.stream()
-                .filter(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.CONV2D_GEMM)
-                .count();
-        assertEquals(0, gemmCount);
+        assertEquals(1, countOp(optimized, Operation.OpType.CONV2D));
+        assertEquals(0, countOp(optimized, Operation.OpType.UNFOLD2D));
+        assertEquals(0, countOp(optimized, Operation.OpType.MATMUL));
     }
 
     @Test
@@ -102,15 +100,14 @@ public class Conv2dLoweringRuleTest {
         Tensor weight = new Tensor(new double[64 * 1 * 3 * 3], new int[]{64, 1, 3, 3}, null, "weight", DataType.FLOAT64);
         Tensor root = input.conv2d(weight, new Conv2dOptions(1, 1, 1, 1, 1, 1, 64));
 
-        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dGemmLoweringRule(
+        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dDagLoweringRule(
                 new Conv2dLoweringConfig(Conv2dLoweringMode.HEURISTIC)
         ));
         List<Tensor> optimized = optimizer.optimize(root.topologicalSort());
 
-        long gemmCount = optimized.stream()
-                .filter(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.CONV2D_GEMM)
-                .count();
-        assertEquals(0, gemmCount);
+        assertEquals(1, countOp(optimized, Operation.OpType.CONV2D));
+        assertEquals(0, countOp(optimized, Operation.OpType.UNFOLD2D));
+        assertEquals(0, countOp(optimized, Operation.OpType.MATMUL));
     }
 
     @Test
@@ -119,19 +116,43 @@ public class Conv2dLoweringRuleTest {
         Tensor weight = new Tensor(new double[256 * 256], new int[]{256, 256, 1, 1}, null, "weight", DataType.FLOAT64);
         Tensor root = input.conv2d(weight, Conv2dOptions.defaults());
 
-        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dGemmLoweringRule(
+        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dDagLoweringRule(
                 new Conv2dLoweringConfig(Conv2dLoweringMode.HEURISTIC)
         ));
         List<Tensor> optimized = optimizer.optimize(root.topologicalSort());
 
-        long gemmCount = optimized.stream()
-                .filter(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.CONV2D_GEMM)
-                .count();
-        assertEquals(1, gemmCount);
+        assertEquals(0, countOp(optimized, Operation.OpType.CONV2D));
+        assertTrue(countOp(optimized, Operation.OpType.UNFOLD2D) >= 1);
+        assertTrue(countOp(optimized, Operation.OpType.MATMUL) >= 1);
     }
 
     @Test
-    void lowersBackwardConv2dPrimitivesToExplicitGemmVariants() {
+    void heuristicUsesConfiguredDagLoweringProfileThresholds() {
+        Tensor input = new Tensor(new double[1 * 64 * 8 * 8], new int[]{1, 64, 8, 8}, null, "input", DataType.FLOAT64);
+        Tensor weight = new Tensor(new double[64 * 64], new int[]{64, 64, 1, 1}, null, "weight", DataType.FLOAT64);
+        Tensor root = input.conv2d(weight, Conv2dOptions.defaults());
+
+        Conv2dDagLoweringProfile permissive = new Conv2dDagLoweringProfile(
+                1,
+                1,
+                2.0d,
+                1L,
+                1,
+                1,
+                1L
+        );
+        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dDagLoweringRule(
+                new Conv2dLoweringConfig(Conv2dLoweringMode.HEURISTIC, permissive)
+        ));
+        List<Tensor> optimized = optimizer.optimize(root.topologicalSort());
+
+        assertEquals(0, countOp(optimized, Operation.OpType.CONV2D));
+        assertTrue(countOp(optimized, Operation.OpType.UNFOLD2D) >= 1);
+        assertTrue(countOp(optimized, Operation.OpType.MATMUL) >= 1);
+    }
+
+    @Test
+    void backwardConv2dUsesCanonicalWindowMatmulDag() {
         Tensor input = new Tensor(new double[2 * 64 * 16 * 16], new int[]{2, 64, 16, 16}, null, "input", DataType.FLOAT64);
         Tensor weight = new Tensor(new double[64 * 64 * 3 * 3], new int[]{64, 64, 3, 3}, null, "weight", DataType.FLOAT64);
         input.setRequiresGrad(true);
@@ -140,17 +161,14 @@ public class Conv2dLoweringRuleTest {
         Tensor loss = input.conv2d(weight, Conv2dOptions.defaults().withPadding(1, 1)).sum();
         CompiledGraph compiled = CompiledGraph.compile(
                 loss,
-                new GraphOptimizer().addRule(new Conv2dGemmLoweringRule(Conv2dLoweringConfig.always())),
+                new GraphOptimizer().addRule(new Conv2dDagLoweringRule(Conv2dLoweringConfig.always())),
                 CompileMode.AUTO
         );
 
-        boolean hasBackwardInputGemm = compiled.program().compiledNodes().stream()
-                .anyMatch(t -> t.operation() != null && t.operation().opType() == operations.Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM);
-        boolean hasBackwardWeightGemm = compiled.program().compiledNodes().stream()
-                .anyMatch(t -> t.operation() != null && t.operation().opType() == operations.Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM);
-
-        assertTrue(hasBackwardInputGemm);
-        assertTrue(hasBackwardWeightGemm);
+        assertFalse(containsOpNamePrefix(compiled, "CONV2D_" + "BACKWARD"));
+        assertTrue(containsOp(compiled, operations.Operation.OpType.UNFOLD2D));
+        assertTrue(containsOp(compiled, operations.Operation.OpType.FOLD2D));
+        assertTrue(containsOp(compiled, operations.Operation.OpType.MATMUL));
     }
 
     @Test
@@ -166,12 +184,25 @@ public class Conv2dLoweringRuleTest {
                 CompileConfig.training().withGraphOptimization(GraphOptimizationConfig.stages(true, false, false, false, false))
         );
 
-        boolean hasBackwardInputGemm = compiled.program().compiledNodes().stream()
-                .anyMatch(t -> t.operation() != null && t.operation().opType() == operations.Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM);
-        boolean hasBackwardWeightGemm = compiled.program().compiledNodes().stream()
-                .anyMatch(t -> t.operation() != null && t.operation().opType() == operations.Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM);
+        assertFalse(containsOpNamePrefix(compiled, "CONV2D_" + "BACKWARD"));
+        assertTrue(containsOp(compiled, operations.Operation.OpType.UNFOLD2D));
+        assertTrue(containsOp(compiled, operations.Operation.OpType.FOLD2D));
+        assertTrue(containsOp(compiled, operations.Operation.OpType.MATMUL));
+    }
 
-        assertFalse(hasBackwardInputGemm);
-        assertFalse(hasBackwardWeightGemm);
+    private static boolean containsOp(CompiledGraph compiled, operations.Operation.OpType opType) {
+        return compiled.program().compiledNodes().stream()
+                .anyMatch(t -> t.operation() != null && t.operation().opType() == opType);
+    }
+
+    private static long countOp(List<Tensor> tensors, Operation.OpType opType) {
+        return tensors.stream()
+                .filter(t -> t.getOperation() != null && t.getOperation().opType() == opType)
+                .count();
+    }
+
+    private static boolean containsOpNamePrefix(CompiledGraph compiled, String prefix) {
+        return compiled.program().compiledNodes().stream()
+                .anyMatch(t -> t.operation() != null && t.operation().opType().name().startsWith(prefix));
     }
 }

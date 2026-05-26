@@ -148,7 +148,7 @@ default boolean isCheap() { return false; }
 - `SPECIAL`
 - `FUSED`
 
-That taxonomy is consumed by optimizer and backend code. For example, fusable elementwise descriptors can be grouped into `FUSED` nodes by region optimization, while special descriptors such as `LINEAR`, `CONV2D_GEMM`, `SCALED_DOT_PRODUCT_ATTENTION`, and index-target cross entropy route to dedicated CPU kernels.
+That taxonomy is consumed by optimizer and backend code. For example, fusable elementwise descriptors can be grouped into `FUSED` nodes by region optimization, while special descriptors such as `LINEAR`, `CONV2D`, `SCALED_DOT_PRODUCT_ATTENTION`, and index-target cross entropy route to dedicated CPU kernels.
 
 ## `graph`: Compile Artifacts, Preparation Facade, And Execution Types
 
@@ -322,8 +322,8 @@ The removed native CPU executor/planner/facts stack should not be restored.
 The `linalg.matmul` subtree has both Java and BLAS execution paths. BLAS eligibility is prepared by
 `MatMulPlanner`, while `MatMulBlasBackend` calls `OpenBlasRuntime` plus `OpenBlasArrayGemm` or `OpenBlasSegmentGemm` for `sgemm`, `dgemm`, optional `sbgemm`
 for BF16-to-F32 continuation, or optional `bgemm` for BF16-output GEMM.
-If the bridge is unavailable or a matmul BLAS call fails, matmul falls back to the Java CPU path. The same native
-bridge can also be used by `nn.Conv2dGemmBackend` after convolution is lowered to im2col + GEMM. The concepts and
+If the bridge is unavailable or a matmul BLAS call fails, matmul falls back to the Java CPU path. Conv2d DAG lowering
+can produce ordinary `MATMUL` nodes that use the same native bridge. The concepts and
 worked examples are in [Native Bridges & BLAS](native-bridges-and-blas.md#openblas-in-synaptik).
 
 ## `backend.cpu.fused`: Fused Planning And Generated Execution Support

@@ -17,15 +17,19 @@ import operations.index.gatherNd;
 import operations.index.takeAlongAxis;
 import operations.linalg.scaledDotProductAttention;
 import operations.layout.concat;
+import operations.layout.fold2d;
 import operations.layout.pad;
 import operations.layout.slice;
 import operations.layout.sliceGrad;
 import operations.layout.tile;
+import operations.layout.unfold2d;
+import operations.layout.unfoldAxis;
 import operations.normalization.layerNorm;
 import operations.normalization.rmsNorm;
 import operations.reduction.argMax;
 import operations.reduction.cumSum;
 import operations.reduction.reduceProd;
+import tensor.options.Window2dOptions;
 
 import java.util.Arrays;
 
@@ -362,7 +366,8 @@ public final class MetalPartitionSupport {
             return false;
         }
         return switch (node.operation().opType()) {
-            case RESHAPE, PERMUTE, CONTIGUOUS, EXPAND, EXPAND_DIMS, SQUEEZE, SLICE, SLICE_GRAD, PAD, TILE -> true;
+            case RESHAPE, PERMUTE, CONTIGUOUS, EXPAND, EXPAND_DIMS, SQUEEZE, SLICE, SLICE_GRAD, PAD, TILE,
+                 UNFOLD_AXIS, UNFOLD2D, FOLD2D -> true;
             default -> false;
         };
     }
@@ -619,7 +624,10 @@ public final class MetalPartitionSupport {
                 || opType == Operation.OpType.SLICE_GRAD
                 || opType == Operation.OpType.CONCAT
                 || opType == Operation.OpType.PAD
-                || opType == Operation.OpType.TILE;
+                || opType == Operation.OpType.TILE
+                || opType == Operation.OpType.UNFOLD_AXIS
+                || opType == Operation.OpType.UNFOLD2D
+                || opType == Operation.OpType.FOLD2D;
     }
 
     private static String layoutUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
@@ -641,6 +649,9 @@ public final class MetalPartitionSupport {
             case CONCAT -> concatUnsupportedReason(node, context, dtype, outputShape);
             case PAD -> padUnsupportedReason(node, context, dtype, outputShape);
             case TILE -> tileUnsupportedReason(node, context, dtype, outputShape);
+            case UNFOLD_AXIS -> unfoldAxisUnsupportedReason(node, context, dtype, outputShape);
+            case UNFOLD2D -> unfold2dUnsupportedReason(node, context, dtype, outputShape);
+            case FOLD2D -> fold2dUnsupportedReason(node, context, dtype, outputShape);
             default -> "";
         };
     }
@@ -848,6 +859,125 @@ public final class MetalPartitionSupport {
             if (repeats[d] <= 0 || outputShape[d] != inputShape[d] * repeats[d]) {
                 return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL TILE requires positive static repeats matching output shape";
             }
+        }
+        return "";
+    }
+
+    private static String unfoldAxisUnsupportedReason(CompiledNode node, PartitionPlanningContext context, tensor.DataType dtype, int[] outputShape) {
+        if (!(node.operation() instanceof unfoldAxis op)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL UNFOLD_AXIS descriptor is unavailable";
+        }
+        if (node.inputIds().size() != 1) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL UNFOLD_AXIS requires one input";
+        }
+        CompiledNode input = context.compiledNode(node.inputIds().getFirst());
+        if (input == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL UNFOLD_AXIS input is unavailable";
+        }
+        if (dataType(context, input) != dtype) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL UNFOLD_AXIS input/output dtype must match";
+        }
+        if (!dense(context, input)) {
+            return "UNSUPPORTED_LAYOUT: GPU_METAL UNFOLD_AXIS input requires dense layout";
+        }
+        int[] inputShape = shape(context, input);
+        if (inputShape.length < 1 || inputShape.length > 3 || outputShape.length != inputShape.length + 1) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL UNFOLD_AXIS supports input rank 1..3 and output rank 2..4";
+        }
+        int axis = op.getAxis();
+        if (axis < 0 || axis >= inputShape.length) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL UNFOLD_AXIS axis is outside input rank";
+        }
+        if (op.getStep() != 1) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL UNFOLD_AXIS currently supports step=1 native lowering";
+        }
+        int windows = inputShape[axis] - op.getSize() + 1;
+        if (op.getSize() <= 0 || windows <= 0 || outputShape[axis] != windows || outputShape[outputShape.length - 1] != op.getSize()) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL UNFOLD_AXIS output shape must match static sliding window geometry";
+        }
+        for (int d = 0; d < inputShape.length; d++) {
+            if (d != axis && outputShape[d] != inputShape[d]) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL UNFOLD_AXIS non-window dimensions must match input shape";
+            }
+        }
+        return "";
+    }
+
+    private static String unfold2dUnsupportedReason(CompiledNode node, PartitionPlanningContext context, tensor.DataType dtype, int[] outputShape) {
+        if (!(node.operation() instanceof unfold2d op)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL UNFOLD2D descriptor is unavailable";
+        }
+        if (node.inputIds().size() != 1) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL UNFOLD2D requires one input";
+        }
+        CompiledNode input = context.compiledNode(node.inputIds().getFirst());
+        if (input == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL UNFOLD2D input is unavailable";
+        }
+        if (dataType(context, input) != dtype) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL UNFOLD2D input/output dtype must match";
+        }
+        if (!dense(context, input)) {
+            return "UNSUPPORTED_LAYOUT: GPU_METAL UNFOLD2D input requires dense NCHW layout";
+        }
+        int[] inputShape = shape(context, input);
+        if (inputShape.length != 4 || outputShape.length != 3) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL UNFOLD2D requires rank-4 NCHW input and rank-3 column output";
+        }
+        return window2dUnsupportedReason("UNFOLD2D", op.getOptions(), inputShape, outputShape, false);
+    }
+
+    private static String fold2dUnsupportedReason(CompiledNode node, PartitionPlanningContext context, tensor.DataType dtype, int[] outputShape) {
+        if (!(node.operation() instanceof fold2d op)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL FOLD2D descriptor is unavailable";
+        }
+        if (node.inputIds().size() != 1) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL FOLD2D requires one column input";
+        }
+        CompiledNode input = context.compiledNode(node.inputIds().getFirst());
+        if (input == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL FOLD2D input is unavailable";
+        }
+        if (dataType(context, input) != dtype) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL FOLD2D input/output dtype must match";
+        }
+        if (!layoutInputSupported(context, input)) {
+            return "UNSUPPORTED_LAYOUT: GPU_METAL FOLD2D input requires dense layout or GPU-side layout producer";
+        }
+        int[] inputShape = shape(context, input);
+        if (inputShape.length != 3 || outputShape.length != 4) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL FOLD2D requires rank-3 columns and rank-4 NCHW output";
+        }
+        return window2dUnsupportedReason("FOLD2D", op.getOptions(), outputShape, inputShape, true);
+    }
+
+    private static String window2dUnsupportedReason(
+            String opName,
+            Window2dOptions options,
+            int[] nchwShape,
+            int[] columnShape,
+            boolean fold
+    ) {
+        if (options.strideH() != 1 || options.strideW() != 1) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opName + " currently supports stride=1 native lowering";
+        }
+        if (options.dilationH() != 1 || options.dilationW() != 1) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opName + " currently supports dilation=1 native lowering";
+        }
+        if (options.kernelH() <= 0 || options.kernelW() <= 0 || options.padH() < 0 || options.padW() < 0) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opName + " requires positive kernel and non-negative padding";
+        }
+        int outH = nchwShape[2] + 2 * options.padH() - options.kernelH() + 1;
+        int outW = nchwShape[3] + 2 * options.padW() - options.kernelW() + 1;
+        if (outH <= 0 || outW <= 0) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opName + " output window geometry is empty";
+        }
+        int kernelArea = options.kernelH() * options.kernelW();
+        int expectedColumnChannels = nchwShape[1] * kernelArea;
+        int expectedWindows = outH * outW;
+        if (columnShape[0] != nchwShape[0] || columnShape[1] != expectedColumnChannels || columnShape[2] != expectedWindows) {
+            String shapeRole = fold ? "input column shape" : "output column shape";
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opName + " " + shapeRole + " must match NCHW window geometry";
         }
         return "";
     }

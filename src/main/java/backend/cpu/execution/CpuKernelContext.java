@@ -10,7 +10,6 @@ import backend.cpu.plan.layout.ResolvedWhereBroadcastPlan;
 import backend.cpu.plan.linalg.attention.ResolvedScaledDotProductAttentionPlan;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
-import backend.cpu.plan.nn.conv2d.ResolvedConv2dHints;
 import backend.cpu.plan.reduction.ResolvedReductionHints;
 import backend.runtime.ExecutionContext;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
@@ -101,10 +100,6 @@ public final class CpuKernelContext {
 
     public PreparedMatMulExecutable matMulExecutable() {
         return nodePlan.matMulExecutable();
-    }
-
-    public ResolvedConv2dHints conv2dHints() {
-        return nodePlan.conv2dHints();
     }
 
     public ResolvedScaledDotProductAttentionPlan attentionPlan() {

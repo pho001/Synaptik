@@ -10,6 +10,7 @@ import tensor.TensorOps;
 import operations.index.ScatterReduction;
 import tensor.options.Conv2dOptions;
 import tensor.options.Pool2dOptions;
+import tensor.options.Window2dOptions;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -29,6 +30,7 @@ final class OnnxGraphImporter {
             "Where", "Identity", "Clip", "Cast",
             "MatMul", "Gemm",
             "Conv", "MaxPool", "AveragePool", "LayerNormalization", "BatchNormalization",
+            "Col2Im",
             "Transpose", "Reshape", "Flatten", "Expand", "Pad", "Tile", "ConstantOfShape", "Range", "Squeeze", "Unsqueeze", "Slice", "Concat", "Split", "Shape", "Size", "Gather", "GatherElements", "GatherND", "ScatterElements", "ScatterND",
             "ReduceSum", "ReduceMean", "ReduceMax", "ReduceMin", "ReduceProd", "ReduceL1", "ReduceL2", "ReduceLogSum", "ReduceLogSumExp", "ArgMax", "CumSum", "GlobalAveragePool",
             "Softmax", "LogSoftmax",
@@ -187,6 +189,7 @@ final class OnnxGraphImporter {
             case "AveragePool" -> averagePool(node, tensors, attrs);
             case "LayerNormalization" -> layerNormalization(node, tensors, attrs);
             case "BatchNormalization" -> batchNormalization(node, tensors, attrs);
+            case "Col2Im" -> col2Im(node, tensors, int64Constants, constantTensors, attrs);
             case "Transpose" -> transpose(node, tensors, attrs);
             case "Reshape" -> reshape(node, tensors, int64Constants, constantTensors);
             case "Flatten" -> flatten(node, tensors, attrs);
@@ -457,6 +460,55 @@ final class OnnxGraphImporter {
         int[] strides = pairAttribute(node, attrs, "strides", new int[]{1, 1});
         int[] pads = symmetricPads(node, attrs, opName);
         return new Pool2dOptions(kernel[0], kernel[1], strides[0], strides[1], pads[0], pads[1], countIncludePad, ceilMode);
+    }
+
+    private static Tensor col2Im(
+            OnnxProto.NodeProto node,
+            Map<String, Tensor> tensors,
+            Map<String, long[]> int64Constants,
+            Set<String> constantTensors,
+            OnnxAttributeReader attrs
+    ) {
+        requireInputCount(node, 3, 3);
+        Tensor columns = tensorInput(node, tensors, 0);
+        int[] imageShape = staticIntVectorInput(node, tensors, int64Constants, constantTensors, 1, "image_shape");
+        int[] blockShape = staticIntVectorInput(node, tensors, int64Constants, constantTensors, 2, "block_shape");
+        if (imageShape.length != 2) {
+            throw unsupported(node, "Col2Im image_shape must contain exactly two values");
+        }
+        if (blockShape.length != 2) {
+            throw unsupported(node, "Col2Im block_shape must contain exactly two values");
+        }
+        int[] inputShape = columns.getShapeUnsafe();
+        if (inputShape.length != 3) {
+            throw unsupported(node, "Col2Im requires rank-3 column input");
+        }
+        try {
+            int kernelArea = Math.multiplyExact(blockShape[0], blockShape[1]);
+            if (inputShape[1] % kernelArea != 0) {
+                throw unsupported(node, "Col2Im channel-window dimension is not divisible by block_shape area");
+            }
+            int[] strides = pairAttribute(node, attrs, "strides", new int[]{1, 1});
+            int[] dilations = pairAttribute(node, attrs, "dilations", new int[]{1, 1});
+            int[] pads = symmetricPads(node, attrs, "Col2Im");
+            Window2dOptions options = new Window2dOptions(
+                    blockShape[0],
+                    blockShape[1],
+                    strides[0],
+                    strides[1],
+                    pads[0],
+                    pads[1],
+                    dilations[0],
+                    dilations[1]
+            );
+            int channels = inputShape[1] / kernelArea;
+            int[] outputShape = new int[]{inputShape[0], channels, imageShape[0], imageShape[1]};
+            return columns.fold2d(outputShape, options);
+        } catch (IllegalArgumentException e) {
+            throw unsupported(node, e.getMessage());
+        } catch (ArithmeticException e) {
+            throw unsupported(node, e.getMessage());
+        }
     }
 
     private static Tensor layerNormalization(OnnxProto.NodeProto node, Map<String, Tensor> tensors, OnnxAttributeReader attrs) {

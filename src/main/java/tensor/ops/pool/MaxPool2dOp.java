@@ -1,10 +1,13 @@
 package tensor.ops.pool;
 
 import operations.nn.pool.maxPool2d;
+import operations.index.ScatterReduction;
+import operations.reduction.ArgMaxTiePolicy;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
 import tensor.options.Pool2dOptions;
+import tensor.options.Window2dOptions;
 
 /**
  * Graph-building definition for NCHW 2-D max pooling.
@@ -43,16 +46,45 @@ public final class MaxPool2dOp {
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
             }
-            Tensor grad = TensorPrimitiveBuilder.binaryNoGrad(
-                    outGrad,
-                    input,
-                    inputShape.clone(),
-                    new operations.nn.pool.maxPool2dBackwardInput(options, inputShape),
-                    "maxPool2dBackwardInput",
-                    input.getDataType()
+            int windowArea = Math.multiplyExact(options.kernelH(), options.kernelW());
+            int windowCount = Math.multiplyExact(outH, outW);
+            Window2dOptions windowOptions = windowOptions(options);
+            Tensor columns = input.unfold2d(windowOptions)
+                    .reshape(inputShape[0], inputShape[1], windowArea, windowCount);
+            Tensor validColumns = Tensor.onesLike(input)
+                    .unfold2d(windowOptions)
+                    .reshape(inputShape[0], inputShape[1], windowArea, windowCount);
+            Tensor maskedColumns = Tensor.where(
+                    validColumns.greaterThan(Tensor.zerosLike(validColumns)),
+                    columns,
+                    negativeInfinityLike(columns)
             );
+            Tensor winner = maskedColumns.argMax(2, true, ArgMaxTiePolicy.FIRST_INDEX);
+            Tensor updates = outGrad.reshape(inputShape[0], inputShape[1], 1, windowCount);
+            Tensor columnGrad = Tensor.zerosLike(columns)
+                    .scatterElements(winner, updates, 2, ScatterReduction.NONE)
+                    .reshape(inputShape[0], inputShape[1] * windowArea, windowCount);
+            Tensor grad = columnGrad.fold2d(inputShape.clone(), windowOptions);
             context.accumulate(input, grad);
         });
         return out;
+    }
+
+    private static Window2dOptions windowOptions(Pool2dOptions options) {
+        return new Window2dOptions(
+                options.kernelH(),
+                options.kernelW(),
+                options.strideH(),
+                options.strideW(),
+                options.padH(),
+                options.padW(),
+                1,
+                1,
+                options.ceilMode()
+        );
+    }
+
+    private static Tensor negativeInfinityLike(Tensor reference) {
+        return Tensor.scalar(Double.NEGATIVE_INFINITY, reference.getDataType());
     }
 }

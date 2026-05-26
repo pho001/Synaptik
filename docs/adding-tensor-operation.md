@@ -465,7 +465,7 @@ If you forget this, CSE can merge two nodes that look structurally similar but a
 
 ### AR rewrites
 
-If the operation is an algebraic simplification target or source, update the rewrite rules under `src/main/java/graph/optimizer/rewrite`. Examples already covered by current code include canonicalization around sigmoid, relu, pow, linear, conv2d GEMM, and related patterns.
+If the operation is an algebraic simplification target or source, update the rewrite rules under `src/main/java/graph/optimizer/rewrite`. Examples already covered by current code include canonicalization around sigmoid, relu, pow, linear, conv2d DAG lowering, and related patterns.
 
 ### Memory planning
 

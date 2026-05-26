@@ -15,7 +15,6 @@ import backend.cpu.plan.layout.PreparedInputsResult;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.provider.linalg.matmul.MatMulProviderExecutableFactory;
 import config.runtime.BlasConfig;
-import config.runtime.Conv2dConfig;
 import config.runtime.CpuStorageProfile;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
@@ -35,14 +34,12 @@ public final class CpuPlanAssembler {
             CompiledTensorDescriptorIndex descriptorIndex,
             CpuExecutionPlanner planner,
             BlasConfig blasConfig,
-            Conv2dConfig conv2dConfig,
             CpuStorageProfile cpuStorageProfile,
             boolean publishFloatContinuation,
             ResolvedDispatchHints dispatchHintsOverride
     ) {
         Objects.requireNonNull(planner, "planner cannot be null");
         Objects.requireNonNull(blasConfig, "blasConfig cannot be null");
-        Objects.requireNonNull(conv2dConfig, "conv2dConfig cannot be null");
 
         List<CompiledTensorDescriptor> safeInputDescriptors = inputDescriptors == null ? List.of() : List.copyOf(inputDescriptors);
         CompiledTensorDescriptor safeNodeDescriptor = Objects.requireNonNull(nodeDescriptor, "nodeDescriptor cannot be null");
@@ -72,7 +69,6 @@ public final class CpuPlanAssembler {
                 descriptorIndex,
                 planner,
                 blasConfig,
-                conv2dConfig,
                 cpuStorageProfile,
                 publishFloatContinuation,
                 dispatchHintsOverride
@@ -93,7 +89,6 @@ public final class CpuPlanAssembler {
                 operationPlans.reductionHints(),
                 operationPlans.matMulHints(),
                 matMulExecutable,
-                operationPlans.conv2dHints(),
                 operationPlans.attentionPlan()
         );
     }

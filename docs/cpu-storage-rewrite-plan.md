@@ -202,13 +202,9 @@ Scope:
 
 Work:
 
-- Include active public backward primitives:
-  - `CONV2D_BACKWARD_INPUT`
-  - `CONV2D_BACKWARD_WEIGHT`
-  - `CONV2D_BACKWARD_INPUT_GEMM`
-  - `CONV2D_BACKWARD_WEIGHT_GEMM`
-  - `MAX_POOL2D_BACKWARD_INPUT`
-  - `AVG_POOL2D_BACKWARD_INPUT`
+- Keep conv and pool backward on canonical Tensor DAG primitives:
+  - conv gradients use window layout plus matrix multiplication primitives
+  - pool gradients use window layout, argmax/scatter writes, and fold layout primitives
 - Include forward NN kernels:
   - conv direct/GEMM
   - max/avg pool

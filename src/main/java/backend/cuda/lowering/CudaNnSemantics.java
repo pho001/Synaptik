@@ -7,7 +7,6 @@ import operations.linalg.scaledDotProductAttention;
 import operations.loss.crossEntropyLoss;
 import operations.loss.nllLoss;
 import operations.nn.conv.conv2d;
-import operations.nn.conv.conv2dGemm;
 import operations.nn.pool.avgPool2d;
 import operations.nn.pool.maxPool2d;
 import tensor.DataType;
@@ -34,7 +33,6 @@ final class CudaNnSemantics {
         return switch (opType) {
             case SCALED_DOT_PRODUCT_ATTENTION -> sdpaUnsupportedReason(node, context);
             case CONV2D -> conv2dUnsupportedReason(node, context);
-            case CONV2D_GEMM -> conv2dGemmUnsupportedReason(node, context);
             case MAX_POOL2D, AVG_POOL2D -> poolUnsupportedReason(node, context);
             case NLL_LOSS, CROSS_ENTROPY_LOSS -> denseLossUnsupportedReason(node, context);
             default -> "";
@@ -43,7 +41,6 @@ final class CudaNnSemantics {
 
     private static boolean isForwardConvPool(Operation.OpType opType) {
         return opType == Operation.OpType.CONV2D
-                || opType == Operation.OpType.CONV2D_GEMM
                 || opType == Operation.OpType.MAX_POOL2D
                 || opType == Operation.OpType.AVG_POOL2D;
     }
@@ -145,21 +142,6 @@ final class CudaNnSemantics {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA CONV2D requires input, weight, and optional bias according to descriptor";
         }
         return conv2dLikeUnsupportedReason("CONV2D", node, context, conv.getOptions(), conv.hasBias());
-    }
-
-    private static String conv2dGemmUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
-        String common = commonForwardReason("CONV2D_GEMM", node, context);
-        if (!common.isBlank()) {
-            return common;
-        }
-        if (!(node.operation() instanceof conv2dGemm conv)) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA CONV2D_GEMM descriptor is unavailable";
-        }
-        int expectedInputs = conv.hasBias() ? 3 : 2;
-        if (node.inputIds().size() != expectedInputs) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA CONV2D_GEMM requires input, weight, and optional bias according to descriptor";
-        }
-        return conv2dLikeUnsupportedReason("CONV2D_GEMM", node, context, conv.getOptions(), conv.hasBias());
     }
 
     private static String conv2dLikeUnsupportedReason(

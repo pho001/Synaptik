@@ -6,18 +6,12 @@ import graph.optimizer.OptimizationRule;
 import graph.optimizer.state.OptimizerState;
 import operations.Operation;
 import operations.nn.pool.avgPool2d;
-import operations.nn.pool.avgPool2dBackwardInput;
 import operations.elementwise.unary.clampMax;
 import operations.elementwise.unary.clampMin;
 import operations.loss.crossEntropyLoss;
 import operations.loss.crossEntropyLossIndices;
 import operations.loss.crossEntropyLossIndicesGrad;
 import operations.nn.conv.conv2d;
-import operations.nn.conv.conv2dGemm;
-import operations.nn.conv.conv2dBackwardInput;
-import operations.nn.conv.conv2dBackwardInputGemm;
-import operations.nn.conv.conv2dBackwardWeight;
-import operations.nn.conv.conv2dBackwardWeightGemm;
 import operations.layout.expand;
 import operations.layout.expandDims;
 import operations.layout.concat;
@@ -31,7 +25,6 @@ import operations.index.gatherNd;
 import operations.index.gatherNdGrad;
 import operations.normalization.layerNorm;
 import operations.nn.pool.maxPool2d;
-import operations.nn.pool.maxPool2dBackwardInput;
 import operations.index.scatterAdd;
 import operations.index.scatterAxisAdd;
 import operations.index.scatterElements;
@@ -69,6 +62,9 @@ import operations.layout.sliceScatterAdd;
 import operations.layout.squeeze;
 import operations.reduction.sum;
 import operations.layout.tile;
+import operations.layout.unfoldAxis;
+import operations.layout.unfold2d;
+import operations.layout.fold2d;
 import operations.reduction.softmax;
 import operations.reduction.softmaxGrad;
 import tensor.DataType;
@@ -299,6 +295,13 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case CONCAT -> new AxisSignature(((concat) op).getAxis());
             case PAD -> IntArrayValue.copyOf(padSignature((pad) op));
             case TILE -> IntArrayValue.copyOf(((tile) op).getRepeats());
+            case UNFOLD_AXIS -> IntArrayValue.copyOf(new int[]{
+                    ((unfoldAxis) op).getAxis(),
+                    ((unfoldAxis) op).getSize(),
+                    ((unfoldAxis) op).getStep()
+            });
+            case UNFOLD2D -> window2dSignature(((unfold2d) op).getOptions(), 1);
+            case FOLD2D -> fold2dSignature((fold2d) op);
             case CAST -> new AxisSignature(((cast) op).getTargetType().ordinal());
             case EXPAND_DIMS -> new AxisSignature(((expandDims) op).getAxis());
             case GATHER -> new AxisSignature(((gather) op).getDimension());
@@ -323,15 +326,8 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> IntArrayValue.copyOf(new int[]{((scaledDotProductAttentionBackward) op).getOutputKind().ordinal()});
             case LINEAR -> new InputSelectorSignature(((linear) op).hasBias());
             case CONV2D -> conv2dSignature(((conv2d) op).getOptions(), ((conv2d) op).hasBias() ? 1 : 0);
-            case CONV2D_GEMM -> conv2dSignature(((conv2dGemm) op).getOptions(), ((conv2dGemm) op).hasBias() ? 2 : 3);
-            case CONV2D_BACKWARD_INPUT -> conv2dBackwardInputSignature((conv2dBackwardInput) op);
-            case CONV2D_BACKWARD_WEIGHT -> conv2dBackwardWeightSignature((conv2dBackwardWeight) op);
-            case CONV2D_BACKWARD_INPUT_GEMM -> conv2dBackwardInputGemmSignature((conv2dBackwardInputGemm) op);
-            case CONV2D_BACKWARD_WEIGHT_GEMM -> conv2dBackwardWeightGemmSignature((conv2dBackwardWeightGemm) op);
             case MAX_POOL2D -> pool2dSignature(((maxPool2d) op).getOptions(), 1);
-            case MAX_POOL2D_BACKWARD_INPUT -> pool2dBackwardInputSignature(((maxPool2dBackwardInput) op).getOptions(), ((maxPool2dBackwardInput) op).getInputShape(), 1);
             case AVG_POOL2D -> pool2dSignature(((avgPool2d) op).getOptions(), 2);
-            case AVG_POOL2D_BACKWARD_INPUT -> pool2dBackwardInputSignature(((avgPool2dBackwardInput) op).getOptions(), ((avgPool2dBackwardInput) op).getInputShape(), 2);
             case SQUEEZE -> new AxisSignature(((squeeze) op).getAxis());
             case ADD, SUB, MUL, DIV, MIN, MAX, GT, GE, LT, LE, EQ, NE,
                     LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT, WHERE, MATMUL,
@@ -441,56 +437,6 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
         return out;
     }
 
-    private SignatureComponent conv2dBackwardInputSignature(conv2dBackwardInput op) {
-        int[] inputShape = op.getInputShape();
-        tensor.options.Conv2dOptions options = op.getOptions();
-        return IntArrayValue.copyOf(new int[]{
-                inputShape[0], inputShape[1], inputShape[2], inputShape[3],
-                options.strideH(), options.strideW(),
-                options.padH(), options.padW(),
-                options.dilationH(), options.dilationW(),
-                options.groups()
-        });
-    }
-
-    private SignatureComponent conv2dBackwardWeightSignature(conv2dBackwardWeight op) {
-        int[] weightShape = op.getWeightShape();
-        tensor.options.Conv2dOptions options = op.getOptions();
-        return IntArrayValue.copyOf(new int[]{
-                weightShape[0], weightShape[1], weightShape[2], weightShape[3],
-                options.strideH(), options.strideW(),
-                options.padH(), options.padW(),
-                options.dilationH(), options.dilationW(),
-                options.groups()
-        });
-    }
-
-    private SignatureComponent conv2dBackwardInputGemmSignature(conv2dBackwardInputGemm op) {
-        int[] inputShape = op.getInputShape();
-        tensor.options.Conv2dOptions options = op.getOptions();
-        return IntArrayValue.copyOf(new int[]{
-                inputShape[0], inputShape[1], inputShape[2], inputShape[3],
-                options.strideH(), options.strideW(),
-                options.padH(), options.padW(),
-                options.dilationH(), options.dilationW(),
-                options.groups(),
-                1
-        });
-    }
-
-    private SignatureComponent conv2dBackwardWeightGemmSignature(conv2dBackwardWeightGemm op) {
-        int[] weightShape = op.getWeightShape();
-        tensor.options.Conv2dOptions options = op.getOptions();
-        return IntArrayValue.copyOf(new int[]{
-                weightShape[0], weightShape[1], weightShape[2], weightShape[3],
-                options.strideH(), options.strideW(),
-                options.padH(), options.padW(),
-                options.dilationH(), options.dilationW(),
-                options.groups(),
-                1
-        });
-    }
-
     private SignatureComponent pool2dSignature(tensor.options.Pool2dOptions options, int kind) {
         return IntArrayValue.copyOf(new int[]{
                 options.kernelH(), options.kernelW(),
@@ -502,16 +448,35 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
         });
     }
 
-    private SignatureComponent pool2dBackwardInputSignature(tensor.options.Pool2dOptions options, int[] inputShape, int kind) {
+    private SignatureComponent window2dSignature(tensor.options.Window2dOptions options, int kind) {
         return IntArrayValue.copyOf(new int[]{
-                inputShape[0], inputShape[1], inputShape[2], inputShape[3],
                 options.kernelH(), options.kernelW(),
                 options.strideH(), options.strideW(),
                 options.padH(), options.padW(),
-                options.countIncludePad() ? 1 : 0,
+                options.dilationH(), options.dilationW(),
                 options.ceilMode() ? 1 : 0,
                 kind
         });
+    }
+
+    private SignatureComponent fold2dSignature(fold2d op) {
+        int[] outputShape = op.getOutputShape();
+        tensor.options.Window2dOptions options = op.getOptions();
+        int[] out = new int[outputShape.length + 11];
+        int p = 0;
+        out[p++] = outputShape.length;
+        for (int value : outputShape) out[p++] = value;
+        out[p++] = options.kernelH();
+        out[p++] = options.kernelW();
+        out[p++] = options.strideH();
+        out[p++] = options.strideW();
+        out[p++] = options.padH();
+        out[p++] = options.padW();
+        out[p++] = options.dilationH();
+        out[p++] = options.dilationW();
+        out[p++] = options.ceilMode() ? 1 : 0;
+        out[p] = 2;
+        return IntArrayValue.copyOf(out);
     }
 
     private sealed interface SignatureComponent

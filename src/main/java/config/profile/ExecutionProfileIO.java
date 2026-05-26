@@ -26,6 +26,7 @@ import config.compile.RegionOptimizationConfig;
 import config.compile.RegionOwnershipPlannerStrategy;
 import config.optimizer.AlgebraicRewriteConfig;
 import config.optimizer.Conv2dLoweringConfig;
+import config.optimizer.Conv2dDagLoweringProfile;
 import config.optimizer.Conv2dLoweringMode;
 import config.optimizer.CpuFusionCheapProducerPolicy;
 import config.optimizer.CpuFusionConfig;
@@ -131,6 +132,7 @@ public final class ExecutionProfileIO {
 
             var defaultCompile = defaultProfile.compile();
             RewriteConfig defaultRewrite = defaultCompile.graphOptimization().rewrite();
+            Conv2dDagLoweringProfile defaultConv2dDagProfile = defaultRewrite.conv2dLowering().profile();
             RewriteConfig rewrite = new RewriteConfig(
                     new AlgebraicRewriteConfig(
                             findBoolean(json, "algebraicEnabled", defaultRewrite.algebraic().enabled())
@@ -144,6 +146,15 @@ public final class ExecutionProfileIO {
                                     "conv2dLoweringMode",
                                     defaultRewrite.conv2dLowering().mode(),
                                     Conv2dLoweringMode.class
+                            ),
+                            new Conv2dDagLoweringProfile(
+                                    findInt(json, "conv2dPointwiseMinInChannels", defaultConv2dDagProfile.pointwiseMinInChannels()),
+                                    findInt(json, "conv2dPointwiseMinOutChannels", defaultConv2dDagProfile.pointwiseMinOutChannels()),
+                                    findDouble(json, "conv2dPointwiseMaxOutOverIn", defaultConv2dDagProfile.pointwiseMaxOutOverIn()),
+                                    findLong(json, "conv2dPointwiseMinSpatial", defaultConv2dDagProfile.pointwiseMinSpatial()),
+                                    findInt(json, "conv2dStandard3x3MinInChannels", defaultConv2dDagProfile.standard3x3MinInChannels()),
+                                    findInt(json, "conv2dStandard3x3MinOutChannels", defaultConv2dDagProfile.standard3x3MinOutChannels()),
+                                    findLong(json, "conv2dStandard3x3MinSpatial", defaultConv2dDagProfile.standard3x3MinSpatial())
                             )
                     ),
                     new PiecewiseLoweringConfig(
@@ -541,6 +552,7 @@ public final class ExecutionProfileIO {
         var fused = runtime.fused();
         var accelerator = runtime.accelerator();
         var workload = profile.workload();
+        var conv2dDag = compile.graphOptimization().rewrite().conv2dLowering().profile();
 
         return "{\n" +
                 "  \"profileName\": \"" + escapeJson(profile.profileName()) + "\",\n" +
@@ -560,6 +572,13 @@ public final class ExecutionProfileIO {
                 "      \"algebraicEnabled\": " + compile.graphOptimization().rewrite().algebraic().enabled() + ",\n" +
                 "      \"linearLoweringEnabled\": " + compile.graphOptimization().rewrite().linearLowering().enabled() + ",\n" +
                 "      \"conv2dLoweringMode\": \"" + compile.graphOptimization().rewrite().conv2dLowering().mode().name() + "\",\n" +
+                "      \"conv2dPointwiseMinInChannels\": " + conv2dDag.pointwiseMinInChannels() + ",\n" +
+                "      \"conv2dPointwiseMinOutChannels\": " + conv2dDag.pointwiseMinOutChannels() + ",\n" +
+                "      \"conv2dPointwiseMaxOutOverIn\": " + conv2dDag.pointwiseMaxOutOverIn() + ",\n" +
+                "      \"conv2dPointwiseMinSpatial\": " + conv2dDag.pointwiseMinSpatial() + ",\n" +
+                "      \"conv2dStandard3x3MinInChannels\": " + conv2dDag.standard3x3MinInChannels() + ",\n" +
+                "      \"conv2dStandard3x3MinOutChannels\": " + conv2dDag.standard3x3MinOutChannels() + ",\n" +
+                "      \"conv2dStandard3x3MinSpatial\": " + conv2dDag.standard3x3MinSpatial() + ",\n" +
                 "      \"piecewiseLowering\": {\n" +
                 "        \"canonicalSigmoid\": " + compile.graphOptimization().rewrite().piecewiseLowering().canonicalSigmoid() + ",\n" +
                 "        \"reluLikeWhere\": " + compile.graphOptimization().rewrite().piecewiseLowering().reluLikeWhere() + ",\n" +

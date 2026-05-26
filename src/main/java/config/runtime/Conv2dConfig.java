@@ -6,13 +6,12 @@ import tensor.DataType;
 import java.util.Objects;
 
 /**
- * Runtime BLAS/GEMM dispatch policy for conv2d lowering.
+ * Legacy runtime dispatch policy for conv2d lowering.
  *
- * <p>Conv2d uses dtype-specific thresholds because F64, F32, and BF16 have different crossover points
- * and BLAS constraints. Unsupported non-floating dtypes return conservative values from helper methods
- * so dispatch will not accidentally choose a BLAS conv2d path.</p>
+ * <p>Conv2d used dtype-specific thresholds because F64, F32, and BF16 have different crossover points
+ * and BLAS constraints. Unsupported non-floating dtypes return conservative values from helper methods.</p>
  *
- * @param provider BLAS provider for conv2d GEMM dispatch
+ * @param provider BLAS provider for historical conv2d dispatch
  * @param f64MinWork minimum F64 work before BLAS is eligible
  * @param f32MinWork minimum F32 work before BLAS is eligible
  * @param f32RequireMgeK whether F32 dispatch requires {@code M >= K}

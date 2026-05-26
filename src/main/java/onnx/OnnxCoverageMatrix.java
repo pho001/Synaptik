@@ -162,6 +162,10 @@ public final class OnnxCoverageMatrix {
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.AVG_POOL2D),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.AVG_POOL2D),
                 "rank-4 NCHW, static attributes; ceil_mode=1 is CPU/import supported; Metal native row is scoped to count_include_pad=false and ceil_mode=false", Operation.OpType.AVG_POOL2D);
+        add(out, "Col2Im", "fold2d", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
+                CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.FOLD2D),
+                gpu(ComputeBackend.GPU_CUDA, Operation.OpType.FOLD2D),
+                "2-D static image_shape/block_shape only; symmetric spatial pads map to Window2dOptions; Synaptik UNFOLD2D/UNFOLD_AXIS have no standard ONNX op", Operation.OpType.FOLD2D);
         add(out, "LayerNormalization", "layerNorm", CoverageStatus.SUPPORTED, CoverageStatus.SUPPORTED,
                 CoverageStatus.SUPPORTED, gpu(ComputeBackend.GPU_METAL, Operation.OpType.LAYER_NORM),
                 gpu(ComputeBackend.GPU_CUDA, Operation.OpType.LAYER_NORM),
@@ -327,6 +331,7 @@ public final class OnnxCoverageMatrix {
             case "NonZero" -> LimitationCategory.DATA_DEPENDENT_SHAPE_LIMIT;
             case "BatchNormalization", "Split" -> LimitationCategory.MULTI_OUTPUT_LIMIT;
             case "Conv", "MaxPool", "AveragePool", "LayerNormalization",
+                 "Col2Im",
                  "Gemm", "Reshape", "Flatten", "Expand", "Pad", "Tile",
                  "Squeeze", "Unsqueeze", "Slice", "Concat", "Gather", "GatherElements",
                  "GatherND", "ScatterElements", "ScatterND", "CumSum" -> LimitationCategory.STATIC_ATTRIBUTE_LIMIT;
@@ -358,6 +363,7 @@ public final class OnnxCoverageMatrix {
                  "Clip", "Cast",
                  "ReduceSum", "ReduceMean", "ReduceMax", "ReduceMin", "ReduceProd",
                  "MatMul", "Gemm", "Conv", "MaxPool", "AveragePool", "LayerNormalization", "BatchNormalization",
+                 "Col2Im",
                  "Transpose", "Reshape", "Flatten", "Expand", "Pad", "Tile", "Squeeze", "Unsqueeze", "Slice", "Concat",
                  "Split", "Gather", "GatherElements", "GatherND", "ScatterElements", "ScatterND",
                  "Reciprocal", "Erf", "Floor", "Ceil", "Sign",

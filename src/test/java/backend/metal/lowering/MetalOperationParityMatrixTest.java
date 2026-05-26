@@ -48,7 +48,7 @@ class MetalOperationParityMatrixTest {
     void matrixMarksSliceGradAsScopedPadBasedBackwardLayoutOp() {
         MetalOperationParityMatrix.Row row = row(Operation.OpType.SLICE_GRAD);
 
-        assertTrue(row.cpuKernelAvailable());
+        assertFalse(row.cpuKernelAvailable());
         assertFalse(row.cpuFusable());
         assertEquals("SUPPORTED", row.metalCoverageStatus());
         assertEquals("SUPPORTED", row.metalReason());
@@ -114,16 +114,6 @@ class MetalOperationParityMatrixTest {
         assertTrue(row.bufferExecutable());
         assertFalse(row.cpuFallbackOnly());
         assertTrue(row.note().contains("gatherNDWithUpdatesTensor"));
-    }
-
-    @Test
-    void matrixMarksScopedConvAndAvgPoolBackwardAsMpsGraphMapped() {
-        assertMpsGraphMappedConvPoolBackward(Operation.OpType.CONV2D_BACKWARD_INPUT);
-        assertMpsGraphMappedConvPoolBackward(Operation.OpType.CONV2D_BACKWARD_WEIGHT);
-        assertMpsGraphMappedConvPoolBackward(Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM);
-        assertMpsGraphMappedConvPoolBackward(Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM);
-        assertMpsGraphMappedConvPoolBackward(Operation.OpType.MAX_POOL2D_BACKWARD_INPUT);
-        assertMpsGraphMappedConvPoolBackward(Operation.OpType.AVG_POOL2D_BACKWARD_INPUT);
     }
 
     @Test
@@ -198,17 +188,13 @@ class MetalOperationParityMatrixTest {
         assertTrue(markdown.contains("| EXPAND | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| SELECT | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| CAST | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| SLICE_GRAD | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| SLICE_GRAD | no | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| SCATTER_ADD | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| SCATTER_ELEMENTS | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| SCATTER_ND | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| GATHER_GRAD | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| TAKE_ALONG_AXIS_GRAD | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| CONV2D_BACKWARD_INPUT | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| CONV2D_BACKWARD_WEIGHT | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| MAX_POOL2D_BACKWARD_INPUT | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| AVG_POOL2D_BACKWARD_INPUT | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| GATHER_GRAD | no | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| TAKE_ALONG_AXIS_GRAD | no | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
         assertTrue(markdown.contains("| CONST_SCALAR | no | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION |"));
         assertTrue(markdown.contains("| FUSED |"));
         assertTrue(markdown.contains("CPU_FUSED_OPERATION_UNSUPPORTED"));
@@ -254,7 +240,11 @@ class MetalOperationParityMatrixTest {
     private static void assertMpsGraphMappedIndexWrite(Operation.OpType opType) {
         MetalOperationParityMatrix.Row row = row(opType);
 
-        assertTrue(row.cpuKernelAvailable());
+        if (opType == Operation.OpType.GATHER_GRAD || opType == Operation.OpType.TAKE_ALONG_AXIS_GRAD) {
+            assertFalse(row.cpuKernelAvailable());
+        } else {
+            assertTrue(row.cpuKernelAvailable());
+        }
         assertFalse(row.cpuFusable());
         assertEquals("SUPPORTED", row.metalCoverageStatus());
         assertEquals("SUPPORTED", row.metalReason());
@@ -264,21 +254,6 @@ class MetalOperationParityMatrixTest {
         assertTrue(row.bufferExecutable());
         assertFalse(row.cpuFallbackOnly());
         assertTrue(row.note().contains(opType == Operation.OpType.SCATTER_ND ? "scatterNDWithDataTensor" : "scatterAlongAxis"));
-    }
-
-    private static void assertMpsGraphMappedConvPoolBackward(Operation.OpType opType) {
-        MetalOperationParityMatrix.Row row = row(opType);
-
-        assertTrue(row.cpuKernelAvailable());
-        assertFalse(row.cpuFusable());
-        assertEquals("SUPPORTED", row.metalCoverageStatus());
-        assertEquals("SUPPORTED", row.metalReason());
-        assertTrue(row.plannerSupported());
-        assertTrue(row.dagLowerable());
-        assertTrue(row.nativeMpsGraphMapped());
-        assertTrue(row.bufferExecutable());
-        assertFalse(row.cpuFallbackOnly());
-        assertTrue(row.note().contains("MPSGraph"));
     }
 
     private static MetalOperationParityMatrix.Row row(Operation.OpType opType) {

@@ -5,11 +5,9 @@ import backend.cpu.plan.ResolvedCpuComputeContract;
 import backend.cpu.plan.elementwise.ResolvedDispatchHints;
 import backend.cpu.plan.linalg.attention.ResolvedScaledDotProductAttentionPlan;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
-import backend.cpu.plan.nn.conv2d.ResolvedConv2dHints;
 import backend.cpu.kernels.reduction.ReductionLogicalSize;
 import backend.cpu.plan.reduction.ResolvedReductionHints;
 import config.runtime.BlasConfig;
-import config.runtime.Conv2dConfig;
 import config.runtime.CpuStorageProfile;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
@@ -29,7 +27,6 @@ final class CpuOperationPlanResolver {
             CompiledTensorDescriptorIndex descriptorIndex,
             CpuExecutionPlanner planner,
             BlasConfig blasConfig,
-            Conv2dConfig conv2dConfig,
             CpuStorageProfile cpuStorageProfile,
             boolean publishFloatContinuation,
             ResolvedDispatchHints dispatchHintsOverride
@@ -50,7 +47,6 @@ final class CpuOperationPlanResolver {
                         )
                         : null;
 
-        ResolvedConv2dHints conv2dHints = planner.resolveConv2dHints(op, runtimeInputs, nodeDescriptor, conv2dConfig);
         ResolvedScaledDotProductAttentionPlan attentionPlan =
                 planner.resolveScaledDotProductAttentionPlan(op, runtimeInputs, nodeDescriptor, descriptorIndex, blasConfig);
 
@@ -58,8 +54,7 @@ final class CpuOperationPlanResolver {
                 op,
                 nodeDescriptor,
                 blasConfig,
-                matMulHints,
-                conv2dHints
+                matMulHints
         );
 
         ResolvedDispatchHints dispatchHints = shouldResolveDispatch(op)
@@ -72,7 +67,6 @@ final class CpuOperationPlanResolver {
 
         return new ResolvedCpuOperationPlans(
                 matMulHints,
-                conv2dHints,
                 attentionPlan,
                 computeContract,
                 dispatchHints,

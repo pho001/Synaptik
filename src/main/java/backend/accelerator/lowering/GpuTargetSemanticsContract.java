@@ -67,6 +67,7 @@ public record GpuTargetSemanticsContract(
         addReduction(out, Operation.OpType.MEAN, "mean reduction accumulates then divides by reduced extent");
         addReduction(out, Operation.OpType.REDUCE_MIN, "minimum reduction preserves CPU tie/NaN behavior within tolerance policy");
         addReduction(out, Operation.OpType.REDUCE_MAX, "maximum reduction preserves CPU tie/NaN behavior within tolerance policy");
+        addMatMul(out);
         out.add(new GpuTargetSemanticsContract(
                 Operation.OpType.LAYER_NORM,
                 GpuLoweringOperationFamily.NORMALIZATION,
@@ -108,15 +109,17 @@ public record GpuTargetSemanticsContract(
         addIndexTargetLoss(out, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES, "INT32 target indices, bounds checks, ignore-index, and reduction mode must match CPU");
         addIndexTargetLoss(out, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD, "INT32 target indices and gradient scatter semantics must match CPU");
         addConvPool(out, Operation.OpType.CONV2D, "conv2d NCHW-style shape, stride, padding, dilation, groups, and dtype contract");
-        addConvPool(out, Operation.OpType.CONV2D_GEMM, "lowered conv2d GEMM shape contract must preserve CPU conv semantics");
-        addConvPool(out, Operation.OpType.CONV2D_BACKWARD_INPUT, "conv2d input-gradient shape, stride, padding, dilation, and groups must match CPU");
-        addConvPool(out, Operation.OpType.CONV2D_BACKWARD_WEIGHT, "conv2d weight-gradient accumulation, stride, padding, dilation, and groups must match CPU");
-        addConvPool(out, Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM, "lowered conv2d input-gradient GEMM contract must preserve CPU gradient semantics");
-        addConvPool(out, Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM, "lowered conv2d weight-gradient GEMM contract must preserve CPU accumulation semantics");
         addConvPool(out, Operation.OpType.MAX_POOL2D, "max-pool kernel/stride/padding shape and tie semantics must match CPU");
-        addConvPool(out, Operation.OpType.MAX_POOL2D_BACKWARD_INPUT, "max-pool backward routes gradient to the first maximal element in CPU scan order");
         addConvPool(out, Operation.OpType.AVG_POOL2D, "avg-pool kernel/stride/padding and divisor semantics must match CPU");
-        addConvPool(out, Operation.OpType.AVG_POOL2D_BACKWARD_INPUT, "avg-pool backward divisor and countIncludePad semantics must match CPU");
+        addWindowLayout(out, Operation.OpType.UNFOLD2D,
+                "rank-4 NCHW input materializes to rank-3 [N, C * kernelH * kernelW, outH * outW] columns",
+                "window geometry includes kernel, stride, symmetric padding, dilation, and ceilMode; output spatial counts must match CPU Window2d shape inference",
+                "CPU parity must preserve zero-padding and sliding-window read order");
+        addWindowLayout(out, Operation.OpType.FOLD2D,
+                "rank-3 column input accumulates into rank-4 NCHW outputShape",
+                "outputShape plus kernel, stride, symmetric padding, dilation, and ceilMode must reconstruct the column count exactly",
+                "CPU parity must preserve duplicate window accumulation for overlapping writes");
+        addUnfoldAxisLayout(out);
         addIndex(out, Operation.OpType.GATHER, "INT32 indices; bounds and axis behavior must match CPU gather");
         addIndex(out, Operation.OpType.GATHER_GRAD, "duplicate-index accumulation must match CPU gather gradient");
         addIndex(out, Operation.OpType.GATHER_AXIS, "INT32 indices; ONNX gather axis shape insertion and bounds must match CPU gatherAxis");
@@ -201,6 +204,57 @@ public record GpuTargetSemanticsContract(
                 "CPU parity must cover boundary/padding behavior",
                 false,
                 ""
+        ));
+    }
+
+    private static void addMatMul(ArrayList<GpuTargetSemanticsContract> out) {
+        out.add(new GpuTargetSemanticsContract(
+                Operation.OpType.MATMUL,
+                GpuLoweringOperationFamily.MATMUL_LINEAR,
+                "floating input and output dtype; backend admission must reject unsupported dtype variants explicitly",
+                "rank >= 2 for both inputs; last-two dimensions are matrix dimensions",
+                "supported dense/view layouts only; unsupported strided/storage-offset cases reject before native admission",
+                "for left [..., M, K] and right [..., K, N], K must match and output shape is broadcast(leading dims) + [M, N]",
+                "leading dimensions use standard broadcast semantics; rank-2 MATMUL may use legacy m/n/k spec, batched MATMUL stays in the general DAG representation",
+                "CPU parity must cover accumulation tolerance and gradient reductions over any broadcast leading dimensions",
+                false,
+                ""
+        ));
+    }
+
+    private static void addWindowLayout(
+            ArrayList<GpuTargetSemanticsContract> out,
+            Operation.OpType opType,
+            String rank,
+            String shape,
+            String numerical
+    ) {
+        out.add(new GpuTargetSemanticsContract(
+                opType,
+                GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT,
+                "floating value dtype is preserved; BOOL and integer window materialization are outside the Tensor primitive contract",
+                rank,
+                "dense NCHW/window-column layouts only; backend planners must reject geometry outside native window lowering scope",
+                shape,
+                "Window2dOptions kernel/stride/padding/dilation/ceilMode and fold outputShape are part of the lowered primitive contract",
+                numerical,
+                false,
+                "Scoped native GPU support exists for dense window materialization/fold subsets; unsupported dtype, rank, stride, dilation, or metadata variants remain visible planner rejections"
+        ));
+    }
+
+    private static void addUnfoldAxisLayout(ArrayList<GpuTargetSemanticsContract> out) {
+        out.add(new GpuTargetSemanticsContract(
+                Operation.OpType.UNFOLD_AXIS,
+                GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT,
+                "input dtype is preserved for FLOAT64/FLOAT32/BFLOAT16/INT32/INT64/BOOL",
+                "input rank >= 1; output rank is input rank + 1",
+                "materialized dense row-major output; no alias/view lowering until overlapping axis windows are proven safe",
+                "selected axis length is replaced by floor((dim - size) / step) + 1 and a trailing size dimension is appended",
+                "axis, size, and step are static descriptor parameters; no padding, no dilation, and no image geometry is part of this primitive",
+                "CPU parity must preserve sliding-window read order and overlapping-window gradient accumulation",
+                false,
+                "Scoped native GPU support exists for dense axis-window materialization subsets; unsupported dtype, rank, or step variants remain visible planner rejections"
         ));
     }
 

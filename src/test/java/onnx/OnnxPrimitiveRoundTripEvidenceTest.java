@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.options.Pool2dOptions;
+import tensor.options.Window2dOptions;
 
 import java.util.Map;
 
@@ -147,6 +148,25 @@ class OnnxPrimitiveRoundTripEvidenceTest {
                         "x", new float[]{1f, 2f, 3f, 4f, 5f, 6f},
                         "y", new float[]{10f, 20f, 30f, 40f, 50f, 60f}
                 )), 1e-6);
+    }
+
+    @Test
+    void col2ImRoundTripsThroughFold2d() {
+        Tensor columns = new Tensor(new float[16], new int[]{1, 4, 4}, null, "columns", DataType.FLOAT32);
+        Tensor folded = columns.fold2d(new int[]{1, 1, 3, 3}, Window2dOptions.of(2, 2));
+        folded.setLabel("out");
+        assertEquals("Col2Im", Onnx.exportModel(folded, OnnxExportOptions.defaults().withLeafTensorPolicy(OnnxLeafTensorPolicy.INPUTS))
+                .proto().getGraph().getNode(0).getOpType());
+        assertArrayEquals(new double[]{
+                1, 4, 3,
+                8, 20, 12,
+                7, 16, 9
+        }, roundTrip(folded, Map.of("columns", new float[]{
+                1f, 2f, 4f, 5f,
+                2f, 3f, 5f, 6f,
+                4f, 5f, 7f, 8f,
+                5f, 6f, 8f, 9f
+        })), 1e-6);
     }
 
     @Test

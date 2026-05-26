@@ -126,7 +126,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Graph execution policy**: Profile component wrapping `CompileConfig` for graph/autotune candidate assembly. Source: [`GraphExecutionPolicy.java`](../src/main/java/config/profile/GraphExecutionPolicy.java).
 
-**GEMM**: General Matrix Multiply, usually written as `C = alpha * A @ B + beta * C`. Synaptik uses GEMM for direct matmul, linear-style matrix products, attention matmuls, and conv2d after im2col lowering. Source: [`MatMulBlasBackend.java`](../src/main/java/backend/cpu/kernels/linalg/matmul/blas/MatMulBlasBackend.java), [`Conv2dGemmBackend.java`](../src/main/java/backend/cpu/kernels/nn/Conv2dGemmBackend.java), [Native Bridges & BLAS: GEMM Mental Model](native-bridges-and-blas.md#gemm-mental-model).
+**GEMM**: General Matrix Multiply, usually written as `C = alpha * A @ B + beta * C`. Synaptik uses GEMM for direct matmul, linear-style matrix products, attention matmuls, and conv2d after window-to-column DAG lowering. Source: [`MatMulBlasBackend.java`](../src/main/java/backend/cpu/kernels/linalg/matmul/blas/MatMulBlasBackend.java), [Native Bridges & BLAS: GEMM Mental Model](native-bridges-and-blas.md#gemm-mental-model).
 
 **Graph optimizer**: Backend-neutral graph simplification and lowering pipeline: `AR`, `CF`, `CSE`, `DCE`, and optional `LOWER`. Source: [`GraphOptimizer.java`](../src/main/java/graph/optimizer/GraphOptimizer.java), [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java).
 

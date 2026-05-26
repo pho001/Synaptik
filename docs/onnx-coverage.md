@@ -4,13 +4,13 @@ Generated from `OnnxCoverageMatrix`; do not hand-edit status rows.
 
 ## Summary
 
-- Import: supported=78, partial=0, unsupported=1
-- Export: supported=73, partial=0, unsupported=6
-- CPU: supported=78, partial=0, unsupported=1
-- Metal: supported=67, partial=9, unsupported=3
-- CUDA: supported=34, partial=9, unsupported=36
-- Round-trip evidence: round_trip_tested=72, explicitly_classified=1, import_only_tested=5, rejection_tested=1, not_applicable=0
-- Limitation categories: none=30, static_semantic_limit=22, static_attribute_limit=20, multi_output_limit=2, runtime_shape_limit=4, data_dependent_shape_limit=1
+- Import: supported=79, partial=0, unsupported=1
+- Export: supported=74, partial=0, unsupported=6
+- CPU: supported=79, partial=0, unsupported=1
+- Metal: supported=68, partial=9, unsupported=3
+- CUDA: supported=35, partial=9, unsupported=36
+- Round-trip evidence: round_trip_tested=73, explicitly_classified=1, import_only_tested=5, rejection_tested=1, not_applicable=0
+- Limitation categories: none=30, static_semantic_limit=22, static_attribute_limit=21, multi_output_limit=2, runtime_shape_limit=4, data_dependent_shape_limit=1
 
 ## Matrix
 
@@ -57,6 +57,7 @@ Generated from `OnnxCoverageMatrix`; do not hand-edit status rows.
 | Conv | conv2d | supported | supported | supported | supported | unsupported | round_trip_tested | PAD, CONV2D | static_attribute_limit | rank-4 NCHW/OIHW, static attributes; asymmetric pads import as explicit Pad + Conv |
 | MaxPool | maxPool2d | supported | supported | supported | supported | unsupported | round_trip_tested | MAX_POOL2D | static_attribute_limit | rank-4 NCHW, static attributes; ceil_mode=1 is CPU/import supported and accelerator-native unsupported |
 | AveragePool | avgPool2d | supported | supported | supported | supported | unsupported | round_trip_tested | AVG_POOL2D | static_attribute_limit | rank-4 NCHW, static attributes; ceil_mode=1 is CPU/import supported; Metal native row is scoped to count_include_pad=false and ceil_mode=false |
+| Col2Im | fold2d | supported | supported | supported | supported | supported | round_trip_tested | FOLD2D | static_attribute_limit | 2-D static image_shape/block_shape only; symmetric spatial pads map to Window2dOptions; Synaptik UNFOLD2D/UNFOLD_AXIS have no standard ONNX op |
 | LayerNormalization | layerNorm | supported | supported | supported | supported | supported | round_trip_tested | LAYER_NORM | static_attribute_limit | single output; axis must select trailing normalized dimensions |
 | BatchNormalization | batchNorm with external statistics | supported | supported | supported | partial | partial | round_trip_tested | SUB, DIV, MUL, ADD | multi_output_limit | single-output inference form only; export recognizes canonical external-statistics batchNorm graphs |
 | Transpose | permute | supported | supported | supported | supported | supported | round_trip_tested | PERMUTE | none |  |

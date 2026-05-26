@@ -1,9 +1,7 @@
 package backend.cpu.kernels.nn;
 
 import operations.nn.pool.avgPool2d;
-import operations.nn.pool.avgPool2dBackwardInput;
 import operations.nn.pool.maxPool2d;
-import operations.nn.pool.maxPool2dBackwardInput;
 import tensor.Tensor;
 
 final class Pool2dExecutor {
@@ -22,18 +20,6 @@ final class Pool2dExecutor {
         Pool2dDirectBackend.maxForwardBF16(op, input, out, argmaxWorkspace);
     }
 
-    static void maxBackwardInputF64(maxPool2dBackwardInput op, Tensor outGrad, Tensor source, Tensor gradInput) {
-        Pool2dDirectBackend.maxBackwardInputF64(op, outGrad, source, gradInput);
-    }
-
-    static void maxBackwardInputF32(maxPool2dBackwardInput op, Tensor outGrad, Tensor source, Tensor gradInput) {
-        Pool2dDirectBackend.maxBackwardInputF32(op, outGrad, source, gradInput);
-    }
-
-    static void maxBackwardInputBF16(maxPool2dBackwardInput op, Tensor outGrad, Tensor source, Tensor gradInput) {
-        Pool2dDirectBackend.maxBackwardInputBF16(op, outGrad, source, gradInput);
-    }
-
     static void avgForwardF64(avgPool2d op, Tensor input, Tensor out) {
         Pool2dDirectBackend.avgForwardF64(op, input, out);
     }
@@ -46,15 +32,4 @@ final class Pool2dExecutor {
         Pool2dDirectBackend.avgForwardBF16(op, input, out);
     }
 
-    static void avgBackwardInputF64(avgPool2dBackwardInput op, Tensor outGrad, Tensor gradInput) {
-        Pool2dDirectBackend.avgBackwardInputF64(op, outGrad, gradInput);
-    }
-
-    static void avgBackwardInputF32(avgPool2dBackwardInput op, Tensor outGrad, Tensor gradInput) {
-        Pool2dDirectBackend.avgBackwardInputF32(op, outGrad, gradInput);
-    }
-
-    static void avgBackwardInputBF16(avgPool2dBackwardInput op, Tensor outGrad, Tensor gradInput) {
-        Pool2dDirectBackend.avgBackwardInputBF16(op, outGrad, gradInput);
-    }
 }

@@ -77,6 +77,12 @@ public final class CudaGpuBackendPartitionCapability implements BackendPartition
                 return indexReason;
             }
         }
+        if (CudaPartitionSupport.isWindowLayoutOp(opType)) {
+            String windowReason = CudaPartitionSupport.windowLayoutUnsupportedReason(node, context);
+            if (!windowReason.isBlank()) {
+                return windowReason;
+            }
+        }
         if (CudaIndexWriteSemantics.isHandled(opType)) {
             String indexWriteReason = CudaIndexWriteSemantics.unsupportedReason(node, context);
             if (!indexWriteReason.isBlank()) {
@@ -142,18 +148,18 @@ public final class CudaGpuBackendPartitionCapability implements BackendPartition
         return switch (opType) {
             case SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> 10_000;
             case SCALED_DOT_PRODUCT_ATTENTION -> 9_500;
-            case CONV2D, CONV2D_GEMM, CONV2D_BACKWARD_INPUT, CONV2D_BACKWARD_INPUT_GEMM,
-                    CONV2D_BACKWARD_WEIGHT, CONV2D_BACKWARD_WEIGHT_GEMM -> 9_000;
+            case CONV2D -> 9_000;
             case MATMUL, LINEAR -> 8_500;
             case CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD,
                     NLL_LOSS -> 8_000;
             case LAYER_NORM, RMS_NORM -> 7_500;
             case SOFTMAX, LOG_SOFTMAX, SOFTMAX_GRAD, LOG_SOFTMAX_GRAD -> 7_000;
             case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD -> 6_500;
-            case MAX_POOL2D, AVG_POOL2D, MAX_POOL2D_BACKWARD_INPUT, AVG_POOL2D_BACKWARD_INPUT -> 6_000;
+            case MAX_POOL2D, AVG_POOL2D -> 6_000;
             case ADD, SUB, MUL, DIV, MIN, MAX, RELU, TANH, FAST_TANH, SIGMOID, EXP, FAST_EXP,
                     ERF, LOG, SQRT, NEG, ABS, FLOOR, CEIL, SIGN, INV, POW, MUL_SCALAR -> 4_000;
-            case RESHAPE, PERMUTE, CONTIGUOUS, EXPAND, EXPAND_DIMS, SQUEEZE, SELECT, SLICE, CONCAT, NOOP -> 1_000;
+            case RESHAPE, PERMUTE, CONTIGUOUS, EXPAND, EXPAND_DIMS, SQUEEZE, SELECT, SLICE, CONCAT,
+                    UNFOLD_AXIS, UNFOLD2D, FOLD2D, NOOP -> 1_000;
             case SLICE_GRAD, SLICE_SCATTER_ADD, GATHER_AXIS, GATHER_AXIS_GRAD, GATHER_ND, GATHER_ND_GRAD,
                     SCATTER_AXIS_ADD -> 2_000;
             default -> 2_000;

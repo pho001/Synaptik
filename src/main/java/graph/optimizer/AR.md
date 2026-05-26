@@ -32,7 +32,7 @@ The optional lowering order is:
 
 1. `LinearLoweringRule`
 2. `LossForwardLoweringRule`
-3. optional `Conv2dGemmLoweringRule`
+3. optional `Conv2dDagLoweringRule`
 
 That order is intentional:
 
@@ -309,9 +309,10 @@ The matcher is dtype-limited to:
 
 File:
 
-- [rewrite/lowering/Conv2dGemmLoweringRule.java](./rewrite/lowering/Conv2dGemmLoweringRule.java)
+- [rewrite/lowering/Conv2dDagLoweringRule.java](./rewrite/lowering/Conv2dDagLoweringRule.java)
 
 This pass is policy-controlled through `Conv2dLoweringConfig`.
+`HEURISTIC` mode reads its thresholds from `Conv2dDagLoweringProfile`; the built-in profile keeps conservative defaults, and future calibration should write those profile fields instead of changing the lowering rule.
 
 Modes:
 
@@ -319,11 +320,8 @@ Modes:
 - `ALWAYS`
 - `HEURISTIC`
 
-Currently it can lower:
-
-- `conv2d` -> `conv2dGemm`
-- `conv2dBackwardInput` -> `conv2dBackwardInputGemm`
-- `conv2dBackwardWeight` -> `conv2dBackwardWeightGemm`
+Currently it can lower semantic `conv2d` to canonical Tensor primitives:
+`UNFOLD2D`, `MATMUL`, `RESHAPE`, and optional bias add.
 
 The lowering itself is semantic.
 Runtime selection between Java and BLAS for the lowered GEMM primitives still happens later in backend preparation.

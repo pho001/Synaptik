@@ -11,7 +11,7 @@ import graph.optimizer.simplify.DeadCodeEliminationRule;
 import graph.SemanticForwardCanonicalizer;
 import graph.optimizer.rewrite.algebraic.AlgebraicSimplificationRule;
 import graph.optimizer.rewrite.canonical.PiecewiseCanonicalizationRule;
-import graph.optimizer.rewrite.lowering.Conv2dGemmLoweringRule;
+import graph.optimizer.rewrite.lowering.Conv2dDagLoweringRule;
 import graph.optimizer.rewrite.lowering.LinearLoweringRule;
 import graph.optimizer.rewrite.lowering.LossForwardLoweringRule;
 
@@ -103,7 +103,7 @@ public final class OptimizerFactory {
         }
         rules.add(new LossForwardLoweringRule());
         if (resolved.conv2dLowering().mode() != Conv2dLoweringMode.OFF) {
-            rules.add(new Conv2dGemmLoweringRule(resolved.conv2dLowering()));
+            rules.add(new Conv2dDagLoweringRule(resolved.conv2dLowering()));
         }
     }
 

@@ -735,7 +735,7 @@ SCALED_DOT_PRODUCT_ATTENTION,
 NLL_LOSS, CROSS_ENTROPY_LOSS,
 GATHER, TAKE_ALONG_AXIS,
 CROSS_ENTROPY_LOSS_INDICES,
-CONV2D, CONV2D_GEMM,
+CONV2D,
 MAX_POOL2D, AVG_POOL2D,
 RESHAPE, CONTIGUOUS, NOOP, PERMUTE, EXPAND_DIMS, SQUEEZE
 ```
@@ -750,15 +750,20 @@ MIN_GRAD, MAX_GRAD,
 SCALED_DOT_PRODUCT_ATTENTION_BACKWARD,
 CROSS_ENTROPY_LOSS_INDICES_GRAD,
 GATHER_GRAD, TAKE_ALONG_AXIS_GRAD, SCATTER_ADD,
-CONV2D_BACKWARD_INPUT, CONV2D_BACKWARD_WEIGHT,
-CONV2D_BACKWARD_INPUT_GEMM, CONV2D_BACKWARD_WEIGHT_GEMM,
-MAX_POOL2D_BACKWARD_INPUT, AVG_POOL2D_BACKWARD_INPUT
+UNFOLD_AXIS, UNFOLD2D, FOLD2D, ARGMAX, SCATTER_ELEMENTS
 ```
+
+`UNFOLD_AXIS` is scoped to dense `FLOAT32/BFLOAT16` native lowering with
+`step=1`. `UNFOLD2D` and `FOLD2D` are scoped to dense `FLOAT32/BFLOAT16`
+stride=1/dilation=1 window geometry; wider geometry remains a visible planner
+rejection rather than a hidden CPU materialization.
 
 Notable current exclusions:
 
 - grouped/dilated Conv2D variants and dtype-mismatched Conv2D inputs
 - unsupported pooling variants such as `AVG_POOL2D countIncludePad=true`
+- conv and pool backward are represented by canonical Tensor DAG primitives,
+  not direct Metal conv/pool-backward op types
 - `FLOAT64`, generic `INT32`, generic `INT64`, and unsupported `BOOL` compute/output graphs
 - forward support does not imply backward support; backward target truth is tracked per op in `GpuTargetCoverageTruth`
 

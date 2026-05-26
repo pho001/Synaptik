@@ -38,6 +38,26 @@ public class GpuTargetSemanticsContractTest {
     }
 
     @Test
+    void matmulContractCoversBatchedShapeBroadcastAndGradientReductionSemantics() {
+        GpuTargetSemanticsContract matmul = GpuTargetSemanticsContract.forOp(Operation.OpType.MATMUL);
+
+        assertNotNull(matmul);
+        assertEquals(GpuLoweringOperationFamily.MATMUL_LINEAR, matmul.family());
+        assertFalse(matmul.plannerAdmissionBlocked());
+        assertTrue(matmul.dtypeContract().contains("floating"));
+        assertTrue(matmul.rankContract().contains("rank >= 2"));
+        assertTrue(matmul.rankContract().contains("last-two dimensions"));
+        assertTrue(matmul.shapeContract().contains("[..., M, K]"));
+        assertTrue(matmul.shapeContract().contains("[..., K, N]"));
+        assertTrue(matmul.shapeContract().contains("broadcast"));
+        assertTrue(matmul.parameterContract().contains("rank-2 MATMUL"));
+        assertTrue(matmul.parameterContract().contains("general DAG"));
+        assertTrue(matmul.numericalContract().contains("CPU parity"));
+        assertTrue(matmul.numericalContract().contains("gradient reductions"));
+        assertTrue(matmul.numericalContract().contains("broadcast leading dimensions"));
+    }
+
+    @Test
     void boolCompareContractDistinguishesBoolOutputResidency() {
         GpuTargetSemanticsContract gt = GpuTargetSemanticsContract.forOp(Operation.OpType.GT);
 
@@ -79,15 +99,8 @@ public class GpuTargetSemanticsContractTest {
     void phaseTwentySevenContractsCoverConvPoolVariants() {
         for (Operation.OpType opType : new Operation.OpType[]{
                 Operation.OpType.CONV2D,
-                Operation.OpType.CONV2D_GEMM,
-                Operation.OpType.CONV2D_BACKWARD_INPUT,
-                Operation.OpType.CONV2D_BACKWARD_WEIGHT,
-                Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM,
-                Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM,
                 Operation.OpType.MAX_POOL2D,
-                Operation.OpType.MAX_POOL2D_BACKWARD_INPUT,
-                Operation.OpType.AVG_POOL2D,
-                Operation.OpType.AVG_POOL2D_BACKWARD_INPUT
+                Operation.OpType.AVG_POOL2D
         }) {
             GpuTargetSemanticsContract contract = GpuTargetSemanticsContract.forOp(opType);
 
@@ -98,6 +111,46 @@ public class GpuTargetSemanticsContractTest {
             assertTrue(contract.shapeContract().contains("stride"));
             assertTrue(contract.layoutContract().contains("layout"));
         }
+    }
+
+    @Test
+    void windowLayoutContractsCoverUnfoldAndFoldGeometry() {
+        GpuTargetSemanticsContract unfold = GpuTargetSemanticsContract.forOp(Operation.OpType.UNFOLD2D);
+        GpuTargetSemanticsContract fold = GpuTargetSemanticsContract.forOp(Operation.OpType.FOLD2D);
+        GpuTargetSemanticsContract unfoldAxis = GpuTargetSemanticsContract.forOp(Operation.OpType.UNFOLD_AXIS);
+
+        assertNotNull(unfold);
+        assertNotNull(fold);
+        assertNotNull(unfoldAxis);
+        assertEquals(GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT, unfold.family());
+        assertEquals(GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT, fold.family());
+        assertEquals(GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT, unfoldAxis.family());
+        assertTrue(unfold.dtypeContract().contains("floating value dtype"));
+        assertTrue(fold.dtypeContract().contains("floating value dtype"));
+        assertTrue(unfoldAxis.dtypeContract().contains("INT32"));
+        assertTrue(unfoldAxis.dtypeContract().contains("BOOL"));
+        assertTrue(unfold.rankContract().contains("rank-4 NCHW input"));
+        assertTrue(unfold.rankContract().contains("rank-3"));
+        assertTrue(fold.rankContract().contains("rank-3 column input"));
+        assertTrue(fold.rankContract().contains("rank-4 NCHW outputShape"));
+        assertTrue(unfoldAxis.rankContract().contains("input rank + 1"));
+        assertTrue(unfold.shapeContract().contains("kernel"));
+        assertTrue(unfold.shapeContract().contains("stride"));
+        assertTrue(unfold.shapeContract().contains("padding"));
+        assertTrue(unfold.shapeContract().contains("dilation"));
+        assertTrue(unfold.shapeContract().contains("ceilMode"));
+        assertTrue(fold.shapeContract().contains("outputShape"));
+        assertTrue(fold.shapeContract().contains("column count"));
+        assertTrue(unfoldAxis.shapeContract().contains("trailing size dimension"));
+        assertTrue(unfoldAxis.parameterContract().contains("no padding"));
+        assertTrue(unfoldAxis.parameterContract().contains("no dilation"));
+        assertTrue(fold.numericalContract().contains("duplicate window accumulation"));
+        assertFalse(unfold.plannerAdmissionBlocked());
+        assertFalse(fold.plannerAdmissionBlocked());
+        assertFalse(unfoldAxis.plannerAdmissionBlocked());
+        assertTrue(unfold.blockerReason().contains("Scoped native GPU support"));
+        assertTrue(fold.blockerReason().contains("visible planner rejections"));
+        assertTrue(unfoldAxis.blockerReason().contains("axis-window materialization"));
     }
 
     @Test

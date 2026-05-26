@@ -240,6 +240,56 @@ class CudaRegionLowererTest {
     }
 
     @Test
+    void cudaWindowLayoutPrimitivesLowerToDedicatedDagNodes() {
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+
+        Tensor axisInput = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "cudaAxisInput", DataType.FLOAT32);
+        Tensor axisOut = axisInput.unfold(0, 2, 2);
+        backendIntentPlan = backendIntentPlan.withBackend(axisOut, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext axisContext = planningContext(axisOut, backendIntentPlan);
+        CompiledNode axisNode = axisContext.compiledNode(nodeId(axisContext, Operation.OpType.UNFOLD_AXIS));
+        assertEquals("", CudaGpuBackendPartitionCapability.plannerUnsupportedReason(axisNode, axisContext));
+
+        CudaGpuBackendPartitionCapability adapter = new CudaGpuBackendPartitionCapability();
+        CudaGpuPartitionPlan axisPlan = (CudaGpuPartitionPlan) adapter.createPlan(
+                adapter.createCandidate(Set.of(axisNode.id()), axisContext, Set.of(GraphValueRef.node(axisNode.id()))),
+                axisContext
+        );
+        assertNotNull(axisPlan);
+        assertEquals(AcceleratorDagNodeType.UNFOLD_AXIS, axisPlan.dagSpec().nodes().getFirst().type());
+
+        Tensor image = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f,
+                7f, 8f, 9f
+        }, new int[]{1, 1, 3, 3}, null, "cudaWindowImage", DataType.FLOAT32);
+        tensor.options.Window2dOptions window = tensor.options.Window2dOptions.of(2, 2);
+        Tensor columns = image.unfold2d(window);
+        backendIntentPlan = backendIntentPlan.withBackend(columns, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext unfoldContext = planningContext(columns, backendIntentPlan);
+        CompiledNode unfoldNode = unfoldContext.compiledNode(nodeId(unfoldContext, Operation.OpType.UNFOLD2D));
+        assertEquals("", CudaGpuBackendPartitionCapability.plannerUnsupportedReason(unfoldNode, unfoldContext));
+        CudaGpuPartitionPlan unfoldPlan = (CudaGpuPartitionPlan) adapter.createPlan(
+                adapter.createCandidate(Set.of(unfoldNode.id()), unfoldContext, Set.of(GraphValueRef.node(unfoldNode.id()))),
+                unfoldContext
+        );
+        assertNotNull(unfoldPlan);
+        assertEquals(AcceleratorDagNodeType.UNFOLD2D, unfoldPlan.dagSpec().nodes().getFirst().type());
+
+        Tensor folded = columns.fold2d(new int[]{1, 1, 3, 3}, window);
+        backendIntentPlan = backendIntentPlan.withBackend(folded, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext foldContext = planningContext(folded, backendIntentPlan);
+        CompiledNode foldNode = foldContext.compiledNode(nodeId(foldContext, Operation.OpType.FOLD2D));
+        assertEquals("", CudaGpuBackendPartitionCapability.plannerUnsupportedReason(foldNode, foldContext));
+        CudaGpuPartitionPlan foldPlan = (CudaGpuPartitionPlan) adapter.createPlan(
+                adapter.createCandidate(Set.of(foldNode.id()), foldContext, Set.of(GraphValueRef.node(foldNode.id()))),
+                foldContext
+        );
+        assertNotNull(foldPlan);
+        assertEquals(AcceleratorDagNodeType.FOLD2D, foldPlan.dagSpec().nodes().getFirst().type());
+    }
+
+    @Test
     void cudaSupportedNormalizationUsesSharedCoverageReason() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaNormInput", DataType.FLOAT32);
         Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "cudaNormGamma", DataType.FLOAT32);

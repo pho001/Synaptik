@@ -23,6 +23,7 @@ import config.compile.RegionOwnershipPlannerStrategy;
 import config.compile.TransferCostPreset;
 import config.optimizer.AlgebraicRewriteConfig;
 import config.optimizer.CseConfig;
+import config.optimizer.Conv2dDagLoweringProfile;
 import config.optimizer.Conv2dLoweringConfig;
 import config.optimizer.Conv2dLoweringMode;
 import config.optimizer.CpuFusionCheapProducerPolicy;
@@ -87,7 +88,18 @@ public class ExecutionProfileIoTest {
                                 new RewriteConfig(
                                 new AlgebraicRewriteConfig(true),
                                 new LinearLoweringConfig(false),
-                                new Conv2dLoweringConfig(Conv2dLoweringMode.ALWAYS),
+                                new Conv2dLoweringConfig(
+                                        Conv2dLoweringMode.ALWAYS,
+                                        new Conv2dDagLoweringProfile(
+                                                257,
+                                                129,
+                                                1.5d,
+                                                4_096L,
+                                                97,
+                                                193,
+                                                8_192L
+                                        )
+                                ),
                                 new PiecewiseLoweringConfig(true, true, true)
                         ),
                                 CseConfig.aggressiveDefaults()

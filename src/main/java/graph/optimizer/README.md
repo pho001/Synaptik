@@ -119,7 +119,7 @@ Does not own:
 
 - `matmul + bias -> LINEAR`
 - loss/attention/reduction decomposition
-- conv2d GEMM lowering
+- conv2d DAG lowering
 - backend-specific executable primitive selection
 
 See [AR.md](./AR.md).
@@ -164,7 +164,7 @@ Owns:
 
 - `matmul + bias -> LINEAR`
 - loss/reduction/attention specialized operation surfaces
-- optional conv2d GEMM primitive lowering according to rewrite config
+- optional conv2d lowering to canonical window/matmul primitives according to rewrite config and its `Conv2dDagLoweringProfile` thresholds
 
 Does not own:
 

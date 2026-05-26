@@ -39,21 +39,6 @@ Important current behavior:
 - `0` means provider-managed auto behavior
 - Synaptik does not calibrate provider thread counts while this canonicalization exists
 
-### `CONV2D_GEMM_DISPATCH`
-
-Current conv2d dispatch knobs:
-
-- `runtime.conv2d.blasProvider`
-- `runtime.conv2d.f64MinWork`
-- `runtime.conv2d.f32MinWork`
-- `runtime.conv2d.f32RequireMgeK`
-- `runtime.conv2d.f32MaxNOverK`
-- `runtime.conv2d.bf16MinWork`
-- `runtime.conv2d.bf16RequireMgeK`
-- `runtime.conv2d.bf16MaxNOverK`
-
-These affect lowered GEMM conv2d nodes, not the semantic decision to lower conv2d in the optimizer.
-
 ### `FUSED_DISPATCH`
 
 - `cpu.fusedCheapVectorMinSize`

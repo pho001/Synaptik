@@ -293,53 +293,14 @@ class GpuLoweringCoverageMatrixTest {
                 GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_CUDA, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD).status()
         );
 
-        for (Operation.OpType opType : List.of(
-                Operation.OpType.CONV2D_BACKWARD_INPUT,
-                Operation.OpType.CONV2D_BACKWARD_WEIGHT,
-                Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM,
-                Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM,
-                Operation.OpType.MAX_POOL2D_BACKWARD_INPUT,
-                Operation.OpType.AVG_POOL2D_BACKWARD_INPUT
-        )) {
-            GpuLoweringCoverageEntry metalEntry = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, opType);
-            assertEquals(GpuLoweringCoverageStatus.SUPPORTED, metalEntry.status(), opType.name());
-            assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, metalEntry.reason(), opType.name());
-        }
-
-        for (Operation.OpType opType : List.of(
-                Operation.OpType.CONV2D_BACKWARD_INPUT,
-                Operation.OpType.CONV2D_BACKWARD_WEIGHT,
-                Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM,
-                Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM,
-                Operation.OpType.MAX_POOL2D_BACKWARD_INPUT,
-                Operation.OpType.AVG_POOL2D_BACKWARD_INPUT
-        )) {
-            GpuLoweringCoverageEntry cudaEntry = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_CUDA, opType);
-            assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, cudaEntry.status(), opType.name());
-            assertEquals(GpuLoweringUnsupportedReason.CAPABILITY_MISSING, cudaEntry.reason(), opType.name());
-        }
-
-        GpuLoweringCoverageEntry cudaMaxPoolBackward = GpuLoweringCoverageMatrix.entryFor(
-                ComputeBackend.GPU_CUDA,
-                Operation.OpType.MAX_POOL2D_BACKWARD_INPUT
-        );
-        assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, cudaMaxPoolBackward.status());
-        assertEquals(GpuLoweringUnsupportedReason.CAPABILITY_MISSING, cudaMaxPoolBackward.reason());
     }
 
     @Test
     void phaseTwentySevenMatrixCoversConvPoolAndBoolOutputFamilyExplicitly() {
         List<Operation.OpType> convPoolOps = List.of(
                 Operation.OpType.CONV2D,
-                Operation.OpType.CONV2D_GEMM,
-                Operation.OpType.CONV2D_BACKWARD_INPUT,
-                Operation.OpType.CONV2D_BACKWARD_WEIGHT,
-                Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM,
-                Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM,
                 Operation.OpType.MAX_POOL2D,
-                Operation.OpType.MAX_POOL2D_BACKWARD_INPUT,
-                Operation.OpType.AVG_POOL2D,
-                Operation.OpType.AVG_POOL2D_BACKWARD_INPUT
+                Operation.OpType.AVG_POOL2D
         );
         List<Operation.OpType> boolCompareOps = List.of(
                 Operation.OpType.GT,
@@ -366,15 +327,8 @@ class GpuLoweringCoverageMatrixTest {
                 assertEquals(GpuLoweringOperationFamily.CONV_POOL, entry.family());
                 if (backend == ComputeBackend.GPU_METAL
                         && (opType == Operation.OpType.CONV2D
-                        || opType == Operation.OpType.CONV2D_GEMM
-                        || opType == Operation.OpType.CONV2D_BACKWARD_INPUT
-                        || opType == Operation.OpType.CONV2D_BACKWARD_WEIGHT
-                        || opType == Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM
-                        || opType == Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM
                         || opType == Operation.OpType.MAX_POOL2D
-                        || opType == Operation.OpType.MAX_POOL2D_BACKWARD_INPUT
-                        || opType == Operation.OpType.AVG_POOL2D
-                        || opType == Operation.OpType.AVG_POOL2D_BACKWARD_INPUT)) {
+                        || opType == Operation.OpType.AVG_POOL2D)) {
                     assertEquals(GpuLoweringCoverageStatus.SUPPORTED, entry.status());
                     assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, entry.reason(),
                             () -> opType + " should be supported for scoped Metal direct conv/pool execution");
@@ -470,6 +424,39 @@ class GpuLoweringCoverageMatrixTest {
         assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, cuda.status());
         assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_OPERATION, cuda.reason());
         assertEquals(GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT, cuda.family());
+    }
+
+    @Test
+    void windowLayoutPrimitivesHaveScopedGpuRows() {
+        for (ComputeBackend backend : List.of(ComputeBackend.GPU_METAL, ComputeBackend.GPU_CUDA)) {
+            GpuLoweringCoverageEntry unfold = GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.UNFOLD2D);
+            GpuLoweringCoverageEntry fold = GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.FOLD2D);
+            GpuLoweringCoverageEntry unfoldAxis = GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.UNFOLD_AXIS);
+
+            assertEquals(backend, unfold.backend());
+            assertEquals(Operation.OpType.UNFOLD2D, unfold.opType());
+            assertEquals(GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT, unfold.family());
+            assertEquals(GpuLoweringCoverageStatus.SUPPORTED, unfold.status());
+            assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, unfold.reason());
+            assertTrue(unfold.note().contains("native im2col lowering"));
+            assertFalse(unfold.note().contains("not in the checked-in GPU lowering coverage matrix"));
+
+            assertEquals(backend, fold.backend());
+            assertEquals(Operation.OpType.FOLD2D, fold.opType());
+            assertEquals(GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT, fold.family());
+            assertEquals(GpuLoweringCoverageStatus.SUPPORTED, fold.status());
+            assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, fold.reason());
+            assertTrue(fold.note().contains("native col2im accumulation"));
+            assertFalse(fold.note().contains("not in the checked-in GPU lowering coverage matrix"));
+
+            assertEquals(backend, unfoldAxis.backend());
+            assertEquals(Operation.OpType.UNFOLD_AXIS, unfoldAxis.opType());
+            assertEquals(GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT, unfoldAxis.family());
+            assertEquals(GpuLoweringCoverageStatus.SUPPORTED, unfoldAxis.status());
+            assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, unfoldAxis.reason());
+            assertTrue(unfoldAxis.note().contains("native axis sliding-window materialization"));
+            assertFalse(unfoldAxis.note().contains("not in the checked-in GPU lowering coverage matrix"));
+        }
     }
 
     @Test

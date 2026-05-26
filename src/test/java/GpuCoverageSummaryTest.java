@@ -131,25 +131,6 @@ public class GpuCoverageSummaryTest {
                             : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
                     rows.get(operations.Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD).executionStatus()
             );
-            for (operations.Operation.OpType opType : List.of(
-                    operations.Operation.OpType.CONV2D_BACKWARD_INPUT,
-                    operations.Operation.OpType.CONV2D_BACKWARD_WEIGHT,
-                    operations.Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM,
-                    operations.Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM,
-                    operations.Operation.OpType.MAX_POOL2D_BACKWARD_INPUT,
-                    operations.Operation.OpType.AVG_POOL2D_BACKWARD_INPUT
-            )) {
-                assertEquals(
-                        backend == ComputeBackend.GPU_METAL
-                                ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
-                                : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
-                        rows.get(opType).executionStatus(),
-                        opType.name()
-                );
-                if (backend == ComputeBackend.GPU_CUDA) {
-                    assertTrue(rows.get(opType).detail().contains("CAPABILITY_MISSING"), opType.name());
-                }
-            }
             assertEquals(
                     backend == ComputeBackend.GPU_METAL
                             ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
@@ -196,12 +177,6 @@ public class GpuCoverageSummaryTest {
                             ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
                             : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
                     rows.get(operations.Operation.OpType.CONV2D).executionStatus()
-            );
-            assertEquals(
-                    backend == ComputeBackend.GPU_METAL
-                            ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
-                            : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
-                    rows.get(operations.Operation.OpType.CONV2D_GEMM).executionStatus()
             );
             assertEquals(
                     backend == ComputeBackend.GPU_METAL

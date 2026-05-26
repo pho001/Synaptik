@@ -36,6 +36,8 @@ The descriptor should carry only immutable semantic parameters such as:
 - scalar for `mulScalar`
 - reduction dimension / `keepDims`
 - reshape/permute metadata
+- axis window parameters for `unfold`
+- window geometry for `unfold2d` / `fold2d`
 - attention options
 - loss reduction metadata
 
@@ -66,9 +68,9 @@ Some examples:
 - reductions:
   - `SUM`, `MEAN`, `REDUCE_MAX`, `SOFTMAX`, `LOG_SOFTMAX`
 - layout:
-  - `RESHAPE`, `PERMUTE`, `EXPAND`, `SELECT`
+  - `RESHAPE`, `PERMUTE`, `EXPAND`, `SELECT`, `UNFOLD_AXIS`, `UNFOLD2D`, `FOLD2D`
 - special:
-  - `LINEAR`, `CROSS_ENTROPY_LOSS_INDICES`, `SCALED_DOT_PRODUCT_ATTENTION`, `CONV2D_GEMM`
+  - `LINEAR`, `CONV2D`, `CROSS_ENTROPY_LOSS_INDICES`, `SCALED_DOT_PRODUCT_ATTENTION`
 - fused:
   - `FUSED`
 
@@ -172,9 +174,25 @@ Examples:
 - `expandDims`
 - `squeeze`
 - `select`
+- `unfoldAxis`
+- `unfold2d`
+- `fold2d`
 - `noop`
 
 `select` intentionally lives with layout-like descriptors rather than indexed gather descriptors because it behaves as a view-style remap rather than as a materialized indexed read.
+
+`unfoldAxis` is the general 1-D sliding-window materialization descriptor. It
+uses static `axis`, `size`, and `step`, preserves input dtype, and has no
+padding, dilation, or image geometry.
+
+`unfold2d` and `fold2d` are the canonical 2-D window materialization
+descriptors. `UNFOLD2D` is the im2col-style operation; do not add a duplicate
+`IM2COL` op type with the same graph semantics. `FOLD2D` is the col2im-style
+accumulating inverse: overlapping windows are summed, not divided. Their shape
+contracts are `[N, C, H, W] -> [N, C * kernelH * kernelW, outH * outW]` and
+`[N, C * kernelH * kernelW, outH * outW] -> explicit [N, C, H, W]`. Both use
+floating dtypes and `Window2dOptions` for padding, stride, dilation, and
+`ceilMode`.
 
 ### Index
 
@@ -229,13 +247,14 @@ Examples:
 Examples:
 
 - `conv2d`
-- `conv2dGemm`
-- `conv2dBackwardInput`
-- `conv2dBackwardWeight`
 - `maxPool2d`
 - `avgPool2d`
 - `layerNorm`
 - `rmsNorm`
+
+Conv and pool backward graphs are composed from Tensor primitives such as
+`UNFOLD2D`, `FOLD2D`, `MATMUL`, reductions, `ARGMAX`, and scatter operations.
+They are not represented by dedicated public backward descriptors.
 
 ## Primitive vs Composed Surface
 

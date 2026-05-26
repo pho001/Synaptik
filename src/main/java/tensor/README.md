@@ -75,7 +75,7 @@ support/spec helpers:
 - `ops/select`: `WhereOp`
 - `ops/layout`: `ContiguousOp`, `ReshapeOp`, `ExpandOp`, `SliceOp`,
   `ConcatOp`, `StackOp`, `UnstackOp`, `PadOp`, `TileOp`, `PermuteOp`,
-  `ExpandDimsOp`, `SqueezeOp`
+  `ExpandDimsOp`, `SqueezeOp`, `UnfoldAxisOp`, `Unfold2dOp`, `Fold2dOp`
 - `ops/index`: `SelectOp`, `GatherOp`, `GatherNdOp`, `ScatterAddOp`,
   `ScatterElementsOp`, `ScatterNdOp`, `ScatterAxisAddOp`, `TakeAlongAxisOp`
 - `ops/reduction`: `SumOp`, `MeanOp`, `ProdOp`, `ArgMaxOp`, `CumSumOp`,
@@ -133,6 +133,7 @@ Public semantic option/config value types live in dedicated subpackages:
 - [options/AttentionOptions.java](../tensor/options/AttentionOptions.java)
 - [options/Conv2dOptions.java](../tensor/options/Conv2dOptions.java)
 - [options/Pool2dOptions.java](../tensor/options/Pool2dOptions.java)
+- [options/Window2dOptions.java](../tensor/options/Window2dOptions.java)
 - [loss/LossReduction.java](../tensor/loss/LossReduction.java)
 - [CompileMode.java](../tensor/CompileMode.java)
 - [ComputeOptions.java](../tensor/ComputeOptions.java)
@@ -140,6 +141,26 @@ Public semantic option/config value types live in dedicated subpackages:
 
 These are genuine public API types.
 They are intentionally not hidden inside private support classes.
+
+`unfold(axis, size, step)` is the general `UNFOLD_AXIS` layout primitive. It
+materializes 1-D sliding windows along any existing axis, replaces that axis by
+the window count, and appends the window size as the trailing dimension. It
+preserves floating, integer, and bool dtypes and has no padding, dilation, or
+image geometry.
+
+`Window2dOptions` is shared by `unfold2d` and `fold2d`. `unfold2d` is the
+canonical `UNFOLD2D` im2col/window materialization primitive, not a separate
+`IM2COL` op type. It maps `[N, C, H, W]` to
+`[N, C * kernelH * kernelW, outH * outW]`. `fold2d` is the `FOLD2D`
+col2im-style inverse from `[N, C * kernelH * kernelW, outH * outW]` to an
+explicit `[N, C, H, W]` output shape; overlapping windows are summed and never
+implicitly divided. Both primitives are floating-only and use
+`Window2dOptions` for padding, stride, dilation, and `ceilMode`.
+
+Autograd treats them as adjoints: `unfold2d` backward is `fold2d`, and `fold2d`
+backward is `unfold2d`. Conv and pool backward formulas are canonical Tensor
+DAGs over these primitives plus `matmul`, reductions, argmax, scatter, and
+layout ops, not dedicated public backward op types.
 
 ## Construction Surface
 

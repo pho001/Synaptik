@@ -1662,9 +1662,9 @@ When `executeTraced(...)` is used, `PreparedExecution` records one `ExecutionSte
 | `metadata.fused` | Fused precision, cost family, scheduler signature, backend, node/input counts. |
 | `metadata.attributes` | Accelerator details such as Metal bridge/cache/subgraph info. |
 
-For BLAS-related traces, read `metadata.matMul` as the prepared matmul decision and `metadata.conv` as the prepared
-conv2d GEMM decision. A selected provider such as `OPENBLAS_FFM` is not by itself proof that a tiny or non-contiguous
-node used native BLAS; the prepared hints and per-node trace fields are the source of truth. See
+For BLAS-related traces, read `metadata.matMul` as the prepared matmul decision. Conv2d lowered to primitives reports
+BLAS usage through its resulting `MATMUL` nodes. A selected provider such as `OPENBLAS_FFM` is not by itself proof that
+a tiny or non-contiguous node used native BLAS; the prepared hints and per-node trace fields are the source of truth. See
 [Native Bridges & BLAS: Matmul Dispatch Flow](native-bridges-and-blas.md#matmul-dispatch-flow).
 
 Illustrative trace for a simple optimized `ADD -> RELU -> SUM` graph:

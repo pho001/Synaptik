@@ -29,6 +29,7 @@ import operations.index.gatherNd;
 import operations.index.takeAlongAxis;
 import operations.layout.concat;
 import operations.layout.expandDims;
+import operations.layout.fold2d;
 import operations.layout.pad;
 import operations.layout.permute;
 import operations.layout.select;
@@ -36,16 +37,11 @@ import operations.layout.slice;
 import operations.layout.sliceGrad;
 import operations.layout.squeeze;
 import operations.layout.tile;
+import operations.layout.unfold2d;
+import operations.layout.unfoldAxis;
 import operations.nn.conv.conv2d;
-import operations.nn.conv.conv2dBackwardInput;
-import operations.nn.conv.conv2dBackwardInputGemm;
-import operations.nn.conv.conv2dBackwardWeight;
-import operations.nn.conv.conv2dBackwardWeightGemm;
-import operations.nn.conv.conv2dGemm;
 import operations.nn.pool.avgPool2d;
-import operations.nn.pool.avgPool2dBackwardInput;
 import operations.nn.pool.maxPool2d;
-import operations.nn.pool.maxPool2dBackwardInput;
 import operations.normalization.layerNorm;
 import operations.normalization.rmsNorm;
 import operations.reduction.reduceMaxGrad;
@@ -622,9 +618,7 @@ public final class AcceleratorSubgraphLowerer {
             if (leftShape.length != 2 || rightShape.length != 2 || outShape.length != 2) {
                 return null;
             }
-        } else if (leftShape.length < 2 || leftShape.length > 4
-                || rightShape.length < 2 || rightShape.length > 4
-                || outShape.length < 2 || outShape.length > 4) {
+        } else if (leftShape.length != 2 || rightShape.length != 2 || outShape.length != 2) {
             return null;
         }
         int biasInputNodeId = -1;
@@ -889,16 +883,11 @@ public final class AcceleratorSubgraphLowerer {
             if (isAttributeEncodedLayout(type) && attributes == null) {
                 return null;
             }
-            if ((type == AcceleratorDagNodeType.CONV2D
-                    || type == AcceleratorDagNodeType.CONV2D_BACKWARD_INPUT
-                    || type == AcceleratorDagNodeType.CONV2D_BACKWARD_WEIGHT)
-                    && scalarValueBits == Integer.MIN_VALUE) {
+            if (type == AcceleratorDagNodeType.CONV2D && scalarValueBits == Integer.MIN_VALUE) {
                 return null;
             }
             if ((type == AcceleratorDagNodeType.MAX_POOL2D
-                    || type == AcceleratorDagNodeType.AVG_POOL2D
-                    || type == AcceleratorDagNodeType.AVG_POOL2D_BACKWARD_INPUT
-                    || type == AcceleratorDagNodeType.MAX_POOL2D_BACKWARD_INPUT)
+                    || type == AcceleratorDagNodeType.AVG_POOL2D)
                     && scalarValueBits == Integer.MIN_VALUE) {
                 return null;
             }
@@ -2418,16 +2407,15 @@ public final class AcceleratorSubgraphLowerer {
             case SCATTER_ADD -> AcceleratorDagNodeType.SCATTER_ADD;
             case SCATTER_ELEMENTS -> AcceleratorDagNodeType.SCATTER_ELEMENTS;
             case SCATTER_ND -> AcceleratorDagNodeType.SCATTER_ND;
+            case UNFOLD_AXIS -> AcceleratorDagNodeType.UNFOLD_AXIS;
+            case UNFOLD2D -> AcceleratorDagNodeType.UNFOLD2D;
+            case FOLD2D -> AcceleratorDagNodeType.FOLD2D;
             case GATHER_GRAD -> AcceleratorDagNodeType.GATHER_GRAD;
             case GATHER_AXIS_GRAD -> AcceleratorDagNodeType.GATHER_AXIS_GRAD;
             case TAKE_ALONG_AXIS_GRAD -> AcceleratorDagNodeType.TAKE_ALONG_AXIS_GRAD;
-            case CONV2D, CONV2D_GEMM -> AcceleratorDagNodeType.CONV2D;
-            case CONV2D_BACKWARD_INPUT, CONV2D_BACKWARD_INPUT_GEMM -> AcceleratorDagNodeType.CONV2D_BACKWARD_INPUT;
-            case CONV2D_BACKWARD_WEIGHT, CONV2D_BACKWARD_WEIGHT_GEMM -> AcceleratorDagNodeType.CONV2D_BACKWARD_WEIGHT;
+            case CONV2D -> AcceleratorDagNodeType.CONV2D;
             case MAX_POOL2D -> AcceleratorDagNodeType.MAX_POOL2D;
             case AVG_POOL2D -> AcceleratorDagNodeType.AVG_POOL2D;
-            case AVG_POOL2D_BACKWARD_INPUT -> AcceleratorDagNodeType.AVG_POOL2D_BACKWARD_INPUT;
-            case MAX_POOL2D_BACKWARD_INPUT -> AcceleratorDagNodeType.MAX_POOL2D_BACKWARD_INPUT;
             case CROSS_ENTROPY_LOSS_INDICES -> AcceleratorDagNodeType.CROSS_ENTROPY_LOSS_INDICES;
             case CROSS_ENTROPY_LOSS_INDICES_GRAD -> AcceleratorDagNodeType.CROSS_ENTROPY_LOSS_INDICES_GRAD;
             case SOFTMAX_GRAD -> AcceleratorDagNodeType.SOFTMAX_GRAD;
@@ -2475,15 +2463,11 @@ public final class AcceleratorSubgraphLowerer {
             case GATHER_AXIS_GRAD -> node.operation() instanceof operations.index.gatherAxisGrad op ? op.getAxis() : Integer.MIN_VALUE;
             case TAKE_ALONG_AXIS_GRAD -> node.operation() instanceof operations.index.takeAlongAxisGrad op ? op.getDimension() : Integer.MIN_VALUE;
             case CONV2D -> node.operation() instanceof conv2d op ? encodeConv2dMode(op) : Integer.MIN_VALUE;
-            case CONV2D_GEMM -> node.operation() instanceof conv2dGemm op ? encodeConv2dMode(op) : Integer.MIN_VALUE;
-            case CONV2D_BACKWARD_INPUT -> node.operation() instanceof conv2dBackwardInput op ? encodeConv2dMode(op.getOptions()) : Integer.MIN_VALUE;
-            case CONV2D_BACKWARD_INPUT_GEMM -> node.operation() instanceof conv2dBackwardInputGemm op ? encodeConv2dMode(op.getOptions()) : Integer.MIN_VALUE;
-            case CONV2D_BACKWARD_WEIGHT -> node.operation() instanceof conv2dBackwardWeight op ? encodeConv2dMode(op.getOptions()) : Integer.MIN_VALUE;
-            case CONV2D_BACKWARD_WEIGHT_GEMM -> node.operation() instanceof conv2dBackwardWeightGemm op ? encodeConv2dMode(op.getOptions()) : Integer.MIN_VALUE;
             case MAX_POOL2D -> node.operation() instanceof maxPool2d op ? encodePool2dMode(op.getOptions()) : Integer.MIN_VALUE;
             case AVG_POOL2D -> node.operation() instanceof avgPool2d op ? encodePool2dMode(op.getOptions()) : Integer.MIN_VALUE;
-            case AVG_POOL2D_BACKWARD_INPUT -> node.operation() instanceof avgPool2dBackwardInput op ? encodePool2dMode(op.getOptions()) : Integer.MIN_VALUE;
-            case MAX_POOL2D_BACKWARD_INPUT -> node.operation() instanceof maxPool2dBackwardInput op ? encodePool2dMode(op.getOptions()) : Integer.MIN_VALUE;
+            case UNFOLD_AXIS -> node.operation() instanceof unfoldAxis op ? encodeUnfoldAxisMode(op) : Integer.MIN_VALUE;
+            case UNFOLD2D -> node.operation() instanceof unfold2d op ? encodeWindow2dMode(op.getOptions()) : Integer.MIN_VALUE;
+            case FOLD2D -> node.operation() instanceof fold2d op ? encodeWindow2dMode(op.getOptions()) : Integer.MIN_VALUE;
             case CROSS_ENTROPY_LOSS_INDICES -> node.operation() instanceof crossEntropyLossIndices op ? encodeCrossEntropyLossIndicesMode(op) : Integer.MIN_VALUE;
             case CROSS_ENTROPY_LOSS_INDICES_GRAD -> node.operation() instanceof crossEntropyLossIndicesGrad op ? encodeAxisMode(op.getClassDimension()) : Integer.MIN_VALUE;
             case SOFTMAX_GRAD -> node.operation() instanceof softmaxGrad op ? op.getDimension() : Integer.MIN_VALUE;
@@ -2612,6 +2596,29 @@ public final class AcceleratorSubgraphLowerer {
                 }
                 return out;
             }
+            case UNFOLD_AXIS -> {
+                if (!(node.operation() instanceof unfoldAxis op)) {
+                    return null;
+                }
+                out[0] = op.getAxis();
+                out[1] = op.getSize();
+                out[2] = op.getStep();
+                return out;
+            }
+            case UNFOLD2D -> {
+                if (!(node.operation() instanceof unfold2d op)) {
+                    return null;
+                }
+                encodeWindow2dAttributes(op.getOptions(), out);
+                return out;
+            }
+            case FOLD2D -> {
+                if (!(node.operation() instanceof fold2d op)) {
+                    return null;
+                }
+                encodeWindow2dAttributes(op.getOptions(), out);
+                return out;
+            }
             case CAST -> {
                 if (!(node.operation() instanceof cast op)) {
                     return null;
@@ -2700,10 +2707,6 @@ public final class AcceleratorSubgraphLowerer {
                 | ((padW & 0xFF) << 24);
     }
 
-    private int encodeConv2dMode(conv2dGemm op) {
-        return encodeConv2dMode(op.getOptions());
-    }
-
     private int encodePool2dMode(tensor.options.Pool2dOptions options) {
         int kernelH = options.kernelH();
         int kernelW = options.kernelW();
@@ -2727,6 +2730,53 @@ public final class AcceleratorSubgraphLowerer {
                 | ((padW & 0xF) << 20)
                 | (options.countIncludePad() ? 1 << 24 : 0)
                 | (options.ceilMode() ? 1 << 25 : 0);
+    }
+
+    private int encodeUnfoldAxisMode(unfoldAxis op) {
+        int axis = op.getAxis();
+        int size = op.getSize();
+        int step = op.getStep();
+        if (axis < 0 || axis > 15 || size < 1 || size > 4095 || step < 1 || step > 4095) {
+            return Integer.MIN_VALUE;
+        }
+        return (axis & 0xF)
+                | ((size & 0xFFF) << 4)
+                | ((step & 0xFFF) << 16);
+    }
+
+    private int encodeWindow2dMode(tensor.options.Window2dOptions options) {
+        int kernelH = options.kernelH();
+        int kernelW = options.kernelW();
+        int strideH = options.strideH();
+        int strideW = options.strideW();
+        int padH = options.padH();
+        int padW = options.padW();
+        if (kernelH < 1 || kernelH > 15
+                || kernelW < 1 || kernelW > 15
+                || strideH < 1 || strideH > 15
+                || strideW < 1 || strideW > 15
+                || padH < 0 || padH > 15
+                || padW < 0 || padW > 15) {
+            return Integer.MIN_VALUE;
+        }
+        return (kernelH & 0xF)
+                | ((kernelW & 0xF) << 4)
+                | ((strideH & 0xF) << 8)
+                | ((strideW & 0xF) << 12)
+                | ((padH & 0xF) << 16)
+                | ((padW & 0xF) << 20)
+                | (options.ceilMode() ? 1 << 25 : 0);
+    }
+
+    private void encodeWindow2dAttributes(tensor.options.Window2dOptions options, int[] out) {
+        out[0] = options.kernelH();
+        out[1] = options.kernelW();
+        out[2] = options.strideH();
+        out[3] = options.strideW();
+        out[4] = options.padH();
+        out[5] = options.padW();
+        out[6] = options.dilationH();
+        out[7] = options.dilationW();
     }
 
     private int encodeCrossEntropyLossIndicesMode(crossEntropyLossIndices op) {

@@ -26,7 +26,6 @@ public final class CalibrationFamilyRegistry {
                 CalibrationFamilyId.SCHEDULER,
                 CalibrationFamilyId.MATMUL,
                 CalibrationFamilyId.ATTENTION_MATMUL,
-                CalibrationFamilyId.CONV2D_GEMM_DISPATCH,
                 CalibrationFamilyId.ELEMENTWISE_DISPATCH,
                 CalibrationFamilyId.FUSED_DISPATCH,
                 CalibrationFamilyId.FUSED_ASM_WIDTH,
@@ -123,16 +122,6 @@ public final class CalibrationFamilyRegistry {
                 "cpu.attentionMatMulTileN",
                 "cpu.attentionMatMulTileK",
                 "cpu.attentionMatMulMicroKernel"
-        ));
-        put(specs, CalibrationFamilyId.CONV2D_GEMM_DISPATCH, "conv2d-gemm-dispatch", false, Set.of(
-                "runtime.conv2d.blasProvider",
-                "runtime.conv2d.f64MinWork",
-                "runtime.conv2d.f32MinWork",
-                "runtime.conv2d.f32RequireMgeK",
-                "runtime.conv2d.f32MaxNOverK",
-                "runtime.conv2d.bf16MinWork",
-                "runtime.conv2d.bf16RequireMgeK",
-                "runtime.conv2d.bf16MaxNOverK"
         ));
         put(specs, CalibrationFamilyId.ELEMENTWISE_DISPATCH, "elementwise-dispatch", false, Set.of(
                 "cpu.cheapVectorMinSize",

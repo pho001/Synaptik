@@ -91,6 +91,9 @@ When adding new tensor semantics:
   - [`squeeze(int axis)`](#squeezeint-axis)
   - [`sliceAxis(int axis, int fromInclusive, int toExclusive)`](#sliceaxisint-axis-int-frominclusive-int-toexclusive)
   - [`stack(int axis, Tensor... inputs)` / `unstack(int axis)`](#stackint-axis-tensor-inputs--unstackint-axis)
+  - [`unfold(int axis, int size, int step)`](#unfoldint-axis-int-size-int-step)
+  - [`unfold2d(Window2dOptions options)`](#unfold2dwindow2doptions-options)
+  - [`fold2d(int[] outputShape, Window2dOptions options)`](#fold2dint-outputshape-window2doptions-options)
 - [Binary Arithmetic Operations](#binary-arithmetic-operations)
   - [`add(Tensor second)`](#addtensor-second)
   - [`sub(Tensor second)`](#subtensor-second)
@@ -1132,6 +1135,75 @@ Tensor[] timesteps = seq.unstack(1);
 // timesteps[0].shape = [2, 2]
 ```
 
+### `unfold(int axis, int size, int step)`
+
+Materializes general 1-D sliding windows along one existing axis and appends the
+window dimension at the end. This is `UNFOLD_AXIS`; it is not a replacement for
+`UNFOLD2D` and has no padding, dilation, or image geometry.
+
+Signature:
+```java
+Tensor unfold(int axis, int size, int step)
+static Tensor TensorOps.unfold(Tensor input, int axis, int size, int step)
+```
+
+Shape rule:
+```text
+[2, 5, 3], axis=1, size=3, step=1 -> [2, 3, 3, 3]
+```
+
+Contract:
+- `axis` is normalized against input rank
+- `size > 0`, `step > 0`, and `size <= shape[axis]`
+- `windows = floor((shape[axis] - size) / step) + 1`
+- output dtype preserves input dtype for floating, integer, and bool tensors
+
+Backward:
+- floating inputs accumulate overlapping window gradients by explicit layout DAG
+- non-floating forward execution is supported and does not create gradients
+
+### `unfold2d(Window2dOptions options)`
+
+Materializes rank-4 NCHW sliding windows into canonical im2col columns.
+This is the public window materialization primitive: graph semantics use `UNFOLD2D`, not a separate `IM2COL` op type.
+
+Signature:
+```java
+Tensor unfold2d(Window2dOptions options)
+static Tensor TensorOps.unfold2d(Tensor input, Window2dOptions options)
+```
+
+Contract:
+- input shape must be `[N, C, H, W]`
+- input dtype must be floating
+- output shape is `[N, C * kernelH * kernelW, outH * outW]`
+- `Window2dOptions` carries kernel, padding, stride, dilation, and `ceilMode`
+- padding reads as zero
+
+Backward:
+- `unfold2d` backward is `fold2d(outGrad, inputShape, sameOptions)`
+
+### `fold2d(int[] outputShape, Window2dOptions options)`
+
+Accumulates im2col-style columns back into an explicit rank-4 NCHW output.
+This is the col2im-style inverse of `UNFOLD2D`; overlapping windows are summed, not averaged or divided.
+
+Signature:
+```java
+Tensor fold2d(int[] outputShape, Window2dOptions options)
+static Tensor TensorOps.fold2d(Tensor input, int[] outputShape, Window2dOptions options)
+```
+
+Contract:
+- input shape must be `[N, C * kernelH * kernelW, outH * outW]`
+- `outputShape` must be explicit `[N, C, H, W]`
+- input dtype must be floating
+- `Window2dOptions` must match the window geometry used to build the columns
+- values whose window coordinates land in padding are dropped
+
+Backward:
+- `fold2d` backward is `unfold2d(outGrad, sameOptions)`
+
 ## Binary Arithmetic Operations
 
 These operations:
@@ -1544,8 +1616,7 @@ Contract:
   - `effectiveKernel = dilation * (kernel - 1) + 1`
 
 Backward:
-- input gradient is produced through dedicated `CONV2D_BACKWARD_INPUT`
-- weight gradient is produced through dedicated `CONV2D_BACKWARD_WEIGHT`
+- gradients are canonical Tensor DAGs over `UNFOLD2D`, `FOLD2D`, `MATMUL`, layout, and reduction primitives, not dedicated conv backward operations
 
 Example:
 ```java
@@ -1632,8 +1703,8 @@ Contract:
   - `out = floor((input + 2 * pad - kernel) / stride) + 1`
 
 Backward:
-- gradient is routed to the first maximal element encountered in scan order inside each pooling window
-- prepared execution stores per-output argmax indices in runtime workspace and reuses them in backward
+- gradient is expressed as a canonical Tensor DAG: `UNFOLD2D`, masked `ARGMAX`, `SCATTER_ELEMENTS`, and `FOLD2D`
+- ties route to the first maximal element encountered in scan order inside each pooling window
 
 Example:
 ```java
@@ -1674,7 +1745,8 @@ Contract:
   - non-contiguous or offset inputs are materialized before execution
 
 Backward:
-- upstream gradient is distributed uniformly over the contributing window according to the same divisor that forward used
+- upstream gradient is distributed by a canonical Tensor DAG that expands/scales window updates and accumulates them with `FOLD2D`
+- the divisor matches the forward `countIncludePad` rule
 
 Example:
 ```java

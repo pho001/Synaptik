@@ -7,7 +7,11 @@ import graph.compile.planning.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.index.gather;
 import operations.index.takeAlongAxis;
+import operations.layout.fold2d;
+import operations.layout.unfold2d;
+import operations.layout.unfoldAxis;
 import tensor.DataType;
+import tensor.options.Window2dOptions;
 
 import java.util.Arrays;
 
@@ -20,6 +24,12 @@ public final class CudaPartitionSupport {
 
     public static boolean isForwardIndexOp(Operation.OpType opType) {
         return opType == Operation.OpType.GATHER || opType == Operation.OpType.TAKE_ALONG_AXIS;
+    }
+
+    public static boolean isWindowLayoutOp(Operation.OpType opType) {
+        return opType == Operation.OpType.UNFOLD_AXIS
+                || opType == Operation.OpType.UNFOLD2D
+                || opType == Operation.OpType.FOLD2D;
     }
 
     /**
@@ -96,6 +106,120 @@ public final class CudaPartitionSupport {
                 + " is not supported by GPU_CUDA lowering family=INDEX_SCATTER_GATHER"
                 + " status=unsupported note=CUDA forward " + opType
                 + " native/lowered path is not implemented yet; target=gather_take_small";
+    }
+
+    public static String windowLayoutUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
+        if (node == null || node.operation() == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA window layout op metadata is unavailable";
+        }
+        Operation.OpType opType = node.operation().opType();
+        if (!isWindowLayoutOp(opType)) {
+            return "";
+        }
+        if (context == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA " + opType + " requires planning context";
+        }
+        if (node.dataType() != DataType.FLOAT32) {
+            return "UNSUPPORTED_DTYPE: GPU_CUDA " + opType + " native window layout lowering currently supports FLOAT32";
+        }
+        if (node.inputIds().size() != 1) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA " + opType + " requires one input";
+        }
+        CompiledNode input = context.compiledNode(node.inputIds().getFirst());
+        if (input == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA " + opType + " input is unavailable";
+        }
+        if (input.dataType() != DataType.FLOAT32) {
+            return "UNSUPPORTED_DTYPE: GPU_CUDA " + opType + " input/output dtype must be FLOAT32";
+        }
+        if (!input.contiguous() || input.hasStorageOffset()) {
+            return "UNSUPPORTED_LAYOUT: GPU_CUDA " + opType + " input requires dense contiguous layout";
+        }
+        return switch (opType) {
+            case UNFOLD_AXIS -> cudaUnfoldAxisReason(node, input);
+            case UNFOLD2D -> cudaUnfold2dReason(node, input);
+            case FOLD2D -> cudaFold2dReason(node, input);
+            default -> "";
+        };
+    }
+
+    private static String cudaUnfoldAxisReason(CompiledNode node, CompiledNode input) {
+        if (!(node.operation() instanceof unfoldAxis op)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA UNFOLD_AXIS descriptor is unavailable";
+        }
+        int[] inputShape = input.shape();
+        int[] outputShape = node.shape();
+        if (inputShape.length < 1 || inputShape.length > 3 || outputShape.length != inputShape.length + 1) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA UNFOLD_AXIS supports input rank 1..3 and output rank 2..4";
+        }
+        if (op.getAxis() < 0 || op.getAxis() >= inputShape.length) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA UNFOLD_AXIS axis is outside input rank";
+        }
+        if (op.getAxis() > 15 || op.getSize() > 4095 || op.getStep() > 4095) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA UNFOLD_AXIS axis/size/step exceed native metadata encoding";
+        }
+        int windows = ((inputShape[op.getAxis()] - op.getSize()) / op.getStep()) + 1;
+        if (op.getSize() <= 0 || op.getStep() <= 0 || windows <= 0
+                || outputShape[op.getAxis()] != windows
+                || outputShape[outputShape.length - 1] != op.getSize()) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA UNFOLD_AXIS output shape must match static sliding-window geometry";
+        }
+        for (int d = 0; d < inputShape.length; d++) {
+            if (d != op.getAxis() && outputShape[d] != inputShape[d]) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA UNFOLD_AXIS non-window dimensions must match input shape";
+            }
+        }
+        return "";
+    }
+
+    private static String cudaUnfold2dReason(CompiledNode node, CompiledNode input) {
+        if (!(node.operation() instanceof unfold2d op)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA UNFOLD2D descriptor is unavailable";
+        }
+        int[] inputShape = input.shape();
+        int[] outputShape = node.shape();
+        if (inputShape.length != 4 || outputShape.length != 3) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA UNFOLD2D requires rank-4 NCHW input and rank-3 column output";
+        }
+        return cudaWindow2dReason("UNFOLD2D", op.getOptions(), inputShape, outputShape);
+    }
+
+    private static String cudaFold2dReason(CompiledNode node, CompiledNode input) {
+        if (!(node.operation() instanceof fold2d op)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA FOLD2D descriptor is unavailable";
+        }
+        int[] inputShape = input.shape();
+        int[] outputShape = node.shape();
+        if (inputShape.length != 3 || outputShape.length != 4) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA FOLD2D requires rank-3 columns and rank-4 NCHW output";
+        }
+        return cudaWindow2dReason("FOLD2D", op.getOptions(), outputShape, inputShape);
+    }
+
+    private static String cudaWindow2dReason(String opName, Window2dOptions options, int[] nchwShape, int[] columnShape) {
+        if (options.dilationH() != 1 || options.dilationW() != 1) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA " + opName + " currently supports dilation=1 native lowering";
+        }
+        if (options.kernelH() < 1 || options.kernelH() > 15
+                || options.kernelW() < 1 || options.kernelW() > 15
+                || options.strideH() < 1 || options.strideH() > 15
+                || options.strideW() < 1 || options.strideW() > 15
+                || options.padH() < 0 || options.padH() > 15
+                || options.padW() < 0 || options.padW() > 15) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA " + opName + " geometry exceeds native metadata encoding";
+        }
+        int outH = (nchwShape[2] + 2 * options.padH() - options.kernelH()) / options.strideH() + 1;
+        int outW = (nchwShape[3] + 2 * options.padW() - options.kernelW()) / options.strideW() + 1;
+        if (outH <= 0 || outW <= 0) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA " + opName + " output window geometry is empty";
+        }
+        int kernelArea = options.kernelH() * options.kernelW();
+        if (columnShape[0] != nchwShape[0]
+                || columnShape[1] != nchwShape[1] * kernelArea
+                || columnShape[2] != outH * outW) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA " + opName + " column shape must match NCHW window geometry";
+        }
+        return "";
     }
 
     private static String indexBoundsUnsupportedReason(CompiledNode indices, int axisSize, Operation.OpType opType) {

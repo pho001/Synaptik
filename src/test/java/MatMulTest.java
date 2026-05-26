@@ -57,6 +57,14 @@ public class MatMulTest {
     }
 
     @Test
+    void batchedMatMulInvalidLeadingBroadcastDimensionsThrow() {
+        Tensor a = new Tensor(new double[8], new int[]{2, 2, 2}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[12], new int[]{3, 2, 2}, null, "b", DataType.FLOAT64);
+
+        assertThrows(IllegalArgumentException.class, () -> a.matmul(b));
+    }
+
+    @Test
     void batchedMatMulForwardFloat64() {
         Tensor a = new Tensor(new double[]{
                 1, 2, 3, 4,
@@ -89,6 +97,51 @@ public class MatMulTest {
 
         assertArrayEquals(new int[]{2, 2, 1}, out.getShape());
         assertArrayEquals(new double[]{5, 11, 11, 25}, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void batchedMatMulBroadcastsMultipleLeadingDimensions() {
+        Tensor a = new Tensor(new double[]{
+                1, 2, 3, 4,
+                5, 6, 7, 8
+        }, new int[]{2, 1, 2, 2}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{
+                1, 2,
+                3, 4,
+                5, 6
+        }, new int[]{1, 3, 2, 1}, null, "b", DataType.FLOAT64);
+
+        Tensor out = a.matmul(b);
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
+                .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(new int[]{2, 3, 2, 1}, out.getShape());
+        assertArrayEquals(new double[]{
+                5, 11,
+                11, 25,
+                17, 39,
+                17, 23,
+                39, 53,
+                61, 83
+        }, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void batchedMatMulBackwardReducesBroadcastBatchDimensions() {
+        Tensor a = new Tensor(new double[]{1, 2, 3, 4}, new int[]{1, 2, 2}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{
+                1, 2,
+                3, 4
+        }, new int[]{2, 2, 1}, null, "b", DataType.FLOAT64);
+        a.setRequiresGrad(true);
+        b.setRequiresGrad(true);
+
+        Tensor loss = a.matmul(b).sum();
+        CompiledGraph.compile(loss, CompileConfig.noGraphOptimizationBaseline())
+                .prepare(RuntimeConfig.trainingDefaults()).execute(ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(new double[]{4, 6, 4, 6}, a.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{4, 6, 4, 6}, b.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 
     @Test

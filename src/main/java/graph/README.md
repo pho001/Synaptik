@@ -227,7 +227,6 @@ What prepare resolves today:
 - elementwise dispatch hints
 - reduction hints
 - matmul hints
-- conv2d GEMM hints
 - attention hints
 - fused executable backend preparation
 

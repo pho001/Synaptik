@@ -168,6 +168,30 @@ public final class GpuLoweringCoverageMatrix {
                 Operation.OpType.PERMUTE,
                 Operation.OpType.EXPAND_DIMS,
                 Operation.OpType.SQUEEZE);
+        add(entries, backend, Operation.OpType.UNFOLD2D, GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT,
+                GpuLoweringCoverageStatus.SUPPORTED,
+                GpuLoweringUnsupportedReason.SUPPORTED,
+                backend.name() + " UNFOLD2D supports scoped dense "
+                        + (backend == ComputeBackend.GPU_METAL ? "FLOAT32/BFLOAT16" : "FLOAT32")
+                        + " native im2col lowering with "
+                        + (backend == ComputeBackend.GPU_METAL ? "stride=1 and dilation=1" : "dilation=1")
+                        + "; wider geometry is rejected by planner semantics");
+        add(entries, backend, Operation.OpType.FOLD2D, GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT,
+                GpuLoweringCoverageStatus.SUPPORTED,
+                GpuLoweringUnsupportedReason.SUPPORTED,
+                backend.name() + " FOLD2D supports scoped dense "
+                        + (backend == ComputeBackend.GPU_METAL ? "FLOAT32/BFLOAT16" : "FLOAT32")
+                        + " native col2im accumulation lowering with "
+                        + (backend == ComputeBackend.GPU_METAL ? "stride=1 and dilation=1" : "dilation=1")
+                        + "; wider geometry is rejected by planner semantics");
+        add(entries, backend, Operation.OpType.UNFOLD_AXIS, GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT,
+                GpuLoweringCoverageStatus.SUPPORTED,
+                GpuLoweringUnsupportedReason.SUPPORTED,
+                backend.name() + " UNFOLD_AXIS supports scoped dense "
+                        + (backend == ComputeBackend.GPU_METAL ? "FLOAT32/BFLOAT16" : "FLOAT32")
+                        + " native axis sliding-window materialization"
+                        + (backend == ComputeBackend.GPU_METAL ? " with step=1" : "")
+                        + "; wider dtype/rank coverage is rejected by planner semantics");
         if (backend == ComputeBackend.GPU_METAL) {
             addSupported(entries, backend, GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT,
                     "Metal MPSGraph layout path maps broadcast EXPAND and single-index SELECT into native accelerator DAG shape ops",
@@ -466,52 +490,6 @@ public final class GpuLoweringCoverageMatrix {
                     backendLabel + " conv2d NCHW rank-4 native/lowered path is not implemented; stride/padding/dilation/groups must be proven before support; target=conv2d_resnet_3x3");
         }
         if (backend == ComputeBackend.GPU_METAL) {
-            add(entries, backend, Operation.OpType.CONV2D_GEMM, GpuLoweringOperationFamily.CONV_POOL,
-                    GpuLoweringCoverageStatus.SUPPORTED,
-                    GpuLoweringUnsupportedReason.SUPPORTED,
-                    "Metal CONV2D_GEMM descriptor preserves original NCHW/OIHW tensors and routes to the same MPSGraph convolution2D primitive as direct CONV2D; scoped to groups=1, dilation=1, stride/padding, and optional bias; target=conv2d_resnet_3x3");
-        } else {
-            add(entries, backend, Operation.OpType.CONV2D_GEMM, GpuLoweringOperationFamily.CONV_POOL,
-                    GpuLoweringCoverageStatus.UNSUPPORTED,
-                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
-                    backendLabel + " lowered conv2d GEMM path is CPU-owned until im2col/GEMM/output-layout semantics are represented in the accelerator DAG; target=conv2d_resnet_3x3");
-        }
-        if (backend == ComputeBackend.GPU_METAL) {
-            add(entries, backend, Operation.OpType.CONV2D_BACKWARD_INPUT, GpuLoweringOperationFamily.CONV_POOL,
-                    GpuLoweringCoverageStatus.SUPPORTED,
-                    GpuLoweringUnsupportedReason.SUPPORTED,
-                    "Metal CONV2D_BACKWARD_INPUT lowers to MPSGraph convolution2DDataGradient for dense FLOAT32/BFLOAT16 rank-4 NCHW/OIHW tensors; scoped to groups=1 and dilation=1");
-            add(entries, backend, Operation.OpType.CONV2D_BACKWARD_WEIGHT, GpuLoweringOperationFamily.CONV_POOL,
-                    GpuLoweringCoverageStatus.SUPPORTED,
-                    GpuLoweringUnsupportedReason.SUPPORTED,
-                    "Metal CONV2D_BACKWARD_WEIGHT lowers to MPSGraph convolution2DWeightsGradient for dense FLOAT32/BFLOAT16 rank-4 NCHW/OIHW tensors; scoped to groups=1 and dilation=1");
-            add(entries, backend, Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM, GpuLoweringOperationFamily.CONV_POOL,
-                    GpuLoweringCoverageStatus.SUPPORTED,
-                    GpuLoweringUnsupportedReason.SUPPORTED,
-                    "Metal CONV2D_BACKWARD_INPUT_GEMM preserves original conv descriptor and routes to the same MPSGraph convolution2DDataGradient primitive");
-            add(entries, backend, Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM, GpuLoweringOperationFamily.CONV_POOL,
-                    GpuLoweringCoverageStatus.SUPPORTED,
-                    GpuLoweringUnsupportedReason.SUPPORTED,
-                    "Metal CONV2D_BACKWARD_WEIGHT_GEMM preserves original conv descriptor and routes to the same MPSGraph convolution2DWeightsGradient primitive");
-        } else {
-            add(entries, backend, Operation.OpType.CONV2D_BACKWARD_INPUT, GpuLoweringOperationFamily.CONV_POOL,
-                    GpuLoweringCoverageStatus.UNSUPPORTED,
-                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
-                    backendLabel + " conv2d backward-input native/lowered path is not implemented; gradient shape, padding, dilation, and groups require parity evidence");
-            add(entries, backend, Operation.OpType.CONV2D_BACKWARD_WEIGHT, GpuLoweringOperationFamily.CONV_POOL,
-                    GpuLoweringCoverageStatus.UNSUPPORTED,
-                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
-                    backendLabel + " conv2d backward-weight native/lowered path is not implemented; accumulation and grouped weight layout require parity evidence");
-            add(entries, backend, Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM, GpuLoweringOperationFamily.CONV_POOL,
-                    GpuLoweringCoverageStatus.UNSUPPORTED,
-                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
-                    backendLabel + " lowered conv2d backward-input GEMM path is CPU-owned until accelerator DAG primitives cover the full layout contract");
-            add(entries, backend, Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM, GpuLoweringOperationFamily.CONV_POOL,
-                    GpuLoweringCoverageStatus.UNSUPPORTED,
-                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
-                    backendLabel + " lowered conv2d backward-weight GEMM path is CPU-owned until accelerator DAG primitives cover accumulation and layout semantics");
-        }
-        if (backend == ComputeBackend.GPU_METAL) {
             add(entries, backend, Operation.OpType.MAX_POOL2D, GpuLoweringOperationFamily.CONV_POOL,
                     GpuLoweringCoverageStatus.SUPPORTED,
                     GpuLoweringUnsupportedReason.SUPPORTED,
@@ -523,17 +501,6 @@ public final class GpuLoweringCoverageMatrix {
                     backendLabel + " max-pool native/lowered path is not implemented; kernel/stride/padding and tie behavior must match CPU; target=max_pool2d_small");
         }
         if (backend == ComputeBackend.GPU_METAL) {
-            add(entries, backend, Operation.OpType.MAX_POOL2D_BACKWARD_INPUT, GpuLoweringOperationFamily.CONV_POOL,
-                    GpuLoweringCoverageStatus.SUPPORTED,
-                    GpuLoweringUnsupportedReason.SUPPORTED,
-                    "Metal MAX_POOL2D_BACKWARD_INPUT lowers to MPSGraph maxPooling2DGradient with the original source tensor for dense FLOAT32/BFLOAT16 rank-4 NCHW tensors; scoped to first-max tie parity");
-        } else {
-            add(entries, backend, Operation.OpType.MAX_POOL2D_BACKWARD_INPUT, GpuLoweringOperationFamily.CONV_POOL,
-                    GpuLoweringCoverageStatus.UNSUPPORTED,
-                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
-                    backendLabel + " max-pool backward-input path is not implemented; first-max tie routing must match CPU");
-        }
-        if (backend == ComputeBackend.GPU_METAL) {
             add(entries, backend, Operation.OpType.AVG_POOL2D, GpuLoweringOperationFamily.CONV_POOL,
                     GpuLoweringCoverageStatus.SUPPORTED,
                     GpuLoweringUnsupportedReason.SUPPORTED,
@@ -543,17 +510,6 @@ public final class GpuLoweringCoverageMatrix {
                     GpuLoweringCoverageStatus.UNSUPPORTED,
                     GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
                     backendLabel + " avg-pool native/lowered path is not implemented; countIncludePad divisor semantics must match CPU; target=avg_pool2d_small");
-        }
-        if (backend == ComputeBackend.GPU_METAL) {
-            add(entries, backend, Operation.OpType.AVG_POOL2D_BACKWARD_INPUT, GpuLoweringOperationFamily.CONV_POOL,
-                    GpuLoweringCoverageStatus.SUPPORTED,
-                    GpuLoweringUnsupportedReason.SUPPORTED,
-                    "Metal AVG_POOL2D_BACKWARD_INPUT lowers to MPSGraph avgPooling2DGradient for dense FLOAT32/BFLOAT16 rank-4 NCHW tensors; scoped to countIncludePad=false");
-        } else {
-            add(entries, backend, Operation.OpType.AVG_POOL2D_BACKWARD_INPUT, GpuLoweringOperationFamily.CONV_POOL,
-                    GpuLoweringCoverageStatus.UNSUPPORTED,
-                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
-                    backendLabel + " avg-pool backward-input path is not implemented; divisor and padding semantics must match CPU");
         }
     }
 
@@ -680,9 +636,7 @@ public final class GpuLoweringCoverageMatrix {
             case LAYER_NORM, RMS_NORM -> GpuLoweringOperationFamily.NORMALIZATION;
             case NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD -> GpuLoweringOperationFamily.LOSS_ADJACENT;
             case SCALED_DOT_PRODUCT_ATTENTION, SCALED_DOT_PRODUCT_ATTENTION_BACKWARD, SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS -> GpuLoweringOperationFamily.ATTENTION;
-            case CONV2D, CONV2D_GEMM, CONV2D_BACKWARD_INPUT, CONV2D_BACKWARD_WEIGHT, CONV2D_BACKWARD_INPUT_GEMM,
-                    CONV2D_BACKWARD_WEIGHT_GEMM, MAX_POOL2D, MAX_POOL2D_BACKWARD_INPUT, AVG_POOL2D,
-                    AVG_POOL2D_BACKWARD_INPUT -> GpuLoweringOperationFamily.CONV_POOL;
+            case CONV2D, MAX_POOL2D, AVG_POOL2D -> GpuLoweringOperationFamily.CONV_POOL;
             case GATHER, GATHER_GRAD, GATHER_AXIS, GATHER_AXIS_GRAD, GATHER_ND, GATHER_ND_GRAD,
                  TAKE_ALONG_AXIS, TAKE_ALONG_AXIS_GRAD, SCATTER_ADD, SCATTER_AXIS_ADD,
                  SCATTER_ELEMENTS, SCATTER_ND -> GpuLoweringOperationFamily.INDEX_SCATTER_GATHER;

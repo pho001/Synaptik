@@ -263,7 +263,6 @@ class NativeOpenBlasMatMulExecutableTest {
                 base.reductionHints(),
                 nativeHints(step),
                 executable,
-                base.conv2dHints(),
                 base.attentionPlan()
         );
         ExecutionContext executionContext = ExecutionContext.fromRuntimeConfig(

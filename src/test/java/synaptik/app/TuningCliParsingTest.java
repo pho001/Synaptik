@@ -101,12 +101,12 @@ class TuningCliParsingTest {
     @Test
     void calibrateParsesSingleFamilyCommand() {
         CalibrationCommand command = CalibrationCommand.parse(new String[]{
-                "calibrate", "--dtype", "f64", "--family", "conv2d-gemm-dispatch"
+                "calibrate", "--dtype", "f64", "--family", "matmul"
         });
 
         assertEquals(CalibrationScope.SINGLE_FAMILY, command.scope());
         assertEquals(DataType.FLOAT64, command.dataTypes().getFirst());
-        assertEquals(CalibrationFamilyId.CONV2D_GEMM_DISPATCH, command.family());
+        assertEquals(CalibrationFamilyId.MATMUL, command.family());
         assertEquals(ExecutionMode.FORWARD_BACKWARD, command.mode());
     }
 

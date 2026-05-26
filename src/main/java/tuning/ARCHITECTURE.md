@@ -201,7 +201,6 @@ The calibration registry currently exposes these production family ids:
 
 - `MATMUL`
 - `ATTENTION_MATMUL`
-- `CONV2D_GEMM_DISPATCH`
 - `FUSED_DISPATCH`
 - `FUSED_ASM_WIDTH`
 - `ELEMENTWISE_DISPATCH`

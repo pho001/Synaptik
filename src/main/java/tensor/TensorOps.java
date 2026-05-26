@@ -32,6 +32,7 @@ import tensor.ops.layout.ConcatOp;
 import tensor.ops.layout.ContiguousOp;
 import tensor.ops.layout.ExpandDimsOp;
 import tensor.ops.layout.ExpandOp;
+import tensor.ops.layout.Fold2dOp;
 import tensor.ops.layout.PadOp;
 import tensor.ops.layout.PermuteOp;
 import tensor.ops.layout.ReshapeOp;
@@ -40,6 +41,8 @@ import tensor.ops.layout.SqueezeOp;
 import tensor.ops.layout.StackOp;
 import tensor.ops.layout.TileOp;
 import tensor.ops.layout.UnstackOp;
+import tensor.ops.layout.UnfoldAxisOp;
+import tensor.ops.layout.Unfold2dOp;
 import tensor.ops.linalg.LinearOp;
 import tensor.ops.linalg.MatMulOp;
 import tensor.ops.linalg.ScaledDotProductAttentionOp;
@@ -88,6 +91,7 @@ import tensor.loss.LossReduction;
 import tensor.options.AttentionOptions;
 import tensor.options.Conv2dOptions;
 import tensor.options.Pool2dOptions;
+import tensor.options.Window2dOptions;
 
 import java.util.List;
 
@@ -190,6 +194,18 @@ public final class TensorOps {
 
     public static Tensor tile(Tensor input, int[] repeats) {
         return TileOp.build(input, repeats);
+    }
+
+    public static Tensor unfold(Tensor input, int axis, int size, int step) {
+        return UnfoldAxisOp.build(input, axis, size, step);
+    }
+
+    public static Tensor unfold2d(Tensor input, Window2dOptions options) {
+        return Unfold2dOp.build(input, options);
+    }
+
+    public static Tensor fold2d(Tensor input, int[] outputShape, Window2dOptions options) {
+        return Fold2dOp.build(input, outputShape, options);
     }
 
     public static Tensor cast(Tensor input, DataType targetType) {

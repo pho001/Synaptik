@@ -147,7 +147,6 @@ Examples of planned metadata:
 - chunk sizes
 - reduction accuracy mode
 - matmul tiles and microkernel
-- conv2d GEMM BLAS-vs-Java decision
 - attention direct thresholds and delegated matmul hints
 
 The planner layer is therefore the natural home for runtime-profile threshold interpretation.
@@ -254,23 +253,14 @@ Synaptik does not try to maintain a separate runtime-managed global BLAS thread 
 
 ## Conv2d Execution
 
-The conv2d family currently has two conceptual execution shapes:
-
-- direct conv kernels
-- lowered GEMM kernels
-
-Graph rewrite can lower:
-
-- `conv2d` -> `conv2dGemm`
-- `conv2dBackwardInput` -> `conv2dBackwardInputGemm`
-- `conv2dBackwardWeight` -> `conv2dBackwardWeightGemm`
-
-Then CPU preparation resolves BLAS-vs-Java policy for the lowered GEMM nodes.
+Semantic `conv2d` can stay as a direct backend operation or lower to canonical
+Tensor primitives (`UNFOLD2D`, `MATMUL`, `RESHAPE`, and optional bias add).
 
 That split is important:
 
 - graph rewrite decides semantic lowering
-- backend preparation decides runtime execution path for the lowered primitive
+- backend preparation sees only the resulting primitive nodes
+- GEMM dispatch is owned by the normal `MATMUL` path
 
 ## Fused Backend
 
@@ -296,7 +286,6 @@ When execution is traced, the backend can publish rich step metadata such as:
 - dispatch mode and vector width
 - reduction chunking
 - matmul tiles and microkernel
-- conv2d GEMM path details
 - fused backend information
 
 That metadata is later consumed by benchmark/reporting code in the tuning layer.

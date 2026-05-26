@@ -17,7 +17,7 @@ final class PreparedInputPolicy {
             return false;
         }
         return switch (op.opType()) {
-            case CONTIGUOUS, RESHAPE, EXPAND, SELECT, SLICE, SLICE_SCATTER_ADD, CONCAT, PAD, TILE, PERMUTE, EXPAND_DIMS, SQUEEZE, CAST,
+            case CONTIGUOUS, RESHAPE, EXPAND, SELECT, SLICE, SLICE_SCATTER_ADD, CONCAT, PAD, TILE, UNFOLD_AXIS, PERMUTE, EXPAND_DIMS, SQUEEZE, CAST,
                     GATHER_AXIS, GATHER_ND,
                     SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_PROD, CUMSUM, ARGMAX,
                     SOFTMAX, LOG_SOFTMAX, SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS,
@@ -66,7 +66,7 @@ final class PreparedInputPolicy {
             }
             return switch (op.opType()) {
                 case FUSED -> false;
-                case RESHAPE, EXPAND, SELECT, SLICE, SLICE_SCATTER_ADD, CONCAT, PAD, TILE, PERMUTE, EXPAND_DIMS, SQUEEZE, CAST,
+                case RESHAPE, EXPAND, SELECT, SLICE, SLICE_SCATTER_ADD, CONCAT, PAD, TILE, UNFOLD_AXIS, PERMUTE, EXPAND_DIMS, SQUEEZE, CAST,
                         GATHER, GATHER_AXIS,
                         GATHER_ND, TAKE_ALONG_AXIS, SCATTER_ADD, SCATTER_AXIS_ADD, SCATTER_ELEMENTS, SCATTER_ND,
                         SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_PROD, CUMSUM, ARGMAX, REDUCE_ALL, REDUCE_ANY,
@@ -87,16 +87,14 @@ final class PreparedInputPolicy {
 
         return switch (op.opType()) {
             case FUSED -> false;
-            case CONTIGUOUS, RESHAPE, EXPAND, SELECT, SLICE, SLICE_SCATTER_ADD, CONCAT, PAD, TILE, PERMUTE, EXPAND_DIMS, SQUEEZE, CAST,
+            case CONTIGUOUS, RESHAPE, EXPAND, SELECT, SLICE, SLICE_SCATTER_ADD, CONCAT, PAD, TILE, UNFOLD_AXIS, PERMUTE, EXPAND_DIMS, SQUEEZE, CAST,
                     GATHER_AXIS, GATHER_ND,
                     SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_PROD, CUMSUM, ARGMAX, REDUCE_ALL, REDUCE_ANY,
                     SOFTMAX, LOG_SOFTMAX, SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS,
                     NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES,
                     NOOP -> false;
             case LAYER_NORM, RMS_NORM, SCALED_DOT_PRODUCT_ATTENTION -> true;
-            case MATMUL, LINEAR, CONV2D, CONV2D_GEMM, CONV2D_BACKWARD_INPUT, CONV2D_BACKWARD_WEIGHT,
-                    CONV2D_BACKWARD_INPUT_GEMM, CONV2D_BACKWARD_WEIGHT_GEMM,
-                    MAX_POOL2D, MAX_POOL2D_BACKWARD_INPUT, AVG_POOL2D, AVG_POOL2D_BACKWARD_INPUT -> true;
+            case MATMUL, LINEAR, CONV2D, MAX_POOL2D, AVG_POOL2D -> true;
             case GT, GE, LT, LE, EQ, NE, WHERE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT -> !input.contiguous();
             default -> op.opType().category() == Operation.OpArityClass.ELEMENT_WISE
                     && planner.shouldMaterializeNonContiguous(Math.toIntExact(node.logicalElementCount()));

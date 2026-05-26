@@ -120,6 +120,61 @@ class AcceleratorSubgraphLowererTest {
     }
 
     @Test
+    void windowLayoutPrimitivesLowerToDedicatedDagNodesWithGeometryAttributes() {
+        Tensor axisInput = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "axisLowerInput", DataType.FLOAT32);
+        Tensor axisOut = axisInput.unfold(0, 2, 1);
+        PartitionPlanningContext axisContext = planningContext(axisOut);
+        CompiledNode axisNode = axisContext.compiledNode(nodeId(axisContext, Operation.OpType.UNFOLD_AXIS));
+        AcceleratorSubgraphLoweringResult axisResult = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                spec(axisNode),
+                axisContext
+        );
+
+        assertNotNull(axisResult);
+        assertEquals(AcceleratorDagNodeType.UNFOLD_AXIS, axisResult.dagSpec().nodes().getFirst().type());
+        assertEquals(0, axisResult.dagSpec().nodes().getFirst().attribute0());
+        assertEquals(2, axisResult.dagSpec().nodes().getFirst().attribute1());
+        assertEquals(1, axisResult.dagSpec().nodes().getFirst().attribute2());
+
+        Tensor image = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f,
+                7f, 8f, 9f
+        }, new int[]{1, 1, 3, 3}, null, "unfold2dLowerInput", DataType.FLOAT32);
+        tensor.options.Window2dOptions options = tensor.options.Window2dOptions.of(2, 2);
+        Tensor columns = image.unfold2d(options);
+        PartitionPlanningContext unfoldContext = planningContext(columns);
+        CompiledNode unfoldNode = unfoldContext.compiledNode(nodeId(unfoldContext, Operation.OpType.UNFOLD2D));
+        AcceleratorSubgraphLoweringResult unfoldResult = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                spec(unfoldNode),
+                unfoldContext
+        );
+
+        assertNotNull(unfoldResult);
+        assertEquals(AcceleratorDagNodeType.UNFOLD2D, unfoldResult.dagSpec().nodes().getFirst().type());
+        assertEquals(2, unfoldResult.dagSpec().nodes().getFirst().attribute0());
+        assertEquals(2, unfoldResult.dagSpec().nodes().getFirst().attribute1());
+        assertEquals(1, unfoldResult.dagSpec().nodes().getFirst().attribute2());
+        assertEquals(1, unfoldResult.dagSpec().nodes().getFirst().attribute3());
+
+        Tensor folded = columns.fold2d(new int[]{1, 1, 3, 3}, options);
+        PartitionPlanningContext foldContext = planningContext(folded);
+        CompiledNode foldNode = foldContext.compiledNode(nodeId(foldContext, Operation.OpType.FOLD2D));
+        AcceleratorSubgraphLoweringResult foldResult = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                spec(foldNode),
+                foldContext
+        );
+
+        assertNotNull(foldResult);
+        assertEquals(AcceleratorDagNodeType.FOLD2D, foldResult.dagSpec().nodes().getFirst().type());
+        assertEquals(2, foldResult.dagSpec().nodes().getFirst().attribute0());
+        assertEquals(2, foldResult.dagSpec().nodes().getFirst().attribute1());
+    }
+
+    @Test
     void sliceGradLowersWithPadAttributes() {
         Tensor outGrad = new Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, null, "sliceGradLowerInput", DataType.FLOAT32);
         Tensor grad = TensorPrimitiveBuilder.unaryNoGrad(
@@ -358,6 +413,28 @@ class AcceleratorSubgraphLowererTest {
         assertEquals(selectedNodeIds, epilogue.originalOperationNodeIds());
         assertTrue(epilogue.loweredPrimitiveCount() >= 2);
         assertTrue(epilogue.detail().contains("epilogue"));
+    }
+
+    @Test
+    void batchedMatMulLowersToDagWithoutLegacyMatrixSpec() {
+        Tensor a = new Tensor(new float[12], new int[]{2, 2, 3}, null, "batchedMatMulDagA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[24], new int[]{2, 3, 4}, null, "batchedMatMulDagB", DataType.FLOAT32);
+        Tensor out = a.matmul(b);
+        PartitionPlanningContext context = planningContext(out);
+        CompiledNode matmulNode = context.compiledNode(nodeId(context, Operation.OpType.MATMUL));
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                spec(matmulNode),
+                context
+        );
+
+        assertNotNull(result);
+        assertNull(result.matMulSpec());
+        assertEquals(List.of(AcceleratorDagNodeType.MATMUL), result.dagSpec().nodes().stream()
+                .map(nodeSpec -> nodeSpec.type())
+                .toList());
+        assertEquals(List.of(matmulNode.id()), result.dagSpec().outputNodeIds());
     }
 
     @Test

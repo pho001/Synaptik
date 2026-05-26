@@ -18,7 +18,6 @@ public class CalibrationFamilyRegistryTest {
                         CalibrationFamilyId.SCHEDULER,
                         CalibrationFamilyId.MATMUL,
                         CalibrationFamilyId.ATTENTION_MATMUL,
-                        CalibrationFamilyId.CONV2D_GEMM_DISPATCH,
                         CalibrationFamilyId.ELEMENTWISE_DISPATCH,
                         CalibrationFamilyId.FUSED_DISPATCH,
                         CalibrationFamilyId.FUSED_ASM_WIDTH,

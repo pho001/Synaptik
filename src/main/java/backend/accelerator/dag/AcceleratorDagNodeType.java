@@ -69,10 +69,6 @@ public enum AcceleratorDagNodeType {
     SCATTER_ADD(63),
     GATHER_GRAD(64),
     TAKE_ALONG_AXIS_GRAD(65),
-    CONV2D_BACKWARD_INPUT(66),
-    CONV2D_BACKWARD_WEIGHT(67),
-    AVG_POOL2D_BACKWARD_INPUT(68),
-    MAX_POOL2D_BACKWARD_INPUT(69),
     CROSS_ENTROPY_LOSS_INDICES(70),
     CROSS_ENTROPY_LOSS_INDICES_GRAD(71),
     GATHER_AXIS(72),
@@ -92,7 +88,10 @@ public enum AcceleratorDagNodeType {
     SIGN(86),
     GATHER_ND(87),
     SCATTER_ELEMENTS(88),
-    SCATTER_ND(89);
+    SCATTER_ND(89),
+    UNFOLD_AXIS(90),
+    UNFOLD2D(91),
+    FOLD2D(92);
 
     private final int abiCode;
 

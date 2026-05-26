@@ -3,7 +3,6 @@ package tuning.calibration.family;
 public enum CalibrationFamilyId {
     MATMUL,
     ATTENTION_MATMUL,
-    CONV2D_GEMM_DISPATCH,
     FUSED_DISPATCH,
     FUSED_ASM_WIDTH,
     ELEMENTWISE_DISPATCH,

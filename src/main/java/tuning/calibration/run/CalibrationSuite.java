@@ -28,7 +28,6 @@ public final class CalibrationSuite {
                     PlatformCalibrationDefaults.matmulBlasWideDispatchStep(name + "-blas-wide", preset)
             );
             case ATTENTION_MATMUL -> List.of(PlatformCalibrationDefaults.attentionMatmulStep(name, preset));
-            case CONV2D_GEMM_DISPATCH -> List.of(PlatformCalibrationDefaults.conv2dGemmDispatchStep(name, preset, dataType));
             case ELEMENTWISE_DISPATCH -> List.of(PlatformCalibrationDefaults.elementwiseDispatchStep(name, preset));
             case FUSED_DISPATCH -> List.of(PlatformCalibrationDefaults.fusedDispatchStep(name, preset));
             case FUSED_ASM_WIDTH -> List.of(PlatformCalibrationDefaults.fusedAsmWidthStep(name, preset, dataType));

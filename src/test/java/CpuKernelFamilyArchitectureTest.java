@@ -33,8 +33,9 @@ public class CpuKernelFamilyArchitectureTest {
         assertPackage(Operation.OpType.SUM, "backend.cpu.kernels.reduction");
         assertPackage(Operation.OpType.MATMUL, "backend.cpu.kernels.linalg");
         assertPackage(Operation.OpType.CONV2D, "backend.cpu.kernels.nn");
-        assertPackage(Operation.OpType.CONV2D_BACKWARD_INPUT, "backend.cpu.kernels.nn");
-        assertPackage(Operation.OpType.MAX_POOL2D_BACKWARD_INPUT, "backend.cpu.kernels.nn");
+        assertPackage(Operation.OpType.UNFOLD_AXIS, "backend.cpu.kernels.layout");
+        assertPackage(Operation.OpType.UNFOLD2D, "backend.cpu.kernels.layout");
+        assertPackage(Operation.OpType.FOLD2D, "backend.cpu.kernels.layout");
         assertPackage(Operation.OpType.FUSED, "backend.cpu.kernels.fused");
     }
 
@@ -215,8 +216,9 @@ public class CpuKernelFamilyArchitectureTest {
         assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/grad/CpuMinGradKernel.java")));
         assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/reduction/grad/CpuReduceMinGradKernel.java")));
         assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/reduction/CpuCrossEntropyLossIndicesGradKernel.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/nn/CpuConv2dBackwardInputKernel.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/nn/CpuMaxPool2dBackwardInputKernel.java")));
+        assertFalse(hasConcreteConvBackwardKernel());
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/nn/CpuMaxPool2dBackwardInputKernel.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/nn/CpuAvgPool2dBackwardInputKernel.java")));
     }
 
     @Test
@@ -280,8 +282,6 @@ public class CpuKernelFamilyArchitectureTest {
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/linalg/attention/ScaledDotProductAttentionPlanner.java")));
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/linalg/attention/ResolvedAttentionHints.java")));
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/linalg/attention/ResolvedScaledDotProductAttentionPlan.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/nn/conv2d/Conv2dPlanner.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/nn/conv2d/ResolvedConv2dHints.java")));
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/fused/FusedDispatchPlanner.java")));
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/fused/PreparedFusedDispatch.java")));
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/strided/CpuStridedElementWise.java")));
@@ -656,6 +656,22 @@ public class CpuKernelFamilyArchitectureTest {
         assertTrue(Files.readString(newPath).contains("package backend.cpu.execution;"),
                 fileName + " must declare package backend.cpu.execution.");
         assertFalse(Files.exists(oldPath), fileName + " must not remain under backend.cpu.kernels.");
+    }
+
+    private static boolean hasConcreteConvBackwardKernel() {
+        Path nnRoot = Path.of("src/main/java/backend/cpu/kernels/nn");
+        if (!Files.isDirectory(nnRoot)) {
+            return false;
+        }
+        try (Stream<Path> paths = Files.list(nnRoot)) {
+            return paths
+                    .map(path -> path.getFileName().toString())
+                    .anyMatch(name -> name.startsWith("CpuConv2d")
+                            && name.contains("Backward")
+                            && name.endsWith("Kernel.java"));
+        } catch (IOException e) {
+            throw new AssertionError("Unable to inspect CPU NN kernel package", e);
+        }
     }
 
     private static boolean contains(Path path, String needle) {

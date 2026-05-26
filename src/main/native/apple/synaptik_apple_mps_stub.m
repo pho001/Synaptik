@@ -592,6 +592,206 @@ static MPSGraphTensor *SynaptikGatherReducedAlongAxis(
     return nil;
 }
 
+static MPSGraphTensor *SynaptikUnfoldAxisTensor(
+        MPSGraph *graph,
+        MPSGraphTensor *input,
+        int32_t axis,
+        int32_t size,
+        int32_t step,
+        NSString *name) {
+    if (graph == nil || input == nil || input.shape == nil || size <= 0 || step != 1) {
+        return nil;
+    }
+    NSUInteger rank = input.shape.count;
+    if (rank < 1 || rank > 3 || axis < 0 || axis >= (int32_t) rank) {
+        return nil;
+    }
+    NSInteger axisLength = [input.shape[(NSUInteger) axis] integerValue];
+    NSInteger windows = axisLength - size + 1;
+    if (windows <= 0) {
+        return nil;
+    }
+    NSMutableArray<MPSGraphTensor *> *parts = [NSMutableArray arrayWithCapacity:(NSUInteger) size];
+    for (int32_t offset = 0; offset < size; offset++) {
+        MPSGraphTensor *slice = [graph sliceTensor:input
+                                         dimension:(NSUInteger) axis
+                                             start:(NSInteger) offset
+                                            length:(NSUInteger) windows
+                                              name:[name stringByAppendingString:@"_slice"]];
+        if (slice == nil) {
+            return nil;
+        }
+        MPSGraphTensor *expanded = [graph expandDimsOfTensor:slice axis:(NSInteger) rank name:[name stringByAppendingString:@"_expand"]];
+        if (expanded == nil) {
+            return nil;
+        }
+        [parts addObject:expanded];
+    }
+    if (parts.count == 1) {
+        return parts[0];
+    }
+    return [graph concatTensors:parts dimension:rank name:name];
+}
+
+static MPSGraphTensor *SynaptikZeroPad2D(
+        MPSGraph *graph,
+        MPSGraphTensor *input,
+        int32_t padH,
+        int32_t padW,
+        NSString *name) {
+    if (graph == nil || input == nil || input.shape == nil || input.shape.count != 4 || padH < 0 || padW < 0) {
+        return nil;
+    }
+    if (padH == 0 && padW == 0) {
+        return input;
+    }
+    if (@available(macOS 12.3, iOS 15.4, tvOS 15.4, *)) {
+        return [graph padTensor:input
+                 withPaddingMode:MPSGraphPaddingModeConstant
+                     leftPadding:@[@0, @0, @(padH), @(padW)]
+                    rightPadding:@[@0, @0, @(padH), @(padW)]
+                   constantValue:0.0
+                            name:name];
+    }
+    return nil;
+}
+
+static MPSGraphTensor *SynaptikUnfold2DTensor(
+        MPSGraph *graph,
+        MPSGraphTensor *input,
+        NSMutableArray<NSNumber *> *outputShape,
+        int32_t kernelH,
+        int32_t kernelW,
+        int32_t strideH,
+        int32_t strideW,
+        int32_t padH,
+        int32_t padW,
+        int32_t dilationH,
+        int32_t dilationW,
+        NSString *name) {
+    if (graph == nil || input == nil || input.shape == nil || outputShape == nil || input.shape.count != 4
+            || outputShape.count != 3 || kernelH <= 0 || kernelW <= 0
+            || strideH != 1 || strideW != 1 || dilationH != 1 || dilationW != 1) {
+        return nil;
+    }
+    NSInteger batch = [input.shape[0] integerValue];
+    NSInteger channels = [input.shape[1] integerValue];
+    NSInteger height = [input.shape[2] integerValue];
+    NSInteger width = [input.shape[3] integerValue];
+    NSInteger outH = height + 2 * padH - kernelH + 1;
+    NSInteger outW = width + 2 * padW - kernelW + 1;
+    if (outH <= 0 || outW <= 0) {
+        return nil;
+    }
+    MPSGraphTensor *padded = SynaptikZeroPad2D(graph, input, padH, padW, [name stringByAppendingString:@"_pad"]);
+    if (padded == nil) {
+        return nil;
+    }
+    NSMutableArray<MPSGraphTensor *> *windowParts = [NSMutableArray arrayWithCapacity:(NSUInteger) (kernelH * kernelW)];
+    for (int32_t kh = 0; kh < kernelH; kh++) {
+        for (int32_t kw = 0; kw < kernelW; kw++) {
+            MPSGraphTensor *hSlice = [graph sliceTensor:padded dimension:2 start:kh length:(NSUInteger) outH name:[name stringByAppendingString:@"_h"]];
+            if (hSlice == nil) return nil;
+            MPSGraphTensor *patch = [graph sliceTensor:hSlice dimension:3 start:kw length:(NSUInteger) outW name:[name stringByAppendingString:@"_w"]];
+            if (patch == nil) return nil;
+            MPSGraphTensor *flat = [graph reshapeTensor:patch
+                                              withShape:@[@(batch), @(channels), @(outH * outW)]
+                                                   name:[name stringByAppendingString:@"_flat"]];
+            if (flat == nil) return nil;
+            MPSGraphTensor *expanded = [graph expandDimsOfTensor:flat axis:2 name:[name stringByAppendingString:@"_k"]];
+            if (expanded == nil) return nil;
+            [windowParts addObject:expanded];
+        }
+    }
+    MPSGraphTensor *stacked = windowParts.count == 1 ? windowParts[0] : [graph concatTensors:windowParts dimension:2 name:[name stringByAppendingString:@"_concat"]];
+    if (stacked == nil) {
+        return nil;
+    }
+    return [graph reshapeTensor:stacked withShape:outputShape name:name];
+}
+
+static MPSGraphTensor *SynaptikFold2DTensor(
+        MPSGraph *graph,
+        MPSGraphTensor *columns,
+        NSMutableArray<NSNumber *> *outputShape,
+        int32_t kernelH,
+        int32_t kernelW,
+        int32_t strideH,
+        int32_t strideW,
+        int32_t padH,
+        int32_t padW,
+        int32_t dilationH,
+        int32_t dilationW,
+        NSString *name) {
+    if (graph == nil || columns == nil || columns.shape == nil || outputShape == nil || columns.shape.count != 3
+            || outputShape.count != 4 || kernelH <= 0 || kernelW <= 0
+            || strideH != 1 || strideW != 1 || dilationH != 1 || dilationW != 1) {
+        return nil;
+    }
+    NSInteger batch = [outputShape[0] integerValue];
+    NSInteger channels = [outputShape[1] integerValue];
+    NSInteger height = [outputShape[2] integerValue];
+    NSInteger width = [outputShape[3] integerValue];
+    NSInteger outH = height + 2 * padH - kernelH + 1;
+    NSInteger outW = width + 2 * padW - kernelW + 1;
+    if (outH <= 0 || outW <= 0) {
+        return nil;
+    }
+    MPSGraphTensor *reshaped = [graph reshapeTensor:columns
+                                         withShape:@[@(batch), @(channels), @(kernelH * kernelW), @(outH * outW)]
+                                              name:[name stringByAppendingString:@"_reshape"]];
+    if (reshaped == nil) {
+        return nil;
+    }
+    MPSGraphTensor *acc = nil;
+    for (int32_t kh = 0; kh < kernelH; kh++) {
+        for (int32_t kw = 0; kw < kernelW; kw++) {
+            NSInteger targetY = kh - padH;
+            NSInteger targetX = kw - padW;
+            NSInteger cropY = targetY < 0 ? -targetY : 0;
+            NSInteger cropX = targetX < 0 ? -targetX : 0;
+            NSInteger beforeY = targetY > 0 ? targetY : 0;
+            NSInteger beforeX = targetX > 0 ? targetX : 0;
+            NSInteger validH = outH - cropY;
+            NSInteger validW = outW - cropX;
+            if (beforeY + validH > height) validH = height - beforeY;
+            if (beforeX + validW > width) validW = width - beforeX;
+            if (validH <= 0 || validW <= 0) {
+                continue;
+            }
+            int32_t kIndex = kh * kernelW + kw;
+            MPSGraphTensor *kSlice = [graph sliceTensor:reshaped dimension:2 start:kIndex length:1 name:[name stringByAppendingString:@"_kslice"]];
+            if (kSlice == nil) return nil;
+            MPSGraphTensor *squeezed = [graph squeezeTensor:kSlice axis:2 name:[name stringByAppendingString:@"_squeeze"]];
+            if (squeezed == nil) return nil;
+            MPSGraphTensor *patch = [graph reshapeTensor:squeezed
+                                               withShape:@[@(batch), @(channels), @(outH), @(outW)]
+                                                    name:[name stringByAppendingString:@"_patch"]];
+            if (patch == nil) return nil;
+            MPSGraphTensor *crop = [graph sliceTensor:patch dimension:2 start:cropY length:(NSUInteger) validH name:[name stringByAppendingString:@"_crop_h"]];
+            if (crop == nil) return nil;
+            crop = [graph sliceTensor:crop dimension:3 start:cropX length:(NSUInteger) validW name:[name stringByAppendingString:@"_crop_w"]];
+            if (crop == nil) return nil;
+            if (@available(macOS 12.3, iOS 15.4, tvOS 15.4, *)) {
+                NSInteger afterY = height - beforeY - validH;
+                NSInteger afterX = width - beforeX - validW;
+                MPSGraphTensor *padded = [graph padTensor:crop
+                                           withPaddingMode:MPSGraphPaddingModeConstant
+                                               leftPadding:@[@0, @0, @(beforeY), @(beforeX)]
+                                              rightPadding:@[@0, @0, @(afterY), @(afterX)]
+                                             constantValue:0.0
+                                                      name:[name stringByAppendingString:@"_pad"]];
+                if (padded == nil) return nil;
+                acc = acc == nil ? padded : [graph additionWithPrimaryTensor:acc secondaryTensor:padded name:[name stringByAppendingString:@"_add"]];
+                if (acc == nil) return nil;
+            } else {
+                return nil;
+            }
+        }
+    }
+    return acc == nil ? nil : acc;
+}
+
 static MPSGraphTensor *SynaptikTransposeLastTwoAxes(MPSGraph *graph, MPSGraphTensor *tensor, NSString *name) {
     if (graph == nil || tensor == nil || tensor.shape == nil) {
         return nil;
@@ -1141,6 +1341,63 @@ static void *SynaptikCompilePartition(
                         [multiples addObject:@(repeat)];
                     }
                     outTensor = [graph tileTensor:input0 withMultiplier:multiples name:@"tile"];
+                    break;
+                }
+                case 90: {
+                    int32_t axis = SynaptikNodeAttribute(node_int_attributes, i, 0);
+                    int32_t size = SynaptikNodeAttribute(node_int_attributes, i, 1);
+                    int32_t step = SynaptikNodeAttribute(node_int_attributes, i, 2);
+                    outTensor = SynaptikUnfoldAxisTensor(graph, input0, axis, size, step, @"unfold_axis");
+                    break;
+                }
+                case 91: {
+                    NSMutableArray<NSNumber *> *shape = SynaptikOutputShapeForNode(
+                            i,
+                            output_ranks,
+                            output_dim0,
+                            output_dim1,
+                            output_dim2,
+                            output_dim3
+                    );
+                    if (shape == nil) return NULL;
+                    outTensor = SynaptikUnfold2DTensor(
+                            graph,
+                            input0,
+                            shape,
+                            SynaptikNodeAttribute(node_int_attributes, i, 0),
+                            SynaptikNodeAttribute(node_int_attributes, i, 1),
+                            SynaptikNodeAttribute(node_int_attributes, i, 2),
+                            SynaptikNodeAttribute(node_int_attributes, i, 3),
+                            SynaptikNodeAttribute(node_int_attributes, i, 4),
+                            SynaptikNodeAttribute(node_int_attributes, i, 5),
+                            SynaptikNodeAttribute(node_int_attributes, i, 6),
+                            SynaptikNodeAttribute(node_int_attributes, i, 7),
+                            @"unfold2d");
+                    break;
+                }
+                case 92: {
+                    NSMutableArray<NSNumber *> *shape = SynaptikOutputShapeForNode(
+                            i,
+                            output_ranks,
+                            output_dim0,
+                            output_dim1,
+                            output_dim2,
+                            output_dim3
+                    );
+                    if (shape == nil) return NULL;
+                    outTensor = SynaptikFold2DTensor(
+                            graph,
+                            input0,
+                            shape,
+                            SynaptikNodeAttribute(node_int_attributes, i, 0),
+                            SynaptikNodeAttribute(node_int_attributes, i, 1),
+                            SynaptikNodeAttribute(node_int_attributes, i, 2),
+                            SynaptikNodeAttribute(node_int_attributes, i, 3),
+                            SynaptikNodeAttribute(node_int_attributes, i, 4),
+                            SynaptikNodeAttribute(node_int_attributes, i, 5),
+                            SynaptikNodeAttribute(node_int_attributes, i, 6),
+                            SynaptikNodeAttribute(node_int_attributes, i, 7),
+                            @"fold2d");
                     break;
                 }
                 case 40: {

@@ -3,7 +3,7 @@
 
 Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#cpu-backend) | [Configuration](configuration.md#blasconfig) | [Modules](modules.md#backend-backend-contracts-selection-lowering-and-runtime-context) | [Compute Flow](compute-flow.md#lowering) | [Metal Backend](metal-backend.md#java-ffm-bridge) | [Testing](testing.md#native-and-optional-backend-tests) | [Troubleshooting](troubleshooting.md#openblas-missing-or-unavailable)
 
-Chapters: [Why Native Bridges Exist](#why-native-bridges-exist) | [Term Map At A Glance](#term-map-at-a-glance) | [What BLAS Is](#what-blas-is) | [BLAS Naming And Levels](#blas-naming-and-levels) | [GEMM Mental Model](#gemm-mental-model) | [Matrix Storage Terms](#matrix-storage-terms) | [What Java FFM Is](#what-java-ffm-is) | [Java FFM Step-By-Step](#java-ffm-step-by-step) | [OpenBLAS In Synaptik](#openblas-in-synaptik) | [OpenBLAS Bridge Lifecycle](#openblas-bridge-lifecycle) | [Matmul Dispatch Flow](#matmul-dispatch-flow) | [Dispatch Terms](#dispatch-terms) | [Worked GEMM Example](#worked-gemm-example) | [BF16 And Batched BLAS](#bf16-and-batched-blas) | [Conv2d GEMM And BLAS](#conv2d-gemm-and-blas) | [Configuration And Library Lookup](#configuration-and-library-lookup) | [Trace And Debug Terms](#trace-and-debug-terms) | [Failure And Fallback Behavior](#failure-and-fallback-behavior) | [Performance Model](#performance-model) | [How This Differs From Metal FFM](#how-this-differs-from-metal-ffm) | [Common Misconceptions](#common-misconceptions) | [Source Map](#source-map)
+Chapters: [Why Native Bridges Exist](#why-native-bridges-exist) | [Term Map At A Glance](#term-map-at-a-glance) | [What BLAS Is](#what-blas-is) | [BLAS Naming And Levels](#blas-naming-and-levels) | [GEMM Mental Model](#gemm-mental-model) | [Matrix Storage Terms](#matrix-storage-terms) | [What Java FFM Is](#what-java-ffm-is) | [Java FFM Step-By-Step](#java-ffm-step-by-step) | [OpenBLAS In Synaptik](#openblas-in-synaptik) | [OpenBLAS Bridge Lifecycle](#openblas-bridge-lifecycle) | [Matmul Dispatch Flow](#matmul-dispatch-flow) | [Dispatch Terms](#dispatch-terms) | [Worked GEMM Example](#worked-gemm-example) | [BF16 And Batched BLAS](#bf16-and-batched-blas) | [Conv2d DAG And BLAS](#conv2d-dag-and-blas) | [Configuration And Library Lookup](#configuration-and-library-lookup) | [Trace And Debug Terms](#trace-and-debug-terms) | [Failure And Fallback Behavior](#failure-and-fallback-behavior) | [Performance Model](#performance-model) | [How This Differs From Metal FFM](#how-this-differs-from-metal-ffm) | [Common Misconceptions](#common-misconceptions) | [Source Map](#source-map)
 
 This document explains two related but distinct concepts used by Synaptik's runtime: BLAS as an optimized native math library for matrix multiplication, and Java FFM as the Java-to-native bridge used to call libraries such as OpenBLAS, Metal, and CUDA shims.
 
@@ -27,7 +27,7 @@ The checked-in [GPU Lowering Coverage Matrix](gpu-lowering-coverage.md) records 
 - [Dispatch Terms](#dispatch-terms)
 - [Worked GEMM Example](#worked-gemm-example)
 - [BF16 And Batched BLAS](#bf16-and-batched-blas)
-- [Conv2d GEMM And BLAS](#conv2d-gemm-and-blas)
+- [Conv2d DAG And BLAS](#conv2d-dag-and-blas)
 - [Configuration And Library Lookup](#configuration-and-library-lookup)
 - [Trace And Debug Terms](#trace-and-debug-terms)
 - [Failure And Fallback Behavior](#failure-and-fallback-behavior)
@@ -929,7 +929,7 @@ for each batch:
 
 This is still useful for attention-like batched shapes, but it is not the same ABI as a vendor-provided `gemm_strided_batched` routine.
 
-## Conv2d GEMM And BLAS
+## Conv2d DAG And BLAS
 
 Convolution can be lowered to matrix multiplication. The usual pattern is:
 
@@ -940,14 +940,9 @@ matmul              -> output matrix
 output matrix       -> convolution output tensor layout
 ```
 
-Synaptik's GEMM convolution path lives in [`Conv2dGemmBackend.java`](../src/main/java/backend/cpu/kernels/nn/Conv2dGemmBackend.java). It can use the same OpenBLAS bridge after the convolution has been transformed into GEMM-shaped buffers.
+Synaptik lowers eligible semantic convolution to `UNFOLD2D`, `MATMUL`, `RESHAPE`, and optional bias add. Once lowered, BLAS routing is the same `MATMUL` planner and execution path used by direct matrix multiplication.
 
-Important difference from ordinary matmul fallback:
-
-- matmul BLAS helpers usually return `false` when OpenBLAS is unavailable, and the Java matmul fallback can run;
-- a prepared conv2d GEMM plan that explicitly requires `OPENBLAS_FFM` checks bridge availability and throws if the required bridge is unavailable.
-
-The conv trace can expose whether BLAS or Java was used for GEMM-lowered convolution. See [Compute Flow: Traces](compute-flow.md#traces) for trace fields.
+See [Compute Flow: Traces](compute-flow.md#traces) for the `MATMUL` trace fields that report whether BLAS or Java executed the lowered matrix multiply.
 
 ## Configuration And Library Lookup
 
@@ -1050,19 +1045,7 @@ Trace says openblasBgemmAvailable=false
 
 ### Conv trace fields
 
-Conv2d GEMM execution publishes a conv trace side channel. Useful terms:
-
-| Term | Meaning |
-|---|---|
-| `executionKind` | Whether conv ran direct or through GEMM/im2col-style lowering. |
-| `blasProvider` | Provider configured for the conv GEMM path, such as `NONE` or `OPENBLAS_FFM`. |
-| `blasUsed` | Whether BLAS calls were actually used. |
-| `blasCalls` | Number of native BLAS GEMM calls made by the conv path. |
-| `javaCalls` | Number of Java GEMM fallback calls made by the conv path. |
-| GEMM dimensions | Matrix dimensions produced by conv lowering, not the original image tensor shape. |
-
-This distinction matters because one high-level conv operation can execute many GEMM calls: for batches, groups,
-forward, backward-input, or backward-weight loops.
+Direct conv execution can publish conv-specific trace metadata. Conv lowered to primitives reports BLAS usage through the resulting `MATMUL` step metadata.
 
 ### Debug logging
 
@@ -1086,7 +1069,6 @@ Expected fallback behavior:
 - If the provider is `OPENBLAS_FFM` but work/shape/contiguity gates fail, the planner chooses Java execution.
 - If a matmul BLAS call throws or the bridge is unavailable at execution time, `MatMulBlasBackend` returns `false` and the Java matmul fallback runs.
 - If `BlasRuntime.debug()` is true, unavailable/failed BLAS calls emit diagnostic messages.
-- If a prepared conv2d GEMM plan requires OpenBLAS and the bridge is not available, `Conv2dGemmBackend` throws.
 
 This distinction matters for debugging: "BLAS provider selected" does not mean "this node ran through BLAS." The trace and prepared metadata are the source of truth.
 
@@ -1245,8 +1227,7 @@ If the bundled or configured OpenBLAS has `sbgemm` but not `bgemm`, Synaptik can
 ### "A native bridge failure means the graph is invalid"
 
 Usually no. For ordinary matmul, bridge failure means Synaptik should use the Java fallback path. A hard failure is more
-likely when a prepared profile explicitly requires a native path that is unavailable, such as a conv2d GEMM plan that
-requires `OPENBLAS_FFM`.
+likely when a prepared profile explicitly requires a native path that is unavailable.
 
 ## Source Map
 
@@ -1261,7 +1242,6 @@ requires `OPENBLAS_FFM`.
 | Runtime BLAS config record | [`BlasConfig.java`](../src/main/java/config/runtime/BlasConfig.java) |
 | Matmul BLAS planner gates | [`MatMulPlanner.java`](../src/main/java/backend/cpu/kernels/linalg/matmul/plan/MatMulPlanner.java) |
 | Matmul BLAS execution wrapper | [`MatMulBlasBackend.java`](../src/main/java/backend/cpu/kernels/linalg/matmul/blas/MatMulBlasBackend.java) |
-| Conv2d GEMM BLAS path | [`Conv2dGemmBackend.java`](../src/main/java/backend/cpu/kernels/nn/Conv2dGemmBackend.java) |
 | Matmul execution trace metadata | [`MatMulTraceMetadata.java`](../src/main/java/graph/execution/trace/MatMulTraceMetadata.java) |
 | Conv execution trace metadata | [`ConvTraceMetadata.java`](../src/main/java/graph/execution/trace/ConvTraceMetadata.java) |
 | Metal FFM bridge | [`MetalMpsFfmBridge.java`](../src/main/java/backend/metal/bridge/MetalMpsFfmBridge.java) |

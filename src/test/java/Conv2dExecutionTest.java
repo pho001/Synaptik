@@ -59,7 +59,7 @@ public class Conv2dExecutionTest {
     }
 
     @Test
-    void conv2dBackwardInputAndWeightMatchExpectedForSumLoss() {
+    void conv2dGradientInputAndWeightMatchExpectedForSumLoss() {
         Tensor input = new Tensor(new double[]{
                 1, 2, 3,
                 4, 5, 6,

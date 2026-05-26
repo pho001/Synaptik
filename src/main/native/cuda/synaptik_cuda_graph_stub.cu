@@ -292,6 +292,161 @@ __global__ void reduction_kernel(
     output[idx] = opType == 37 ? acc / static_cast<float>(reduceCount) : acc;
 }
 
+__device__ int positive_mod(int value, int divisor) {
+    int remainder = value % divisor;
+    return remainder < 0 ? remainder + divisor : remainder;
+}
+
+__global__ void unfold_axis_f32_kernel(
+        const float* input,
+        float* output,
+        int outputCount,
+        int axis,
+        int size,
+        int step,
+        int inputRank,
+        int inputDim0,
+        int inputDim1,
+        int inputDim2,
+        int inputDim3,
+        int outputRank,
+        int outputDim0,
+        int outputDim1,
+        int outputDim2,
+        int outputDim3
+) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= outputCount) {
+        return;
+    }
+    int inputDims[4] = {inputDim0, inputDim1, inputDim2, inputDim3};
+    int outputDims[4] = {outputDim0, outputDim1, outputDim2, outputDim3};
+    int outputCoords[4] = {0, 0, 0, 0};
+    int remaining = idx;
+    for (int dim = outputRank - 1; dim >= 0; dim--) {
+        outputCoords[dim] = remaining % outputDims[dim];
+        remaining /= outputDims[dim];
+    }
+    int windowOffset = outputCoords[inputRank];
+    if (windowOffset >= size) {
+        output[idx] = 0.0f;
+        return;
+    }
+    int inputCoords[4] = {0, 0, 0, 0};
+    for (int dim = 0; dim < inputRank; dim++) {
+        inputCoords[dim] = dim == axis ? outputCoords[dim] * step + windowOffset : outputCoords[dim];
+        if (inputCoords[dim] < 0 || inputCoords[dim] >= inputDims[dim]) {
+            output[idx] = 0.0f;
+            return;
+        }
+    }
+    int inputIndex = flat_index4(inputCoords, inputRank, inputDim1, inputDim2, inputDim3);
+    output[idx] = input[inputIndex];
+}
+
+__global__ void unfold2d_f32_kernel(
+        const float* input,
+        float* output,
+        int outputCount,
+        int kernelH,
+        int kernelW,
+        int strideH,
+        int strideW,
+        int padH,
+        int padW,
+        int batch,
+        int channels,
+        int height,
+        int width,
+        int outH,
+        int outW
+) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= outputCount) {
+        return;
+    }
+    int windowCount = outH * outW;
+    int kernelArea = kernelH * kernelW;
+    int l = idx % windowCount;
+    int columnChannel = (idx / windowCount) % (channels * kernelArea);
+    int n = idx / (windowCount * channels * kernelArea);
+    if (n >= batch) {
+        return;
+    }
+    int c = columnChannel / kernelArea;
+    int k = columnChannel % kernelArea;
+    int kh = k / kernelW;
+    int kw = k % kernelW;
+    int oy = l / outW;
+    int ox = l % outW;
+    int iy = oy * strideH - padH + kh;
+    int ix = ox * strideW - padW + kw;
+    if (iy < 0 || iy >= height || ix < 0 || ix >= width) {
+        output[idx] = 0.0f;
+        return;
+    }
+    int inputIndex = ((n * channels + c) * height + iy) * width + ix;
+    output[idx] = input[inputIndex];
+}
+
+__global__ void fold2d_f32_kernel(
+        const float* input,
+        float* output,
+        int outputCount,
+        int kernelH,
+        int kernelW,
+        int strideH,
+        int strideW,
+        int padH,
+        int padW,
+        int batch,
+        int channels,
+        int height,
+        int width,
+        int outH,
+        int outW
+) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= outputCount) {
+        return;
+    }
+    int x = idx % width;
+    int y = (idx / width) % height;
+    int c = (idx / (width * height)) % channels;
+    int n = idx / (width * height * channels);
+    if (n >= batch) {
+        return;
+    }
+    int windowCount = outH * outW;
+    int kernelArea = kernelH * kernelW;
+    float acc = 0.0f;
+    for (int kh = 0; kh < kernelH; kh++) {
+        int yNumerator = y + padH - kh;
+        if (yNumerator < 0 || yNumerator % strideH != 0) {
+            continue;
+        }
+        int oy = yNumerator / strideH;
+        if (oy < 0 || oy >= outH) {
+            continue;
+        }
+        for (int kw = 0; kw < kernelW; kw++) {
+            int xNumerator = x + padW - kw;
+            if (xNumerator < 0 || xNumerator % strideW != 0) {
+                continue;
+            }
+            int ox = xNumerator / strideW;
+            if (ox < 0 || ox >= outW) {
+                continue;
+            }
+            int k = kh * kernelW + kw;
+            int columnChannel = c * kernelArea + k;
+            int inputIndex = (n * (channels * kernelArea) + columnChannel) * windowCount + oy * outW + ox;
+            acc += input[inputIndex];
+        }
+    }
+    output[idx] = acc;
+}
+
 bool validate_buffer(SynaptikCudaBuffer* buffer, int byteLength) {
     return buffer != nullptr && buffer->data != nullptr && buffer->byteLength >= byteLength;
 }
@@ -413,6 +568,29 @@ bool is_binary_op(int opType) {
 
 bool is_unary_op(int opType) {
     return opType == 7 || opType == 14 || opType == 15 || opType == 40;
+}
+
+int decode_int_scalar(float scalarValue) {
+    int encoded = 0;
+    std::memcpy(&encoded, &scalarValue, sizeof(float));
+    return encoded;
+}
+
+void decode_unfold_axis_mode(float scalarValue, int& axis, int& size, int& step) {
+    int encoded = decode_int_scalar(scalarValue);
+    axis = encoded & 0xF;
+    size = (encoded >> 4) & 0xFFF;
+    step = (encoded >> 16) & 0xFFF;
+}
+
+void decode_window2d_mode(float scalarValue, int& kernelH, int& kernelW, int& strideH, int& strideW, int& padH, int& padW) {
+    int encoded = decode_int_scalar(scalarValue);
+    kernelH = encoded & 0xF;
+    kernelW = (encoded >> 4) & 0xF;
+    strideH = (encoded >> 8) & 0xF;
+    strideW = (encoded >> 12) & 0xF;
+    padH = (encoded >> 16) & 0xF;
+    padW = (encoded >> 20) & 0xF;
 }
 
 } // namespace
@@ -993,9 +1171,88 @@ extern "C" int synaptik_cuda_graph_execute_partition_f32_buffers(
                     node.outputDim3,
                     node.reductionKeepDims
             );
+        } else if (node.type == 90 && input0 != nullptr) {
+            int axis = 0;
+            int size = 0;
+            int step = 0;
+            decode_unfold_axis_mode(node.scalarValue, axis, size, step);
+            unfold_axis_f32_kernel<<<blocks, threads>>>(
+                    input0,
+                    static_cast<float*>(output->data),
+                    node.elementCount,
+                    axis,
+                    size,
+                    step,
+                    node.input0Rank,
+                    node.input0Dim0,
+                    node.input0Dim1,
+                    node.input0Dim2,
+                    node.input0Dim3,
+                    node.outputRank,
+                    node.outputDim0,
+                    node.outputDim1,
+                    node.outputDim2,
+                    node.outputDim3
+            );
+        } else if ((node.type == 91 || node.type == 92) && input0 != nullptr) {
+            int kernelH = 0;
+            int kernelW = 0;
+            int strideH = 0;
+            int strideW = 0;
+            int padH = 0;
+            int padW = 0;
+            decode_window2d_mode(node.scalarValue, kernelH, kernelW, strideH, strideW, padH, padW);
+            int batch = node.type == 91 ? node.input0Dim0 : node.outputDim0;
+            int channels = node.type == 91 ? node.input0Dim1 : node.outputDim1;
+            int height = node.type == 91 ? node.input0Dim2 : node.outputDim2;
+            int width = node.type == 91 ? node.input0Dim3 : node.outputDim3;
+            int outH = (height + 2 * padH - kernelH) / strideH + 1;
+            int outW = (width + 2 * padW - kernelW) / strideW + 1;
+            if (kernelH <= 0 || kernelW <= 0 || strideH <= 0 || strideW <= 0 || outH <= 0 || outW <= 0) {
+                cleanupTemporaryOutputs();
+                stable_reason("CUDA buffer execute received invalid window layout metadata.");
+                return 12;
+            }
+            if (node.type == 91) {
+                unfold2d_f32_kernel<<<blocks, threads>>>(
+                        input0,
+                        static_cast<float*>(output->data),
+                        node.elementCount,
+                        kernelH,
+                        kernelW,
+                        strideH,
+                        strideW,
+                        padH,
+                        padW,
+                        batch,
+                        channels,
+                        height,
+                        width,
+                        outH,
+                        outW
+                );
+            } else {
+                fold2d_f32_kernel<<<blocks, threads>>>(
+                        input0,
+                        static_cast<float*>(output->data),
+                        node.elementCount,
+                        kernelH,
+                        kernelW,
+                        strideH,
+                        strideW,
+                        padH,
+                        padW,
+                        batch,
+                        channels,
+                        height,
+                        width,
+                        outH,
+                        outW
+                );
+            }
         } else {
             cleanupTemporaryOutputs();
-            stable_reason("CUDA buffer execute supports unary, broadcast binary, ADD_SCALAR, and dense FLOAT32 forward reductions.");
+            stable_reason("CUDA buffer execute supports unary, broadcast binary, ADD_SCALAR, dense FLOAT32 reductions, and scoped window layout primitives.");
             return 12;
         }
         cudaError_t status = cudaGetLastError();

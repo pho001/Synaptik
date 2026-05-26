@@ -93,7 +93,6 @@ public final class CpuBackend {
                 descriptorIndex,
                 planner,
                 blasConfig,
-                conv2dConfig,
                 cpuStorageProfile,
                 publishFloatContinuation,
                 dispatchHintsOverride

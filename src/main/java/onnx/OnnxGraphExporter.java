@@ -15,6 +15,7 @@ import operations.index.takeAlongAxis;
 import operations.layout.concat;
 import operations.layout.expandDims;
 import operations.layout.expand;
+import operations.layout.fold2d;
 import operations.layout.pad;
 import operations.layout.permute;
 import operations.layout.reshape;
@@ -40,6 +41,7 @@ import tensor.DataType;
 import tensor.Tensor;
 import tensor.options.Conv2dOptions;
 import tensor.options.Pool2dOptions;
+import tensor.options.Window2dOptions;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -368,6 +370,7 @@ final class OnnxGraphExporter {
             case CONV2D -> exportConv(node, op, tensor);
             case MAX_POOL2D -> exportMaxPool(node, op);
             case AVG_POOL2D -> exportAveragePool(node, op);
+            case FOLD2D -> exportCol2Im(node, op, names, graphBuilder);
             case LAYER_NORM -> exportLayerNormalization(node, op, tensor);
             case PERMUTE -> exportPermute(node, op);
             case RESHAPE -> exportReshape(node, op, tensor, names, graphBuilder);
@@ -456,6 +459,39 @@ final class OnnxGraphExporter {
         if (options.ceilMode()) {
             node.addAttribute(intAttr("ceil_mode", 1));
         }
+    }
+
+    private static void exportCol2Im(
+            OnnxProto.NodeProto.Builder node,
+            Operation op,
+            OnnxNameRegistry names,
+            OnnxProto.GraphProto.Builder graphBuilder
+    ) {
+        fold2d fold = (fold2d) op;
+        int[] outputShape = fold.getOutputShape();
+        if (outputShape.length != 4) {
+            throw new OnnxUnsupportedException("FOLD2D export requires rank-4 NCHW output shape.");
+        }
+        Window2dOptions options = fold.getOptions();
+        if (options.ceilMode()) {
+            throw new OnnxUnsupportedException("FOLD2D export to ONNX Col2Im does not support ceilMode.");
+        }
+        String imageShapeName = names.auxiliary(node.getOutput(0) + "_image_shape");
+        String blockShapeName = names.auxiliary(node.getOutput(0) + "_block_shape");
+        graphBuilder.addInitializer(OnnxTensorProtoUtil.int64Initializer(
+                imageShapeName,
+                new long[]{outputShape[2], outputShape[3]}
+        ));
+        graphBuilder.addInitializer(OnnxTensorProtoUtil.int64Initializer(
+                blockShapeName,
+                new long[]{options.kernelH(), options.kernelW()}
+        ));
+        node.setOpType("Col2Im")
+                .addInput(imageShapeName)
+                .addInput(blockShapeName)
+                .addAttribute(intsAttr("strides", new int[]{options.strideH(), options.strideW()}))
+                .addAttribute(intsAttr("pads", new int[]{options.padH(), options.padW(), options.padH(), options.padW()}))
+                .addAttribute(intsAttr("dilations", new int[]{options.dilationH(), options.dilationW()}));
     }
 
     private static void exportLayerNormalization(OnnxProto.NodeProto.Builder node, Operation op, Tensor tensor) {

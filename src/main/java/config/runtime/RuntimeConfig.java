@@ -24,7 +24,7 @@ import java.util.Objects;
  * @param kernel CPU/CUDA/OpenCL kernel tuning configuration; must not be {@code null}
  * @param approximation numerical approximation policy; {@code null} uses defaults
  * @param blas BLAS dispatch policy; {@code null} disables BLAS
- * @param conv2d conv2d GEMM dispatch policy; {@code null} derives from BLAS config
+ * @param conv2d legacy conv2d dispatch policy; {@code null} derives from BLAS config
  * @param fused fused execution backend policy; {@code null} uses training defaults
  * @param accelerator accelerator backend policy; {@code null} uses training defaults
  * @param cpuStorageProfile runtime-level CPU storage policy; {@code null} uses {@link CpuStorageProfile#CPU_ARRAY}

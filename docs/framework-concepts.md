@@ -51,7 +51,7 @@ Examples:
 - `ADD`, `SUB`, `MUL`, `DIV`, `WHERE`, `RELU`, `SIGMOID` are elementwise and fusable.
 - `SUM`, `MEAN`, `REDUCE_MAX`, `SOFTMAX` are reductions or special reductions.
 - `RESHAPE`, `EXPAND`, `PERMUTE`, `SELECT` are layout/view-style operations.
-- `LINEAR`, `CONV2D_GEMM`, `CROSS_ENTROPY_LOSS_INDICES`, `SCALED_DOT_PRODUCT_ATTENTION` are higher-level special primitives produced directly or by lowering.
+- `LINEAR`, `CONV2D`, `CROSS_ENTROPY_LOSS_INDICES`, `SCALED_DOT_PRODUCT_ATTENTION` are higher-level special primitives produced directly or by lowering.
 - `FUSED` is a backend-owned fused descriptor created after graph optimization.
 
 This split is deliberate: public graph construction belongs to `tensor`, primitive meaning belongs to `operations`, graph rewrites belong to `graph`, and concrete execution belongs to `backend`.

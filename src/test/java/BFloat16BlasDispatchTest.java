@@ -127,7 +127,7 @@ public class BFloat16BlasDispatchTest {
     }
 
     @Test
-    void bfloat16Conv2dLoweringBuildsConv2dGemmStep() {
+    void bfloat16Conv2dLoweringBuildsWindowMatmulDagSteps() {
         Tensor input = new Tensor(random(2 * 64 * 32 * 32), new int[]{2, 64, 32, 32}, null, "input", DataType.BFLOAT16);
         Tensor weight = new Tensor(random(128 * 64 * 3 * 3), new int[]{128, 64, 3, 3}, null, "weight", DataType.BFLOAT16);
         Tensor out = input.conv2d(weight, tensor.options.Conv2dOptions.defaults().withPadding(1, 1)).sum();
@@ -137,12 +137,14 @@ public class BFloat16BlasDispatchTest {
         var trace = CompiledGraph.compile(out, optimizer)
                 .prepare(blasRuntime(1L)).executeTraced(ExecutionMode.FORWARD);
 
-        assertTrue(trace.steps().stream().anyMatch(step -> "CONV2D_GEMM".equals(step.opType())));
+        assertTrue(trace.steps().stream().anyMatch(step -> "UNFOLD2D".equals(step.opType())));
+        assertTrue(trace.steps().stream().anyMatch(step -> "MATMUL".equals(step.opType())));
+        assertTrue(trace.steps().stream().noneMatch(step -> "CONV2D".equals(step.opType())));
     }
 
     @Test
-    void bfloat16Conv2dTraceReportsBlasUsageWhenEnabled() {
-        Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
+    void bfloat16Conv2dDagMatmulTraceReportsBlasUsageWhenEnabled() {
+        Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16OutputGemmAvailable(), "OpenBLAS BGEMM is unavailable");
 
         Tensor input = new Tensor(random(2 * 64 * 32 * 32), new int[]{2, 64, 32, 32}, null, "input", DataType.BFLOAT16);
         Tensor weight = new Tensor(random(128 * 64 * 3 * 3), new int[]{128, 64, 3, 3}, null, "weight", DataType.BFLOAT16);
@@ -153,19 +155,18 @@ public class BFloat16BlasDispatchTest {
         var trace = CompiledGraph.compile(out, optimizer)
                 .prepare(blasRuntime(1L)).executeTraced(ExecutionMode.FORWARD);
 
-        ExecutionStepTrace conv = trace.steps().stream()
-                .filter(step -> "CONV2D_GEMM".equals(step.opType()))
+        ExecutionStepTrace matmul = trace.steps().stream()
+                .filter(step -> "MATMUL".equals(step.opType()))
                 .findFirst()
                 .orElse(null);
-        assertNotNull(conv);
-        assertNotNull(conv.metadata().conv());
-        assertTrue("GEMM".equals(conv.metadata().conv().executionKind()));
-        assertTrue(conv.metadata().conv().blasUsed());
-        assertTrue("OPENBLAS_FFM".equals(conv.metadata().conv().blasProvider()));
+        assertNotNull(matmul);
+        assertNotNull(matmul.metadata().matMul());
+        assertTrue(matmul.metadata().matMul().useBlas());
+        assertEquals("OPENBLAS_FFM", matmul.metadata().matMul().blasProvider());
     }
 
     @Test
-    void bfloat16Conv2dTraceReportsJavaFallbackWhenBlasDisabled() {
+    void bfloat16Conv2dDagMatmulTraceReportsJavaFallbackWhenBlasDisabled() {
         Tensor input = new Tensor(random(2 * 64 * 32 * 32), new int[]{2, 64, 32, 32}, null, "input", DataType.BFLOAT16);
         Tensor weight = new Tensor(random(128 * 64 * 3 * 3), new int[]{128, 64, 3, 3}, null, "weight", DataType.BFLOAT16);
         Tensor out = input.conv2d(weight, tensor.options.Conv2dOptions.defaults().withPadding(1, 1)).sum();
@@ -181,15 +182,14 @@ public class BFloat16BlasDispatchTest {
         var trace = CompiledGraph.compile(out, optimizer)
                 .prepare(runtime).executeTraced(ExecutionMode.FORWARD);
 
-        ExecutionStepTrace conv = trace.steps().stream()
-                .filter(step -> "CONV2D_GEMM".equals(step.opType()))
+        ExecutionStepTrace matmul = trace.steps().stream()
+                .filter(step -> "MATMUL".equals(step.opType()))
                 .findFirst()
                 .orElse(null);
-        assertNotNull(conv);
-        assertNotNull(conv.metadata().conv());
-        assertTrue("GEMM".equals(conv.metadata().conv().executionKind()));
-        assertTrue(!conv.metadata().conv().blasUsed());
-        assertTrue("NONE".equals(conv.metadata().conv().blasProvider()));
+        assertNotNull(matmul);
+        assertNotNull(matmul.metadata().matMul());
+        assertEquals("JAVA_DIRECT", matmul.metadata().matMul().route());
+        assertTrue(!matmul.metadata().matMul().useBlas());
     }
 
     @Test

@@ -1062,6 +1062,62 @@ Tensor row = x.select(0, 1);
 // row = [4, 5, 6]
 ```
 
+### `unfold`
+
+```java
+Tensor unfold(int axis, int size, int step)
+static Tensor TensorOps.unfold(Tensor input, int axis, int size, int step)
+```
+
+Materializes general 1-D sliding windows along one axis and appends the window dimension at the end. This semantic primitive is `UNFOLD_AXIS`. It has no padding, dilation, or image geometry and does not replace `UNFOLD2D`.
+
+Shape rule:
+
+```text
+[2, 5, 3], axis=1, size=3, step=1 -> [2, 3, 3, 3]
+windows = floor((shape[axis] - size) / step) + 1
+```
+
+The input dtype is preserved for floating, integer, and bool tensors. Floating inputs have backward support by explicit slice/pad/add accumulation so overlapping windows contribute to the same source element. Non-floating inputs execute forward without gradient construction.
+
+### `unfold2d`
+
+```java
+Tensor unfold2d(Window2dOptions options)
+static Tensor TensorOps.unfold2d(Tensor input, Window2dOptions options)
+```
+
+Materializes rank-4 NCHW sliding windows into canonical im2col columns. Synaptik exposes this semantic surface as `UNFOLD2D`; `im2col` is an implementation/documentation alias, not a separate `IM2COL` op type.
+
+Shape rule:
+
+```text
+[N, C, H, W] -> [N, C * kernelH * kernelW, outH * outW]
+```
+
+The input must be floating. `Window2dOptions` carries kernel, padding, stride, dilation, and `ceilMode`; padding reads as zero.
+
+Gradient: `dL/dinput = fold2d(g, inputShape, sameOptions)`.
+
+### `fold2d`
+
+```java
+Tensor fold2d(int[] outputShape, Window2dOptions options)
+static Tensor TensorOps.fold2d(Tensor input, int[] outputShape, Window2dOptions options)
+```
+
+Accumulates col2im-style columns into an explicit rank-4 NCHW output. Overlapping windows are summed; `FOLD2D` does not divide by the overlap count.
+
+Shape rule:
+
+```text
+[N, C * kernelH * kernelW, outH * outW] -> explicit outputShape [N, C, H, W]
+```
+
+The input must be floating. `Window2dOptions` must match the window geometry used to create the column layout; values whose window coordinates land in padding are dropped.
+
+Gradient: `dL/dinput = unfold2d(g, sameOptions)`.
+
 ## Binary Broadcasting And Scalar Arithmetic
 
 Implementation: concrete binary builders under `src/main/java/tensor/ops/binary/*Op.java`, `src/main/java/tensor/TensorBroadcastOps.java`, and `src/main/java/tensor/internal/TensorPiecewiseOps.java`.
@@ -2499,7 +2555,7 @@ Requires rank-4 NCHW input and rank-4 weight. Input shape is `[N, inChannels, H,
 
 `Conv2dOptions.defaults()` uses stride `1x1`, padding `0x0`, dilation `1x1`, and `groups=1`.
 
-Gradient: input and weight use dedicated `conv2dBackwardInput` and `conv2dBackwardWeight` primitives. Bias gradient sums `outGrad` over batch, height, and width: `outGrad.sum(0).sum(1).sum(1)`.
+Gradient: input and weight are represented as canonical Tensor DAGs over `UNFOLD2D`, `FOLD2D`, `MATMUL`, layout, and reduction primitives, not dedicated conv backward ops. Bias gradient sums `outGrad` over batch, height, and width: `outGrad.sum(0).sum(1).sum(1)`.
 
 ```java
 Tensor input = new Tensor(new double[]{
@@ -2539,7 +2595,7 @@ static Tensor TensorOps.maxPool2d(Tensor input, Pool2dOptions options)
 
 Requires rank-4 NCHW floating input. `Pool2dOptions.square(k)` creates a `kxk` pool with stride `kxk`, no padding, and `countIncludePad=false`.
 
-Gradient: upstream gradients route to the argmax position recorded for each output window. The CPU direct backend keeps the first maximum found in scan order when a window has ties.
+Gradient: represented as a canonical Tensor DAG over `UNFOLD2D`, masked `ARGMAX`, `SCATTER_ELEMENTS`, and `FOLD2D`. Ties route to the first maximum found in scan order.
 
 ```java
 Tensor x = new Tensor(new double[]{
@@ -2572,7 +2628,7 @@ static Tensor TensorOps.avgPool2d(Tensor input, Pool2dOptions options)
 
 Requires rank-4 NCHW floating input. Forward averages each pooling window. If `countIncludePad=false`, padded cells are excluded from the divisor; if `true`, the full kernel area is used.
 
-Gradient: each output gradient is distributed evenly over the contributing input cells, using the same divisor rule as the forward pass.
+Gradient: represented as a canonical Tensor DAG that expands/scales window updates and accumulates them with `FOLD2D`, using the same divisor rule as the forward pass.
 
 ```java
 Tensor x = new Tensor(new double[]{
@@ -2866,7 +2922,7 @@ Tensor loss = logits.crossEntropyLossFromIndices(target, 1);
 | Constructors/storage/dtype | constructors, `scalar`, `zeros`, `ones`, `randn`, `arange`, `onesLike`, `zerosLike`, `TensorDataFactory.*` | `src/main/java/tensor/Tensor.java`, `src/main/java/tensor/factory/TensorDataFactory.java`, `src/main/java/tensor/storage/TensorStorageSupport.java` | `src/test/java/TensorConstructorDataTypeTest.java`, `src/test/java/TensorStorageDataTypeTest.java`, `src/test/java/TensorDataFactoryTest.java`, `src/test/java/NdTensorSequencePrimitivesTest.java` |
 | Shape helpers | `rank`, `size`, `lastDim`, `shapeEquals`, `shapeCopy` | `src/main/java/tensor/Tensor.java` | `src/test/java/NdTensorSequencePrimitivesTest.java` |
 | Graph lifecycle | `compile`, `prepare`, `compute`, `topologicalSort`, `forwardOutput` | `src/main/java/tensor/internal/TensorExecutionSupport.java`, `src/main/java/graph/CompiledGraph.java`, `src/main/java/graph/execution/PreparedExecution.java` | `src/test/java/TensorComputeConvenienceApiTest.java`, `src/test/java/PreparedExecutionBuildTest.java`, `src/test/java/PreparedExecutionTrainingCapabilityTest.java` |
-| Layout/views | `contiguous`, `reshape`, `expand`, `permute`, `transpose`, `expandDims`, `squeeze`, `sliceAxis`, `stack`, `unstack`, `select` | `src/main/java/tensor/ops/layout/*Op.java`, `src/main/java/tensor/ops/index/SelectOp.java` | `src/test/java/TransformOpsTest.java`, `src/test/java/NonContiguousExecutionTest.java`, `src/test/java/SelectExecutionTest.java`, `src/test/java/NdTensorSequencePrimitivesTest.java` |
+| Layout/views | `contiguous`, `reshape`, `expand`, `permute`, `transpose`, `expandDims`, `squeeze`, `sliceAxis`, `stack`, `unstack`, `select`, `unfold`, `unfold2d`, `fold2d` | `src/main/java/tensor/ops/layout/*Op.java`, `src/main/java/tensor/ops/index/SelectOp.java` | `src/test/java/TransformOpsTest.java`, `src/test/java/NonContiguousExecutionTest.java`, `src/test/java/SelectExecutionTest.java`, `src/test/java/NdTensorSequencePrimitivesTest.java`, `src/test/java/UnfoldAxisExecutionTest.java`, `src/test/java/UnfoldFold2dExecutionTest.java` |
 | Binary broadcasting | `add`, `sub`, `mul`, `div`, `min`, `max`, `minimum`, `maximum`, `mul(double)` | `src/main/java/tensor/ops/binary/*Op.java`, `src/main/java/tensor/TensorBroadcastOps.java`, `src/main/java/tensor/internal/TensorPiecewiseOps.java` | `src/test/java/BroadcastBinaryOpsTest.java`, `src/test/java/AddBroadcastTest.java`, `src/test/java/BroadcastContractMatrixTest.java`, `src/test/java/CompareSelectExecutionTest.java` |
 | Comparisons/logic/select | `greaterThan`, `lessThan`, `greaterOrEqual`, `lessOrEqual`, `equalTo`, `notEqualTo`, `logicalAnd`, `logicalOr`, `logicalNot`, `where` | `src/main/java/tensor/ops/compare/*Op.java`, `src/main/java/tensor/ops/bool/*Op.java`, `src/main/java/tensor/ops/select/WhereOp.java` | `src/test/java/CompareSelectExecutionTest.java`, `src/test/java/BoolTensorInfrastructureTest.java`, `src/test/java/SelectExecutionTest.java` |
 | Indexing | `gather`, `gatherAxis`, `gatherNd`, `take`, `takeAlongAxis`, `scatterAdd`, `scatterElements`, `scatterNd` | `src/main/java/tensor/ops/index/*Op.java`, `src/main/java/operations/index/*.java` | `src/test/java/GatherExecutionTest.java`, `src/test/java/GatherAxisExecutionTest.java`, `src/test/java/GatherNdExecutionTest.java`, `src/test/java/ScatterAddExecutionTest.java`, `src/test/java/ScatterElementsExecutionTest.java`, `src/test/java/ScatterNdExecutionTest.java`, `src/test/java/TakeAlongAxisExecutionTest.java`, `src/test/java/NdTensorSequencePrimitivesTest.java` |

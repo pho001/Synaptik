@@ -315,7 +315,7 @@ Supported providers:
 
 `BlasConfig.disabled()` returns `NONE` with default thresholds.
 
-`OPENBLAS_FFM` means the CPU matmul/conv2d GEMM paths may call OpenBLAS through Java's Foreign Function and Memory API.
+`OPENBLAS_FFM` means eligible CPU matmul paths may call OpenBLAS through Java's Foreign Function and Memory API.
 It does not force every matrix multiplication through BLAS. The CPU matmul planner still checks dtype, estimated work,
 contiguity, and `FLOAT32`/`BFLOAT16` shape guards before setting BLAS metadata. For the full explanation of BLAS,
 GEMM, Java FFM, lookup order, fallback behavior, and why `threads` is currently normalized to `0`, see

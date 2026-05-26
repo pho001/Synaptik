@@ -2,7 +2,6 @@ package backend.cpu.kernels;
 
 import backend.cpu.kernels.elementwise.binary.*;
 import backend.cpu.kernels.elementwise.compare.*;
-import backend.cpu.kernels.elementwise.grad.*;
 import backend.cpu.kernels.fused.CpuFusedKernel;
 import backend.cpu.kernels.index.*;
 import backend.cpu.kernels.layout.*;
@@ -10,7 +9,6 @@ import backend.cpu.kernels.linalg.*;
 import backend.cpu.kernels.elementwise.logical.*;
 import backend.cpu.kernels.nn.*;
 import backend.cpu.kernels.reduction.*;
-import backend.cpu.kernels.reduction.grad.*;
 import backend.cpu.kernels.elementwise.unary.*;
 import backend.cpu.kernels.elementwise.where.*;
 import operations.Operation;
@@ -43,15 +41,8 @@ public final class CpuKernelRegistry {
     private static final CpuScaledDotProductAttentionWeightsKernel SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS = new CpuScaledDotProductAttentionWeightsKernel();
     private static final CpuLinearKernel LINEAR = new CpuLinearKernel();
     private static final CpuConv2dKernel CONV2D = new CpuConv2dKernel();
-    private static final CpuConv2dGemmKernel CONV2D_GEMM = new CpuConv2dGemmKernel();
-    private static final CpuConv2dBackwardInputKernel CONV2D_BACKWARD_INPUT = new CpuConv2dBackwardInputKernel();
-    private static final CpuConv2dBackwardWeightKernel CONV2D_BACKWARD_WEIGHT = new CpuConv2dBackwardWeightKernel();
-    private static final CpuConv2dBackwardInputGemmKernel CONV2D_BACKWARD_INPUT_GEMM = new CpuConv2dBackwardInputGemmKernel();
-    private static final CpuConv2dBackwardWeightGemmKernel CONV2D_BACKWARD_WEIGHT_GEMM = new CpuConv2dBackwardWeightGemmKernel();
     private static final CpuMaxPool2dKernel MAX_POOL2D = new CpuMaxPool2dKernel();
-    private static final CpuMaxPool2dBackwardInputKernel MAX_POOL2D_BACKWARD_INPUT = new CpuMaxPool2dBackwardInputKernel();
     private static final CpuAvgPool2dKernel AVG_POOL2D = new CpuAvgPool2dKernel();
-    private static final CpuAvgPool2dBackwardInputKernel AVG_POOL2D_BACKWARD_INPUT = new CpuAvgPool2dBackwardInputKernel();
     private static final CpuLayerNormKernel LAYER_NORM = new CpuLayerNormKernel();
     private static final CpuRmsNormKernel RMS_NORM = new CpuRmsNormKernel();
     private static final CpuReduceMinKernel REDUCE_MIN = new CpuReduceMinKernel();
@@ -98,6 +89,9 @@ public final class CpuKernelRegistry {
     private static final CpuConcatKernel CONCAT = new CpuConcatKernel();
     private static final CpuPadKernel PAD = new CpuPadKernel();
     private static final CpuTileKernel TILE = new CpuTileKernel();
+    private static final CpuUnfoldAxisKernel UNFOLD_AXIS = new CpuUnfoldAxisKernel();
+    private static final CpuUnfold2dKernel UNFOLD2D = new CpuUnfold2dKernel();
+    private static final CpuFold2dKernel FOLD2D = new CpuFold2dKernel();
     private static final CpuCastKernel CAST = new CpuCastKernel();
     private static final CpuPermuteKernel PERMUTE = new CpuPermuteKernel();
     private static final CpuNoopKernel NOOP = new CpuNoopKernel();
@@ -135,15 +129,8 @@ public final class CpuKernelRegistry {
             case SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS -> SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS;
             case LINEAR -> LINEAR;
             case CONV2D -> CONV2D;
-            case CONV2D_GEMM -> CONV2D_GEMM;
-            case CONV2D_BACKWARD_INPUT -> CONV2D_BACKWARD_INPUT;
-            case CONV2D_BACKWARD_WEIGHT -> CONV2D_BACKWARD_WEIGHT;
-            case CONV2D_BACKWARD_INPUT_GEMM -> CONV2D_BACKWARD_INPUT_GEMM;
-            case CONV2D_BACKWARD_WEIGHT_GEMM -> CONV2D_BACKWARD_WEIGHT_GEMM;
             case MAX_POOL2D -> MAX_POOL2D;
-            case MAX_POOL2D_BACKWARD_INPUT -> MAX_POOL2D_BACKWARD_INPUT;
             case AVG_POOL2D -> AVG_POOL2D;
-            case AVG_POOL2D_BACKWARD_INPUT -> AVG_POOL2D_BACKWARD_INPUT;
             case LAYER_NORM -> LAYER_NORM;
             case RMS_NORM -> RMS_NORM;
             case REDUCE_MIN -> REDUCE_MIN;
@@ -190,6 +177,9 @@ public final class CpuKernelRegistry {
             case CONCAT -> CONCAT;
             case PAD -> PAD;
             case TILE -> TILE;
+            case UNFOLD_AXIS -> UNFOLD_AXIS;
+            case UNFOLD2D -> UNFOLD2D;
+            case FOLD2D -> FOLD2D;
             case CAST -> CAST;
             case PERMUTE -> PERMUTE;
             case MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD,
