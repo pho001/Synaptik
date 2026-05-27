@@ -29,9 +29,6 @@ public final class BF16BlasMatMulExecutable extends AbstractBF16MatMulExecutable
             return false;
         }
         recordBlasSymbol("cblas_sbgemm");
-        if (workspace != null) {
-            workspace.publishFloatContinuation(node.getFlatDataSize());
-        }
         return true;
     }
 

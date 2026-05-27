@@ -562,6 +562,16 @@ public class CpuKernelFamilyArchitectureTest {
                     .toList();
             assertTrue(offenders.isEmpty(), () -> "Provider packages must not live under backend.cpu.kernels: " + offenders);
         }
+        try (Stream<Path> paths = Files.walk(Path.of("src/main/java/backend/cpu/kernels"))) {
+            List<Path> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> containsMatchingLine(path,
+                            line -> line.equals("import backend.cpu.provider.linalg.matmul.blas.MatMulBlasBackend;")))
+                    .toList();
+            assertTrue(offenders.isEmpty(),
+                    () -> "CPU kernels must use PreparedMatMulExecutable instead of importing provider BLAS helpers: " + offenders);
+        }
         try (Stream<Path> paths = Files.walk(Path.of("src/main/java/backend/cpu/kernels/linalg/matmul"))) {
             List<Path> offenders = paths
                     .filter(Files::isRegularFile)

@@ -9,7 +9,6 @@ import tensor.TensorInternalAccess;
 
 import backend.cpu.kernels.*;
 import backend.cpu.kernels.linalg.matmul.bf16.BF16MatMulJavaBackend;
-import backend.cpu.provider.linalg.matmul.blas.MatMulBlasBackend;
 import backend.cpu.kernels.linalg.matmul.common.PackedLinearWeightCache;
 import backend.cpu.provider.linalg.matmul.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.f32.F32MatMulJavaBackend;
@@ -92,29 +91,12 @@ final class LinearExecutor {
         if (context == null || context.cpuWorkspace() == null) {
             return false;
         }
-        ResolvedMatMulHints hints = requireHints(context);
-        if (!hints.useBlas() && !hints.useBatchedBlas()) {
+        if (!requireExecutable(context).executeToFloatWorkspace(input, weight, out, context, false)) {
             return false;
         }
 
-        int[] as = input.getShapeUnsafe();
-        int[] bs = weight.getShapeUnsafe();
-        int m = as[as.length - 2];
-        int k = as[as.length - 1];
-        int n = bs[bs.length - 1];
-        short[] ad = TensorInternalAccess.bfloat16Data(input);
-        short[] bd = TensorInternalAccess.bfloat16Data(weight);
-        short[] od = TensorInternalAccess.bfloat16Data(out);
         float[] tmp = context.cpuWorkspace().requireFloatWorkspace();
-
-        boolean executed = (as.length == 2 && bs.length == 2 && hints.useBlas()
-                && MatMulBlasBackend.tryBlasBF16ToFloat(ad, bd, tmp, m, n, k))
-                || (hints.useBatchedBlas()
-                && MatMulBlasBackend.tryBatchedBlasBF16ToFloat(ad, as, bd, bs, tmp, out.getShapeUnsafe(), m, n, k));
-        if (!executed) {
-            return false;
-        }
-
+        short[] od = TensorInternalAccess.bfloat16Data(out);
         addBiasAndMaterializeBF16(tmp, od, TensorInternalAccess.bfloat16Data(bias), biasFeatureCount(bias), od.length);
         return true;
     }
@@ -129,59 +111,15 @@ final class LinearExecutor {
         if (context == null || context.cpuWorkspace() == null) {
             return false;
         }
-        ResolvedMatMulHints hints = requireHints(context);
-        float[] tmp = context.cpuWorkspace().requireFloatWorkspace();
-        if (!tryMatMulToFloatBF16(input, weight, out, hints, context, tmp)) {
+        if (!requireExecutable(context).executeToFloatWorkspace(input, weight, out, context, true)) {
             return false;
         }
 
+        float[] tmp = context.cpuWorkspace().requireFloatWorkspace();
         if (bias != null) {
             addBiasInPlace(tmp, TensorInternalAccess.bfloat16Data(bias), biasFeatureCount(bias), out.getFlatDataSize());
         }
         context.cpuWorkspace().publishFloatContinuation(out.getFlatDataSize());
-        return true;
-    }
-
-    private static boolean tryMatMulToFloatBF16(
-            Tensor input,
-            Tensor weight,
-            Tensor out,
-            ResolvedMatMulHints hints,
-            CpuKernelContext context,
-            float[] tmp
-    ) {
-        int[] as = input.getShapeUnsafe();
-        int[] bs = weight.getShapeUnsafe();
-        int m = as[as.length - 2];
-        int k = as[as.length - 1];
-        int n = bs[bs.length - 1];
-        short[] ad = TensorInternalAccess.bfloat16Data(input);
-        short[] bd = TensorInternalAccess.bfloat16Data(weight);
-        float[] inputContinuation = context.inputFloatContinuation(0, input.getFlatDataSize());
-
-        if (!hints.useBlas() && !hints.useBatchedBlas()
-                && context.cpuWorkspace() != null
-                && context.cpuWorkspace().packedLinearWeightCache() != null) {
-            PackedLinearWeightCache.BF16PackedWeights packed = context.cpuWorkspace().packedLinearWeightCache().requireBF16(weight, hints);
-            if (packed != null) {
-                Arrays.fill(tmp, 0, out.getFlatDataSize(), 0.0f);
-                if (inputContinuation != null) {
-                    F32MatMulJavaBackend.runPacked(inputContinuation, as, packed, tmp, out.getShapeUnsafe(), hints);
-                } else {
-                    BF16MatMulJavaBackend.runPackedToFloat(ad, as, packed, tmp, out.getShapeUnsafe(), hints);
-                }
-                return true;
-            }
-        }
-
-        boolean executed = (as.length == 2 && bs.length == 2 && hints.useBlas()
-                && MatMulBlasBackend.tryBlasBF16ToFloat(ad, bd, tmp, m, n, k))
-                || (hints.useBatchedBlas()
-                && MatMulBlasBackend.tryBatchedBlasBF16ToFloat(ad, as, bd, bs, tmp, out.getShapeUnsafe(), m, n, k));
-        if (executed) {
-            return true;
-        }
-        BF16MatMulJavaBackend.runToFloat(ad, as, bd, bs, tmp, out.getShapeUnsafe(), hints);
         return true;
     }
 

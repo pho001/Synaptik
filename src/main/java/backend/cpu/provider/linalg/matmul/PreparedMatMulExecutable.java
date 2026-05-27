@@ -7,6 +7,10 @@ import tensor.Tensor;
 public interface PreparedMatMulExecutable {
     void execute(Tensor a, Tensor b, Tensor node, CpuKernelContext context);
 
+    default boolean executeToFloatWorkspace(Tensor a, Tensor b, Tensor node, CpuKernelContext context, boolean allowJavaFallback) {
+        return false;
+    }
+
     default boolean acceptsNativeInputs() {
         return false;
     }
