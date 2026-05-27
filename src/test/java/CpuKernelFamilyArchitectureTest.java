@@ -1,6 +1,8 @@
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuKernelCall;
 import backend.cpu.kernels.CpuKernelRegistry;
+import backend.cpu.kernels.CpuStorageAwareKernel;
+import backend.cpu.kernels.TypedCpuKernel;
 import backend.cpu.nativecpu.CpuNativeStorageSupport;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
@@ -55,6 +57,7 @@ public class CpuKernelFamilyArchitectureTest {
                 "CpuKernelCall.java",
                 "CpuKernelRegistry.java",
                 "CpuKernelResult.java",
+                "CpuStorageAwareKernel.java",
                 "TypedCpuKernel.java"
         );
 
@@ -202,7 +205,8 @@ public class CpuKernelFamilyArchitectureTest {
             List<String> offenders = files
                     .filter(Files::isRegularFile)
                     .map(path -> path.getFileName().toString())
-                    .filter(name -> name.startsWith("Cpu") && name.endsWith("Kernel.java") && !name.equals("CpuKernel.java"))
+                    .filter(name -> name.startsWith("Cpu") && name.endsWith("Kernel.java"))
+                    .filter(name -> !Set.of("CpuKernel.java", "CpuStorageAwareKernel.java").contains(name))
                     .sorted()
                     .toList();
             assertTrue(offenders.isEmpty(), () -> "Concrete Cpu*Kernel entrypoints must live in family packages: " + offenders);
@@ -326,17 +330,16 @@ public class CpuKernelFamilyArchitectureTest {
     void waveZeroCriticalOpOwnersHaveDocumentedEntrypoints() {
         List<String> requiredPaths = List.of(
                 "src/main/java/backend/cpu/kernels/elementwise/binary/CpuAddKernel.java",
-                "src/main/java/backend/cpu/kernels/elementwise/binary/ElementwiseBinaryExecutor.java",
-                "src/main/java/backend/cpu/kernels/elementwise/ElementwiseLoops.java",
                 "src/main/java/backend/cpu/kernels/elementwise/ElementwiseRangeLoop.java",
                 "src/main/java/backend/cpu/kernels/elementwise/where/CpuWhereKernel.java",
-                "src/main/java/backend/cpu/kernels/elementwise/where/WhereExecutor.java",
                 "src/main/java/backend/cpu/kernels/reduction/CpuSumKernel.java",
-                "src/main/java/backend/cpu/kernels/reduction/SumLikeReductionExecutor.java",
+                "src/main/java/backend/cpu/kernels/reduction/StorageAwareSumLikeReductionKernel.java",
                 "src/main/java/backend/cpu/kernels/reduction/SumLoops.java",
                 "src/main/java/backend/cpu/kernels/layout/CpuCastKernel.java",
                 "src/main/java/backend/cpu/kernels/layout/CpuContiguousKernel.java",
-                "src/main/java/backend/cpu/kernels/layout/LayoutExecutor.java",
+                "src/main/java/backend/cpu/kernels/layout/CpuAliasLayoutKernel.java",
+                "src/main/java/backend/cpu/kernels/layout/CpuLayoutNativeViewSupport.java",
+                "src/main/java/backend/cpu/kernels/layout/CpuLayoutOutputStorageDeferredKernel.java",
                 "src/main/java/backend/cpu/kernels/linalg/CpuMatMulKernel.java",
                 "src/main/java/backend/cpu/prepare/linalg/matmul/MatMulPlanner.java",
                 "src/main/java/backend/cpu/provider/linalg/matmul/MatMulProviderExecutableFactory.java",
@@ -344,13 +347,11 @@ public class CpuKernelFamilyArchitectureTest {
                 "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32BlasMatMulExecutable.java",
                 "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32NativeBlasMatMulExecutable.java",
                 "src/main/java/backend/cpu/kernels/elementwise/ElementwiseNativeSupport.java",
-                "src/main/java/backend/cpu/kernels/elementwise/binary/ElementwiseBinaryExecutor.java",
-                "src/main/java/backend/cpu/kernels/elementwise/unary/ElementwiseUnaryExecutor.java",
-                "src/main/java/backend/cpu/kernels/elementwise/where/WhereStorageLoops.java",
-                "src/main/java/backend/cpu/kernels/elementwise/compare/CompareStorageLoops.java",
-                "src/main/java/backend/cpu/kernels/elementwise/logical/LogicalBoolStorageLoops.java",
-                "src/main/java/backend/cpu/kernels/reduction/ReductionStorageLoops.java",
-                "src/main/java/backend/cpu/kernels/layout/LayoutExecutor.java"
+                "src/main/java/backend/cpu/kernels/elementwise/unary/StorageAwareScalarUnaryElementwiseKernel.java",
+                "src/main/java/backend/cpu/kernels/elementwise/compare/StorageAwareCompareElementwiseKernel.java",
+                "src/main/java/backend/cpu/kernels/elementwise/logical/StorageAwareLogicalBinaryElementwiseKernel.java",
+                "src/main/java/backend/cpu/kernels/elementwise/logical/StorageAwareLogicalUnaryElementwiseKernel.java",
+                "src/main/java/backend/cpu/kernels/reduction/StorageAwareReductionKernel.java"
         );
 
         List<String> missing = requiredPaths.stream()
@@ -363,13 +364,17 @@ public class CpuKernelFamilyArchitectureTest {
     @Test
     void waveZeroNativeCpuImportsFromKernelPackageRemainExplicitlyAllowlisted() throws IOException {
         Map<String, Set<String>> expected = Map.ofEntries(
-                Map.entry("elementwise/binary/ElementwiseBinaryExecutor.java", Set.of("CpuNativeTraceSupport")),
-                Map.entry("elementwise/compare/CompareStorageLoops.java", Set.of("CpuNativeTraceSupport")),
-                Map.entry("elementwise/logical/LogicalBoolStorageLoops.java", Set.of("CpuNativeTraceSupport")),
-                Map.entry("elementwise/unary/ElementwiseUnaryExecutor.java", Set.of("CpuNativeTraceSupport")),
-                Map.entry("elementwise/where/WhereStorageLoops.java", Set.of("CpuNativeTraceSupport")),
-                Map.entry("layout/LayoutExecutor.java", Set.of("CpuNativeTraceSupport")),
-                Map.entry("reduction/ReductionStorageLoops.java", Set.of(
+                Map.entry("elementwise/binary/StorageAwareBinaryElementwiseKernel.java", Set.of("CpuNativeTraceSupport")),
+                Map.entry("elementwise/compare/StorageAwareCompareElementwiseKernel.java", Set.of("CpuNativeTraceSupport")),
+                Map.entry("elementwise/logical/StorageAwareLogicalBinaryElementwiseKernel.java", Set.of("CpuNativeTraceSupport")),
+                Map.entry("elementwise/logical/StorageAwareLogicalUnaryElementwiseKernel.java", Set.of("CpuNativeTraceSupport")),
+                Map.entry("elementwise/unary/StorageAwareScalarUnaryElementwiseKernel.java", Set.of("CpuNativeTraceSupport")),
+                Map.entry("elementwise/unary/StorageAwareUnaryElementwiseKernel.java", Set.of("CpuNativeTraceSupport")),
+                Map.entry("elementwise/where/CpuWhereKernel.java", Set.of("CpuNativeTraceSupport")),
+                Map.entry("layout/CpuCastKernel.java", Set.of("CpuNativeTraceSupport")),
+                Map.entry("layout/CpuContiguousKernel.java", Set.of("CpuNativeTraceSupport")),
+                Map.entry("layout/CpuLayoutNativeViewSupport.java", Set.of("CpuNativeTraceSupport")),
+                Map.entry("reduction/StorageAwareReductionKernel.java", Set.of(
                         "CpuNativeTraceSupport",
                         "layout.NativeCpuStorageFamily",
                         "layout.NativeSegmentStridedKernels",
@@ -380,6 +385,38 @@ public class CpuKernelFamilyArchitectureTest {
 
         assertEquals(expected, nativeCpuImportsUnder(Path.of("src/main/java/backend/cpu/kernels")),
                 "Native CPU dependencies from kernels must remain explicit and restricted to storage ownership helpers.");
+    }
+
+    @Test
+    void waveFourLayoutRuntimeOwnershipLivesInLayoutKernels() throws IOException {
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/layout/LayoutExecutor.java")),
+                "Wave 4 layout runtime ownership must not remain in the shared LayoutExecutor.");
+
+        String cast = Files.readString(Path.of("src/main/java/backend/cpu/kernels/layout/CpuCastKernel.java"));
+        assertFalse(cast.contains("extends TypedCpuKernel"),
+                "CpuCastKernel must own the CpuKernelCall execute boundary directly.");
+        assertTrue(cast.contains("implements CpuStorageAwareKernel"),
+                "CpuCastKernel must own storage-aware CAST materialization.");
+
+        String contiguous = Files.readString(Path.of("src/main/java/backend/cpu/kernels/layout/CpuContiguousKernel.java"));
+        assertFalse(contiguous.contains("extends TypedCpuKernel"),
+                "CpuContiguousKernel must own the CpuKernelCall execute boundary directly.");
+        assertTrue(contiguous.contains("implements CpuStorageAwareKernel"),
+                "CpuContiguousKernel must own storage-aware CONTIGUOUS materialization.");
+
+        for (String aliasKernel : List.of(
+                "CpuAliasViewKernel.java",
+                "CpuExpandKernel.java",
+                "CpuNoopKernel.java",
+                "CpuPermuteKernel.java"
+        )) {
+            String source = Files.readString(Path.of("src/main/java/backend/cpu/kernels/layout/" + aliasKernel));
+            assertTrue(source.contains("extends CpuAliasLayoutKernel"),
+                    aliasKernel + " must use the deferred-output alias layout boundary.");
+        }
+        String reshape = Files.readString(Path.of("src/main/java/backend/cpu/kernels/layout/CpuReshapeLikeKernel.java"));
+        assertTrue(reshape.contains("implements CpuLayoutOutputStorageDeferredKernel"),
+                "CpuReshapeLikeKernel must defer output storage binding until it chooses alias vs materialization.");
     }
 
     @Test
@@ -447,15 +484,140 @@ public class CpuKernelFamilyArchitectureTest {
     void waveThreeElementwiseRuntimeOwnershipLivesInFamilyExecutors() throws IOException {
         assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/nativecpu/NativeCpuElementwiseExecutor.java")),
                 "Elementwise CPU_NATIVE runtime ownership belongs to family executors, not a standalone native executor.");
-        assertTrue(Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/ElementwiseBinaryExecutor.java"))
-                        .contains("runDenseSegment"),
-                "Binary elementwise runtime ownership must live in ElementwiseBinaryExecutor.");
-        assertTrue(Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary/ElementwiseUnaryExecutor.java"))
-                        .contains("runDenseSegment"),
-                "Unary elementwise runtime ownership must live in ElementwiseUnaryExecutor.");
-        assertTrue(Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/where/WhereExecutor.java"))
-                        .contains("WhereStorageLoops.execute"),
-                "WHERE runtime ownership must live in WhereStorageLoops.");
+        for (String opKernel : List.of(
+                "CpuAddKernel",
+                "CpuSubKernel",
+                "CpuMulKernel",
+                "CpuDivKernel",
+                "CpuMinKernel",
+                "CpuMaxKernel",
+                "CpuPowTensorKernel"
+        )) {
+            String source = Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary/" + opKernel + ".java"));
+            assertFalse(source.contains("ElementwiseLoops"),
+                    opKernel + " must not route through the legacy ElementwiseLoops path.");
+            assertFalse(source.contains("extends TypedCpuKernel"),
+                    opKernel + " must own the CpuKernelCall execute boundary directly.");
+            assertFalse(source.contains("implements " + "Binary" + "ElementwiseKernel"),
+                    opKernel + " must not remain on the legacy binary elementwise interface.");
+        }
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary", "Binary" + "ElementwiseKernel.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/binary", "Elementwise" + "Binary" + "Executor.java")));
+        for (String opKernel : List.of(
+                "CpuNegKernel",
+                "CpuAbsKernel",
+                "CpuReluKernel",
+                "CpuInvKernel",
+                "CpuSqrtKernel",
+                "CpuSignKernel",
+                "CpuFloorKernel",
+                "CpuCeilKernel",
+                "CpuLogKernel",
+                "CpuExpKernel",
+                "CpuTanhKernel",
+                "CpuSigmoidKernel",
+                "CpuErfKernel",
+                "CpuFastExpKernel",
+                "CpuFastTanhKernel"
+        )) {
+            String source = Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary/" + opKernel + ".java"));
+            assertFalse(source.contains("ElementwiseLoops"),
+                    opKernel + " must not route through the legacy ElementwiseLoops path.");
+            assertFalse(source.contains("extends TypedCpuKernel"),
+                    opKernel + " must own the CpuKernelCall execute boundary directly.");
+            assertTrue(source.contains("extends StorageAwareUnaryElementwiseKernel"),
+                    opKernel + " must use the storage-aware unary family boundary.");
+            assertFalse(source.contains("implements UnaryElementwiseKernel"),
+                    opKernel + " must not remain on the legacy unary elementwise interface.");
+        }
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary", "Unary" + "ElementwiseKernel.java")));
+        for (String opKernel : List.of(
+                "CpuMulScalarKernel",
+                "CpuPowKernel",
+                "CpuClampMinKernel",
+                "CpuClampMaxKernel"
+        )) {
+            String source = Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary/" + opKernel + ".java"));
+            assertFalse(source.contains("ElementwiseLoops"),
+                    opKernel + " must not route through the legacy ElementwiseLoops path.");
+            assertFalse(source.contains("extends TypedCpuKernel"),
+                    opKernel + " must own the CpuKernelCall execute boundary directly.");
+            assertTrue(source.contains("extends StorageAwareScalarUnaryElementwiseKernel"),
+                    opKernel + " must use the storage-aware scalar unary family boundary.");
+            assertFalse(source.contains("implements ScalarUnaryElementwiseKernel"),
+                    opKernel + " must not remain on the legacy scalar unary elementwise interface.");
+        }
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary", "Scalar" + "Unary" + "ElementwiseKernel.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary", "Elementwise" + "Unary" + "Executor.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary/StorageAwareScalarUnaryElementwiseKernel.java")),
+                "Migrated scalar unary kernels must use the storage-aware scalar unary family boundary.");
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary/StorageAwareUnaryElementwiseKernel.java")),
+                "Migrated unary kernels must use the storage-aware unary family boundary.");
+        for (String opKernel : List.of(
+                "CpuGreaterThanKernel",
+                "CpuGreaterOrEqualKernel",
+                "CpuLessThanKernel",
+                "CpuLessOrEqualKernel",
+                "CpuEqualToKernel",
+                "CpuNotEqualToKernel"
+        )) {
+            String source = Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/compare/" + opKernel + ".java"));
+            assertFalse(source.contains("ElementwiseLoops"),
+                    opKernel + " must not route through the legacy ElementwiseLoops path.");
+            assertFalse(source.contains("extends TypedCpuKernel"),
+                    opKernel + " must own the CpuKernelCall execute boundary directly.");
+            assertTrue(source.contains("extends StorageAwareCompareElementwiseKernel"),
+                    opKernel + " must use the storage-aware compare family boundary.");
+            assertFalse(source.contains("implements CompareElementwiseKernel"),
+                    opKernel + " must not remain on the legacy compare elementwise interface.");
+        }
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/compare", "CompareElementwiseKernel.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/compare", "CompareExecutor.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/compare", "CompareStorageLoops.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/compare/StorageAwareCompareElementwiseKernel.java")),
+                "Migrated compare kernels must use the storage-aware compare family boundary.");
+        for (String opKernel : List.of(
+                "CpuLogicalAndKernel",
+                "CpuLogicalOrKernel"
+        )) {
+            String source = Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/logical/" + opKernel + ".java"));
+            assertFalse(source.contains("ElementwiseLoops"),
+                    opKernel + " must not route through the legacy ElementwiseLoops path.");
+            assertFalse(source.contains("extends TypedCpuKernel"),
+                    opKernel + " must own the CpuKernelCall execute boundary directly.");
+            assertTrue(source.contains("extends StorageAwareLogicalBinaryElementwiseKernel"),
+                    opKernel + " must use the storage-aware logical binary family boundary.");
+            assertFalse(source.contains("implements LogicalBinaryElementwiseKernel"),
+                    opKernel + " must not remain on the legacy logical binary elementwise interface.");
+        }
+        String logicalNotSource = Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/logical/CpuLogicalNotKernel.java"));
+        assertFalse(logicalNotSource.contains("ElementwiseLoops"),
+                "CpuLogicalNotKernel must not route through the legacy ElementwiseLoops path.");
+        assertFalse(logicalNotSource.contains("extends TypedCpuKernel"),
+                "CpuLogicalNotKernel must own the CpuKernelCall execute boundary directly.");
+        assertTrue(logicalNotSource.contains("extends StorageAwareLogicalUnaryElementwiseKernel"),
+                "CpuLogicalNotKernel must use the storage-aware logical unary family boundary.");
+        assertFalse(logicalNotSource.contains("implements LogicalUnaryElementwiseKernel"),
+                "CpuLogicalNotKernel must not remain on the legacy logical unary elementwise interface.");
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/logical/LogicalExecutor.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/logical/LogicalBoolStorageLoops.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/logical/LogicalBinaryElementwiseKernel.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/logical/LogicalUnaryElementwiseKernel.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/logical/StorageAwareLogicalBinaryElementwiseKernel.java")),
+                "Migrated logical binary kernels must use the storage-aware logical binary family boundary.");
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/logical/StorageAwareLogicalUnaryElementwiseKernel.java")),
+                "Migrated logical unary kernels must use the storage-aware logical unary family boundary.");
+        String whereSource = Files.readString(Path.of("src/main/java/backend/cpu/kernels/elementwise/where/CpuWhereKernel.java"));
+        assertFalse(whereSource.contains("ElementwiseLoops"),
+                "CpuWhereKernel must not route through the legacy ElementwiseLoops path.");
+        assertFalse(whereSource.contains("extends TypedCpuKernel"),
+                "CpuWhereKernel must own the CpuKernelCall execute boundary directly.");
+        assertTrue(whereSource.contains("implements CpuStorageAwareKernel"),
+                "CpuWhereKernel must use the storage-aware WHERE boundary.");
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/where/WhereExecutor.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/where/WhereStorageLoops.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/where/WhereElementwiseKernel.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/ElementwiseLoops.java")));
         try (Stream<Path> paths = Files.walk(Path.of("src/main/java/backend/cpu/kernels/elementwise"))) {
             List<Path> offenders = paths
                     .filter(Files::isRegularFile)
@@ -464,6 +626,33 @@ public class CpuKernelFamilyArchitectureTest {
                     .toList();
             assertTrue(offenders.isEmpty(), () -> "Elementwise kernels must not reference NativeCpuElementwiseExecutor: " + offenders);
         }
+    }
+
+    @Test
+    void storageAwareSimpleReductionRuntimeOwnershipLivesInFamilyKernels() throws IOException {
+        Map<String, String> expectedBases = Map.of(
+                "CpuSumKernel", "StorageAwareSumLikeReductionKernel",
+                "CpuMeanKernel", "StorageAwareSumLikeReductionKernel",
+                "CpuReduceMinKernel", "StorageAwareMinMaxReductionKernel",
+                "CpuReduceMaxKernel", "StorageAwareMinMaxReductionKernel",
+                "CpuReduceAllKernel", "StorageAwareBoolReductionKernel",
+                "CpuReduceAnyKernel", "StorageAwareBoolReductionKernel"
+        );
+        for (Map.Entry<String, String> entry : expectedBases.entrySet()) {
+            String source = Files.readString(Path.of("src/main/java/backend/cpu/kernels/reduction/" + entry.getKey() + ".java"));
+            assertFalse(source.contains("extends TypedCpuKernel"),
+                    entry.getKey() + " must own the CpuKernelCall execute boundary through the storage-aware reduction base.");
+            assertTrue(source.contains("extends " + entry.getValue()),
+                    entry.getKey() + " must use the storage-aware reduction family boundary.");
+            assertFalse(source.contains("ReductionStorageLoops"),
+                    entry.getKey() + " must not route through the old reduction storage loop.");
+        }
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/reduction/StorageAwareReductionKernel.java")),
+                "Migrated simple reductions must use a storage-aware reduction boundary.");
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/reduction/ReductionStorageLoops.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/reduction/SumLikeReductionExecutor.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/reduction/MinMaxReduceExecutor.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/reduction/BoolReduceExecutor.java")));
     }
 
     @Test
@@ -577,6 +766,43 @@ public class CpuKernelFamilyArchitectureTest {
                 "AUTO may select measured provider-backed MemorySegment matmul routes.");
         assertTrue(CpuNativeStorageSupport.autoNativeRegionEligible(Operation.OpType.RESHAPE, DataType.FLOAT32),
                 "AUTO may preserve native storage through metadata-only view aliases.");
+    }
+
+    @Test
+    void indexReadKernelsOwnStorageAwareBoundaryWithoutNativeRegionPromotion() {
+        for (Operation.OpType opType : List.of(
+                Operation.OpType.GATHER,
+                Operation.OpType.GATHER_AXIS,
+                Operation.OpType.GATHER_ND,
+                Operation.OpType.TAKE_ALONG_AXIS
+        )) {
+            CpuKernel kernel = CpuKernelRegistry.resolve(opType);
+            assertTrue(kernel instanceof CpuStorageAwareKernel,
+                    opType + " must consume CpuKernelCall storage views directly.");
+            assertFalse(kernel instanceof TypedCpuKernel,
+                    opType + " must not route through the legacy TypedCpuKernel tensor-array executor.");
+            assertFalse(CpuNativeStorageSupport.nativeRegionSupported(opType, DataType.FLOAT32),
+                    opType + " must not be promoted to CPU_NATIVE region support in the index read slice.");
+        }
+    }
+
+    @Test
+    void indexWriteScatterKernelsOwnStorageAwareBoundaryWithoutNativeRegionPromotion() {
+        for (Operation.OpType opType : List.of(
+                Operation.OpType.SCATTER_ADD,
+                Operation.OpType.SCATTER_AXIS_ADD,
+                Operation.OpType.SCATTER_ELEMENTS,
+                Operation.OpType.SCATTER_ND,
+                Operation.OpType.SLICE_SCATTER_ADD
+        )) {
+            CpuKernel kernel = CpuKernelRegistry.resolve(opType);
+            assertTrue(kernel instanceof CpuStorageAwareKernel,
+                    opType + " must consume CpuKernelCall storage views directly.");
+            assertFalse(kernel instanceof TypedCpuKernel,
+                    opType + " must not route through the legacy TypedCpuKernel tensor-array executor.");
+            assertFalse(CpuNativeStorageSupport.nativeRegionSupported(opType, DataType.FLOAT32),
+                    opType + " must not be promoted to CPU_NATIVE region support in the index write scatter slice.");
+        }
     }
 
     private static void assertPackage(Operation.OpType opType, String expectedPackage) {

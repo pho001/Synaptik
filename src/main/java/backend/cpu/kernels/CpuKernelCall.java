@@ -29,7 +29,7 @@ public record CpuKernelCall(
         for (CpuStorageView input : inputs) {
             Objects.requireNonNull(input, "inputs cannot contain null views");
         }
-        Objects.requireNonNull(output, "output cannot be null");
+        // Deferred-output layout kernels establish the output storage identity during execution.
         Objects.requireNonNull(plan, "plan cannot be null");
         Objects.requireNonNull(context, "context cannot be null");
     }

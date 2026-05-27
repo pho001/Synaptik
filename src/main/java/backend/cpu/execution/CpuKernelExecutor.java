@@ -3,7 +3,9 @@ package backend.cpu.execution;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuKernelCall;
 import backend.cpu.kernels.CpuKernelResult;
+import backend.cpu.kernels.CpuStorageAwareKernel;
 import backend.cpu.kernels.elementwise.strided.CpuStridedElementWise;
+import backend.cpu.kernels.layout.CpuLayoutOutputStorageDeferredKernel;
 import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.storage.CpuStorageBindings;
 import backend.cpu.storage.CpuStorageResolver;
@@ -62,9 +64,22 @@ public final class CpuKernelExecutor {
                 operation
         );
 
-        if (plan.stridedPath()) {
+        if (plan.stridedPath() && !(kernel instanceof CpuStorageAwareKernel)) {
             CpuStridedElementWise.forward(operation, inputs, output, context);
             return CpuKernelResult.route("CPU_ARRAY_STRIDED");
+        }
+
+        if (kernel instanceof CpuLayoutOutputStorageDeferredKernel) {
+            return kernel.execute(new CpuKernelCall(
+                    operation,
+                    inputs,
+                    output,
+                    List.of(),
+                    null,
+                    plan,
+                    context,
+                    workspace
+            ));
         }
 
         CpuStorageBindings storage = storageResolver.bindRuntime(

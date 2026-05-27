@@ -1,68 +1,39 @@
 package backend.cpu.kernels.index;
 
-import backend.cpu.execution.CpuKernelContext;
-
-import backend.cpu.kernels.*;
-
-import operations.Operation;
+import backend.cpu.kernels.CpuKernelCall;
+import backend.cpu.kernels.CpuKernelResult;
+import backend.cpu.kernels.CpuStorageAwareKernel;
 import operations.index.takeAlongAxis;
 import tensor.Tensor;
 
 import java.util.List;
 
-public final class CpuTakeAlongAxisKernel extends TypedCpuKernel {
+public final class CpuTakeAlongAxisKernel implements CpuStorageAwareKernel {
     @Override
-    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        if (!(op instanceof takeAlongAxis gatherOp)) {
+    public CpuKernelResult execute(CpuKernelCall call) {
+        if (!(call.operation() instanceof takeAlongAxis gatherOp)) {
             throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
         }
-        Tensor[] pair = requirePair(inputs);
-        TakeAlongAxisLoops.takeAlongAxisF64(pair[0], pair[1], node, gatherOp.getDimension());
-    }
-
-    @Override
-    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        if (!(op instanceof takeAlongAxis gatherOp)) {
-            throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
+        Tensor[] pair = requirePair(call.inputTensors());
+        if (call.inputs().size() != 2) {
+            throw new IllegalArgumentException("takeAlongAxis expects exactly two input storage views");
         }
-        Tensor[] pair = requirePair(inputs);
-        TakeAlongAxisLoops.takeAlongAxisF32(pair[0], pair[1], node, gatherOp.getDimension());
-    }
-
-    @Override
-    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        if (!(op instanceof takeAlongAxis gatherOp)) {
-            throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
+        Tensor node = call.outputTensor();
+        switch (node.getDataType()) {
+            case FLOAT64 -> TakeAlongAxisLoops.takeAlongAxisF64(pair[0], pair[1], node,
+                    call.inputs().get(0), call.inputs().get(1), call.output(), gatherOp.getDimension());
+            case FLOAT32 -> TakeAlongAxisLoops.takeAlongAxisF32(pair[0], pair[1], node,
+                    call.inputs().get(0), call.inputs().get(1), call.output(), gatherOp.getDimension());
+            case BFLOAT16 -> TakeAlongAxisLoops.takeAlongAxisBF16(pair[0], pair[1], node,
+                    call.inputs().get(0), call.inputs().get(1), call.output(), gatherOp.getDimension());
+            case BOOL -> TakeAlongAxisLoops.takeAlongAxisBOOL(pair[0], pair[1], node,
+                    call.inputs().get(0), call.inputs().get(1), call.output(), gatherOp.getDimension());
+            case INT32 -> TakeAlongAxisLoops.takeAlongAxisI32(pair[0], pair[1], node,
+                    call.inputs().get(0), call.inputs().get(1), call.output(), gatherOp.getDimension());
+            case INT64 -> TakeAlongAxisLoops.takeAlongAxisI64(pair[0], pair[1], node,
+                    call.inputs().get(0), call.inputs().get(1), call.output(), gatherOp.getDimension());
         }
-        Tensor[] pair = requirePair(inputs);
-        TakeAlongAxisLoops.takeAlongAxisBF16(pair[0], pair[1], node, gatherOp.getDimension());
-    }
-
-    @Override
-    protected void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        if (!(op instanceof takeAlongAxis gatherOp)) {
-            throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
-        }
-        Tensor[] pair = requirePair(inputs);
-        TakeAlongAxisLoops.takeAlongAxisBOOL(pair[0], pair[1], node, gatherOp.getDimension());
-    }
-
-    @Override
-    protected void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        if (!(op instanceof takeAlongAxis gatherOp)) {
-            throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
-        }
-        Tensor[] pair = requirePair(inputs);
-        TakeAlongAxisLoops.takeAlongAxisI32(pair[0], pair[1], node, gatherOp.getDimension());
-    }
-
-    @Override
-    protected void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        if (!(op instanceof takeAlongAxis gatherOp)) {
-            throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
-        }
-        Tensor[] pair = requirePair(inputs);
-        TakeAlongAxisLoops.takeAlongAxisI64(pair[0], pair[1], node, gatherOp.getDimension());
+        return CpuKernelResult.completed();
     }
 
     private static Tensor[] requirePair(List<Tensor> inputs) {

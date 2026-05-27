@@ -1,6 +1,5 @@
 package backend.cpu.kernels.elementwise.binary;
 
-import tensor.dtype.TensorDTypeOps;
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import config.compile.RegionOptimizationConfig;
@@ -14,63 +13,68 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 
-import java.lang.foreign.MemorySegment;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class ElementwiseBinaryExecutorSegmentTest {
+class StorageAwareBinaryElementwiseKernelSegmentTest {
     @Test
-    void denseMemorySegmentExecutionRunsBinaryKernelOperationsByDtype() {
-        float[] leftF32 = {1.0f, -2.0f, 3.5f};
-        float[] rightF32 = {4.0f, 5.0f, -1.5f};
-        float[] outF32 = new float[3];
-
-        ElementwiseBinaryExecutor.runDenseSegment(
-                new CpuSubKernel(),
-                DataType.FLOAT32,
-                MemorySegment.ofArray(leftF32),
-                MemorySegment.ofArray(rightF32),
-                MemorySegment.ofArray(outF32),
-                3,
-                null
+    void cpuNativeMigratedBinaryOpsUseSegmentExecutionAndPublishNativeOutput() {
+        BinaryInputs sub = binaryInputs();
+        assertNativeBinary(
+                "SUB",
+                sub.left().sub(sub.right()),
+                new double[]{-3.0d, -7.0d, 5.0d}
         );
-
-        assertArrayEquals(new float[]{-3.0f, -7.0f, 5.0f}, outF32, 0.0f);
-
-        double[] leftF64 = {1.0d, 4.0d, 9.0d};
-        double[] rightF64 = {2.0d, 0.5d, -1.0d};
-        double[] outF64 = new double[3];
-
-        ElementwiseBinaryExecutor.runDenseSegment(
-                new CpuPowTensorKernel(),
-                DataType.FLOAT64,
-                MemorySegment.ofArray(leftF64),
-                MemorySegment.ofArray(rightF64),
-                MemorySegment.ofArray(outF64),
-                3,
-                null
+        BinaryInputs mul = binaryInputs();
+        assertNativeBinary(
+                "MUL",
+                mul.left().mul(mul.right()),
+                new double[]{4.0d, -10.0d, -5.25d}
         );
-
-        assertArrayEquals(new double[]{1.0d, 2.0d, 1.0d / 9.0d}, outF64, 1.0e-12d);
-
-        short[] leftBF16 = bf16(1.0f, -2.0f, 3.5f);
-        short[] rightBF16 = bf16(4.0f, 5.0f, -1.5f);
-        short[] outBF16 = new short[3];
-
-        ElementwiseBinaryExecutor.runDenseSegment(
-                new CpuMulKernel(),
-                DataType.BFLOAT16,
-                MemorySegment.ofArray(leftBF16),
-                MemorySegment.ofArray(rightBF16),
-                MemorySegment.ofArray(outBF16),
-                3,
-                null
+        BinaryInputs div = binaryInputs();
+        assertNativeBinary(
+                "DIV",
+                div.left().div(div.right()),
+                new double[]{0.25d, -0.4d, -2.3333333333333335d}
         );
+        BinaryInputs min = binaryInputs();
+        assertNativeBinary(
+                "MIN",
+                min.left().min(min.right()),
+                new double[]{1.0d, -2.0d, -1.5d}
+        );
+        BinaryInputs max = binaryInputs();
+        assertNativeBinary(
+                "MAX",
+                max.left().max(max.right()),
+                new double[]{4.0d, 5.0d, 3.5d}
+        );
+        BinaryInputs pow = binaryInputs();
+        assertNativeBinary(
+                "POW_TENSOR",
+                pow.left().pow(pow.right()),
+                new double[]{1.0d, -32.0d, Math.pow(3.5d, -1.5d)}
+        );
+    }
 
-        assertArrayEquals(new double[]{4.0d, -10.0d, -5.25d}, toDouble(outBF16), 0.0d);
+    @Test
+    void cpuNativePowTensorBfloat16FallsBackToArrayPolicy() {
+        Tensor left = new Tensor(new double[]{1.0d, 4.0d, 9.0d}, new int[]{3}, null, "left", DataType.BFLOAT16);
+        Tensor right = new Tensor(new double[]{2.0d, 0.5d, -1.0d}, new int[]{3}, null, "right", DataType.BFLOAT16);
+        Tensor out = left.pow(right);
+
+        var trace = CompiledGraph.compile(out, compileConfig())
+                .prepare(nativeRuntime())
+                .executeTraced(ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{1.0d, 2.0d, 1.0d / 9.0d}, out.toDoubleArrayCopy(), 2.0e-3);
+        Map<String, Object> attrs = operationStep(trace.steps(), "POW_TENSOR").metadata().attributes();
+        assertEquals("CPU_ARRAY", attrs.get("actualCpuStorage"));
+        assertEquals("native-kernel-unsupported:pow_tensor", attrs.get("nativeCpuFallbackReason"));
+        assertEquals("ARRAY_ONLY", attrs.get("nativeCpuKernelFamily"));
     }
 
     @Test
@@ -84,7 +88,7 @@ class ElementwiseBinaryExecutorSegmentTest {
                 .executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{5.0, 3.0, 2.0}, out.toDoubleArrayCopy(), 1.0e-6);
-        Map<String, Object> attrs = addStep(trace.steps()).metadata().attributes();
+        Map<String, Object> attrs = operationStep(trace.steps(), "ADD").metadata().attributes();
         assertEquals("CPU_NATIVE", attrs.get("actualCpuStorage"));
         assertEquals("", attrs.get("nativeCpuFallbackReason"));
         assertEquals("SEGMENT_SCALAR", attrs.get("nativeCpuKernelFamily"));
@@ -101,7 +105,7 @@ class ElementwiseBinaryExecutorSegmentTest {
                 .executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{11.0, -102.0, 13.5, -92.0}, out.toDoubleArrayCopy(), 1.0e-6);
-        Map<String, Object> attrs = addStep(trace.steps()).metadata().attributes();
+        Map<String, Object> attrs = operationStep(trace.steps(), "ADD").metadata().attributes();
         assertEquals("CPU_NATIVE", attrs.get("actualCpuStorage"));
         assertEquals("", attrs.get("nativeCpuFallbackReason"));
         assertEquals("SEGMENT_SCALAR", attrs.get("nativeCpuKernelFamily"));
@@ -118,26 +122,10 @@ class ElementwiseBinaryExecutorSegmentTest {
                 .executeTraced(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{11.0, -102.0, 13.5, -92.0}, out.toDoubleArrayCopy(), 1.0e-6);
-        Map<String, Object> attrs = addStep(trace.steps()).metadata().attributes();
+        Map<String, Object> attrs = operationStep(trace.steps(), "ADD").metadata().attributes();
         assertEquals("CPU_NATIVE", attrs.get("actualCpuStorage"));
         assertEquals("", attrs.get("nativeCpuFallbackReason"));
         assertEquals("SEGMENT_SCALAR", attrs.get("nativeCpuKernelFamily"));
-    }
-
-    private static short[] bf16(float... values) {
-        short[] bits = new short[values.length];
-        for (int i = 0; i < values.length; i++) {
-            bits[i] = TensorDTypeOps.toBFloat16Bits(values[i]);
-        }
-        return bits;
-    }
-
-    private static double[] toDouble(short[] values) {
-        double[] out = new double[values.length];
-        for (int i = 0; i < values.length; i++) {
-            out[i] = TensorDTypeOps.fromBFloat16Bits(values[i]);
-        }
-        return out;
     }
 
     private static CompileConfig compileConfig() {
@@ -152,10 +140,31 @@ class ElementwiseBinaryExecutorSegmentTest {
                 .withNativeCpuFailurePolicy(NativeCpuFailurePolicy.FALLBACK_TO_ARRAY);
     }
 
-    private static ExecutionStepTrace addStep(List<ExecutionStepTrace> steps) {
+    private static BinaryInputs binaryInputs() {
+        Tensor left = new Tensor(new float[]{1.0f, -2.0f, 3.5f}, new int[]{3}, null, "left", DataType.FLOAT32);
+        Tensor right = new Tensor(new float[]{4.0f, 5.0f, -1.5f}, new int[]{3}, null, "right", DataType.FLOAT32);
+        return new BinaryInputs(left, right);
+    }
+
+    private static void assertNativeBinary(String opType, Tensor out, double[] expected) {
+        var trace = CompiledGraph.compile(out, compileConfig())
+                .prepare(nativeRuntime())
+                .executeTraced(ExecutionMode.FORWARD);
+
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 1.0e-6);
+        Map<String, Object> attrs = operationStep(trace.steps(), opType).metadata().attributes();
+        assertEquals("CPU_NATIVE", attrs.get("actualCpuStorage"));
+        assertEquals("", attrs.get("nativeCpuFallbackReason"));
+        assertEquals("SEGMENT_SCALAR", attrs.get("nativeCpuKernelFamily"));
+    }
+
+    private static ExecutionStepTrace operationStep(List<ExecutionStepTrace> steps, String opType) {
         return steps.stream()
-                .filter(step -> "ADD".equals(step.opType()))
+                .filter(step -> opType.equals(step.opType()))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private record BinaryInputs(Tensor left, Tensor right) {
     }
 }

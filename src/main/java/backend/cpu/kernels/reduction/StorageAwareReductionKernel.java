@@ -1,7 +1,9 @@
 package backend.cpu.kernels.reduction;
 
-import tensor.dtype.TensorDTypeOps;
 import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.kernels.CpuKernelCall;
+import backend.cpu.kernels.CpuKernelResult;
+import backend.cpu.kernels.CpuStorageAwareKernel;
 import backend.cpu.nativecpu.CpuNativeTraceSupport;
 import backend.cpu.nativecpu.layout.NativeCpuStorageFamily;
 import backend.cpu.nativecpu.layout.NativeSegmentStridedKernels;
@@ -15,137 +17,113 @@ import tensor.DataType;
 import tensor.Tensor;
 import tensor.storage.NativeTensorStorage;
 
-final class ReductionStorageLoops {
-    private ReductionStorageLoops() {
-    }
-
-    static boolean tryRunSumLike(
-            Operation.OpType opType,
-            Tensor input,
-            Tensor node,
-            int dimension,
-            CpuKernelContext context
-    ) {
-        if (!nativeRequested(context)) {
-            return false;
+abstract class StorageAwareReductionKernel implements CpuStorageAwareKernel {
+    @Override
+    public final CpuKernelResult execute(CpuKernelCall call) {
+        Tensor input = requireSingleInput(call);
+        int dimension = dimension(call.operation());
+        if (nativeRequested(call.context())) {
+            CpuKernelResult result = executeNative(call, input, dimension);
+            if (!CpuNativeTraceSupport.CPU_NATIVE.equals(result.route())) {
+                executeArray(call.operation(), input, call.outputTensor(), call.context(), dimension);
+            }
+            return result;
         }
-        return tryRun(opType, input, node, dimension, context);
+        executeArray(call.operation(), input, call.outputTensor(), call.context(), dimension);
+        return CpuKernelResult.completed();
     }
 
-    static boolean tryRunMinMax(
-            Operation.OpType opType,
+    protected abstract Operation.OpType opType();
+
+    protected abstract int dimension(Operation operation);
+
+    protected abstract void executeArray(
+            Operation operation,
             Tensor input,
-            Tensor node,
-            int dimension,
-            CpuKernelContext context
-    ) {
-        if (!nativeRequested(context)) {
-            return false;
-        }
-        return tryRun(opType, input, node, dimension, context);
+            Tensor output,
+            CpuKernelContext context,
+            int dimension
+    );
+
+    protected final String opLabel() {
+        return opType().name().toLowerCase();
     }
 
-    static boolean tryRunBool(
-            Operation.OpType opType,
-            Tensor input,
-            Tensor node,
-            int dimension,
-            CpuKernelContext context
-    ) {
-        if (!nativeRequested(context)) {
-            return false;
-        }
-        return tryRun(opType, input, node, dimension, context);
-    }
-
-    private static boolean tryRun(
-            Operation.OpType opType,
-            Tensor input,
-            Tensor node,
-            int dimension,
-            CpuKernelContext context
-    ) {
-        Operation.OpType safeOpType = opTypeOrUnknown(opType);
-        String reason = nativeIneligibleReason(safeOpType, input, node, dimension, context);
+    private CpuKernelResult executeNative(CpuKernelCall call, Tensor input, int dimension) {
+        Tensor output = call.outputTensor();
+        CpuKernelContext context = call.context();
+        String reason = nativeIneligibleReason(call, input, output, dimension);
         if (!reason.isBlank()) {
-            return fallback(context, safeOpType, reason);
+            return fallbackToArray(context, reason);
         }
         try {
-            NativeTensorStorage inputStorage = requireNativeInput(context, input.getDataType(), opLabel(safeOpType).toUpperCase());
-            NativeTensorStorage outputStorage = allocateNativeOutput(node, context, opLabel(safeOpType));
+            NativeTensorStorage inputStorage = requireNativeInput(context, input.getDataType(), opLabel().toUpperCase());
+            NativeTensorStorage outputStorage = allocateNativeOutput(output, context, opLabel());
             NativeSegmentStridedKernels.runReduction(
-                    safeOpType,
+                    opType(),
                     nativeView(context.inputNodeIds().getFirst(), input, inputStorage),
-                    nativeView(context.nodeId(), node, outputStorage),
+                    nativeView(context.nodeId(), output, outputStorage),
                     dimension
             );
             context.executionContext().attachNativeStorage(
                     context.nodeId(),
                     outputStorage,
-                    "reduction storage loop " + opLabel(safeOpType).toUpperCase() + " wrote " + node.getDataType() + " native output"
+                    "reduction storage-aware kernel " + opLabel().toUpperCase()
+                            + " wrote " + output.getDataType() + " native output"
             );
             CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_NATIVE, "");
-            return true;
+            return CpuKernelResult.route(CpuNativeTraceSupport.CPU_NATIVE);
         } catch (Throwable t) {
-            return fallback(
-                    context,
-                    safeOpType,
-                    "native-kernel-failed:" + opLabel(safeOpType) + ":" + safeMessage(t)
-            );
+            return fallbackToArray(context, "native-kernel-failed:" + opLabel() + ":" + safeMessage(t));
         }
     }
 
-    private static String nativeIneligibleReason(
-            Operation.OpType opType,
-            Tensor input,
-            Tensor node,
-            int dimension,
-            CpuKernelContext context
-    ) {
-        String label = opLabel(opType);
+    private String nativeIneligibleReason(CpuKernelCall call, Tensor input, Tensor output, int dimension) {
+        CpuKernelContext context = call.context();
         if (context == null || context.nodePlan() == null) {
-            return "native-kernel-ineligible:" + label + "-plan";
+            return "native-kernel-ineligible:" + opLabel() + "-plan";
         }
-        if (input == null || node == null || context.inputNodeIds().size() != 1) {
-            return "native-kernel-ineligible:" + label + "-input-count";
+        if (input == null || output == null || context.inputNodeIds().size() != 1 || call.inputs().size() != 1) {
+            return "native-kernel-ineligible:" + opLabel() + "-input-count";
         }
-        if (!NativeSegmentStridedKernels.supportsReduction(opType, node.getDataType())) {
-            return unsupportedReductionReason(opType, node.getDataType());
+        if (!NativeSegmentStridedKernels.supportsReduction(opType(), output.getDataType())) {
+            return unsupportedReductionReason(output.getDataType());
         }
-        if (input.getDataType() != node.getDataType()) {
-            return "native-storage-dtype-unsupported:" + node.getDataType().name().toLowerCase();
+        if (input.getDataType() != output.getDataType()) {
+            return "native-storage-dtype-unsupported:" + output.getDataType().name().toLowerCase();
         }
-        if (context.nodePlan().stridedPath() || !denseTensor(input) || !denseTensor(node)) {
-            return "native-kernel-ineligible:" + label + "-strided";
+        if (context.nodePlan().stridedPath() || !denseTensor(input) || !denseTensor(output)) {
+            return "native-kernel-ineligible:" + opLabel() + "-strided";
         }
         int[] shape = input.getShapeUnsafe();
         if (shape == null || shape.length == 0 || dimension < -1 || dimension >= shape.length) {
-            return "native-kernel-ineligible:" + label + "-axis";
+            return "native-kernel-ineligible:" + opLabel() + "-axis";
         }
-        if (input.getFlatDataSize() <= 0 || expectedOutputSize(shape, dimension) != node.getFlatDataSize()) {
-            return "native-kernel-ineligible:" + label + "-shape";
+        if (input.getFlatDataSize() <= 0 || expectedOutputSize(shape, dimension) != output.getFlatDataSize()) {
+            return "native-kernel-ineligible:" + opLabel() + "-shape";
         }
         return "";
     }
 
-    private static String unsupportedReductionReason(Operation.OpType opType, DataType dataType) {
-        if (dataType == DataType.BFLOAT16 && (opType == Operation.OpType.REDUCE_MIN || opType == Operation.OpType.REDUCE_MAX)) {
+    private String unsupportedReductionReason(DataType dataType) {
+        if (dataType == DataType.BFLOAT16
+                && (opType() == Operation.OpType.REDUCE_MIN || opType() == Operation.OpType.REDUCE_MAX)) {
             return "native-bf16-reduce-minmax-output-policy-unsupported";
         }
         if (!supportsNativeReductionDType(dataType)) {
             return "native-storage-dtype-unsupported:" + dataType.name().toLowerCase();
         }
-        return "native-kernel-unsupported:" + opLabel(opType);
+        return "native-kernel-unsupported:" + opLabel();
     }
 
-    private static boolean fallback(CpuKernelContext context, Operation.OpType opType, String reason) {
-        requireFallbackAllowed(context, opLabel(opType) + " reduction", reason);
+    private CpuKernelResult fallbackToArray(CpuKernelContext context, String reason) {
+        requireFallbackAllowed(context, opLabel() + " reduction", reason);
         requireCpuReadableInputs(context);
         CpuNativeTraceSupport.publishSegmentScalar(context, CpuNativeTraceSupport.CPU_ARRAY, reason);
-        return false;
+        return CpuKernelResult.fallback(CpuNativeTraceSupport.CPU_ARRAY, reason);
     }
 
-    private static NativeTensorStorage requireNativeInput(CpuKernelContext context, DataType dtype, String op) {
+    private NativeTensorStorage requireNativeInput(CpuKernelContext context, DataType dtype, String op) {
         NativeTensorStorage storage = context.executionContext().requireNativeReadable(
                 context.inputNodeIds().getFirst(),
                 CpuMaterializationReason.CPU_CONSUMER
@@ -156,15 +134,15 @@ final class ReductionStorageLoops {
         return storage;
     }
 
-    private static NativeTensorStorage allocateNativeOutput(Tensor node, CpuKernelContext context, String label) {
+    private NativeTensorStorage allocateNativeOutput(Tensor output, CpuKernelContext context, String label) {
         return context.executionContext().allocateNativeStorage(
-                node.getDataType(),
-                node.getFlatDataSize(),
-                "node-" + context.nodeId() + ":" + node.getLabel() + ":native-" + label
+                output.getDataType(),
+                output.getFlatDataSize(),
+                "node-" + context.nodeId() + ":" + output.getLabel() + ":native-" + label
         );
     }
 
-    private static NativeSegmentView nativeView(int nodeId, Tensor tensor, NativeTensorStorage storage) {
+    private NativeSegmentView nativeView(int nodeId, Tensor tensor, NativeTensorStorage storage) {
         return NativeSegmentView.from(
                 TensorPhysicalView.of(
                         nodeId,
@@ -176,6 +154,13 @@ final class ReductionStorageLoops {
                 ),
                 storage
         );
+    }
+
+    private Tensor requireSingleInput(CpuKernelCall call) {
+        if (call.inputTensors().size() != 1) {
+            throw new IllegalArgumentException(opLabel().toUpperCase() + " expects exactly one input tensor");
+        }
+        return call.inputTensors().getFirst();
     }
 
     private static boolean denseTensor(Tensor tensor) {
@@ -218,14 +203,6 @@ final class ReductionStorageLoops {
                 || dataType == DataType.FLOAT64
                 || dataType == DataType.BFLOAT16
                 || dataType == DataType.BOOL;
-    }
-
-    private static Operation.OpType opTypeOrUnknown(Operation.OpType opType) {
-        return opType == null ? Operation.OpType.UNKNOWN : opType;
-    }
-
-    private static String opLabel(Operation.OpType opType) {
-        return opTypeOrUnknown(opType).name().toLowerCase();
     }
 
     private static String safeMessage(Throwable t) {

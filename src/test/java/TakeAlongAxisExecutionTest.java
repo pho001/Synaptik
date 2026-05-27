@@ -1,5 +1,6 @@
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
+import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
@@ -39,6 +40,19 @@ public class TakeAlongAxisExecutionTest {
                 .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{3.0, 3.0, 4.0, 5.0}, y.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void takeAlongAxisReadsNativeSegmentInputProducedByPriorCpuNativeOp() {
+        Tensor x = new Tensor(new float[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x", DataType.FLOAT32);
+        Tensor doubled = x.add(x);
+        Tensor indices = new Tensor(new int[]{2, -1, 0, 1}, new int[]{2, 2}, null, "indices", DataType.INT32);
+        Tensor y = doubled.takeAlongAxis(indices, 1);
+
+        CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline())
+                .prepare(nativeRuntime()).execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{6.0, 6.0, 8.0, 10.0}, y.toDoubleArrayCopy(), 1e-6);
     }
 
     @Test
@@ -94,5 +108,9 @@ public class TakeAlongAxisExecutionTest {
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(type -> type == opType);
+    }
+
+    private static RuntimeConfig nativeRuntime() {
+        return RuntimeConfig.inferenceDefaults().withCpuStorageProfile(CpuStorageProfile.CPU_NATIVE);
     }
 }

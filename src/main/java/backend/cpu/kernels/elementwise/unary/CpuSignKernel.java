@@ -1,49 +1,90 @@
 package backend.cpu.kernels.elementwise.unary;
 
-import backend.cpu.kernels.TypedCpuKernel;
-import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.kernels.elementwise.ElementwiseOffsetCursor;
+import backend.cpu.kernels.elementwise.ElementwiseRangeLoop;
+import backend.cpu.plan.elementwise.ResolvedDispatchHints;
+import backend.cpu.storage.CpuStorageView;
 import operations.Operation;
-import tensor.Tensor;
+import tensor.DataType;
+import tensor.dtype.TensorDTypeOps;
 
 import java.lang.foreign.MemorySegment;
-import java.util.List;
 
 import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
+import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
-public final class CpuSignKernel extends TypedCpuKernel implements UnaryElementwiseKernel {
+public final class CpuSignKernel extends StorageAwareUnaryElementwiseKernel {
     @Override
-    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        ElementwiseUnaryExecutor.execute(this, inputs, node, context);
+    protected Operation.OpType opType() {
+        return Operation.OpType.SIGN;
     }
 
     @Override
-    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        ElementwiseUnaryExecutor.execute(this, inputs, node, context);
+    protected String opLabel() {
+        return "sign";
     }
 
     @Override
-    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        ElementwiseUnaryExecutor.execute(this, inputs, node, context);
+    protected boolean supportsNativeOpDType(DataType dtype) {
+        return dtype == DataType.FLOAT32 || dtype == DataType.FLOAT64;
     }
 
     @Override
-    public double applyF64(double value) {
-        return Math.signum(value);
+    protected void runDirectF64(double[] in, double[] out, ResolvedDispatchHints hints) {
+        ElementwiseRangeLoop.runScalar(out.length, hints, (start, end) -> runArrayF64(in, out, start, end));
     }
 
     @Override
-    public float applyF32(float value) {
-        return Math.signum(value);
+    protected void runDirectF32(float[] in, float[] out, ResolvedDispatchHints hints) {
+        ElementwiseRangeLoop.runScalar(out.length, hints, (start, end) -> runArrayF32(in, out, start, end));
     }
 
     @Override
-    public float applyBF16(float value) {
-        return Math.signum(value);
+    protected void runDirectBF16(short[] in, float[] continuation, short[] out, ResolvedDispatchHints hints) {
+        if (continuation != null) {
+            ElementwiseRangeLoop.runScalar(out.length, hints,
+                    (start, end) -> runArrayBF16(continuation, out, start, end));
+        } else {
+            ElementwiseRangeLoop.runScalar(out.length, hints,
+                    (start, end) -> runArrayBF16(in, out, start, end));
+        }
     }
 
     @Override
-    public void runSegmentF64(MemorySegment in, MemorySegment out, int start, int end) {
+    protected void runDirectBF16ToFloat(short[] in, float[] continuation, float[] out, ResolvedDispatchHints hints) {
+        if (continuation != null) {
+            runDirectF32(continuation, out, hints);
+            return;
+        }
+        ElementwiseRangeLoop.runScalar(out.length, hints,
+                (start, end) -> runArrayBF16ToFloat(in, out, start, end));
+    }
+
+    private static void runArrayF64(double[] in, double[] out, int start, int end) {
+        for (int i = start; i < end; i++) out[i] = Math.signum(in[i]);
+    }
+
+    private static void runArrayF32(float[] in, float[] out, int start, int end) {
+        for (int i = start; i < end; i++) out[i] = Math.signum(in[i]);
+    }
+
+    private static void runArrayBF16(float[] in, short[] out, int start, int end) {
+        for (int i = start; i < end; i++) out[i] = TensorDTypeOps.toBFloat16Bits(Math.signum(in[i]));
+    }
+
+    private static void runArrayBF16(short[] in, short[] out, int start, int end) {
+        for (int i = start; i < end; i++) {
+            out[i] = TensorDTypeOps.toBFloat16Bits(Math.signum(TensorDTypeOps.fromBFloat16Bits(in[i])));
+        }
+    }
+
+    private static void runArrayBF16ToFloat(short[] in, float[] out, int start, int end) {
+        for (int i = start; i < end; i++) out[i] = Math.signum(TensorDTypeOps.fromBFloat16Bits(in[i]));
+    }
+
+    @Override
+    protected void runSegmentF64(MemorySegment in, MemorySegment out, int start, int end) {
         for (int i = start; i < end; i++) {
             long offset = (long) i * Double.BYTES;
             out.set(JAVA_DOUBLE, offset, Math.signum(in.get(JAVA_DOUBLE, offset)));
@@ -51,10 +92,196 @@ public final class CpuSignKernel extends TypedCpuKernel implements UnaryElementw
     }
 
     @Override
-    public void runSegmentF32(MemorySegment in, MemorySegment out, int start, int end) {
+    protected void runSegmentF32(MemorySegment in, MemorySegment out, int start, int end) {
         for (int i = start; i < end; i++) {
             long offset = (long) i * Float.BYTES;
             out.set(JAVA_FLOAT, offset, Math.signum(in.get(JAVA_FLOAT, offset)));
+        }
+    }
+
+    @Override
+    protected void runSegmentBF16(MemorySegment in, MemorySegment out, int start, int end) {
+        for (int i = start; i < end; i++) {
+            long offset = (long) i * Short.BYTES;
+            float value = TensorDTypeOps.fromBFloat16Bits(in.get(JAVA_SHORT, offset));
+            out.set(JAVA_SHORT, offset, TensorDTypeOps.toBFloat16Bits(Math.signum(value)));
+        }
+    }
+
+    @Override
+    protected void runIndexedArrayF64(double[] in, double[] out, UnaryStorageLayout layout, int start, int end) {
+        ElementwiseOffsetCursor cursor = layout.cursor(start);
+        for (int outIndex = start; outIndex < end; outIndex++) {
+            out[cursor.offset(0)] = Math.signum(in[cursor.offset(1)]);
+            if (outIndex + 1 < end) {
+                cursor.step();
+            }
+        }
+    }
+
+    @Override
+    protected void runIndexedArrayF32(float[] in, float[] out, UnaryStorageLayout layout, int start, int end) {
+        ElementwiseOffsetCursor cursor = layout.cursor(start);
+        for (int outIndex = start; outIndex < end; outIndex++) {
+            out[cursor.offset(0)] = Math.signum(in[cursor.offset(1)]);
+            if (outIndex + 1 < end) {
+                cursor.step();
+            }
+        }
+    }
+
+    @Override
+    protected void runIndexedArrayBF16(
+            short[] in,
+            float[] continuation,
+            short[] out,
+            UnaryStorageLayout layout,
+            int start,
+            int end
+    ) {
+        ElementwiseOffsetCursor cursor = layout.cursor(start);
+        for (int outIndex = start; outIndex < end; outIndex++) {
+            out[cursor.offset(0)] = TensorDTypeOps.toBFloat16Bits(
+                    Math.signum(loadBF16(continuation, in, cursor.offset(1)))
+            );
+            if (outIndex + 1 < end) {
+                cursor.step();
+            }
+        }
+    }
+
+    @Override
+    protected void runIndexedArrayBF16ToFloat(
+            short[] in,
+            float[] continuation,
+            float[] out,
+            UnaryStorageLayout layout,
+            int start,
+            int end
+    ) {
+        ElementwiseOffsetCursor cursor = layout.cursor(start);
+        for (int outIndex = start; outIndex < end; outIndex++) {
+            out[outIndex] = Math.signum(loadBF16(continuation, in, cursor.offset(1)));
+            if (outIndex + 1 < end) {
+                cursor.step();
+            }
+        }
+    }
+
+    @Override
+    protected void runIndexedSegmentF64(
+            MemorySegment in,
+            MemorySegment out,
+            UnaryStorageLayout layout,
+            int start,
+            int end
+    ) {
+        ElementwiseOffsetCursor cursor = layout.cursor(start);
+        for (int outIndex = start; outIndex < end; outIndex++) {
+            out.set(
+                    JAVA_DOUBLE,
+                    (long) cursor.offset(0) * Double.BYTES,
+                    Math.signum(in.get(JAVA_DOUBLE, (long) cursor.offset(1) * Double.BYTES))
+            );
+            if (outIndex + 1 < end) {
+                cursor.step();
+            }
+        }
+    }
+
+    @Override
+    protected void runIndexedSegmentF32(
+            MemorySegment in,
+            MemorySegment out,
+            UnaryStorageLayout layout,
+            int start,
+            int end
+    ) {
+        ElementwiseOffsetCursor cursor = layout.cursor(start);
+        for (int outIndex = start; outIndex < end; outIndex++) {
+            out.set(
+                    JAVA_FLOAT,
+                    (long) cursor.offset(0) * Float.BYTES,
+                    Math.signum(in.get(JAVA_FLOAT, (long) cursor.offset(1) * Float.BYTES))
+            );
+            if (outIndex + 1 < end) {
+                cursor.step();
+            }
+        }
+    }
+
+    @Override
+    protected void runIndexedSegmentBF16(
+            MemorySegment in,
+            MemorySegment out,
+            UnaryStorageLayout layout,
+            int start,
+            int end
+    ) {
+        ElementwiseOffsetCursor cursor = layout.cursor(start);
+        for (int outIndex = start; outIndex < end; outIndex++) {
+            float value = TensorDTypeOps.fromBFloat16Bits(
+                    in.get(JAVA_SHORT, (long) cursor.offset(1) * Short.BYTES)
+            );
+            out.set(
+                    JAVA_SHORT,
+                    (long) cursor.offset(0) * Short.BYTES,
+                    TensorDTypeOps.toBFloat16Bits(Math.signum(value))
+            );
+            if (outIndex + 1 < end) {
+                cursor.step();
+            }
+        }
+    }
+
+    @Override
+    protected void runIndexedMixedF64(
+            CpuStorageView in,
+            CpuStorageView out,
+            UnaryStorageLayout layout,
+            int start,
+            int end
+    ) {
+        ElementwiseOffsetCursor cursor = layout.cursor(start);
+        for (int outIndex = start; outIndex < end; outIndex++) {
+            writeF64(out, cursor.offset(0), Math.signum(readF64(in, cursor.offset(1))));
+            if (outIndex + 1 < end) {
+                cursor.step();
+            }
+        }
+    }
+
+    @Override
+    protected void runIndexedMixedF32(
+            CpuStorageView in,
+            CpuStorageView out,
+            UnaryStorageLayout layout,
+            int start,
+            int end
+    ) {
+        ElementwiseOffsetCursor cursor = layout.cursor(start);
+        for (int outIndex = start; outIndex < end; outIndex++) {
+            writeF32(out, cursor.offset(0), Math.signum(readF32(in, cursor.offset(1))));
+            if (outIndex + 1 < end) {
+                cursor.step();
+            }
+        }
+    }
+
+    @Override
+    protected void runIndexedMixedBF16(
+            CpuStorageView in,
+            CpuStorageView out,
+            UnaryStorageLayout layout,
+            int start,
+            int end
+    ) {
+        ElementwiseOffsetCursor cursor = layout.cursor(start);
+        for (int outIndex = start; outIndex < end; outIndex++) {
+            writeBF16(out, cursor.offset(0), Math.signum(readBF16(in, cursor.offset(1))));
+            if (outIndex + 1 < end) {
+                cursor.step();
+            }
         }
     }
 }

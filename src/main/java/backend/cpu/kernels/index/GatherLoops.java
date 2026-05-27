@@ -1,237 +1,262 @@
 package backend.cpu.kernels.index;
 
+import backend.cpu.storage.CpuStorageView;
+import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorInternalAccess;
-import tensor.dtype.TensorDTypeOps;
 
 final class GatherLoops {
     private GatherLoops() {
     }
 
-    static void gatherF64(Tensor input, Tensor indices, Tensor out, int dimension) {
+    static void gatherF64(
+            Tensor input,
+            Tensor indices,
+            Tensor out,
+            CpuStorageView inputView,
+            CpuStorageView indicesView,
+            CpuStorageView outView,
+            int dimension
+    ) {
         IndexValidation.validateGather(input, indices, out, dimension);
-        double[] in = TensorInternalAccess.float64Data(input);
-        double[] dst = TensorInternalAccess.float64Data(out);
+        IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.FLOAT64);
         GatherPlan plan = GatherPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
+            gatherF64Array(inputView.requireF64Array(), indicesView, outView.requireF64Array(), indexPlan, plan);
+            return;
+        }
         for (int logical = 0; logical < plan.total; logical++) {
-            int baseIn = plan.inputBaseOffset;
-            int baseOut = plan.outBaseOffset;
-            int rem = logical;
-            for (int d = 0, rd = 0; d < plan.inputShape.length; d++) {
-                if (d == dimension) {
-                    continue;
-                }
-                int coord = rem / plan.reducedDense[rd];
-                rem %= plan.reducedDense[rd];
-                baseIn += coord * plan.inputStrides[d];
-                baseOut += coord * plan.outStrides[rd];
-                rd++;
-            }
-            int axisIndex = indexReader.readAxisIndex(logical, plan.axisSize);
-            dst[baseOut] = in[baseIn + axisIndex * plan.axisStrideIn];
+            long offsets = plan.baseOffsets(logical);
+            int baseIn = GatherPlan.inputOffset(offsets);
+            int baseOut = GatherPlan.outputOffset(offsets);
+            int axisIndex = IndexLoopSupport.readAxisIndex(indicesView, indexPlan, logical, plan.axisSize);
+            IndexLoopSupport.writeF64(outView, baseOut,
+                    IndexLoopSupport.readF64(inputView, baseIn + axisIndex * plan.axisStrideIn));
         }
     }
 
-    static void gatherF32(Tensor input, Tensor indices, Tensor out, int dimension) {
+    static void gatherF32(
+            Tensor input,
+            Tensor indices,
+            Tensor out,
+            CpuStorageView inputView,
+            CpuStorageView indicesView,
+            CpuStorageView outView,
+            int dimension
+    ) {
         IndexValidation.validateGather(input, indices, out, dimension);
-        float[] in = TensorInternalAccess.float32Data(input);
-        float[] dst = TensorInternalAccess.float32Data(out);
+        IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.FLOAT32);
         GatherPlan plan = GatherPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
+            gatherF32Array(inputView.requireF32Array(), indicesView, outView.requireF32Array(), indexPlan, plan);
+            return;
+        }
         for (int logical = 0; logical < plan.total; logical++) {
-            int baseIn = plan.inputBaseOffset;
-            int baseOut = plan.outBaseOffset;
-            int rem = logical;
-            for (int d = 0, rd = 0; d < plan.inputShape.length; d++) {
-                if (d == dimension) {
-                    continue;
-                }
-                int coord = rem / plan.reducedDense[rd];
-                rem %= plan.reducedDense[rd];
-                baseIn += coord * plan.inputStrides[d];
-                baseOut += coord * plan.outStrides[rd];
-                rd++;
-            }
-            int axisIndex = indexReader.readAxisIndex(logical, plan.axisSize);
-            dst[baseOut] = in[baseIn + axisIndex * plan.axisStrideIn];
+            long offsets = plan.baseOffsets(logical);
+            int baseIn = GatherPlan.inputOffset(offsets);
+            int baseOut = GatherPlan.outputOffset(offsets);
+            int axisIndex = IndexLoopSupport.readAxisIndex(indicesView, indexPlan, logical, plan.axisSize);
+            IndexLoopSupport.writeF32(outView, baseOut,
+                    IndexLoopSupport.readF32(inputView, baseIn + axisIndex * plan.axisStrideIn));
         }
     }
 
-    static void gatherBF16(Tensor input, Tensor indices, Tensor out, int dimension) {
+    static void gatherBF16(
+            Tensor input,
+            Tensor indices,
+            Tensor out,
+            CpuStorageView inputView,
+            CpuStorageView indicesView,
+            CpuStorageView outView,
+            int dimension
+    ) {
         IndexValidation.validateGather(input, indices, out, dimension);
-        short[] in = TensorInternalAccess.bfloat16Data(input);
-        short[] dst = TensorInternalAccess.bfloat16Data(out);
+        IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.BFLOAT16);
         GatherPlan plan = GatherPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
+            gatherBF16Array(inputView.requireBF16Array(), indicesView, outView.requireBF16Array(), indexPlan, plan);
+            return;
+        }
         for (int logical = 0; logical < plan.total; logical++) {
-            int baseIn = plan.inputBaseOffset;
-            int baseOut = plan.outBaseOffset;
-            int rem = logical;
-            for (int d = 0, rd = 0; d < plan.inputShape.length; d++) {
-                if (d == dimension) {
-                    continue;
-                }
-                int coord = rem / plan.reducedDense[rd];
-                rem %= plan.reducedDense[rd];
-                baseIn += coord * plan.inputStrides[d];
-                baseOut += coord * plan.outStrides[rd];
-                rd++;
-            }
-            int axisIndex = indexReader.readAxisIndex(logical, plan.axisSize);
-            dst[baseOut] = in[baseIn + axisIndex * plan.axisStrideIn];
+            long offsets = plan.baseOffsets(logical);
+            int baseIn = GatherPlan.inputOffset(offsets);
+            int baseOut = GatherPlan.outputOffset(offsets);
+            int axisIndex = IndexLoopSupport.readAxisIndex(indicesView, indexPlan, logical, plan.axisSize);
+            IndexLoopSupport.writeBF16Bits(outView, baseOut,
+                    IndexLoopSupport.readBF16Bits(inputView, baseIn + axisIndex * plan.axisStrideIn));
         }
     }
 
-    static void gatherBOOL(Tensor input, Tensor indices, Tensor out, int dimension) {
+    static void gatherBOOL(
+            Tensor input,
+            Tensor indices,
+            Tensor out,
+            CpuStorageView inputView,
+            CpuStorageView indicesView,
+            CpuStorageView outView,
+            int dimension
+    ) {
         IndexValidation.validateGather(input, indices, out, dimension);
-        byte[] in = TensorInternalAccess.boolData(input);
-        byte[] dst = TensorInternalAccess.boolData(out);
+        IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.BOOL);
         GatherPlan plan = GatherPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
+            gatherBOOLArray(inputView.requireBoolArray(), indicesView, outView.requireBoolArray(), indexPlan, plan);
+            return;
+        }
         for (int logical = 0; logical < plan.total; logical++) {
-            int baseIn = plan.inputBaseOffset;
-            int baseOut = plan.outBaseOffset;
-            int rem = logical;
-            for (int d = 0, rd = 0; d < plan.inputShape.length; d++) {
-                if (d == dimension) {
-                    continue;
-                }
-                int coord = rem / plan.reducedDense[rd];
-                rem %= plan.reducedDense[rd];
-                baseIn += coord * plan.inputStrides[d];
-                baseOut += coord * plan.outStrides[rd];
-                rd++;
-            }
-            int axisIndex = indexReader.readAxisIndex(logical, plan.axisSize);
-            dst[baseOut] = in[baseIn + axisIndex * plan.axisStrideIn];
+            long offsets = plan.baseOffsets(logical);
+            int baseIn = GatherPlan.inputOffset(offsets);
+            int baseOut = GatherPlan.outputOffset(offsets);
+            int axisIndex = IndexLoopSupport.readAxisIndex(indicesView, indexPlan, logical, plan.axisSize);
+            IndexLoopSupport.writeBool(outView, baseOut,
+                    IndexLoopSupport.readBool(inputView, baseIn + axisIndex * plan.axisStrideIn));
         }
     }
 
-    static void gatherI32(Tensor input, Tensor indices, Tensor out, int dimension) {
+    static void gatherI32(
+            Tensor input,
+            Tensor indices,
+            Tensor out,
+            CpuStorageView inputView,
+            CpuStorageView indicesView,
+            CpuStorageView outView,
+            int dimension
+    ) {
         IndexValidation.validateGather(input, indices, out, dimension);
-        int[] in = TensorInternalAccess.int32Data(input);
-        int[] dst = TensorInternalAccess.int32Data(out);
+        IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.INT32);
         GatherPlan plan = GatherPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
+            gatherI32Array(inputView.requireI32Array(), indicesView, outView.requireI32Array(), indexPlan, plan);
+            return;
+        }
         for (int logical = 0; logical < plan.total; logical++) {
-            int baseIn = plan.inputBaseOffset;
-            int baseOut = plan.outBaseOffset;
-            int rem = logical;
-            for (int d = 0, rd = 0; d < plan.inputShape.length; d++) {
-                if (d == dimension) {
-                    continue;
-                }
-                int coord = rem / plan.reducedDense[rd];
-                rem %= plan.reducedDense[rd];
-                baseIn += coord * plan.inputStrides[d];
-                baseOut += coord * plan.outStrides[rd];
-                rd++;
-            }
-            int axisIndex = indexReader.readAxisIndex(logical, plan.axisSize);
-            dst[baseOut] = in[baseIn + axisIndex * plan.axisStrideIn];
+            long offsets = plan.baseOffsets(logical);
+            int baseIn = GatherPlan.inputOffset(offsets);
+            int baseOut = GatherPlan.outputOffset(offsets);
+            int axisIndex = IndexLoopSupport.readAxisIndex(indicesView, indexPlan, logical, plan.axisSize);
+            IndexLoopSupport.writeI32(outView, baseOut,
+                    IndexLoopSupport.readI32(inputView, baseIn + axisIndex * plan.axisStrideIn));
         }
     }
 
-    static void gatherI64(Tensor input, Tensor indices, Tensor out, int dimension) {
+    static void gatherI64(
+            Tensor input,
+            Tensor indices,
+            Tensor out,
+            CpuStorageView inputView,
+            CpuStorageView indicesView,
+            CpuStorageView outView,
+            int dimension
+    ) {
         IndexValidation.validateGather(input, indices, out, dimension);
-        long[] in = TensorInternalAccess.int64Data(input);
-        long[] dst = TensorInternalAccess.int64Data(out);
+        IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.INT64);
         GatherPlan plan = GatherPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
+            gatherI64Array(inputView.requireI64Array(), indicesView, outView.requireI64Array(), indexPlan, plan);
+            return;
+        }
         for (int logical = 0; logical < plan.total; logical++) {
-            int baseIn = plan.inputBaseOffset;
-            int baseOut = plan.outBaseOffset;
-            int rem = logical;
-            for (int d = 0, rd = 0; d < plan.inputShape.length; d++) {
-                if (d == dimension) {
-                    continue;
-                }
-                int coord = rem / plan.reducedDense[rd];
-                rem %= plan.reducedDense[rd];
-                baseIn += coord * plan.inputStrides[d];
-                baseOut += coord * plan.outStrides[rd];
-                rd++;
-            }
-            int axisIndex = indexReader.readAxisIndex(logical, plan.axisSize);
-            dst[baseOut] = in[baseIn + axisIndex * plan.axisStrideIn];
+            long offsets = plan.baseOffsets(logical);
+            int baseIn = GatherPlan.inputOffset(offsets);
+            int baseOut = GatherPlan.outputOffset(offsets);
+            int axisIndex = IndexLoopSupport.readAxisIndex(indicesView, indexPlan, logical, plan.axisSize);
+            IndexLoopSupport.writeI64(outView, baseOut,
+                    IndexLoopSupport.readI64(inputView, baseIn + axisIndex * plan.axisStrideIn));
         }
     }
 
-    static void gatherGradF64(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
-        IndexValidation.validateGatherGrad(indices, outGrad, node, dimension);
-        double[] grad = TensorInternalAccess.float64Data(outGrad);
-        double[] dst = TensorInternalAccess.float64Data(node);
-        ScatterPlan plan = ScatterPlan.create(outGrad, node, dimension);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+    private static void gatherF64Array(
+            double[] in,
+            CpuStorageView indicesView,
+            double[] dst,
+            IndexLoopSupport.IndexStoragePlan indexPlan,
+            GatherPlan plan
+    ) {
         for (int logical = 0; logical < plan.total; logical++) {
-            int baseNode = plan.nodeBaseOffset;
-            int baseGrad = plan.gradBaseOffset;
-            int rem = logical;
-            for (int d = 0, rd = 0; d < plan.nodeShape.length; d++) {
-                if (d == dimension) {
-                    continue;
-                }
-                int coord = rem / plan.reducedDense[rd];
-                rem %= plan.reducedDense[rd];
-                baseNode += coord * plan.nodeStrides[d];
-                baseGrad += coord * plan.gradStrides[rd];
-                rd++;
-            }
-            int axisIndex = indexReader.readAxisIndex(logical, plan.axisSize);
-            dst[baseNode + axisIndex * plan.axisStrideNode] += grad[baseGrad];
+            long offsets = plan.baseOffsets(logical);
+            int baseIn = GatherPlan.inputOffset(offsets);
+            int axisIndex = IndexLoopSupport.readAxisIndex(indicesView, indexPlan, logical, plan.axisSize);
+            dst[GatherPlan.outputOffset(offsets)] = in[baseIn + axisIndex * plan.axisStrideIn];
         }
     }
 
-    static void gatherGradF32(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
-        IndexValidation.validateGatherGrad(indices, outGrad, node, dimension);
-        float[] grad = TensorInternalAccess.float32Data(outGrad);
-        float[] dst = TensorInternalAccess.float32Data(node);
-        ScatterPlan plan = ScatterPlan.create(outGrad, node, dimension);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+    private static void gatherF32Array(
+            float[] in,
+            CpuStorageView indicesView,
+            float[] dst,
+            IndexLoopSupport.IndexStoragePlan indexPlan,
+            GatherPlan plan
+    ) {
         for (int logical = 0; logical < plan.total; logical++) {
-            int baseNode = plan.nodeBaseOffset;
-            int baseGrad = plan.gradBaseOffset;
-            int rem = logical;
-            for (int d = 0, rd = 0; d < plan.nodeShape.length; d++) {
-                if (d == dimension) {
-                    continue;
-                }
-                int coord = rem / plan.reducedDense[rd];
-                rem %= plan.reducedDense[rd];
-                baseNode += coord * plan.nodeStrides[d];
-                baseGrad += coord * plan.gradStrides[rd];
-                rd++;
-            }
-            int axisIndex = indexReader.readAxisIndex(logical, plan.axisSize);
-            dst[baseNode + axisIndex * plan.axisStrideNode] += grad[baseGrad];
+            long offsets = plan.baseOffsets(logical);
+            int baseIn = GatherPlan.inputOffset(offsets);
+            int axisIndex = IndexLoopSupport.readAxisIndex(indicesView, indexPlan, logical, plan.axisSize);
+            dst[GatherPlan.outputOffset(offsets)] = in[baseIn + axisIndex * plan.axisStrideIn];
         }
     }
 
-    static void gatherGradBF16(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
-        IndexValidation.validateGatherGrad(indices, outGrad, node, dimension);
-        short[] grad = TensorInternalAccess.bfloat16Data(outGrad);
-        short[] dst = TensorInternalAccess.bfloat16Data(node);
-        ScatterPlan plan = ScatterPlan.create(outGrad, node, dimension);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+    private static void gatherBF16Array(
+            short[] in,
+            CpuStorageView indicesView,
+            short[] dst,
+            IndexLoopSupport.IndexStoragePlan indexPlan,
+            GatherPlan plan
+    ) {
         for (int logical = 0; logical < plan.total; logical++) {
-            int baseNode = plan.nodeBaseOffset;
-            int baseGrad = plan.gradBaseOffset;
-            int rem = logical;
-            for (int d = 0, rd = 0; d < plan.nodeShape.length; d++) {
-                if (d == dimension) {
-                    continue;
-                }
-                int coord = rem / plan.reducedDense[rd];
-                rem %= plan.reducedDense[rd];
-                baseNode += coord * plan.nodeStrides[d];
-                baseGrad += coord * plan.gradStrides[rd];
-                rd++;
-            }
-            int axisIndex = indexReader.readAxisIndex(logical, plan.axisSize);
-            int target = baseNode + axisIndex * plan.axisStrideNode;
-            float acc = TensorDTypeOps.fromBFloat16Bits(dst[target]) + TensorDTypeOps.fromBFloat16Bits(grad[baseGrad]);
-            dst[target] = TensorDTypeOps.toBFloat16Bits(acc);
+            long offsets = plan.baseOffsets(logical);
+            int baseIn = GatherPlan.inputOffset(offsets);
+            int axisIndex = IndexLoopSupport.readAxisIndex(indicesView, indexPlan, logical, plan.axisSize);
+            dst[GatherPlan.outputOffset(offsets)] = in[baseIn + axisIndex * plan.axisStrideIn];
+        }
+    }
+
+    private static void gatherBOOLArray(
+            byte[] in,
+            CpuStorageView indicesView,
+            byte[] dst,
+            IndexLoopSupport.IndexStoragePlan indexPlan,
+            GatherPlan plan
+    ) {
+        for (int logical = 0; logical < plan.total; logical++) {
+            long offsets = plan.baseOffsets(logical);
+            int baseIn = GatherPlan.inputOffset(offsets);
+            int axisIndex = IndexLoopSupport.readAxisIndex(indicesView, indexPlan, logical, plan.axisSize);
+            dst[GatherPlan.outputOffset(offsets)] = in[baseIn + axisIndex * plan.axisStrideIn];
+        }
+    }
+
+    private static void gatherI32Array(
+            int[] in,
+            CpuStorageView indicesView,
+            int[] dst,
+            IndexLoopSupport.IndexStoragePlan indexPlan,
+            GatherPlan plan
+    ) {
+        for (int logical = 0; logical < plan.total; logical++) {
+            long offsets = plan.baseOffsets(logical);
+            int baseIn = GatherPlan.inputOffset(offsets);
+            int axisIndex = IndexLoopSupport.readAxisIndex(indicesView, indexPlan, logical, plan.axisSize);
+            dst[GatherPlan.outputOffset(offsets)] = in[baseIn + axisIndex * plan.axisStrideIn];
+        }
+    }
+
+    private static void gatherI64Array(
+            long[] in,
+            CpuStorageView indicesView,
+            long[] dst,
+            IndexLoopSupport.IndexStoragePlan indexPlan,
+            GatherPlan plan
+    ) {
+        for (int logical = 0; logical < plan.total; logical++) {
+            long offsets = plan.baseOffsets(logical);
+            int baseIn = GatherPlan.inputOffset(offsets);
+            int axisIndex = IndexLoopSupport.readAxisIndex(indicesView, indexPlan, logical, plan.axisSize);
+            dst[GatherPlan.outputOffset(offsets)] = in[baseIn + axisIndex * plan.axisStrideIn];
         }
     }
 
@@ -244,7 +269,8 @@ final class GatherLoops {
             int outBaseOffset,
             int total,
             int axisSize,
-            int axisStrideIn
+            int axisStrideIn,
+            int dimension
     ) {
         static GatherPlan create(Tensor input, Tensor out, int dimension) {
             int[] inputShape = input.getShapeUnsafe();
@@ -257,33 +283,33 @@ final class GatherLoops {
                     out.getStorageOffsetUnsafe(),
                     out.getFlatDataSize(),
                     inputShape[dimension],
-                    input.getStridesUnsafe()[dimension]);
+                    input.getStridesUnsafe()[dimension],
+                    dimension);
         }
-    }
 
-    private record ScatterPlan(
-            int[] nodeShape,
-            int[] nodeStrides,
-            int[] gradStrides,
-            int[] reducedDense,
-            int nodeBaseOffset,
-            int gradBaseOffset,
-            int total,
-            int axisSize,
-            int axisStrideNode
-    ) {
-        static ScatterPlan create(Tensor outGrad, Tensor node, int dimension) {
-            int[] nodeShape = node.getShapeUnsafe();
-            return new ScatterPlan(
-                    nodeShape,
-                    node.getStridesUnsafe(),
-                    outGrad.getStridesUnsafe(),
-                    IndexLoopSupport.denseStrides(outGrad.getShapeUnsafe()),
-                    node.getStorageOffsetUnsafe(),
-                    outGrad.getStorageOffsetUnsafe(),
-                    outGrad.getFlatDataSize(),
-                    nodeShape[dimension],
-                    node.getStridesUnsafe()[dimension]);
+        long baseOffsets(int logical) {
+            int baseIn = inputBaseOffset;
+            int baseOut = outBaseOffset;
+            int rem = logical;
+            for (int d = 0, rd = 0; d < inputShape.length; d++) {
+                if (d == dimension) {
+                    continue;
+                }
+                int coord = rem / reducedDense[rd];
+                rem %= reducedDense[rd];
+                baseIn += coord * inputStrides[d];
+                baseOut += coord * outStrides[rd];
+                rd++;
+            }
+            return ((long) baseIn << 32) | (baseOut & 0xffffffffL);
+        }
+
+        static int inputOffset(long offsets) {
+            return (int) (offsets >> 32);
+        }
+
+        static int outputOffset(long offsets) {
+            return (int) offsets;
         }
     }
 }

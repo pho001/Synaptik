@@ -1,54 +1,44 @@
 package backend.cpu.kernels.index;
 
-import backend.cpu.kernels.TypedCpuKernel;
-import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.kernels.CpuKernelCall;
+import backend.cpu.kernels.CpuKernelResult;
+import backend.cpu.kernels.CpuStorageAwareKernel;
 import operations.Operation;
 import operations.index.scatterElements;
 import tensor.Tensor;
 
 import java.util.List;
 
-public final class CpuScatterElementsKernel extends TypedCpuKernel {
+public final class CpuScatterElementsKernel implements CpuStorageAwareKernel {
     @Override
-    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        scatterElements scatterOp = requireOp(op);
-        Tensor[] triple = requireTriple(inputs);
-        ScatterElementsLoops.scatterElementsF64(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction());
-    }
-
-    @Override
-    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        scatterElements scatterOp = requireOp(op);
-        Tensor[] triple = requireTriple(inputs);
-        ScatterElementsLoops.scatterElementsF32(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction());
-    }
-
-    @Override
-    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        scatterElements scatterOp = requireOp(op);
-        Tensor[] triple = requireTriple(inputs);
-        ScatterElementsLoops.scatterElementsBF16(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction());
-    }
-
-    @Override
-    protected void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        scatterElements scatterOp = requireOp(op);
-        Tensor[] triple = requireTriple(inputs);
-        ScatterElementsLoops.scatterElementsBOOL(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction());
-    }
-
-    @Override
-    protected void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        scatterElements scatterOp = requireOp(op);
-        Tensor[] triple = requireTriple(inputs);
-        ScatterElementsLoops.scatterElementsI32(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction());
-    }
-
-    @Override
-    protected void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        scatterElements scatterOp = requireOp(op);
-        Tensor[] triple = requireTriple(inputs);
-        ScatterElementsLoops.scatterElementsI64(triple[0], triple[1], triple[2], node, scatterOp.getAxis(), scatterOp.getReduction());
+    public CpuKernelResult execute(CpuKernelCall call) {
+        scatterElements scatterOp = requireOp(call.operation());
+        Tensor[] triple = requireTriple(call.inputTensors());
+        if (call.inputs().size() != 3) {
+            throw new IllegalArgumentException("scatterElements expects exactly three input storage views.");
+        }
+        Tensor node = call.outputTensor();
+        switch (node.getDataType()) {
+            case FLOAT64 -> ScatterElementsLoops.scatterElementsF64(triple[0], triple[1], triple[2], node,
+                    call.inputs().get(0), call.inputs().get(1), call.inputs().get(2), call.output(),
+                    scatterOp.getAxis(), scatterOp.getReduction());
+            case FLOAT32 -> ScatterElementsLoops.scatterElementsF32(triple[0], triple[1], triple[2], node,
+                    call.inputs().get(0), call.inputs().get(1), call.inputs().get(2), call.output(),
+                    scatterOp.getAxis(), scatterOp.getReduction());
+            case BFLOAT16 -> ScatterElementsLoops.scatterElementsBF16(triple[0], triple[1], triple[2], node,
+                    call.inputs().get(0), call.inputs().get(1), call.inputs().get(2), call.output(),
+                    scatterOp.getAxis(), scatterOp.getReduction());
+            case BOOL -> ScatterElementsLoops.scatterElementsBOOL(triple[0], triple[1], triple[2], node,
+                    call.inputs().get(0), call.inputs().get(1), call.inputs().get(2), call.output(),
+                    scatterOp.getAxis(), scatterOp.getReduction());
+            case INT32 -> ScatterElementsLoops.scatterElementsI32(triple[0], triple[1], triple[2], node,
+                    call.inputs().get(0), call.inputs().get(1), call.inputs().get(2), call.output(),
+                    scatterOp.getAxis(), scatterOp.getReduction());
+            case INT64 -> ScatterElementsLoops.scatterElementsI64(triple[0], triple[1], triple[2], node,
+                    call.inputs().get(0), call.inputs().get(1), call.inputs().get(2), call.output(),
+                    scatterOp.getAxis(), scatterOp.getReduction());
+        }
+        return CpuKernelResult.completed();
     }
 
     private static scatterElements requireOp(Operation op) {

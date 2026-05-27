@@ -1,120 +1,184 @@
 package backend.cpu.kernels.index;
 
+import backend.cpu.storage.CpuStorageView;
+import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorInternalAccess;
-import tensor.dtype.TensorDTypeOps;
 
 final class TakeAlongAxisLoops {
     private TakeAlongAxisLoops() {
     }
 
-    static void takeAlongAxisF64(Tensor input, Tensor indices, Tensor out, int dimension) {
+    static void takeAlongAxisF64(
+            Tensor input,
+            Tensor indices,
+            Tensor out,
+            CpuStorageView inputView,
+            CpuStorageView indicesView,
+            CpuStorageView outView,
+            int dimension
+    ) {
         IndexValidation.validateTakeAlongAxis(input, indices, out, dimension);
-        double[] in = TensorInternalAccess.float64Data(input);
-        double[] dst = TensorInternalAccess.float64Data(out);
+        IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.FLOAT64);
         TakeAlongAxisPlan plan = TakeAlongAxisPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
+            double[] in = inputView.requireF64Array();
+            double[] dst = outView.requireF64Array();
+            for (int logical = 0; logical < plan.total; logical++) {
+                plan.computeOffsets(logical, indicesView, indexPlan, dimension);
+                dst[plan.valueOffset] = in[plan.baseOffset + plan.axisIndex * plan.axisStride];
+            }
+            return;
+        }
         for (int logical = 0; logical < plan.total; logical++) {
-            plan.computeOffsets(logical, indexReader, dimension);
-            dst[plan.valueOffset] = in[plan.baseOffset + plan.axisIndex * plan.axisStride];
+            plan.computeOffsets(logical, indicesView, indexPlan, dimension);
+            IndexLoopSupport.writeF64(outView, plan.valueOffset,
+                    IndexLoopSupport.readF64(inputView, plan.baseOffset + plan.axisIndex * plan.axisStride));
         }
     }
 
-    static void takeAlongAxisF32(Tensor input, Tensor indices, Tensor out, int dimension) {
+    static void takeAlongAxisF32(
+            Tensor input,
+            Tensor indices,
+            Tensor out,
+            CpuStorageView inputView,
+            CpuStorageView indicesView,
+            CpuStorageView outView,
+            int dimension
+    ) {
         IndexValidation.validateTakeAlongAxis(input, indices, out, dimension);
-        float[] in = TensorInternalAccess.float32Data(input);
-        float[] dst = TensorInternalAccess.float32Data(out);
+        IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.FLOAT32);
         TakeAlongAxisPlan plan = TakeAlongAxisPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
+            float[] in = inputView.requireF32Array();
+            float[] dst = outView.requireF32Array();
+            for (int logical = 0; logical < plan.total; logical++) {
+                plan.computeOffsets(logical, indicesView, indexPlan, dimension);
+                dst[plan.valueOffset] = in[plan.baseOffset + plan.axisIndex * plan.axisStride];
+            }
+            return;
+        }
         for (int logical = 0; logical < plan.total; logical++) {
-            plan.computeOffsets(logical, indexReader, dimension);
-            dst[plan.valueOffset] = in[plan.baseOffset + plan.axisIndex * plan.axisStride];
+            plan.computeOffsets(logical, indicesView, indexPlan, dimension);
+            IndexLoopSupport.writeF32(outView, plan.valueOffset,
+                    IndexLoopSupport.readF32(inputView, plan.baseOffset + plan.axisIndex * plan.axisStride));
         }
     }
 
-    static void takeAlongAxisBF16(Tensor input, Tensor indices, Tensor out, int dimension) {
+    static void takeAlongAxisBF16(
+            Tensor input,
+            Tensor indices,
+            Tensor out,
+            CpuStorageView inputView,
+            CpuStorageView indicesView,
+            CpuStorageView outView,
+            int dimension
+    ) {
         IndexValidation.validateTakeAlongAxis(input, indices, out, dimension);
-        short[] in = TensorInternalAccess.bfloat16Data(input);
-        short[] dst = TensorInternalAccess.bfloat16Data(out);
+        IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.BFLOAT16);
         TakeAlongAxisPlan plan = TakeAlongAxisPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
+            short[] in = inputView.requireBF16Array();
+            short[] dst = outView.requireBF16Array();
+            for (int logical = 0; logical < plan.total; logical++) {
+                plan.computeOffsets(logical, indicesView, indexPlan, dimension);
+                dst[plan.valueOffset] = in[plan.baseOffset + plan.axisIndex * plan.axisStride];
+            }
+            return;
+        }
         for (int logical = 0; logical < plan.total; logical++) {
-            plan.computeOffsets(logical, indexReader, dimension);
-            dst[plan.valueOffset] = in[plan.baseOffset + plan.axisIndex * plan.axisStride];
+            plan.computeOffsets(logical, indicesView, indexPlan, dimension);
+            IndexLoopSupport.writeBF16Bits(outView, plan.valueOffset,
+                    IndexLoopSupport.readBF16Bits(inputView, plan.baseOffset + plan.axisIndex * plan.axisStride));
         }
     }
 
-    static void takeAlongAxisBOOL(Tensor input, Tensor indices, Tensor out, int dimension) {
+    static void takeAlongAxisBOOL(
+            Tensor input,
+            Tensor indices,
+            Tensor out,
+            CpuStorageView inputView,
+            CpuStorageView indicesView,
+            CpuStorageView outView,
+            int dimension
+    ) {
         IndexValidation.validateTakeAlongAxis(input, indices, out, dimension);
-        byte[] in = TensorInternalAccess.boolData(input);
-        byte[] dst = TensorInternalAccess.boolData(out);
+        IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.BOOL);
         TakeAlongAxisPlan plan = TakeAlongAxisPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
+            byte[] in = inputView.requireBoolArray();
+            byte[] dst = outView.requireBoolArray();
+            for (int logical = 0; logical < plan.total; logical++) {
+                plan.computeOffsets(logical, indicesView, indexPlan, dimension);
+                dst[plan.valueOffset] = in[plan.baseOffset + plan.axisIndex * plan.axisStride];
+            }
+            return;
+        }
         for (int logical = 0; logical < plan.total; logical++) {
-            plan.computeOffsets(logical, indexReader, dimension);
-            dst[plan.valueOffset] = in[plan.baseOffset + plan.axisIndex * plan.axisStride];
+            plan.computeOffsets(logical, indicesView, indexPlan, dimension);
+            IndexLoopSupport.writeBool(outView, plan.valueOffset,
+                    IndexLoopSupport.readBool(inputView, plan.baseOffset + plan.axisIndex * plan.axisStride));
         }
     }
 
-    static void takeAlongAxisI32(Tensor input, Tensor indices, Tensor out, int dimension) {
+    static void takeAlongAxisI32(
+            Tensor input,
+            Tensor indices,
+            Tensor out,
+            CpuStorageView inputView,
+            CpuStorageView indicesView,
+            CpuStorageView outView,
+            int dimension
+    ) {
         IndexValidation.validateTakeAlongAxis(input, indices, out, dimension);
-        int[] in = TensorInternalAccess.int32Data(input);
-        int[] dst = TensorInternalAccess.int32Data(out);
+        IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.INT32);
         TakeAlongAxisPlan plan = TakeAlongAxisPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
+            int[] in = inputView.requireI32Array();
+            int[] dst = outView.requireI32Array();
+            for (int logical = 0; logical < plan.total; logical++) {
+                plan.computeOffsets(logical, indicesView, indexPlan, dimension);
+                dst[plan.valueOffset] = in[plan.baseOffset + plan.axisIndex * plan.axisStride];
+            }
+            return;
+        }
         for (int logical = 0; logical < plan.total; logical++) {
-            plan.computeOffsets(logical, indexReader, dimension);
-            dst[plan.valueOffset] = in[plan.baseOffset + plan.axisIndex * plan.axisStride];
+            plan.computeOffsets(logical, indicesView, indexPlan, dimension);
+            IndexLoopSupport.writeI32(outView, plan.valueOffset,
+                    IndexLoopSupport.readI32(inputView, plan.baseOffset + plan.axisIndex * plan.axisStride));
         }
     }
 
-    static void takeAlongAxisI64(Tensor input, Tensor indices, Tensor out, int dimension) {
+    static void takeAlongAxisI64(
+            Tensor input,
+            Tensor indices,
+            Tensor out,
+            CpuStorageView inputView,
+            CpuStorageView indicesView,
+            CpuStorageView outView,
+            int dimension
+    ) {
         IndexValidation.validateTakeAlongAxis(input, indices, out, dimension);
-        long[] in = TensorInternalAccess.int64Data(input);
-        long[] dst = TensorInternalAccess.int64Data(out);
+        IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.INT64);
         TakeAlongAxisPlan plan = TakeAlongAxisPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
-        for (int logical = 0; logical < plan.total; logical++) {
-            plan.computeOffsets(logical, indexReader, dimension);
-            dst[plan.valueOffset] = in[plan.baseOffset + plan.axisIndex * plan.axisStride];
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
+            long[] in = inputView.requireI64Array();
+            long[] dst = outView.requireI64Array();
+            for (int logical = 0; logical < plan.total; logical++) {
+                plan.computeOffsets(logical, indicesView, indexPlan, dimension);
+                dst[plan.valueOffset] = in[plan.baseOffset + plan.axisIndex * plan.axisStride];
+            }
+            return;
         }
-    }
-
-    static void takeAlongAxisGradF64(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
-        IndexValidation.validateTakeAlongAxisGrad(indices, outGrad, node, dimension);
-        double[] grad = TensorInternalAccess.float64Data(outGrad);
-        double[] dst = TensorInternalAccess.float64Data(node);
-        TakeAlongAxisPlan plan = TakeAlongAxisPlan.create(node, outGrad, dimension);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
         for (int logical = 0; logical < plan.total; logical++) {
-            plan.computeOffsets(logical, indexReader, dimension);
-            dst[plan.baseOffset + plan.axisIndex * plan.axisStride] += grad[plan.valueOffset];
-        }
-    }
-
-    static void takeAlongAxisGradF32(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
-        IndexValidation.validateTakeAlongAxisGrad(indices, outGrad, node, dimension);
-        float[] grad = TensorInternalAccess.float32Data(outGrad);
-        float[] dst = TensorInternalAccess.float32Data(node);
-        TakeAlongAxisPlan plan = TakeAlongAxisPlan.create(node, outGrad, dimension);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
-        for (int logical = 0; logical < plan.total; logical++) {
-            plan.computeOffsets(logical, indexReader, dimension);
-            dst[plan.baseOffset + plan.axisIndex * plan.axisStride] += grad[plan.valueOffset];
-        }
-    }
-
-    static void takeAlongAxisGradBF16(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
-        IndexValidation.validateTakeAlongAxisGrad(indices, outGrad, node, dimension);
-        short[] grad = TensorInternalAccess.bfloat16Data(outGrad);
-        short[] dst = TensorInternalAccess.bfloat16Data(node);
-        TakeAlongAxisPlan plan = TakeAlongAxisPlan.create(node, outGrad, dimension);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
-        for (int logical = 0; logical < plan.total; logical++) {
-            plan.computeOffsets(logical, indexReader, dimension);
-            int target = plan.baseOffset + plan.axisIndex * plan.axisStride;
-            float acc = TensorDTypeOps.fromBFloat16Bits(dst[target]) + TensorDTypeOps.fromBFloat16Bits(grad[plan.valueOffset]);
-            dst[target] = TensorDTypeOps.toBFloat16Bits(acc);
+            plan.computeOffsets(logical, indicesView, indexPlan, dimension);
+            IndexLoopSupport.writeI64(outView, plan.valueOffset,
+                    IndexLoopSupport.readI64(inputView, plan.baseOffset + plan.axisIndex * plan.axisStride));
         }
     }
 
@@ -189,6 +253,28 @@ final class TakeAlongAxisLoops {
             baseOffset = base;
             valueOffset = value;
             axisIndex = indexReader.readAxisIndexAllowNegative(logical, axisSize);
+        }
+
+        void computeOffsets(
+                int logical,
+                CpuStorageView indices,
+                IndexLoopSupport.IndexStoragePlan indexPlan,
+                int dimension
+        ) {
+            int rem = logical;
+            int base = inputBaseOffset;
+            int value = valueBaseOffset;
+            for (int d = 0; d < valueShape.length; d++) {
+                int coord = rem / valueDense[d];
+                rem %= valueDense[d];
+                value += coord * valueStrides[d];
+                if (d != dimension) {
+                    base += coord * inputStrides[d];
+                }
+            }
+            baseOffset = base;
+            valueOffset = value;
+            axisIndex = IndexLoopSupport.readAxisIndexAllowNegative(indices, indexPlan, logical, axisSize);
         }
     }
 }

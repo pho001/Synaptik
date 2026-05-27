@@ -1,5 +1,6 @@
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
+import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
@@ -40,6 +41,19 @@ public class GatherExecutionTest {
                 .prepare(RuntimeConfig.inferenceDefaults()).execute(ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{3.0, 4.0}, y.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void gatherReadsNativeSegmentInputProducedByPriorCpuNativeOp() {
+        Tensor x = new Tensor(new float[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x", DataType.FLOAT32);
+        Tensor doubled = x.add(x);
+        Tensor indices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "indices", DataType.INT32);
+        Tensor y = doubled.gather(indices, 1);
+
+        CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline())
+                .prepare(nativeRuntime()).execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{6.0, 8.0}, y.toDoubleArrayCopy(), 1e-6);
     }
 
     @Test
@@ -100,6 +114,25 @@ public class GatherExecutionTest {
                 5.0, 2.0,
                 6.0, 3.0
         }, y.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void gatherAxisReadsNativeSegmentInputProducedByPriorCpuNativeOp() {
+        Tensor x = new Tensor(new float[]{
+                1, 2, 3,
+                4, 5, 6
+        }, new int[]{2, 3}, null, "x", DataType.FLOAT32);
+        Tensor doubled = x.add(x);
+        Tensor indices = new Tensor(new int[]{2, 0, -1, 1}, new int[]{2, 2}, null, "indices", DataType.INT32);
+        Tensor y = doubled.gatherAxis(indices, 1);
+
+        CompiledGraph.compile(y, CompileConfig.noGraphOptimizationBaseline())
+                .prepare(nativeRuntime()).execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{
+                6.0, 2.0, 6.0, 4.0,
+                12.0, 8.0, 12.0, 10.0
+        }, y.toDoubleArrayCopy(), 1e-6);
     }
 
     @Test
@@ -227,5 +260,9 @@ public class GatherExecutionTest {
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(type -> type == opType);
+    }
+
+    private static RuntimeConfig nativeRuntime() {
+        return RuntimeConfig.inferenceDefaults().withCpuStorageProfile(CpuStorageProfile.CPU_NATIVE);
     }
 }

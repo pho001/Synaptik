@@ -1,40 +1,24 @@
 package backend.cpu.kernels.reduction;
 
-import backend.cpu.execution.CpuKernelContext;
-
-import backend.cpu.kernels.*;
-
-import backend.cpu.kernels.reduction.MinMaxReduceExecutor;
 import operations.Operation;
 import operations.reduction.reduceMax;
-import tensor.Tensor;
 
-import java.util.List;
-
-public final class CpuReduceMaxKernel extends TypedCpuKernel {
-    private static final MinMaxReduceExecutor EXECUTOR = new MinMaxReduceExecutor();
-
+public final class CpuReduceMaxKernel extends StorageAwareMinMaxReductionKernel {
     @Override
-    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        if (!(op instanceof reduceMax reduction)) {
-            throw new IllegalArgumentException("CpuReduceMaxKernel requires reduceMax operation");
-        }
-        EXECUTOR.execute(reduction, inputs.getFirst(), node, context);
+    protected Operation.OpType opType() {
+        return Operation.OpType.REDUCE_MAX;
     }
 
     @Override
-    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected int dimension(Operation op) {
         if (!(op instanceof reduceMax reduction)) {
             throw new IllegalArgumentException("CpuReduceMaxKernel requires reduceMax operation");
         }
-        EXECUTOR.executeF32(reduction, inputs.getFirst(), node, context);
+        return reduction.getDimension();
     }
 
     @Override
-    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        if (!(op instanceof reduceMax reduction)) {
-            throw new IllegalArgumentException("CpuReduceMaxKernel requires reduceMax operation");
-        }
-        EXECUTOR.executeBF16(reduction, inputs.getFirst(), node, context);
+    protected boolean isMax() {
+        return true;
     }
 }

@@ -2,7 +2,7 @@ package backend.cpu.nativecpu.layout;
 
 import tensor.dtype.TensorDTypeOps;
 import backend.cpu.execution.CpuThreadPool;
-import backend.cpu.kernels.elementwise.where.WhereElementwiseKernel;
+import backend.cpu.kernels.elementwise.where.CpuWhereKernel;
 import backend.cpu.kernels.elementwise.unary.support.CpuPowSupport;
 import operations.Operation;
 import operations.elementwise.unary.clampMax;
@@ -217,7 +217,7 @@ public final class NativeSegmentStridedKernels {
     }
 
     public static void runWhere(
-            WhereElementwiseKernel kernel,
+            CpuWhereKernel kernel,
             byte[] condition,
             TensorPhysicalView conditionView,
             NativeSegmentView ifTrue,
@@ -237,7 +237,7 @@ public final class NativeSegmentStridedKernels {
     }
 
     public static void runWhere(
-            WhereElementwiseKernel kernel,
+            CpuWhereKernel kernel,
             NativeSegmentView condition,
             NativeSegmentView ifTrue,
             NativeSegmentView ifFalse,
@@ -762,7 +762,7 @@ public final class NativeSegmentStridedKernels {
     }
 
     private static void runWhereF32(
-            WhereElementwiseKernel kernel,
+            CpuWhereKernel kernel,
             byte[] condition,
             TensorPhysicalView conditionView,
             NativeSegmentView ifTrue,
@@ -788,7 +788,7 @@ public final class NativeSegmentStridedKernels {
     }
 
     private static void runWhereF64(
-            WhereElementwiseKernel kernel,
+            CpuWhereKernel kernel,
             byte[] condition,
             TensorPhysicalView conditionView,
             NativeSegmentView ifTrue,
@@ -839,7 +839,7 @@ public final class NativeSegmentStridedKernels {
     }
 
     private static void runWhereF32(
-            WhereElementwiseKernel kernel,
+            CpuWhereKernel kernel,
             NativeSegmentView condition,
             NativeSegmentView ifTrue,
             NativeSegmentView ifFalse,
@@ -865,7 +865,7 @@ public final class NativeSegmentStridedKernels {
     }
 
     private static void runWhereF64(
-            WhereElementwiseKernel kernel,
+            CpuWhereKernel kernel,
             NativeSegmentView condition,
             NativeSegmentView ifTrue,
             NativeSegmentView ifFalse,

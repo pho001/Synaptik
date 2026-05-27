@@ -986,7 +986,7 @@ public class BenchmarkSessionTest {
                 List.of(32, 32),
                 DataType.BFLOAT16,
                 "CPU",
-                "ElementwiseUnaryExecutor",
+                "StorageAwareUnaryElementwiseKernel",
                 20L,
                 new graph.execution.trace.StepExecutionMetadata(
                         "node",
@@ -1265,7 +1265,7 @@ public class BenchmarkSessionTest {
                 List.of(2, 2),
                 DataType.BFLOAT16,
                 "CPU",
-                "ElementwiseUnaryExecutor",
+                "StorageAwareUnaryElementwiseKernel",
                 100L,
                 new graph.execution.trace.StepExecutionMetadata(
                         "node",
@@ -1338,7 +1338,7 @@ public class BenchmarkSessionTest {
                 List.of(2, 2),
                 DataType.BFLOAT16,
                 "CPU",
-                "ElementwiseBinaryExecutor",
+                "CpuAddKernel",
                 100L,
                 new graph.execution.trace.StepExecutionMetadata(
                         "node",

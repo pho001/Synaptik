@@ -1,103 +1,246 @@
 package backend.cpu.kernels.index;
 
+import backend.cpu.storage.CpuStorageView;
 import operations.index.ScatterReduction;
+import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorInternalAccess;
 import tensor.dtype.TensorDTypeOps;
 
 final class ScatterNdLoops {
     private ScatterNdLoops() {
     }
 
-    static void scatterNdF64(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims) {
+    static void scatterNdF64(
+            Tensor data,
+            Tensor indices,
+            Tensor updates,
+            Tensor out,
+            CpuStorageView dataView,
+            CpuStorageView indicesView,
+            CpuStorageView updatesView,
+            CpuStorageView outView,
+            ScatterReduction reduction,
+            int batchDims
+    ) {
         ScatterReduction effectiveReduction = IndexValidation.validateScatterNd(data, indices, updates, out, reduction, batchDims);
-        out.copyDataFrom(data);
-        double[] updateData = TensorInternalAccess.float64Data(updates);
-        double[] dst = TensorInternalAccess.float64Data(out);
+        IndexLoopSupport.validateScatterStorageViews(data, indices, updates, out,
+                dataView, indicesView, updatesView, outView, DataType.FLOAT64);
+        IndexLoopSupport.copyStorage(data, out, dataView, outView, DataType.FLOAT64);
         IndexLoopSupport.DuplicateState state = IndexLoopSupport.duplicateState(out, effectiveReduction, "scatterNd");
         ScatterNdPlan plan = ScatterNdPlan.create(data, indices, updates, out);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        if (IndexLoopSupport.allArrays(dataView, indicesView, updatesView, outView)) {
+            double[] updateData = updatesView.requireF64Array();
+            double[] dst = outView.requireF64Array();
+            for (int logical = 0; logical < plan.total; logical++) {
+                plan.computeOffsets(logical, indicesView, indexPlan, batchDims);
+                state.mark(plan.targetLogical);
+                dst[plan.targetOffset] = IndexLoopSupport.reduce(dst[plan.targetOffset], updateData[plan.updateOffset], effectiveReduction);
+            }
+            return;
+        }
         for (int logical = 0; logical < plan.total; logical++) {
-            plan.computeOffsets(logical, indexReader, batchDims);
+            plan.computeOffsets(logical, indicesView, indexPlan, batchDims);
             state.mark(plan.targetLogical);
-            dst[plan.targetOffset] = IndexLoopSupport.reduce(dst[plan.targetOffset], updateData[plan.updateOffset], effectiveReduction);
+            IndexLoopSupport.writeF64(outView, plan.targetOffset,
+                    IndexLoopSupport.reduce(IndexLoopSupport.readF64(outView, plan.targetOffset),
+                            IndexLoopSupport.readF64(updatesView, plan.updateOffset),
+                            effectiveReduction));
         }
     }
 
-    static void scatterNdF32(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims) {
+    static void scatterNdF32(
+            Tensor data,
+            Tensor indices,
+            Tensor updates,
+            Tensor out,
+            CpuStorageView dataView,
+            CpuStorageView indicesView,
+            CpuStorageView updatesView,
+            CpuStorageView outView,
+            ScatterReduction reduction,
+            int batchDims
+    ) {
         ScatterReduction effectiveReduction = IndexValidation.validateScatterNd(data, indices, updates, out, reduction, batchDims);
-        out.copyDataFrom(data);
-        float[] updateData = TensorInternalAccess.float32Data(updates);
-        float[] dst = TensorInternalAccess.float32Data(out);
+        IndexLoopSupport.validateScatterStorageViews(data, indices, updates, out,
+                dataView, indicesView, updatesView, outView, DataType.FLOAT32);
+        IndexLoopSupport.copyStorage(data, out, dataView, outView, DataType.FLOAT32);
         IndexLoopSupport.DuplicateState state = IndexLoopSupport.duplicateState(out, effectiveReduction, "scatterNd");
         ScatterNdPlan plan = ScatterNdPlan.create(data, indices, updates, out);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        if (IndexLoopSupport.allArrays(dataView, indicesView, updatesView, outView)) {
+            float[] updateData = updatesView.requireF32Array();
+            float[] dst = outView.requireF32Array();
+            for (int logical = 0; logical < plan.total; logical++) {
+                plan.computeOffsets(logical, indicesView, indexPlan, batchDims);
+                state.mark(plan.targetLogical);
+                dst[plan.targetOffset] = (float) IndexLoopSupport.reduce(dst[plan.targetOffset], updateData[plan.updateOffset], effectiveReduction);
+            }
+            return;
+        }
         for (int logical = 0; logical < plan.total; logical++) {
-            plan.computeOffsets(logical, indexReader, batchDims);
+            plan.computeOffsets(logical, indicesView, indexPlan, batchDims);
             state.mark(plan.targetLogical);
-            dst[plan.targetOffset] = (float) IndexLoopSupport.reduce(dst[plan.targetOffset], updateData[plan.updateOffset], effectiveReduction);
+            IndexLoopSupport.writeF32(outView, plan.targetOffset,
+                    (float) IndexLoopSupport.reduce(IndexLoopSupport.readF32(outView, plan.targetOffset),
+                            IndexLoopSupport.readF32(updatesView, plan.updateOffset),
+                            effectiveReduction));
         }
     }
 
-    static void scatterNdBF16(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims) {
+    static void scatterNdBF16(
+            Tensor data,
+            Tensor indices,
+            Tensor updates,
+            Tensor out,
+            CpuStorageView dataView,
+            CpuStorageView indicesView,
+            CpuStorageView updatesView,
+            CpuStorageView outView,
+            ScatterReduction reduction,
+            int batchDims
+    ) {
         ScatterReduction effectiveReduction = IndexValidation.validateScatterNd(data, indices, updates, out, reduction, batchDims);
-        out.copyDataFrom(data);
-        short[] updateData = TensorInternalAccess.bfloat16Data(updates);
-        short[] dst = TensorInternalAccess.bfloat16Data(out);
+        IndexLoopSupport.validateScatterStorageViews(data, indices, updates, out,
+                dataView, indicesView, updatesView, outView, DataType.BFLOAT16);
+        IndexLoopSupport.copyStorage(data, out, dataView, outView, DataType.BFLOAT16);
         IndexLoopSupport.DuplicateState state = IndexLoopSupport.duplicateState(out, effectiveReduction, "scatterNd");
         ScatterNdPlan plan = ScatterNdPlan.create(data, indices, updates, out);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        if (IndexLoopSupport.allArrays(dataView, indicesView, updatesView, outView)) {
+            short[] updateData = updatesView.requireBF16Array();
+            short[] dst = outView.requireBF16Array();
+            for (int logical = 0; logical < plan.total; logical++) {
+                plan.computeOffsets(logical, indicesView, indexPlan, batchDims);
+                state.mark(plan.targetLogical);
+                float current = TensorDTypeOps.fromBFloat16Bits(dst[plan.targetOffset]);
+                float update = TensorDTypeOps.fromBFloat16Bits(updateData[plan.updateOffset]);
+                dst[plan.targetOffset] = TensorDTypeOps.toBFloat16Bits((float) IndexLoopSupport.reduce(current, update, effectiveReduction));
+            }
+            return;
+        }
         for (int logical = 0; logical < plan.total; logical++) {
-            plan.computeOffsets(logical, indexReader, batchDims);
+            plan.computeOffsets(logical, indicesView, indexPlan, batchDims);
             state.mark(plan.targetLogical);
-            float current = TensorDTypeOps.fromBFloat16Bits(dst[plan.targetOffset]);
-            float update = TensorDTypeOps.fromBFloat16Bits(updateData[plan.updateOffset]);
-            dst[plan.targetOffset] = TensorDTypeOps.toBFloat16Bits((float) IndexLoopSupport.reduce(current, update, effectiveReduction));
+            float current = TensorDTypeOps.fromBFloat16Bits(IndexLoopSupport.readBF16Bits(outView, plan.targetOffset));
+            float update = TensorDTypeOps.fromBFloat16Bits(IndexLoopSupport.readBF16Bits(updatesView, plan.updateOffset));
+            IndexLoopSupport.writeBF16Bits(outView, plan.targetOffset,
+                    TensorDTypeOps.toBFloat16Bits((float) IndexLoopSupport.reduce(current, update, effectiveReduction)));
         }
     }
 
-    static void scatterNdBOOL(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims) {
+    static void scatterNdBOOL(
+            Tensor data,
+            Tensor indices,
+            Tensor updates,
+            Tensor out,
+            CpuStorageView dataView,
+            CpuStorageView indicesView,
+            CpuStorageView updatesView,
+            CpuStorageView outView,
+            ScatterReduction reduction,
+            int batchDims
+    ) {
         ScatterReduction effectiveReduction = IndexValidation.validateScatterNd(data, indices, updates, out, reduction, batchDims);
-        out.copyDataFrom(data);
-        byte[] updateData = TensorInternalAccess.boolData(updates);
-        byte[] dst = TensorInternalAccess.boolData(out);
+        IndexLoopSupport.validateScatterStorageViews(data, indices, updates, out,
+                dataView, indicesView, updatesView, outView, DataType.BOOL);
+        IndexLoopSupport.copyStorage(data, out, dataView, outView, DataType.BOOL);
         IndexLoopSupport.DuplicateState state = IndexLoopSupport.duplicateState(out, effectiveReduction, "scatterNd");
         ScatterNdPlan plan = ScatterNdPlan.create(data, indices, updates, out);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        if (IndexLoopSupport.allArrays(dataView, indicesView, updatesView, outView)) {
+            byte[] updateData = updatesView.requireBoolArray();
+            byte[] dst = outView.requireBoolArray();
+            for (int logical = 0; logical < plan.total; logical++) {
+                plan.computeOffsets(logical, indicesView, indexPlan, batchDims);
+                state.mark(plan.targetLogical);
+                dst[plan.targetOffset] = updateData[plan.updateOffset] == 0 ? (byte) 0 : (byte) 1;
+            }
+            return;
+        }
         for (int logical = 0; logical < plan.total; logical++) {
-            plan.computeOffsets(logical, indexReader, batchDims);
+            plan.computeOffsets(logical, indicesView, indexPlan, batchDims);
             state.mark(plan.targetLogical);
-            dst[plan.targetOffset] = updateData[plan.updateOffset] == 0 ? (byte) 0 : (byte) 1;
+            byte update = IndexLoopSupport.readBool(updatesView, plan.updateOffset);
+            IndexLoopSupport.writeBool(outView, plan.targetOffset, update == 0 ? (byte) 0 : (byte) 1);
         }
     }
 
-    static void scatterNdI32(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims) {
+    static void scatterNdI32(
+            Tensor data,
+            Tensor indices,
+            Tensor updates,
+            Tensor out,
+            CpuStorageView dataView,
+            CpuStorageView indicesView,
+            CpuStorageView updatesView,
+            CpuStorageView outView,
+            ScatterReduction reduction,
+            int batchDims
+    ) {
         ScatterReduction effectiveReduction = IndexValidation.validateScatterNd(data, indices, updates, out, reduction, batchDims);
-        out.copyDataFrom(data);
-        int[] updateData = TensorInternalAccess.int32Data(updates);
-        int[] dst = TensorInternalAccess.int32Data(out);
+        IndexLoopSupport.validateScatterStorageViews(data, indices, updates, out,
+                dataView, indicesView, updatesView, outView, DataType.INT32);
+        IndexLoopSupport.copyStorage(data, out, dataView, outView, DataType.INT32);
         IndexLoopSupport.DuplicateState state = IndexLoopSupport.duplicateState(out, effectiveReduction, "scatterNd");
         ScatterNdPlan plan = ScatterNdPlan.create(data, indices, updates, out);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        if (IndexLoopSupport.allArrays(dataView, indicesView, updatesView, outView)) {
+            int[] updateData = updatesView.requireI32Array();
+            int[] dst = outView.requireI32Array();
+            for (int logical = 0; logical < plan.total; logical++) {
+                plan.computeOffsets(logical, indicesView, indexPlan, batchDims);
+                state.mark(plan.targetLogical);
+                dst[plan.targetOffset] = IndexLoopSupport.reduceInt(dst[plan.targetOffset], updateData[plan.updateOffset], effectiveReduction);
+            }
+            return;
+        }
         for (int logical = 0; logical < plan.total; logical++) {
-            plan.computeOffsets(logical, indexReader, batchDims);
+            plan.computeOffsets(logical, indicesView, indexPlan, batchDims);
             state.mark(plan.targetLogical);
-            dst[plan.targetOffset] = IndexLoopSupport.reduceInt(dst[plan.targetOffset], updateData[plan.updateOffset], effectiveReduction);
+            IndexLoopSupport.writeI32(outView, plan.targetOffset,
+                    IndexLoopSupport.reduceInt(IndexLoopSupport.readI32(outView, plan.targetOffset),
+                            IndexLoopSupport.readI32(updatesView, plan.updateOffset),
+                            effectiveReduction));
         }
     }
 
-    static void scatterNdI64(Tensor data, Tensor indices, Tensor updates, Tensor out, ScatterReduction reduction, int batchDims) {
+    static void scatterNdI64(
+            Tensor data,
+            Tensor indices,
+            Tensor updates,
+            Tensor out,
+            CpuStorageView dataView,
+            CpuStorageView indicesView,
+            CpuStorageView updatesView,
+            CpuStorageView outView,
+            ScatterReduction reduction,
+            int batchDims
+    ) {
         ScatterReduction effectiveReduction = IndexValidation.validateScatterNd(data, indices, updates, out, reduction, batchDims);
-        out.copyDataFrom(data);
-        long[] updateData = TensorInternalAccess.int64Data(updates);
-        long[] dst = TensorInternalAccess.int64Data(out);
+        IndexLoopSupport.validateScatterStorageViews(data, indices, updates, out,
+                dataView, indicesView, updatesView, outView, DataType.INT64);
+        IndexLoopSupport.copyStorage(data, out, dataView, outView, DataType.INT64);
         IndexLoopSupport.DuplicateState state = IndexLoopSupport.duplicateState(out, effectiveReduction, "scatterNd");
         ScatterNdPlan plan = ScatterNdPlan.create(data, indices, updates, out);
-        IndexLoopSupport.IndexReader indexReader = IndexLoopSupport.indexReader(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        if (IndexLoopSupport.allArrays(dataView, indicesView, updatesView, outView)) {
+            long[] updateData = updatesView.requireI64Array();
+            long[] dst = outView.requireI64Array();
+            for (int logical = 0; logical < plan.total; logical++) {
+                plan.computeOffsets(logical, indicesView, indexPlan, batchDims);
+                state.mark(plan.targetLogical);
+                dst[plan.targetOffset] = IndexLoopSupport.reduceLong(dst[plan.targetOffset], updateData[plan.updateOffset], effectiveReduction);
+            }
+            return;
+        }
         for (int logical = 0; logical < plan.total; logical++) {
-            plan.computeOffsets(logical, indexReader, batchDims);
+            plan.computeOffsets(logical, indicesView, indexPlan, batchDims);
             state.mark(plan.targetLogical);
-            dst[plan.targetOffset] = IndexLoopSupport.reduceLong(dst[plan.targetOffset], updateData[plan.updateOffset], effectiveReduction);
+            IndexLoopSupport.writeI64(outView, plan.targetOffset,
+                    IndexLoopSupport.reduceLong(IndexLoopSupport.readI64(outView, plan.targetOffset),
+                            IndexLoopSupport.readI64(updatesView, plan.updateOffset),
+                            effectiveReduction));
         }
     }
 
@@ -173,7 +316,12 @@ final class ScatterNdLoops {
                     indicesDense[indicesShape.length - 1]);
         }
 
-        void computeOffsets(int logical, IndexLoopSupport.IndexReader indexReader, int batchDims) {
+        void computeOffsets(
+                int logical,
+                CpuStorageView indices,
+                IndexLoopSupport.IndexStoragePlan indexPlan,
+                int batchDims
+        ) {
             int rem = logical;
             int update = updatesBaseOffset;
             for (int d = 0; d < updatesShape.length; d++) {
@@ -197,7 +345,9 @@ final class ScatterNdLoops {
             }
             for (int d = 0; d < tupleRank; d++) {
                 int dataDim = batchDims + d;
-                int targetCoord = indexReader.readAxisIndexAllowNegative(
+                int targetCoord = IndexLoopSupport.readAxisIndexAllowNegative(
+                        indices,
+                        indexPlan,
                         indexBaseLogical + d * tupleStride,
                         dataShape[dataDim]);
                 target += targetCoord * outStrides[dataDim];

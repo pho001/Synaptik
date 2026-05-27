@@ -1,48 +1,38 @@
 package backend.cpu.kernels.index;
 
-import backend.cpu.kernels.TypedCpuKernel;
-import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.kernels.CpuKernelCall;
+import backend.cpu.kernels.CpuKernelResult;
+import backend.cpu.kernels.CpuStorageAwareKernel;
 import operations.Operation;
 import operations.index.gatherNd;
 import tensor.Tensor;
 
 import java.util.List;
 
-public final class CpuGatherNdKernel extends TypedCpuKernel {
+public final class CpuGatherNdKernel implements CpuStorageAwareKernel {
     @Override
-    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Tensor[] pair = requirePair(op, inputs);
-        GatherNdLoops.gatherNdF64(pair[0], pair[1], node, requireOp(op).getBatchDims());
-    }
-
-    @Override
-    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Tensor[] pair = requirePair(op, inputs);
-        GatherNdLoops.gatherNdF32(pair[0], pair[1], node, requireOp(op).getBatchDims());
-    }
-
-    @Override
-    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Tensor[] pair = requirePair(op, inputs);
-        GatherNdLoops.gatherNdBF16(pair[0], pair[1], node, requireOp(op).getBatchDims());
-    }
-
-    @Override
-    protected void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Tensor[] pair = requirePair(op, inputs);
-        GatherNdLoops.gatherNdBOOL(pair[0], pair[1], node, requireOp(op).getBatchDims());
-    }
-
-    @Override
-    protected void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Tensor[] pair = requirePair(op, inputs);
-        GatherNdLoops.gatherNdI32(pair[0], pair[1], node, requireOp(op).getBatchDims());
-    }
-
-    @Override
-    protected void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Tensor[] pair = requirePair(op, inputs);
-        GatherNdLoops.gatherNdI64(pair[0], pair[1], node, requireOp(op).getBatchDims());
+    public CpuKernelResult execute(CpuKernelCall call) {
+        gatherNd gatherOp = requireOp(call.operation());
+        Tensor[] pair = requirePair(call.operation(), call.inputTensors());
+        if (call.inputs().size() != 2) {
+            throw new IllegalArgumentException("gatherNd expects exactly two input storage views.");
+        }
+        Tensor node = call.outputTensor();
+        switch (node.getDataType()) {
+            case FLOAT64 -> GatherNdLoops.gatherNdF64(pair[0], pair[1], node,
+                    call.inputs().get(0), call.inputs().get(1), call.output(), gatherOp.getBatchDims());
+            case FLOAT32 -> GatherNdLoops.gatherNdF32(pair[0], pair[1], node,
+                    call.inputs().get(0), call.inputs().get(1), call.output(), gatherOp.getBatchDims());
+            case BFLOAT16 -> GatherNdLoops.gatherNdBF16(pair[0], pair[1], node,
+                    call.inputs().get(0), call.inputs().get(1), call.output(), gatherOp.getBatchDims());
+            case BOOL -> GatherNdLoops.gatherNdBOOL(pair[0], pair[1], node,
+                    call.inputs().get(0), call.inputs().get(1), call.output(), gatherOp.getBatchDims());
+            case INT32 -> GatherNdLoops.gatherNdI32(pair[0], pair[1], node,
+                    call.inputs().get(0), call.inputs().get(1), call.output(), gatherOp.getBatchDims());
+            case INT64 -> GatherNdLoops.gatherNdI64(pair[0], pair[1], node,
+                    call.inputs().get(0), call.inputs().get(1), call.output(), gatherOp.getBatchDims());
+        }
+        return CpuKernelResult.completed();
     }
 
     private static gatherNd requireOp(Operation op) {

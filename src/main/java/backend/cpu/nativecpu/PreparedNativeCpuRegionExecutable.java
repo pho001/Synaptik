@@ -11,7 +11,7 @@ import backend.cpu.execution.CpuKernelContext;
 import backend.cpu.nativecpu.CpuNativeStorageSupport;
 import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.kernels.elementwise.unary.support.CpuPowSupport;
-import backend.cpu.kernels.elementwise.where.WhereElementwiseKernel;
+import backend.cpu.kernels.elementwise.where.CpuWhereKernel;
 import backend.cpu.nativecpu.layout.NativeCpuStorageFamily;
 import backend.cpu.nativecpu.layout.NativeSegmentStridedKernels;
 import backend.cpu.nativecpu.layout.NativeSegmentView;
@@ -68,22 +68,7 @@ import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
  */
 public final class PreparedNativeCpuRegionExecutable implements PreparedCpuRegionExecutable {
     private static final CpuBackend CPU_BACKEND = new CpuBackend();
-    private static final WhereElementwiseKernel REGION_WHERE_KERNEL = new WhereElementwiseKernel() {
-        @Override
-        public double applyF64(byte condition, double ifTrue, double ifFalse) {
-            return condition != 0 ? ifTrue : ifFalse;
-        }
-
-        @Override
-        public float applyF32(byte condition, float ifTrue, float ifFalse) {
-            return condition != 0 ? ifTrue : ifFalse;
-        }
-
-        @Override
-        public float applyBF16(byte condition, float ifTrue, float ifFalse) {
-            return condition != 0 ? ifTrue : ifFalse;
-        }
-    };
+    private static final CpuWhereKernel REGION_WHERE_KERNEL = new CpuWhereKernel();
 
     private final RegionExecutionPlan regionExecutionPlan;
     private final List<PreparedExecutionStep> nativeSteps;

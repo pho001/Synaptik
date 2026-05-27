@@ -1,48 +1,38 @@
 package backend.cpu.kernels.index;
 
-import backend.cpu.kernels.TypedCpuKernel;
-import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.kernels.CpuKernelCall;
+import backend.cpu.kernels.CpuKernelResult;
+import backend.cpu.kernels.CpuStorageAwareKernel;
 import operations.Operation;
 import operations.index.gatherAxis;
 import tensor.Tensor;
 
 import java.util.List;
 
-public final class CpuGatherAxisKernel extends TypedCpuKernel {
+public final class CpuGatherAxisKernel implements CpuStorageAwareKernel {
     @Override
-    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Tensor[] pair = requirePair(op, inputs);
-        GatherAxisLoops.gatherAxisF64(pair[0], pair[1], node, ((gatherAxis) op).getAxis());
-    }
-
-    @Override
-    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Tensor[] pair = requirePair(op, inputs);
-        GatherAxisLoops.gatherAxisF32(pair[0], pair[1], node, ((gatherAxis) op).getAxis());
-    }
-
-    @Override
-    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Tensor[] pair = requirePair(op, inputs);
-        GatherAxisLoops.gatherAxisBF16(pair[0], pair[1], node, ((gatherAxis) op).getAxis());
-    }
-
-    @Override
-    protected void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Tensor[] pair = requirePair(op, inputs);
-        GatherAxisLoops.gatherAxisBOOL(pair[0], pair[1], node, ((gatherAxis) op).getAxis());
-    }
-
-    @Override
-    protected void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Tensor[] pair = requirePair(op, inputs);
-        GatherAxisLoops.gatherAxisI32(pair[0], pair[1], node, ((gatherAxis) op).getAxis());
-    }
-
-    @Override
-    protected void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Tensor[] pair = requirePair(op, inputs);
-        GatherAxisLoops.gatherAxisI64(pair[0], pair[1], node, ((gatherAxis) op).getAxis());
+    public CpuKernelResult execute(CpuKernelCall call) {
+        Tensor[] pair = requirePair(call.operation(), call.inputTensors());
+        if (call.inputs().size() != 2) {
+            throw new IllegalArgumentException("gatherAxis expects exactly two input storage views.");
+        }
+        int axis = ((gatherAxis) call.operation()).getAxis();
+        Tensor node = call.outputTensor();
+        switch (node.getDataType()) {
+            case FLOAT64 -> GatherAxisLoops.gatherAxisF64(pair[0], pair[1], node,
+                    call.inputs().get(0), call.inputs().get(1), call.output(), axis);
+            case FLOAT32 -> GatherAxisLoops.gatherAxisF32(pair[0], pair[1], node,
+                    call.inputs().get(0), call.inputs().get(1), call.output(), axis);
+            case BFLOAT16 -> GatherAxisLoops.gatherAxisBF16(pair[0], pair[1], node,
+                    call.inputs().get(0), call.inputs().get(1), call.output(), axis);
+            case BOOL -> GatherAxisLoops.gatherAxisBOOL(pair[0], pair[1], node,
+                    call.inputs().get(0), call.inputs().get(1), call.output(), axis);
+            case INT32 -> GatherAxisLoops.gatherAxisI32(pair[0], pair[1], node,
+                    call.inputs().get(0), call.inputs().get(1), call.output(), axis);
+            case INT64 -> GatherAxisLoops.gatherAxisI64(pair[0], pair[1], node,
+                    call.inputs().get(0), call.inputs().get(1), call.output(), axis);
+        }
+        return CpuKernelResult.completed();
     }
 
     private static Tensor[] requirePair(Operation op, List<Tensor> inputs) {

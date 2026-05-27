@@ -1,24 +1,24 @@
 package backend.cpu.kernels.reduction;
 
-import backend.cpu.execution.CpuKernelContext;
-
-import backend.cpu.kernels.*;
-
-import backend.cpu.kernels.reduction.BoolReduceExecutor;
 import operations.Operation;
 import operations.reduction.reduceAll;
-import tensor.Tensor;
 
-import java.util.List;
-
-public final class CpuReduceAllKernel extends TypedCpuKernel {
-    private static final BoolReduceExecutor EXECUTOR = new BoolReduceExecutor();
+public final class CpuReduceAllKernel extends StorageAwareBoolReductionKernel {
+    @Override
+    protected Operation.OpType opType() {
+        return Operation.OpType.REDUCE_ALL;
+    }
 
     @Override
-    protected void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    protected int dimension(Operation op) {
         if (!(op instanceof reduceAll reduction)) {
             throw new IllegalArgumentException("CpuReduceAllKernel requires reduceAll operation");
         }
-        EXECUTOR.execute(reduction, inputs.getFirst(), node, context);
+        return reduction.getDimension();
+    }
+
+    @Override
+    protected boolean isAll() {
+        return true;
     }
 }

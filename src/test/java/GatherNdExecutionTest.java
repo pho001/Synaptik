@@ -1,5 +1,6 @@
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
+import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
@@ -47,6 +48,22 @@ public class GatherNdExecutionTest {
                 4, 5, 6,
                 1, 2, 3
         }, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void gatherNdReadsNativeSegmentInputProducedByPriorCpuNativeOp() {
+        Tensor data = new Tensor(new float[]{
+                10, 20, 30,
+                40, 50, 60
+        }, new int[]{2, 3}, null, "data", DataType.FLOAT32);
+        Tensor doubled = data.add(data);
+        Tensor indices = new Tensor(new int[]{0, 2, 1, 0}, new int[]{2, 2}, null, "indices", DataType.INT32);
+        Tensor out = doubled.gatherNd(indices);
+
+        CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline())
+                .prepare(nativeRuntime()).execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{60, 80}, out.toDoubleArrayCopy(), 1e-6);
     }
 
     @Test
@@ -214,5 +231,9 @@ public class GatherNdExecutionTest {
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(type -> type == opType);
+    }
+
+    private static RuntimeConfig nativeRuntime() {
+        return RuntimeConfig.inferenceDefaults().withCpuStorageProfile(CpuStorageProfile.CPU_NATIVE);
     }
 }
