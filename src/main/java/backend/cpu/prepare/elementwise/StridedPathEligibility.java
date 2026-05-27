@@ -1,7 +1,6 @@
 package backend.cpu.prepare.elementwise;
 
 import backend.cpu.kernels.elementwise.ElementwiseLayoutPlan;
-import backend.cpu.kernels.elementwise.strided.CpuStridedElementWise;
 import backend.cpu.prepare.CpuExecutionPlanner;
 import backend.cpu.plan.layout.StridedLayoutDecision;
 import operations.Operation;
@@ -41,7 +40,7 @@ public final class StridedPathEligibility {
         if (op.opType() == Operation.OpType.CONTIGUOUS) {
             return StridedLayoutDecision.NONE;
         }
-        if (op.opType().category() != Operation.OpArityClass.ELEMENT_WISE || !CpuStridedElementWise.supports(op)) {
+        if (op.opType().category() != Operation.OpArityClass.ELEMENT_WISE || !supportsStridedPath(op)) {
             return StridedLayoutDecision.NONE;
         }
         boolean hasOffsetInput = false;
@@ -162,6 +161,19 @@ public final class StridedPathEligibility {
                     : input.dataType() == targetType;
             case LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT -> input.dataType() == DataType.BOOL;
             default -> input.dataType() == targetType;
+        };
+    }
+
+    private static boolean supportsStridedPath(Operation op) {
+        if (op == null) {
+            return false;
+        }
+        return switch (op.opType()) {
+            case ADD, SUB, MUL, DIV, MIN, MAX, GT, GE, LT, LE, EQ, NE, WHERE,
+                    LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT,
+                    NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH, POW, SQRT, ABS,
+                    MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID -> true;
+            default -> false;
         };
     }
 

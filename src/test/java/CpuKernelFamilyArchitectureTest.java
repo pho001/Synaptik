@@ -121,6 +121,7 @@ public class CpuKernelFamilyArchitectureTest {
     @Test
     void cpuBackendUsesExecutionLayerForKernelInvocation() throws IOException {
         String backend = Files.readString(Path.of("src/main/java/backend/cpu/CpuBackend.java"));
+        String executor = Files.readString(Path.of("src/main/java/backend/cpu/execution/CpuKernelExecutor.java"));
         assertTrue(backend.contains("CpuKernelExecutor"),
                 "CpuBackend must route kernel invocation through backend.cpu.execution.CpuKernelExecutor.");
         assertFalse(backend.contains("new CpuKernelCall"),
@@ -128,7 +129,24 @@ public class CpuKernelFamilyArchitectureTest {
         assertFalse(backend.contains("new CpuKernelContext"),
                 "CpuBackend must not assemble CpuKernelContext directly.");
         assertFalse(backend.contains("CpuStridedElementWise.forward"),
-                "Strided execution routing belongs in CpuKernelExecutor, not CpuBackend.");
+                "CpuBackend must not route through the legacy strided forwarder.");
+        assertFalse(executor.contains("CpuStridedElementWise"),
+                "CpuKernelExecutor must not route through the legacy TensorInternalAccess strided forwarder.");
+        assertFalse(executor.contains("CPU_ARRAY_STRIDED"),
+                "Strided elementwise execution must be owned by storage-aware kernels, not executor-side routes.");
+    }
+
+    @Test
+    void stridedElementwisePlanningOpsResolveToStorageAwareKernels() {
+        for (Operation.OpType opType : stridedPathEligibleElementwiseOpTypes()) {
+            assertEquals(Operation.OpArityClass.ELEMENT_WISE, opType.category(),
+                    opType + " must stay within the general elementwise planning surface.");
+            CpuKernel kernel = CpuKernelRegistry.resolve(opType);
+            assertTrue(kernel instanceof CpuStorageAwareKernel,
+                    opType + " cannot use strided planning unless its registered kernel consumes CpuStorageView.");
+            assertFalse(kernel instanceof TypedCpuKernel,
+                    opType + " must not route through the legacy TypedCpuKernel tensor-array executor.");
+        }
     }
 
     @Test
@@ -290,15 +308,20 @@ public class CpuKernelFamilyArchitectureTest {
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/linalg/attention/ResolvedScaledDotProductAttentionPlan.java")));
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/prepare/fused/FusedDispatchPlanner.java")));
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/plan/fused/PreparedFusedDispatch.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/strided/CpuStridedElementWise.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/strided/StridedBooleanLoops.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/strided/StridedNumericInputs.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/strided/StridedNumericLoops.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/strided/StridedWhereLoops.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/strided/StridedScalarLoops.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/strided/StridedRank2Loops.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/strided/StridedElementWiseSemantics.java")));
-        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/strided/StridedVectorSupport.java")));
+        for (String legacyStridedHelper : List.of(
+                "CpuStridedElementWise.java",
+                "StridedBooleanLoops.java",
+                "StridedNumericInputs.java",
+                "StridedNumericLoops.java",
+                "StridedWhereLoops.java",
+                "StridedScalarLoops.java",
+                "StridedRank2Loops.java",
+                "StridedElementWiseSemantics.java",
+                "StridedVectorSupport.java"
+        )) {
+            assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/strided", legacyStridedHelper)),
+                    legacyStridedHelper + " must not remain after strided runtime ownership moved to storage-aware kernels.");
+        }
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/ElementwiseLayoutPlan.java")));
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/ElementwiseOffsetCursor.java")));
         assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/kernels/elementwise/unary/support/CpuPowSupport.java")));
@@ -966,6 +989,42 @@ public class CpuKernelFamilyArchitectureTest {
                 Operation.OpType.SLICE_GRAD,
                 Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD,
                 Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD
+        );
+    }
+
+    private static List<Operation.OpType> stridedPathEligibleElementwiseOpTypes() {
+        return List.of(
+                Operation.OpType.ADD,
+                Operation.OpType.SUB,
+                Operation.OpType.MUL,
+                Operation.OpType.DIV,
+                Operation.OpType.MIN,
+                Operation.OpType.MAX,
+                Operation.OpType.GT,
+                Operation.OpType.GE,
+                Operation.OpType.LT,
+                Operation.OpType.LE,
+                Operation.OpType.EQ,
+                Operation.OpType.NE,
+                Operation.OpType.WHERE,
+                Operation.OpType.LOGICAL_AND,
+                Operation.OpType.LOGICAL_OR,
+                Operation.OpType.LOGICAL_NOT,
+                Operation.OpType.NEG,
+                Operation.OpType.INV,
+                Operation.OpType.LOG,
+                Operation.OpType.EXP,
+                Operation.OpType.FAST_EXP,
+                Operation.OpType.TANH,
+                Operation.OpType.FAST_TANH,
+                Operation.OpType.POW,
+                Operation.OpType.SQRT,
+                Operation.OpType.ABS,
+                Operation.OpType.MUL_SCALAR,
+                Operation.OpType.RELU,
+                Operation.OpType.CLAMP_MIN,
+                Operation.OpType.CLAMP_MAX,
+                Operation.OpType.SIGMOID
         );
     }
 
