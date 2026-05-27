@@ -4,6 +4,7 @@ import backend.cpu.storage.CpuStorageView;
 
 import java.lang.foreign.MemorySegment;
 
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
@@ -122,6 +123,26 @@ final class ReductionStorageAccess {
             array[offset] = value;
         } else {
             segment.set(JAVA_LONG, (long) offset * Long.BYTES, value);
+        }
+    }
+
+    static byte[] boolArray(CpuStorageView view) {
+        return view.isArray() ? view.requireBoolArray() : null;
+    }
+
+    static MemorySegment boolSegment(CpuStorageView view) {
+        return view.isMemorySegment() ? view.requireSegment() : null;
+    }
+
+    static byte readBool(byte[] array, MemorySegment segment, int offset) {
+        return array != null ? array[offset] : segment.get(JAVA_BYTE, offset);
+    }
+
+    static void writeBool(byte[] array, MemorySegment segment, int offset, byte value) {
+        if (array != null) {
+            array[offset] = value;
+        } else {
+            segment.set(JAVA_BYTE, offset, value);
         }
     }
 }
