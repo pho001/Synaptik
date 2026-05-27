@@ -1,37 +1,41 @@
 package backend.cpu.kernels.linalg;
 
-import tensor.TensorInternalAccess;
-
-import backend.cpu.kernels.TypedCpuKernel;
 import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.kernels.CpuKernelCall;
+import backend.cpu.kernels.CpuKernelResult;
+import backend.cpu.kernels.CpuStorageAwareKernel;
 import operations.Operation;
 import operations.linalg.scaledDotProductAttentionWeights;
+import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 
 import java.util.Arrays;
 import java.util.List;
 
-public final class CpuScaledDotProductAttentionWeightsKernel extends TypedCpuKernel {
+public final class CpuScaledDotProductAttentionWeightsKernel implements CpuStorageAwareKernel {
     @Override
-    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Tensor cached = requireCachedWeights(op, inputs, node, context);
-        System.arraycopy(TensorInternalAccess.float64Data(cached), 0, TensorInternalAccess.float64Data(node), 0, node.getFlatDataSize());
+    public CpuKernelResult execute(CpuKernelCall call) {
+        Tensor node = call.outputTensor();
+        Tensor cached = requireCachedWeights(call.operation(), call.inputTensors(), node, call.context());
+        switch (node.getDataType()) {
+            case FLOAT64 -> System.arraycopy(TensorInternalAccess.float64Data(cached), 0,
+                    TensorInternalAccess.float64Data(node), 0, node.getFlatDataSize());
+            case FLOAT32 -> System.arraycopy(TensorInternalAccess.float32Data(cached), 0,
+                    TensorInternalAccess.float32Data(node), 0, node.getFlatDataSize());
+            case BFLOAT16 -> publishBF16(cached, node);
+            case INT32, INT64, BOOL -> unsupported(node.getDataType());
+        }
+        return CpuKernelResult.completed();
     }
 
-    @Override
-    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Tensor cached = requireCachedWeights(op, inputs, node, context);
-        System.arraycopy(TensorInternalAccess.float32Data(cached), 0, TensorInternalAccess.float32Data(node), 0, node.getFlatDataSize());
-    }
-
-    @Override
-    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Tensor cached = requireCachedWeights(op, inputs, node, context);
-        if (cached.getDataType() == tensor.DataType.BFLOAT16) {
-            System.arraycopy(TensorInternalAccess.bfloat16Data(cached), 0, TensorInternalAccess.bfloat16Data(node), 0, node.getFlatDataSize());
+    private static void publishBF16(Tensor cached, Tensor node) {
+        if (cached.getDataType() == DataType.BFLOAT16) {
+            System.arraycopy(TensorInternalAccess.bfloat16Data(cached), 0,
+                    TensorInternalAccess.bfloat16Data(node), 0, node.getFlatDataSize());
             return;
         }
-        if (cached.getDataType() == tensor.DataType.FLOAT32) {
+        if (cached.getDataType() == DataType.FLOAT32) {
             float[] src = TensorInternalAccess.float32Data(cached);
             short[] dst = TensorInternalAccess.bfloat16Data(node);
             for (int i = 0; i < dst.length; i++) {
@@ -57,7 +61,7 @@ public final class CpuScaledDotProductAttentionWeightsKernel extends TypedCpuKer
         }
         Tensor weights = runtimeCache.weights();
         if (weights.getDataType() != node.getDataType()
-                && !(weights.getDataType() == tensor.DataType.FLOAT32 && node.getDataType() == tensor.DataType.BFLOAT16)) {
+                && !(weights.getDataType() == DataType.FLOAT32 && node.getDataType() == DataType.BFLOAT16)) {
             throw new IllegalStateException("scaledDotProductAttentionWeights cache dtype mismatch: cache="
                     + weights.getDataType() + ", node=" + node.getDataType());
         }
@@ -66,5 +70,9 @@ public final class CpuScaledDotProductAttentionWeightsKernel extends TypedCpuKer
                     + Arrays.toString(weights.getShapeUnsafe()) + ", node=" + Arrays.toString(node.getShapeUnsafe()));
         }
         return weights;
+    }
+
+    private static void unsupported(DataType dtype) {
+        throw new UnsupportedOperationException("CpuScaledDotProductAttentionWeightsKernel does not support " + dtype);
     }
 }

@@ -1,28 +1,26 @@
 package backend.cpu.kernels.linalg;
 
-import backend.cpu.kernels.TypedCpuKernel;
 import backend.cpu.execution.CpuKernelContext;
-import backend.cpu.plan.CpuKernelCostClass;
+import backend.cpu.kernels.CpuKernelCall;
+import backend.cpu.kernels.CpuKernelResult;
+import backend.cpu.kernels.CpuStorageAwareKernel;
 import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
+import backend.cpu.plan.CpuKernelCostClass;
 import operations.Operation;
+import tensor.DataType;
 import tensor.Tensor;
 
 import java.util.List;
 
-public class CpuMatMulKernel extends TypedCpuKernel {
+public class CpuMatMulKernel implements CpuStorageAwareKernel {
     @Override
-    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        runPrepared(inputs, node, context);
-    }
-
-    @Override
-    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        runPrepared(inputs, node, context);
-    }
-
-    @Override
-    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        runPrepared(inputs, node, context);
+    public CpuKernelResult execute(CpuKernelCall call) {
+        Tensor node = call.outputTensor();
+        switch (node.getDataType()) {
+            case FLOAT64, FLOAT32, BFLOAT16 -> runPrepared(call.inputTensors(), node, call.context());
+            case INT32, INT64, BOOL -> unsupported(node.getDataType());
+        }
+        return CpuKernelResult.completed();
     }
 
     @Override
@@ -36,5 +34,9 @@ public class CpuMatMulKernel extends TypedCpuKernel {
             throw new IllegalStateException("Missing PreparedMatMulExecutable for matmul execution.");
         }
         executable.execute(inputs.get(0), inputs.get(1), node, context);
+    }
+
+    private static void unsupported(DataType dtype) {
+        throw new UnsupportedOperationException("CpuMatMulKernel does not support " + dtype);
     }
 }

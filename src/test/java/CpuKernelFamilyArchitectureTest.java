@@ -827,6 +827,30 @@ public class CpuKernelFamilyArchitectureTest {
         }
     }
 
+    @Test
+    void linalgEntrypointsOwnStorageAwareBoundary() {
+        for (Operation.OpType opType : List.of(
+                Operation.OpType.MATMUL,
+                Operation.OpType.LINEAR,
+                Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION,
+                Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS
+        )) {
+            CpuKernel kernel = CpuKernelRegistry.resolve(opType);
+            assertEquals("backend.cpu.kernels.linalg", kernel.getClass().getPackageName(),
+                    opType + " must be owned by the linalg kernel family.");
+            assertTrue(kernel instanceof CpuStorageAwareKernel,
+                    opType + " must consume the CpuKernelCall boundary directly.");
+            assertFalse(kernel instanceof TypedCpuKernel,
+                    opType + " must not route through the legacy TypedCpuKernel tensor-array executor.");
+        }
+        for (DataType dtype : DataType.values()) {
+            assertFalse(CpuNativeStorageSupport.nativeRegionSupported(Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION, dtype),
+                    "attention direct kernel must not be promoted to CPU_NATIVE region support in this entrypoint slice.");
+            assertFalse(CpuNativeStorageSupport.nativeRegionSupported(Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS, dtype),
+                    "attention weights export must not be promoted to CPU_NATIVE region support in this entrypoint slice.");
+        }
+    }
+
     private static void assertPackage(Operation.OpType opType, String expectedPackage) {
         CpuKernel kernel = CpuKernelRegistry.resolve(opType);
         assertEquals(expectedPackage, kernel.getClass().getPackageName(), () ->

@@ -1,30 +1,28 @@
 package backend.cpu.kernels.linalg;
 
-import backend.cpu.kernels.TypedCpuKernel;
-import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.kernels.CpuKernelCall;
+import backend.cpu.kernels.CpuKernelResult;
+import backend.cpu.kernels.CpuStorageAwareKernel;
 import operations.Operation;
 import operations.linalg.scaledDotProductAttention;
+import tensor.DataType;
 import tensor.Tensor;
 
 import java.util.List;
 
-public final class CpuScaledDotProductAttentionKernel extends TypedCpuKernel {
+public final class CpuScaledDotProductAttentionKernel implements CpuStorageAwareKernel {
     @Override
-    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        scaledDotProductAttention attention = require(op);
-        ScaledDotProductAttentionExecutor.executeF64(attention, requireInputs(inputs, attention), node, context);
-    }
-
-    @Override
-    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        scaledDotProductAttention attention = require(op);
-        ScaledDotProductAttentionExecutor.executeF32(attention, requireInputs(inputs, attention), node, context);
-    }
-
-    @Override
-    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        scaledDotProductAttention attention = require(op);
-        ScaledDotProductAttentionExecutor.executeBF16(attention, requireInputs(inputs, attention), node, context);
+    public CpuKernelResult execute(CpuKernelCall call) {
+        scaledDotProductAttention attention = require(call.operation());
+        Tensor node = call.outputTensor();
+        Tensor[] inputs = requireInputs(call.inputTensors(), attention);
+        switch (node.getDataType()) {
+            case FLOAT64 -> ScaledDotProductAttentionExecutor.executeF64(attention, inputs, node, call.context());
+            case FLOAT32 -> ScaledDotProductAttentionExecutor.executeF32(attention, inputs, node, call.context());
+            case BFLOAT16 -> ScaledDotProductAttentionExecutor.executeBF16(attention, inputs, node, call.context());
+            case INT32, INT64, BOOL -> unsupported(node.getDataType());
+        }
+        return CpuKernelResult.completed();
     }
 
     private static scaledDotProductAttention require(Operation op) {
@@ -44,5 +42,9 @@ public final class CpuScaledDotProductAttentionKernel extends TypedCpuKernel {
             out[i] = inputs.get(i);
         }
         return out;
+    }
+
+    private static void unsupported(DataType dtype) {
+        throw new UnsupportedOperationException("CpuScaledDotProductAttentionKernel does not support " + dtype);
     }
 }
