@@ -4,6 +4,7 @@ import tensor.dtype.TensorDTypeOps;
 
 import backend.cpu.execution.CpuKernelContext;
 
+import backend.cpu.storage.CpuStorageView;
 import tensor.TensorInternalAccess;
 
 import backend.cpu.kernels.*;
@@ -40,7 +41,11 @@ final class LinearExecutor {
     private LinearExecutor() {
     }
 
-    static void forwardF64(linear op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
+    static void forwardStorage(linear op, CpuStorageView input, CpuStorageView weight, CpuStorageView bias, CpuStorageView out) {
+        CpuLinearStorageLoops.execute(input, weight, op.hasBias() ? bias : null, out);
+    }
+
+    static void forwardDenseArrayF64(linear op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
         if (!tryPackedLinearF64(input, weight, out, context)) {
             requireExecutable(context).execute(input, weight, out, context);
         }
@@ -49,7 +54,7 @@ final class LinearExecutor {
         }
     }
 
-    static void forwardF32(linear op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
+    static void forwardDenseArrayF32(linear op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
         if (!tryPackedLinearF32(input, weight, out, context)) {
             requireExecutable(context).execute(input, weight, out, context);
         }
@@ -58,7 +63,7 @@ final class LinearExecutor {
         }
     }
 
-    static void forwardBF16(linear op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
+    static void forwardDenseArrayBF16(linear op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
         if (context.publishFloatContinuation() && tryPublishFloatContinuationBF16(input, weight, bias, out, context)) {
             return;
         }

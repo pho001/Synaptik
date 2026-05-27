@@ -147,11 +147,11 @@ final class CpuMatMulStorageLoops {
         }
     }
 
-    private static double readF64(double[] array, MemorySegment segment, int offset) {
+    static double readF64(double[] array, MemorySegment segment, int offset) {
         return array != null ? array[offset] : segment.get(JAVA_DOUBLE, (long) offset * Double.BYTES);
     }
 
-    private static void writeF64(double[] array, MemorySegment segment, int offset, double value) {
+    static void writeF64(double[] array, MemorySegment segment, int offset, double value) {
         if (array != null) {
             array[offset] = value;
         } else {
@@ -159,11 +159,11 @@ final class CpuMatMulStorageLoops {
         }
     }
 
-    private static float readF32(float[] array, MemorySegment segment, int offset) {
+    static float readF32(float[] array, MemorySegment segment, int offset) {
         return array != null ? array[offset] : segment.get(JAVA_FLOAT, (long) offset * Float.BYTES);
     }
 
-    private static void writeF32(float[] array, MemorySegment segment, int offset, float value) {
+    static void writeF32(float[] array, MemorySegment segment, int offset, float value) {
         if (array != null) {
             array[offset] = value;
         } else {
@@ -171,12 +171,12 @@ final class CpuMatMulStorageLoops {
         }
     }
 
-    private static float readBF16(short[] array, MemorySegment segment, int offset) {
+    static float readBF16(short[] array, MemorySegment segment, int offset) {
         short bits = array != null ? array[offset] : segment.get(JAVA_SHORT, (long) offset * Short.BYTES);
         return TensorDTypeOps.fromBFloat16Bits(bits);
     }
 
-    private static void writeBF16(short[] array, MemorySegment segment, int offset, float value) {
+    static void writeBF16(short[] array, MemorySegment segment, int offset, float value) {
         short bits = TensorDTypeOps.toBFloat16Bits(value);
         if (array != null) {
             array[offset] = bits;
