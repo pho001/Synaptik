@@ -4,6 +4,7 @@ import backend.cpu.execution.CpuKernelContext;
 import backend.cpu.kernels.CpuKernelCall;
 import backend.cpu.kernels.CpuKernelResult;
 import backend.cpu.kernels.CpuStorageAwareKernel;
+import backend.cpu.storage.CpuStorageView;
 import backend.cpu.nativecpu.CpuNativeTraceSupport;
 import backend.cpu.nativecpu.layout.NativeCpuStorageFamily;
 import backend.cpu.nativecpu.layout.NativeSegmentStridedKernels;
@@ -25,11 +26,27 @@ abstract class StorageAwareReductionKernel implements CpuStorageAwareKernel {
         if (nativeRequested(call.context())) {
             CpuKernelResult result = executeNative(call, input, dimension);
             if (!CpuNativeTraceSupport.CPU_NATIVE.equals(result.route())) {
-                executeArray(call.operation(), input, call.outputTensor(), call.context(), dimension);
+                executeArray(
+                        call.operation(),
+                        input,
+                        call.outputTensor(),
+                        requireSingleInputView(call),
+                        requireOutputView(call),
+                        call.context(),
+                        dimension
+                );
             }
             return result;
         }
-        executeArray(call.operation(), input, call.outputTensor(), call.context(), dimension);
+        executeArray(
+                call.operation(),
+                input,
+                call.outputTensor(),
+                requireSingleInputView(call),
+                requireOutputView(call),
+                call.context(),
+                dimension
+        );
         return CpuKernelResult.completed();
     }
 
@@ -41,6 +58,8 @@ abstract class StorageAwareReductionKernel implements CpuStorageAwareKernel {
             Operation operation,
             Tensor input,
             Tensor output,
+            CpuStorageView inputView,
+            CpuStorageView outputView,
             CpuKernelContext context,
             int dimension
     );
@@ -161,6 +180,20 @@ abstract class StorageAwareReductionKernel implements CpuStorageAwareKernel {
             throw new IllegalArgumentException(opLabel().toUpperCase() + " expects exactly one input tensor");
         }
         return call.inputTensors().getFirst();
+    }
+
+    private CpuStorageView requireSingleInputView(CpuKernelCall call) {
+        if (call.inputs().size() != 1) {
+            throw new IllegalArgumentException(opLabel().toUpperCase() + " expects exactly one input storage view");
+        }
+        return call.inputs().getFirst();
+    }
+
+    private CpuStorageView requireOutputView(CpuKernelCall call) {
+        if (call.output() == null) {
+            throw new IllegalArgumentException(opLabel().toUpperCase() + " requires an output storage view");
+        }
+        return call.output();
     }
 
     private static boolean denseTensor(Tensor tensor) {

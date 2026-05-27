@@ -1,6 +1,7 @@
 package backend.cpu.kernels.reduction;
 
 import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.storage.CpuStorageView;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -13,6 +14,8 @@ abstract class StorageAwareBoolReductionKernel extends StorageAwareReductionKern
             Operation operation,
             Tensor input,
             Tensor output,
+            CpuStorageView inputView,
+            CpuStorageView outputView,
             CpuKernelContext context,
             int dimension
     ) {
