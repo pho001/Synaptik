@@ -8,7 +8,7 @@ import backend.cpu.fused.plan.FusedVectorFallbackReason;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.nativecpu.CpuNativeStorageSupport;
 import backend.cpu.plan.CpuNodeExecutionPlan;
-import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
+import backend.cpu.provider.linalg.matmul.PreparedMatMulExecutable;
 import backend.cpu.plan.linalg.matmul.MatMulExecutionRoute;
 import backend.memory.TensorResidencyState;
 import backend.cpu.nativecpu.NativeCpuTraceState;

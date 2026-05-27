@@ -4,7 +4,6 @@ import backend.cpu.kernels.linalg.matmul.bf16.BF16BatchedBlasMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.bf16.BF16BlasMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.bf16.BF16JavaMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.bf16.BF16NativeBlasMatMulExecutable;
-import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.f32.F32BatchedBlasMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.f32.F32BlasMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.f32.F32JavaMatMulExecutable;

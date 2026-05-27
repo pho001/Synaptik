@@ -12,7 +12,7 @@ import backend.cpu.prepare.elementwise.StridedPathEligibility;
 import backend.cpu.prepare.layout.BroadcastPlanResolver;
 import backend.cpu.prepare.layout.PreparedInputPlanner;
 import backend.cpu.plan.layout.PreparedInputsResult;
-import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
+import backend.cpu.provider.linalg.matmul.PreparedMatMulExecutable;
 import backend.cpu.provider.linalg.matmul.MatMulProviderExecutableFactory;
 import config.runtime.BlasConfig;
 import config.runtime.CpuStorageProfile;

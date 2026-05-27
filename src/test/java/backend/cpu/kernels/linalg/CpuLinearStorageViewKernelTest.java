@@ -4,7 +4,7 @@ import backend.ComputeBackend;
 import backend.cpu.execution.CpuKernelContext;
 import backend.cpu.kernels.CpuKernelCall;
 import backend.cpu.kernels.CpuKernelResult;
-import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
+import backend.cpu.provider.linalg.matmul.PreparedMatMulExecutable;
 import backend.cpu.plan.CpuAccumulateDType;
 import backend.cpu.plan.CpuComputeDType;
 import backend.cpu.plan.CpuExecutionBackend;

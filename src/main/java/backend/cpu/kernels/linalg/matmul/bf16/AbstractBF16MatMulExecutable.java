@@ -6,7 +6,7 @@ import backend.cpu.execution.CpuKernelContext;
 import backend.cpu.execution.CpuNodeWorkspace;
 import backend.cpu.kernels.linalg.matmul.blas.MatMulBlasBackend;
 import backend.cpu.kernels.linalg.matmul.common.PackedLinearWeightCache;
-import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
+import backend.cpu.provider.linalg.matmul.PreparedMatMulExecutable;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import tensor.Tensor;
 

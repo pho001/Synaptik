@@ -1,4 +1,4 @@
-package backend.cpu.kernels.linalg.matmul.exec;
+package backend.cpu.provider.linalg.matmul;
 
 import backend.cpu.execution.CpuKernelContext;
 import backend.cpu.plan.linalg.matmul.MatMulExecutionRoute;

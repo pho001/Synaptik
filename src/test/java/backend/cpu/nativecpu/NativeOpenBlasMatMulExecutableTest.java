@@ -5,7 +5,7 @@ import backend.blas.OpenBlasRuntime;
 import backend.cpu.execution.CpuKernelContext;
 import tensor.dtype.TensorDTypeOps;
 import backend.cpu.plan.CpuNodeExecutionPlan;
-import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
+import backend.cpu.provider.linalg.matmul.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.bf16.BF16NativeBlasMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.f32.F32NativeBlasMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.f64.F64NativeBlasMatMulExecutable;

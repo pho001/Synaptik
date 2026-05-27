@@ -5,7 +5,7 @@ import backend.cpu.plan.elementwise.ResolvedDispatchHints;
 import backend.cpu.plan.layout.ResolvedBroadcastPlan;
 import backend.cpu.plan.layout.ResolvedWhereBroadcastPlan;
 import backend.cpu.plan.linalg.attention.ResolvedScaledDotProductAttentionPlan;
-import backend.cpu.kernels.linalg.matmul.exec.PreparedMatMulExecutable;
+import backend.cpu.provider.linalg.matmul.PreparedMatMulExecutable;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import backend.cpu.plan.reduction.ResolvedReductionHints;
 import tensor.DataType;

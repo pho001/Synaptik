@@ -498,16 +498,24 @@ public class CpuKernelFamilyArchitectureTest {
     @Test
     void waveFiveMatmulOpenBlasRoutingIsProviderOwned() throws IOException {
         Path providerFactoryPath = Path.of("src/main/java/backend/cpu/provider/linalg/matmul/MatMulProviderExecutableFactory.java");
+        Path providerExecutablePath = Path.of("src/main/java/backend/cpu/provider/linalg/matmul/PreparedMatMulExecutable.java");
         assertTrue(Files.exists(providerFactoryPath),
                 "Matmul provider routing must live outside backend.cpu.kernels under the CPU provider package.");
+        assertTrue(Files.exists(providerExecutablePath),
+                "Matmul prepared executable boundary must be owned by the CPU provider package.");
         assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/linalg/matmul/provider/MatMulProviderExecutableFactory.java")),
                 "The old kernel provider package must not remain as a compatibility facade.");
         assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/linalg/matmul/exec/PreparedMatMulExecutableFactory.java")),
                 "The old generic prepared factory should not remain as a compatibility facade.");
+        assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/linalg/matmul/exec/PreparedMatMulExecutable.java")),
+                "The old kernel-owned prepared executable boundary must not remain as a compatibility facade.");
 
         String providerFactory = Files.readString(providerFactoryPath);
+        String providerExecutable = Files.readString(providerExecutablePath);
         assertTrue(providerFactory.contains("package backend.cpu.provider.linalg.matmul;"),
                 "Matmul provider factory must declare the CPU provider package.");
+        assertTrue(providerExecutable.contains("package backend.cpu.provider.linalg.matmul;"),
+                "Matmul prepared executable boundary must declare the CPU provider package.");
         assertTrue(providerFactory.contains("case OPENBLAS_NATIVE_SEGMENT"),
                 "OpenBLAS memory-segment routing must stay explicit in the matmul provider factory.");
         assertTrue(providerFactory.contains("case OPENBLAS_ARRAY_COPYING"),
