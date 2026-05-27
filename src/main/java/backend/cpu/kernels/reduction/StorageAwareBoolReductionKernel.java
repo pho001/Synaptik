@@ -19,9 +19,16 @@ abstract class StorageAwareBoolReductionKernel extends StorageAwareReductionKern
             CpuKernelContext context,
             int dimension
     ) {
-        if (output.getDataType() != DataType.BOOL) {
-            throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support " + output.getDataType());
+        if (inputView.dtype() != DataType.BOOL || outputView.dtype() != DataType.BOOL) {
+            throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support "
+                    + inputView.dtype() + " -> " + outputView.dtype());
         }
-        BoolReduceLoops.execute(input, output, dimension, isAll());
+        if (input.getFlatDataSize() != inputView.logicalSize()) {
+            throw new IllegalArgumentException(getClass().getSimpleName() + " input storage view size does not match input tensor");
+        }
+        if (output.getFlatDataSize() != outputView.logicalSize()) {
+            throw new IllegalArgumentException(getClass().getSimpleName() + " output storage view size does not match output tensor");
+        }
+        BoolReduceLoops.execute(inputView, outputView, dimension, isAll());
     }
 }
