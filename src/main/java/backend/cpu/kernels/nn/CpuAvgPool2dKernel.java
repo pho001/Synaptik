@@ -1,29 +1,27 @@
 package backend.cpu.kernels.nn;
 
-import backend.cpu.execution.CpuKernelContext;
-
-import backend.cpu.kernels.*;
-
+import backend.cpu.kernels.CpuKernelCall;
+import backend.cpu.kernels.CpuKernelResult;
+import backend.cpu.kernels.CpuStorageAwareKernel;
 import operations.Operation;
 import operations.nn.pool.avgPool2d;
+import tensor.DataType;
 import tensor.Tensor;
 
-import java.util.List;
-
-public final class CpuAvgPool2dKernel extends TypedCpuKernel {
+public final class CpuAvgPool2dKernel implements CpuStorageAwareKernel {
     @Override
-    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Pool2dExecutor.avgForwardF64(require(op), inputs.get(0), node);
-    }
-
-    @Override
-    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Pool2dExecutor.avgForwardF32(require(op), inputs.get(0), node);
-    }
-
-    @Override
-    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Pool2dExecutor.avgForwardBF16(require(op), inputs.get(0), node);
+    public CpuKernelResult execute(CpuKernelCall call) {
+        Tensor output = call.outputTensor();
+        switch (output.getDataType()) {
+            case FLOAT64 -> Pool2dDirectBackend.avgForwardF64(
+                    require(call.operation()), call.inputTensors().get(0), output);
+            case FLOAT32 -> Pool2dDirectBackend.avgForwardF32(
+                    require(call.operation()), call.inputTensors().get(0), output);
+            case BFLOAT16 -> Pool2dDirectBackend.avgForwardBF16(
+                    require(call.operation()), call.inputTensors().get(0), output);
+            case INT32, INT64, BOOL -> unsupported(output.getDataType());
+        }
+        return CpuKernelResult.completed();
     }
 
     private static avgPool2d require(Operation op) {
@@ -31,5 +29,9 @@ public final class CpuAvgPool2dKernel extends TypedCpuKernel {
             throw new IllegalArgumentException("CpuAvgPool2dKernel requires avgPool2d operation");
         }
         return pool;
+    }
+
+    private static void unsupported(DataType dtype) {
+        throw new UnsupportedOperationException("CpuAvgPool2dKernel does not support " + dtype);
     }
 }

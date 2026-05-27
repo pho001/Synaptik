@@ -851,6 +851,27 @@ public class CpuKernelFamilyArchitectureTest {
         }
     }
 
+    @Test
+    void nnForwardEntrypointsOwnStorageAwareBoundary() throws IOException {
+        for (Operation.OpType opType : List.of(
+                Operation.OpType.CONV2D,
+                Operation.OpType.MAX_POOL2D,
+                Operation.OpType.AVG_POOL2D
+        )) {
+            CpuKernel kernel = CpuKernelRegistry.resolve(opType);
+            assertEquals("backend.cpu.kernels.nn", kernel.getClass().getPackageName(),
+                    opType + " must be owned by the nn kernel family.");
+            assertTrue(kernel instanceof CpuStorageAwareKernel,
+                    opType + " must consume the CpuKernelCall boundary directly.");
+            assertFalse(kernel instanceof TypedCpuKernel,
+                    opType + " must not route through the legacy TypedCpuKernel tensor-array executor.");
+        }
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/nn/Conv2dExecutor.java")),
+                "Conv2dExecutor must not remain as a pass-through forward wrapper.");
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/nn/Pool2dExecutor.java")),
+                "Pool2dExecutor must not remain as a pass-through forward wrapper.");
+    }
+
     private static void assertPackage(Operation.OpType opType, String expectedPackage) {
         CpuKernel kernel = CpuKernelRegistry.resolve(opType);
         assertEquals(expectedPackage, kernel.getClass().getPackageName(), () ->
