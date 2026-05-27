@@ -1,20 +1,26 @@
 package backend.cpu.kernels.reduction;
 
-import tensor.TensorInternalAccess;
-
-import tensor.dtype.TensorDTypeOps;
 import backend.cpu.execution.CpuKernelContext;
 import backend.cpu.execution.CpuThreadPool;
 import backend.cpu.plan.reduction.ResolvedReductionHints;
+import backend.cpu.storage.CpuStorageView;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
 import operations.loss.crossEntropyLossIndices;
 import tensor.DataType;
-import tensor.loss.LossReduction;
-import tensor.Tensor;
 import tensor.TensorMetadata;
+import tensor.dtype.TensorDTypeOps;
+import tensor.loss.LossReduction;
+
+import java.lang.foreign.MemorySegment;
+
+import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
+import static java.lang.foreign.ValueLayout.JAVA_INT;
+import static java.lang.foreign.ValueLayout.JAVA_LONG;
+import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
 final class CrossEntropyLossIndicesExecutor {
     private static final VectorSpecies<Float> F32_SPECIES = FloatVector.SPECIES_PREFERRED;
@@ -23,112 +29,221 @@ final class CrossEntropyLossIndicesExecutor {
 
     private CrossEntropyLossIndicesExecutor() {}
 
-    static void executeF64(crossEntropyLossIndices loss, Tensor logits, Tensor targetIndices, Tensor node, CpuKernelContext context) {
-        validate(loss, logits, targetIndices, node, context);
-        double[] logitsData = TensorInternalAccess.float64Data(logits);
+    static void executeF64(crossEntropyLossIndices loss, CpuStorageView logits, CpuStorageView targetIndices, CpuStorageView output, CpuKernelContext context) {
+        validate(loss, logits, targetIndices, output, context, DataType.FLOAT64);
         if (loss.getReduction() == LossReduction.NONE) {
-            double[] out = TensorInternalAccess.float64Data(node);
-            runGroups(logits, targetIndices, node, loss, context, (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
-                SampleResult result = computeLossF64(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
-                out[outOffset] = result.valid() ? result.loss() : 0.0d;
-            });
+            if (logits.isArray() && output.isArray()) {
+                double[] logitsData = logits.requireF64Array();
+                double[] out = output.requireF64Array();
+                runGroups(logits, targetIndices, output, loss, context, logits.storageOffset(), (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
+                    SampleResult result = computeLossF64(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
+                    out[outOffset] = result.valid() ? result.loss() : 0.0d;
+                });
+            } else if (logits.isArray()) {
+                double[] logitsData = logits.requireF64Array();
+                MemorySegment out = output.requireSegment();
+                runGroups(logits, targetIndices, output, loss, context, logits.storageOffset(), (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
+                    SampleResult result = computeLossF64(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
+                    out.set(JAVA_DOUBLE, (long) outOffset * Double.BYTES, result.valid() ? result.loss() : 0.0d);
+                });
+            } else if (output.isArray()) {
+                MemorySegment logitsData = logits.requireSegment();
+                double[] out = output.requireF64Array();
+                runGroups(logits, targetIndices, output, loss, context, logits.storageOffset(), (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
+                    SampleResult result = computeLossF64(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
+                    out[outOffset] = result.valid() ? result.loss() : 0.0d;
+                });
+            } else {
+                MemorySegment logitsData = logits.requireSegment();
+                MemorySegment out = output.requireSegment();
+                runGroups(logits, targetIndices, output, loss, context, logits.storageOffset(), (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
+                    SampleResult result = computeLossF64(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
+                    out.set(JAVA_DOUBLE, (long) outOffset * Double.BYTES, result.valid() ? result.loss() : 0.0d);
+                });
+            }
             return;
         }
-        ReductionResult result = reduceGroups(logits, targetIndices, loss, context, (baseLogits, targetOffset, axisStride, axisSize) ->
-                computeLossF64(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex()));
-        TensorInternalAccess.float64Data(node)[node.getStorageOffsetUnsafe()] = finalizeReduction(result, loss.getReduction(), targetIndices.getFlatDataSize());
+        ReductionResult result;
+        if (logits.isArray()) {
+            double[] logitsData = logits.requireF64Array();
+            result = reduceGroups(logits, targetIndices, loss, context, logits.storageOffset(), (baseLogits, targetOffset, axisStride, axisSize) ->
+                    computeLossF64(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex()));
+        } else {
+            MemorySegment logitsData = logits.requireSegment();
+            result = reduceGroups(logits, targetIndices, loss, context, logits.storageOffset(), (baseLogits, targetOffset, axisStride, axisSize) ->
+                    computeLossF64(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex()));
+        }
+        writeF64(output, output.storageOffset(), finalizeReduction(result, loss.getReduction(), targetIndices.logicalSize()));
     }
 
-    static void executeF32(crossEntropyLossIndices loss, Tensor logits, Tensor targetIndices, Tensor node, CpuKernelContext context) {
-        validate(loss, logits, targetIndices, node, context);
-        float[] logitsData = TensorInternalAccess.float32Data(logits);
+    static void executeF32(crossEntropyLossIndices loss, CpuStorageView logits, CpuStorageView targetIndices, CpuStorageView output, CpuKernelContext context) {
+        validate(loss, logits, targetIndices, output, context, DataType.FLOAT32);
         if (loss.getReduction() == LossReduction.NONE) {
-            float[] out = TensorInternalAccess.float32Data(node);
-            runGroups(logits, targetIndices, node, loss, context, (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
-                SampleResult result = computeLossF32(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
-                out[outOffset] = result.valid() ? (float) result.loss() : 0.0f;
-            });
+            if (logits.isArray() && output.isArray()) {
+                float[] logitsData = logits.requireF32Array();
+                float[] out = output.requireF32Array();
+                runGroups(logits, targetIndices, output, loss, context, logits.storageOffset(), (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
+                    SampleResult result = computeLossF32(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
+                    out[outOffset] = result.valid() ? (float) result.loss() : 0.0f;
+                });
+            } else if (logits.isArray()) {
+                float[] logitsData = logits.requireF32Array();
+                MemorySegment out = output.requireSegment();
+                runGroups(logits, targetIndices, output, loss, context, logits.storageOffset(), (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
+                    SampleResult result = computeLossF32(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
+                    out.set(JAVA_FLOAT, (long) outOffset * Float.BYTES, result.valid() ? (float) result.loss() : 0.0f);
+                });
+            } else if (output.isArray()) {
+                MemorySegment logitsData = logits.requireSegment();
+                float[] out = output.requireF32Array();
+                runGroups(logits, targetIndices, output, loss, context, logits.storageOffset(), (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
+                    SampleResult result = computeLossF32(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
+                    out[outOffset] = result.valid() ? (float) result.loss() : 0.0f;
+                });
+            } else {
+                MemorySegment logitsData = logits.requireSegment();
+                MemorySegment out = output.requireSegment();
+                runGroups(logits, targetIndices, output, loss, context, logits.storageOffset(), (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
+                    SampleResult result = computeLossF32(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
+                    out.set(JAVA_FLOAT, (long) outOffset * Float.BYTES, result.valid() ? (float) result.loss() : 0.0f);
+                });
+            }
             return;
         }
-        ReductionResult result = reduceGroups(logits, targetIndices, loss, context, (baseLogits, targetOffset, axisStride, axisSize) ->
-                computeLossF32(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex()));
-        TensorInternalAccess.float32Data(node)[node.getStorageOffsetUnsafe()] = (float) finalizeReduction(result, loss.getReduction(), targetIndices.getFlatDataSize());
+        ReductionResult result;
+        if (logits.isArray()) {
+            float[] logitsData = logits.requireF32Array();
+            result = reduceGroups(logits, targetIndices, loss, context, logits.storageOffset(), (baseLogits, targetOffset, axisStride, axisSize) ->
+                    computeLossF32(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex()));
+        } else {
+            MemorySegment logitsData = logits.requireSegment();
+            result = reduceGroups(logits, targetIndices, loss, context, logits.storageOffset(), (baseLogits, targetOffset, axisStride, axisSize) ->
+                    computeLossF32(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex()));
+        }
+        writeF32(output, output.storageOffset(), (float) finalizeReduction(result, loss.getReduction(), targetIndices.logicalSize()));
     }
 
-    static void executeBF16(crossEntropyLossIndices loss, Tensor logits, Tensor targetIndices, Tensor node, CpuKernelContext context) {
-        validate(loss, logits, targetIndices, node, context);
-        short[] logitsData = TensorInternalAccess.bfloat16Data(logits);
+    static void executeBF16(crossEntropyLossIndices loss, CpuStorageView logits, CpuStorageView targetIndices, CpuStorageView output, CpuKernelContext context) {
+        validate(loss, logits, targetIndices, output, context, DataType.BFLOAT16);
         if (loss.getReduction() == LossReduction.NONE) {
-            short[] out = TensorInternalAccess.bfloat16Data(node);
-            runGroups(logits, targetIndices, node, loss, context, (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
-                SampleResult result = computeLossBF16(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
-                out[outOffset] = TensorDTypeOps.toBFloat16Bits(result.valid() ? (float) result.loss() : 0.0f);
-            });
+            if (logits.isArray() && output.isArray()) {
+                short[] logitsData = logits.requireBF16Array();
+                short[] out = output.requireBF16Array();
+                runGroups(logits, targetIndices, output, loss, context, logits.storageOffset(), (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
+                    SampleResult result = computeLossBF16(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
+                    out[outOffset] = TensorDTypeOps.toBFloat16Bits(result.valid() ? (float) result.loss() : 0.0f);
+                });
+            } else if (logits.isArray()) {
+                short[] logitsData = logits.requireBF16Array();
+                MemorySegment out = output.requireSegment();
+                runGroups(logits, targetIndices, output, loss, context, logits.storageOffset(), (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
+                    SampleResult result = computeLossBF16(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
+                    out.set(JAVA_SHORT, (long) outOffset * Short.BYTES, TensorDTypeOps.toBFloat16Bits(result.valid() ? (float) result.loss() : 0.0f));
+                });
+            } else if (output.isArray()) {
+                MemorySegment logitsData = logits.requireSegment();
+                short[] out = output.requireBF16Array();
+                runGroups(logits, targetIndices, output, loss, context, logits.storageOffset(), (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
+                    SampleResult result = computeLossBF16(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
+                    out[outOffset] = TensorDTypeOps.toBFloat16Bits(result.valid() ? (float) result.loss() : 0.0f);
+                });
+            } else {
+                MemorySegment logitsData = logits.requireSegment();
+                MemorySegment out = output.requireSegment();
+                runGroups(logits, targetIndices, output, loss, context, logits.storageOffset(), (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
+                    SampleResult result = computeLossBF16(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
+                    out.set(JAVA_SHORT, (long) outOffset * Short.BYTES, TensorDTypeOps.toBFloat16Bits(result.valid() ? (float) result.loss() : 0.0f));
+                });
+            }
             return;
         }
-        ReductionResult result = reduceGroups(logits, targetIndices, loss, context, (baseLogits, targetOffset, axisStride, axisSize) ->
-                computeLossBF16(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex()));
-        TensorInternalAccess.bfloat16Data(node)[node.getStorageOffsetUnsafe()] = TensorDTypeOps.toBFloat16Bits((float) finalizeReduction(result, loss.getReduction(), targetIndices.getFlatDataSize()));
+        ReductionResult result;
+        if (logits.isArray()) {
+            short[] logitsData = logits.requireBF16Array();
+            result = reduceGroups(logits, targetIndices, loss, context, logits.storageOffset(), (baseLogits, targetOffset, axisStride, axisSize) ->
+                    computeLossBF16(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex()));
+        } else {
+            MemorySegment logitsData = logits.requireSegment();
+            result = reduceGroups(logits, targetIndices, loss, context, logits.storageOffset(), (baseLogits, targetOffset, axisStride, axisSize) ->
+                    computeLossBF16(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex()));
+        }
+        writeBF16(output, output.storageOffset(), TensorDTypeOps.toBFloat16Bits((float) finalizeReduction(result, loss.getReduction(), targetIndices.logicalSize())));
     }
 
-    static void executeF32ToBF16(crossEntropyLossIndices loss, Tensor logits, float[] logitsData, Tensor targetIndices, Tensor node, CpuKernelContext context) {
-        validate(loss, logits, targetIndices, node, context);
+    static void executeF32ToBF16(crossEntropyLossIndices loss, CpuStorageView logits, float[] logitsData, CpuStorageView targetIndices, CpuStorageView output, CpuKernelContext context) {
+        validate(loss, logits, targetIndices, output, context, DataType.BFLOAT16);
         if (logitsData == null) {
             throw new IllegalArgumentException("Float continuation logits cannot be null");
         }
         if (loss.getReduction() == LossReduction.NONE) {
-            short[] out = TensorInternalAccess.bfloat16Data(node);
-            runGroups(logits, targetIndices, node, loss, context, (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
-                SampleResult result = computeLossF32(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
-                out[outOffset] = TensorDTypeOps.toBFloat16Bits(result.valid() ? (float) result.loss() : 0.0f);
-            });
+            if (output.isArray()) {
+                short[] out = output.requireBF16Array();
+                runGroups(logits, targetIndices, output, loss, context, 0, (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
+                    SampleResult result = computeLossF32(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
+                    out[outOffset] = TensorDTypeOps.toBFloat16Bits(result.valid() ? (float) result.loss() : 0.0f);
+                });
+            } else {
+                MemorySegment out = output.requireSegment();
+                runGroups(logits, targetIndices, output, loss, context, 0, (baseLogits, targetOffset, outOffset, axisStride, axisSize) -> {
+                    SampleResult result = computeLossF32(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex());
+                    out.set(JAVA_SHORT, (long) outOffset * Short.BYTES, TensorDTypeOps.toBFloat16Bits(result.valid() ? (float) result.loss() : 0.0f));
+                });
+            }
             return;
         }
-        ReductionResult result = reduceGroups(logits, targetIndices, loss, context, (baseLogits, targetOffset, axisStride, axisSize) ->
+        ReductionResult result = reduceGroups(logits, targetIndices, loss, context, 0, (baseLogits, targetOffset, axisStride, axisSize) ->
                 computeLossF32(logitsData, baseLogits, axisStride, axisSize, readIndex(targetIndices, targetOffset), loss.getIgnoreIndex()));
-        TensorInternalAccess.bfloat16Data(node)[node.getStorageOffsetUnsafe()] = TensorDTypeOps.toBFloat16Bits((float) finalizeReduction(result, loss.getReduction(), targetIndices.getFlatDataSize()));
+        writeBF16(output, output.storageOffset(), TensorDTypeOps.toBFloat16Bits((float) finalizeReduction(result, loss.getReduction(), targetIndices.logicalSize())));
     }
 
-    private static void validate(crossEntropyLossIndices loss, Tensor logits, Tensor targetIndices, Tensor node, CpuKernelContext context) {
-        if (loss == null || logits == null || targetIndices == null || node == null || context == null) {
+    private static void validate(crossEntropyLossIndices loss, CpuStorageView logits, CpuStorageView targetIndices, CpuStorageView output, CpuKernelContext context, DataType dtype) {
+        if (loss == null || logits == null || targetIndices == null || output == null || context == null) {
             throw new IllegalArgumentException("cross entropy loss from indices execution arguments cannot be null");
         }
-        if (targetIndices.getDataType() == DataType.BOOL) {
+        if (logits.dtype() != dtype || output.dtype() != dtype) {
+            throw new IllegalArgumentException("Cross entropy loss from indices requires " + dtype
+                    + " logits/output storage views, logits=" + logits.dtype() + ", output=" + output.dtype());
+        }
+        if (targetIndices.dtype() == DataType.BOOL) {
             throw new IllegalArgumentException("Target indices must be numeric integral values");
         }
-        int[] logitsShape = logits.getShapeUnsafe();
+        int[] logitsShape = logits.shape();
         int classDimension = loss.getClassDimension();
         if (classDimension < 0 || classDimension >= logitsShape.length) {
             throw new IllegalArgumentException("Class dimension out of bounds: " + classDimension);
         }
         int[] expectedTargetShape = reduceShape(logitsShape, classDimension);
-        validateShape(targetIndices.getShapeUnsafe(), expectedTargetShape, "Target indices shape must equal logits shape without class axis");
+        validateShape(targetIndices.shape(), expectedTargetShape, "Target indices shape must equal logits shape without class axis");
         if (loss.getReduction() == LossReduction.NONE) {
-            validateShape(node.getShapeUnsafe(), expectedTargetShape, "NONE reduction output shape must equal target indices shape");
-        } else if (node.getShapeUnsafe().length != 1 || node.getShapeUnsafe()[0] != 1) {
+            validateShape(output.shape(), expectedTargetShape, "NONE reduction output shape must equal target indices shape");
+        } else if (output.shape().length != 1 || output.shape()[0] != 1) {
             throw new IllegalArgumentException("Reduced loss output shape must be [1]");
         }
     }
 
     private static void runGroups(
-            Tensor logits,
-            Tensor targetIndices,
-            Tensor node,
+            CpuStorageView logits,
+            CpuStorageView targetIndices,
+            CpuStorageView output,
             crossEntropyLossIndices loss,
             CpuKernelContext context,
+            int logitsBaseOffset,
             GroupWriter writer
     ) {
-        int[] logitsShape = logits.getShapeUnsafe();
+        int[] logitsShape = logits.shape();
         int axis = loss.getClassDimension();
         int[] reducedShape = reduceShape(logitsShape, axis);
         int[] reducedDenseStrides = TensorMetadata.computeStrides(reducedShape);
         int groupCount = logicalSize(reducedShape);
         int axisSize = logitsShape[axis];
-        int axisStride = logits.getStridesUnsafe()[axis];
+        int[] logitsStrides = logits.strides();
+        int[] targetStrides = targetIndices.strides();
+        int[] outputStrides = output.strides();
+        int axisStride = logitsStrides[axis];
         ResolvedReductionHints hints = context.reductionHints();
 
-        if (canUseDenseContiguousLastAxisFastPath(logits, targetIndices, node, axis)) {
-            runDenseContiguousGroups(groupCount, axisSize, logits.getStorageOffsetUnsafe(), targetIndices.getStorageOffsetUnsafe(), node.getStorageOffsetUnsafe(), hints,
+        if (canUseDenseContiguousLastAxisFastPath(logits, targetIndices, output, axis)) {
+            runDenseContiguousGroups(groupCount, axisSize, logitsBaseOffset, targetIndices.storageOffset(), output.storageOffset(), hints,
                     (group, baseLogits, targetOffset, outOffset) -> writer.write(baseLogits, targetOffset, outOffset, 1, axisSize));
             return;
         }
@@ -140,9 +255,9 @@ final class CrossEntropyLossIndicesExecutor {
                 int start = chunk * chunkSize;
                 int end = Math.min(start + chunkSize, groupCount);
                 for (int group = start; group < end; group++) {
-                    GroupState state = groupState(group, logitsShape, logits.getStridesUnsafe(), logits.getStorageOffsetUnsafe(),
-                            targetIndices.getStridesUnsafe(), targetIndices.getStorageOffsetUnsafe(),
-                            node.getStridesUnsafe(), node.getStorageOffsetUnsafe(), axis, reducedDenseStrides, axisSize, axisStride);
+                    GroupState state = groupState(group, logitsShape, logitsStrides, logitsBaseOffset,
+                            targetStrides, targetIndices.storageOffset(),
+                            outputStrides, output.storageOffset(), axis, reducedDenseStrides, axisSize, axisStride);
                     writer.write(state.baseLogits(), state.targetOffset(), state.outOffset(), state.axisStride(), state.axisSize());
                 }
             });
@@ -150,31 +265,34 @@ final class CrossEntropyLossIndicesExecutor {
         }
 
         for (int group = 0; group < groupCount; group++) {
-            GroupState state = groupState(group, logitsShape, logits.getStridesUnsafe(), logits.getStorageOffsetUnsafe(),
-                    targetIndices.getStridesUnsafe(), targetIndices.getStorageOffsetUnsafe(),
-                    node.getStridesUnsafe(), node.getStorageOffsetUnsafe(), axis, reducedDenseStrides, axisSize, axisStride);
+            GroupState state = groupState(group, logitsShape, logitsStrides, logitsBaseOffset,
+                    targetStrides, targetIndices.storageOffset(),
+                    outputStrides, output.storageOffset(), axis, reducedDenseStrides, axisSize, axisStride);
             writer.write(state.baseLogits(), state.targetOffset(), state.outOffset(), state.axisStride(), state.axisSize());
         }
     }
 
     private static ReductionResult reduceGroups(
-            Tensor logits,
-            Tensor targetIndices,
+            CpuStorageView logits,
+            CpuStorageView targetIndices,
             crossEntropyLossIndices loss,
             CpuKernelContext context,
+            int logitsBaseOffset,
             GroupReducer reducer
     ) {
-        int[] logitsShape = logits.getShapeUnsafe();
+        int[] logitsShape = logits.shape();
         int axis = loss.getClassDimension();
         int[] reducedShape = reduceShape(logitsShape, axis);
         int[] reducedDenseStrides = TensorMetadata.computeStrides(reducedShape);
         int groupCount = logicalSize(reducedShape);
         int axisSize = logitsShape[axis];
-        int axisStride = logits.getStridesUnsafe()[axis];
+        int[] logitsStrides = logits.strides();
+        int[] targetStrides = targetIndices.strides();
+        int axisStride = logitsStrides[axis];
         ResolvedReductionHints hints = context.reductionHints();
 
         if (canUseDenseContiguousLastAxisFastPath(logits, targetIndices, null, axis)) {
-            return reduceDenseContiguousGroups(groupCount, axisSize, logits.getStorageOffsetUnsafe(), targetIndices.getStorageOffsetUnsafe(), hints, reducer);
+            return reduceDenseContiguousGroups(groupCount, axisSize, logitsBaseOffset, targetIndices.storageOffset(), hints, reducer);
         }
 
         if (hints != null && hints.parallel() && groupCount > 1) {
@@ -188,8 +306,8 @@ final class CrossEntropyLossIndicesExecutor {
                 double partialLoss = 0.0d;
                 int partialCount = 0;
                 for (int group = start; group < end; group++) {
-                    GroupState state = groupState(group, logitsShape, logits.getStridesUnsafe(), logits.getStorageOffsetUnsafe(),
-                            targetIndices.getStridesUnsafe(), targetIndices.getStorageOffsetUnsafe(),
+                    GroupState state = groupState(group, logitsShape, logitsStrides, logitsBaseOffset,
+                            targetStrides, targetIndices.storageOffset(),
                             null, 0, axis, reducedDenseStrides, axisSize, axisStride);
                     SampleResult result = reducer.compute(state.baseLogits(), state.targetOffset(), state.axisStride(), state.axisSize());
                     if (result.valid()) {
@@ -212,8 +330,8 @@ final class CrossEntropyLossIndicesExecutor {
         double totalLoss = 0.0d;
         int totalValid = 0;
         for (int group = 0; group < groupCount; group++) {
-            GroupState state = groupState(group, logitsShape, logits.getStridesUnsafe(), logits.getStorageOffsetUnsafe(),
-                    targetIndices.getStridesUnsafe(), targetIndices.getStorageOffsetUnsafe(),
+            GroupState state = groupState(group, logitsShape, logitsStrides, logitsBaseOffset,
+                    targetStrides, targetIndices.storageOffset(),
                     null, 0, axis, reducedDenseStrides, axisSize, axisStride);
             SampleResult result = reducer.compute(state.baseLogits(), state.targetOffset(), state.axisStride(), state.axisSize());
             if (result.valid()) {
@@ -333,12 +451,14 @@ final class CrossEntropyLossIndicesExecutor {
         return new GroupState(baseLogits, targetOffset, outputOffset, axisStride, axisSize);
     }
 
-    private static boolean canUseDenseContiguousLastAxisFastPath(Tensor logits, Tensor targetIndices, Tensor out, int axis) {
-        return axis == logits.getShapeUnsafe().length - 1
-                && isDenseContiguous(logits.getShapeUnsafe(), logits.getStridesUnsafe())
-                && logits.getStridesUnsafe()[axis] == 1
-                && isDenseContiguous(targetIndices.getShapeUnsafe(), targetIndices.getStridesUnsafe())
-                && (out == null || isDenseContiguous(out.getShapeUnsafe(), out.getStridesUnsafe()));
+    private static boolean canUseDenseContiguousLastAxisFastPath(CpuStorageView logits, CpuStorageView targetIndices, CpuStorageView out, int axis) {
+        int[] logitsShape = logits.shape();
+        int[] logitsStrides = logits.strides();
+        return axis == logitsShape.length - 1
+                && isDenseContiguous(logitsShape, logitsStrides)
+                && logitsStrides[axis] == 1
+                && isDenseContiguous(targetIndices.shape(), targetIndices.strides())
+                && (out == null || isDenseContiguous(out.shape(), out.strides()));
     }
 
     private static boolean isDenseContiguous(int[] shape, int[] strides) {
@@ -375,6 +495,23 @@ final class CrossEntropyLossIndicesExecutor {
         return new SampleResult(max + Math.log(sumExp) - targetLogit, true);
     }
 
+    private static SampleResult computeLossF64(MemorySegment logits, int baseLogits, int axisStride, int axisSize, int targetIndex, Integer ignoreIndex) {
+        if (ignoreIndex != null && targetIndex == ignoreIndex) {
+            return SampleResult.ignored();
+        }
+        validateTargetIndex(targetIndex, axisSize);
+        double targetLogit = logits.get(JAVA_DOUBLE, (long) (baseLogits + targetIndex * axisStride) * Double.BYTES);
+        double max = Double.NEGATIVE_INFINITY;
+        for (int i = 0, offset = baseLogits; i < axisSize; i++, offset += axisStride) {
+            max = Math.max(max, logits.get(JAVA_DOUBLE, (long) offset * Double.BYTES));
+        }
+        double sumExp = 0.0d;
+        for (int i = 0, offset = baseLogits; i < axisSize; i++, offset += axisStride) {
+            sumExp += Math.exp(logits.get(JAVA_DOUBLE, (long) offset * Double.BYTES) - max);
+        }
+        return new SampleResult(max + Math.log(sumExp) - targetLogit, true);
+    }
+
     private static SampleResult computeLossF32(float[] logits, int baseLogits, int axisStride, int axisSize, int targetIndex, Integer ignoreIndex) {
         if (ignoreIndex != null && targetIndex == ignoreIndex) {
             return SampleResult.ignored();
@@ -395,6 +532,23 @@ final class CrossEntropyLossIndicesExecutor {
         return new SampleResult(max + Math.log(sumExp) - targetLogit, true);
     }
 
+    private static SampleResult computeLossF32(MemorySegment logits, int baseLogits, int axisStride, int axisSize, int targetIndex, Integer ignoreIndex) {
+        if (ignoreIndex != null && targetIndex == ignoreIndex) {
+            return SampleResult.ignored();
+        }
+        validateTargetIndex(targetIndex, axisSize);
+        float targetLogit = logits.get(JAVA_FLOAT, (long) (baseLogits + targetIndex * axisStride) * Float.BYTES);
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0, offset = baseLogits; i < axisSize; i++, offset += axisStride) {
+            max = Math.max(max, logits.get(JAVA_FLOAT, (long) offset * Float.BYTES));
+        }
+        double sumExp = 0.0d;
+        for (int i = 0, offset = baseLogits; i < axisSize; i++, offset += axisStride) {
+            sumExp += Math.exp(logits.get(JAVA_FLOAT, (long) offset * Float.BYTES) - max);
+        }
+        return new SampleResult(max + Math.log(sumExp) - targetLogit, true);
+    }
+
     private static SampleResult computeLossBF16(short[] logits, int baseLogits, int axisStride, int axisSize, int targetIndex, Integer ignoreIndex) {
         if (ignoreIndex != null && targetIndex == ignoreIndex) {
             return SampleResult.ignored();
@@ -408,6 +562,23 @@ final class CrossEntropyLossIndicesExecutor {
         double sumExp = 0.0d;
         for (int i = 0, offset = baseLogits; i < axisSize; i++, offset += axisStride) {
             sumExp += Math.exp(TensorDTypeOps.fromBFloat16Bits(logits[offset]) - max);
+        }
+        return new SampleResult(max + Math.log(sumExp) - targetLogit, true);
+    }
+
+    private static SampleResult computeLossBF16(MemorySegment logits, int baseLogits, int axisStride, int axisSize, int targetIndex, Integer ignoreIndex) {
+        if (ignoreIndex != null && targetIndex == ignoreIndex) {
+            return SampleResult.ignored();
+        }
+        validateTargetIndex(targetIndex, axisSize);
+        float targetLogit = readBF16(logits, baseLogits + targetIndex * axisStride);
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0, offset = baseLogits; i < axisSize; i++, offset += axisStride) {
+            max = Math.max(max, readBF16(logits, offset));
+        }
+        double sumExp = 0.0d;
+        for (int i = 0, offset = baseLogits; i < axisSize; i++, offset += axisStride) {
+            sumExp += Math.exp(readBF16(logits, offset) - max);
         }
         return new SampleResult(max + Math.log(sumExp) - targetLogit, true);
     }
@@ -474,15 +645,53 @@ final class CrossEntropyLossIndicesExecutor {
         return max;
     }
 
-    private static int readIndex(Tensor targetIndices, int storageOffset) {
-        return switch (targetIndices.getDataType()) {
-            case INT32 -> TensorInternalAccess.int32Data(targetIndices)[storageOffset];
-            case INT64 -> Math.toIntExact(TensorInternalAccess.int64Data(targetIndices)[storageOffset]);
-            case FLOAT64 -> toIntegralIndex(TensorInternalAccess.float64Data(targetIndices)[storageOffset]);
-            case FLOAT32 -> toIntegralIndex(TensorInternalAccess.float32Data(targetIndices)[storageOffset]);
-            case BFLOAT16 -> toIntegralIndex(TensorDTypeOps.fromBFloat16Bits(TensorInternalAccess.bfloat16Data(targetIndices)[storageOffset]));
+    private static int readIndex(CpuStorageView targetIndices, int storageOffset) {
+        return switch (targetIndices.dtype()) {
+            case INT32 -> targetIndices.isArray()
+                    ? targetIndices.requireI32Array()[storageOffset]
+                    : targetIndices.requireSegment().get(JAVA_INT, (long) storageOffset * Integer.BYTES);
+            case INT64 -> Math.toIntExact(targetIndices.isArray()
+                    ? targetIndices.requireI64Array()[storageOffset]
+                    : targetIndices.requireSegment().get(JAVA_LONG, (long) storageOffset * Long.BYTES));
+            case FLOAT64 -> toIntegralIndex(targetIndices.isArray()
+                    ? targetIndices.requireF64Array()[storageOffset]
+                    : targetIndices.requireSegment().get(JAVA_DOUBLE, (long) storageOffset * Double.BYTES));
+            case FLOAT32 -> toIntegralIndex(targetIndices.isArray()
+                    ? targetIndices.requireF32Array()[storageOffset]
+                    : targetIndices.requireSegment().get(JAVA_FLOAT, (long) storageOffset * Float.BYTES));
+            case BFLOAT16 -> toIntegralIndex(targetIndices.isArray()
+                    ? TensorDTypeOps.fromBFloat16Bits(targetIndices.requireBF16Array()[storageOffset])
+                    : readBF16(targetIndices.requireSegment(), storageOffset));
             case BOOL -> throw new IllegalArgumentException("Target indices must be numeric integral values");
         };
+    }
+
+    private static float readBF16(MemorySegment segment, int offset) {
+        return TensorDTypeOps.fromBFloat16Bits(segment.get(JAVA_SHORT, (long) offset * Short.BYTES));
+    }
+
+    private static void writeF64(CpuStorageView output, int offset, double value) {
+        if (output.isArray()) {
+            output.requireF64Array()[offset] = value;
+        } else {
+            output.requireSegment().set(JAVA_DOUBLE, (long) offset * Double.BYTES, value);
+        }
+    }
+
+    private static void writeF32(CpuStorageView output, int offset, float value) {
+        if (output.isArray()) {
+            output.requireF32Array()[offset] = value;
+        } else {
+            output.requireSegment().set(JAVA_FLOAT, (long) offset * Float.BYTES, value);
+        }
+    }
+
+    private static void writeBF16(CpuStorageView output, int offset, short value) {
+        if (output.isArray()) {
+            output.requireBF16Array()[offset] = value;
+        } else {
+            output.requireSegment().set(JAVA_SHORT, (long) offset * Short.BYTES, value);
+        }
     }
 
     private static int toIntegralIndex(double raw) {
