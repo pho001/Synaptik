@@ -656,6 +656,25 @@ public class CpuKernelFamilyArchitectureTest {
     }
 
     @Test
+    void reductionSoftmaxAndLossEntrypointsOwnStorageAwareBoundary() {
+        for (Operation.OpType opType : List.of(
+                Operation.OpType.SOFTMAX,
+                Operation.OpType.LOG_SOFTMAX,
+                Operation.OpType.NLL_LOSS,
+                Operation.OpType.CROSS_ENTROPY_LOSS,
+                Operation.OpType.CROSS_ENTROPY_LOSS_INDICES
+        )) {
+            CpuKernel kernel = CpuKernelRegistry.resolve(opType);
+            assertEquals("backend.cpu.kernels.reduction", kernel.getClass().getPackageName(),
+                    opType + " must be owned by the reduction kernel family.");
+            assertTrue(kernel instanceof CpuStorageAwareKernel,
+                    opType + " must consume the CpuKernelCall boundary directly.");
+            assertFalse(kernel instanceof TypedCpuKernel,
+                    opType + " must not route through the legacy TypedCpuKernel tensor-array executor.");
+        }
+    }
+
+    @Test
     void waveFourNonElementwiseNativeExecutorsAreDeleted() throws IOException {
         List<String> deletedExecutors = List.of(
                 "NativeCpuReductionExecutor",

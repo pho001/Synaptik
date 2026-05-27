@@ -1,38 +1,37 @@
 package backend.cpu.kernels.reduction;
 
-import backend.cpu.kernels.TypedCpuKernel;
 import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.kernels.CpuKernelCall;
+import backend.cpu.kernels.CpuKernelResult;
+import backend.cpu.kernels.CpuStorageAwareKernel;
 import operations.Operation;
 import operations.loss.crossEntropyLoss;
 import tensor.Tensor;
 
-import java.util.List;
-
-public final class CpuCrossEntropyLossKernel extends TypedCpuKernel {
+public final class CpuCrossEntropyLossKernel implements CpuStorageAwareKernel {
     @Override
-    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        crossEntropyLoss loss = require(op);
-        Tensor[] pair = CpuNllLossKernel.requirePair(inputs, "Cross entropy loss");
-        LossReductionExecutor.executeF64(LossReduction.CROSS_ENTROPY, pair[0], pair[1], node, loss.getClassDimension(), context);
-    }
-
-    @Override
-    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        crossEntropyLoss loss = require(op);
-        Tensor[] pair = CpuNllLossKernel.requirePair(inputs, "Cross entropy loss");
-        LossReductionExecutor.executeF32(LossReduction.CROSS_ENTROPY, pair[0], pair[1], node, loss.getClassDimension(), context);
-    }
-
-    @Override
-    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        crossEntropyLoss loss = require(op);
-        Tensor[] pair = CpuNllLossKernel.requirePair(inputs, "Cross entropy loss");
-        float[] continuation = context.inputFloatContinuation(0, pair[0].getFlatDataSize());
-        if (continuation != null) {
-            LossReductionExecutor.executeF32ToBF16(LossReduction.CROSS_ENTROPY, pair[0], continuation, pair[1], node, loss.getClassDimension(), context);
-            return;
+    public CpuKernelResult execute(CpuKernelCall call) {
+        crossEntropyLoss loss = require(call.operation());
+        Tensor[] pair = CpuNllLossKernel.requirePair(call.inputTensors(), "Cross entropy loss");
+        Tensor node = call.outputTensor();
+        CpuKernelContext context = call.context();
+        switch (node.getDataType()) {
+            case FLOAT64 -> LossReductionExecutor.executeF64(
+                    LossReduction.CROSS_ENTROPY, pair[0], pair[1], node, loss.getClassDimension(), context);
+            case FLOAT32 -> LossReductionExecutor.executeF32(
+                    LossReduction.CROSS_ENTROPY, pair[0], pair[1], node, loss.getClassDimension(), context);
+            case BFLOAT16 -> {
+                float[] continuation = context.inputFloatContinuation(0, pair[0].getFlatDataSize());
+                if (continuation != null) {
+                    LossReductionExecutor.executeF32ToBF16(LossReduction.CROSS_ENTROPY, pair[0], continuation, pair[1], node, loss.getClassDimension(), context);
+                } else {
+                    LossReductionExecutor.executeBF16(LossReduction.CROSS_ENTROPY, pair[0], pair[1], node, loss.getClassDimension(), context);
+                }
+            }
+            case INT32, INT64, BOOL -> throw new UnsupportedOperationException(
+                    getClass().getSimpleName() + " does not support " + node.getDataType());
         }
-        LossReductionExecutor.executeBF16(LossReduction.CROSS_ENTROPY, pair[0], pair[1], node, loss.getClassDimension(), context);
+        return CpuKernelResult.completed();
     }
 
     private static crossEntropyLoss require(Operation op) {
