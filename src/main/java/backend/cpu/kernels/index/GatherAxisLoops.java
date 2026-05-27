@@ -21,7 +21,7 @@ final class GatherAxisLoops {
         IndexValidation.validateGatherAxis(input, indices, out, axis);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.FLOAT64);
         GatherAxisPlan plan = GatherAxisPlan.create(input, indices, out, axis);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             double[] in = inputView.requireF64Array();
             double[] dst = outView.requireF64Array();
@@ -49,7 +49,7 @@ final class GatherAxisLoops {
         IndexValidation.validateGatherAxis(input, indices, out, axis);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.FLOAT32);
         GatherAxisPlan plan = GatherAxisPlan.create(input, indices, out, axis);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             float[] in = inputView.requireF32Array();
             float[] dst = outView.requireF32Array();
@@ -77,7 +77,7 @@ final class GatherAxisLoops {
         IndexValidation.validateGatherAxis(input, indices, out, axis);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.BFLOAT16);
         GatherAxisPlan plan = GatherAxisPlan.create(input, indices, out, axis);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             short[] in = inputView.requireBF16Array();
             short[] dst = outView.requireBF16Array();
@@ -105,7 +105,7 @@ final class GatherAxisLoops {
         IndexValidation.validateGatherAxis(input, indices, out, axis);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.BOOL);
         GatherAxisPlan plan = GatherAxisPlan.create(input, indices, out, axis);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             byte[] in = inputView.requireBoolArray();
             byte[] dst = outView.requireBoolArray();
@@ -133,7 +133,7 @@ final class GatherAxisLoops {
         IndexValidation.validateGatherAxis(input, indices, out, axis);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.INT32);
         GatherAxisPlan plan = GatherAxisPlan.create(input, indices, out, axis);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             int[] in = inputView.requireI32Array();
             int[] dst = outView.requireI32Array();
@@ -161,7 +161,7 @@ final class GatherAxisLoops {
         IndexValidation.validateGatherAxis(input, indices, out, axis);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.INT64);
         GatherAxisPlan plan = GatherAxisPlan.create(input, indices, out, axis);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             long[] in = inputView.requireI64Array();
             long[] dst = outView.requireI64Array();
@@ -193,7 +193,7 @@ final class GatherAxisLoops {
                 dataView, indicesView, updatesView, outView, DataType.FLOAT64);
         IndexLoopSupport.copyStorage(data, out, dataView, outView, DataType.FLOAT64);
         GatherAxisPlan plan = GatherAxisPlan.create(out, indices, updates, axis);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(dataView, indicesView, updatesView, outView)) {
             double[] updateData = updatesView.requireF64Array();
             double[] dst = outView.requireF64Array();
@@ -227,7 +227,7 @@ final class GatherAxisLoops {
                 dataView, indicesView, updatesView, outView, DataType.FLOAT32);
         IndexLoopSupport.copyStorage(data, out, dataView, outView, DataType.FLOAT32);
         GatherAxisPlan plan = GatherAxisPlan.create(out, indices, updates, axis);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(dataView, indicesView, updatesView, outView)) {
             float[] updateData = updatesView.requireF32Array();
             float[] dst = outView.requireF32Array();
@@ -261,7 +261,7 @@ final class GatherAxisLoops {
                 dataView, indicesView, updatesView, outView, DataType.BFLOAT16);
         IndexLoopSupport.copyStorage(data, out, dataView, outView, DataType.BFLOAT16);
         GatherAxisPlan plan = GatherAxisPlan.create(out, indices, updates, axis);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(dataView, indicesView, updatesView, outView)) {
             short[] updateData = updatesView.requireBF16Array();
             short[] dst = outView.requireBF16Array();
@@ -339,29 +339,6 @@ final class GatherAxisLoops {
                     out.getFlatDataSize(),
                     inputShape[axis],
                     indicesShape.length);
-        }
-
-        void computeOffsets(int outLogical, IndexLoopSupport.IndexReader indexReader, int axis) {
-            int rem = outLogical;
-            int source = inputBaseOffset;
-            int output = outBaseOffset;
-            int indexLogical = 0;
-            for (int d = 0; d < outShape.length; d++) {
-                int coord = rem / outDense[d];
-                rem %= outDense[d];
-                output += coord * outStrides[d];
-                if (d < axis) {
-                    source += coord * inputStrides[d];
-                } else if (d < axis + indicesRank) {
-                    indexLogical += coord * indicesDense[d - axis];
-                } else {
-                    int inputDim = d - indicesRank + 1;
-                    source += coord * inputStrides[inputDim];
-                }
-            }
-            int axisIndex = indexReader.readAxisIndexAllowNegative(indexLogical, axisSize);
-            sourceOffset = source + axisIndex * inputStrides[axis];
-            outOffset = output;
         }
 
         void computeOffsets(

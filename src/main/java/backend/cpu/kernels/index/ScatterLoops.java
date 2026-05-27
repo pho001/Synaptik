@@ -25,7 +25,7 @@ final class ScatterLoops {
                 baseView, indicesView, srcView, outView, DataType.FLOAT64);
         IndexLoopSupport.copyStorage(base, out, baseView, outView, DataType.FLOAT64);
         ScatterAddPlan plan = ScatterAddPlan.create(src, out, dimension);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(baseView, indicesView, srcView, outView)) {
             scatterAddF64Array(srcView.requireF64Array(), indicesView, outView.requireF64Array(), indexPlan, plan);
             return;
@@ -54,7 +54,7 @@ final class ScatterLoops {
                 baseView, indicesView, srcView, outView, DataType.FLOAT32);
         IndexLoopSupport.copyStorage(base, out, baseView, outView, DataType.FLOAT32);
         ScatterAddPlan plan = ScatterAddPlan.create(src, out, dimension);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(baseView, indicesView, srcView, outView)) {
             scatterAddF32Array(srcView.requireF32Array(), indicesView, outView.requireF32Array(), indexPlan, plan);
             return;
@@ -83,7 +83,7 @@ final class ScatterLoops {
                 baseView, indicesView, srcView, outView, DataType.BFLOAT16);
         IndexLoopSupport.copyStorage(base, out, baseView, outView, DataType.BFLOAT16);
         ScatterAddPlan plan = ScatterAddPlan.create(src, out, dimension);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(baseView, indicesView, srcView, outView)) {
             scatterAddBF16Array(srcView.requireBF16Array(), indicesView, outView.requireBF16Array(), indexPlan, plan);
             return;

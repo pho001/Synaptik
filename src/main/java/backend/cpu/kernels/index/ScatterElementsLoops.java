@@ -28,7 +28,7 @@ final class ScatterElementsLoops {
         IndexLoopSupport.copyStorage(data, out, dataView, outView, DataType.FLOAT64);
         IndexLoopSupport.DuplicateState state = IndexLoopSupport.duplicateState(out, effectiveReduction, "scatterElements");
         ScatterElementsPlan plan = ScatterElementsPlan.create(data, updates, out, axis);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(dataView, indicesView, updatesView, outView)) {
             double[] updateData = updatesView.requireF64Array();
             double[] dst = outView.requireF64Array();
@@ -67,7 +67,7 @@ final class ScatterElementsLoops {
         IndexLoopSupport.copyStorage(data, out, dataView, outView, DataType.FLOAT32);
         IndexLoopSupport.DuplicateState state = IndexLoopSupport.duplicateState(out, effectiveReduction, "scatterElements");
         ScatterElementsPlan plan = ScatterElementsPlan.create(data, updates, out, axis);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(dataView, indicesView, updatesView, outView)) {
             float[] updateData = updatesView.requireF32Array();
             float[] dst = outView.requireF32Array();
@@ -106,7 +106,7 @@ final class ScatterElementsLoops {
         IndexLoopSupport.copyStorage(data, out, dataView, outView, DataType.BFLOAT16);
         IndexLoopSupport.DuplicateState state = IndexLoopSupport.duplicateState(out, effectiveReduction, "scatterElements");
         ScatterElementsPlan plan = ScatterElementsPlan.create(data, updates, out, axis);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(dataView, indicesView, updatesView, outView)) {
             short[] updateData = updatesView.requireBF16Array();
             short[] dst = outView.requireBF16Array();
@@ -147,7 +147,7 @@ final class ScatterElementsLoops {
         IndexLoopSupport.copyStorage(data, out, dataView, outView, DataType.BOOL);
         IndexLoopSupport.DuplicateState state = IndexLoopSupport.duplicateState(out, effectiveReduction, "scatterElements");
         ScatterElementsPlan plan = ScatterElementsPlan.create(data, updates, out, axis);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(dataView, indicesView, updatesView, outView)) {
             byte[] updateData = updatesView.requireBoolArray();
             byte[] dst = outView.requireBoolArray();
@@ -184,7 +184,7 @@ final class ScatterElementsLoops {
         IndexLoopSupport.copyStorage(data, out, dataView, outView, DataType.INT32);
         IndexLoopSupport.DuplicateState state = IndexLoopSupport.duplicateState(out, effectiveReduction, "scatterElements");
         ScatterElementsPlan plan = ScatterElementsPlan.create(data, updates, out, axis);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(dataView, indicesView, updatesView, outView)) {
             int[] updateData = updatesView.requireI32Array();
             int[] dst = outView.requireI32Array();
@@ -223,7 +223,7 @@ final class ScatterElementsLoops {
         IndexLoopSupport.copyStorage(data, out, dataView, outView, DataType.INT64);
         IndexLoopSupport.DuplicateState state = IndexLoopSupport.duplicateState(out, effectiveReduction, "scatterElements");
         ScatterElementsPlan plan = ScatterElementsPlan.create(data, updates, out, axis);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(dataView, indicesView, updatesView, outView)) {
             long[] updateData = updatesView.requireI64Array();
             long[] dst = outView.requireI64Array();

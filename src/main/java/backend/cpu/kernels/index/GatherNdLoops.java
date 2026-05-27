@@ -20,7 +20,7 @@ final class GatherNdLoops {
         IndexValidation.validateGatherNd(input, indices, out, batchDims);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.FLOAT64);
         GatherNdPlan plan = GatherNdPlan.create(input, indices, out, batchDims);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             double[] in = inputView.requireF64Array();
             double[] dst = outView.requireF64Array();
@@ -48,7 +48,7 @@ final class GatherNdLoops {
         IndexValidation.validateGatherNd(input, indices, out, batchDims);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.FLOAT32);
         GatherNdPlan plan = GatherNdPlan.create(input, indices, out, batchDims);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             float[] in = inputView.requireF32Array();
             float[] dst = outView.requireF32Array();
@@ -76,7 +76,7 @@ final class GatherNdLoops {
         IndexValidation.validateGatherNd(input, indices, out, batchDims);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.BFLOAT16);
         GatherNdPlan plan = GatherNdPlan.create(input, indices, out, batchDims);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             short[] in = inputView.requireBF16Array();
             short[] dst = outView.requireBF16Array();
@@ -104,7 +104,7 @@ final class GatherNdLoops {
         IndexValidation.validateGatherNd(input, indices, out, batchDims);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.BOOL);
         GatherNdPlan plan = GatherNdPlan.create(input, indices, out, batchDims);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             byte[] in = inputView.requireBoolArray();
             byte[] dst = outView.requireBoolArray();
@@ -132,7 +132,7 @@ final class GatherNdLoops {
         IndexValidation.validateGatherNd(input, indices, out, batchDims);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.INT32);
         GatherNdPlan plan = GatherNdPlan.create(input, indices, out, batchDims);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             int[] in = inputView.requireI32Array();
             int[] dst = outView.requireI32Array();
@@ -160,7 +160,7 @@ final class GatherNdLoops {
         IndexValidation.validateGatherNd(input, indices, out, batchDims);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.INT64);
         GatherNdPlan plan = GatherNdPlan.create(input, indices, out, batchDims);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             long[] in = inputView.requireI64Array();
             long[] dst = outView.requireI64Array();
@@ -240,40 +240,6 @@ final class GatherNdLoops {
                     indicesShape[indicesShape.length - 1],
                     indicesShape.length - 1,
                     indicesDense[indicesShape.length - 1]);
-        }
-
-        void computeOffsets(int logical, IndexLoopSupport.IndexReader indexReader, int batchDims) {
-            int rem = logical;
-            int output = outBaseOffset;
-            for (int d = 0; d < outShape.length; d++) {
-                int coord = rem / outDense[d];
-                rem %= outDense[d];
-                coords[d] = coord;
-                output += coord * outStrides[d];
-            }
-
-            int indexBaseLogical = 0;
-            for (int d = 0; d < prefixRank; d++) {
-                indexBaseLogical += coords[d] * indicesDense[d];
-            }
-
-            int source = inputBaseOffset;
-            for (int d = 0; d < batchDims; d++) {
-                source += coords[d] * inputStrides[d];
-            }
-            for (int d = 0; d < tupleRank; d++) {
-                int inputDim = batchDims + d;
-                int coord = indexReader.readAxisIndexAllowNegative(
-                        indexBaseLogical + d * tupleStride,
-                        inputShape[inputDim]);
-                source += coord * inputStrides[inputDim];
-            }
-            for (int d = batchDims + tupleRank; d < inputShape.length; d++) {
-                int suffixCoord = coords[prefixRank + d - batchDims - tupleRank];
-                source += suffixCoord * inputStrides[d];
-            }
-            sourceOffset = source;
-            outOffset = output;
         }
 
         void computeOffsets(

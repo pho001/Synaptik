@@ -4,7 +4,6 @@ import backend.cpu.storage.CpuStorageView;
 import operations.index.ScatterReduction;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorInternalAccess;
 import tensor.TensorMetadata;
 import tensor.dtype.TensorDTypeOps;
 
@@ -34,10 +33,6 @@ final class IndexLoopSupport {
             offset += coord * strides[d];
         }
         return offset;
-    }
-
-    static IndexReader indexReader(Tensor indices) {
-        return new IndexReader(indices);
     }
 
     static void validateReadStorageViews(
@@ -83,13 +78,15 @@ final class IndexLoopSupport {
         requireViewMatchesTensor(out, outView, valueDType, "output");
     }
 
-    static IndexStoragePlan indexStoragePlan(Tensor indices) {
+    static IndexStoragePlan indexStoragePlan(CpuStorageView indices) {
+        Objects.requireNonNull(indices, "indices storage view cannot be null");
+        int[] shape = indices.shape();
         return new IndexStoragePlan(
-                indices.getDataType(),
-                indices.getShapeUnsafe(),
-                denseStrides(indices.getShapeUnsafe()),
-                indices.getStridesUnsafe(),
-                indices.getStorageOffsetUnsafe()
+                indices.dtype(),
+                shape,
+                denseStrides(shape),
+                indices.strides(),
+                indices.storageOffset()
         );
     }
 
@@ -385,98 +382,6 @@ final class IndexLoopSupport {
                 throw new IllegalArgumentException(operationName + " NONE reduction does not allow duplicate target indices.");
             }
             seen[targetLogical] = true;
-        }
-    }
-
-    static final class IndexReader {
-        private final DataType dataType;
-        private final int[] shape;
-        private final int[] dense;
-        private final int[] strides;
-        private final int baseOffset;
-        private final double[] f64;
-        private final float[] f32;
-        private final short[] bf16;
-        private final int[] i32;
-        private final long[] i64;
-
-        private IndexReader(Tensor indices) {
-            this.dataType = indices.getDataType();
-            this.shape = indices.getShapeUnsafe();
-            this.dense = denseStrides(shape);
-            this.strides = indices.getStridesUnsafe();
-            this.baseOffset = indices.getStorageOffsetUnsafe();
-            this.f64 = dataType == DataType.FLOAT64 ? TensorInternalAccess.float64Data(indices) : null;
-            this.f32 = dataType == DataType.FLOAT32 ? TensorInternalAccess.float32Data(indices) : null;
-            this.bf16 = dataType == DataType.BFLOAT16 ? TensorInternalAccess.bfloat16Data(indices) : null;
-            this.i32 = dataType == DataType.INT32 ? TensorInternalAccess.int32Data(indices) : null;
-            this.i64 = dataType == DataType.INT64 ? TensorInternalAccess.int64Data(indices) : null;
-        }
-
-        int readAxisIndex(int logicalIndex, int axisSize) {
-            long integral;
-            if (dataType == DataType.INT32) {
-                integral = i32[offset(logicalIndex)];
-            } else if (dataType == DataType.INT64) {
-                integral = i64[offset(logicalIndex)];
-            } else {
-                double raw = readFloating(logicalIndex);
-                if (!Double.isFinite(raw)) {
-                    throw new IllegalArgumentException("Gather index must be finite.");
-                }
-                integral = Math.round(raw);
-                if (Math.abs(raw - integral) > 1e-9) {
-                    throw new IllegalArgumentException("Gather index must be an integer value. got=" + raw);
-                }
-            }
-            if (integral < 0 || integral >= axisSize) {
-                throw new IllegalArgumentException("Gather index out of bounds: " + integral + " for axis size " + axisSize);
-            }
-            return (int) integral;
-        }
-
-        int readAxisIndexAllowNegative(int logicalIndex, int axisSize) {
-            long integral;
-            double rawDouble = 0.0d;
-            boolean floating = false;
-            if (dataType == DataType.INT32) {
-                integral = i32[offset(logicalIndex)];
-            } else if (dataType == DataType.INT64) {
-                integral = i64[offset(logicalIndex)];
-            } else {
-                rawDouble = readFloating(logicalIndex);
-                floating = true;
-                if (!Double.isFinite(rawDouble)) {
-                    throw new IllegalArgumentException("Gather index must be finite.");
-                }
-                integral = Math.round(rawDouble);
-                if (Math.abs(rawDouble - integral) > 1e-9) {
-                    throw new IllegalArgumentException("Gather index must be an integer value. got=" + rawDouble);
-                }
-            }
-            long rawIntegral = integral;
-            if (integral < 0) {
-                integral += axisSize;
-            }
-            if (integral < 0 || integral >= axisSize) {
-                String raw = floating ? Double.toString(rawDouble) : Long.toString(rawIntegral);
-                throw new IllegalArgumentException("Gather index out of bounds: " + raw + " for axis size " + axisSize);
-            }
-            return (int) integral;
-        }
-
-        private int offset(int logicalIndex) {
-            return offsetForLogical(logicalIndex, shape, dense, strides, baseOffset);
-        }
-
-        private double readFloating(int logicalIndex) {
-            int offset = offset(logicalIndex);
-            return switch (dataType) {
-                case FLOAT64 -> f64[offset];
-                case FLOAT32 -> f32[offset];
-                case BFLOAT16 -> TensorDTypeOps.fromBFloat16Bits(bf16[offset]);
-                case INT32, INT64, BOOL -> throw new IllegalArgumentException("Gather indices must be numeric integral values.");
-            };
         }
     }
 

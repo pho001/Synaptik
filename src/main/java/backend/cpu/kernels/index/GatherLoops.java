@@ -20,7 +20,7 @@ final class GatherLoops {
         IndexValidation.validateGather(input, indices, out, dimension);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.FLOAT64);
         GatherPlan plan = GatherPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             gatherF64Array(inputView.requireF64Array(), indicesView, outView.requireF64Array(), indexPlan, plan);
             return;
@@ -47,7 +47,7 @@ final class GatherLoops {
         IndexValidation.validateGather(input, indices, out, dimension);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.FLOAT32);
         GatherPlan plan = GatherPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             gatherF32Array(inputView.requireF32Array(), indicesView, outView.requireF32Array(), indexPlan, plan);
             return;
@@ -74,7 +74,7 @@ final class GatherLoops {
         IndexValidation.validateGather(input, indices, out, dimension);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.BFLOAT16);
         GatherPlan plan = GatherPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             gatherBF16Array(inputView.requireBF16Array(), indicesView, outView.requireBF16Array(), indexPlan, plan);
             return;
@@ -101,7 +101,7 @@ final class GatherLoops {
         IndexValidation.validateGather(input, indices, out, dimension);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.BOOL);
         GatherPlan plan = GatherPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             gatherBOOLArray(inputView.requireBoolArray(), indicesView, outView.requireBoolArray(), indexPlan, plan);
             return;
@@ -128,7 +128,7 @@ final class GatherLoops {
         IndexValidation.validateGather(input, indices, out, dimension);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.INT32);
         GatherPlan plan = GatherPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             gatherI32Array(inputView.requireI32Array(), indicesView, outView.requireI32Array(), indexPlan, plan);
             return;
@@ -155,7 +155,7 @@ final class GatherLoops {
         IndexValidation.validateGather(input, indices, out, dimension);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.INT64);
         GatherPlan plan = GatherPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             gatherI64Array(inputView.requireI64Array(), indicesView, outView.requireI64Array(), indexPlan, plan);
             return;

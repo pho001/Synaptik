@@ -20,7 +20,7 @@ final class TakeAlongAxisLoops {
         IndexValidation.validateTakeAlongAxis(input, indices, out, dimension);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.FLOAT64);
         TakeAlongAxisPlan plan = TakeAlongAxisPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             double[] in = inputView.requireF64Array();
             double[] dst = outView.requireF64Array();
@@ -49,7 +49,7 @@ final class TakeAlongAxisLoops {
         IndexValidation.validateTakeAlongAxis(input, indices, out, dimension);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.FLOAT32);
         TakeAlongAxisPlan plan = TakeAlongAxisPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             float[] in = inputView.requireF32Array();
             float[] dst = outView.requireF32Array();
@@ -78,7 +78,7 @@ final class TakeAlongAxisLoops {
         IndexValidation.validateTakeAlongAxis(input, indices, out, dimension);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.BFLOAT16);
         TakeAlongAxisPlan plan = TakeAlongAxisPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             short[] in = inputView.requireBF16Array();
             short[] dst = outView.requireBF16Array();
@@ -107,7 +107,7 @@ final class TakeAlongAxisLoops {
         IndexValidation.validateTakeAlongAxis(input, indices, out, dimension);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.BOOL);
         TakeAlongAxisPlan plan = TakeAlongAxisPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             byte[] in = inputView.requireBoolArray();
             byte[] dst = outView.requireBoolArray();
@@ -136,7 +136,7 @@ final class TakeAlongAxisLoops {
         IndexValidation.validateTakeAlongAxis(input, indices, out, dimension);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.INT32);
         TakeAlongAxisPlan plan = TakeAlongAxisPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             int[] in = inputView.requireI32Array();
             int[] dst = outView.requireI32Array();
@@ -165,7 +165,7 @@ final class TakeAlongAxisLoops {
         IndexValidation.validateTakeAlongAxis(input, indices, out, dimension);
         IndexLoopSupport.validateReadStorageViews(input, indices, out, inputView, indicesView, outView, DataType.INT64);
         TakeAlongAxisPlan plan = TakeAlongAxisPlan.create(input, out, dimension);
-        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indices);
+        IndexLoopSupport.IndexStoragePlan indexPlan = IndexLoopSupport.indexStoragePlan(indicesView);
         if (IndexLoopSupport.allArrays(inputView, indicesView, outView)) {
             long[] in = inputView.requireI64Array();
             long[] dst = outView.requireI64Array();
@@ -236,23 +236,6 @@ final class TakeAlongAxisLoops {
                     valueTensor.getFlatDataSize(),
                     inputShape[dimension],
                     input.getStridesUnsafe()[dimension]);
-        }
-
-        void computeOffsets(int logical, IndexLoopSupport.IndexReader indexReader, int dimension) {
-            int rem = logical;
-            int base = inputBaseOffset;
-            int value = valueBaseOffset;
-            for (int d = 0; d < valueShape.length; d++) {
-                int coord = rem / valueDense[d];
-                rem %= valueDense[d];
-                value += coord * valueStrides[d];
-                if (d != dimension) {
-                    base += coord * inputStrides[d];
-                }
-            }
-            baseOffset = base;
-            valueOffset = value;
-            axisIndex = indexReader.readAxisIndexAllowNegative(logical, axisSize);
         }
 
         void computeOffsets(
