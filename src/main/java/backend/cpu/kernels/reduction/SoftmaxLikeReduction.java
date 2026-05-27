@@ -6,6 +6,12 @@ import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
 
+import java.lang.foreign.MemorySegment;
+
+import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
+import static java.lang.foreign.ValueLayout.JAVA_SHORT;
+
 enum SoftmaxLikeReduction {
     SOFTMAX {
         @Override
@@ -182,6 +188,86 @@ enum SoftmaxLikeReduction {
 
     abstract void computeF32ToFloat(float[] in, float[] out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize);
 
+    void computeF64(MemorySegment in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        if (this == SOFTMAX) {
+            softmaxF64(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        } else {
+            logSoftmaxF64(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        }
+    }
+
+    void computeF64(double[] in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        if (this == SOFTMAX) {
+            softmaxF64(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        } else {
+            logSoftmaxF64(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        }
+    }
+
+    void computeF64(MemorySegment in, double[] out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        if (this == SOFTMAX) {
+            softmaxF64(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        } else {
+            logSoftmaxF64(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        }
+    }
+
+    void computeF32(MemorySegment in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        if (this == SOFTMAX) {
+            softmaxF32(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        } else {
+            logSoftmaxF32(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        }
+    }
+
+    void computeF32(float[] in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        if (this == SOFTMAX) {
+            softmaxF32(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        } else {
+            logSoftmaxF32(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        }
+    }
+
+    void computeF32(MemorySegment in, float[] out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        if (this == SOFTMAX) {
+            softmaxF32(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        } else {
+            logSoftmaxF32(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        }
+    }
+
+    void computeBF16(MemorySegment in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        if (this == SOFTMAX) {
+            softmaxBF16(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        } else {
+            logSoftmaxBF16(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        }
+    }
+
+    void computeBF16(short[] in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        if (this == SOFTMAX) {
+            softmaxBF16(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        } else {
+            logSoftmaxBF16(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        }
+    }
+
+    void computeBF16(MemorySegment in, short[] out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        if (this == SOFTMAX) {
+            softmaxBF16(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        } else {
+            logSoftmaxBF16(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        }
+    }
+
+    void computeF32ToBF16(float[] in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        if (this == SOFTMAX) {
+            softmaxF32ToBF16(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        } else {
+            logSoftmaxF32ToBF16(in, out, baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        }
+    }
+
     private static final VectorSpecies<Float> F32_SPECIES = FloatVector.SPECIES_PREFERRED;
     private static final VectorSpecies<Double> F64_SPECIES = DoubleVector.SPECIES_PREFERRED;
     private static final int MIN_VECTOR_AXIS_MULTIPLIER = 4;
@@ -191,6 +277,350 @@ enum SoftmaxLikeReduction {
                 && axisStrideOut == 1
                 && speciesLength > 1
                 && axisSize >= speciesLength * MIN_VECTOR_AXIS_MULTIPLIER;
+    }
+
+    private static void softmaxF64(MemorySegment in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        double max = Double.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, readF64(in, inOffset));
+        }
+        double sum = 0.0d;
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            double value = Math.exp(readF64(in, inOffset) - max);
+            writeF64(out, outOffset, value);
+            sum += value;
+        }
+        double inv = 1.0d / sum;
+        for (int i = 0, outOffset = baseOut; i < axisSize; i++, outOffset += axisStrideOut) {
+            writeF64(out, outOffset, readF64(out, outOffset) * inv);
+        }
+    }
+
+    private static void softmaxF64(double[] in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        double max = Double.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, in[inOffset]);
+        }
+        double sum = 0.0d;
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            double value = Math.exp(in[inOffset] - max);
+            writeF64(out, outOffset, value);
+            sum += value;
+        }
+        double inv = 1.0d / sum;
+        for (int i = 0, outOffset = baseOut; i < axisSize; i++, outOffset += axisStrideOut) {
+            writeF64(out, outOffset, readF64(out, outOffset) * inv);
+        }
+    }
+
+    private static void softmaxF64(MemorySegment in, double[] out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        double max = Double.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, readF64(in, inOffset));
+        }
+        double sum = 0.0d;
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            double value = Math.exp(readF64(in, inOffset) - max);
+            out[outOffset] = value;
+            sum += value;
+        }
+        double inv = 1.0d / sum;
+        for (int i = 0, outOffset = baseOut; i < axisSize; i++, outOffset += axisStrideOut) {
+            out[outOffset] *= inv;
+        }
+    }
+
+    private static void logSoftmaxF64(MemorySegment in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        double max = Double.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, readF64(in, inOffset));
+        }
+        double sum = 0.0d;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            sum += Math.exp(readF64(in, inOffset) - max);
+        }
+        double logSumExp = max + Math.log(sum);
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            writeF64(out, outOffset, readF64(in, inOffset) - logSumExp);
+        }
+    }
+
+    private static void logSoftmaxF64(double[] in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        double max = Double.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, in[inOffset]);
+        }
+        double sum = 0.0d;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            sum += Math.exp(in[inOffset] - max);
+        }
+        double logSumExp = max + Math.log(sum);
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            writeF64(out, outOffset, in[inOffset] - logSumExp);
+        }
+    }
+
+    private static void logSoftmaxF64(MemorySegment in, double[] out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        double max = Double.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, readF64(in, inOffset));
+        }
+        double sum = 0.0d;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            sum += Math.exp(readF64(in, inOffset) - max);
+        }
+        double logSumExp = max + Math.log(sum);
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            out[outOffset] = readF64(in, inOffset) - logSumExp;
+        }
+    }
+
+    private static void softmaxF32(MemorySegment in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, readF32(in, inOffset));
+        }
+        float sum = 0.0f;
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            float value = (float) Math.exp(readF32(in, inOffset) - max);
+            writeF32(out, outOffset, value);
+            sum += value;
+        }
+        float inv = 1.0f / sum;
+        for (int i = 0, outOffset = baseOut; i < axisSize; i++, outOffset += axisStrideOut) {
+            writeF32(out, outOffset, readF32(out, outOffset) * inv);
+        }
+    }
+
+    private static void softmaxF32(float[] in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, in[inOffset]);
+        }
+        float sum = 0.0f;
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            float value = (float) Math.exp(in[inOffset] - max);
+            writeF32(out, outOffset, value);
+            sum += value;
+        }
+        float inv = 1.0f / sum;
+        for (int i = 0, outOffset = baseOut; i < axisSize; i++, outOffset += axisStrideOut) {
+            writeF32(out, outOffset, readF32(out, outOffset) * inv);
+        }
+    }
+
+    private static void softmaxF32(MemorySegment in, float[] out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, readF32(in, inOffset));
+        }
+        float sum = 0.0f;
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            float value = (float) Math.exp(readF32(in, inOffset) - max);
+            out[outOffset] = value;
+            sum += value;
+        }
+        float inv = 1.0f / sum;
+        for (int i = 0, outOffset = baseOut; i < axisSize; i++, outOffset += axisStrideOut) {
+            out[outOffset] *= inv;
+        }
+    }
+
+    private static void logSoftmaxF32(MemorySegment in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, readF32(in, inOffset));
+        }
+        float sum = 0.0f;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            sum += (float) Math.exp(readF32(in, inOffset) - max);
+        }
+        float logSumExp = (float) (max + Math.log(sum));
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            writeF32(out, outOffset, readF32(in, inOffset) - logSumExp);
+        }
+    }
+
+    private static void logSoftmaxF32(float[] in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, in[inOffset]);
+        }
+        float sum = 0.0f;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            sum += (float) Math.exp(in[inOffset] - max);
+        }
+        float logSumExp = (float) (max + Math.log(sum));
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            writeF32(out, outOffset, in[inOffset] - logSumExp);
+        }
+    }
+
+    private static void logSoftmaxF32(MemorySegment in, float[] out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, readF32(in, inOffset));
+        }
+        float sum = 0.0f;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            sum += (float) Math.exp(readF32(in, inOffset) - max);
+        }
+        float logSumExp = (float) (max + Math.log(sum));
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            out[outOffset] = readF32(in, inOffset) - logSumExp;
+        }
+    }
+
+    private static void softmaxBF16(MemorySegment in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, TensorDTypeOps.fromBFloat16Bits(readBF16(in, inOffset)));
+        }
+        float sum = 0.0f;
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            float value = (float) Math.exp(TensorDTypeOps.fromBFloat16Bits(readBF16(in, inOffset)) - max);
+            writeBF16(out, outOffset, TensorDTypeOps.toBFloat16Bits(value));
+            sum += value;
+        }
+        float inv = 1.0f / sum;
+        for (int i = 0, outOffset = baseOut; i < axisSize; i++, outOffset += axisStrideOut) {
+            writeBF16(out, outOffset, TensorDTypeOps.toBFloat16Bits(TensorDTypeOps.fromBFloat16Bits(readBF16(out, outOffset)) * inv));
+        }
+    }
+
+    private static void softmaxBF16(short[] in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, TensorDTypeOps.fromBFloat16Bits(in[inOffset]));
+        }
+        float sum = 0.0f;
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            float value = (float) Math.exp(TensorDTypeOps.fromBFloat16Bits(in[inOffset]) - max);
+            writeBF16(out, outOffset, TensorDTypeOps.toBFloat16Bits(value));
+            sum += value;
+        }
+        float inv = 1.0f / sum;
+        for (int i = 0, outOffset = baseOut; i < axisSize; i++, outOffset += axisStrideOut) {
+            writeBF16(out, outOffset, TensorDTypeOps.toBFloat16Bits(TensorDTypeOps.fromBFloat16Bits(readBF16(out, outOffset)) * inv));
+        }
+    }
+
+    private static void softmaxBF16(MemorySegment in, short[] out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, TensorDTypeOps.fromBFloat16Bits(readBF16(in, inOffset)));
+        }
+        float sum = 0.0f;
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            float value = (float) Math.exp(TensorDTypeOps.fromBFloat16Bits(readBF16(in, inOffset)) - max);
+            out[outOffset] = TensorDTypeOps.toBFloat16Bits(value);
+            sum += value;
+        }
+        float inv = 1.0f / sum;
+        for (int i = 0, outOffset = baseOut; i < axisSize; i++, outOffset += axisStrideOut) {
+            out[outOffset] = TensorDTypeOps.toBFloat16Bits(TensorDTypeOps.fromBFloat16Bits(out[outOffset]) * inv);
+        }
+    }
+
+    private static void logSoftmaxBF16(MemorySegment in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, TensorDTypeOps.fromBFloat16Bits(readBF16(in, inOffset)));
+        }
+        float sum = 0.0f;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            sum += (float) Math.exp(TensorDTypeOps.fromBFloat16Bits(readBF16(in, inOffset)) - max);
+        }
+        float logSumExp = (float) (max + Math.log(sum));
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            writeBF16(out, outOffset, TensorDTypeOps.toBFloat16Bits(TensorDTypeOps.fromBFloat16Bits(readBF16(in, inOffset)) - logSumExp));
+        }
+    }
+
+    private static void logSoftmaxBF16(short[] in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, TensorDTypeOps.fromBFloat16Bits(in[inOffset]));
+        }
+        float sum = 0.0f;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            sum += (float) Math.exp(TensorDTypeOps.fromBFloat16Bits(in[inOffset]) - max);
+        }
+        float logSumExp = (float) (max + Math.log(sum));
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            writeBF16(out, outOffset, TensorDTypeOps.toBFloat16Bits(TensorDTypeOps.fromBFloat16Bits(in[inOffset]) - logSumExp));
+        }
+    }
+
+    private static void logSoftmaxBF16(MemorySegment in, short[] out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, TensorDTypeOps.fromBFloat16Bits(readBF16(in, inOffset)));
+        }
+        float sum = 0.0f;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            sum += (float) Math.exp(TensorDTypeOps.fromBFloat16Bits(readBF16(in, inOffset)) - max);
+        }
+        float logSumExp = (float) (max + Math.log(sum));
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            out[outOffset] = TensorDTypeOps.toBFloat16Bits(TensorDTypeOps.fromBFloat16Bits(readBF16(in, inOffset)) - logSumExp);
+        }
+    }
+
+    private static void softmaxF32ToBF16(float[] in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, in[inOffset]);
+        }
+        float sum = 0.0f;
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            float value = (float) Math.exp(in[inOffset] - max);
+            writeBF16(out, outOffset, TensorDTypeOps.toBFloat16Bits(value));
+            sum += value;
+        }
+        float inv = 1.0f / sum;
+        for (int i = 0, outOffset = baseOut; i < axisSize; i++, outOffset += axisStrideOut) {
+            writeBF16(out, outOffset, TensorDTypeOps.toBFloat16Bits(TensorDTypeOps.fromBFloat16Bits(readBF16(out, outOffset)) * inv));
+        }
+    }
+
+    private static void logSoftmaxF32ToBF16(float[] in, MemorySegment out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, in[inOffset]);
+        }
+        float sum = 0.0f;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            sum += (float) Math.exp(in[inOffset] - max);
+        }
+        float logSumExp = (float) (max + Math.log(sum));
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            writeBF16(out, outOffset, TensorDTypeOps.toBFloat16Bits(in[inOffset] - logSumExp));
+        }
+    }
+
+    private static double readF64(MemorySegment segment, int offset) {
+        return segment.get(JAVA_DOUBLE, (long) offset * Double.BYTES);
+    }
+
+    private static void writeF64(MemorySegment segment, int offset, double value) {
+        segment.set(JAVA_DOUBLE, (long) offset * Double.BYTES, value);
+    }
+
+    private static float readF32(MemorySegment segment, int offset) {
+        return segment.get(JAVA_FLOAT, (long) offset * Float.BYTES);
+    }
+
+    private static void writeF32(MemorySegment segment, int offset, float value) {
+        segment.set(JAVA_FLOAT, (long) offset * Float.BYTES, value);
+    }
+
+    private static short readBF16(MemorySegment segment, int offset) {
+        return segment.get(JAVA_SHORT, (long) offset * Short.BYTES);
+    }
+
+    private static void writeBF16(MemorySegment segment, int offset, short value) {
+        segment.set(JAVA_SHORT, (long) offset * Short.BYTES, value);
     }
 
     private static void softmaxContiguousF64(double[] in, double[] out, int baseIn, int baseOut, int axisSize) {
