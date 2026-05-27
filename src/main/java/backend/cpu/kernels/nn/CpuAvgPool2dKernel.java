@@ -3,23 +3,23 @@ package backend.cpu.kernels.nn;
 import backend.cpu.kernels.CpuKernelCall;
 import backend.cpu.kernels.CpuKernelResult;
 import backend.cpu.kernels.CpuStorageAwareKernel;
+import backend.cpu.storage.CpuStorageView;
 import operations.Operation;
 import operations.nn.pool.avgPool2d;
 import tensor.DataType;
-import tensor.Tensor;
 
 public final class CpuAvgPool2dKernel implements CpuStorageAwareKernel {
     @Override
     public CpuKernelResult execute(CpuKernelCall call) {
-        Tensor output = call.outputTensor();
-        switch (output.getDataType()) {
+        CpuStorageView output = call.output();
+        switch (output.dtype()) {
             case FLOAT64 -> Pool2dDirectBackend.avgForwardF64(
-                    require(call.operation()), call.inputTensors().get(0), output);
+                    require(call.operation()), call.inputs().get(0), output);
             case FLOAT32 -> Pool2dDirectBackend.avgForwardF32(
-                    require(call.operation()), call.inputTensors().get(0), output);
+                    require(call.operation()), call.inputs().get(0), output);
             case BFLOAT16 -> Pool2dDirectBackend.avgForwardBF16(
-                    require(call.operation()), call.inputTensors().get(0), output);
-            case INT32, INT64, BOOL -> unsupported(output.getDataType());
+                    require(call.operation()), call.inputs().get(0), output);
+            case INT32, INT64, BOOL -> unsupported(output.dtype());
         }
         return CpuKernelResult.completed();
     }

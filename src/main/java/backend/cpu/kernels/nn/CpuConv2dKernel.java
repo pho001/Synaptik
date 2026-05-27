@@ -3,42 +3,42 @@ package backend.cpu.kernels.nn;
 import backend.cpu.kernels.CpuKernelCall;
 import backend.cpu.kernels.CpuKernelResult;
 import backend.cpu.kernels.CpuStorageAwareKernel;
+import backend.cpu.storage.CpuStorageView;
 import operations.Operation;
 import operations.nn.conv.conv2d;
 import tensor.DataType;
-import tensor.Tensor;
 
 import java.util.List;
 
 public final class CpuConv2dKernel implements CpuStorageAwareKernel {
     @Override
     public CpuKernelResult execute(CpuKernelCall call) {
-        Tensor output = call.outputTensor();
-        switch (output.getDataType()) {
+        CpuStorageView output = call.output();
+        switch (output.dtype()) {
             case FLOAT64 -> {
                 conv2d conv = require(call.operation());
-                List<Tensor> inputs = call.inputTensors();
+                List<CpuStorageView> inputs = call.inputs();
                 Conv2dDirectBackend.forwardF64(
-                        conv, inputs.get(0), inputs.get(1), bias(inputs), output, call.context());
+                        conv, inputs.get(0), inputs.get(1), bias(inputs), output, call.outputTensor(), call.context());
             }
             case FLOAT32 -> {
                 conv2d conv = require(call.operation());
-                List<Tensor> inputs = call.inputTensors();
+                List<CpuStorageView> inputs = call.inputs();
                 Conv2dDirectBackend.forwardF32(
-                        conv, inputs.get(0), inputs.get(1), bias(inputs), output, call.context());
+                        conv, inputs.get(0), inputs.get(1), bias(inputs), output, call.outputTensor(), call.context());
             }
             case BFLOAT16 -> {
                 conv2d conv = require(call.operation());
-                List<Tensor> inputs = call.inputTensors();
+                List<CpuStorageView> inputs = call.inputs();
                 Conv2dDirectBackend.forwardBF16(
-                        conv, inputs.get(0), inputs.get(1), bias(inputs), output, call.context());
+                        conv, inputs.get(0), inputs.get(1), bias(inputs), output, call.outputTensor(), call.context());
             }
-            case INT32, INT64, BOOL -> unsupported(output.getDataType());
+            case INT32, INT64, BOOL -> unsupported(output.dtype());
         }
         return CpuKernelResult.completed();
     }
 
-    private static Tensor bias(List<Tensor> inputs) {
+    private static CpuStorageView bias(List<CpuStorageView> inputs) {
         return inputs.size() > 2 ? inputs.get(2) : null;
     }
 
