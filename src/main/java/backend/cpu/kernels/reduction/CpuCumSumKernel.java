@@ -1,204 +1,320 @@
 package backend.cpu.kernels.reduction;
 
-import tensor.TensorInternalAccess;
-
-import tensor.dtype.TensorDTypeOps;
-import backend.cpu.kernels.TypedCpuKernel;
-import backend.cpu.execution.CpuKernelContext;
-import operations.Operation;
+import backend.cpu.kernels.CpuKernelCall;
+import backend.cpu.kernels.CpuKernelResult;
+import backend.cpu.kernels.CpuStorageAwareKernel;
+import backend.cpu.storage.CpuStorageView;
 import operations.reduction.cumSum;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorMetadata;
+import tensor.dtype.TensorDTypeOps;
 
+import java.lang.foreign.MemorySegment;
 import java.util.List;
 
-public final class CpuCumSumKernel extends TypedCpuKernel {
+public final class CpuCumSumKernel implements CpuStorageAwareKernel {
     @Override
-    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        scan(op, inputs, node);
-    }
-
-    @Override
-    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        scan(op, inputs, node);
-    }
-
-    @Override
-    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        scan(op, inputs, node);
-    }
-
-    @Override
-    protected void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        scan(op, inputs, node);
-    }
-
-    @Override
-    protected void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        scan(op, inputs, node);
-    }
-
-    private static void scan(Operation op, List<Tensor> inputs, Tensor node) {
-        if (!(op instanceof cumSum scan)) {
+    public CpuKernelResult execute(CpuKernelCall call) {
+        if (!(call.operation() instanceof cumSum scan)) {
             throw new IllegalArgumentException("CpuCumSumKernel requires cumSum operation.");
         }
-        Tensor input = CpuSumKernel.requireSingleInput(inputs, "CumSum");
-        if (input.getDataType() == DataType.BOOL || node.getDataType() == DataType.BOOL) {
+        requireSingleInput(call.inputTensors(), "CumSum");
+        CpuStorageView input = requireSingleInputView(call, "CumSum");
+        CpuStorageView output = requireOutputView(call, "CumSum");
+        if (input.dtype() == DataType.BOOL || output.dtype() == DataType.BOOL) {
             throw new IllegalArgumentException("CumSum requires floating or integer tensors.");
         }
-        if (input.getDataType() != node.getDataType()) {
+        if (input.dtype() != output.dtype()) {
             throw new IllegalArgumentException("CumSum requires input and output dtypes to match.");
         }
-        int[] shape = input.getShapeUnsafe();
+
+        int[] shape = input.shape();
         int axis = scan.getAxis();
         if (axis < 0 || axis >= shape.length) {
             throw new IllegalArgumentException("CumSum axis out of bounds: " + axis);
         }
+
+        switch (input.dtype()) {
+            case FLOAT64 -> scanF64(input, output, axis, scan.isExclusive(), scan.isReverse());
+            case FLOAT32 -> scanF32(input, output, axis, scan.isExclusive(), scan.isReverse());
+            case BFLOAT16 -> scanBF16(input, output, axis, scan.isExclusive(), scan.isReverse());
+            case INT32 -> scanI32(input, output, axis, scan.isExclusive(), scan.isReverse());
+            case INT64 -> scanI64(input, output, axis, scan.isExclusive(), scan.isReverse());
+            case BOOL -> throw new IllegalArgumentException("CumSum requires floating or integer tensors.");
+        }
+        return CpuKernelResult.completed();
+    }
+
+    private static void scanF64(CpuStorageView input, CpuStorageView output, int axis, boolean exclusive, boolean reverse) {
+        double[] inArray = ReductionStorageAccess.f64Array(input);
+        MemorySegment inSegment = ReductionStorageAccess.f64Segment(input);
+        double[] outArray = ReductionStorageAccess.f64Array(output);
+        MemorySegment outSegment = ReductionStorageAccess.f64Segment(output);
+        int[] shape = input.shape();
+        int[] inputStrides = input.strides();
+        int[] outputShape = output.shape();
+        int[] outputStrides = output.strides();
         int axisSize = shape[axis];
-        int lineCount = axisSize == 0 ? 0 : input.getFlatDataSize() / axisSize;
-        int[] denseStrides = TensorMetadata.computeStrides(shape);
-        if (input.getDataType() == DataType.INT64) {
-            for (int line = 0; line < lineCount; line++) {
-                if (scan.isReverse()) {
-                    scanReverseLongLine(input, node, line, axis, axisSize, denseStrides, scan.isExclusive());
-                } else {
-                    scanForwardLongLine(input, node, line, axis, axisSize, denseStrides, scan.isExclusive());
+        int lineCount = axisSize == 0 ? 0 : input.logicalSize() / axisSize;
+
+        for (int line = 0; line < lineCount; line++) {
+            double acc = 0.0d;
+            if (reverse) {
+                for (int k = axisSize - 1; k >= 0; k--) {
+                    int logical = logicalIndex(line, k, axis, shape);
+                    int inputOffset = ReductionStorageAccess.logicalToOffset(logical, shape, inputStrides, input.storageOffset());
+                    int outputOffset = ReductionStorageAccess.logicalToOffset(logical, outputShape, outputStrides, output.storageOffset());
+                    double value = ReductionStorageAccess.readF64(inArray, inSegment, inputOffset);
+                    if (exclusive) {
+                        ReductionStorageAccess.writeF64(outArray, outSegment, outputOffset, acc);
+                        acc += value;
+                    } else {
+                        acc += value;
+                        ReductionStorageAccess.writeF64(outArray, outSegment, outputOffset, acc);
+                    }
+                }
+            } else {
+                for (int k = 0; k < axisSize; k++) {
+                    int logical = logicalIndex(line, k, axis, shape);
+                    int inputOffset = ReductionStorageAccess.logicalToOffset(logical, shape, inputStrides, input.storageOffset());
+                    int outputOffset = ReductionStorageAccess.logicalToOffset(logical, outputShape, outputStrides, output.storageOffset());
+                    double value = ReductionStorageAccess.readF64(inArray, inSegment, inputOffset);
+                    if (exclusive) {
+                        ReductionStorageAccess.writeF64(outArray, outSegment, outputOffset, acc);
+                        acc += value;
+                    } else {
+                        acc += value;
+                        ReductionStorageAccess.writeF64(outArray, outSegment, outputOffset, acc);
+                    }
                 }
             }
-            TensorInternalAccess.markStorageModified(node);
-            return;
         }
+    }
+
+    private static void scanF32(CpuStorageView input, CpuStorageView output, int axis, boolean exclusive, boolean reverse) {
+        float[] inArray = ReductionStorageAccess.f32Array(input);
+        MemorySegment inSegment = ReductionStorageAccess.f32Segment(input);
+        float[] outArray = ReductionStorageAccess.f32Array(output);
+        MemorySegment outSegment = ReductionStorageAccess.f32Segment(output);
+        int[] shape = input.shape();
+        int[] inputStrides = input.strides();
+        int[] outputShape = output.shape();
+        int[] outputStrides = output.strides();
+        int axisSize = shape[axis];
+        int lineCount = axisSize == 0 ? 0 : input.logicalSize() / axisSize;
+
         for (int line = 0; line < lineCount; line++) {
-            if (scan.isReverse()) {
-                scanReverseLine(input, node, line, axis, axisSize, denseStrides, scan.isExclusive());
+            double acc = 0.0d;
+            if (reverse) {
+                for (int k = axisSize - 1; k >= 0; k--) {
+                    int logical = logicalIndex(line, k, axis, shape);
+                    int inputOffset = ReductionStorageAccess.logicalToOffset(logical, shape, inputStrides, input.storageOffset());
+                    int outputOffset = ReductionStorageAccess.logicalToOffset(logical, outputShape, outputStrides, output.storageOffset());
+                    float value = ReductionStorageAccess.readF32(inArray, inSegment, inputOffset);
+                    if (exclusive) {
+                        ReductionStorageAccess.writeF32(outArray, outSegment, outputOffset, (float) acc);
+                        acc += value;
+                    } else {
+                        acc += value;
+                        ReductionStorageAccess.writeF32(outArray, outSegment, outputOffset, (float) acc);
+                    }
+                }
             } else {
-                scanForwardLine(input, node, line, axis, axisSize, denseStrides, scan.isExclusive());
-            }
-        }
-        TensorInternalAccess.markStorageModified(node);
-    }
-
-    private static void scanForwardLine(
-            Tensor input,
-            Tensor output,
-            int line,
-            int axis,
-            int axisSize,
-            int[] denseStrides,
-            boolean exclusive
-    ) {
-        double acc = 0.0d;
-        for (int k = 0; k < axisSize; k++) {
-            int logical = logicalIndex(line, k, axis, input.getShapeUnsafe(), denseStrides);
-            double value = input.getByFlatIndex(logical);
-            if (exclusive) {
-                write(output, logical, acc);
-                acc += value;
-            } else {
-                acc += value;
-                write(output, logical, acc);
-            }
-        }
-    }
-
-    private static void scanForwardLongLine(
-            Tensor input,
-            Tensor output,
-            int line,
-            int axis,
-            int axisSize,
-            int[] denseStrides,
-            boolean exclusive
-    ) {
-        long acc = 0L;
-        for (int k = 0; k < axisSize; k++) {
-            int logical = logicalIndex(line, k, axis, input.getShapeUnsafe(), denseStrides);
-            long value = input.getInt64ByFlatIndex(logical);
-            if (exclusive) {
-                writeLong(output, logical, acc);
-                acc += value;
-            } else {
-                acc += value;
-                writeLong(output, logical, acc);
+                for (int k = 0; k < axisSize; k++) {
+                    int logical = logicalIndex(line, k, axis, shape);
+                    int inputOffset = ReductionStorageAccess.logicalToOffset(logical, shape, inputStrides, input.storageOffset());
+                    int outputOffset = ReductionStorageAccess.logicalToOffset(logical, outputShape, outputStrides, output.storageOffset());
+                    float value = ReductionStorageAccess.readF32(inArray, inSegment, inputOffset);
+                    if (exclusive) {
+                        ReductionStorageAccess.writeF32(outArray, outSegment, outputOffset, (float) acc);
+                        acc += value;
+                    } else {
+                        acc += value;
+                        ReductionStorageAccess.writeF32(outArray, outSegment, outputOffset, (float) acc);
+                    }
+                }
             }
         }
     }
 
-    private static void scanReverseLongLine(
-            Tensor input,
-            Tensor output,
-            int line,
-            int axis,
-            int axisSize,
-            int[] denseStrides,
-            boolean exclusive
-    ) {
-        long acc = 0L;
-        for (int k = axisSize - 1; k >= 0; k--) {
-            int logical = logicalIndex(line, k, axis, input.getShapeUnsafe(), denseStrides);
-            long value = input.getInt64ByFlatIndex(logical);
-            if (exclusive) {
-                writeLong(output, logical, acc);
-                acc += value;
+    private static void scanBF16(CpuStorageView input, CpuStorageView output, int axis, boolean exclusive, boolean reverse) {
+        short[] inArray = ReductionStorageAccess.bf16Array(input);
+        MemorySegment inSegment = ReductionStorageAccess.bf16Segment(input);
+        short[] outArray = ReductionStorageAccess.bf16Array(output);
+        MemorySegment outSegment = ReductionStorageAccess.bf16Segment(output);
+        int[] shape = input.shape();
+        int[] inputStrides = input.strides();
+        int[] outputShape = output.shape();
+        int[] outputStrides = output.strides();
+        int axisSize = shape[axis];
+        int lineCount = axisSize == 0 ? 0 : input.logicalSize() / axisSize;
+
+        for (int line = 0; line < lineCount; line++) {
+            double acc = 0.0d;
+            if (reverse) {
+                for (int k = axisSize - 1; k >= 0; k--) {
+                    int logical = logicalIndex(line, k, axis, shape);
+                    int inputOffset = ReductionStorageAccess.logicalToOffset(logical, shape, inputStrides, input.storageOffset());
+                    int outputOffset = ReductionStorageAccess.logicalToOffset(logical, outputShape, outputStrides, output.storageOffset());
+                    float value = TensorDTypeOps.fromBFloat16Bits(ReductionStorageAccess.readBF16(inArray, inSegment, inputOffset));
+                    if (exclusive) {
+                        ReductionStorageAccess.writeBF16(outArray, outSegment, outputOffset,
+                                TensorDTypeOps.toBFloat16Bits((float) acc));
+                        acc += value;
+                    } else {
+                        acc += value;
+                        ReductionStorageAccess.writeBF16(outArray, outSegment, outputOffset,
+                                TensorDTypeOps.toBFloat16Bits((float) acc));
+                    }
+                }
             } else {
-                acc += value;
-                writeLong(output, logical, acc);
+                for (int k = 0; k < axisSize; k++) {
+                    int logical = logicalIndex(line, k, axis, shape);
+                    int inputOffset = ReductionStorageAccess.logicalToOffset(logical, shape, inputStrides, input.storageOffset());
+                    int outputOffset = ReductionStorageAccess.logicalToOffset(logical, outputShape, outputStrides, output.storageOffset());
+                    float value = TensorDTypeOps.fromBFloat16Bits(ReductionStorageAccess.readBF16(inArray, inSegment, inputOffset));
+                    if (exclusive) {
+                        ReductionStorageAccess.writeBF16(outArray, outSegment, outputOffset,
+                                TensorDTypeOps.toBFloat16Bits((float) acc));
+                        acc += value;
+                    } else {
+                        acc += value;
+                        ReductionStorageAccess.writeBF16(outArray, outSegment, outputOffset,
+                                TensorDTypeOps.toBFloat16Bits((float) acc));
+                    }
+                }
             }
         }
     }
 
-    private static void scanReverseLine(
-            Tensor input,
-            Tensor output,
-            int line,
-            int axis,
-            int axisSize,
-            int[] denseStrides,
-            boolean exclusive
-    ) {
-        double acc = 0.0d;
-        for (int k = axisSize - 1; k >= 0; k--) {
-            int logical = logicalIndex(line, k, axis, input.getShapeUnsafe(), denseStrides);
-            double value = input.getByFlatIndex(logical);
-            if (exclusive) {
-                write(output, logical, acc);
-                acc += value;
+    private static void scanI32(CpuStorageView input, CpuStorageView output, int axis, boolean exclusive, boolean reverse) {
+        int[] inArray = ReductionStorageAccess.i32Array(input);
+        MemorySegment inSegment = ReductionStorageAccess.i32Segment(input);
+        int[] outArray = ReductionStorageAccess.i32Array(output);
+        MemorySegment outSegment = ReductionStorageAccess.i32Segment(output);
+        int[] shape = input.shape();
+        int[] inputStrides = input.strides();
+        int[] outputShape = output.shape();
+        int[] outputStrides = output.strides();
+        int axisSize = shape[axis];
+        int lineCount = axisSize == 0 ? 0 : input.logicalSize() / axisSize;
+
+        for (int line = 0; line < lineCount; line++) {
+            double acc = 0.0d;
+            if (reverse) {
+                for (int k = axisSize - 1; k >= 0; k--) {
+                    int logical = logicalIndex(line, k, axis, shape);
+                    int inputOffset = ReductionStorageAccess.logicalToOffset(logical, shape, inputStrides, input.storageOffset());
+                    int outputOffset = ReductionStorageAccess.logicalToOffset(logical, outputShape, outputStrides, output.storageOffset());
+                    int value = ReductionStorageAccess.readI32(inArray, inSegment, inputOffset);
+                    if (exclusive) {
+                        ReductionStorageAccess.writeI32(outArray, outSegment, outputOffset, (int) acc);
+                        acc += value;
+                    } else {
+                        acc += value;
+                        ReductionStorageAccess.writeI32(outArray, outSegment, outputOffset, (int) acc);
+                    }
+                }
             } else {
-                acc += value;
-                write(output, logical, acc);
+                for (int k = 0; k < axisSize; k++) {
+                    int logical = logicalIndex(line, k, axis, shape);
+                    int inputOffset = ReductionStorageAccess.logicalToOffset(logical, shape, inputStrides, input.storageOffset());
+                    int outputOffset = ReductionStorageAccess.logicalToOffset(logical, outputShape, outputStrides, output.storageOffset());
+                    int value = ReductionStorageAccess.readI32(inArray, inSegment, inputOffset);
+                    if (exclusive) {
+                        ReductionStorageAccess.writeI32(outArray, outSegment, outputOffset, (int) acc);
+                        acc += value;
+                    } else {
+                        acc += value;
+                        ReductionStorageAccess.writeI32(outArray, outSegment, outputOffset, (int) acc);
+                    }
+                }
             }
         }
     }
 
-    private static int logicalIndex(int line, int axisCoord, int axis, int[] shape, int[] denseStrides) {
-        int tmp = line;
-        int logical = axisCoord * denseStrides[axis];
-        for (int d = shape.length - 1; d >= 0; d--) {
-            if (d == axis) {
-                continue;
+    private static void scanI64(CpuStorageView input, CpuStorageView output, int axis, boolean exclusive, boolean reverse) {
+        long[] inArray = ReductionStorageAccess.i64Array(input);
+        MemorySegment inSegment = ReductionStorageAccess.i64Segment(input);
+        long[] outArray = ReductionStorageAccess.i64Array(output);
+        MemorySegment outSegment = ReductionStorageAccess.i64Segment(output);
+        int[] shape = input.shape();
+        int[] inputStrides = input.strides();
+        int[] outputShape = output.shape();
+        int[] outputStrides = output.strides();
+        int axisSize = shape[axis];
+        int lineCount = axisSize == 0 ? 0 : input.logicalSize() / axisSize;
+
+        for (int line = 0; line < lineCount; line++) {
+            long acc = 0L;
+            if (reverse) {
+                for (int k = axisSize - 1; k >= 0; k--) {
+                    int logical = logicalIndex(line, k, axis, shape);
+                    int inputOffset = ReductionStorageAccess.logicalToOffset(logical, shape, inputStrides, input.storageOffset());
+                    int outputOffset = ReductionStorageAccess.logicalToOffset(logical, outputShape, outputStrides, output.storageOffset());
+                    long value = ReductionStorageAccess.readI64(inArray, inSegment, inputOffset);
+                    if (exclusive) {
+                        ReductionStorageAccess.writeI64(outArray, outSegment, outputOffset, acc);
+                        acc += value;
+                    } else {
+                        acc += value;
+                        ReductionStorageAccess.writeI64(outArray, outSegment, outputOffset, acc);
+                    }
+                }
+            } else {
+                for (int k = 0; k < axisSize; k++) {
+                    int logical = logicalIndex(line, k, axis, shape);
+                    int inputOffset = ReductionStorageAccess.logicalToOffset(logical, shape, inputStrides, input.storageOffset());
+                    int outputOffset = ReductionStorageAccess.logicalToOffset(logical, outputShape, outputStrides, output.storageOffset());
+                    long value = ReductionStorageAccess.readI64(inArray, inSegment, inputOffset);
+                    if (exclusive) {
+                        ReductionStorageAccess.writeI64(outArray, outSegment, outputOffset, acc);
+                        acc += value;
+                    } else {
+                        acc += value;
+                        ReductionStorageAccess.writeI64(outArray, outSegment, outputOffset, acc);
+                    }
+                }
             }
-            int coord = tmp % shape[d];
-            tmp /= shape[d];
-            logical += coord * denseStrides[d];
+        }
+    }
+
+    private static int logicalIndex(int line, int axisCoord, int axis, int[] shape) {
+        int logical = 0;
+        int stride = 1;
+        int remaining = line;
+        for (int dim = shape.length - 1; dim >= 0; dim--) {
+            int coord;
+            if (dim == axis) {
+                coord = axisCoord;
+            } else {
+                coord = remaining % shape[dim];
+                remaining /= shape[dim];
+            }
+            logical += coord * stride;
+            stride *= shape[dim];
         }
         return logical;
     }
 
-    private static void write(Tensor out, int logical, double value) {
-        int offset = out.getStorageOffsetUnsafe() + logical;
-        switch (out.getDataType()) {
-            case FLOAT64 -> TensorInternalAccess.float64Data(out)[offset] = value;
-            case FLOAT32 -> TensorInternalAccess.float32Data(out)[offset] = (float) value;
-            case BFLOAT16 -> TensorInternalAccess.bfloat16Data(out)[offset] = TensorDTypeOps.toBFloat16Bits((float) value);
-            case INT32 -> TensorInternalAccess.int32Data(out)[offset] = (int) value;
-            case INT64 -> TensorInternalAccess.int64Data(out)[offset] = (long) value;
-            case BOOL -> throw new IllegalArgumentException("CumSum requires floating or integer output.");
+    private static Tensor requireSingleInput(List<Tensor> inputs, String label) {
+        if (inputs == null || inputs.size() != 1) {
+            throw new IllegalArgumentException(label + " expects exactly one input tensor");
         }
+        return inputs.getFirst();
     }
 
-    private static void writeLong(Tensor out, int logical, long value) {
-        int offset = out.getStorageOffsetUnsafe() + logical;
-        TensorInternalAccess.int64Data(out)[offset] = value;
+    private static CpuStorageView requireSingleInputView(CpuKernelCall call, String label) {
+        if (call.inputs().size() != 1) {
+            throw new IllegalArgumentException(label + " expects exactly one input storage view.");
+        }
+        return call.inputs().getFirst();
+    }
+
+    private static CpuStorageView requireOutputView(CpuKernelCall call, String label) {
+        if (call.output() == null) {
+            throw new IllegalArgumentException(label + " requires an output storage view.");
+        }
+        return call.output();
     }
 }

@@ -1,100 +1,206 @@
 package backend.cpu.kernels.reduction;
 
-import tensor.TensorInternalAccess;
-
-import tensor.dtype.TensorDTypeOps;
-import backend.cpu.kernels.TypedCpuKernel;
-import backend.cpu.execution.CpuKernelContext;
-import operations.Operation;
+import backend.cpu.kernels.CpuKernelCall;
+import backend.cpu.kernels.CpuKernelResult;
+import backend.cpu.kernels.CpuStorageAwareKernel;
+import backend.cpu.storage.CpuStorageView;
 import operations.reduction.reduceProd;
+import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorMetadata;
+import tensor.dtype.TensorDTypeOps;
 
-import java.util.Arrays;
+import java.lang.foreign.MemorySegment;
 import java.util.List;
 
-public final class CpuReduceProdKernel extends TypedCpuKernel {
+public final class CpuReduceProdKernel implements CpuStorageAwareKernel {
     @Override
-    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        reduce(op, inputs, node);
-    }
-
-    @Override
-    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        reduce(op, inputs, node);
-    }
-
-    @Override
-    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        reduce(op, inputs, node);
-    }
-
-    private static void reduce(Operation op, List<Tensor> inputs, Tensor node) {
-        if (!(op instanceof reduceProd reduction)) {
+    public CpuKernelResult execute(CpuKernelCall call) {
+        if (!(call.operation() instanceof reduceProd reduction)) {
             throw new IllegalArgumentException("CpuReduceProdKernel requires reduceProd operation.");
         }
-        Tensor input = CpuSumKernel.requireSingleInput(inputs, "ReduceProd");
+        Tensor inputTensor = requireSingleInput(call.inputTensors(), "ReduceProd");
+        CpuStorageView input = requireSingleInputView(call, "ReduceProd");
+        CpuStorageView output = requireOutputView(call, "ReduceProd");
+        if (input.dtype() != output.dtype()) {
+            throw new IllegalArgumentException("ReduceProd requires input and output dtypes to match.");
+        }
+
         int dimension = reduction.getDimension();
-        int[] shape = input.getShapeUnsafe();
-        if (dimension < -1 || dimension >= shape.length) {
+        int[] inputShape = input.shape();
+        if (dimension < -1 || dimension >= inputShape.length) {
             throw new IllegalArgumentException("Dimension out of bounds: " + dimension);
         }
-        fill(node, 1.0d);
-        int[] inputDenseStrides = TensorMetadata.computeStrides(shape);
-        int[] outShape = node.getShapeUnsafe();
-        int[] outDenseStrides = TensorMetadata.computeStrides(outShape);
-        for (int logical = 0; logical < input.getFlatDataSize(); logical++) {
-            int outLogical = dimension == -1
-                    ? 0
-                    : outputLogicalIndex(logical, shape, inputDenseStrides, outShape.length, outDenseStrides, dimension);
-            multiply(node, outLogical, input.getByFlatIndex(logical));
+        if (inputTensor.getFlatDataSize() != input.logicalSize()) {
+            throw new IllegalArgumentException("ReduceProd input storage view size does not match input tensor.");
         }
-        TensorInternalAccess.markStorageModified(node);
+
+        switch (output.dtype()) {
+            case FLOAT64 -> reduceF64(input, output, dimension);
+            case FLOAT32 -> reduceF32(input, output, dimension);
+            case BFLOAT16 -> reduceBF16(input, output, dimension);
+            case INT32, INT64, BOOL -> throw new IllegalArgumentException("ReduceProd requires floating output.");
+        }
+        return CpuKernelResult.completed();
     }
 
-    private static int outputLogicalIndex(
-            int inputLogical,
+    private static void reduceF64(CpuStorageView input, CpuStorageView output, int dimension) {
+        double[] inArray = ReductionStorageAccess.f64Array(input);
+        MemorySegment inSegment = ReductionStorageAccess.f64Segment(input);
+        double[] outArray = ReductionStorageAccess.f64Array(output);
+        MemorySegment outSegment = ReductionStorageAccess.f64Segment(output);
+        int[] inputShape = input.shape();
+        int[] inputStrides = input.strides();
+        int[] outputShape = output.shape();
+        int[] outputStrides = output.strides();
+
+        if (dimension == -1) {
+            double product = 1.0d;
+            for (int logical = 0; logical < input.logicalSize(); logical++) {
+                int inputOffset = ReductionStorageAccess.logicalToOffset(logical, inputShape, inputStrides, input.storageOffset());
+                product *= ReductionStorageAccess.readF64(inArray, inSegment, inputOffset);
+            }
+            int outOffset = ReductionStorageAccess.logicalToOffset(0, outputShape, outputStrides, output.storageOffset());
+            ReductionStorageAccess.writeF64(outArray, outSegment, outOffset, product);
+            return;
+        }
+
+        int groups = output.logicalSize();
+        int reducedSize = inputShape[dimension];
+        int reducedStride = inputStrides[dimension];
+        for (int outLogical = 0; outLogical < groups; outLogical++) {
+            int inputBase = axisBaseOffset(outLogical, inputShape, inputStrides, input.storageOffset(), outputShape, dimension);
+            double product = 1.0d;
+            for (int r = 0; r < reducedSize; r++) {
+                product *= ReductionStorageAccess.readF64(inArray, inSegment, inputBase + r * reducedStride);
+            }
+            int outOffset = ReductionStorageAccess.logicalToOffset(outLogical, outputShape, outputStrides, output.storageOffset());
+            ReductionStorageAccess.writeF64(outArray, outSegment, outOffset, product);
+        }
+    }
+
+    private static void reduceF32(CpuStorageView input, CpuStorageView output, int dimension) {
+        float[] inArray = ReductionStorageAccess.f32Array(input);
+        MemorySegment inSegment = ReductionStorageAccess.f32Segment(input);
+        float[] outArray = ReductionStorageAccess.f32Array(output);
+        MemorySegment outSegment = ReductionStorageAccess.f32Segment(output);
+        int[] inputShape = input.shape();
+        int[] inputStrides = input.strides();
+        int[] outputShape = output.shape();
+        int[] outputStrides = output.strides();
+
+        if (dimension == -1) {
+            float product = 1.0f;
+            for (int logical = 0; logical < input.logicalSize(); logical++) {
+                int inputOffset = ReductionStorageAccess.logicalToOffset(logical, inputShape, inputStrides, input.storageOffset());
+                product *= ReductionStorageAccess.readF32(inArray, inSegment, inputOffset);
+            }
+            int outOffset = ReductionStorageAccess.logicalToOffset(0, outputShape, outputStrides, output.storageOffset());
+            ReductionStorageAccess.writeF32(outArray, outSegment, outOffset, product);
+            return;
+        }
+
+        int groups = output.logicalSize();
+        int reducedSize = inputShape[dimension];
+        int reducedStride = inputStrides[dimension];
+        for (int outLogical = 0; outLogical < groups; outLogical++) {
+            int inputBase = axisBaseOffset(outLogical, inputShape, inputStrides, input.storageOffset(), outputShape, dimension);
+            float product = 1.0f;
+            for (int r = 0; r < reducedSize; r++) {
+                product *= ReductionStorageAccess.readF32(inArray, inSegment, inputBase + r * reducedStride);
+            }
+            int outOffset = ReductionStorageAccess.logicalToOffset(outLogical, outputShape, outputStrides, output.storageOffset());
+            ReductionStorageAccess.writeF32(outArray, outSegment, outOffset, product);
+        }
+    }
+
+    private static void reduceBF16(CpuStorageView input, CpuStorageView output, int dimension) {
+        short[] inArray = ReductionStorageAccess.bf16Array(input);
+        MemorySegment inSegment = ReductionStorageAccess.bf16Segment(input);
+        short[] outArray = ReductionStorageAccess.bf16Array(output);
+        MemorySegment outSegment = ReductionStorageAccess.bf16Segment(output);
+        int[] inputShape = input.shape();
+        int[] inputStrides = input.strides();
+        int[] outputShape = output.shape();
+        int[] outputStrides = output.strides();
+
+        if (dimension == -1) {
+            short product = TensorDTypeOps.toBFloat16Bits(1.0f);
+            for (int logical = 0; logical < input.logicalSize(); logical++) {
+                int inputOffset = ReductionStorageAccess.logicalToOffset(logical, inputShape, inputStrides, input.storageOffset());
+                product = TensorDTypeOps.toBFloat16Bits(
+                        TensorDTypeOps.fromBFloat16Bits(product)
+                                * TensorDTypeOps.fromBFloat16Bits(ReductionStorageAccess.readBF16(inArray, inSegment, inputOffset))
+                );
+            }
+            int outOffset = ReductionStorageAccess.logicalToOffset(0, outputShape, outputStrides, output.storageOffset());
+            ReductionStorageAccess.writeBF16(outArray, outSegment, outOffset, product);
+            return;
+        }
+
+        int groups = output.logicalSize();
+        int reducedSize = inputShape[dimension];
+        int reducedStride = inputStrides[dimension];
+        for (int outLogical = 0; outLogical < groups; outLogical++) {
+            int inputBase = axisBaseOffset(outLogical, inputShape, inputStrides, input.storageOffset(), outputShape, dimension);
+            short product = TensorDTypeOps.toBFloat16Bits(1.0f);
+            for (int r = 0; r < reducedSize; r++) {
+                product = TensorDTypeOps.toBFloat16Bits(
+                        TensorDTypeOps.fromBFloat16Bits(product)
+                                * TensorDTypeOps.fromBFloat16Bits(ReductionStorageAccess.readBF16(inArray, inSegment, inputBase + r * reducedStride))
+                );
+            }
+            int outOffset = ReductionStorageAccess.logicalToOffset(outLogical, outputShape, outputStrides, output.storageOffset());
+            ReductionStorageAccess.writeBF16(outArray, outSegment, outOffset, product);
+        }
+    }
+
+    private static int axisBaseOffset(
+            int outputLogical,
             int[] inputShape,
-            int[] inputDenseStrides,
-            int outputRank,
-            int[] outputDenseStrides,
+            int[] inputStrides,
+            int inputStorageOffset,
+            int[] outputShape,
             int reducedAxis
     ) {
-        int tmp = inputLogical;
-        int out = 0;
-        for (int d = 0, od = 0; d < inputShape.length; d++) {
-            int coord = tmp / inputDenseStrides[d];
-            tmp %= inputDenseStrides[d];
-            if (d == reducedAxis) {
-                if (outputRank == inputShape.length) {
-                    od++;
+        int remaining = outputLogical;
+        int offset = inputStorageOffset;
+        if (outputShape.length == inputShape.length) {
+            for (int outDim = outputShape.length - 1; outDim >= 0; outDim--) {
+                int coord = remaining % outputShape[outDim];
+                remaining /= outputShape[outDim];
+                if (outDim != reducedAxis) {
+                    offset += coord * inputStrides[outDim];
                 }
-                continue;
             }
-            out += coord * outputDenseStrides[od++];
+            return offset;
         }
-        return out;
+        for (int outDim = outputShape.length - 1; outDim >= 0; outDim--) {
+            int coord = remaining % outputShape[outDim];
+            remaining /= outputShape[outDim];
+            int inputDim = outDim < reducedAxis ? outDim : outDim + 1;
+            offset += coord * inputStrides[inputDim];
+        }
+        return offset;
     }
 
-    private static void fill(Tensor out, double value) {
-        switch (out.getDataType()) {
-            case FLOAT64 -> Arrays.fill(TensorInternalAccess.float64Data(out), value);
-            case FLOAT32 -> Arrays.fill(TensorInternalAccess.float32Data(out), (float) value);
-            case BFLOAT16 -> Arrays.fill(TensorInternalAccess.bfloat16Data(out), TensorDTypeOps.toBFloat16Bits((float) value));
-            case INT32, BOOL -> throw new IllegalArgumentException("ReduceProd requires floating output.");
+    private static Tensor requireSingleInput(List<Tensor> inputs, String label) {
+        if (inputs == null || inputs.size() != 1) {
+            throw new IllegalArgumentException(label + " expects exactly one input tensor");
         }
+        return inputs.getFirst();
     }
 
-    private static void multiply(Tensor out, int logical, double value) {
-        int index = out.getStorageOffsetUnsafe() + logical;
-        switch (out.getDataType()) {
-            case FLOAT64 -> TensorInternalAccess.float64Data(out)[index] *= value;
-            case FLOAT32 -> TensorInternalAccess.float32Data(out)[index] *= (float) value;
-            case BFLOAT16 -> {
-                short[] data = TensorInternalAccess.bfloat16Data(out);
-                data[index] = TensorDTypeOps.toBFloat16Bits(TensorDTypeOps.fromBFloat16Bits(data[index]) * (float) value);
-            }
-            case INT32, BOOL -> throw new IllegalArgumentException("ReduceProd requires floating output.");
+    private static CpuStorageView requireSingleInputView(CpuKernelCall call, String label) {
+        if (call.inputs().size() != 1) {
+            throw new IllegalArgumentException(label + " expects exactly one input storage view.");
         }
+        return call.inputs().getFirst();
+    }
+
+    private static CpuStorageView requireOutputView(CpuKernelCall call, String label) {
+        if (call.output() == null) {
+            throw new IllegalArgumentException(label + " requires an output storage view.");
+        }
+        return call.output();
     }
 }

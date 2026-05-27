@@ -675,6 +675,27 @@ public class CpuKernelFamilyArchitectureTest {
     }
 
     @Test
+    void reductionSpecialCaseEntrypointsOwnStorageAwareBoundaryWithoutNativeRegionPromotion() {
+        for (Operation.OpType opType : List.of(
+                Operation.OpType.REDUCE_PROD,
+                Operation.OpType.CUMSUM,
+                Operation.OpType.ARGMAX
+        )) {
+            CpuKernel kernel = CpuKernelRegistry.resolve(opType);
+            assertEquals("backend.cpu.kernels.reduction", kernel.getClass().getPackageName(),
+                    opType + " must be owned by the reduction kernel family.");
+            assertTrue(kernel instanceof CpuStorageAwareKernel,
+                    opType + " must consume CpuKernelCall storage views directly.");
+            assertFalse(kernel instanceof TypedCpuKernel,
+                    opType + " must not route through the legacy TypedCpuKernel tensor-array executor.");
+            for (DataType dtype : DataType.values()) {
+                assertFalse(CpuNativeStorageSupport.nativeRegionSupported(opType, dtype),
+                        opType + " must not be promoted to CPU_NATIVE region support in the reduction special-case slice.");
+            }
+        }
+    }
+
+    @Test
     void waveFourNonElementwiseNativeExecutorsAreDeleted() throws IOException {
         List<String> deletedExecutors = List.of(
                 "NativeCpuReductionExecutor",
