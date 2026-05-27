@@ -5,6 +5,9 @@ import backend.cpu.kernels.CpuKernelCall;
 import backend.cpu.kernels.CpuKernelResult;
 import backend.cpu.kernels.CpuStorageAwareKernel;
 import backend.cpu.nativecpu.CpuNativeTraceSupport;
+import backend.cpu.storage.CpuStorageBindings;
+import backend.cpu.storage.CpuStorageResolver;
+import backend.cpu.storage.CpuStorageView;
 import backend.memory.CpuMaterializationReason;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
@@ -24,61 +27,45 @@ import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 public final class CpuCastKernel implements CpuStorageAwareKernel {
     @Override
     public CpuKernelResult execute(CpuKernelCall call) {
-        cast(call.operation(), call.inputTensors(), call.outputTensor(), call.context());
+        boolean nativeRequested = nativeRequested(call.context());
+        if (tryRunNativeCast(call.operation(), call.inputTensors(), call.outputTensor(), call.context())) {
+            return CpuKernelResult.completed();
+        }
+        if (nativeRequested) {
+            CpuStorageBindings storage = new CpuStorageResolver().bindArrayOnly(
+                    call.inputTensors(),
+                    call.outputTensor()
+            );
+            cast(storage.inputs(), storage.output(), call.inputTensors(), call.outputTensor());
+            return CpuKernelResult.completed();
+        }
+        cast(call.inputs(), call.output(), call.inputTensors(), call.outputTensor());
         return CpuKernelResult.completed();
     }
 
-    private static void cast(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    private static void cast(
+            List<CpuStorageView> inputViews,
+            CpuStorageView outputView,
+            List<Tensor> inputs,
+            Tensor node
+    ) {
         if (inputs == null || inputs.size() != 1) {
             throw new IllegalArgumentException("cast expects exactly one input.");
         }
-        if (tryRunNativeCast(op, inputs, node, context)) {
-            return;
-        }
+        LayoutStorageSupport.validateInputViews(1, inputViews, "cast");
         Tensor input = inputs.getFirst();
-        int size = node.getFlatDataSize();
-        if (input.getFlatDataSize() != size) {
+        CpuStorageView inputView = inputViews.getFirst();
+        LayoutStorageSupport.validateView(inputView, input.getDataType(), "input");
+        LayoutStorageSupport.validateView(outputView, node.getDataType(), "output");
+        if (input.getFlatDataSize() != node.getFlatDataSize()
+                || inputView.logicalSize() != input.getFlatDataSize()
+                || outputView.logicalSize() != node.getFlatDataSize()) {
             throw new IllegalArgumentException("cast requires input and output to have the same flat size.");
         }
-        switch (node.getDataType()) {
-            case FLOAT64 -> {
-                double[] out = TensorInternalAccess.float64Data(node);
-                for (int i = 0; i < size; i++) {
-                    out[i] = input.getByFlatIndex(i);
-                }
-            }
-            case FLOAT32 -> {
-                float[] out = TensorInternalAccess.float32Data(node);
-                for (int i = 0; i < size; i++) {
-                    out[i] = (float) input.getByFlatIndex(i);
-                }
-            }
-            case BFLOAT16 -> {
-                short[] out = TensorInternalAccess.bfloat16Data(node);
-                for (int i = 0; i < size; i++) {
-                    out[i] = TensorDTypeOps.toBFloat16Bits((float) input.getByFlatIndex(i));
-                }
-            }
-            case INT32 -> {
-                int[] out = TensorInternalAccess.int32Data(node);
-                for (int i = 0; i < size; i++) {
-                    out[i] = (int) input.getByFlatIndex(i);
-                }
-            }
-            case INT64 -> {
-                long[] out = TensorInternalAccess.int64Data(node);
-                for (int i = 0; i < size; i++) {
-                    out[i] = (long) input.getByFlatIndex(i);
-                }
-            }
-            case BOOL -> {
-                byte[] out = TensorInternalAccess.boolData(node);
-                for (int i = 0; i < size; i++) {
-                    out[i] = input.getByFlatIndex(i) == 0.0d ? (byte) 0 : (byte) 1;
-                }
-            }
+        CpuCastStorageLoops.cast(inputView, outputView);
+        if (outputView.isArray()) {
+            TensorInternalAccess.markStorageModified(node);
         }
-        TensorInternalAccess.markStorageModified(node);
     }
 
     private static boolean tryRunNativeCast(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
