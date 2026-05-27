@@ -1,10 +1,11 @@
-package backend.cpu.kernels.linalg.matmul.f64;
+package backend.cpu.provider.linalg.matmul.f64;
 
 import tensor.TensorInternalAccess;
 
 import backend.blas.OpenBlasRuntime;
 import backend.blas.OpenBlasSegmentGemm;
 import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.kernels.linalg.matmul.f64.F64MatMulJavaBackend;
 import backend.cpu.provider.linalg.matmul.PreparedMatMulExecutable;
 import backend.cpu.plan.linalg.matmul.MatMulExecutionRoute;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;

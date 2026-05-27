@@ -368,9 +368,9 @@ public class CpuKernelFamilyArchitectureTest {
                 "src/main/java/backend/cpu/kernels/linalg/CpuMatMulKernel.java",
                 "src/main/java/backend/cpu/prepare/linalg/matmul/MatMulPlanner.java",
                 "src/main/java/backend/cpu/provider/linalg/matmul/MatMulProviderExecutableFactory.java",
-                "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32JavaMatMulExecutable.java",
-                "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32BlasMatMulExecutable.java",
-                "src/main/java/backend/cpu/kernels/linalg/matmul/f32/F32NativeBlasMatMulExecutable.java",
+                "src/main/java/backend/cpu/provider/linalg/matmul/f32/F32JavaMatMulExecutable.java",
+                "src/main/java/backend/cpu/provider/linalg/matmul/f32/F32BlasMatMulExecutable.java",
+                "src/main/java/backend/cpu/provider/linalg/matmul/f32/F32NativeBlasMatMulExecutable.java",
                 "src/main/java/backend/cpu/kernels/elementwise/ElementwiseNativeSupport.java",
                 "src/main/java/backend/cpu/kernels/elementwise/unary/StorageAwareScalarUnaryElementwiseKernel.java",
                 "src/main/java/backend/cpu/kernels/elementwise/compare/StorageAwareCompareElementwiseKernel.java",
@@ -510,6 +510,32 @@ public class CpuKernelFamilyArchitectureTest {
         assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/kernels/linalg/matmul/exec/PreparedMatMulExecutable.java")),
                 "The old kernel-owned prepared executable boundary must not remain as a compatibility facade.");
 
+        List<String> providerOwnedExecutablePaths = List.of(
+                "bf16/AbstractBF16MatMulExecutable.java",
+                "bf16/BF16BatchedBlasMatMulExecutable.java",
+                "bf16/BF16BlasMatMulExecutable.java",
+                "bf16/BF16JavaMatMulExecutable.java",
+                "bf16/BF16NativeBlasMatMulExecutable.java",
+                "f32/F32BatchedBlasMatMulExecutable.java",
+                "f32/F32BlasMatMulExecutable.java",
+                "f32/F32JavaMatMulExecutable.java",
+                "f32/F32NativeBlasMatMulExecutable.java",
+                "f64/F64BatchedBlasMatMulExecutable.java",
+                "f64/F64BlasMatMulExecutable.java",
+                "f64/F64JavaMatMulExecutable.java",
+                "f64/F64NativeBlasMatMulExecutable.java"
+        );
+        for (String relativePath : providerOwnedExecutablePaths) {
+            assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/provider/linalg/matmul/" + relativePath)),
+                    relativePath + " must be owned by the CPU matmul provider.");
+            assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/linalg/matmul/" + relativePath)),
+                    relativePath + " must not remain under the CPU kernel implementation package.");
+        }
+        assertTrue(Files.exists(Path.of("src/main/java/backend/cpu/provider/linalg/matmul/blas/MatMulBlasBackend.java")),
+                "The BLAS helper must be owned by the CPU matmul provider.");
+        assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/linalg/matmul/blas/MatMulBlasBackend.java")),
+                "The BLAS helper must not remain under the CPU kernel implementation package.");
+
         String providerFactory = Files.readString(providerFactoryPath);
         String providerExecutable = Files.readString(providerExecutablePath);
         assertTrue(providerFactory.contains("package backend.cpu.provider.linalg.matmul;"),
@@ -535,6 +561,19 @@ public class CpuKernelFamilyArchitectureTest {
                             || importsKernelProviderPackage(path))
                     .toList();
             assertTrue(offenders.isEmpty(), () -> "Provider packages must not live under backend.cpu.kernels: " + offenders);
+        }
+        try (Stream<Path> paths = Files.walk(Path.of("src/main/java/backend/cpu/kernels/linalg/matmul"))) {
+            List<Path> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> {
+                        String fileName = path.getFileName().toString();
+                        return fileName.endsWith("BlasMatMulExecutable.java")
+                                || fileName.equals("MatMulBlasBackend.java");
+                    })
+                    .toList();
+            assertTrue(offenders.isEmpty(),
+                    () -> "BLAS prepared executable wrappers and helpers must be provider-owned: " + offenders);
         }
     }
 

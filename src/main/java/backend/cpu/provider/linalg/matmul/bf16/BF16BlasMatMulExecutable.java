@@ -1,15 +1,15 @@
-package backend.cpu.kernels.linalg.matmul.bf16;
+package backend.cpu.provider.linalg.matmul.bf16;
 
 import tensor.TensorInternalAccess;
 
 import backend.cpu.execution.CpuKernelContext;
 import backend.cpu.execution.CpuNodeWorkspace;
-import backend.cpu.kernels.linalg.matmul.blas.MatMulBlasBackend;
+import backend.cpu.provider.linalg.matmul.blas.MatMulBlasBackend;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import tensor.Tensor;
 
-public final class BF16BatchedBlasMatMulExecutable extends AbstractBF16MatMulExecutable {
-    public BF16BatchedBlasMatMulExecutable(ResolvedMatMulHints hints, boolean publishFloatContinuation) {
+public final class BF16BlasMatMulExecutable extends AbstractBF16MatMulExecutable {
+    public BF16BlasMatMulExecutable(ResolvedMatMulHints hints, boolean publishFloatContinuation) {
         super(hints, publishFloatContinuation);
     }
 
@@ -25,7 +25,7 @@ public final class BF16BatchedBlasMatMulExecutable extends AbstractBF16MatMulExe
         int n = bs[bs.length - 1];
         CpuNodeWorkspace workspace = context.cpuWorkspace();
         float[] tmp = workspace == null ? null : workspace.requireFloatWorkspace();
-        if (!MatMulBlasBackend.tryBatchedBlasBF16ToFloat(ad, as, bd, bs, tmp, node.getShapeUnsafe(), m, n, k)) {
+        if (!MatMulBlasBackend.tryBlasBF16ToFloat(ad, bd, tmp, m, n, k)) {
             return false;
         }
         recordBlasSymbol("cblas_sbgemm");
@@ -42,7 +42,7 @@ public final class BF16BatchedBlasMatMulExecutable extends AbstractBF16MatMulExe
         int n = bs[bs.length - 1];
         CpuNodeWorkspace workspace = context.cpuWorkspace();
         float[] tmp = workspace == null ? null : workspace.requireFloatWorkspace();
-        if (!MatMulBlasBackend.tryBatchedBlasBF16(ad, as, bd, bs, TensorInternalAccess.bfloat16Data(node), tmp, node.getShapeUnsafe(), m, n, k)) {
+        if (!MatMulBlasBackend.tryBlasBF16(ad, bd, TensorInternalAccess.bfloat16Data(node), tmp, m, n, k)) {
             return false;
         }
         recordBlasSymbol("cblas_bgemm");

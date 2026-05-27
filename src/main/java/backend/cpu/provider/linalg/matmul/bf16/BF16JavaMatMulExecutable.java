@@ -1,4 +1,4 @@
-package backend.cpu.kernels.linalg.matmul.bf16;
+package backend.cpu.provider.linalg.matmul.bf16;
 
 import backend.cpu.execution.CpuKernelContext;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;

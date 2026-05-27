@@ -1,4 +1,4 @@
-package backend.cpu.kernels.linalg.matmul.blas;
+package backend.cpu.provider.linalg.matmul.blas;
 
 import backend.blas.BlasRuntime;
 import backend.blas.OpenBlasArrayGemm;

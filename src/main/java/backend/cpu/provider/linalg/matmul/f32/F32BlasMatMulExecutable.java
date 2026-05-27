@@ -1,19 +1,20 @@
-package backend.cpu.kernels.linalg.matmul.f32;
+package backend.cpu.provider.linalg.matmul.f32;
 
 import tensor.TensorInternalAccess;
 
 import backend.cpu.execution.CpuKernelContext;
-import backend.cpu.kernels.linalg.matmul.blas.MatMulBlasBackend;
+import backend.cpu.kernels.linalg.matmul.f32.F32MatMulJavaBackend;
+import backend.cpu.provider.linalg.matmul.blas.MatMulBlasBackend;
 import backend.cpu.provider.linalg.matmul.PreparedMatMulExecutable;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import tensor.Tensor;
 
 import java.util.Arrays;
 
-public final class F32BatchedBlasMatMulExecutable implements PreparedMatMulExecutable {
+public final class F32BlasMatMulExecutable implements PreparedMatMulExecutable {
     private final ResolvedMatMulHints hints;
 
-    public F32BatchedBlasMatMulExecutable(ResolvedMatMulHints hints) {
+    public F32BlasMatMulExecutable(ResolvedMatMulHints hints) {
         this.hints = hints;
     }
 
@@ -27,7 +28,7 @@ public final class F32BatchedBlasMatMulExecutable implements PreparedMatMulExecu
         float[] ad = TensorInternalAccess.float32Data(a);
         float[] bd = TensorInternalAccess.float32Data(b);
         float[] out = TensorInternalAccess.float32Data(node);
-        if (MatMulBlasBackend.tryBatchedBlasF32(ad, as, bd, bs, out, node.getShapeUnsafe(), m, n, k)) {
+        if (MatMulBlasBackend.tryBlasF32(ad, bd, out, m, n, k)) {
             return;
         }
         Arrays.fill(out, 0.0f);

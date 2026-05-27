@@ -1,8 +1,9 @@
-package backend.cpu.kernels.linalg.matmul.f64;
+package backend.cpu.provider.linalg.matmul.f64;
 
 import tensor.TensorInternalAccess;
 
 import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.kernels.linalg.matmul.f64.F64MatMulJavaBackend;
 import backend.cpu.provider.linalg.matmul.PreparedMatMulExecutable;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import tensor.Tensor;

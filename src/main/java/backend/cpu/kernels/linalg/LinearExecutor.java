@@ -9,7 +9,7 @@ import tensor.TensorInternalAccess;
 
 import backend.cpu.kernels.*;
 import backend.cpu.kernels.linalg.matmul.bf16.BF16MatMulJavaBackend;
-import backend.cpu.kernels.linalg.matmul.blas.MatMulBlasBackend;
+import backend.cpu.provider.linalg.matmul.blas.MatMulBlasBackend;
 import backend.cpu.kernels.linalg.matmul.common.PackedLinearWeightCache;
 import backend.cpu.provider.linalg.matmul.PreparedMatMulExecutable;
 import backend.cpu.kernels.linalg.matmul.f32.F32MatMulJavaBackend;
