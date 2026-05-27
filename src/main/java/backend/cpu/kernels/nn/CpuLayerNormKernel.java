@@ -1,127 +1,205 @@
 package backend.cpu.kernels.nn;
 
-import tensor.TensorInternalAccess;
-
-import tensor.dtype.TensorDTypeOps;
-import backend.cpu.kernels.TypedCpuKernel;
 import backend.cpu.execution.CpuKernelContext;
 import backend.cpu.execution.CpuThreadPool;
+import backend.cpu.kernels.CpuKernelCall;
+import backend.cpu.kernels.CpuKernelResult;
+import backend.cpu.kernels.CpuStorageAwareKernel;
+import backend.cpu.storage.CpuStorageView;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
 import operations.Operation;
 import operations.normalization.layerNorm;
-import tensor.Tensor;
+import tensor.DataType;
+import tensor.dtype.TensorDTypeOps;
 
-import java.util.List;
+import java.lang.foreign.MemorySegment;
 
-public final class CpuLayerNormKernel extends TypedCpuKernel {
+import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
+import static java.lang.foreign.ValueLayout.JAVA_SHORT;
+
+public final class CpuLayerNormKernel implements CpuStorageAwareKernel {
     private static final VectorSpecies<Float> F32_SPECIES = FloatVector.SPECIES_PREFERRED;
     private static final VectorSpecies<Double> F64_SPECIES = DoubleVector.SPECIES_PREFERRED;
     private static final int MIN_VECTOR_AXIS_MULTIPLIER = 4;
     private static final int PARALLEL_MIN_WORK = 16_384;
 
     @Override
-    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        layerNorm norm = require(op);
-        Tensor input = requireInput(inputs, 0, "input");
-        Tensor gamma = requireInput(inputs, 1, "gamma");
-        Tensor beta = requireInput(inputs, 2, "beta");
-        executeF64(norm, input, gamma, beta, node, context);
-    }
-
-    @Override
-    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        layerNorm norm = require(op);
-        Tensor input = requireInput(inputs, 0, "input");
-        Tensor gamma = requireInput(inputs, 1, "gamma");
-        Tensor beta = requireInput(inputs, 2, "beta");
-        executeF32(norm, input, gamma, beta, node, context);
-    }
-
-    @Override
-    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        layerNorm norm = require(op);
-        Tensor input = requireInput(inputs, 0, "input");
-        Tensor gamma = requireInput(inputs, 1, "gamma");
-        Tensor beta = requireInput(inputs, 2, "beta");
-        float[] inputContinuation = context.inputFloatContinuation(0, input.getFlatDataSize());
-        if (context.publishFloatContinuation() && context.cpuWorkspace() != null) {
-            float[] out = context.cpuWorkspace().requireFloatWorkspace();
-            if (inputContinuation != null) {
-                executeBF16ToFloat(norm, input, inputContinuation, gamma, beta, node, out, context);
-            } else {
-                executeBF16ToFloat(norm, input, gamma, beta, node, out, context);
+    public CpuKernelResult execute(CpuKernelCall call) {
+        layerNorm norm = require(call.operation());
+        CpuStorageView input = requireInput(call, 0, "input");
+        CpuStorageView gamma = requireInput(call, 1, "gamma");
+        CpuStorageView beta = requireInput(call, 2, "beta");
+        CpuStorageView output = call.output();
+        if (output == null) {
+            throw new IllegalArgumentException("LayerNorm output storage view is missing.");
+        }
+        switch (output.dtype()) {
+            case FLOAT64 -> {
+                requireSameDType(input, gamma, beta, output);
+                executeF64(norm, input, gamma, beta, output, call.context());
             }
-            context.cpuWorkspace().publishFloatContinuation(node.getFlatDataSize());
-            return;
+            case FLOAT32 -> {
+                requireSameDType(input, gamma, beta, output);
+                executeF32(norm, input, gamma, beta, output, call.context());
+            }
+            case BFLOAT16 -> {
+                requireSameDType(input, gamma, beta, output);
+                executeBF16(norm, input, gamma, beta, output, call.context());
+            }
+            case INT32, INT64, BOOL -> unsupported(output.dtype());
         }
-        if (inputContinuation != null) {
-            executeBF16(norm, input, inputContinuation, gamma, beta, node, context);
-            return;
-        }
-        executeBF16(norm, input, gamma, beta, node, context);
+        return CpuKernelResult.completed();
     }
 
-    private static void executeF64(layerNorm norm, Tensor input, Tensor gamma, Tensor beta, Tensor node, CpuKernelContext context) {
-        validateLayout(input, gamma, beta, node, norm.getNormalizedRank());
-        double[] in = TensorInternalAccess.float64Data(input);
-        double[] scale = TensorInternalAccess.float64Data(gamma);
-        double[] shift = TensorInternalAccess.float64Data(beta);
-        double[] out = TensorInternalAccess.float64Data(node);
-        NormShape shape = resolveNormShape(input, gamma, beta, node, norm.getNormalizedRank());
-        runGroups(shape, context, group -> applyGroupF64(
-                in,
-                scale,
-                shift,
-                out,
-                input.getStorageOffsetUnsafe() + group * shape.normalizedSize(),
-                gamma.getStorageOffsetUnsafe(),
-                beta.getStorageOffsetUnsafe(),
-                node.getStorageOffsetUnsafe() + group * shape.normalizedSize(),
+    private static void executeF64(
+            layerNorm norm,
+            CpuStorageView input,
+            CpuStorageView gamma,
+            CpuStorageView beta,
+            CpuStorageView output,
+            CpuKernelContext context
+    ) {
+        validateLayout(input, gamma, beta, output, norm.getNormalizedRank());
+        NormShape shape = resolveNormShape(input, gamma, beta, output, norm.getNormalizedRank());
+        if (NormalizationStorageAccess.allArrays(input, gamma, beta, output)) {
+            double[] in = input.requireF64Array();
+            double[] scale = gamma.requireF64Array();
+            double[] shift = beta.requireF64Array();
+            double[] out = output.requireF64Array();
+            runGroups(shape, context, group -> applyGroupF64(
+                    in,
+                    scale,
+                    shift,
+                    out,
+                    input.storageOffset() + group * shape.normalizedSize(),
+                    gamma.storageOffset(),
+                    beta.storageOffset(),
+                    output.storageOffset() + group * shape.normalizedSize(),
+                    shape.normalizedSize(),
+                    norm.getEpsilon()
+            ));
+            return;
+        }
+        if (NormalizationStorageAccess.allSegments(input, gamma, beta, output)) {
+            MemorySegment in = input.requireSegment();
+            MemorySegment scale = gamma.requireSegment();
+            MemorySegment shift = beta.requireSegment();
+            MemorySegment out = output.requireSegment();
+            runGroups(shape, context, group -> applyGroupF64Segment(
+                    in,
+                    scale,
+                    shift,
+                    out,
+                    input.storageOffset() + group * shape.normalizedSize(),
+                    gamma.storageOffset(),
+                    beta.storageOffset(),
+                    output.storageOffset() + group * shape.normalizedSize(),
+                    shape.normalizedSize(),
+                    norm.getEpsilon()
+            ));
+            return;
+        }
+
+        double[] inArray = NormalizationStorageAccess.f64Array(input);
+        MemorySegment inSegment = NormalizationStorageAccess.f64Segment(input);
+        double[] scaleArray = NormalizationStorageAccess.f64Array(gamma);
+        MemorySegment scaleSegment = NormalizationStorageAccess.f64Segment(gamma);
+        double[] shiftArray = NormalizationStorageAccess.f64Array(beta);
+        MemorySegment shiftSegment = NormalizationStorageAccess.f64Segment(beta);
+        double[] outArray = NormalizationStorageAccess.f64Array(output);
+        MemorySegment outSegment = NormalizationStorageAccess.f64Segment(output);
+        runGroups(shape, context, group -> applyGroupF64Storage(
+                inArray,
+                inSegment,
+                scaleArray,
+                scaleSegment,
+                shiftArray,
+                shiftSegment,
+                outArray,
+                outSegment,
+                input.storageOffset() + group * shape.normalizedSize(),
+                gamma.storageOffset(),
+                beta.storageOffset(),
+                output.storageOffset() + group * shape.normalizedSize(),
                 shape.normalizedSize(),
                 norm.getEpsilon()
         ));
     }
 
-    private static void executeF32(layerNorm norm, Tensor input, Tensor gamma, Tensor beta, Tensor node, CpuKernelContext context) {
-        validateLayout(input, gamma, beta, node, norm.getNormalizedRank());
-        float[] in = TensorInternalAccess.float32Data(input);
-        float[] scale = TensorInternalAccess.float32Data(gamma);
-        float[] shift = TensorInternalAccess.float32Data(beta);
-        float[] out = TensorInternalAccess.float32Data(node);
-        NormShape shape = resolveNormShape(input, gamma, beta, node, norm.getNormalizedRank());
-        runGroups(shape, context, group -> applyGroupF32(
-                in,
-                scale,
-                shift,
-                out,
-                input.getStorageOffsetUnsafe() + group * shape.normalizedSize(),
-                gamma.getStorageOffsetUnsafe(),
-                beta.getStorageOffsetUnsafe(),
-                node.getStorageOffsetUnsafe() + group * shape.normalizedSize(),
-                shape.normalizedSize(),
-                (float) norm.getEpsilon()
-        ));
-    }
+    private static void executeF32(
+            layerNorm norm,
+            CpuStorageView input,
+            CpuStorageView gamma,
+            CpuStorageView beta,
+            CpuStorageView output,
+            CpuKernelContext context
+    ) {
+        validateLayout(input, gamma, beta, output, norm.getNormalizedRank());
+        NormShape shape = resolveNormShape(input, gamma, beta, output, norm.getNormalizedRank());
+        if (NormalizationStorageAccess.allArrays(input, gamma, beta, output)) {
+            float[] in = input.requireF32Array();
+            float[] scale = gamma.requireF32Array();
+            float[] shift = beta.requireF32Array();
+            float[] out = output.requireF32Array();
+            runGroups(shape, context, group -> applyGroupF32(
+                    in,
+                    scale,
+                    shift,
+                    out,
+                    input.storageOffset() + group * shape.normalizedSize(),
+                    gamma.storageOffset(),
+                    beta.storageOffset(),
+                    output.storageOffset() + group * shape.normalizedSize(),
+                    shape.normalizedSize(),
+                    (float) norm.getEpsilon()
+            ));
+            return;
+        }
+        if (NormalizationStorageAccess.allSegments(input, gamma, beta, output)) {
+            MemorySegment in = input.requireSegment();
+            MemorySegment scale = gamma.requireSegment();
+            MemorySegment shift = beta.requireSegment();
+            MemorySegment out = output.requireSegment();
+            runGroups(shape, context, group -> applyGroupF32Segment(
+                    in,
+                    scale,
+                    shift,
+                    out,
+                    input.storageOffset() + group * shape.normalizedSize(),
+                    gamma.storageOffset(),
+                    beta.storageOffset(),
+                    output.storageOffset() + group * shape.normalizedSize(),
+                    shape.normalizedSize(),
+                    (float) norm.getEpsilon()
+            ));
+            return;
+        }
 
-    private static void executeBF16(layerNorm norm, Tensor input, Tensor gamma, Tensor beta, Tensor node, CpuKernelContext context) {
-        validateLayout(input, gamma, beta, node, norm.getNormalizedRank());
-        short[] in = TensorInternalAccess.bfloat16Data(input);
-        NormShape shape = resolveNormShape(input, gamma, beta, node, norm.getNormalizedRank());
-        float[] scale = decodeBFloat16(TensorInternalAccess.bfloat16Data(gamma), gamma.getStorageOffsetUnsafe(), shape.normalizedSize());
-        float[] shift = decodeBFloat16(TensorInternalAccess.bfloat16Data(beta), beta.getStorageOffsetUnsafe(), shape.normalizedSize());
-        short[] out = TensorInternalAccess.bfloat16Data(node);
-        runGroups(shape, context, group -> applyGroupBF16(
-                in,
-                scale,
-                shift,
-                out,
-                input.getStorageOffsetUnsafe() + group * shape.normalizedSize(),
-                0,
-                0,
-                node.getStorageOffsetUnsafe() + group * shape.normalizedSize(),
+        float[] inArray = NormalizationStorageAccess.f32Array(input);
+        MemorySegment inSegment = NormalizationStorageAccess.f32Segment(input);
+        float[] scaleArray = NormalizationStorageAccess.f32Array(gamma);
+        MemorySegment scaleSegment = NormalizationStorageAccess.f32Segment(gamma);
+        float[] shiftArray = NormalizationStorageAccess.f32Array(beta);
+        MemorySegment shiftSegment = NormalizationStorageAccess.f32Segment(beta);
+        float[] outArray = NormalizationStorageAccess.f32Array(output);
+        MemorySegment outSegment = NormalizationStorageAccess.f32Segment(output);
+        runGroups(shape, context, group -> applyGroupF32Storage(
+                inArray,
+                inSegment,
+                scaleArray,
+                scaleSegment,
+                shiftArray,
+                shiftSegment,
+                outArray,
+                outSegment,
+                input.storageOffset() + group * shape.normalizedSize(),
+                gamma.storageOffset(),
+                beta.storageOffset(),
+                output.storageOffset() + group * shape.normalizedSize(),
                 shape.normalizedSize(),
                 (float) norm.getEpsilon()
         ));
@@ -129,95 +207,132 @@ public final class CpuLayerNormKernel extends TypedCpuKernel {
 
     private static void executeBF16(
             layerNorm norm,
-            Tensor input,
-            float[] inputContinuation,
-            Tensor gamma,
-            Tensor beta,
-            Tensor node,
+            CpuStorageView input,
+            CpuStorageView gamma,
+            CpuStorageView beta,
+            CpuStorageView output,
             CpuKernelContext context
     ) {
-        validateLayout(input, gamma, beta, node, norm.getNormalizedRank());
-        if (inputContinuation == null) {
-            throw new IllegalArgumentException("LayerNorm BF16 continuation input cannot be null.");
-        }
-        NormShape shape = resolveNormShape(input, gamma, beta, node, norm.getNormalizedRank());
-        float[] scale = decodeBFloat16(TensorInternalAccess.bfloat16Data(gamma), gamma.getStorageOffsetUnsafe(), shape.normalizedSize());
-        float[] shift = decodeBFloat16(TensorInternalAccess.bfloat16Data(beta), beta.getStorageOffsetUnsafe(), shape.normalizedSize());
-        short[] out = TensorInternalAccess.bfloat16Data(node);
-        runGroups(shape, context, group -> applyGroupF32ToBF16(
-                inputContinuation,
-                scale,
-                shift,
-                out,
-                group * shape.normalizedSize(),
-                0,
-                0,
-                node.getStorageOffsetUnsafe() + group * shape.normalizedSize(),
-                shape.normalizedSize(),
-                (float) norm.getEpsilon()
-        ));
-    }
+        validateLayout(input, gamma, beta, output, norm.getNormalizedRank());
+        NormShape shape = resolveNormShape(input, gamma, beta, output, norm.getNormalizedRank());
+        float[] inputContinuation = context.inputFloatContinuation(0, input.logicalSize());
+        float[] scale = NormalizationStorageAccess.decodeBFloat16(gamma, gamma.storageOffset(), shape.normalizedSize());
+        float[] shift = NormalizationStorageAccess.decodeBFloat16(beta, beta.storageOffset(), shape.normalizedSize());
 
-    private static void executeBF16ToFloat(
-            layerNorm norm,
-            Tensor input,
-            Tensor gamma,
-            Tensor beta,
-            Tensor node,
-            float[] out,
-            CpuKernelContext context
-    ) {
-        validateLayout(input, gamma, beta, node, norm.getNormalizedRank());
-        if (out == null || out.length < node.getFlatDataSize()) {
-            throw new IllegalArgumentException("LayerNorm float continuation output is missing or too small.");
+        if (context.publishFloatContinuation() && context.cpuWorkspace() != null) {
+            float[] out = context.cpuWorkspace().requireFloatWorkspace();
+            if (out == null || out.length < output.logicalSize()) {
+                throw new IllegalArgumentException("LayerNorm float continuation output is missing or too small.");
+            }
+            if (inputContinuation != null) {
+                runGroups(shape, context, group -> applyGroupF32(
+                        inputContinuation,
+                        scale,
+                        shift,
+                        out,
+                        group * shape.normalizedSize(),
+                        0,
+                        0,
+                        group * shape.normalizedSize(),
+                        shape.normalizedSize(),
+                        (float) norm.getEpsilon()
+                ));
+            } else if (input.isArray()) {
+                short[] in = input.requireBF16Array();
+                runGroups(shape, context, group -> applyGroupBF16ToF32(
+                        in,
+                        scale,
+                        shift,
+                        out,
+                        input.storageOffset() + group * shape.normalizedSize(),
+                        0,
+                        0,
+                        group * shape.normalizedSize(),
+                        shape.normalizedSize(),
+                        (float) norm.getEpsilon()
+                ));
+            } else {
+                MemorySegment in = input.requireSegment();
+                runGroups(shape, context, group -> applyGroupBF16SegmentToF32(
+                        in,
+                        scale,
+                        shift,
+                        out,
+                        input.storageOffset() + group * shape.normalizedSize(),
+                        0,
+                        0,
+                        group * shape.normalizedSize(),
+                        shape.normalizedSize(),
+                        (float) norm.getEpsilon()
+                ));
+            }
+            context.cpuWorkspace().publishFloatContinuation(output.logicalSize());
+            return;
         }
-        short[] in = TensorInternalAccess.bfloat16Data(input);
-        NormShape shape = resolveNormShape(input, gamma, beta, node, norm.getNormalizedRank());
-        float[] scale = decodeBFloat16(TensorInternalAccess.bfloat16Data(gamma), gamma.getStorageOffsetUnsafe(), shape.normalizedSize());
-        float[] shift = decodeBFloat16(TensorInternalAccess.bfloat16Data(beta), beta.getStorageOffsetUnsafe(), shape.normalizedSize());
-        runGroups(shape, context, group -> applyGroupBF16ToF32(
-                in,
-                scale,
-                shift,
-                out,
-                input.getStorageOffsetUnsafe() + group * shape.normalizedSize(),
-                0,
-                0,
-                group * shape.normalizedSize(),
-                shape.normalizedSize(),
-                (float) norm.getEpsilon()
-        ));
-    }
 
-    private static void executeBF16ToFloat(
-            layerNorm norm,
-            Tensor input,
-            float[] inputContinuation,
-            Tensor gamma,
-            Tensor beta,
-            Tensor node,
-            float[] out,
-            CpuKernelContext context
-    ) {
-        validateLayout(input, gamma, beta, node, norm.getNormalizedRank());
-        if (inputContinuation == null) {
-            throw new IllegalArgumentException("LayerNorm BF16 continuation input cannot be null.");
+        short[] outArray = NormalizationStorageAccess.bf16Array(output);
+        MemorySegment outSegment = NormalizationStorageAccess.bf16Segment(output);
+        if (inputContinuation != null) {
+            if (output.isArray()) {
+                runGroups(shape, context, group -> applyGroupF32ToBF16(
+                        inputContinuation,
+                        scale,
+                        shift,
+                        output.requireBF16Array(),
+                        group * shape.normalizedSize(),
+                        0,
+                        0,
+                        output.storageOffset() + group * shape.normalizedSize(),
+                        shape.normalizedSize(),
+                        (float) norm.getEpsilon()
+                ));
+                return;
+            }
+            runGroups(shape, context, group -> applyGroupF32ToBF16Storage(
+                    inputContinuation,
+                    scale,
+                    shift,
+                    outArray,
+                    outSegment,
+                    group * shape.normalizedSize(),
+                    0,
+                    0,
+                    output.storageOffset() + group * shape.normalizedSize(),
+                    shape.normalizedSize(),
+                    (float) norm.getEpsilon()
+            ));
+            return;
         }
-        if (out == null || out.length < node.getFlatDataSize()) {
-            throw new IllegalArgumentException("LayerNorm float continuation output is missing or too small.");
+
+        if (NormalizationStorageAccess.allArrays(input, gamma, beta, output)) {
+            runGroups(shape, context, group -> applyGroupBF16(
+                    input.requireBF16Array(),
+                    scale,
+                    shift,
+                    output.requireBF16Array(),
+                    input.storageOffset() + group * shape.normalizedSize(),
+                    0,
+                    0,
+                    output.storageOffset() + group * shape.normalizedSize(),
+                    shape.normalizedSize(),
+                    (float) norm.getEpsilon()
+            ));
+            return;
         }
-        NormShape shape = resolveNormShape(input, gamma, beta, node, norm.getNormalizedRank());
-        float[] scale = decodeBFloat16(TensorInternalAccess.bfloat16Data(gamma), gamma.getStorageOffsetUnsafe(), shape.normalizedSize());
-        float[] shift = decodeBFloat16(TensorInternalAccess.bfloat16Data(beta), beta.getStorageOffsetUnsafe(), shape.normalizedSize());
-        runGroups(shape, context, group -> applyGroupF32(
-                inputContinuation,
+
+        short[] inArray = NormalizationStorageAccess.bf16Array(input);
+        MemorySegment inSegment = NormalizationStorageAccess.bf16Segment(input);
+        runGroups(shape, context, group -> applyGroupBF16Storage(
+                inArray,
+                inSegment,
                 scale,
                 shift,
-                out,
-                group * shape.normalizedSize(),
+                outArray,
+                outSegment,
+                input.storageOffset() + group * shape.normalizedSize(),
                 0,
                 0,
-                group * shape.normalizedSize(),
+                output.storageOffset() + group * shape.normalizedSize(),
                 shape.normalizedSize(),
                 (float) norm.getEpsilon()
         ));
@@ -281,6 +396,54 @@ public final class CpuLayerNormKernel extends TypedCpuKernel {
         }
     }
 
+    private static void applyGroupF64Segment(
+            MemorySegment in,
+            MemorySegment gamma,
+            MemorySegment beta,
+            MemorySegment out,
+            int inBase,
+            int gammaBase,
+            int betaBase,
+            int outBase,
+            int normalizedSize,
+            double epsilon
+    ) {
+        StatsF64 stats = computeStatsF64Segment(in, inBase, normalizedSize);
+        double invStd = 1.0d / Math.sqrt(Math.max(stats.meanSquares() - stats.mean() * stats.mean(), 0.0d) + epsilon);
+        for (int i = 0; i < normalizedSize; i++) {
+            double value = in.get(JAVA_DOUBLE, (long) (inBase + i) * Double.BYTES);
+            double scale = gamma.get(JAVA_DOUBLE, (long) (gammaBase + i) * Double.BYTES);
+            double shift = beta.get(JAVA_DOUBLE, (long) (betaBase + i) * Double.BYTES);
+            out.set(JAVA_DOUBLE, (long) (outBase + i) * Double.BYTES, ((value - stats.mean()) * invStd) * scale + shift);
+        }
+    }
+
+    private static void applyGroupF64Storage(
+            double[] inArray,
+            MemorySegment inSegment,
+            double[] gammaArray,
+            MemorySegment gammaSegment,
+            double[] betaArray,
+            MemorySegment betaSegment,
+            double[] outArray,
+            MemorySegment outSegment,
+            int inBase,
+            int gammaBase,
+            int betaBase,
+            int outBase,
+            int normalizedSize,
+            double epsilon
+    ) {
+        StatsF64 stats = computeStatsF64(inArray, inSegment, inBase, normalizedSize);
+        double invStd = 1.0d / Math.sqrt(Math.max(stats.meanSquares() - stats.mean() * stats.mean(), 0.0d) + epsilon);
+        for (int i = 0; i < normalizedSize; i++) {
+            double value = NormalizationStorageAccess.readF64(inArray, inSegment, inBase + i);
+            double scale = NormalizationStorageAccess.readF64(gammaArray, gammaSegment, gammaBase + i);
+            double shift = NormalizationStorageAccess.readF64(betaArray, betaSegment, betaBase + i);
+            NormalizationStorageAccess.writeF64(outArray, outSegment, outBase + i, ((value - stats.mean()) * invStd) * scale + shift);
+        }
+    }
+
     private static void applyGroupF32(
             float[] in,
             float[] gamma,
@@ -319,6 +482,56 @@ public final class CpuLayerNormKernel extends TypedCpuKernel {
         }
     }
 
+    private static void applyGroupF32Segment(
+            MemorySegment in,
+            MemorySegment gamma,
+            MemorySegment beta,
+            MemorySegment out,
+            int inBase,
+            int gammaBase,
+            int betaBase,
+            int outBase,
+            int normalizedSize,
+            float epsilon
+    ) {
+        StatsF32 stats = computeStatsF32Segment(in, inBase, normalizedSize);
+        float variance = (float) Math.max(stats.meanSquares() - stats.mean() * stats.mean(), 0.0d);
+        float invStd = (float) (1.0d / Math.sqrt(variance + epsilon));
+        for (int i = 0; i < normalizedSize; i++) {
+            float value = in.get(JAVA_FLOAT, (long) (inBase + i) * Float.BYTES);
+            float scale = gamma.get(JAVA_FLOAT, (long) (gammaBase + i) * Float.BYTES);
+            float shift = beta.get(JAVA_FLOAT, (long) (betaBase + i) * Float.BYTES);
+            out.set(JAVA_FLOAT, (long) (outBase + i) * Float.BYTES, ((value - stats.mean()) * invStd) * scale + shift);
+        }
+    }
+
+    private static void applyGroupF32Storage(
+            float[] inArray,
+            MemorySegment inSegment,
+            float[] gammaArray,
+            MemorySegment gammaSegment,
+            float[] betaArray,
+            MemorySegment betaSegment,
+            float[] outArray,
+            MemorySegment outSegment,
+            int inBase,
+            int gammaBase,
+            int betaBase,
+            int outBase,
+            int normalizedSize,
+            float epsilon
+    ) {
+        StatsF32 stats = computeStatsF32(inArray, inSegment, inBase, normalizedSize);
+        float variance = (float) Math.max(stats.meanSquares() - stats.mean() * stats.mean(), 0.0d);
+        float invStd = (float) (1.0d / Math.sqrt(variance + epsilon));
+        for (int i = 0; i < normalizedSize; i++) {
+            float value = NormalizationStorageAccess.readF32(inArray, inSegment, inBase + i);
+            float scale = NormalizationStorageAccess.readF32(gammaArray, gammaSegment, gammaBase + i);
+            float shift = NormalizationStorageAccess.readF32(betaArray, betaSegment, betaBase + i);
+            NormalizationStorageAccess.writeF32(outArray, outSegment, outBase + i, ((value - stats.mean()) * invStd) * scale + shift);
+        }
+    }
+
     private static void applyGroupBF16(
             short[] in,
             float[] gamma,
@@ -339,6 +552,31 @@ public final class CpuLayerNormKernel extends TypedCpuKernel {
             float scale = gamma[gammaBase + i];
             float shift = beta[betaBase + i];
             out[outBase + i] = TensorDTypeOps.toBFloat16Bits(((value - stats.mean()) * invStd) * scale + shift);
+        }
+    }
+
+    private static void applyGroupBF16Storage(
+            short[] inArray,
+            MemorySegment inSegment,
+            float[] gamma,
+            float[] beta,
+            short[] outArray,
+            MemorySegment outSegment,
+            int inBase,
+            int gammaBase,
+            int betaBase,
+            int outBase,
+            int normalizedSize,
+            float epsilon
+    ) {
+        StatsF32 stats = computeStatsBF16(inArray, inSegment, inBase, normalizedSize);
+        float variance = (float) Math.max(stats.meanSquares() - stats.mean() * stats.mean(), 0.0d);
+        float invStd = (float) (1.0d / Math.sqrt(variance + epsilon));
+        for (int i = 0; i < normalizedSize; i++) {
+            float value = NormalizationStorageAccess.readBF16(inArray, inSegment, inBase + i);
+            float scale = gamma[gammaBase + i];
+            float shift = beta[betaBase + i];
+            NormalizationStorageAccess.writeBF16(outArray, outSegment, outBase + i, ((value - stats.mean()) * invStd) * scale + shift);
         }
     }
 
@@ -384,6 +622,32 @@ public final class CpuLayerNormKernel extends TypedCpuKernel {
         }
     }
 
+    private static void applyGroupF32ToBF16Storage(
+            float[] in,
+            float[] gamma,
+            float[] beta,
+            short[] outArray,
+            MemorySegment outSegment,
+            int inBase,
+            int gammaBase,
+            int betaBase,
+            int outBase,
+            int normalizedSize,
+            float epsilon
+    ) {
+        StatsF32 stats = computeStatsF32(in, inBase, normalizedSize);
+        float variance = (float) Math.max(stats.meanSquares() - stats.mean() * stats.mean(), 0.0d);
+        float invStd = (float) (1.0d / Math.sqrt(variance + epsilon));
+        for (int i = 0; i < normalizedSize; i++) {
+            NormalizationStorageAccess.writeBF16(
+                    outArray,
+                    outSegment,
+                    outBase + i,
+                    ((in[inBase + i] - stats.mean()) * invStd) * gamma[gammaBase + i] + beta[betaBase + i]
+            );
+        }
+    }
+
     private static void applyGroupBF16ToF32(
             short[] in,
             float[] gamma,
@@ -401,6 +665,27 @@ public final class CpuLayerNormKernel extends TypedCpuKernel {
         float invStd = (float) (1.0d / Math.sqrt(variance + epsilon));
         for (int i = 0; i < normalizedSize; i++) {
             float value = TensorDTypeOps.fromBFloat16Bits(in[inBase + i]);
+            out[outBase + i] = ((value - stats.mean()) * invStd) * gamma[gammaBase + i] + beta[betaBase + i];
+        }
+    }
+
+    private static void applyGroupBF16SegmentToF32(
+            MemorySegment in,
+            float[] gamma,
+            float[] beta,
+            float[] out,
+            int inBase,
+            int gammaBase,
+            int betaBase,
+            int outBase,
+            int normalizedSize,
+            float epsilon
+    ) {
+        StatsF32 stats = computeStatsBF16Segment(in, inBase, normalizedSize);
+        float variance = (float) Math.max(stats.meanSquares() - stats.mean() * stats.mean(), 0.0d);
+        float invStd = (float) (1.0d / Math.sqrt(variance + epsilon));
+        for (int i = 0; i < normalizedSize; i++) {
+            float value = TensorDTypeOps.fromBFloat16Bits(in.get(JAVA_SHORT, (long) (inBase + i) * Short.BYTES));
             out[outBase + i] = ((value - stats.mean()) * invStd) * gamma[gammaBase + i] + beta[betaBase + i];
         }
     }
@@ -429,6 +714,28 @@ public final class CpuLayerNormKernel extends TypedCpuKernel {
         double totalSquares = 0.0d;
         for (int i = 0; i < length; i++) {
             double value = in[base + i];
+            total += value;
+            totalSquares += value * value;
+        }
+        return new StatsF64(total / length, totalSquares / length);
+    }
+
+    private static StatsF64 computeStatsF64Segment(MemorySegment in, int base, int length) {
+        double total = 0.0d;
+        double totalSquares = 0.0d;
+        for (int i = 0; i < length; i++) {
+            double value = in.get(JAVA_DOUBLE, (long) (base + i) * Double.BYTES);
+            total += value;
+            totalSquares += value * value;
+        }
+        return new StatsF64(total / length, totalSquares / length);
+    }
+
+    private static StatsF64 computeStatsF64(double[] array, MemorySegment segment, int base, int length) {
+        double total = 0.0d;
+        double totalSquares = 0.0d;
+        for (int i = 0; i < length; i++) {
+            double value = NormalizationStorageAccess.readF64(array, segment, base + i);
             total += value;
             totalSquares += value * value;
         }
@@ -465,6 +772,28 @@ public final class CpuLayerNormKernel extends TypedCpuKernel {
         return new StatsF32((float) (total / length), totalSquares / length);
     }
 
+    private static StatsF32 computeStatsF32Segment(MemorySegment in, int base, int length) {
+        double total = 0.0d;
+        double totalSquares = 0.0d;
+        for (int i = 0; i < length; i++) {
+            float value = in.get(JAVA_FLOAT, (long) (base + i) * Float.BYTES);
+            total += value;
+            totalSquares += value * value;
+        }
+        return new StatsF32((float) (total / length), totalSquares / length);
+    }
+
+    private static StatsF32 computeStatsF32(float[] array, MemorySegment segment, int base, int length) {
+        double total = 0.0d;
+        double totalSquares = 0.0d;
+        for (int i = 0; i < length; i++) {
+            float value = NormalizationStorageAccess.readF32(array, segment, base + i);
+            total += value;
+            totalSquares += value * value;
+        }
+        return new StatsF32((float) (total / length), totalSquares / length);
+    }
+
     private static StatsF32 computeStatsBF16(short[] in, int base, int length) {
         double total = 0.0d;
         double totalSquares = 0.0d;
@@ -476,31 +805,60 @@ public final class CpuLayerNormKernel extends TypedCpuKernel {
         return new StatsF32((float) (total / length), totalSquares / length);
     }
 
-    private static float[] decodeBFloat16(short[] values, int base, int length) {
-        float[] decoded = new float[length];
+    private static StatsF32 computeStatsBF16Segment(MemorySegment in, int base, int length) {
+        double total = 0.0d;
+        double totalSquares = 0.0d;
         for (int i = 0; i < length; i++) {
-            decoded[i] = TensorDTypeOps.fromBFloat16Bits(values[base + i]);
+            float value = TensorDTypeOps.fromBFloat16Bits(in.get(JAVA_SHORT, (long) (base + i) * Short.BYTES));
+            total += value;
+            totalSquares += value * value;
         }
-        return decoded;
+        return new StatsF32((float) (total / length), totalSquares / length);
+    }
+
+    private static StatsF32 computeStatsBF16(short[] array, MemorySegment segment, int base, int length) {
+        double total = 0.0d;
+        double totalSquares = 0.0d;
+        for (int i = 0; i < length; i++) {
+            float value = NormalizationStorageAccess.readBF16(array, segment, base + i);
+            total += value;
+            totalSquares += value * value;
+        }
+        return new StatsF32((float) (total / length), totalSquares / length);
     }
 
     private static boolean canUseVectorPath(int normalizedSize, int speciesLength) {
         return speciesLength > 1 && normalizedSize >= speciesLength * MIN_VECTOR_AXIS_MULTIPLIER;
     }
 
-    private static void validateLayout(Tensor input, Tensor gamma, Tensor beta, Tensor node, int normalizedRank) {
-        if (!input.isContiguous() || !gamma.isContiguous() || !beta.isContiguous() || !node.isContiguous()) {
+    private static void validateLayout(
+            CpuStorageView input,
+            CpuStorageView gamma,
+            CpuStorageView beta,
+            CpuStorageView output,
+            int normalizedRank
+    ) {
+        if (!NormalizationStorageAccess.isDenseContiguous(input)
+                || !NormalizationStorageAccess.isDenseContiguous(gamma)
+                || !NormalizationStorageAccess.isDenseContiguous(beta)
+                || !NormalizationStorageAccess.isDenseContiguous(output)) {
             throw new IllegalArgumentException("CpuLayerNormKernel requires contiguous input, gamma, beta, and output tensors.");
         }
-        if (normalizedRank < 1 || normalizedRank > input.getShapeUnsafe().length) {
+        if (normalizedRank < 1 || normalizedRank > input.shape().length) {
             throw new IllegalArgumentException("Invalid LayerNorm normalized rank: " + normalizedRank);
         }
     }
 
-    private static NormShape resolveNormShape(Tensor input, Tensor gamma, Tensor beta, Tensor node, int normalizedRank) {
-        int[] inputShape = input.getShapeUnsafe();
-        int[] gammaShape = gamma.getShapeUnsafe();
-        int[] betaShape = beta.getShapeUnsafe();
+    private static NormShape resolveNormShape(
+            CpuStorageView input,
+            CpuStorageView gamma,
+            CpuStorageView beta,
+            CpuStorageView output,
+            int normalizedRank
+    ) {
+        int[] inputShape = input.shape();
+        int[] gammaShape = gamma.shape();
+        int[] betaShape = beta.shape();
         if (gammaShape.length != normalizedRank || betaShape.length != normalizedRank) {
             throw new IllegalArgumentException("LayerNorm parameter ranks must equal normalized rank.");
         }
@@ -511,15 +869,15 @@ public final class CpuLayerNormKernel extends TypedCpuKernel {
             if (gammaShape[i] != expected || betaShape[i] != expected) {
                 throw new IllegalArgumentException("LayerNorm parameter shapes must match trailing input dimensions.");
             }
-            normalizedSize *= expected;
+            normalizedSize = Math.multiplyExact(normalizedSize, expected);
         }
-        if (gamma.getFlatDataSize() != normalizedSize || beta.getFlatDataSize() != normalizedSize) {
+        if (gamma.logicalSize() != normalizedSize || beta.logicalSize() != normalizedSize) {
             throw new IllegalArgumentException("LayerNorm parameter storage size mismatch.");
         }
-        if (node.getFlatDataSize() != input.getFlatDataSize()) {
+        if (output.logicalSize() != input.logicalSize()) {
             throw new IllegalArgumentException("LayerNorm output size must match input size.");
         }
-        return new NormShape(input.getFlatDataSize() / normalizedSize, normalizedSize);
+        return new NormShape(input.logicalSize() / normalizedSize, normalizedSize);
     }
 
     private static layerNorm require(Operation op) {
@@ -529,11 +887,28 @@ public final class CpuLayerNormKernel extends TypedCpuKernel {
         return norm;
     }
 
-    private static Tensor requireInput(List<Tensor> inputs, int index, String name) {
-        if (inputs == null || inputs.size() <= index || inputs.get(index) == null) {
-            throw new IllegalArgumentException("LayerNorm " + name + " tensor is missing.");
+    private static CpuStorageView requireInput(CpuKernelCall call, int index, String name) {
+        if (call.inputs().size() <= index || call.inputs().get(index) == null) {
+            throw new IllegalArgumentException("LayerNorm " + name + " storage view is missing.");
         }
-        return inputs.get(index);
+        return call.inputs().get(index);
+    }
+
+    private static void requireSameDType(
+            CpuStorageView input,
+            CpuStorageView gamma,
+            CpuStorageView beta,
+            CpuStorageView output
+    ) {
+        DataType dtype = output.dtype();
+        if (input.dtype() != dtype || gamma.dtype() != dtype || beta.dtype() != dtype) {
+            throw new IllegalArgumentException("LayerNorm storage dtype mismatch. input=" + input.dtype()
+                    + ", gamma=" + gamma.dtype() + ", beta=" + beta.dtype() + ", output=" + dtype);
+        }
+    }
+
+    private static void unsupported(DataType dtype) {
+        throw new UnsupportedOperationException("CpuLayerNormKernel does not support " + dtype);
     }
 
     private record NormShape(int groupCount, int normalizedSize) {

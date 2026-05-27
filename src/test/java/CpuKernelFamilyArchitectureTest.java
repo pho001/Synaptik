@@ -35,6 +35,8 @@ public class CpuKernelFamilyArchitectureTest {
         assertPackage(Operation.OpType.SUM, "backend.cpu.kernels.reduction");
         assertPackage(Operation.OpType.MATMUL, "backend.cpu.kernels.linalg");
         assertPackage(Operation.OpType.CONV2D, "backend.cpu.kernels.nn");
+        assertPackage(Operation.OpType.LAYER_NORM, "backend.cpu.kernels.nn");
+        assertPackage(Operation.OpType.RMS_NORM, "backend.cpu.kernels.nn");
         assertPackage(Operation.OpType.UNFOLD_AXIS, "backend.cpu.kernels.layout");
         assertPackage(Operation.OpType.UNFOLD2D, "backend.cpu.kernels.layout");
         assertPackage(Operation.OpType.FOLD2D, "backend.cpu.kernels.layout");
@@ -896,7 +898,9 @@ public class CpuKernelFamilyArchitectureTest {
         for (Operation.OpType opType : List.of(
                 Operation.OpType.CONV2D,
                 Operation.OpType.MAX_POOL2D,
-                Operation.OpType.AVG_POOL2D
+                Operation.OpType.AVG_POOL2D,
+                Operation.OpType.LAYER_NORM,
+                Operation.OpType.RMS_NORM
         )) {
             CpuKernel kernel = CpuKernelRegistry.resolve(opType);
             assertEquals("backend.cpu.kernels.nn", kernel.getClass().getPackageName(),
@@ -905,6 +909,10 @@ public class CpuKernelFamilyArchitectureTest {
                     opType + " must consume the CpuKernelCall boundary directly.");
             assertFalse(kernel instanceof TypedCpuKernel,
                     opType + " must not route through the legacy TypedCpuKernel tensor-array executor.");
+            for (DataType dtype : DataType.values()) {
+                assertFalse(CpuNativeStorageSupport.nativeRegionSupported(opType, dtype),
+                        opType + " must not be promoted to CPU_NATIVE region support in the nn forward slice.");
+            }
         }
         assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/nn/Conv2dExecutor.java")),
                 "Conv2dExecutor must not remain as a pass-through forward wrapper.");
