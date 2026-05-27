@@ -394,6 +394,12 @@ public class CpuKernelFamilyArchitectureTest {
         assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/layout/LayoutExecutor.java")),
                 "Wave 4 layout runtime ownership must not remain in the shared LayoutExecutor.");
 
+        String aliasBase = Files.readString(Path.of("src/main/java/backend/cpu/kernels/layout/CpuAliasLayoutKernel.java"));
+        assertFalse(aliasBase.contains("extends TypedCpuKernel"),
+                "CpuAliasLayoutKernel must own the CpuKernelCall execute boundary directly.");
+        assertTrue(aliasBase.contains("implements CpuStorageAwareKernel, CpuLayoutOutputStorageDeferredKernel"),
+                "CpuAliasLayoutKernel must consume storage-aware calls while deferring output storage identity.");
+
         String cast = Files.readString(Path.of("src/main/java/backend/cpu/kernels/layout/CpuCastKernel.java"));
         assertFalse(cast.contains("extends TypedCpuKernel"),
                 "CpuCastKernel must own the CpuKernelCall execute boundary directly.");
@@ -417,8 +423,27 @@ public class CpuKernelFamilyArchitectureTest {
                     aliasKernel + " must use the deferred-output alias layout boundary.");
         }
         String reshape = Files.readString(Path.of("src/main/java/backend/cpu/kernels/layout/CpuReshapeLikeKernel.java"));
-        assertTrue(reshape.contains("implements CpuLayoutOutputStorageDeferredKernel"),
+        assertFalse(reshape.contains("extends TypedCpuKernel"),
+                "CpuReshapeLikeKernel must own the CpuKernelCall execute boundary directly.");
+        assertTrue(reshape.contains("implements CpuStorageAwareKernel, CpuLayoutOutputStorageDeferredKernel"),
+                "CpuReshapeLikeKernel must consume storage-aware calls while deferring output storage identity.");
+        assertTrue(reshape.contains("CpuLayoutOutputStorageDeferredKernel"),
                 "CpuReshapeLikeKernel must defer output storage binding until it chooses alias vs materialization.");
+    }
+
+    @Test
+    void onlyFusedKernelMayExtendLegacyTypedCpuKernel() throws IOException {
+        Set<String> typedKernelExtenders = new TreeSet<>();
+        try (Stream<Path> paths = Files.walk(Path.of("src/main/java/backend/cpu/kernels"))) {
+            for (Path path : paths.filter(path -> path.toString().endsWith(".java")).toList()) {
+                if (Files.readString(path).contains("extends TypedCpuKernel")) {
+                    typedKernelExtenders.add(path.toString());
+                }
+            }
+        }
+
+        assertEquals(Set.of("src/main/java/backend/cpu/kernels/fused/CpuFusedKernel.java"), typedKernelExtenders,
+                "Legacy TypedCpuKernel extension must remain isolated to fused kernels.");
     }
 
     @Test

@@ -1,42 +1,20 @@
 package backend.cpu.kernels.layout;
 
 import backend.cpu.execution.CpuKernelContext;
-import backend.cpu.kernels.TypedCpuKernel;
+import backend.cpu.kernels.CpuKernelCall;
+import backend.cpu.kernels.CpuKernelResult;
+import backend.cpu.kernels.CpuStorageAwareKernel;
 import operations.Operation;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 
 import java.util.List;
 
-abstract class CpuAliasLayoutKernel extends TypedCpuKernel implements CpuLayoutOutputStorageDeferredKernel {
+abstract class CpuAliasLayoutKernel implements CpuStorageAwareKernel, CpuLayoutOutputStorageDeferredKernel {
     @Override
-    protected final void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        alias(op, inputs, node, context);
-    }
-
-    @Override
-    protected final void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        alias(op, inputs, node, context);
-    }
-
-    @Override
-    protected final void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        alias(op, inputs, node, context);
-    }
-
-    @Override
-    protected final void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        alias(op, inputs, node, context);
-    }
-
-    @Override
-    protected final void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        alias(op, inputs, node, context);
-    }
-
-    @Override
-    protected final void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        alias(op, inputs, node, context);
+    public final CpuKernelResult execute(CpuKernelCall call) {
+        alias(call.operation(), call.inputTensors(), call.outputTensor(), call.context());
+        return CpuKernelResult.completed();
     }
 
     protected boolean usesNativeViewAlias() {
