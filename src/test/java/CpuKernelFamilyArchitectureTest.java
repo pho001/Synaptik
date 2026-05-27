@@ -805,6 +805,28 @@ public class CpuKernelFamilyArchitectureTest {
         }
     }
 
+    @Test
+    void layoutMaterializationKernelsOwnStorageAwareBoundaryWithoutNativeRegionPromotion() {
+        for (Operation.OpType opType : List.of(
+                Operation.OpType.CONCAT,
+                Operation.OpType.PAD,
+                Operation.OpType.TILE,
+                Operation.OpType.UNFOLD_AXIS,
+                Operation.OpType.UNFOLD2D,
+                Operation.OpType.FOLD2D
+        )) {
+            CpuKernel kernel = CpuKernelRegistry.resolve(opType);
+            assertTrue(kernel instanceof CpuStorageAwareKernel,
+                    opType + " must consume CpuKernelCall storage views directly.");
+            assertFalse(kernel instanceof TypedCpuKernel,
+                    opType + " must not route through the legacy TypedCpuKernel tensor-array executor.");
+            for (DataType dtype : DataType.values()) {
+                assertFalse(CpuNativeStorageSupport.nativeRegionSupported(opType, dtype),
+                        opType + " must not be promoted to CPU_NATIVE region support in the layout materialization slice.");
+            }
+        }
+    }
+
     private static void assertPackage(Operation.OpType opType, String expectedPackage) {
         CpuKernel kernel = CpuKernelRegistry.resolve(opType);
         assertEquals(expectedPackage, kernel.getClass().getPackageName(), () ->

@@ -1,102 +1,200 @@
 package backend.cpu.kernels.layout;
 
-import tensor.TensorInternalAccess;
-
-import tensor.dtype.TensorDTypeOps;
-import backend.cpu.kernels.TypedCpuKernel;
-import backend.cpu.execution.CpuKernelContext;
+import backend.cpu.kernels.CpuKernelCall;
+import backend.cpu.kernels.CpuKernelResult;
+import backend.cpu.kernels.CpuStorageAwareKernel;
+import backend.cpu.storage.CpuStorageView;
 import operations.Operation;
 import operations.layout.pad;
-import tensor.Tensor;
-import tensor.TensorMetadata;
 
-import java.util.Arrays;
-import java.util.List;
-
-public final class CpuPadKernel extends TypedCpuKernel {
+public final class CpuPadKernel implements CpuStorageAwareKernel {
     @Override
-    protected void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        pad(op, inputs, node);
-    }
-
-    @Override
-    protected void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        pad(op, inputs, node);
-    }
-
-    @Override
-    protected void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        pad(op, inputs, node);
-    }
-
-    @Override
-    protected void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        pad(op, inputs, node);
-    }
-
-    @Override
-    protected void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        pad(op, inputs, node);
-    }
-
-    @Override
-    protected void forwardI64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        pad(op, inputs, node);
-    }
-
-    private static void pad(Operation op, List<Tensor> inputs, Tensor node) {
-        if (!(op instanceof pad padOp)) {
+    public CpuKernelResult execute(CpuKernelCall call) {
+        if (!(call.operation() instanceof pad padOp)) {
             throw new IllegalArgumentException("CpuPadKernel requires pad operation.");
         }
-        Tensor input = requireSingleInput(inputs);
-        fill(node, padOp.getConstantValue());
-        int[] before = padOp.getBefore();
-        int[] inputShape = input.getShapeUnsafe();
-        int[] inputDenseStrides = TensorMetadata.computeStrides(inputShape);
-        int[] outDenseStrides = TensorMetadata.computeStrides(node.getShapeUnsafe());
-        for (int logical = 0; logical < input.getFlatDataSize(); logical++) {
-            int tmp = logical;
-            int outLogical = 0;
+        LayoutStorageSupport.validateInputViews(1, call.inputs(), "pad");
+        CpuStorageView input = call.inputs().getFirst();
+        CpuStorageView out = call.output();
+        LayoutStorageSupport.validateView(input, out.dtype(), "input");
+        LayoutStorageSupport.validateView(out, out.dtype(), "output");
+        switch (out.dtype()) {
+            case FLOAT64 -> padF64(padOp, input, out);
+            case FLOAT32 -> padF32(padOp, input, out);
+            case BFLOAT16 -> padBF16(padOp, input, out);
+            case INT32 -> padI32(padOp, input, out);
+            case INT64 -> padI64(padOp, input, out);
+            case BOOL -> padBool(padOp, input, out);
+        }
+        return CpuKernelResult.completed();
+    }
+
+    private static void padF64(pad op, CpuStorageView input, CpuStorageView out) {
+        PadPlan plan = PadPlan.create(op, input, out);
+        fillF64(out, plan, op.getConstantValue());
+        for (int logical = 0; logical < input.logicalSize(); logical++) {
+            plan.computeCopyOffsets(logical);
+            LayoutStorageSupport.writeF64(out, plan.outOffset,
+                    LayoutStorageSupport.readF64(input, plan.inputOffset));
+        }
+    }
+
+    private static void padF32(pad op, CpuStorageView input, CpuStorageView out) {
+        PadPlan plan = PadPlan.create(op, input, out);
+        fillF32(out, plan, (float) op.getConstantValue());
+        for (int logical = 0; logical < input.logicalSize(); logical++) {
+            plan.computeCopyOffsets(logical);
+            LayoutStorageSupport.writeF32(out, plan.outOffset,
+                    LayoutStorageSupport.readF32(input, plan.inputOffset));
+        }
+    }
+
+    private static void padBF16(pad op, CpuStorageView input, CpuStorageView out) {
+        PadPlan plan = PadPlan.create(op, input, out);
+        fillBF16(out, plan, (float) op.getConstantValue());
+        for (int logical = 0; logical < input.logicalSize(); logical++) {
+            plan.computeCopyOffsets(logical);
+            LayoutStorageSupport.writeBF16(out, plan.outOffset,
+                    LayoutStorageSupport.readBF16AsF32(input, plan.inputOffset));
+        }
+    }
+
+    private static void padI32(pad op, CpuStorageView input, CpuStorageView out) {
+        PadPlan plan = PadPlan.create(op, input, out);
+        fillI32(out, plan, (int) op.getConstantValue());
+        for (int logical = 0; logical < input.logicalSize(); logical++) {
+            plan.computeCopyOffsets(logical);
+            LayoutStorageSupport.writeI32(out, plan.outOffset,
+                    LayoutStorageSupport.readI32(input, plan.inputOffset));
+        }
+    }
+
+    private static void padI64(pad op, CpuStorageView input, CpuStorageView out) {
+        PadPlan plan = PadPlan.create(op, input, out);
+        fillI64(out, plan, (long) op.getConstantValue());
+        for (int logical = 0; logical < input.logicalSize(); logical++) {
+            plan.computeCopyOffsets(logical);
+            LayoutStorageSupport.writeI64(out, plan.outOffset,
+                    LayoutStorageSupport.readI64(input, plan.inputOffset));
+        }
+    }
+
+    private static void padBool(pad op, CpuStorageView input, CpuStorageView out) {
+        PadPlan plan = PadPlan.create(op, input, out);
+        fillBool(out, plan, LayoutStorageSupport.boolFromDouble(op.getConstantValue()));
+        for (int logical = 0; logical < input.logicalSize(); logical++) {
+            plan.computeCopyOffsets(logical);
+            LayoutStorageSupport.writeBool(out, plan.outOffset,
+                    LayoutStorageSupport.readBool(input, plan.inputOffset));
+        }
+    }
+
+    private static void fillF64(CpuStorageView out, PadPlan plan, double value) {
+        for (int logical = 0; logical < out.logicalSize(); logical++) {
+            LayoutStorageSupport.writeF64(out, plan.outOffsetForLogical(logical), value);
+        }
+    }
+
+    private static void fillF32(CpuStorageView out, PadPlan plan, float value) {
+        for (int logical = 0; logical < out.logicalSize(); logical++) {
+            LayoutStorageSupport.writeF32(out, plan.outOffsetForLogical(logical), value);
+        }
+    }
+
+    private static void fillBF16(CpuStorageView out, PadPlan plan, float value) {
+        for (int logical = 0; logical < out.logicalSize(); logical++) {
+            LayoutStorageSupport.writeBF16(out, plan.outOffsetForLogical(logical), value);
+        }
+    }
+
+    private static void fillI32(CpuStorageView out, PadPlan plan, int value) {
+        for (int logical = 0; logical < out.logicalSize(); logical++) {
+            LayoutStorageSupport.writeI32(out, plan.outOffsetForLogical(logical), value);
+        }
+    }
+
+    private static void fillI64(CpuStorageView out, PadPlan plan, long value) {
+        for (int logical = 0; logical < out.logicalSize(); logical++) {
+            LayoutStorageSupport.writeI64(out, plan.outOffsetForLogical(logical), value);
+        }
+    }
+
+    private static void fillBool(CpuStorageView out, PadPlan plan, byte value) {
+        for (int logical = 0; logical < out.logicalSize(); logical++) {
+            LayoutStorageSupport.writeBool(out, plan.outOffsetForLogical(logical), value);
+        }
+    }
+
+    private static final class PadPlan {
+        private final int[] before;
+        private final int[] inputShape;
+        private final int[] inputDense;
+        private final int[] inputStrides;
+        private final int inputBaseOffset;
+        private final int[] outShape;
+        private final int[] outDense;
+        private final int[] outStrides;
+        private final int outBaseOffset;
+        private int inputOffset;
+        private int outOffset;
+
+        private PadPlan(
+                int[] before,
+                int[] inputShape,
+                int[] inputDense,
+                int[] inputStrides,
+                int inputBaseOffset,
+                int[] outShape,
+                int[] outDense,
+                int[] outStrides,
+                int outBaseOffset
+        ) {
+            this.before = before;
+            this.inputShape = inputShape;
+            this.inputDense = inputDense;
+            this.inputStrides = inputStrides;
+            this.inputBaseOffset = inputBaseOffset;
+            this.outShape = outShape;
+            this.outDense = outDense;
+            this.outStrides = outStrides;
+            this.outBaseOffset = outBaseOffset;
+        }
+
+        static PadPlan create(pad op, CpuStorageView input, CpuStorageView out) {
+            int[] inputShape = input.shape();
+            int[] outShape = out.shape();
+            int[] before = op.getBefore();
+            if (before.length != inputShape.length || outShape.length != inputShape.length) {
+                throw new IllegalArgumentException("pad rank mismatch.");
+            }
+            return new PadPlan(
+                    before,
+                    inputShape,
+                    LayoutStorageSupport.denseStrides(inputShape),
+                    input.strides(),
+                    input.storageOffset(),
+                    outShape,
+                    LayoutStorageSupport.denseStrides(outShape),
+                    out.strides(),
+                    out.storageOffset());
+        }
+
+        void computeCopyOffsets(int logical) {
+            int rem = logical;
+            int in = inputBaseOffset;
+            int out = outBaseOffset;
             for (int d = 0; d < inputShape.length; d++) {
-                int coord = tmp / inputDenseStrides[d];
-                tmp %= inputDenseStrides[d];
-                outLogical += (coord + before[d]) * outDenseStrides[d];
+                int coord = rem / inputDense[d];
+                rem %= inputDense[d];
+                in += coord * inputStrides[d];
+                out += (coord + before[d]) * outStrides[d];
             }
-            if (node.getDataType() == tensor.DataType.INT64) {
-                TensorInternalAccess.int64Data(node)[outLogical] = input.getInt64ByFlatIndex(logical);
-                continue;
-            }
-            write(node, outLogical, input.getByFlatIndex(logical));
+            inputOffset = in;
+            outOffset = out;
         }
-        TensorInternalAccess.markStorageModified(node);
-    }
 
-    private static Tensor requireSingleInput(List<Tensor> inputs) {
-        if (inputs == null || inputs.size() != 1) {
-            throw new IllegalArgumentException("pad expects exactly one input.");
-        }
-        return inputs.getFirst();
-    }
-
-    private static void fill(Tensor out, double value) {
-        switch (out.getDataType()) {
-            case FLOAT64 -> Arrays.fill(TensorInternalAccess.float64Data(out), value);
-            case FLOAT32 -> Arrays.fill(TensorInternalAccess.float32Data(out), (float) value);
-            case BFLOAT16 -> Arrays.fill(TensorInternalAccess.bfloat16Data(out), TensorDTypeOps.toBFloat16Bits((float) value));
-            case INT32 -> Arrays.fill(TensorInternalAccess.int32Data(out), (int) value);
-            case INT64 -> Arrays.fill(TensorInternalAccess.int64Data(out), (long) value);
-            case BOOL -> Arrays.fill(TensorInternalAccess.boolData(out), value == 0.0d ? (byte) 0 : (byte) 1);
-        }
-    }
-
-    private static void write(Tensor out, int index, double value) {
-        switch (out.getDataType()) {
-            case FLOAT64 -> TensorInternalAccess.float64Data(out)[index] = value;
-            case FLOAT32 -> TensorInternalAccess.float32Data(out)[index] = (float) value;
-            case BFLOAT16 -> TensorInternalAccess.bfloat16Data(out)[index] = TensorDTypeOps.toBFloat16Bits((float) value);
-            case INT32 -> TensorInternalAccess.int32Data(out)[index] = (int) value;
-            case INT64 -> TensorInternalAccess.int64Data(out)[index] = (long) value;
-            case BOOL -> TensorInternalAccess.boolData(out)[index] = value == 0.0d ? (byte) 0 : (byte) 1;
+        int outOffsetForLogical(int logical) {
+            return LayoutStorageSupport.offsetForLogical(logical, outShape, outDense, outStrides, outBaseOffset);
         }
     }
 }
