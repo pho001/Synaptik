@@ -34,8 +34,11 @@ public final class Cpu1ParallelLaunch implements Cpu1LaunchPolicy {
         if (elementCount == 0) {
             return;
         }
-        int taskCount = Math.min(launchConfig.workerCount(), elementCount);
-        int chunk = (elementCount + taskCount - 1) / taskCount;
+        int chunk = launchConfig.hasResolvedChunkSize()
+                ? launchConfig.chunkSize()
+                : (elementCount + Math.min(launchConfig.workerCount(), elementCount) - 1)
+                        / Math.min(launchConfig.workerCount(), elementCount);
+        int taskCount = (elementCount + chunk - 1) / chunk;
         List<RecursiveAction> tasks = new ArrayList<>(taskCount);
         for (int start = 0; start < elementCount; start += chunk) {
             int rangeStart = start;

@@ -6,6 +6,7 @@ import backend.cpu1.kernels.Cpu1KernelRangeRunner;
 import backend.cpu1.kernels.Cpu1LayoutKind;
 import backend.cpu1.launch.Cpu1LaunchPolicy;
 import backend.cpu1.plan.Cpu1IterationPlan;
+import backend.cpu1.prepare.dispatch.Cpu1DispatchDecision;
 import backend.cpu1.storage.Cpu1StorageKind;
 import operations.Operation;
 import tensor.DataType;
@@ -32,6 +33,7 @@ public final class Cpu1PreparedUnit {
     private final boolean hasScalarParameter;
     private final float scalarParameterF32;
     private final double scalarParameterF64;
+    private final Cpu1DispatchDecision dispatchDecision;
 
     public Cpu1PreparedUnit(
             int nodeId,
@@ -146,6 +148,42 @@ public final class Cpu1PreparedUnit {
             double scalarParameterF64,
             List<DataType> inputDataTypes
     ) {
+        this(
+                nodeId,
+                inputNodeIds,
+                outputNodeId,
+                opType,
+                dataType,
+                iterationPlan,
+                layoutKind,
+                storageKind,
+                kernelId,
+                launchPolicy,
+                hasScalarParameter,
+                scalarParameterF32,
+                scalarParameterF64,
+                inputDataTypes,
+                null
+        );
+    }
+
+    public Cpu1PreparedUnit(
+            int nodeId,
+            List<Integer> inputNodeIds,
+            int outputNodeId,
+            Operation.OpType opType,
+            DataType dataType,
+            Cpu1IterationPlan iterationPlan,
+            Cpu1LayoutKind layoutKind,
+            Cpu1StorageKind storageKind,
+            Cpu1KernelId kernelId,
+            Cpu1LaunchPolicy launchPolicy,
+            boolean hasScalarParameter,
+            float scalarParameterF32,
+            double scalarParameterF64,
+            List<DataType> inputDataTypes,
+            Cpu1DispatchDecision dispatchDecision
+    ) {
         this.nodeId = nodeId;
         this.inputNodeIds = List.copyOf(Objects.requireNonNull(inputNodeIds, "inputNodeIds cannot be null"));
         this.outputNodeId = outputNodeId;
@@ -165,6 +203,7 @@ public final class Cpu1PreparedUnit {
         this.hasScalarParameter = hasScalarParameter;
         this.scalarParameterF32 = scalarParameterF32;
         this.scalarParameterF64 = scalarParameterF64;
+        this.dispatchDecision = dispatchDecision;
     }
 
     public int nodeId() {
@@ -246,6 +285,13 @@ public final class Cpu1PreparedUnit {
             throw new IllegalStateException("cpu1 unit does not have a scalar parameter.");
         }
         return scalarParameterF64;
+    }
+
+    public Cpu1DispatchDecision dispatchDecision() {
+        if (dispatchDecision == null) {
+            throw new IllegalStateException("This cpu1 prepared unit does not expose a dispatch decision.");
+        }
+        return dispatchDecision;
     }
 
     private static List<DataType> repeatedInputDataTypes(List<Integer> inputNodeIds, DataType dataType) {

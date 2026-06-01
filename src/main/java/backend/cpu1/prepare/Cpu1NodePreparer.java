@@ -3,12 +3,13 @@ package backend.cpu1.prepare;
 import backend.cpu1.kernels.Cpu1KernelId;
 import backend.cpu1.kernels.Cpu1KernelRegistry;
 import backend.cpu1.kernels.Cpu1LayoutKind;
-import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.launch.Cpu1LaunchConfig;
 import backend.cpu1.launch.Cpu1LaunchPolicy;
 import backend.cpu1.launch.Cpu1ParallelLaunch;
 import backend.cpu1.launch.Cpu1SingleThreadLaunch;
 import backend.cpu1.plan.Cpu1IterationPlan;
+import backend.cpu1.prepare.dispatch.Cpu1DispatchDecision;
+import backend.cpu1.prepare.dispatch.Cpu1DispatchPolicy;
 import backend.cpu1.storage.Cpu1StorageKind;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
@@ -30,6 +31,7 @@ import java.util.Objects;
  */
 public final class Cpu1NodePreparer {
     private final Cpu1KernelRegistry kernelRegistry;
+    private final Cpu1DispatchPolicy dispatchPolicy;
 
     public Cpu1NodePreparer() {
         this(new Cpu1KernelRegistry());
@@ -37,6 +39,7 @@ public final class Cpu1NodePreparer {
 
     public Cpu1NodePreparer(Cpu1KernelRegistry kernelRegistry) {
         this.kernelRegistry = Objects.requireNonNull(kernelRegistry, "kernelRegistry cannot be null");
+        this.dispatchPolicy = new Cpu1DispatchPolicy();
     }
 
     public Cpu1PreparedArtifact prepare(CompiledNode node) {
@@ -58,22 +61,28 @@ public final class Cpu1NodePreparer {
         Operation.OpType opType = operation.opType();
         List<DataType> inputDataTypes = inputDataTypes(opType, node, descriptorIndex);
         requireSupported(opType, node, descriptorIndex, inputDataTypes);
-        Operation.OpType kernelOpType = kernelOpType(opType, config);
+        DataType kernelDataType = kernelDataType(opType, node.dataType(), inputDataTypes);
+        Cpu1DispatchDecision dispatchDecision = dispatchPolicy.decideElementwise(
+                opType,
+                kernelDataType,
+                node.flatDataSize(),
+                config
+        );
+        Operation.OpType kernelOpType = dispatchDecision.kernelOpType();
         ScalarParameter scalarParameter = scalarParameter(operation);
         Cpu1LayoutKind layoutKind = layoutKind(
                 node,
                 descriptorIndex,
-                kernelOpType,
-                config.vectorizationKind()
+                dispatchDecision
         );
-        Cpu1StorageKind storageKind = config.storageKind();
+        Cpu1StorageKind storageKind = dispatchDecision.storageKind();
         Cpu1KernelId kernelId = kernelRegistry.resolve(
                 kernelOpType,
-                kernelDataType(opType, node.dataType(), inputDataTypes),
+                kernelDataType,
                 inputDataTypes,
                 layoutKind,
                 storageKind,
-                kernelVectorizationKind(kernelOpType, layoutKind, config.vectorizationKind())
+                dispatchPolicy.kernelVectorizationKind(dispatchDecision, layoutKind)
         );
         Cpu1PreparedUnit unit = new Cpu1PreparedUnit(
                 node.id(),
@@ -85,11 +94,12 @@ public final class Cpu1NodePreparer {
                 layoutKind,
                 storageKind,
                 kernelId,
-                launchPolicy(config.launchConfig()),
+                launchPolicy(dispatchDecision.launchConfig()),
                 scalarParameter.present(),
                 scalarParameter.f32(),
                 scalarParameter.f64(),
-                inputDataTypes
+                inputDataTypes,
+                dispatchDecision
         );
         return new Cpu1PreparedArtifact(unit);
     }
@@ -323,38 +333,12 @@ public final class Cpu1NodePreparer {
         };
     }
 
-    private static Operation.OpType kernelOpType(Operation.OpType opType, Cpu1PrepareConfig config) {
-        return switch (opType) {
-            case EXP -> config.useFastExpApprox() ? Operation.OpType.FAST_EXP : Operation.OpType.EXP;
-            case TANH -> config.useFastTanhApprox() ? Operation.OpType.FAST_TANH : Operation.OpType.TANH;
-            default -> opType;
-        };
-    }
-
-    private static Cpu1VectorizationKind kernelVectorizationKind(
-            Operation.OpType kernelOpType,
-            Cpu1LayoutKind layoutKind,
-            Cpu1VectorizationKind requestedVectorizationKind
-    ) {
-        if (layoutKind != Cpu1LayoutKind.CONTIGUOUS) {
-            if (layoutKind != Cpu1LayoutKind.BROADCAST_INNER) {
-                return Cpu1VectorizationKind.SCALAR;
-            }
-        }
-        return switch (kernelOpType) {
-            case FAST_EXP, FAST_TANH, POW_TENSOR, POW, FLOOR, CEIL, SIGN,
-                    ERF, WHERE, GT, GE, LT, LE, EQ, NE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT -> Cpu1VectorizationKind.SCALAR;
-            default -> requestedVectorizationKind;
-        };
-    }
-
-    private static Cpu1LayoutKind layoutKind(
+    private Cpu1LayoutKind layoutKind(
             CompiledNode node,
             CompiledTensorDescriptorIndex descriptorIndex,
-            Operation.OpType kernelOpType,
-            Cpu1VectorizationKind requestedVectorizationKind
+            Cpu1DispatchDecision dispatchDecision
     ) {
-        if (canUseBroadcastInnerVectorLayout(node, descriptorIndex, kernelOpType, requestedVectorizationKind)) {
+        if (canUseBroadcastInnerVectorLayout(node, descriptorIndex, dispatchDecision)) {
             return Cpu1LayoutKind.BROADCAST_INNER;
         }
         boolean strided = !node.contiguous();
@@ -387,16 +371,14 @@ public final class Cpu1NodePreparer {
                 || descriptor.logicalElementCount() != node.flatDataSize();
     }
 
-    private static boolean canUseBroadcastInnerVectorLayout(
+    private boolean canUseBroadcastInnerVectorLayout(
             CompiledNode node,
             CompiledTensorDescriptorIndex descriptorIndex,
-            Operation.OpType kernelOpType,
-            Cpu1VectorizationKind requestedVectorizationKind
+            Cpu1DispatchDecision dispatchDecision
     ) {
-        if (requestedVectorizationKind != Cpu1VectorizationKind.VECTOR
-                || descriptorIndex == null
+        if (descriptorIndex == null
                 || !node.contiguous()
-                || !supportsVectorKernel(kernelOpType)) {
+                || !dispatchPolicy.canUseBroadcastInnerVectorLayout(dispatchDecision)) {
             return false;
         }
         boolean hasBroadcastInput = false;
@@ -412,14 +394,6 @@ public final class Cpu1NodePreparer {
             return false;
         }
         return hasBroadcastInput;
-    }
-
-    private static boolean supportsVectorKernel(Operation.OpType kernelOpType) {
-        return switch (kernelOpType) {
-            case FAST_EXP, FAST_TANH, POW_TENSOR, POW, FLOOR, CEIL, SIGN,
-                    ERF, WHERE, GT, GE, LT, LE, EQ, NE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT -> false;
-            default -> true;
-        };
     }
 
     private static boolean isFullContiguousInput(CompiledTensorDescriptor descriptor, CompiledNode node) {

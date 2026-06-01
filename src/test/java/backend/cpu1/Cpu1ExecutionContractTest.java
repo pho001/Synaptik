@@ -19,6 +19,7 @@ import backend.cpu1.prepare.Cpu1PreparedUnit;
 import backend.cpu1.storage.Cpu1StorageKind;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
+import config.backend.CpuKernelConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
@@ -487,6 +488,30 @@ class Cpu1ExecutionContractTest {
                 context.runtimeTensorForNodeId(fixture.node().id()).toFloat32ArrayCopy(),
                 1.0e-6f
         );
+    }
+
+    @Test
+    void automaticDispatchDecisionIsStoredOnPreparedUnit() {
+        CpuKernelConfig tuned = new CpuKernelConfig(4, 32, 32, 32, 16, 64);
+        int length = tuned.cheapParallelMinSize();
+        Tensor left = new Tensor(new float[length], new int[]{length}, null, "left", DataType.FLOAT32);
+        Tensor right = new Tensor(new float[length], new int[]{length}, null, "right", DataType.FLOAT32);
+        Fixture fixture = fixture(left.add(right));
+
+        Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(
+                fixture.node(),
+                fixture.descriptorIndex(),
+                Cpu1PrepareConfig.automatic(tuned, 4)
+        );
+
+        assertEquals(Cpu1VectorizationKind.VECTOR, artifact.preparedUnit().dispatchDecision().requestedVectorizationKind());
+        assertEquals(4, artifact.preparedUnit().dispatchDecision().plannedWorkers());
+        assertEquals(tuned.minVectorChunkSize(), artifact.preparedUnit().dispatchDecision().vectorChunkSize());
+        assertEquals(
+                artifact.preparedUnit().dispatchDecision().vectorChunkSize(),
+                artifact.preparedUnit().dispatchDecision().launchConfig().chunkSize()
+        );
+        assertInstanceOf(Cpu1ParallelLaunch.class, artifact.preparedUnit().launchPolicy());
     }
 
     @Test
