@@ -35,6 +35,32 @@ public class AlgebraicRewritingPowTest {
                 .noneMatch(opType -> opType == Operation.OpType.POW));
     }
 
+    @Test
+    void rewritesPowNegativeTwoToMulThenInv() {
+        Tensor input = new Tensor(new double[]{2.0, 4.0}, new int[]{2}, null, "x", DataType.FLOAT64);
+        Tensor powNeg2 = new Tensor(new int[]{2}, List.of(input), new pow(-2.0), "powNeg2", DataType.FLOAT64);
+
+        CompiledGraph compiledGraph = CompiledGraph.compile(powNeg2, arOnlyInferenceConfig());
+        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{0.25, 0.0625}, powNeg2.toDoubleArrayCopy(), 1e-9);
+        assertTrue(compiledGraph.program().compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
+                .filter(op -> op != null)
+                .map(Operation::opType)
+                .anyMatch(opType -> opType == Operation.OpType.MUL));
+        assertTrue(compiledGraph.program().compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
+                .filter(op -> op != null)
+                .map(Operation::opType)
+                .anyMatch(opType -> opType == Operation.OpType.INV));
+        assertTrue(compiledGraph.program().compiledNodes().stream()
+                .map(graph.CompiledNode::operation)
+                .filter(op -> op != null)
+                .map(Operation::opType)
+                .noneMatch(opType -> opType == Operation.OpType.POW));
+    }
+
     private static CompileConfig arOnlyInferenceConfig() {
         return CompileConfig.inference().withGraphOptimization(GraphOptimizationConfig.stages(true, false, false, false, false));
     }

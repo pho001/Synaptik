@@ -25,6 +25,7 @@ final class UnarySimplifier {
         if (exponent == 1.0) return a;
         if (exponent == -1.0) return a.inv();
         if (!AlgebraicRewriteSwitches.DISABLE_POW2_TO_MUL && exponent == 2.0) return a.mul(a);
+        if (!AlgebraicRewriteSwitches.DISABLE_POW_NEG2_TO_MUL_INV && exponent == -2.0) return a.mul(a).inv();
         if (!AlgebraicRewriteSwitches.DISABLE_POW_INV_TO_NEGEXP && AlgebraicPatterns.isOp(a, Operation.OpType.INV)) {
             return a.getPrevTensors().get(0).pow(-exponent);
         }

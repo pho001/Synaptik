@@ -10,6 +10,8 @@ final class AlgebraicRewriteSwitches {
             Boolean.parseBoolean(System.getProperty("cg.optimizer.ar.disableRebuildTopologicalClosure", "false"));
     static final boolean DISABLE_POW2_TO_MUL =
             Boolean.parseBoolean(System.getProperty("cg.optimizer.ar.disablePow2ToMul", "false"));
+    static final boolean DISABLE_POW_NEG2_TO_MUL_INV =
+            Boolean.parseBoolean(System.getProperty("cg.optimizer.ar.disablePowNeg2ToMulInv", "false"));
     static final boolean DISABLE_ADD_SELF_TO_MUL2 =
             Boolean.parseBoolean(System.getProperty("cg.optimizer.ar.disableAddSelfToMul2", "false"));
     static final boolean DISABLE_ADD_NEG_TO_ZERO =
