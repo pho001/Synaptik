@@ -62,6 +62,12 @@ public final class Cpu1NodePreparer {
         if (Cpu1LayoutPreparer.isLayoutOp(opType)) {
             return new Cpu1LayoutPreparer().prepare(node, descriptorIndex, config);
         }
+        if (Cpu1ReductionPreparer.isReductionOp(opType)) {
+            return new Cpu1ReductionPreparer().prepare(node, descriptorIndex, config);
+        }
+        if (Cpu1MatmulPreparer.isMatmulOp(opType)) {
+            return new Cpu1MatmulPreparer().prepare(node, descriptorIndex, config);
+        }
         List<DataType> inputDataTypes = inputDataTypes(opType, node, descriptorIndex);
         requireSupported(opType, node, descriptorIndex, inputDataTypes);
         DataType kernelDataType = kernelDataType(opType, node.dataType(), inputDataTypes);

@@ -139,6 +139,14 @@ public final class Cpu1TensorView {
         return buffer.boolArray();
     }
 
+    public int[] int32Array() {
+        return buffer.int32Array();
+    }
+
+    public long[] int64Array() {
+        return buffer.int64Array();
+    }
+
     public java.lang.foreign.MemorySegment segment() {
         return buffer.segment();
     }
@@ -193,9 +201,8 @@ public final class Cpu1TensorView {
             case FLOAT64 -> TensorInternalAccess.float64Data(tensor);
             case BFLOAT16 -> TensorInternalAccess.bfloat16Data(tensor);
             case BOOL -> TensorInternalAccess.boolData(tensor);
-            case INT32, INT64 -> throw new IllegalArgumentException(
-                    "cpu1 TensorView supports only FLOAT32/FLOAT64/BFLOAT16/BOOL, got " + dataType
-            );
+            case INT32 -> TensorInternalAccess.int32Data(tensor);
+            case INT64 -> TensorInternalAccess.int64Data(tensor);
         };
         return Cpu1BufferView.array(dataType, array);
     }

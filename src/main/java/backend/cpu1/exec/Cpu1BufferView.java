@@ -67,6 +67,20 @@ public final class Cpu1BufferView {
         return values;
     }
 
+    public int[] int32Array() {
+        if (storageKind != Cpu1StorageKind.JAVA_ARRAY || dataType != DataType.INT32 || !(array instanceof int[] values)) {
+            throw new IllegalStateException("Buffer is not INT32.");
+        }
+        return values;
+    }
+
+    public long[] int64Array() {
+        if (storageKind != Cpu1StorageKind.JAVA_ARRAY || dataType != DataType.INT64 || !(array instanceof long[] values)) {
+            throw new IllegalStateException("Buffer is not INT64.");
+        }
+        return values;
+    }
+
     public MemorySegment segment() {
         if (storageKind != Cpu1StorageKind.MEMORY_SEGMENT) {
             throw new IllegalStateException("Buffer is not MEMORY_SEGMENT.");
@@ -98,7 +112,8 @@ public final class Cpu1BufferView {
             case FLOAT64 -> array instanceof double[];
             case BFLOAT16 -> array instanceof short[];
             case BOOL -> array instanceof byte[];
-            case INT32, INT64 -> false;
+            case INT32 -> array instanceof int[];
+            case INT64 -> array instanceof long[];
         };
     }
 }
