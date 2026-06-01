@@ -59,6 +59,9 @@ public final class Cpu1NodePreparer {
         Objects.requireNonNull(config, "config cannot be null");
         Operation operation = Objects.requireNonNull(node.operation(), "node operation cannot be null");
         Operation.OpType opType = operation.opType();
+        if (Cpu1LayoutPreparer.isLayoutOp(opType)) {
+            return new Cpu1LayoutPreparer().prepare(node, descriptorIndex, config);
+        }
         List<DataType> inputDataTypes = inputDataTypes(opType, node, descriptorIndex);
         requireSupported(opType, node, descriptorIndex, inputDataTypes);
         DataType kernelDataType = kernelDataType(opType, node.dataType(), inputDataTypes);
