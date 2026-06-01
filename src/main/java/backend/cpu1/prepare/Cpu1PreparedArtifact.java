@@ -6,9 +6,19 @@ import backend.cpu1.exec.Cpu1LayoutExecutableUnit;
 import backend.cpu1.exec.Cpu1Workspace;
 import backend.cpu1.exec.Cpu1WorkspaceSpec;
 import backend.runtime.ExecutionContext;
+import graph.CompiledNode;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.plan.PreparedExecutionArtifact;
 import graph.execution.plan.PreparedRuntimeStateAllocator;
+import graph.execution.trace.DispatchTraceMetadata;
+import graph.execution.trace.LayoutTraceMetadata;
+import graph.execution.trace.StepTraceContribution;
+import jdk.incubator.vector.ByteVector;
+import jdk.incubator.vector.DoubleVector;
+import jdk.incubator.vector.FloatVector;
+import jdk.incubator.vector.ShortVector;
 
+import java.util.LinkedHashMap;
 import java.util.Objects;
 
 /**
@@ -73,5 +83,65 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
 
     public void execute(ExecutionContext context) {
         executableUnit.run(context);
+    }
+
+    @Override
+    public StepTraceContribution traceContribution(
+            CompiledNode node,
+            CompiledNodeExecutionMetadata metadata,
+            ExecutionContext context
+    ) {
+        if (preparedLayoutUnit != null) {
+            return layoutTrace(node, preparedLayoutUnit);
+        }
+        return StepTraceContribution.empty();
+    }
+
+    private static StepTraceContribution layoutTrace(CompiledNode node, Cpu1PreparedLayoutUnit unit) {
+        LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
+        attrs.put("cpu1KernelId", unit.kernelId().name());
+        attrs.put("cpu1LayoutKernelId", unit.kernelId().name());
+        attrs.put("cpu1StorageKind", unit.storageKind().name());
+        attrs.put("cpu1VectorizationKind", unit.vectorizationKind().name());
+        attrs.put("cpu1LaunchWorkers", unit.launchConfig().workerCount());
+        attrs.put("cpu1LaunchChunkSize", unit.launchConfig().chunkSize());
+        attrs.put("cpu1MaterializeThreshold", unit.materializeThreshold());
+        LayoutTraceMetadata layout = new LayoutTraceMetadata(
+                node.storageOffset(),
+                node.contiguous(),
+                false,
+                unit.kernelId().name()
+        );
+        DispatchTraceMetadata dispatch = new DispatchTraceMetadata(
+                unit.vectorizationKind().name(),
+                layoutVectorWidth(unit),
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
+                unit.launchConfig().chunkSize()
+        );
+        return new StepTraceContribution(
+                unit.kernelId().name(),
+                attrs,
+                null,
+                layout,
+                dispatch,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
+    private static int layoutVectorWidth(Cpu1PreparedLayoutUnit unit) {
+        return switch (unit.vectorizationKind()) {
+            case SCALAR -> 1;
+            case VECTOR -> switch (unit.dataType()) {
+                case FLOAT32 -> FloatVector.SPECIES_PREFERRED.length();
+                case FLOAT64 -> DoubleVector.SPECIES_PREFERRED.length();
+                case BFLOAT16 -> ShortVector.SPECIES_PREFERRED.length();
+                case BOOL -> ByteVector.SPECIES_PREFERRED.length();
+                case INT32, INT64 -> 1;
+            };
+        };
     }
 }

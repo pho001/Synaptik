@@ -43,6 +43,8 @@ public final class Cpu1LayoutKernelDispatch {
             case TILE_LAST_AXIS_BLOCK_COPY_VECTOR -> Cpu1TileLayoutLoops::tileLastAxisBlockVector;
             case TILE_DENSE_BLOCK_REPEAT_SCALAR -> Cpu1TileLayoutLoops::tileDenseBlockRepeatScalar;
             case TILE_DENSE_BLOCK_REPEAT_VECTOR -> Cpu1TileLayoutLoops::tileDenseBlockRepeatVector;
+            case TILE_DENSE_MULTI_AXIS_BLOCK_COPY_SCALAR -> Cpu1TileLayoutLoops::tileDenseMultiAxisBlockScalar;
+            case TILE_DENSE_MULTI_AXIS_BLOCK_COPY_VECTOR -> Cpu1TileLayoutLoops::tileDenseMultiAxisBlockVector;
             case UNFOLD_AXIS_COPY_SCALAR -> Cpu1UnfoldLayoutLoops::unfoldAxisScalar;
             case UNFOLD_AXIS_LAST_AXIS_BLOCK_COPY_SCALAR -> Cpu1UnfoldLayoutLoops::unfoldAxisLastAxisBlockScalar;
             case UNFOLD_AXIS_LAST_AXIS_BLOCK_COPY_VECTOR -> Cpu1UnfoldLayoutLoops::unfoldAxisLastAxisBlockVector;

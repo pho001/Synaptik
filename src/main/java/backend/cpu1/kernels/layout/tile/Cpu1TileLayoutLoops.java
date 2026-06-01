@@ -105,6 +105,14 @@ public final class Cpu1TileLayoutLoops {
         support.markOutputWritten(call);
     }
 
+    public static void tileDenseMultiAxisBlockScalar(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
+        copyDenseMultiAxisBlock(unit, context, false);
+    }
+
+    public static void tileDenseMultiAxisBlockVector(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
+        copyDenseMultiAxisBlock(unit, context, true);
+    }
+
     private static void copyAxis0Block(
             Cpu1PreparedLayoutUnit unit,
             ExecutionContext context,
@@ -159,6 +167,31 @@ public final class Cpu1TileLayoutLoops {
         support.markOutputWritten(call);
     }
 
+    private static void copyDenseMultiAxisBlock(
+            Cpu1PreparedLayoutUnit unit,
+            ExecutionContext context,
+            boolean vectorized
+    ) {
+        Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
+        Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
+        Cpu1TensorView input = call.inputs().getFirst();
+        Cpu1TensorView output = call.output();
+        if (output.elementCount() == 0) {
+            support.markOutputWritten(call);
+            return;
+        }
+        DenseMultiAxisTileGeometry geometry = denseMultiAxisTileGeometry(input, output);
+        support.launchRange(geometry.outputShape()[0], (start, end) -> {
+            for (int outputAxis0 = start; outputAxis0 < end; outputAxis0++) {
+                int inputAxis0 = outputAxis0 % geometry.inputShape()[0];
+                int inputBase = input.storageOffset() + inputAxis0 * geometry.inputDenseStrides()[0];
+                int outputBase = output.storageOffset() + outputAxis0 * geometry.outputDenseStrides()[0];
+                copyDenseMultiAxisSuffix(support, input, output, geometry, 1, inputBase, outputBase, vectorized);
+            }
+        });
+        support.markOutputWritten(call);
+    }
+
     private static DenseBlockRepeatGeometry denseBlockRepeatGeometry(Cpu1TensorView input, Cpu1TensorView output) {
         int axis = repeatedMiddleAxis(input, output);
         int inputBlockElements = 1;
@@ -198,11 +231,82 @@ public final class Cpu1TileLayoutLoops {
         return repeatedAxis;
     }
 
+    private static DenseMultiAxisTileGeometry denseMultiAxisTileGeometry(Cpu1TensorView input, Cpu1TensorView output) {
+        int rank = input.rank();
+        if (rank != output.rank() || rank < 2) {
+            throw new IllegalStateException("cpu1 TILE dense multi-axis block copy requires matching rank >= 2.");
+        }
+        int[] inputShape = input.shape();
+        int[] outputShape = output.shape();
+        for (int dim = 0; dim < rank; dim++) {
+            if (inputShape[dim] <= 0 || outputShape[dim] % inputShape[dim] != 0) {
+                throw new IllegalStateException("cpu1 TILE dense multi-axis block copy shape mismatch.");
+            }
+        }
+        return new DenseMultiAxisTileGeometry(
+                inputShape,
+                outputShape,
+                Cpu1LayoutKernelSupport.denseStrides(inputShape),
+                Cpu1LayoutKernelSupport.denseStrides(outputShape)
+        );
+    }
+
+    private static void copyDenseMultiAxisSuffix(
+            Cpu1LayoutKernelSupport support,
+            Cpu1TensorView input,
+            Cpu1TensorView output,
+            DenseMultiAxisTileGeometry geometry,
+            int axis,
+            int inputBase,
+            int outputBase,
+            boolean vectorized
+    ) {
+        int rank = geometry.inputShape().length;
+        int inputAxis = geometry.inputShape()[axis];
+        int repeats = geometry.outputShape()[axis] / inputAxis;
+        if (axis == rank - 1) {
+            for (int repeat = 0; repeat < repeats; repeat++) {
+                int repeatOutputBase = outputBase + repeat * inputAxis;
+                if (vectorized) {
+                    support.copyDenseBlockVector(input, inputBase, output, repeatOutputBase, inputAxis);
+                } else {
+                    support.copyDenseBlockScalar(input, inputBase, output, repeatOutputBase, inputAxis);
+                }
+            }
+            return;
+        }
+        int inputStride = geometry.inputDenseStrides()[axis];
+        int outputStride = geometry.outputDenseStrides()[axis];
+        for (int repeat = 0; repeat < repeats; repeat++) {
+            int repeatedOutputBase = outputBase + repeat * inputAxis * outputStride;
+            for (int inputIndex = 0; inputIndex < inputAxis; inputIndex++) {
+                copyDenseMultiAxisSuffix(
+                        support,
+                        input,
+                        output,
+                        geometry,
+                        axis + 1,
+                        inputBase + inputIndex * inputStride,
+                        repeatedOutputBase + inputIndex * outputStride,
+                        vectorized
+                );
+            }
+        }
+    }
+
     private record DenseBlockRepeatGeometry(
             int inputBlockElements,
             int outputBlockElements,
             int repeats,
             int outerBlocks
+    ) {
+    }
+
+    private record DenseMultiAxisTileGeometry(
+            int[] inputShape,
+            int[] outputShape,
+            int[] inputDenseStrides,
+            int[] outputDenseStrides
     ) {
     }
 }

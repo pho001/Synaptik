@@ -19,8 +19,10 @@ import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.intent.BackendIntentPlan;
+import graph.execution.PreparedExecutionStep;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.state.ExecutionState;
+import graph.execution.trace.contrib.StepExecutionTracer;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -600,6 +602,39 @@ class Cpu1LayoutExecutionContractTest {
     }
 
     @Test
+    void layoutTraceReportsPreparedKernelId() {
+        Tensor input = new Tensor(
+                new float[]{1.0f, 2.0f, 3.0f, 4.0f},
+                new int[]{2, 2},
+                null,
+                "input",
+                DataType.FLOAT32
+        );
+        Fixture fixture = fixture(input.tile(1, 3));
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.vectorSingleThread());
+        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
+
+        new Cpu1Backend().execute(fixture.node(), metadata, context);
+
+        var trace = StepExecutionTracer.toStepTrace(
+                0,
+                new PreparedExecutionStep(fixture.node(), metadata),
+                1L,
+                context
+        );
+        assertEquals(Cpu1LayoutKernelId.TILE_LAST_AXIS_BLOCK_COPY_VECTOR.name(), trace.kernel());
+        assertEquals(
+                Cpu1LayoutKernelId.TILE_LAST_AXIS_BLOCK_COPY_VECTOR.name(),
+                trace.metadata().attributes().get("cpu1LayoutKernelId")
+        );
+        assertEquals(
+                Cpu1LayoutKernelId.TILE_LAST_AXIS_BLOCK_COPY_VECTOR.name(),
+                trace.metadata().layout().targetType()
+        );
+    }
+
+    @Test
     void preparedVectorTileSingleMiddleAxisRepeatUsesDenseBlockCopy() {
         Tensor input = new Tensor(
                 new float[]{
@@ -653,7 +688,35 @@ class Cpu1LayoutExecutionContractTest {
         );
         Fixture fixture = fixture(input.tile(2, 3));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarSingleThread());
-        assertLayoutKernel(artifact, Cpu1LayoutKernelId.TILE_COPY_SCALAR);
+        assertLayoutKernel(artifact, Cpu1LayoutKernelId.TILE_DENSE_MULTI_AXIS_BLOCK_COPY_SCALAR);
+        ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata(fixture.node(), artifact)));
+
+        new Cpu1Backend().execute(fixture.node(), metadata(fixture.node(), artifact), context);
+
+        assertArrayEquals(
+                new float[]{
+                        1.0f, 2.0f, 1.0f, 2.0f, 1.0f, 2.0f,
+                        3.0f, 4.0f, 3.0f, 4.0f, 3.0f, 4.0f,
+                        1.0f, 2.0f, 1.0f, 2.0f, 1.0f, 2.0f,
+                        3.0f, 4.0f, 3.0f, 4.0f, 3.0f, 4.0f
+                },
+                context.runtimeTensorForNodeId(fixture.node().id()).toFloat32ArrayCopy(),
+                1.0e-6f
+        );
+    }
+
+    @Test
+    void preparedVectorTileRepeatsInputAlongAxesWithDenseBlockCopy() {
+        Tensor input = new Tensor(
+                new float[]{1.0f, 2.0f, 3.0f, 4.0f},
+                new int[]{2, 2},
+                null,
+                "input",
+                DataType.FLOAT32
+        );
+        Fixture fixture = fixture(input.tile(2, 3));
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.vectorSingleThread());
+        assertLayoutKernel(artifact, Cpu1LayoutKernelId.TILE_DENSE_MULTI_AXIS_BLOCK_COPY_VECTOR);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata(fixture.node(), artifact)));
 
         new Cpu1Backend().execute(fixture.node(), metadata(fixture.node(), artifact), context);

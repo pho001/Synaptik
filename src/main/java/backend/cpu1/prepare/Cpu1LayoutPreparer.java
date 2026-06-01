@@ -160,7 +160,7 @@ public final class Cpu1LayoutPreparer {
             case CONTIGUOUS_COPY_VECTOR, CONTIGUOUS_OFFSET_DENSE_BLOCK_COPY_VECTOR,
                     CONCAT_AXIS0_BLOCK_COPY_VECTOR, CONCAT_INNER_AXIS_BLOCK_COPY_VECTOR, CONCAT_MIDDLE_AXIS_BLOCK_COPY_VECTOR,
                     PAD_COPY_VECTOR, PAD_DENSE_INNER_BLOCK_COPY_VECTOR, TILE_LAST_AXIS_BLOCK_COPY_VECTOR,
-                    TILE_AXIS0_BLOCK_COPY_VECTOR, TILE_DENSE_BLOCK_REPEAT_VECTOR,
+                    TILE_AXIS0_BLOCK_COPY_VECTOR, TILE_DENSE_BLOCK_REPEAT_VECTOR, TILE_DENSE_MULTI_AXIS_BLOCK_COPY_VECTOR,
                     UNFOLD_AXIS_LAST_AXIS_BLOCK_COPY_VECTOR ->
                     Cpu1VectorizationKind.VECTOR;
             default -> Cpu1VectorizationKind.SCALAR;
@@ -261,6 +261,11 @@ public final class Cpu1LayoutPreparer {
                     ? Cpu1LayoutKernelId.TILE_DENSE_BLOCK_REPEAT_VECTOR
                     : Cpu1LayoutKernelId.TILE_DENSE_BLOCK_REPEAT_SCALAR;
         }
+        if (repeatedAxisCount(repeats) > 1) {
+            return vectorized(vectorizationKind)
+                    ? Cpu1LayoutKernelId.TILE_DENSE_MULTI_AXIS_BLOCK_COPY_VECTOR
+                    : Cpu1LayoutKernelId.TILE_DENSE_MULTI_AXIS_BLOCK_COPY_SCALAR;
+        }
         for (int dim = 0; dim < rank - 1; dim++) {
             if (repeats[dim] != 1) {
                 return Cpu1LayoutKernelId.TILE_COPY_SCALAR;
@@ -292,6 +297,16 @@ public final class Cpu1LayoutPreparer {
             axis = dim;
         }
         return axis;
+    }
+
+    private static int repeatedAxisCount(int[] repeats) {
+        int count = 0;
+        for (int repeat : repeats) {
+            if (repeat != 1) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static Cpu1LayoutKernelId unfoldAxisKernelId(
