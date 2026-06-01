@@ -2,7 +2,7 @@ package backend.cpu1.exec;
 
 import backend.cpu1.kernels.Cpu1LayoutKind;
 import backend.cpu1.offset.Cpu1GenericOffsetPlan;
-import backend.cpu1.prepare.Cpu1PreparedUnit;
+import backend.cpu1.prepare.Cpu1PreparedElementwiseUnit;
 import tensor.DataType;
 
 import java.util.List;
@@ -12,23 +12,34 @@ import java.util.Objects;
  * Runtime kernel arguments bound from the current execution run.
  */
 public final class Cpu1KernelArgs {
-    private final Cpu1PreparedUnit preparedUnit;
+    private final Cpu1PreparedElementwiseUnit preparedUnit;
     private final List<Cpu1TensorView> inputs;
     private final Cpu1GenericOffsetPlan[] inputGenericOffsetPlans;
     private final Cpu1TensorView output;
+    private final Cpu1Workspace workspace;
     private Cpu1GenericOffsetPlan outputGenericOffsetPlan;
 
-    public Cpu1KernelArgs(Cpu1PreparedUnit preparedUnit, List<Cpu1TensorView> inputs, Cpu1TensorView output) {
+    public Cpu1KernelArgs(Cpu1PreparedElementwiseUnit preparedUnit, List<Cpu1TensorView> inputs, Cpu1TensorView output) {
+        this(preparedUnit, inputs, output, null);
+    }
+
+    public Cpu1KernelArgs(
+            Cpu1PreparedElementwiseUnit preparedUnit,
+            List<Cpu1TensorView> inputs,
+            Cpu1TensorView output,
+            Cpu1Workspace workspace
+    ) {
         this.preparedUnit = Objects.requireNonNull(preparedUnit, "preparedUnit cannot be null");
         this.inputs = List.copyOf(Objects.requireNonNull(inputs, "inputs cannot be null"));
         this.output = Objects.requireNonNull(output, "output cannot be null");
+        this.workspace = workspace;
         validate();
         this.inputGenericOffsetPlans = preparedUnit.layoutKind() == Cpu1LayoutKind.STRIDED_GENERIC
                 ? new Cpu1GenericOffsetPlan[this.inputs.size()]
                 : null;
     }
 
-    public Cpu1PreparedUnit preparedUnit() {
+    public Cpu1PreparedElementwiseUnit preparedUnit() {
         return preparedUnit;
     }
 
@@ -42,6 +53,17 @@ public final class Cpu1KernelArgs {
 
     public Cpu1TensorView output() {
         return output;
+    }
+
+    public boolean hasWorkspace() {
+        return workspace != null;
+    }
+
+    public Cpu1Workspace workspace() {
+        if (workspace == null) {
+            throw new IllegalStateException("This cpu1 kernel invocation does not have workspace.");
+        }
+        return workspace;
     }
 
     public Cpu1GenericOffsetPlan inputGenericOffsetPlan(int inputIndex) {

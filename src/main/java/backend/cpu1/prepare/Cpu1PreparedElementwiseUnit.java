@@ -15,9 +15,9 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Immutable prepare-time cpu1 unit.
+ * Immutable prepare-time cpu1 elementwise unit.
  */
-public final class Cpu1PreparedUnit {
+public final class Cpu1PreparedElementwiseUnit {
     private final int nodeId;
     private final List<Integer> inputNodeIds;
     private final int outputNodeId;
@@ -35,7 +35,7 @@ public final class Cpu1PreparedUnit {
     private final double scalarParameterF64;
     private final Cpu1DispatchDecision dispatchDecision;
 
-    public Cpu1PreparedUnit(
+    public Cpu1PreparedElementwiseUnit(
             int nodeId,
             List<Integer> inputNodeIds,
             int outputNodeId,
@@ -65,7 +65,7 @@ public final class Cpu1PreparedUnit {
         );
     }
 
-    public Cpu1PreparedUnit(
+    public Cpu1PreparedElementwiseUnit(
             int nodeId,
             List<Integer> inputNodeIds,
             int outputNodeId,
@@ -98,7 +98,7 @@ public final class Cpu1PreparedUnit {
         );
     }
 
-    public Cpu1PreparedUnit(
+    public Cpu1PreparedElementwiseUnit(
             int nodeId,
             List<Integer> inputNodeIds,
             int outputNodeId,
@@ -132,7 +132,7 @@ public final class Cpu1PreparedUnit {
         );
     }
 
-    public Cpu1PreparedUnit(
+    public Cpu1PreparedElementwiseUnit(
             int nodeId,
             List<Integer> inputNodeIds,
             int outputNodeId,
@@ -167,7 +167,7 @@ public final class Cpu1PreparedUnit {
         );
     }
 
-    public Cpu1PreparedUnit(
+    public Cpu1PreparedElementwiseUnit(
             int nodeId,
             List<Integer> inputNodeIds,
             int outputNodeId,

@@ -1,6 +1,6 @@
 package backend.cpu1.exec;
 
-import backend.cpu1.prepare.Cpu1PreparedUnit;
+import backend.cpu1.prepare.Cpu1PreparedElementwiseUnit;
 import backend.cpu1.storage.Cpu1StorageKind;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
@@ -12,16 +12,16 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Executable unit for prepared range kernels such as elementwise operations.
+ * Executable unit for prepared elementwise kernels.
  */
-public final class Cpu1RangeExecutableUnit implements Cpu1ExecutableUnit {
-    private final Cpu1PreparedUnit preparedUnit;
+public final class Cpu1ElementwiseExecutableUnit implements Cpu1ExecutableUnit {
+    private final Cpu1PreparedElementwiseUnit preparedUnit;
 
-    public Cpu1RangeExecutableUnit(Cpu1PreparedUnit preparedUnit) {
+    public Cpu1ElementwiseExecutableUnit(Cpu1PreparedElementwiseUnit preparedUnit) {
         this.preparedUnit = Objects.requireNonNull(preparedUnit, "preparedUnit cannot be null");
     }
 
-    public Cpu1PreparedUnit preparedUnit() {
+    public Cpu1PreparedElementwiseUnit preparedUnit() {
         return preparedUnit;
     }
 
@@ -58,7 +58,12 @@ public final class Cpu1RangeExecutableUnit implements Cpu1ExecutableUnit {
                         .broadcastToShape(preparedUnit.iterationPlan().shape()));
             }
         }
-        Cpu1KernelArgs args = new Cpu1KernelArgs(preparedUnit, inputs, output);
+        Cpu1KernelArgs args = new Cpu1KernelArgs(
+                preparedUnit,
+                inputs,
+                output,
+                context.cpu1WorkspaceForNodeId(preparedUnit.nodeId())
+        );
         preparedUnit.launchPolicy().launch(preparedUnit.kernelRunner(), args);
         if (nativeOutput == null) {
             output.markStorageModified();

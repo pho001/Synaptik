@@ -84,7 +84,7 @@ public final class Cpu1NodePreparer {
                 storageKind,
                 dispatchPolicy.kernelVectorizationKind(dispatchDecision, layoutKind)
         );
-        Cpu1PreparedUnit unit = new Cpu1PreparedUnit(
+        Cpu1PreparedElementwiseUnit unit = new Cpu1PreparedElementwiseUnit(
                 node.id(),
                 node.inputIds(),
                 node.id(),

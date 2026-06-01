@@ -15,7 +15,7 @@ import backend.cpu1.plan.Cpu1IterationPlan;
 import backend.cpu1.prepare.Cpu1NodePreparer;
 import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
-import backend.cpu1.prepare.Cpu1PreparedUnit;
+import backend.cpu1.prepare.Cpu1PreparedElementwiseUnit;
 import backend.cpu1.storage.Cpu1StorageKind;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
@@ -206,7 +206,7 @@ class Cpu1ExecutionContractTest {
         Tensor add = left.add(right);
         Fixture fixture = fixture(add);
         Cpu1KernelRegistry registry = new Cpu1KernelRegistry();
-        Cpu1PreparedUnit reluLeftInsteadOfAdd = new Cpu1PreparedUnit(
+        Cpu1PreparedElementwiseUnit reluLeftInsteadOfAdd = new Cpu1PreparedElementwiseUnit(
                 fixture.node().id(),
                 List.of(fixture.node().inputIds().getFirst()),
                 fixture.node().id(),
@@ -1312,7 +1312,7 @@ class Cpu1ExecutionContractTest {
         Tensor input = new Tensor(new float[]{1.0f, -2.0f}, new int[]{2}, null, "input", DataType.FLOAT32);
         Tensor output = new Tensor(new float[]{0.0f, 0.0f}, new int[]{2}, null, "output", DataType.FLOAT32);
         Cpu1KernelRegistry registry = new Cpu1KernelRegistry();
-        Cpu1PreparedUnit unit = new Cpu1PreparedUnit(
+        Cpu1PreparedElementwiseUnit unit = new Cpu1PreparedElementwiseUnit(
                 10,
                 List.of(1),
                 10,

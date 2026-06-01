@@ -235,10 +235,7 @@ public final class ExecutionContext {
     }
 
     public backend.cpu.execution.CpuNodeWorkspace cpuWorkspaceForNodeId(int nodeId) {
-        if (executionState == null) {
-            return null;
-        }
-        Object workspace = executionState.workspaceForNodeId(nodeId);
+        Object workspace = workspaceForNodeId(nodeId);
         if (workspace == null) {
             return null;
         }
@@ -247,6 +244,25 @@ public final class ExecutionContext {
         }
         throw new IllegalStateException("Runtime workspace for nodeId=" + nodeId
                 + " is not a CpuNodeWorkspace: " + workspace.getClass().getName());
+    }
+
+    public backend.cpu1.exec.Cpu1Workspace cpu1WorkspaceForNodeId(int nodeId) {
+        Object workspace = workspaceForNodeId(nodeId);
+        if (workspace == null) {
+            return null;
+        }
+        if (workspace instanceof backend.cpu1.exec.Cpu1Workspace cpu1Workspace) {
+            return cpu1Workspace;
+        }
+        throw new IllegalStateException("Runtime workspace for nodeId=" + nodeId
+                + " is not a Cpu1Workspace: " + workspace.getClass().getName());
+    }
+
+    public Object workspaceForNodeId(int nodeId) {
+        if (executionState == null) {
+            return null;
+        }
+        return executionState.workspaceForNodeId(nodeId);
     }
 
     public Tensor preparedInputTensorFor(int nodeId, int inputIndex) {
