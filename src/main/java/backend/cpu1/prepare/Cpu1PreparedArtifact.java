@@ -1,6 +1,7 @@
 package backend.cpu1.prepare;
 
 import backend.cpu1.exec.Cpu1ExecutableUnit;
+import backend.cpu1.exec.Cpu1RangeExecutableUnit;
 import backend.runtime.ExecutionContext;
 import graph.execution.plan.PreparedExecutionArtifact;
 
@@ -15,10 +16,18 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
 
     public Cpu1PreparedArtifact(Cpu1PreparedUnit preparedUnit) {
         this.preparedUnit = Objects.requireNonNull(preparedUnit, "preparedUnit cannot be null");
-        this.executableUnit = new Cpu1ExecutableUnit(preparedUnit);
+        this.executableUnit = new Cpu1RangeExecutableUnit(preparedUnit);
+    }
+
+    public Cpu1PreparedArtifact(Cpu1ExecutableUnit executableUnit) {
+        this.preparedUnit = null;
+        this.executableUnit = Objects.requireNonNull(executableUnit, "executableUnit cannot be null");
     }
 
     public Cpu1PreparedUnit preparedUnit() {
+        if (preparedUnit == null) {
+            throw new IllegalStateException("This cpu1 artifact does not expose a range prepared unit");
+        }
         return preparedUnit;
     }
 
