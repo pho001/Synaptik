@@ -310,6 +310,18 @@ Copy ops should use explicit prepared copy kernels.
 - Copy ops mark output storage modified.
 - Tests verify both array and MemorySegment where applicable.
 
+### Follow-Up Specialization Backlog
+
+Phase 4 is considered architecturally complete once every layout op has a correct prepared path. The remaining work below should be treated as performance follow-up, not a blocker for moving to reductions:
+
+- Add vector/parallel specializations for `UNFOLD2D`; it currently has only `UNFOLD2D_COPY_SCALAR`.
+- Improve `FOLD2D` beyond `FOLD2D_COPY_SCALAR` and `FOLD2D_NON_OVERLAP_DIRECT_SCALAR`, especially overlapping fold and vector/parallel variants.
+- Add non-last-axis `UNFOLD_AXIS` specializations; current specialization is focused on last-axis dense block copy.
+- Add vector/parallel variants for `RESHAPE_COPY_LINEARIZED_SCALAR` when non-contiguous reshape must materialize in logical order.
+- Revisit scalar generic fallbacks for `PAD`, `TILE`, `CONCAT`, and `UNFOLD_AXIS` after benchmarking to decide which generic paths deserve vector or parallel variants.
+- Keep `SLICE_GRAD` and `SLICE_SCATTER_ADD` out of Phase 4 for now; they are `SPECIAL` operations and belong with backward/scatter planning rather than layout/view coverage.
+- Keep the diagnostic `Cpu1LayoutTileBenchmarkTest` result as evidence that dense multi-axis `TILE` specialization is worthwhile, but do not turn it into a brittle performance gate without a proper benchmark harness.
+
 ## Phase 5: Reductions
 
 ### Problem
