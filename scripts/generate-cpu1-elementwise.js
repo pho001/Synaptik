@@ -1536,7 +1536,7 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
 /**
- * Static ${loopClass.ids.join("/").toLowerCase()} loops selected by Cpu1KernelId at prepare time.
+ * Static ${loopClass.ids.join("/").toLowerCase()} loops selected by Cpu1ElementwiseKernelId at prepare time.
  */
 public final class ${loopClass.className} {
     private static final VectorSpecies<Float> F32 = FloatVector.SPECIES_PREFERRED;
@@ -1606,8 +1606,10 @@ function kernelIdFile() {
             Cpu1VectorizationKind.${entry.vectorKind}
     )${comma}`;
   }).join("\n");
-  return generatedHeader() + `package backend.cpu1.kernels;
+  return generatedHeader() + `package backend.cpu1.kernels.elementwise;
 
+import backend.cpu1.kernels.Cpu1LayoutKind;
+import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.storage.Cpu1StorageKind;
 import operations.Operation;
 import tensor.DataType;
@@ -1617,7 +1619,7 @@ import java.util.List;
 /**
  * Prepare-time identifier for a concrete cpu1 kernel loop.
  */
-public enum Cpu1KernelId {
+public enum Cpu1ElementwiseKernelId {
 ${constants}
 
     private final Operation.OpType opType;
@@ -1627,7 +1629,7 @@ ${constants}
     private final Cpu1StorageKind storageKind;
     private final Cpu1VectorizationKind vectorizationKind;
 
-    Cpu1KernelId(
+    Cpu1ElementwiseKernelId(
             Operation.OpType opType,
             DataType dataType,
             List<DataType> inputDataTypes,
@@ -1643,8 +1645,8 @@ ${constants}
         this.vectorizationKind = vectorizationKind;
     }
 
-    public Cpu1KernelKey key() {
-        return Cpu1KernelKey.of(opType, dataType, inputDataTypes, layoutKind, storageKind, vectorizationKind);
+    public Cpu1ElementwiseKernelKey key() {
+        return Cpu1ElementwiseKernelKey.of(opType, dataType, inputDataTypes, layoutKind, storageKind, vectorizationKind);
     }
 }
 `;
@@ -1657,20 +1659,20 @@ function dispatchFile() {
   const imports = [...new Set(OPS.map(op => `import ${op.packageName}.${op.className};`))]
     .sort()
     .join("\n");
-  return generatedHeader() + `package backend.cpu1.kernels;
+  return generatedHeader() + `package backend.cpu1.kernels.elementwise;
 
 ${imports}
 
 import java.util.Objects;
 
 /**
- * Resolves prepared kernel ids to concrete range runners outside the hot launch path.
+ * Resolves prepared kernel ids to concrete elementwise kernel functions outside the hot launch path.
  */
-public final class Cpu1KernelDispatch {
-    private Cpu1KernelDispatch() {
+public final class Cpu1ElementwiseKernelDispatch {
+    private Cpu1ElementwiseKernelDispatch() {
     }
 
-    public static Cpu1KernelRangeRunner runnerFor(Cpu1KernelId kernelId) {
+    public static Cpu1ElementwiseRangeRunner kernelFor(Cpu1ElementwiseKernelId kernelId) {
         Objects.requireNonNull(kernelId, "kernelId cannot be null");
         return switch (kernelId) {
 ${cases}
@@ -1682,8 +1684,8 @@ ${cases}
 
 function targets() {
   const result = [
-    [path.join(KERNEL_ROOT, "Cpu1KernelId.java"), kernelIdFile()],
-    [path.join(KERNEL_ROOT, "Cpu1KernelDispatch.java"), dispatchFile()],
+    [path.join(KERNEL_ROOT, "elementwise", "Cpu1ElementwiseKernelId.java"), kernelIdFile()],
+    [path.join(KERNEL_ROOT, "elementwise", "Cpu1ElementwiseKernelDispatch.java"), dispatchFile()],
   ];
   for (const loopClass of loopClasses()) {
     result.push([

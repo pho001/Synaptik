@@ -1,5 +1,7 @@
-package backend.cpu1.kernels;
+package backend.cpu1.kernels.elementwise;
 
+import backend.cpu1.kernels.Cpu1LayoutKind;
+import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.storage.Cpu1StorageKind;
 import operations.Operation;
 import tensor.DataType;
@@ -10,7 +12,7 @@ import java.util.Objects;
 /**
  * Prepare-time key for resolving a concrete cpu1 kernel variant.
  */
-public record Cpu1KernelKey(
+public record Cpu1ElementwiseKernelKey(
         Operation.OpType opType,
         DataType dataType,
         List<DataType> inputDataTypes,
@@ -18,7 +20,7 @@ public record Cpu1KernelKey(
         Cpu1StorageKind storageKind,
         Cpu1VectorizationKind vectorizationKind
 ) {
-    public Cpu1KernelKey {
+    public Cpu1ElementwiseKernelKey {
         Objects.requireNonNull(opType, "opType cannot be null");
         Objects.requireNonNull(dataType, "dataType cannot be null");
         inputDataTypes = List.copyOf(Objects.requireNonNull(inputDataTypes, "inputDataTypes cannot be null"));
@@ -27,7 +29,7 @@ public record Cpu1KernelKey(
         Objects.requireNonNull(vectorizationKind, "vectorizationKind cannot be null");
     }
 
-    public static Cpu1KernelKey of(
+    public static Cpu1ElementwiseKernelKey of(
             Operation.OpType opType,
             DataType dataType,
             List<DataType> inputDataTypes,
@@ -35,10 +37,10 @@ public record Cpu1KernelKey(
             Cpu1StorageKind storageKind,
             Cpu1VectorizationKind vectorizationKind
     ) {
-        return new Cpu1KernelKey(opType, dataType, inputDataTypes, layoutKind, storageKind, vectorizationKind);
+        return new Cpu1ElementwiseKernelKey(opType, dataType, inputDataTypes, layoutKind, storageKind, vectorizationKind);
     }
 
-    public static Cpu1KernelKey of(
+    public static Cpu1ElementwiseKernelKey of(
             Operation.OpType opType,
             DataType dataType,
             Cpu1LayoutKind layoutKind,
@@ -55,7 +57,7 @@ public record Cpu1KernelKey(
         );
     }
 
-    public static Cpu1KernelKey of(
+    public static Cpu1ElementwiseKernelKey of(
             Operation.OpType opType,
             DataType dataType,
             Cpu1LayoutKind layoutKind,
@@ -64,7 +66,7 @@ public record Cpu1KernelKey(
         return of(opType, dataType, layoutKind, Cpu1StorageKind.JAVA_ARRAY, vectorizationKind);
     }
 
-    public static Cpu1KernelKey scalar(
+    public static Cpu1ElementwiseKernelKey scalar(
             Operation.OpType opType,
             DataType dataType,
             Cpu1LayoutKind layoutKind
@@ -72,7 +74,7 @@ public record Cpu1KernelKey(
         return of(opType, dataType, layoutKind, Cpu1StorageKind.JAVA_ARRAY, Cpu1VectorizationKind.SCALAR);
     }
 
-    public static Cpu1KernelKey scalar(
+    public static Cpu1ElementwiseKernelKey scalar(
             Operation.OpType opType,
             DataType dataType,
             Cpu1LayoutKind layoutKind,

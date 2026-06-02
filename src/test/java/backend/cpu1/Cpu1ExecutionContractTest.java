@@ -4,7 +4,7 @@ import backend.ComputeBackend;
 import backend.cpu.nativecpu.NativeCpuStorageFactory;
 import backend.cpu1.exec.Cpu1KernelArgs;
 import backend.cpu1.exec.Cpu1TensorView;
-import backend.cpu1.kernels.Cpu1KernelId;
+import backend.cpu1.kernels.elementwise.Cpu1ElementwiseKernelId;
 import backend.cpu1.kernels.Cpu1KernelRegistry;
 import backend.cpu1.kernels.Cpu1LayoutKind;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
@@ -86,7 +86,7 @@ class Cpu1ExecutionContractTest {
         Fixture fixture = fixture(left.add(right));
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
-        assertEquals(Cpu1KernelId.ADD_F32_ARRAY_STRIDED_RANK3_SCALAR, artifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.ADD_F32_ARRAY_STRIDED_RANK3_SCALAR, artifact.preparedUnit().kernelId());
         CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
 
@@ -114,7 +114,7 @@ class Cpu1ExecutionContractTest {
         Fixture fixture = fixture(left.mul(right));
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
-        assertEquals(Cpu1KernelId.MUL_F64_ARRAY_STRIDED_RANK3_SCALAR, artifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.MUL_F64_ARRAY_STRIDED_RANK3_SCALAR, artifact.preparedUnit().kernelId());
         CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
 
@@ -139,7 +139,7 @@ class Cpu1ExecutionContractTest {
         Fixture fixture = fixture(out);
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
-        assertEquals(Cpu1KernelId.RELU_F32_ARRAY_STRIDED_RANK3_SCALAR, artifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.RELU_F32_ARRAY_STRIDED_RANK3_SCALAR, artifact.preparedUnit().kernelId());
         CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
 
@@ -164,7 +164,7 @@ class Cpu1ExecutionContractTest {
         Fixture fixture = fixture(out);
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
-        assertEquals(Cpu1KernelId.RELU_F32_ARRAY_STRIDED_RANK4_SCALAR, artifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.RELU_F32_ARRAY_STRIDED_RANK4_SCALAR, artifact.preparedUnit().kernelId());
         CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
 
@@ -186,7 +186,7 @@ class Cpu1ExecutionContractTest {
         Fixture fixture = fixture(out);
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
-        assertEquals(Cpu1KernelId.RELU_F64_ARRAY_STRIDED_GENERIC_SCALAR, artifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.RELU_F64_ARRAY_STRIDED_GENERIC_SCALAR, artifact.preparedUnit().kernelId());
         CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
 
@@ -259,7 +259,7 @@ class Cpu1ExecutionContractTest {
         Fixture fixture = fixture(left.add(bias));
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
-        assertEquals(Cpu1KernelId.ADD_F32_ARRAY_STRIDED_RANK2_SCALAR, artifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.ADD_F32_ARRAY_STRIDED_RANK2_SCALAR, artifact.preparedUnit().kernelId());
 
         assertArrayEquals(
                 new float[]{11.0f, 22.0f, 33.0f, 14.0f, 25.0f, 36.0f},
@@ -285,7 +285,7 @@ class Cpu1ExecutionContractTest {
                 mulFixture.descriptorIndex(),
                 Cpu1PrepareConfig.vectorSingleThread()
         );
-        assertEquals(Cpu1KernelId.MUL_F32_ARRAY_BROADCAST_INNER_VECTOR, mulArtifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.MUL_F32_ARRAY_BROADCAST_INNER_VECTOR, mulArtifact.preparedUnit().kernelId());
         assertArrayEquals(
                 new float[]{16.0f, 27.0f, 16.0f, 32.0f, 75.0f, 144.0f},
                 executeCpu1(mulFixture, Cpu1PrepareConfig.vectorSingleThread()).toFloat32ArrayCopy(),
@@ -329,7 +329,7 @@ class Cpu1ExecutionContractTest {
                 reluFixture.descriptorIndex(),
                 Cpu1PrepareConfig.vectorSingleThread()
         );
-        assertEquals(Cpu1KernelId.RELU_F32_ARRAY_BROADCAST_INNER_VECTOR, reluArtifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.RELU_F32_ARRAY_BROADCAST_INNER_VECTOR, reluArtifact.preparedUnit().kernelId());
         assertArrayEquals(
                 new float[]{0.0f, 0.5f, 3.0f, 0.0f, 0.5f, 3.0f},
                 executeCpu1(reluFixture, Cpu1PrepareConfig.vectorSingleThread()).toFloat32ArrayCopy(),
@@ -365,7 +365,7 @@ class Cpu1ExecutionContractTest {
                 fixture.descriptorIndex(),
                 Cpu1PrepareConfig.vectorSingleThread()
         );
-        assertEquals(Cpu1KernelId.ADD_F64_ARRAY_BROADCAST_INNER_VECTOR, artifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.ADD_F64_ARRAY_BROADCAST_INNER_VECTOR, artifact.preparedUnit().kernelId());
 
         assertArrayEquals(
                 new double[]{11.0, 12.0, 13.0, 14.0, 15.0},
@@ -387,7 +387,7 @@ class Cpu1ExecutionContractTest {
         Fixture fixture = fixture(left.greaterThan(right));
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
-        assertEquals(Cpu1KernelId.GT_F32_ARRAY_STRIDED_RANK2_SCALAR, artifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.GT_F32_ARRAY_STRIDED_RANK2_SCALAR, artifact.preparedUnit().kernelId());
 
         assertArrayEquals(
                 boolBytes(false, false, false, true, true, true),
@@ -412,7 +412,7 @@ class Cpu1ExecutionContractTest {
                 andFixture.descriptorIndex(),
                 Cpu1PrepareConfig.vectorSingleThread()
         );
-        assertEquals(Cpu1KernelId.LOGICAL_AND_BOOL_ARRAY_STRIDED_RANK2_SCALAR, andArtifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.LOGICAL_AND_BOOL_ARRAY_STRIDED_RANK2_SCALAR, andArtifact.preparedUnit().kernelId());
         assertArrayEquals(
                 boolBytes(true, false, true, false, false, false),
                 executeCpu1(andFixture, Cpu1PrepareConfig.vectorSingleThread()).toBoolByteArrayCopy()
@@ -720,7 +720,7 @@ class Cpu1ExecutionContractTest {
                 signFixture.descriptorIndex(),
                 Cpu1PrepareConfig.vectorSingleThread()
         );
-        assertEquals(Cpu1KernelId.SIGN_F32_ARRAY_CONTIGUOUS_SCALAR, signArtifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.SIGN_F32_ARRAY_CONTIGUOUS_SCALAR, signArtifact.preparedUnit().kernelId());
         assertArrayEquals(
                 new float[]{-1.0f, 0.0f, 1.0f},
                 executeCpu1(signFixture, Cpu1PrepareConfig.vectorSingleThread()).toFloat32ArrayCopy(),
@@ -759,7 +759,7 @@ class Cpu1ExecutionContractTest {
                 powFixture.descriptorIndex(),
                 Cpu1PrepareConfig.vectorSingleThread()
         );
-        assertEquals(Cpu1KernelId.POW_F32_ARRAY_CONTIGUOUS_SCALAR, powArtifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.POW_F32_ARRAY_CONTIGUOUS_SCALAR, powArtifact.preparedUnit().kernelId());
         assertEquals(3.0f, powArtifact.preparedUnit().scalarParameterF32(), 0.0f);
     }
 
@@ -792,7 +792,7 @@ class Cpu1ExecutionContractTest {
                 expFixture.descriptorIndex(),
                 config
         );
-        assertEquals(Cpu1KernelId.FAST_EXP_F32_ARRAY_CONTIGUOUS_SCALAR, expArtifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.FAST_EXP_F32_ARRAY_CONTIGUOUS_SCALAR, expArtifact.preparedUnit().kernelId());
         assertArrayEquals(
                 new float[]{
                         FastTranscendentals.fastExpF32(-1.0f),
@@ -809,7 +809,7 @@ class Cpu1ExecutionContractTest {
                 tanhFixture.descriptorIndex(),
                 config
         );
-        assertEquals(Cpu1KernelId.FAST_TANH_F32_ARRAY_CONTIGUOUS_SCALAR, tanhArtifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.FAST_TANH_F32_ARRAY_CONTIGUOUS_SCALAR, tanhArtifact.preparedUnit().kernelId());
         assertArrayEquals(
                 new float[]{
                         FastTranscendentals.fastTanhF32(-1.0f),
@@ -851,7 +851,7 @@ class Cpu1ExecutionContractTest {
                 gtFixture.descriptorIndex(),
                 Cpu1PrepareConfig.vectorSingleThread()
         );
-        assertEquals(Cpu1KernelId.GT_F32_ARRAY_CONTIGUOUS_SCALAR, gtArtifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.GT_F32_ARRAY_CONTIGUOUS_SCALAR, gtArtifact.preparedUnit().kernelId());
         assertArrayEquals(
                 boolBytes(false, false, true, false),
                 executeCpu1(gtFixture, Cpu1PrepareConfig.vectorSingleThread()).toBoolByteArrayCopy()
@@ -901,7 +901,7 @@ class Cpu1ExecutionContractTest {
                 fixture.descriptorIndex(),
                 Cpu1PrepareConfig.vectorSingleThread()
         );
-        assertEquals(Cpu1KernelId.WHERE_F32_FROM_F32_F32_ARRAY_CONTIGUOUS_SCALAR, artifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.WHERE_F32_FROM_F32_F32_ARRAY_CONTIGUOUS_SCALAR, artifact.preparedUnit().kernelId());
 
         assertArrayEquals(
                 new float[]{1.0f, 20.0f, 3.0f, 40.0f},
@@ -936,7 +936,7 @@ class Cpu1ExecutionContractTest {
         Fixture fixture = fixture(Tensor.where(condition, ifTrue, ifFalse));
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
-        assertEquals(Cpu1KernelId.WHERE_F64_FROM_F64_F64_ARRAY_STRIDED_RANK2_SCALAR, artifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.WHERE_F64_FROM_F64_F64_ARRAY_STRIDED_RANK2_SCALAR, artifact.preparedUnit().kernelId());
 
         assertArrayEquals(
                 new double[]{1.0, 4.0, 20.0, 5.0, 30.0, 60.0},
@@ -959,7 +959,7 @@ class Cpu1ExecutionContractTest {
         Fixture fixture = fixture(Tensor.where(condition, ifTrue, ifFalse));
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
-        assertEquals(Cpu1KernelId.WHERE_F64_FROM_F64_F64_ARRAY_STRIDED_RANK2_SCALAR, artifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.WHERE_F64_FROM_F64_F64_ARRAY_STRIDED_RANK2_SCALAR, artifact.preparedUnit().kernelId());
 
         assertArrayEquals(
                 new double[]{1.0, 2.0, 3.0, 10.0, 20.0, 30.0},
@@ -976,7 +976,7 @@ class Cpu1ExecutionContractTest {
         Fixture fixture = fixture(Tensor.where(condition, ifTrue, ifFalse));
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
-        assertEquals(Cpu1KernelId.WHERE_F64_FROM_F32_F64_ARRAY_CONTIGUOUS_SCALAR, artifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.WHERE_F64_FROM_F32_F64_ARRAY_CONTIGUOUS_SCALAR, artifact.preparedUnit().kernelId());
 
         assertArrayEquals(
                 new double[]{1.0, 20.0},
@@ -996,7 +996,7 @@ class Cpu1ExecutionContractTest {
                 fixture.descriptorIndex(),
                 Cpu1PrepareConfig.scalarMemorySegmentSingleThread()
         );
-        assertEquals(Cpu1KernelId.WHERE_F32_FROM_F32_F32_SEGMENT_CONTIGUOUS_SCALAR, artifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.WHERE_F32_FROM_F32_F32_SEGMENT_CONTIGUOUS_SCALAR, artifact.preparedUnit().kernelId());
         CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         attachNativeInputs(context, fixture);
@@ -1029,7 +1029,7 @@ class Cpu1ExecutionContractTest {
         Fixture fixture = fixture(left.greaterOrEqual(right));
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
-        assertEquals(Cpu1KernelId.GE_F32_ARRAY_STRIDED_RANK2_SCALAR, artifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.GE_F32_ARRAY_STRIDED_RANK2_SCALAR, artifact.preparedUnit().kernelId());
 
         Tensor actual = executeCpu1(fixture, Cpu1PrepareConfig.scalarSingleThread());
 
@@ -1101,7 +1101,7 @@ class Cpu1ExecutionContractTest {
                 fixture.descriptorIndex(),
                 Cpu1PrepareConfig.scalarMemorySegmentSingleThread()
         );
-        assertEquals(Cpu1KernelId.ADD_F32_SEGMENT_STRIDED_RANK2_SCALAR, artifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.ADD_F32_SEGMENT_STRIDED_RANK2_SCALAR, artifact.preparedUnit().kernelId());
         CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         attachNativeInputs(context, fixture);
@@ -1131,7 +1131,7 @@ class Cpu1ExecutionContractTest {
                 fixture.descriptorIndex(),
                 Cpu1PrepareConfig.vectorMemorySegmentSingleThread()
         );
-        assertEquals(Cpu1KernelId.ADD_F32_SEGMENT_BROADCAST_INNER_VECTOR, artifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.ADD_F32_SEGMENT_BROADCAST_INNER_VECTOR, artifact.preparedUnit().kernelId());
         CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         attachNativeInputs(context, fixture);
@@ -1154,7 +1154,7 @@ class Cpu1ExecutionContractTest {
                 fixture.descriptorIndex(),
                 Cpu1PrepareConfig.scalarMemorySegmentSingleThread()
         );
-        assertEquals(Cpu1KernelId.ERF_F32_SEGMENT_CONTIGUOUS_SCALAR, artifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.ERF_F32_SEGMENT_CONTIGUOUS_SCALAR, artifact.preparedUnit().kernelId());
         CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         attachNativeInputs(context, fixture);
@@ -1273,7 +1273,7 @@ class Cpu1ExecutionContractTest {
         Fixture fixture = fixture(out);
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
-        assertEquals(Cpu1KernelId.RELU_F32_ARRAY_STRIDED_RANK2_SCALAR, artifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.RELU_F32_ARRAY_STRIDED_RANK2_SCALAR, artifact.preparedUnit().kernelId());
         CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
 
@@ -1294,7 +1294,7 @@ class Cpu1ExecutionContractTest {
         Fixture fixture = fixture(transposed.sqrt());
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
-        assertEquals(Cpu1KernelId.SQRT_F32_ARRAY_STRIDED_RANK2_SCALAR, artifact.preparedUnit().kernelId());
+        assertEquals(Cpu1ElementwiseKernelId.SQRT_F32_ARRAY_STRIDED_RANK2_SCALAR, artifact.preparedUnit().kernelId());
         CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
 

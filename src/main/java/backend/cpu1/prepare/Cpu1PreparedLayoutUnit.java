@@ -58,7 +58,7 @@ public final class Cpu1PreparedLayoutUnit {
         this.dataType = Objects.requireNonNull(dataType, "dataType cannot be null");
         this.storageKind = Objects.requireNonNull(storageKind, "storageKind cannot be null");
         this.kernelId = Objects.requireNonNull(kernelId, "kernelId cannot be null");
-        this.kernel = Cpu1LayoutKernelDispatch.runnerFor(kernelId);
+        this.kernel = Cpu1LayoutKernelDispatch.kernelFor(kernelId);
         if (materializeThreshold < 0) {
             throw new IllegalArgumentException("materializeThreshold cannot be negative");
         }

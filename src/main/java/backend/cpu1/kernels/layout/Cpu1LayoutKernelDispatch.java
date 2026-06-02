@@ -9,13 +9,13 @@ import backend.cpu1.kernels.layout.unfold.Cpu1UnfoldLayoutLoops;
 import java.util.Objects;
 
 /**
- * Resolves prepared layout kernel ids to concrete layout loop runners outside the hot path.
+ * Resolves prepared layout kernel ids to concrete layout kernels outside the hot path.
  */
 public final class Cpu1LayoutKernelDispatch {
     private Cpu1LayoutKernelDispatch() {
     }
 
-    public static Cpu1LayoutKernel runnerFor(Cpu1LayoutKernelId kernelId) {
+    public static Cpu1LayoutKernel kernelFor(Cpu1LayoutKernelId kernelId) {
         Objects.requireNonNull(kernelId, "kernelId cannot be null");
         return switch (kernelId) {
             case NOOP_ALIAS, RESHAPE_ALIAS, EXPAND_ALIAS, SELECT_ALIAS, SLICE_ALIAS, PERMUTE_ALIAS,

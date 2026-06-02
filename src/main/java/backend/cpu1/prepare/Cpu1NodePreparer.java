@@ -1,6 +1,6 @@
 package backend.cpu1.prepare;
 
-import backend.cpu1.kernels.Cpu1KernelId;
+import backend.cpu1.kernels.elementwise.Cpu1ElementwiseKernelId;
 import backend.cpu1.kernels.Cpu1KernelRegistry;
 import backend.cpu1.kernels.Cpu1LayoutKind;
 import backend.cpu1.launch.Cpu1LaunchConfig;
@@ -85,7 +85,7 @@ public final class Cpu1NodePreparer {
                 dispatchDecision
         );
         Cpu1StorageKind storageKind = dispatchDecision.storageKind();
-        Cpu1KernelId kernelId = kernelRegistry.resolve(
+        Cpu1ElementwiseKernelId kernelId = kernelRegistry.resolve(
                 kernelOpType,
                 kernelDataType,
                 inputDataTypes,

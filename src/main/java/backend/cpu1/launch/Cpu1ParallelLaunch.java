@@ -1,7 +1,7 @@
 package backend.cpu1.launch;
 
 import backend.cpu1.exec.Cpu1KernelArgs;
-import backend.cpu1.kernels.Cpu1KernelRangeRunner;
+import backend.cpu1.kernels.elementwise.Cpu1ElementwiseRangeRunner;
 
 import java.util.Objects;
 
@@ -23,7 +23,7 @@ public final class Cpu1ParallelLaunch implements Cpu1LaunchPolicy {
     }
 
     @Override
-    public void launch(Cpu1KernelRangeRunner kernelRunner, Cpu1KernelArgs args) {
+    public void launch(Cpu1ElementwiseRangeRunner kernelRunner, Cpu1KernelArgs args) {
         Objects.requireNonNull(kernelRunner, "kernelRunner cannot be null");
         Objects.requireNonNull(args, "args cannot be null");
         Cpu1RangeLauncher.launch(args.elementCount(), launchConfig,

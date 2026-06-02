@@ -21,7 +21,7 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
 /**
- * Static where loops selected by Cpu1KernelId at prepare time.
+ * Static where loops selected by Cpu1ElementwiseKernelId at prepare time.
  */
 public final class Cpu1WhereLoops {
     private static final VectorSpecies<Float> F32 = FloatVector.SPECIES_PREFERRED;

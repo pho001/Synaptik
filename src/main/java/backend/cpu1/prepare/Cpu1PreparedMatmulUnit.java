@@ -75,7 +75,7 @@ public final class Cpu1PreparedMatmulUnit {
         this.storageKind = Objects.requireNonNull(storageKind, "storageKind cannot be null");
         this.route = Objects.requireNonNull(route, "route cannot be null");
         this.kernelId = Objects.requireNonNull(kernelId, "kernelId cannot be null");
-        this.kernel = Cpu1MatmulKernelDispatch.runnerFor(kernelId);
+        this.kernel = Cpu1MatmulKernelDispatch.kernelFor(kernelId);
         this.batchCount = batchCount;
         this.m = m;
         this.n = n;

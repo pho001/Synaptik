@@ -1,8 +1,8 @@
 package backend.cpu1.prepare;
 
-import backend.cpu1.kernels.Cpu1KernelDispatch;
-import backend.cpu1.kernels.Cpu1KernelId;
-import backend.cpu1.kernels.Cpu1KernelRangeRunner;
+import backend.cpu1.kernels.elementwise.Cpu1ElementwiseKernelDispatch;
+import backend.cpu1.kernels.elementwise.Cpu1ElementwiseKernelId;
+import backend.cpu1.kernels.elementwise.Cpu1ElementwiseRangeRunner;
 import backend.cpu1.kernels.Cpu1LayoutKind;
 import backend.cpu1.launch.Cpu1LaunchPolicy;
 import backend.cpu1.plan.Cpu1IterationPlan;
@@ -27,8 +27,8 @@ public final class Cpu1PreparedElementwiseUnit {
     private final Cpu1IterationPlan iterationPlan;
     private final Cpu1LayoutKind layoutKind;
     private final Cpu1StorageKind storageKind;
-    private final Cpu1KernelId kernelId;
-    private final Cpu1KernelRangeRunner kernelRunner;
+    private final Cpu1ElementwiseKernelId kernelId;
+    private final Cpu1ElementwiseRangeRunner kernelRunner;
     private final Cpu1LaunchPolicy launchPolicy;
     private final boolean hasScalarParameter;
     private final float scalarParameterF32;
@@ -44,7 +44,7 @@ public final class Cpu1PreparedElementwiseUnit {
             Cpu1IterationPlan iterationPlan,
             Cpu1LayoutKind layoutKind,
             Cpu1StorageKind storageKind,
-            Cpu1KernelId kernelId,
+            Cpu1ElementwiseKernelId kernelId,
             Cpu1LaunchPolicy launchPolicy
     ) {
         this(
@@ -74,7 +74,7 @@ public final class Cpu1PreparedElementwiseUnit {
             Cpu1IterationPlan iterationPlan,
             Cpu1LayoutKind layoutKind,
             Cpu1StorageKind storageKind,
-            Cpu1KernelId kernelId,
+            Cpu1ElementwiseKernelId kernelId,
             Cpu1LaunchPolicy launchPolicy,
             boolean hasScalarParameter,
             float scalarParameterF32,
@@ -107,7 +107,7 @@ public final class Cpu1PreparedElementwiseUnit {
             Cpu1IterationPlan iterationPlan,
             Cpu1LayoutKind layoutKind,
             Cpu1StorageKind storageKind,
-            Cpu1KernelId kernelId,
+            Cpu1ElementwiseKernelId kernelId,
             Cpu1LaunchPolicy launchPolicy,
             boolean hasScalarParameter,
             float scalarParameterF32,
@@ -141,7 +141,7 @@ public final class Cpu1PreparedElementwiseUnit {
             Cpu1IterationPlan iterationPlan,
             Cpu1LayoutKind layoutKind,
             Cpu1StorageKind storageKind,
-            Cpu1KernelId kernelId,
+            Cpu1ElementwiseKernelId kernelId,
             Cpu1LaunchPolicy launchPolicy,
             boolean hasScalarParameter,
             float scalarParameterF32,
@@ -176,7 +176,7 @@ public final class Cpu1PreparedElementwiseUnit {
             Cpu1IterationPlan iterationPlan,
             Cpu1LayoutKind layoutKind,
             Cpu1StorageKind storageKind,
-            Cpu1KernelId kernelId,
+            Cpu1ElementwiseKernelId kernelId,
             Cpu1LaunchPolicy launchPolicy,
             boolean hasScalarParameter,
             float scalarParameterF32,
@@ -198,7 +198,7 @@ public final class Cpu1PreparedElementwiseUnit {
         this.layoutKind = Objects.requireNonNull(layoutKind, "layoutKind cannot be null");
         this.storageKind = Objects.requireNonNull(storageKind, "storageKind cannot be null");
         this.kernelId = Objects.requireNonNull(kernelId, "kernelId cannot be null");
-        this.kernelRunner = Cpu1KernelDispatch.runnerFor(kernelId);
+        this.kernelRunner = Cpu1ElementwiseKernelDispatch.kernelFor(kernelId);
         this.launchPolicy = Objects.requireNonNull(launchPolicy, "launchPolicy cannot be null");
         this.hasScalarParameter = hasScalarParameter;
         this.scalarParameterF32 = scalarParameterF32;
@@ -257,11 +257,11 @@ public final class Cpu1PreparedElementwiseUnit {
         return iterationPlan.elementCount();
     }
 
-    public Cpu1KernelId kernelId() {
+    public Cpu1ElementwiseKernelId kernelId() {
         return kernelId;
     }
 
-    public Cpu1KernelRangeRunner kernelRunner() {
+    public Cpu1ElementwiseRangeRunner kernelRunner() {
         return kernelRunner;
     }
 

@@ -21,7 +21,7 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
 /**
- * Static sign loops selected by Cpu1KernelId at prepare time.
+ * Static sign loops selected by Cpu1ElementwiseKernelId at prepare time.
  */
 public final class Cpu1SignLoops {
     private static final VectorSpecies<Float> F32 = FloatVector.SPECIES_PREFERRED;

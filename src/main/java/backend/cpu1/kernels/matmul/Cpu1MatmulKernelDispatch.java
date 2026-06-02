@@ -3,13 +3,13 @@ package backend.cpu1.kernels.matmul;
 import java.util.Objects;
 
 /**
- * Resolves prepared matmul kernel ids to concrete loop runners.
+ * Resolves prepared matmul kernel ids to concrete matmul kernels.
  */
 public final class Cpu1MatmulKernelDispatch {
     private Cpu1MatmulKernelDispatch() {
     }
 
-    public static Cpu1MatmulKernel runnerFor(Cpu1MatmulKernelId kernelId) {
+    public static Cpu1MatmulKernel kernelFor(Cpu1MatmulKernelId kernelId) {
         Objects.requireNonNull(kernelId, "kernelId cannot be null");
         return switch (kernelId) {
             case MATMUL_F32_DENSE_SCALAR -> Cpu1JavaScalarMatmulLoops::matmulF32DenseScalar;

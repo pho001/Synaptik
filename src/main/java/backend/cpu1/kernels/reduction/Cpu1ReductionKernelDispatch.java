@@ -3,13 +3,13 @@ package backend.cpu1.kernels.reduction;
 import java.util.Objects;
 
 /**
- * Resolves prepared reduction kernel ids to concrete loop runners.
+ * Resolves prepared reduction kernel ids to concrete reduction kernels.
  */
 public final class Cpu1ReductionKernelDispatch {
     private Cpu1ReductionKernelDispatch() {
     }
 
-    public static Cpu1ReductionKernel runnerFor(Cpu1ReductionKernelId kernelId) {
+    public static Cpu1ReductionKernel kernelFor(Cpu1ReductionKernelId kernelId) {
         Objects.requireNonNull(kernelId, "kernelId cannot be null");
         return switch (kernelId) {
             case SUM_F32_DENSE_SCALAR -> Cpu1SumMeanReductionLoops::sumF32DenseScalar;
