@@ -6,6 +6,7 @@ import backend.cpu1.launch.Cpu1RangeLauncher;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
+import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
@@ -16,6 +17,7 @@ import tensor.Tensor;
  */
 public final class Cpu1JavaVectorMatmulLoops {
     private static final VectorSpecies<Float> F32 = FloatVector.SPECIES_PREFERRED;
+    private static final VectorSpecies<Double> F64 = DoubleVector.SPECIES_PREFERRED;
 
     private Cpu1JavaVectorMatmulLoops() {
     }
@@ -38,9 +40,51 @@ public final class Cpu1JavaVectorMatmulLoops {
         markOutputWritten(unit, output, context);
     }
 
+    public static void matmulF64DensePackedBVector(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {
+        Cpu1TensorView left = inputView(unit.leftNodeId(), context);
+        Cpu1TensorView right = inputView(unit.rightNodeId(), context);
+        Cpu1TensorView output = outputView(unit, context);
+        double[] packedB = packedBF64Workspace(unit, context);
+
+        packBF64Columns(right.float64Array(), packedB, right.storageOffset(), unit);
+        runPackedBF64(
+                left.float64Array(),
+                packedB,
+                output.float64Array(),
+                left.storageOffset(),
+                output.storageOffset(),
+                unit
+        );
+        markOutputWritten(unit, output, context);
+    }
+
     private static void packBColumns(
             float[] right,
             float[] packedB,
+            int rightStorageOffset,
+            Cpu1PreparedMatmulUnit unit
+    ) {
+        int n = unit.n();
+        int k = unit.k();
+        int rightRowStride = unit.rightRowStride();
+        int rightColStride = unit.rightColStride();
+        int batchPackedSize = Math.multiplyExact(n, k);
+        for (int batch = 0; batch < unit.batchCount(); batch++) {
+            int rightBatchBase = rightStorageOffset + unit.rightBatchOffset(batch);
+            int packedBatchBase = batch * batchPackedSize;
+            for (int col = 0; col < n; col++) {
+                int rightColBase = rightBatchBase + col * rightColStride;
+                int packedColBase = packedBatchBase + col * k;
+                for (int index = 0; index < k; index++) {
+                    packedB[packedColBase + index] = right[rightColBase + index * rightRowStride];
+                }
+            }
+        }
+    }
+
+    private static void packBF64Columns(
+            double[] right,
+            double[] packedB,
             int rightStorageOffset,
             Cpu1PreparedMatmulUnit unit
     ) {
@@ -104,6 +148,48 @@ public final class Cpu1JavaVectorMatmulLoops {
         });
     }
 
+    private static void runPackedBF64(
+            double[] left,
+            double[] packedB,
+            double[] output,
+            int leftStorageOffset,
+            int outputStorageOffset,
+            Cpu1PreparedMatmulUnit unit
+    ) {
+        int m = unit.m();
+        int n = unit.n();
+        int k = unit.k();
+        int leftRowStride = unit.leftRowStride();
+        int outputRowStride = unit.outputRowStride();
+        int outputColStride = unit.outputColStride();
+        int batchPackedSize = Math.multiplyExact(n, k);
+        int outputRows = Math.multiplyExact(unit.batchCount(), m);
+        int vectorUpper = F64.loopBound(k);
+
+        Cpu1RangeLauncher.launch(outputRows, unit.launchConfig(), (startRow, endRow) -> {
+            for (int rowIndex = startRow; rowIndex < endRow; rowIndex++) {
+                int batch = rowIndex / m;
+                int row = rowIndex % m;
+                int leftBatchBase = leftStorageOffset + unit.leftBatchOffset(batch);
+                int outputBatchBase = outputStorageOffset + unit.outputBatchOffset(batch);
+                int packedBatchBase = batch * batchPackedSize;
+                int leftRowBase = leftBatchBase + row * leftRowStride;
+                int outputRowBase = outputBatchBase + row * outputRowStride;
+                for (int col = 0; col < n; col++) {
+                    int packedColBase = packedBatchBase + col * k;
+                    output[outputRowBase + col * outputColStride] = dotContiguousF64(
+                            left,
+                            leftRowBase,
+                            packedB,
+                            packedColBase,
+                            k,
+                            vectorUpper
+                    );
+                }
+            }
+        });
+    }
+
     private static float dotContiguousF32(
             float[] left,
             int leftBase,
@@ -126,6 +212,28 @@ public final class Cpu1JavaVectorMatmulLoops {
         return scalarSum;
     }
 
+    private static double dotContiguousF64(
+            double[] left,
+            int leftBase,
+            double[] packedB,
+            int packedBase,
+            int k,
+            int vectorUpper
+    ) {
+        DoubleVector sum = DoubleVector.zero(F64);
+        int index = 0;
+        for (; index < vectorUpper; index += F64.length()) {
+            DoubleVector leftVector = DoubleVector.fromArray(F64, left, leftBase + index);
+            DoubleVector rightVector = DoubleVector.fromArray(F64, packedB, packedBase + index);
+            sum = sum.add(leftVector.mul(rightVector));
+        }
+        double scalarSum = sum.reduceLanes(VectorOperators.ADD);
+        for (; index < k; index++) {
+            scalarSum += left[leftBase + index] * packedB[packedBase + index];
+        }
+        return scalarSum;
+    }
+
     private static float[] packedBWorkspace(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {
         Cpu1Workspace workspace = context.cpu1WorkspaceForNodeId(unit.nodeId());
         if (workspace == null) {
@@ -133,6 +241,18 @@ public final class Cpu1JavaVectorMatmulLoops {
                     + unit.nodeId());
         }
         return workspace.requireF32Array(Math.toIntExact(Math.multiplyExact(
+                Math.multiplyExact((long) unit.batchCount(), unit.n()),
+                unit.k()
+        )));
+    }
+
+    private static double[] packedBF64Workspace(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {
+        Cpu1Workspace workspace = context.cpu1WorkspaceForNodeId(unit.nodeId());
+        if (workspace == null) {
+            throw new IllegalStateException("cpu1 packed-B vector MATMUL requires prepared F64 workspace for nodeId="
+                    + unit.nodeId());
+        }
+        return workspace.requireF64Array(Math.toIntExact(Math.multiplyExact(
                 Math.multiplyExact((long) unit.batchCount(), unit.n()),
                 unit.k()
         )));

@@ -1,5 +1,6 @@
 package backend.cpu1;
 
+import backend.blas.OpenBlasRuntime;
 import backend.ComputeBackend;
 import backend.cpu1.exec.Cpu1MatmulExecutableUnit;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
@@ -28,7 +29,9 @@ import graph.execution.PreparedExecutionStep;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.state.ExecutionState;
 import graph.execution.trace.contrib.StepExecutionTracer;
+import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -119,18 +122,20 @@ class Cpu1MatmulExecutionContractTest {
     }
 
     @Test
-    void matmulProviderFactoryReturnsOpenBlasArrayPlaceholderProvider() {
+    void openBlasArrayProviderExposesF32AndF64KernelIds() {
         Cpu1MatmulProvider provider = Cpu1MatmulProviders.forRoute(Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING);
 
         assertInstanceOf(Cpu1OpenBlasArrayMatmulProvider.class, provider);
         assertEquals(Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING, provider.route());
+        assertEquals(Cpu1MatmulKernelId.MATMUL_F32_OPENBLAS_ARRAY_COPYING, provider.kernelId(DataType.FLOAT32));
+        assertEquals(Cpu1MatmulKernelId.MATMUL_F64_OPENBLAS_ARRAY_COPYING, provider.kernelId(DataType.FLOAT64));
 
-        UnsupportedOperationException exception = assertThrows(
+        UnsupportedOperationException bf16 = assertThrows(
                 UnsupportedOperationException.class,
-                () -> provider.kernelId(DataType.FLOAT32)
+                () -> provider.kernelId(DataType.BFLOAT16)
         );
-        assertTrue(exception.getMessage().contains("OpenBLAS array-copy matmul kernels are not implemented yet"));
-        assertTrue(exception.getMessage().contains(DataType.FLOAT32.name()));
+        assertTrue(bf16.getMessage().contains("OPENBLAS_ARRAY_COPYING"));
+        assertTrue(bf16.getMessage().contains(DataType.BFLOAT16.name()));
     }
 
     @Test
@@ -152,28 +157,10 @@ class Cpu1MatmulExecutionContractTest {
     }
 
     @Test
-    void prepareKeepsScalarMatmulForExplicitScalarF32AndNonF32VectorRequests() {
+    void prepareKeepsScalarMatmulForExplicitScalarF32AndBf16VectorRequests() {
         Cpu1PreparedArtifact f32Artifact = prepareRoot(simpleF32MatmulFixture(), Cpu1PrepareConfig.scalarSingleThread());
         assertMatmulKernel(f32Artifact, Cpu1MatmulKernelId.MATMUL_F32_DENSE_SCALAR);
         assertEquals(Cpu1VectorizationKind.SCALAR, f32Artifact.preparedMatmulUnit().vectorizationKind());
-
-        Tensor f64Left = new Tensor(
-                new double[]{1.0d, 2.0d, 3.0d, 4.0d},
-                new int[]{2, 2},
-                null,
-                "f64Left",
-                DataType.FLOAT64
-        );
-        Tensor f64Right = new Tensor(
-                new double[]{5.0d, 6.0d, 7.0d, 8.0d},
-                new int[]{2, 2},
-                null,
-                "f64Right",
-                DataType.FLOAT64
-        );
-        Cpu1PreparedArtifact f64Artifact = prepareRoot(fixture(f64Left.matmul(f64Right)), Cpu1PrepareConfig.vectorSingleThread());
-        assertMatmulKernel(f64Artifact, Cpu1MatmulKernelId.MATMUL_F64_DENSE_SCALAR);
-        assertEquals(Cpu1VectorizationKind.SCALAR, f64Artifact.preparedMatmulUnit().vectorizationKind());
 
         Tensor bf16Left = new Tensor(
                 new float[]{1.0f, 2.0f, 3.0f, 4.0f},
@@ -204,6 +191,18 @@ class Cpu1MatmulExecutionContractTest {
         assertEquals(Cpu1VectorizationKind.VECTOR, artifact.preparedMatmulUnit().vectorizationKind());
         assertEquals(6, artifact.workspaceSpec().f32ArrayElements());
         assertEquals(0, artifact.workspaceSpec().f64ArrayElements());
+    }
+
+    @Test
+    void prepareSelectsPackedBVectorKernelForExplicitF64VectorConfig() {
+        Fixture fixture = f64MatmulFixture(2, 3, 2);
+
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.vectorSingleThread());
+
+        assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F64_DENSE_PACKED_B_VECTOR);
+        assertEquals(Cpu1VectorizationKind.VECTOR, artifact.preparedMatmulUnit().vectorizationKind());
+        assertEquals(0, artifact.workspaceSpec().f32ArrayElements());
+        assertEquals(6, artifact.workspaceSpec().f64ArrayElements());
     }
 
     @Test
@@ -276,20 +275,37 @@ class Cpu1MatmulExecutionContractTest {
     }
 
     @Test
-    void openBlasArrayCopyingRouteFailsAtPrepareUntilKernelExists() {
-        Fixture fixture = simpleF32MatmulFixture();
+    void automaticMatmulVectorizationSelectsF64PackedBVectorWhenCheapVectorThresholdAllows() {
+        int m = 2;
+        int k = 3;
+        int n = 2;
+        Fixture fixture = f64MatmulFixture(m, k, n);
+        int work = matmulWork(m, k, n);
+        CpuKernelConfig cpuKernelConfig = matmulVectorCpuKernelConfig(work);
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(cpuKernelConfig, 1);
 
-        UnsupportedOperationException exception = assertThrows(
-                UnsupportedOperationException.class,
-                () -> prepareRoot(
-                        fixture,
-                        Cpu1PrepareConfig.scalarSingleThread()
-                                .withMatmulRoute(Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING)
-                )
-        );
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, config);
 
-        assertTrue(exception.getMessage().contains("OpenBLAS array-copy matmul kernels are not implemented yet"));
-        assertTrue(exception.getMessage().contains(DataType.FLOAT32.name()));
+        assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F64_DENSE_PACKED_B_VECTOR);
+        assertEquals(Cpu1VectorizationKind.VECTOR, artifact.preparedMatmulUnit().vectorizationKind());
+    }
+
+    @Test
+    void openBlasArrayCopyingRoutePreparesF32AndF64Kernels() {
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.scalarSingleThread()
+                .withMatmulRoute(Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING);
+
+        Cpu1PreparedArtifact f32 = prepareRoot(simpleF32MatmulFixture(), config);
+        Cpu1PreparedArtifact f64 = prepareRoot(f64MatmulFixture(2, 3, 2), config);
+
+        assertMatmulKernel(f32, Cpu1MatmulKernelId.MATMUL_F32_OPENBLAS_ARRAY_COPYING);
+        assertEquals(Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING, f32.preparedMatmulUnit().route());
+        assertEquals(Cpu1VectorizationKind.SCALAR, f32.preparedMatmulUnit().vectorizationKind());
+        assertEquals(Cpu1LaunchConfig.singleThread(), f32.preparedMatmulUnit().launchConfig());
+        assertMatmulKernel(f64, Cpu1MatmulKernelId.MATMUL_F64_OPENBLAS_ARRAY_COPYING);
+        assertEquals(Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING, f64.preparedMatmulUnit().route());
+        assertEquals(Cpu1VectorizationKind.SCALAR, f64.preparedMatmulUnit().vectorizationKind());
+        assertEquals(Cpu1LaunchConfig.singleThread(), f64.preparedMatmulUnit().launchConfig());
     }
 
     @Test
@@ -515,6 +531,107 @@ class Cpu1MatmulExecutionContractTest {
     }
 
     @Test
+    void preparedF64VectorMatmulPacksBAndReturnsExpectedResults() {
+        int m = 2;
+        int k = DoubleVector.SPECIES_PREFERRED.length() + 3;
+        int n = 3;
+        double[] leftData = new double[m * k];
+        double[] rightData = new double[k * n];
+        for (int i = 0; i < leftData.length; i++) {
+            leftData[i] = (i % 7) - 3.0d;
+        }
+        for (int i = 0; i < rightData.length; i++) {
+            rightData[i] = (i % 5) + 0.25d;
+        }
+        Tensor left = new Tensor(leftData, new int[]{m, k}, null, "left", DataType.FLOAT64);
+        Tensor right = new Tensor(rightData, new int[]{k, n}, null, "right", DataType.FLOAT64);
+        Fixture fixture = fixture(left.matmul(right));
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.vectorSingleThread());
+        assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F64_DENSE_PACKED_B_VECTOR);
+        ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata(fixture.node(), artifact)));
+
+        new Cpu1Backend().execute(fixture.node(), metadata(fixture.node(), artifact), context);
+
+        assertArrayEquals(
+                expectedBatchedF64Matmul(leftData, rightData, 1, m, k, n),
+                context.runtimeTensorForNodeId(fixture.node().id()).toDoubleArrayCopy(),
+                1.0e-12
+        );
+    }
+
+    @Test
+    void preparedF32OpenBlasArrayCopyingMatmulReturnsExpectedResultsWhenAvailable() {
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
+        int batchCount = 2;
+        int m = 2;
+        int k = 3;
+        int n = 2;
+        float[] leftData = new float[batchCount * m * k];
+        float[] rightData = new float[batchCount * k * n];
+        for (int i = 0; i < leftData.length; i++) {
+            leftData[i] = (i % 7) - 2.0f;
+        }
+        for (int i = 0; i < rightData.length; i++) {
+            rightData[i] = (i % 5) + 0.5f;
+        }
+        Tensor left = new Tensor(leftData, new int[]{batchCount, m, k}, null, "left", DataType.FLOAT32);
+        Tensor right = new Tensor(rightData, new int[]{batchCount, k, n}, null, "right", DataType.FLOAT32);
+        Fixture fixture = fixture(left.matmul(right));
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.vectorParallel(4)
+                .withMatmulRoute(Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING);
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, config);
+        assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F32_OPENBLAS_ARRAY_COPYING);
+        assertEquals(Cpu1VectorizationKind.SCALAR, artifact.preparedMatmulUnit().vectorizationKind());
+        assertEquals(Cpu1LaunchConfig.singleThread(), artifact.preparedMatmulUnit().launchConfig());
+        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
+
+        new Cpu1Backend().execute(fixture.node(), metadata, context);
+
+        assertArrayEquals(
+                expectedBatchedF32Matmul(leftData, rightData, batchCount, m, k, n),
+                context.runtimeTensorForNodeId(fixture.node().id()).toFloat32ArrayCopy(),
+                1.0e-4f
+        );
+    }
+
+    @Test
+    void preparedF64OpenBlasArrayCopyingMatmulReturnsExpectedResultsWhenAvailable() {
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat64GemmAvailable(), OpenBlasRuntime.unavailableReason());
+        int batchCount = 2;
+        int m = 2;
+        int k = 3;
+        int n = 2;
+        double[] leftData = new double[batchCount * m * k];
+        double[] rightData = new double[batchCount * k * n];
+        for (int i = 0; i < leftData.length; i++) {
+            leftData[i] = (i % 7) - 2.0d;
+        }
+        for (int i = 0; i < rightData.length; i++) {
+            rightData[i] = (i % 5) + 0.25d;
+        }
+        Tensor left = new Tensor(leftData, new int[]{batchCount, m, k}, null, "left", DataType.FLOAT64);
+        Tensor right = new Tensor(rightData, new int[]{batchCount, k, n}, null, "right", DataType.FLOAT64);
+        Fixture fixture = fixture(left.matmul(right));
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.vectorParallel(4)
+                .withMatmulRoute(Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING);
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, config);
+        assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F64_OPENBLAS_ARRAY_COPYING);
+        assertEquals(Cpu1VectorizationKind.SCALAR, artifact.preparedMatmulUnit().vectorizationKind());
+        assertEquals(Cpu1LaunchConfig.singleThread(), artifact.preparedMatmulUnit().launchConfig());
+        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
+
+        new Cpu1Backend().execute(fixture.node(), metadata, context);
+
+        assertArrayEquals(
+                expectedBatchedF64Matmul(leftData, rightData, batchCount, m, k, n),
+                context.runtimeTensorForNodeId(fixture.node().id()).toDoubleArrayCopy(),
+                1.0e-12
+        );
+    }
+
+    @Test
     void preparedBf16MatmulAccumulatesInF32AndStoresBf16() {
         Tensor left = new Tensor(
                 new float[]{
@@ -586,6 +703,41 @@ class Cpu1MatmulExecutionContractTest {
         assertEquals(0, trace.metadata().attributes().get("cpu1MatmulLaunchChunkSize"));
     }
 
+    @Test
+    void matmulTraceReportsOpenBlasArrayCopyingRouteAndKernel() {
+        Fixture fixture = simpleF32MatmulFixture();
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.scalarSingleThread()
+                .withMatmulRoute(Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING);
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, config);
+        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
+
+        var trace = StepExecutionTracer.toStepTrace(
+                0,
+                new PreparedExecutionStep(fixture.node(), metadata),
+                1L,
+                context
+        );
+
+        assertEquals(Cpu1MatmulKernelId.MATMUL_F32_OPENBLAS_ARRAY_COPYING.name(), trace.kernel());
+        assertEquals("OPENBLAS_ARRAY_COPYING", trace.metadata().matMul().route());
+        assertTrue(trace.metadata().matMul().useBlas());
+        assertEquals(false, trace.metadata().matMul().useBatchedBlas());
+        assertEquals("OPENBLAS_FFM", trace.metadata().matMul().blasProvider());
+        assertEquals("cblas_sgemm", trace.metadata().matMul().blasSymbol());
+        assertEquals("OPENBLAS_ARRAY_COPYING", trace.metadata().matMul().blasRoute());
+        assertEquals(48L, trace.metadata().matMul().copyInBytes());
+        assertEquals(16L, trace.metadata().matMul().copyOutBytes());
+        assertEquals("OPENBLAS_ARRAY_COPYING", trace.metadata().attributes().get("cpu1MatmulRoute"));
+        assertEquals("OPENBLAS_FFM", trace.metadata().attributes().get("blasProvider"));
+        assertEquals("cblas_sgemm", trace.metadata().attributes().get("blasSymbol"));
+        assertEquals(OpenBlasRuntime.isFloat32GemmAvailable(), trace.metadata().attributes().get("openblasSgemmAvailable"));
+        assertEquals(
+                Cpu1MatmulKernelId.MATMUL_F32_OPENBLAS_ARRAY_COPYING.name(),
+                trace.metadata().attributes().get("cpu1MatmulKernelId")
+        );
+    }
+
     private static Cpu1PreparedArtifact prepareRoot(Fixture fixture, Cpu1PrepareConfig config) {
         return new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex(), config);
     }
@@ -620,6 +772,20 @@ class Cpu1MatmulExecutionContractTest {
         }
         Tensor left = new Tensor(leftData, new int[]{m, k}, null, "left", DataType.FLOAT32);
         Tensor right = new Tensor(rightData, new int[]{k, n}, null, "right", DataType.FLOAT32);
+        return fixture(left.matmul(right));
+    }
+
+    private static Fixture f64MatmulFixture(int m, int k, int n) {
+        double[] leftData = new double[m * k];
+        double[] rightData = new double[k * n];
+        for (int i = 0; i < leftData.length; i++) {
+            leftData[i] = i + 1.0d;
+        }
+        for (int i = 0; i < rightData.length; i++) {
+            rightData[i] = i + 1.0d;
+        }
+        Tensor left = new Tensor(leftData, new int[]{m, k}, null, "left", DataType.FLOAT64);
+        Tensor right = new Tensor(rightData, new int[]{k, n}, null, "right", DataType.FLOAT64);
         return fixture(left.matmul(right));
     }
 
@@ -680,6 +846,36 @@ class Cpu1MatmulExecutionContractTest {
             for (int row = 0; row < m; row++) {
                 for (int col = 0; col < n; col++) {
                     float sum = 0.0f;
+                    for (int index = 0; index < k; index++) {
+                        sum += left[leftBatchBase + row * k + index]
+                                * right[rightBatchBase + index * n + col];
+                    }
+                    output[outputBatchBase + row * n + col] = sum;
+                }
+            }
+        }
+        return output;
+    }
+
+    private static double[] expectedBatchedF64Matmul(
+            double[] left,
+            double[] right,
+            int batchCount,
+            int m,
+            int k,
+            int n
+    ) {
+        double[] output = new double[batchCount * m * n];
+        int leftBatchSize = m * k;
+        int rightBatchSize = k * n;
+        int outputBatchSize = m * n;
+        for (int batch = 0; batch < batchCount; batch++) {
+            int leftBatchBase = batch * leftBatchSize;
+            int rightBatchBase = batch * rightBatchSize;
+            int outputBatchBase = batch * outputBatchSize;
+            for (int row = 0; row < m; row++) {
+                for (int col = 0; col < n; col++) {
+                    double sum = 0.0d;
                     for (int index = 0; index < k; index++) {
                         sum += left[leftBatchBase + row * k + index]
                                 * right[rightBatchBase + index * n + col];

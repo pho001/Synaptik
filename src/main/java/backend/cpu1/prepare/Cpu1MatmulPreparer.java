@@ -12,6 +12,7 @@ import config.backend.CpuKernelConfig;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import operations.Operation;
 import tensor.DataType;
@@ -60,8 +61,16 @@ public final class Cpu1MatmulPreparer {
         int m = outputShape[outputShape.length - 2];
         int n = outputShape[outputShape.length - 1];
         int k = leftShape[leftShape.length - 1];
-        Cpu1LaunchConfig launchConfig = resolveMatmulLaunch(batchCount, m, n, k, config);
-        Cpu1VectorizationKind vectorizationKind = resolveMatmulVectorization(node.dataType(), batchCount, m, n, k, config);
+        Cpu1LaunchConfig launchConfig = resolveMatmulLaunch(provider.route(), batchCount, m, n, k, config);
+        Cpu1VectorizationKind vectorizationKind = resolveMatmulVectorization(
+                provider.route(),
+                node.dataType(),
+                batchCount,
+                m,
+                n,
+                k,
+                config
+        );
         Cpu1MatmulKernelId kernelId = resolveMatmulKernelId(provider, node.dataType(), vectorizationKind);
         Cpu1PreparedMatmulUnit unit = new Cpu1PreparedMatmulUnit(
                 node.id(),
@@ -204,12 +213,16 @@ public final class Cpu1MatmulPreparer {
     }
 
     private static Cpu1LaunchConfig resolveMatmulLaunch(
+            Cpu1MatmulRoute route,
             int batchCount,
             int m,
             int n,
             int k,
             Cpu1PrepareConfig config
     ) {
+        if (route != Cpu1MatmulRoute.JAVA_SCALAR) {
+            return Cpu1LaunchConfig.singleThread();
+        }
         if (!config.automaticLaunch()) {
             return config.launchConfig();
         }
@@ -231,6 +244,7 @@ public final class Cpu1MatmulPreparer {
     }
 
     private static Cpu1VectorizationKind resolveMatmulVectorization(
+            Cpu1MatmulRoute route,
             DataType dataType,
             int batchCount,
             int m,
@@ -238,13 +252,16 @@ public final class Cpu1MatmulPreparer {
             int k,
             Cpu1PrepareConfig config
     ) {
-        if (dataType != DataType.FLOAT32) {
+        if (route != Cpu1MatmulRoute.JAVA_SCALAR) {
+            return Cpu1VectorizationKind.SCALAR;
+        }
+        if (dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64) {
             return Cpu1VectorizationKind.SCALAR;
         }
         if (!config.automaticVectorization()) {
             return config.vectorizationKind();
         }
-        if (FloatVector.SPECIES_PREFERRED.length() <= 1) {
+        if (preferredVectorLength(dataType) <= 1) {
             return Cpu1VectorizationKind.SCALAR;
         }
         CpuKernelConfig cpuKernelConfig = requireCpuKernelConfig(config);
@@ -265,6 +282,11 @@ public final class Cpu1MatmulPreparer {
                 && dataType == DataType.FLOAT32) {
             return Cpu1MatmulKernelId.MATMUL_F32_DENSE_PACKED_B_VECTOR;
         }
+        if (provider.route() == Cpu1MatmulRoute.JAVA_SCALAR
+                && vectorizationKind == Cpu1VectorizationKind.VECTOR
+                && dataType == DataType.FLOAT64) {
+            return Cpu1MatmulKernelId.MATMUL_F64_DENSE_PACKED_B_VECTOR;
+        }
         return scalarKernelId;
     }
 
@@ -274,11 +296,23 @@ public final class Cpu1MatmulPreparer {
             int n,
             int k
     ) {
-        if (kernelId != Cpu1MatmulKernelId.MATMUL_F32_DENSE_PACKED_B_VECTOR) {
-            return Cpu1WorkspaceSpec.none();
-        }
-        int packedBElements = Math.toIntExact(Math.multiplyExact(Math.multiplyExact((long) batchCount, n), k));
-        return Cpu1WorkspaceSpec.arrays(packedBElements, 0, 0);
+        return switch (kernelId) {
+            case MATMUL_F32_DENSE_PACKED_B_VECTOR -> Cpu1WorkspaceSpec.arrays(packedBElements(batchCount, n, k), 0, 0);
+            case MATMUL_F64_DENSE_PACKED_B_VECTOR -> Cpu1WorkspaceSpec.arrays(0, packedBElements(batchCount, n, k), 0);
+            default -> Cpu1WorkspaceSpec.none();
+        };
+    }
+
+    private static int preferredVectorLength(DataType dataType) {
+        return switch (dataType) {
+            case FLOAT32 -> FloatVector.SPECIES_PREFERRED.length();
+            case FLOAT64 -> DoubleVector.SPECIES_PREFERRED.length();
+            default -> 1;
+        };
+    }
+
+    private static int packedBElements(int batchCount, int n, int k) {
+        return Math.toIntExact(Math.multiplyExact(Math.multiplyExact((long) batchCount, n), k));
     }
 
     private static CpuKernelConfig requireCpuKernelConfig(Cpu1PrepareConfig config) {
