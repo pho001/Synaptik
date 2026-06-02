@@ -13,6 +13,7 @@ public final class Cpu1MatmulKernelDispatch {
         Objects.requireNonNull(kernelId, "kernelId cannot be null");
         return switch (kernelId) {
             case MATMUL_F32_DENSE_SCALAR -> Cpu1JavaScalarMatmulLoops::matmulF32DenseScalar;
+            case MATMUL_F32_DENSE_PACKED_B_VECTOR -> Cpu1JavaVectorMatmulLoops::matmulF32DensePackedBVector;
             case MATMUL_F64_DENSE_SCALAR -> Cpu1JavaScalarMatmulLoops::matmulF64DenseScalar;
             case MATMUL_BF16_DENSE_SCALAR -> Cpu1JavaScalarMatmulLoops::matmulBf16DenseScalar;
         };

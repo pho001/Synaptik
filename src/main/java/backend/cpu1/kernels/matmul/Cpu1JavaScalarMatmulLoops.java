@@ -1,6 +1,7 @@
 package backend.cpu1.kernels.matmul;
 
 import backend.cpu1.exec.Cpu1TensorView;
+import backend.cpu1.launch.Cpu1RangeLauncher;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
@@ -47,24 +48,36 @@ public final class Cpu1JavaScalarMatmulLoops {
             int outputStorageOffset,
             Cpu1PreparedMatmulUnit unit
     ) {
-        for (int batch = 0; batch < unit.batchCount(); batch++) {
-            int leftBatchBase = leftStorageOffset + unit.leftBatchOffset(batch);
-            int rightBatchBase = rightStorageOffset + unit.rightBatchOffset(batch);
-            int outputBatchBase = outputStorageOffset + unit.outputBatchOffset(batch);
-            for (int row = 0; row < unit.m(); row++) {
-                int leftRowBase = leftBatchBase + row * unit.leftRowStride();
-                int outputRowBase = outputBatchBase + row * unit.outputRowStride();
-                for (int col = 0; col < unit.n(); col++) {
+        int m = unit.m();
+        int n = unit.n();
+        int k = unit.k();
+        int leftRowStride = unit.leftRowStride();
+        int leftColStride = unit.leftColStride();
+        int rightRowStride = unit.rightRowStride();
+        int rightColStride = unit.rightColStride();
+        int outputRowStride = unit.outputRowStride();
+        int outputColStride = unit.outputColStride();
+        int outputRows = Math.multiplyExact(unit.batchCount(), m);
+        Cpu1RangeLauncher.launch(outputRows, unit.launchConfig(), (startRow, endRow) -> {
+            for (int rowIndex = startRow; rowIndex < endRow; rowIndex++) {
+                int batch = rowIndex / m;
+                int row = rowIndex % m;
+                int leftBatchBase = leftStorageOffset + unit.leftBatchOffset(batch);
+                int rightBatchBase = rightStorageOffset + unit.rightBatchOffset(batch);
+                int outputBatchBase = outputStorageOffset + unit.outputBatchOffset(batch);
+                int leftRowBase = leftBatchBase + row * leftRowStride;
+                int outputRowBase = outputBatchBase + row * outputRowStride;
+                for (int col = 0; col < n; col++) {
                     float sum = 0.0f;
-                    int rightColBase = rightBatchBase + col * unit.rightColStride();
-                    for (int index = 0; index < unit.k(); index++) {
-                        sum += left[leftRowBase + index * unit.leftColStride()]
-                                * right[rightColBase + index * unit.rightRowStride()];
+                    int rightColBase = rightBatchBase + col * rightColStride;
+                    for (int index = 0; index < k; index++) {
+                        sum += left[leftRowBase + index * leftColStride]
+                                * right[rightColBase + index * rightRowStride];
                     }
-                    output[outputRowBase + col * unit.outputColStride()] = sum;
+                    output[outputRowBase + col * outputColStride] = sum;
                 }
             }
-        }
+        });
     }
 
     private static void runF64(
@@ -76,24 +89,36 @@ public final class Cpu1JavaScalarMatmulLoops {
             int outputStorageOffset,
             Cpu1PreparedMatmulUnit unit
     ) {
-        for (int batch = 0; batch < unit.batchCount(); batch++) {
-            int leftBatchBase = leftStorageOffset + unit.leftBatchOffset(batch);
-            int rightBatchBase = rightStorageOffset + unit.rightBatchOffset(batch);
-            int outputBatchBase = outputStorageOffset + unit.outputBatchOffset(batch);
-            for (int row = 0; row < unit.m(); row++) {
-                int leftRowBase = leftBatchBase + row * unit.leftRowStride();
-                int outputRowBase = outputBatchBase + row * unit.outputRowStride();
-                for (int col = 0; col < unit.n(); col++) {
+        int m = unit.m();
+        int n = unit.n();
+        int k = unit.k();
+        int leftRowStride = unit.leftRowStride();
+        int leftColStride = unit.leftColStride();
+        int rightRowStride = unit.rightRowStride();
+        int rightColStride = unit.rightColStride();
+        int outputRowStride = unit.outputRowStride();
+        int outputColStride = unit.outputColStride();
+        int outputRows = Math.multiplyExact(unit.batchCount(), m);
+        Cpu1RangeLauncher.launch(outputRows, unit.launchConfig(), (startRow, endRow) -> {
+            for (int rowIndex = startRow; rowIndex < endRow; rowIndex++) {
+                int batch = rowIndex / m;
+                int row = rowIndex % m;
+                int leftBatchBase = leftStorageOffset + unit.leftBatchOffset(batch);
+                int rightBatchBase = rightStorageOffset + unit.rightBatchOffset(batch);
+                int outputBatchBase = outputStorageOffset + unit.outputBatchOffset(batch);
+                int leftRowBase = leftBatchBase + row * leftRowStride;
+                int outputRowBase = outputBatchBase + row * outputRowStride;
+                for (int col = 0; col < n; col++) {
                     double sum = 0.0d;
-                    int rightColBase = rightBatchBase + col * unit.rightColStride();
-                    for (int index = 0; index < unit.k(); index++) {
-                        sum += left[leftRowBase + index * unit.leftColStride()]
-                                * right[rightColBase + index * unit.rightRowStride()];
+                    int rightColBase = rightBatchBase + col * rightColStride;
+                    for (int index = 0; index < k; index++) {
+                        sum += left[leftRowBase + index * leftColStride]
+                                * right[rightColBase + index * rightRowStride];
                     }
-                    output[outputRowBase + col * unit.outputColStride()] = sum;
+                    output[outputRowBase + col * outputColStride] = sum;
                 }
             }
-        }
+        });
     }
 
     private static void runBf16(
@@ -105,25 +130,37 @@ public final class Cpu1JavaScalarMatmulLoops {
             int outputStorageOffset,
             Cpu1PreparedMatmulUnit unit
     ) {
-        for (int batch = 0; batch < unit.batchCount(); batch++) {
-            int leftBatchBase = leftStorageOffset + unit.leftBatchOffset(batch);
-            int rightBatchBase = rightStorageOffset + unit.rightBatchOffset(batch);
-            int outputBatchBase = outputStorageOffset + unit.outputBatchOffset(batch);
-            for (int row = 0; row < unit.m(); row++) {
-                int leftRowBase = leftBatchBase + row * unit.leftRowStride();
-                int outputRowBase = outputBatchBase + row * unit.outputRowStride();
-                for (int col = 0; col < unit.n(); col++) {
+        int m = unit.m();
+        int n = unit.n();
+        int k = unit.k();
+        int leftRowStride = unit.leftRowStride();
+        int leftColStride = unit.leftColStride();
+        int rightRowStride = unit.rightRowStride();
+        int rightColStride = unit.rightColStride();
+        int outputRowStride = unit.outputRowStride();
+        int outputColStride = unit.outputColStride();
+        int outputRows = Math.multiplyExact(unit.batchCount(), m);
+        Cpu1RangeLauncher.launch(outputRows, unit.launchConfig(), (startRow, endRow) -> {
+            for (int rowIndex = startRow; rowIndex < endRow; rowIndex++) {
+                int batch = rowIndex / m;
+                int row = rowIndex % m;
+                int leftBatchBase = leftStorageOffset + unit.leftBatchOffset(batch);
+                int rightBatchBase = rightStorageOffset + unit.rightBatchOffset(batch);
+                int outputBatchBase = outputStorageOffset + unit.outputBatchOffset(batch);
+                int leftRowBase = leftBatchBase + row * leftRowStride;
+                int outputRowBase = outputBatchBase + row * outputRowStride;
+                for (int col = 0; col < n; col++) {
                     float sum = 0.0f;
-                    int rightColBase = rightBatchBase + col * unit.rightColStride();
-                    for (int index = 0; index < unit.k(); index++) {
-                        float leftValue = TensorDTypeOps.fromBFloat16Bits(left[leftRowBase + index * unit.leftColStride()]);
-                        float rightValue = TensorDTypeOps.fromBFloat16Bits(right[rightColBase + index * unit.rightRowStride()]);
+                    int rightColBase = rightBatchBase + col * rightColStride;
+                    for (int index = 0; index < k; index++) {
+                        float leftValue = TensorDTypeOps.fromBFloat16Bits(left[leftRowBase + index * leftColStride]);
+                        float rightValue = TensorDTypeOps.fromBFloat16Bits(right[rightColBase + index * rightRowStride]);
                         sum += leftValue * rightValue;
                     }
-                    output[outputRowBase + col * unit.outputColStride()] = TensorDTypeOps.toBFloat16Bits(sum);
+                    output[outputRowBase + col * outputColStride] = TensorDTypeOps.toBFloat16Bits(sum);
                 }
             }
-        }
+        });
     }
 
     private static Cpu1TensorView inputView(int nodeId, ExecutionContext context) {

@@ -3,6 +3,7 @@ package backend.cpu1.prepare;
 import backend.runtime.ExecutionMode;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.launch.Cpu1LaunchConfig;
+import backend.cpu1.provider.matmul.Cpu1MatmulRoute;
 import backend.cpu1.storage.Cpu1StorageKind;
 import config.backend.CpuKernelConfig;
 import config.runtime.RuntimeConfig;
@@ -21,7 +22,8 @@ public record Cpu1PrepareConfig(
         boolean useFastTanhApprox,
         boolean automaticVectorization,
         boolean automaticLaunch,
-        CpuKernelConfig cpuKernelConfig
+        CpuKernelConfig cpuKernelConfig,
+        Cpu1MatmulRoute matmulRoute
 ) {
     public Cpu1PrepareConfig(Cpu1VectorizationKind vectorizationKind, Cpu1LaunchConfig launchConfig) {
         this(vectorizationKind, launchConfig, Cpu1StorageKind.JAVA_ARRAY);
@@ -35,10 +37,34 @@ public record Cpu1PrepareConfig(
         this(vectorizationKind, launchConfig, storageKind, false, false, false, false, null);
     }
 
+    public Cpu1PrepareConfig(
+            Cpu1VectorizationKind vectorizationKind,
+            Cpu1LaunchConfig launchConfig,
+            Cpu1StorageKind storageKind,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox,
+            boolean automaticVectorization,
+            boolean automaticLaunch,
+            CpuKernelConfig cpuKernelConfig
+    ) {
+        this(
+                vectorizationKind,
+                launchConfig,
+                storageKind,
+                useFastExpApprox,
+                useFastTanhApprox,
+                automaticVectorization,
+                automaticLaunch,
+                cpuKernelConfig,
+                Cpu1MatmulRoute.JAVA_SCALAR
+        );
+    }
+
     public Cpu1PrepareConfig {
         Objects.requireNonNull(vectorizationKind, "vectorizationKind cannot be null");
         Objects.requireNonNull(launchConfig, "launchConfig cannot be null");
         Objects.requireNonNull(storageKind, "storageKind cannot be null");
+        Objects.requireNonNull(matmulRoute, "matmulRoute cannot be null");
     }
 
     public static Cpu1PrepareConfig scalarSingleThread() {
@@ -93,7 +119,8 @@ public record Cpu1PrepareConfig(
                 false,
                 true,
                 true,
-                Objects.requireNonNull(cpuKernelConfig, "cpuKernelConfig cannot be null")
+                Objects.requireNonNull(cpuKernelConfig, "cpuKernelConfig cannot be null"),
+                Cpu1MatmulRoute.JAVA_SCALAR
         );
     }
 
@@ -106,7 +133,22 @@ public record Cpu1PrepareConfig(
                 useFastTanhApprox,
                 automaticVectorization,
                 automaticLaunch,
-                cpuKernelConfig
+                cpuKernelConfig,
+                matmulRoute
+        );
+    }
+
+    public Cpu1PrepareConfig withMatmulRoute(Cpu1MatmulRoute route) {
+        return new Cpu1PrepareConfig(
+                vectorizationKind,
+                launchConfig,
+                storageKind,
+                useFastExpApprox,
+                useFastTanhApprox,
+                automaticVectorization,
+                automaticLaunch,
+                cpuKernelConfig,
+                Objects.requireNonNull(route, "route cannot be null")
         );
     }
 }

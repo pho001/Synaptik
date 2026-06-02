@@ -7,6 +7,7 @@ import backend.cpu1.exec.Cpu1MatmulExecutableUnit;
 import backend.cpu1.exec.Cpu1ReductionExecutableUnit;
 import backend.cpu1.exec.Cpu1Workspace;
 import backend.cpu1.exec.Cpu1WorkspaceSpec;
+import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.runtime.ExecutionContext;
 import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
@@ -230,11 +231,15 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
         attrs.put("cpu1MatmulKernelId", unit.kernelId().name());
         attrs.put("cpu1MatmulRoute", unit.route().name());
         attrs.put("cpu1StorageKind", unit.storageKind().name());
+        attrs.put("cpu1MatmulVectorizationKind", unit.vectorizationKind().name());
+        attrs.put("cpu1MatmulVectorWidth", matmulVectorWidth(unit));
         attrs.put("cpu1MatmulBatchCount", unit.batchCount());
         attrs.put("cpu1MatmulM", unit.m());
         attrs.put("cpu1MatmulN", unit.n());
         attrs.put("cpu1MatmulK", unit.k());
         attrs.put("cpu1MatmulWork", unit.work());
+        attrs.put("cpu1MatmulLaunchWorkers", unit.launchConfig().workerCount());
+        attrs.put("cpu1MatmulLaunchChunkSize", unit.launchConfig().chunkSize());
         MatMulTraceMetadata matMul = new MatMulTraceMetadata(
                 false,
                 false,
@@ -266,7 +271,9 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
                 unit.k(),
                 1,
                 unit.work(),
-                "JAVA_SCALAR"
+                unit.vectorizationKind() == Cpu1VectorizationKind.VECTOR
+                        ? "JAVA_VECTOR_PACKED_B"
+                        : "JAVA_SCALAR"
         );
         return new StepTraceContribution(
                 unit.kernelId().name(),
@@ -279,5 +286,18 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
                 null,
                 null
         );
+    }
+
+    private static int matmulVectorWidth(Cpu1PreparedMatmulUnit unit) {
+        if (unit.vectorizationKind() == Cpu1VectorizationKind.SCALAR) {
+            return 1;
+        }
+        return switch (unit.dataType()) {
+            case FLOAT32 -> FloatVector.SPECIES_PREFERRED.length();
+            case FLOAT64 -> DoubleVector.SPECIES_PREFERRED.length();
+            case BFLOAT16 -> ShortVector.SPECIES_PREFERRED.length();
+            case BOOL -> ByteVector.SPECIES_PREFERRED.length();
+            case INT32, INT64 -> 1;
+        };
     }
 }

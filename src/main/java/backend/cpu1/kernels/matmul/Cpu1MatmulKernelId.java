@@ -5,6 +5,7 @@ package backend.cpu1.kernels.matmul;
  */
 public enum Cpu1MatmulKernelId {
     MATMUL_F32_DENSE_SCALAR,
+    MATMUL_F32_DENSE_PACKED_B_VECTOR,
     MATMUL_F64_DENSE_SCALAR,
     MATMUL_BF16_DENSE_SCALAR
 }

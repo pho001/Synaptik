@@ -1,9 +1,11 @@
 package backend.cpu1.prepare;
 
 import backend.cpu1.exec.Cpu1WorkspaceSpec;
+import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.kernels.matmul.Cpu1MatmulKernel;
 import backend.cpu1.kernels.matmul.Cpu1MatmulKernelDispatch;
 import backend.cpu1.kernels.matmul.Cpu1MatmulKernelId;
+import backend.cpu1.launch.Cpu1LaunchConfig;
 import backend.cpu1.provider.matmul.Cpu1MatmulRoute;
 import backend.cpu1.storage.Cpu1StorageKind;
 import tensor.DataType;
@@ -20,6 +22,7 @@ public final class Cpu1PreparedMatmulUnit {
     private final DataType dataType;
     private final Cpu1StorageKind storageKind;
     private final Cpu1MatmulRoute route;
+    private final Cpu1VectorizationKind vectorizationKind;
     private final Cpu1MatmulKernelId kernelId;
     private final Cpu1MatmulKernel kernel;
     private final int batchCount;
@@ -36,6 +39,7 @@ public final class Cpu1PreparedMatmulUnit {
     private final int[] rightBatchOffsets;
     private final int[] outputBatchOffsets;
     private final long work;
+    private final Cpu1LaunchConfig launchConfig;
     private final Cpu1WorkspaceSpec workspaceSpec;
 
     public Cpu1PreparedMatmulUnit(
@@ -45,6 +49,7 @@ public final class Cpu1PreparedMatmulUnit {
             DataType dataType,
             Cpu1StorageKind storageKind,
             Cpu1MatmulRoute route,
+            Cpu1VectorizationKind vectorizationKind,
             Cpu1MatmulKernelId kernelId,
             int batchCount,
             int m,
@@ -59,6 +64,7 @@ public final class Cpu1PreparedMatmulUnit {
             int[] leftBatchOffsets,
             int[] rightBatchOffsets,
             int[] outputBatchOffsets,
+            Cpu1LaunchConfig launchConfig,
             Cpu1WorkspaceSpec workspaceSpec
     ) {
         if (nodeId < 0 || leftNodeId < 0 || rightNodeId < 0) {
@@ -74,6 +80,7 @@ public final class Cpu1PreparedMatmulUnit {
         this.dataType = Objects.requireNonNull(dataType, "dataType cannot be null");
         this.storageKind = Objects.requireNonNull(storageKind, "storageKind cannot be null");
         this.route = Objects.requireNonNull(route, "route cannot be null");
+        this.vectorizationKind = Objects.requireNonNull(vectorizationKind, "vectorizationKind cannot be null");
         this.kernelId = Objects.requireNonNull(kernelId, "kernelId cannot be null");
         this.kernel = Cpu1MatmulKernelDispatch.kernelFor(kernelId);
         this.batchCount = batchCount;
@@ -90,6 +97,7 @@ public final class Cpu1PreparedMatmulUnit {
         this.rightBatchOffsets = requireOffsets(rightBatchOffsets, batchCount, "rightBatchOffsets");
         this.outputBatchOffsets = requireOffsets(outputBatchOffsets, batchCount, "outputBatchOffsets");
         this.work = Math.multiplyExact(Math.multiplyExact(Math.multiplyExact((long) batchCount, m), n), k);
+        this.launchConfig = Objects.requireNonNull(launchConfig, "launchConfig cannot be null");
         this.workspaceSpec = Objects.requireNonNull(workspaceSpec, "workspaceSpec cannot be null");
     }
 
@@ -115,6 +123,10 @@ public final class Cpu1PreparedMatmulUnit {
 
     public Cpu1MatmulRoute route() {
         return route;
+    }
+
+    public Cpu1VectorizationKind vectorizationKind() {
+        return vectorizationKind;
     }
 
     public Cpu1MatmulKernelId kernelId() {
@@ -179,6 +191,10 @@ public final class Cpu1PreparedMatmulUnit {
 
     public long work() {
         return work;
+    }
+
+    public Cpu1LaunchConfig launchConfig() {
+        return launchConfig;
     }
 
     public Cpu1WorkspaceSpec workspaceSpec() {
