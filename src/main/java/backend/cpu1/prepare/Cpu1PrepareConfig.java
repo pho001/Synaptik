@@ -6,6 +6,7 @@ import backend.cpu1.launch.Cpu1LaunchConfig;
 import backend.cpu1.provider.matmul.Cpu1MatmulRoute;
 import backend.cpu1.storage.Cpu1StorageKind;
 import config.backend.CpuKernelConfig;
+import config.runtime.BlasConfig;
 import config.runtime.RuntimeConfig;
 import tensor.DataType;
 
@@ -23,7 +24,8 @@ public record Cpu1PrepareConfig(
         boolean automaticVectorization,
         boolean automaticLaunch,
         CpuKernelConfig cpuKernelConfig,
-        Cpu1MatmulRoute matmulRoute
+        Cpu1MatmulRoute matmulRoute,
+        BlasConfig blasConfig
 ) {
     public Cpu1PrepareConfig(Cpu1VectorizationKind vectorizationKind, Cpu1LaunchConfig launchConfig) {
         this(vectorizationKind, launchConfig, Cpu1StorageKind.JAVA_ARRAY);
@@ -56,7 +58,8 @@ public record Cpu1PrepareConfig(
                 automaticVectorization,
                 automaticLaunch,
                 cpuKernelConfig,
-                Cpu1MatmulRoute.JAVA_SCALAR
+                Cpu1MatmulRoute.JAVA_SCALAR,
+                BlasConfig.disabled()
         );
     }
 
@@ -65,6 +68,7 @@ public record Cpu1PrepareConfig(
         Objects.requireNonNull(launchConfig, "launchConfig cannot be null");
         Objects.requireNonNull(storageKind, "storageKind cannot be null");
         Objects.requireNonNull(matmulRoute, "matmulRoute cannot be null");
+        blasConfig = blasConfig == null ? BlasConfig.disabled() : blasConfig;
     }
 
     public static Cpu1PrepareConfig scalarSingleThread() {
@@ -103,7 +107,21 @@ public record Cpu1PrepareConfig(
         RuntimeConfig runtimeConfig = executionMode == ExecutionMode.FORWARD_BACKWARD
                 ? RuntimeConfig.trainingDefaults(dataType)
                 : RuntimeConfig.inferenceDefaults(dataType);
-        return automatic(runtimeConfig.cpuKernelConfig(), maxWorkerCount);
+        return automatic(runtimeConfig, maxWorkerCount);
+    }
+
+    public static Cpu1PrepareConfig automatic(RuntimeConfig runtimeConfig, int maxWorkerCount) {
+        return automatic(runtimeConfig, maxWorkerCount, Cpu1StorageKind.JAVA_ARRAY);
+    }
+
+    public static Cpu1PrepareConfig automatic(
+            RuntimeConfig runtimeConfig,
+            int maxWorkerCount,
+            Cpu1StorageKind storageKind
+    ) {
+        Objects.requireNonNull(runtimeConfig, "runtimeConfig cannot be null");
+        return automatic(runtimeConfig.cpuKernelConfig(), maxWorkerCount, storageKind)
+                .withBlasConfig(runtimeConfig.blas());
     }
 
     public static Cpu1PrepareConfig automatic(CpuKernelConfig cpuKernelConfig, int maxWorkerCount) {
@@ -120,7 +138,8 @@ public record Cpu1PrepareConfig(
                 true,
                 true,
                 Objects.requireNonNull(cpuKernelConfig, "cpuKernelConfig cannot be null"),
-                Cpu1MatmulRoute.JAVA_SCALAR
+                Cpu1MatmulRoute.JAVA_SCALAR,
+                BlasConfig.disabled()
         );
     }
 
@@ -134,7 +153,8 @@ public record Cpu1PrepareConfig(
                 automaticVectorization,
                 automaticLaunch,
                 cpuKernelConfig,
-                matmulRoute
+                matmulRoute,
+                blasConfig
         );
     }
 
@@ -148,7 +168,23 @@ public record Cpu1PrepareConfig(
                 automaticVectorization,
                 automaticLaunch,
                 cpuKernelConfig,
-                Objects.requireNonNull(route, "route cannot be null")
+                Objects.requireNonNull(route, "route cannot be null"),
+                blasConfig
+        );
+    }
+
+    public Cpu1PrepareConfig withBlasConfig(BlasConfig blasConfig) {
+        return new Cpu1PrepareConfig(
+                vectorizationKind,
+                launchConfig,
+                storageKind,
+                useFastExpApprox,
+                useFastTanhApprox,
+                automaticVectorization,
+                automaticLaunch,
+                cpuKernelConfig,
+                matmulRoute,
+                blasConfig
         );
     }
 }

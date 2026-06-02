@@ -1,5 +1,6 @@
 package backend.cpu1;
 
+import backend.blas.BlasProvider;
 import backend.blas.OpenBlasRuntime;
 import backend.ComputeBackend;
 import backend.cpu1.exec.Cpu1MatmulExecutableUnit;
@@ -20,6 +21,9 @@ import backend.runtime.ExecutionMode;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuKernelConfig;
 import config.backend.SumAccuracyMode;
+import config.runtime.ApproximationConfig;
+import config.runtime.BlasConfig;
+import config.runtime.BlasStorageMode;
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
@@ -54,6 +58,7 @@ class Cpu1MatmulExecutionContractTest {
         assertArrayEquals(
                 new Cpu1MatmulRoute[]{
                         Cpu1MatmulRoute.JAVA_SCALAR,
+                        Cpu1MatmulRoute.AUTO,
                         Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING,
                         Cpu1MatmulRoute.OPENBLAS_NATIVE_SEGMENT
                 },
@@ -86,8 +91,10 @@ class Cpu1MatmulExecutionContractTest {
     @Test
     void withMatmulRouteOverridesRouteAndPreservesOtherConfigValues() {
         CpuKernelConfig tuned = new CpuKernelConfig(4, 32, 32, 32, 16, 64);
+        BlasConfig blasConfig = openBlasConfig(10, BlasStorageMode.CPU_ARRAY);
         Cpu1PrepareConfig base = Cpu1PrepareConfig
                 .automatic(tuned, 3, Cpu1StorageKind.MEMORY_SEGMENT)
+                .withBlasConfig(blasConfig)
                 .withApproximation(true, false);
 
         Cpu1PrepareConfig overridden = base.withMatmulRoute(Cpu1MatmulRoute.OPENBLAS_NATIVE_SEGMENT);
@@ -101,6 +108,19 @@ class Cpu1MatmulExecutionContractTest {
         assertEquals(base.automaticVectorization(), overridden.automaticVectorization());
         assertEquals(base.automaticLaunch(), overridden.automaticLaunch());
         assertSame(base.cpuKernelConfig(), overridden.cpuKernelConfig());
+        assertSame(base.blasConfig(), overridden.blasConfig());
+    }
+
+    @Test
+    void automaticFactoryCarriesRuntimeBlasConfig() {
+        CpuKernelConfig cpuKernelConfig = matmulVectorCpuKernelConfig(7);
+        BlasConfig blasConfig = openBlasConfig(11, BlasStorageMode.AUTO);
+        RuntimeConfig runtimeConfig = new RuntimeConfig(cpuKernelConfig, ApproximationConfig.defaults(), blasConfig);
+
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(runtimeConfig, 2);
+
+        assertSame(cpuKernelConfig, config.cpuKernelConfig());
+        assertSame(blasConfig, config.blasConfig());
     }
 
     @Test
@@ -141,6 +161,17 @@ class Cpu1MatmulExecutionContractTest {
     @Test
     void matmulProviderFactoryRejectsOpenBlasNativeSegmentUntilProviderExists() {
         assertOpenBlasRouteRejected(Cpu1MatmulRoute.OPENBLAS_NATIVE_SEGMENT);
+    }
+
+    @Test
+    void matmulProviderFactoryRejectsAutoSelectorRoute() {
+        UnsupportedOperationException exception = assertThrows(
+                UnsupportedOperationException.class,
+                () -> Cpu1MatmulProviders.forRoute(Cpu1MatmulRoute.AUTO)
+        );
+
+        assertTrue(exception.getMessage().contains(Cpu1MatmulRoute.AUTO.name()));
+        assertTrue(exception.getMessage().contains("must be resolved"));
     }
 
     @Test
@@ -288,6 +319,137 @@ class Cpu1MatmulExecutionContractTest {
 
         assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F64_DENSE_PACKED_B_VECTOR);
         assertEquals(Cpu1VectorizationKind.VECTOR, artifact.preparedMatmulUnit().vectorizationKind());
+    }
+
+    @Test
+    void automaticMatmulRouteFallsBackToJavaPolicyWhenBlasDisabled() {
+        int m = 2;
+        int k = 3;
+        int n = 2;
+        Fixture fixture = f32MatmulFixture(m, k, n);
+        int work = matmulWork(m, k, n);
+        CpuKernelConfig cpuKernelConfig = matmulVectorCpuKernelConfig(work);
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(cpuKernelConfig, 1)
+                .withMatmulRoute(Cpu1MatmulRoute.AUTO);
+
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, config);
+
+        assertEquals(Cpu1MatmulRoute.JAVA_SCALAR, artifact.preparedMatmulUnit().route());
+        assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F32_DENSE_PACKED_B_VECTOR);
+        assertEquals(Cpu1VectorizationKind.VECTOR, artifact.preparedMatmulUnit().vectorizationKind());
+    }
+
+    @Test
+    void automaticMatmulRouteFallsBackToJavaPolicyBelowBlasMinWork() {
+        int m = 2;
+        int k = 3;
+        int n = 2;
+        Fixture fixture = f32MatmulFixture(m, k, n);
+        int work = matmulWork(m, k, n);
+        CpuKernelConfig cpuKernelConfig = matmulVectorCpuKernelConfig(work + 1);
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(cpuKernelConfig, 1)
+                .withBlasConfig(openBlasConfig(work + 1L, BlasStorageMode.CPU_ARRAY))
+                .withMatmulRoute(Cpu1MatmulRoute.AUTO);
+
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, config);
+
+        assertEquals(Cpu1MatmulRoute.JAVA_SCALAR, artifact.preparedMatmulUnit().route());
+        assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F32_DENSE_SCALAR);
+        assertEquals(Cpu1VectorizationKind.SCALAR, artifact.preparedMatmulUnit().vectorizationKind());
+    }
+
+    @Test
+    void automaticMatmulRouteFallsBackToJavaPolicyForNativeBlasStorageMode() {
+        int m = 2;
+        int k = 3;
+        int n = 2;
+        Fixture fixture = f32MatmulFixture(m, k, n);
+        int work = matmulWork(m, k, n);
+        CpuKernelConfig cpuKernelConfig = matmulVectorCpuKernelConfig(work);
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(cpuKernelConfig, 1)
+                .withBlasConfig(openBlasConfig(work, BlasStorageMode.CPU_NATIVE))
+                .withMatmulRoute(Cpu1MatmulRoute.AUTO);
+
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, config);
+
+        assertEquals(Cpu1MatmulRoute.JAVA_SCALAR, artifact.preparedMatmulUnit().route());
+        assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F32_DENSE_PACKED_B_VECTOR);
+        assertEquals(Cpu1VectorizationKind.VECTOR, artifact.preparedMatmulUnit().vectorizationKind());
+    }
+
+    @Test
+    void automaticMatmulRouteFallsBackToJavaPolicyForBf16() {
+        Tensor bf16Left = new Tensor(
+                new float[]{1.0f, 2.0f, 3.0f, 4.0f},
+                new int[]{2, 2},
+                null,
+                "bf16Left",
+                DataType.BFLOAT16
+        );
+        Tensor bf16Right = new Tensor(
+                new float[]{5.0f, 6.0f, 7.0f, 8.0f},
+                new int[]{2, 2},
+                null,
+                "bf16Right",
+                DataType.BFLOAT16
+        );
+        Fixture fixture = fixture(bf16Left.matmul(bf16Right));
+        CpuKernelConfig cpuKernelConfig = matmulVectorCpuKernelConfig(1);
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(cpuKernelConfig, 1)
+                .withBlasConfig(openBlasConfig(1L, BlasStorageMode.CPU_ARRAY))
+                .withMatmulRoute(Cpu1MatmulRoute.AUTO);
+
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, config);
+
+        assertEquals(Cpu1MatmulRoute.JAVA_SCALAR, artifact.preparedMatmulUnit().route());
+        assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_BF16_DENSE_SCALAR);
+        assertEquals(Cpu1VectorizationKind.SCALAR, artifact.preparedMatmulUnit().vectorizationKind());
+    }
+
+    @Test
+    void automaticMatmulRouteSelectsF32OpenBlasArrayCopyingWhenEligible() {
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
+        int m = 2;
+        int k = 3;
+        int n = 2;
+        Fixture fixture = f32MatmulFixture(m, k, n);
+        int work = matmulWork(m, k, n);
+        CpuKernelConfig cpuKernelConfig = matmulVectorCpuKernelConfig(Integer.MAX_VALUE);
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(cpuKernelConfig, 4)
+                .withBlasConfig(openBlasConfig(work, BlasStorageMode.CPU_ARRAY))
+                .withMatmulRoute(Cpu1MatmulRoute.AUTO);
+
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, config);
+
+        assertEquals(Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING, artifact.preparedMatmulUnit().route());
+        assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F32_OPENBLAS_ARRAY_COPYING);
+        assertEquals(Cpu1VectorizationKind.SCALAR, artifact.preparedMatmulUnit().vectorizationKind());
+        assertEquals(Cpu1LaunchConfig.singleThread(), artifact.preparedMatmulUnit().launchConfig());
+    }
+
+    @Test
+    void automaticMatmulRouteSelectsF64OpenBlasArrayCopyingFromRuntimeConfigWhenEligible() {
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat64GemmAvailable(), OpenBlasRuntime.unavailableReason());
+        int m = 2;
+        int k = 3;
+        int n = 2;
+        Fixture fixture = f64MatmulFixture(m, k, n);
+        int work = matmulWork(m, k, n);
+        CpuKernelConfig cpuKernelConfig = matmulVectorCpuKernelConfig(Integer.MAX_VALUE);
+        RuntimeConfig runtimeConfig = new RuntimeConfig(
+                cpuKernelConfig,
+                ApproximationConfig.defaults(),
+                openBlasConfig(work, BlasStorageMode.AUTO)
+        );
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(runtimeConfig, 4)
+                .withMatmulRoute(Cpu1MatmulRoute.AUTO);
+
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, config);
+
+        assertEquals(Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING, artifact.preparedMatmulUnit().route());
+        assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F64_OPENBLAS_ARRAY_COPYING);
+        assertEquals(Cpu1VectorizationKind.SCALAR, artifact.preparedMatmulUnit().vectorizationKind());
+        assertEquals(Cpu1LaunchConfig.singleThread(), artifact.preparedMatmulUnit().launchConfig());
     }
 
     @Test
@@ -825,6 +987,19 @@ class Cpu1MatmulExecutionContractTest {
 
     private static int matmulWork(int m, int k, int n) {
         return Math.multiplyExact(Math.multiplyExact(m, k), n);
+    }
+
+    private static BlasConfig openBlasConfig(long matmulMinWork, BlasStorageMode storageMode) {
+        return new BlasConfig(
+                BlasProvider.OPENBLAS_FFM,
+                matmulMinWork,
+                false,
+                1_000.0d,
+                false,
+                1_000.0d,
+                storageMode,
+                false
+        );
     }
 
     private static float[] expectedBatchedF32Matmul(

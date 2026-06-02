@@ -17,6 +17,9 @@ public final class Cpu1MatmulProviders {
         return switch (route) {
             case JAVA_SCALAR -> JAVA_SCALAR;
             case OPENBLAS_ARRAY_COPYING -> OPENBLAS_ARRAY;
+            case AUTO -> throw new UnsupportedOperationException(
+                    "cpu1 matmul route " + route + " must be resolved before provider selection."
+            );
             case OPENBLAS_NATIVE_SEGMENT -> throw new UnsupportedOperationException(
                     "cpu1 matmul route " + route + " does not have a provider implementation yet."
             );

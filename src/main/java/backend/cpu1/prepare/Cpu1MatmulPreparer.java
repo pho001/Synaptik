@@ -1,5 +1,7 @@
 package backend.cpu1.prepare;
 
+import backend.blas.BlasProvider;
+import backend.blas.OpenBlasRuntime;
 import backend.cpu1.exec.Cpu1WorkspaceSpec;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.kernels.matmul.Cpu1MatmulKernelId;
@@ -9,6 +11,8 @@ import backend.cpu1.provider.matmul.Cpu1MatmulProviders;
 import backend.cpu1.provider.matmul.Cpu1MatmulRoute;
 import backend.cpu1.storage.Cpu1StorageKind;
 import config.backend.CpuKernelConfig;
+import config.runtime.BlasConfig;
+import config.runtime.BlasStorageMode;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
@@ -56,11 +60,12 @@ public final class Cpu1MatmulPreparer {
         int[] outputStrides = node.strides();
         validateShape(leftShape, rightShape, outputShape);
 
-        Cpu1MatmulProvider provider = Cpu1MatmulProviders.forRoute(config.matmulRoute());
         int batchCount = batchCount(outputShape);
         int m = outputShape[outputShape.length - 2];
         int n = outputShape[outputShape.length - 1];
         int k = leftShape[leftShape.length - 1];
+        Cpu1MatmulRoute route = resolveMatmulRoute(config, node.dataType(), batchCount, m, n, k);
+        Cpu1MatmulProvider provider = Cpu1MatmulProviders.forRoute(route);
         Cpu1LaunchConfig launchConfig = resolveMatmulLaunch(provider.route(), batchCount, m, n, k, config);
         Cpu1VectorizationKind vectorizationKind = resolveMatmulVectorization(
                 provider.route(),
@@ -78,7 +83,7 @@ public final class Cpu1MatmulPreparer {
                 node.inputIds().get(1),
                 node.dataType(),
                 config.storageKind(),
-                provider.route(),
+                route,
                 vectorizationKind,
                 kernelId,
                 batchCount,
@@ -229,7 +234,7 @@ public final class Cpu1MatmulPreparer {
         CpuKernelConfig cpuKernelConfig = requireCpuKernelConfig(config);
         int maxWorkers = config.launchConfig().workerCount();
         long outputRows = Math.multiplyExact((long) batchCount, m);
-        long work = Math.multiplyExact(Math.multiplyExact(outputRows, n), k);
+        long work = matmulWork(batchCount, m, n, k);
         if (maxWorkers <= 1 || outputRows <= 1 || work < cpuKernelConfig.matMulParallelMinSize()) {
             return Cpu1LaunchConfig.singleThread();
         }
@@ -241,6 +246,56 @@ public final class Cpu1MatmulPreparer {
         );
         long chunk = Math.max(1L, ((outputRows - 1) / targetChunks) + 1);
         return Cpu1LaunchConfig.parallel(plannedWorkers, Math.toIntExact(chunk));
+    }
+
+    private static Cpu1MatmulRoute resolveMatmulRoute(
+            Cpu1PrepareConfig config,
+            DataType dataType,
+            int batchCount,
+            int m,
+            int n,
+            int k
+    ) {
+        Cpu1MatmulRoute requested = config.matmulRoute();
+        if (requested != Cpu1MatmulRoute.AUTO) {
+            return requested;
+        }
+        return openBlasArrayCopyingEligible(config, dataType, batchCount, m, n, k)
+                ? Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING
+                : Cpu1MatmulRoute.JAVA_SCALAR;
+    }
+
+    private static boolean openBlasArrayCopyingEligible(
+            Cpu1PrepareConfig config,
+            DataType dataType,
+            int batchCount,
+            int m,
+            int n,
+            int k
+    ) {
+        if (config.storageKind() != Cpu1StorageKind.JAVA_ARRAY) {
+            return false;
+        }
+        if (dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64) {
+            return false;
+        }
+        BlasConfig blasConfig = config.blasConfig();
+        if (blasConfig.provider() != BlasProvider.OPENBLAS_FFM) {
+            return false;
+        }
+        BlasStorageMode storageMode = blasConfig.storageMode();
+        if (storageMode != BlasStorageMode.CPU_ARRAY && storageMode != BlasStorageMode.AUTO) {
+            return false;
+        }
+        long work = matmulWork(batchCount, m, n, k);
+        if (work < blasConfig.matmulMinWork()) {
+            return false;
+        }
+        return switch (dataType) {
+            case FLOAT32 -> OpenBlasRuntime.isFloat32GemmAvailable();
+            case FLOAT64 -> OpenBlasRuntime.isFloat64GemmAvailable();
+            default -> false;
+        };
     }
 
     private static Cpu1VectorizationKind resolveMatmulVectorization(
@@ -265,7 +320,7 @@ public final class Cpu1MatmulPreparer {
             return Cpu1VectorizationKind.SCALAR;
         }
         CpuKernelConfig cpuKernelConfig = requireCpuKernelConfig(config);
-        long work = Math.multiplyExact(Math.multiplyExact(Math.multiplyExact((long) batchCount, m), n), k);
+        long work = matmulWork(batchCount, m, n, k);
         return work >= cpuKernelConfig.cheapVectorMinSize()
                 ? Cpu1VectorizationKind.VECTOR
                 : Cpu1VectorizationKind.SCALAR;
@@ -288,6 +343,10 @@ public final class Cpu1MatmulPreparer {
             return Cpu1MatmulKernelId.MATMUL_F64_DENSE_PACKED_B_VECTOR;
         }
         return scalarKernelId;
+    }
+
+    private static long matmulWork(int batchCount, int m, int n, int k) {
+        return Math.multiplyExact(Math.multiplyExact(Math.multiplyExact((long) batchCount, m), n), k);
     }
 
     private static Cpu1WorkspaceSpec workspaceSpec(

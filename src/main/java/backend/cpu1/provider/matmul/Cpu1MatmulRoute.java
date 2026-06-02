@@ -5,6 +5,7 @@ package backend.cpu1.provider.matmul;
  */
 public enum Cpu1MatmulRoute {
     JAVA_SCALAR,
+    AUTO,
     OPENBLAS_ARRAY_COPYING,
     OPENBLAS_NATIVE_SEGMENT
 }
